@@ -1,10 +1,10 @@
 # Develop using a local copy of Containerization
 
-This page describes how to build and run container using a local copy of [`Containerization`](https://github.com/apple-uat/containerization).
+This page describes how to build and run container using a local copy of [`Containerization`](https://github.com/apple/containerization).
 
 ## Use the local copy of containerization
 
-1. Clone the [Containerization](https://github.com/apple-uat/containerization) repository such that it sits next to your clone of the `container` repository.
+1. Clone the [Containerization](https://github.com/apple/containerization) repository such that it sits next to your clone of the `container` repository.
 
 2. In your development shell, go to the `container` project directory.
     
