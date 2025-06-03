@@ -16,7 +16,7 @@ ROOT_DIR := $(shell git rev-parse --show-toplevel)
 LOCAL_DIR := $(ROOT_DIR)/.local
 LOCALBIN := $(LOCAL_DIR)/bin
 
-BUILDER_SHIM_REPO ?= https://github.com/apple-uat/container-builder-shim.git
+BUILDER_SHIM_REPO ?= https://github.com/apple/container-builder-shim.git
 ## Versions
 PROTOC_VERSION=26.1
 

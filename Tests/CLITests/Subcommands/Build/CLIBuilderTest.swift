@@ -95,7 +95,7 @@ extension TestCLIBuildBase {
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
                 """
-                FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                FROM ghcr.io/linuxcontainers/alpine:3.20
 
                 ADD . .
 
@@ -108,7 +108,7 @@ extension TestCLIBuildBase {
                 .file("emptyFile", content: .zeroFilled(size: 1)),
             ]
             try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
-            let imageName = "regitry.local/add-all:\(UUID().uuidString)"
+            let imageName: String = "regitry.local/add-all:\(UUID().uuidString)"
             try self.build(tag: imageName, tempDir: tempDir)
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
@@ -117,7 +117,7 @@ extension TestCLIBuildBase {
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
                 """
-                FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                FROM ghcr.io/linuxcontainers/alpine:3.20
                 ARG ADDRESS
                 RUN nc -zv ${ADDRESS%:*} ${ADDRESS##*:} || exit 1
                 """
@@ -138,84 +138,84 @@ extension TestCLIBuildBase {
             let dockerfile =
                 """
                 # stage 1 Meta ARG
-                ARG TAG=3.21
-                FROM ghcr.io/apple-uat/test-images/alpine:${TAG}
+                ARG TAG=3.20
+                FROM ghcr.io/linuxcontainers/alpine:${TAG}
 
                 # stage 2 RUN 
-                FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                FROM ghcr.io/linuxcontainers/alpine:3.20
                 RUN echo "Hello, World!" > /hello.txt
 
                 # stage 3 - RUN []
-                FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                FROM ghcr.io/linuxcontainers/alpine:3.20
                 RUN ["sh", "-c", "echo 'Exec form' > /exec.txt"]
 
                 # stage 4 - CMD 
-                FROM ghcr.io/apple-uat/test-images/alpine:3.21        
+                FROM ghcr.io/linuxcontainers/alpine:3.20        
                 CMD ["echo", "Exec default"]
 
                 # stage 5 - CMD []
-                FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                FROM ghcr.io/linuxcontainers/alpine:3.20
                 CMD ["echo", "Exec'ing"]
 
                 #stage 6 - LABEL
-                FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                FROM ghcr.io/linuxcontainers/alpine:3.20
                 LABEL version="1.0" description="Test image"
 
                 # stage 7 - EXPOSE
-                FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                FROM ghcr.io/linuxcontainers/alpine:3.20
                 EXPOSE 8080
 
                 # stage 8 - ENV
-                FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                FROM ghcr.io/linuxcontainers/alpine:3.20
                 ENV MY_ENV=hello
                 RUN echo $MY_ENV > /env.txt
 
                 # stage 9 - ADD
-                FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                FROM ghcr.io/linuxcontainers/alpine:3.20
                 ADD emptyFile /
 
                 # stage 10 - COPY
-                FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                FROM ghcr.io/linuxcontainers/alpine:3.20
                 COPY toCopy /toCopy
 
                 # stage 11 - ENTRYPOINT
-                FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                FROM ghcr.io/linuxcontainers/alpine:3.20
                 ENTRYPOINT ["echo", "entrypoint!"]
 
                 # stage 12 - VOLUME
-                FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                FROM ghcr.io/linuxcontainers/alpine:3.20
                 VOLUME /data
 
                 # stage 13 - USER
-                FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                FROM ghcr.io/linuxcontainers/alpine:3.20
                 RUN adduser -D myuser
                 USER myuser
                 CMD whoami
 
                 # stage 14 - WORKDIR
-                FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                FROM ghcr.io/linuxcontainers/alpine:3.20
                 WORKDIR /app
                 RUN pwd > /pwd.out
 
                 # stage 15 - ARG
-                FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                FROM ghcr.io/linuxcontainers/alpine:3.20
                 ARG MY_VAR=default
                 RUN echo $MY_VAR > /var.out
 
                 # stage 16 - ONBUILD
-                # FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                # FROM ghcr.io/linuxcontainers/alpine:3.20
                 # ONBUILD RUN echo "onbuild triggered" > /onbuild.out
 
                 # stage 17 - STOPSIGNAL
-                # FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                # FROM ghcr.io/linuxcontainers/alpine:3.20
                 # STOPSIGNAL SIGTERM
 
                 # stage 18 - HEALTHCHECK
-                # FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                # FROM ghcr.io/linuxcontainers/alpine:3.20
                 # HEALTHCHECK CMD echo "healthy" || exit 1
 
                 # stage 19 - SHELL
-                # FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                # FROM ghcr.io/linuxcontainers/alpine:3.20
                 # SHELL ["/bin/sh", "-c"]
                 # RUN echo $0 > /shell.txt
                 """
@@ -236,7 +236,7 @@ extension TestCLIBuildBase {
             let dockerfile: String =
                 """
                 # Test 1: Test basic symlinking
-                FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                FROM ghcr.io/linuxcontainers/alpine:3.20
 
                 ADD Test1Source Test1Source
                 ADD Test1Source2 Test1Source2
@@ -244,7 +244,7 @@ extension TestCLIBuildBase {
                 RUN cat Test1Source2/test.yaml 
 
                 # Test2: Test symlinks in nested directories 
-                FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                FROM ghcr.io/linuxcontainers/alpine:3.20
 
                 ADD Test2Source Test2Source
                 ADD Test2Source2 Test2Source2
@@ -252,7 +252,7 @@ extension TestCLIBuildBase {
                 RUN cat Test2Source2/Test/test.txt
 
                 # Test 3: Test symlinks to directories work 
-                FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                FROM ghcr.io/linuxcontainers/alpine:3.20
 
                 ADD Test3Source Test3Source
                 ADD Test3Source2 Test3Source2
@@ -293,7 +293,7 @@ extension TestCLIBuildBase {
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
                 """
-                FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                FROM ghcr.io/linuxcontainers/alpine:3.20
                 RUN echo "foobar" > /file
                 """
             let context: [FileSystemEntry] = []
@@ -318,7 +318,7 @@ extension TestCLIBuildBase {
             let dockerfileCtxDir: URL = try createTempDir()
             let dockerfile: String =
                 """
-                FROM ghcr.io/apple-uat/test-images/alpine:3.21
+                FROM ghcr.io/linuxcontainers/alpine:3.20
 
                 RUN ls ./
                 COPY . /root

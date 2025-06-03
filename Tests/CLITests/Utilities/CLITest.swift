@@ -35,8 +35,8 @@ class CLITest {
         return tempDir
     }
 
-    let alpine = "ghcr.io/apple-uat/test-images/alpine:3.21"
-    let busybox = "ghcr.io/apple-uat/test-images/busybox:1.37"
+    let alpine = "ghcr.io/linuxcontainers/alpine:3.20"
+    let busybox = "ghcr.io/containerd/busybox:1.36"
 
     let defaultContainerArgs = ["sleep", "infinity"]
 

@@ -24,7 +24,7 @@ extension TestCLIRunBase {
     // This test class is NOT thread safe
     class TestCLITermIO: TestCLIRunBase, @unchecked Sendable {
         override var ContainerImage: String {
-            "ghcr.io/apple-uat/test-images/alpine:3.21"
+            "ghcr.io/linuxcontainers/alpine:3.20"
         }
 
         override var Interactive: Bool {

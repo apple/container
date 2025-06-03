@@ -23,11 +23,11 @@ To build the Containerization package, your system needs either:
 
 `container` is designed to take advantage of the features of the macOS 16 Developer Preview. You can run the application on macOS Sequoia, but the `container` maintainers typically will not address Sequoia issues that cannot be reproduced on the macOS 16 Developer Beta.
 
-There are [significant networking limitations](https://github.com/apple-uat/container#macos-sequoia-limitations) that impact the usability `container` on macOS Sequoia.
+There are [significant networking limitations](https://github.com/apple/container#macos-sequoia-limitations) that impact the usability `container` on macOS Sequoia.
 
 ### Install and run
 
-Download the latest application installer package from the [Github release page](https://github.com/apple-uat/container/releases).
+Download the latest application installer package from the [Github release page](https://github.com/apple/container/releases).
 
 To install the application, double click the installer package and follow the instructions. Enter your administrator password when prompted to give the installer permission to place the application under `/usr/local`.
 
@@ -72,7 +72,7 @@ Missing required runtime dependencies:
  2. Kernel
 Would like to install them now? [Y/n]: Y
 Installing default kernel from [https://github.com/kata-containers/kata-containers/releases/download/3.17.0/kata-static-3.17.0-arm64.tar.xz]...
-Installing initial filesystem from [ghcr.io/apple-uat/containerization/vminit:0.1.34]...
+Installing initial filesystem from [ghcr.io/apple/containerization/vminit:0.1.34]...
 %
 ```
 
@@ -167,7 +167,7 @@ cd web-test
 Download an image file for your web server can use (TODO: substitute the container logo):
 
 ```bash
-curl -L -o logo.jpg https://github.com/apple-uat/container/tree/main/docs/assets/logo.jpg
+curl -L -o logo.jpg https://github.com/apple/container/tree/main/docs/assets/logo.jpg
 ```
 
 In the `web-test` directory, create a file named `Dockerfile` with this content:
@@ -231,7 +231,7 @@ When you list containers now, `my-web-server` is present, along with the contain
 ```shellsession
 % container ls
 ID             IMAGE                                                   OS     ARCH   STATE    ADDR
-buildkit       ghcr.io/apple-uat/container-builder-shim/builder:2.1.1  linux  arm64  running  192.168.64.2
+buildkit       ghcr.io/apple/container-builder-shim/builder:2.1.1  linux  arm64  running  192.168.64.2
 my-web-server  web-test:latest                                         linux  arm64  running  192.168.64.3
 %
 ```
@@ -343,7 +343,7 @@ If you list all running and stopped containers, you will see that the `--rm` fla
 ```bash
 % container ls --all
 ID        IMAGE                                                   OS     ARCH   STATE    ADDR
-buildkit  ghcr.io/apple-uat/container-builder-shim/builder:2.1.1  linux  arm64  running  192.168.64.2
+buildkit  ghcr.io/apple/container-builder-shim/builder:2.1.1  linux  arm64  running  192.168.64.2
 %
 ```
 

@@ -63,7 +63,7 @@ extension ClientDefaults.Keys {
         case .defaultKernelBinaryPath:
             return "opt/kata/share/kata-containers/vmlinux-6.12.28-153"
         case .defaultBuilderImage:
-            return "ghcr.io/apple-uat/container-builder-shim/builder:2.1.3"
+            return "ghcr.io/apple/container-builder-shim/builder:0.0.3"
         case .defaultDNSDomain:
             return "test"
         case .defaultRegistryDomain:
@@ -73,7 +73,7 @@ extension ClientDefaults.Keys {
             guard tag != "latest" else {
                 return "vminit:latest"
             }
-            return "ghcr.io/apple-uat/containerization/vminit:\(tag)"
+            return "ghcr.io/apple/containerization/vminit:\(tag)"
         }
     }
 }
