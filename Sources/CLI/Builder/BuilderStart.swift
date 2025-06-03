@@ -79,7 +79,7 @@ extension Application {
                     withIntermediateDirectories: true,
                     attributes: nil
                 )
-            }            
+            }
 
             let builderPlatform = ContainerizationOCI.Platform(arch: "arm64", os: "linux", variant: "v8")
 
@@ -120,12 +120,11 @@ extension Application {
                 case .stopped:
                     // If the builder is stopped and matches our requirements, start it
                     // Otherwise, delete it and create a new one
-                    if imageChanged || cpuChanged || memChanged {
-                        try await existingContainer.delete()
-                    } else {
+                    guard imageChanged || cpuChanged || memChanged else {
                         try await existingContainer.startBuildKit(progressUpdate, nil)
                         return
                     }
+                    try await existingContainer.delete()
                 case .unknown:
                     break
                 }
@@ -188,7 +187,7 @@ extension Application {
                     source: exportsMount,
                     destination: "/var/lib/container-builder-shim/exports",
                     options: []
-                )
+                ),
             ]
             config.rosetta = true
 
@@ -239,10 +238,10 @@ extension Application {
 
 // MARK: - ClientContainer Extension for BuildKit
 
-fileprivate extension ClientContainer {
+extension ClientContainer {
     /// Starts the BuildKit process within the container
     /// This method handles bootstrapping the container and starting the BuildKit process
-    func startBuildKit(_ progress: @escaping ProgressUpdateHandler, _ taskManager: ProgressTaskCoordinator? = nil) async throws {
+    fileprivate func startBuildKit(_ progress: @escaping ProgressUpdateHandler, _ taskManager: ProgressTaskCoordinator? = nil) async throws {
         do {
             let io = try ProcessIO.create(
                 tty: false,
