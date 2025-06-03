@@ -1,0 +1,15 @@
+{
+    "abstract" : "Linux container runtime plugin",
+    "version":  "0.1",
+    "author": "Apple",
+    "servicesConfig" : {
+        "loadAtBoot" : false,
+        "runAtLoad" : true,
+        "services" : [
+            {
+                "type" : "runtime"
+            }
+        ],
+        "defaultArguments": []
+    }
+}

@@ -1,0 +1,77 @@
+name: container project - common jobs
+
+on: 
+  workflow_call:
+    inputs:
+      release:
+        type: boolean 
+        description: "Publish this build for release"
+        default: false
+
+jobs:
+  buildAndTest: 
+    name: Build and test the project
+    timeout-minutes: 30
+    runs-on: [self-hosted, macos, sequoia, ARM64]
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4 
+        with:
+          fetch-depth: 0
+      - name: Update containerization
+        run: | 
+          /usr/bin/swift package update containerization
+        env:
+          CONTAINERIZATION_REPO: https://${{ secrets.REPO_READ }}@github.com/apple-uat/containerization.git 
+      - name: Check formatting
+        run: | 
+          ./scripts/install-hawkeye.sh
+          make fmt
+          if ! git diff -- . ':(exclude)Package.swift' ':(exclude)Package.resolved'; then echo the following files require formatting or license headers: ; git diff --name-only ; false ; fi
+      - name: Check protobuf 
+        run: | 
+          make BUILDER_SHIM_REPO=https://${{ secrets.REPO_READ }}@github.com/apple-uat/container-builder-shim.git protos 
+
+          # TODO [launch]: TEMPORARILY we need to exclude these files since we had to modify them to add
+          # the github token for pulling the private repos. 
+          if ! git diff -- . ':(exclude)Package.swift' ':(exclude)Package.resolved' ':(exclude)Protobuf.Makefile'; then echo the following files require formatting or license headers: ; git diff --name-only ; false ; fi
+        env:
+          CURRENT_SDK: y
+          CONTAINERIZATION_REPO: https://${{ secrets.REPO_READ }}@github.com/apple-uat/containerization.git 
+      - name: Set build configuration
+        run: |
+          echo "BUILD_CONFIGURATION=debug" >> $GITHUB_ENV
+          if [ ${{ inputs.release }} == true ]; then 
+            echo "BUILD_CONFIGURATION=release" >> $GITHUB_ENV
+          fi
+      - name: Make the container project
+        run: | 
+          make container dsym
+        env:
+          DEVELOPER_DIR: "/Applications/Xcode_16.3.app/Contents/Developer"
+          CURRENT_SDK: y
+          CONTAINERIZATION_REPO: https://${{ secrets.REPO_READ }}@github.com/apple-uat/containerization.git 
+      - name: Create package 
+        run: |
+          mkdir -p outputs
+          mv bin/${{ env.BUILD_CONFIGURATION }}/container-installer-unsigned.pkg outputs
+          mv bin/${{ env.BUILD_CONFIGURATION }}/bundle/container-dSYM.zip outputs
+      - name: Test the container project
+        run: |
+          launchctl setenv HTTP_PROXY $HTTP_PROXY
+          make test integration
+        env:
+          CONTAINER_REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CONTAINER_REGISTRY_USER: ${{ github.actor }}
+          CONTAINER_REGISTRY_HOST: ghcr.io
+          DEVELOPER_DIR: "/Applications/Xcode_16.3.app/Contents/Developer"
+          CURRENT_SDK: y
+          CONTAINERIZATION_REPO: https://${{ secrets.REPO_READ }}@github.com/apple-uat/containerization.git 
+      - name: Save artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-package
+          path: ${{ github.workspace }}/outputs

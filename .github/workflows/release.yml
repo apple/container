@@ -1,0 +1,42 @@
+name: container project - release build
+
+on: 
+  push: 
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+
+jobs: 
+  build:
+    name: Invoke build and release
+    uses: ./.github/workflows/common.yml
+    with: 
+      release: true
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: read
+  release:
+    name: Publish release
+    timeout-minutes: 30
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: read
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: outputs
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          name: ${{ github.ref_name }}-prerelease
+          draft: true
+          make_latest: false
+          prerelease: true
+          fail_on_unmatched_files: true
+          files: |
+            outputs/container-package/*.zip
+            outputs/container-package/*.pkg

@@ -1,0 +1,25 @@
+additionalHeaders = ["scripts/container-header-style.toml"]
+
+headerPath = "scripts/license-header.txt"
+
+includes = [
+    "Makefile",
+    "*.Makefile",
+    "*.swift",
+    "*.h",
+    "*.cpp",
+    "*.c",
+    "*.sh",
+]
+
+excludes = []
+
+[git]
+attrs = 'enable'
+ignore = 'enable'
+
+[properties]
+copyrightOwner = "Apple Inc. and the container project authors"
+
+[mapping.SWIFT_STYLE]
+extensions = ["swift"]
