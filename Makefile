@@ -165,19 +165,16 @@ check-licenses:
 
 .PHONY: serve-docs
 serve-docs:
-	@echo 'to browse: open http://localhost:8000/documentation/'
-	@python3 -m http.server --bind 127.0.0.1 --directory ./api-docs
+	@echo 'to browse: open http://127.0.0.1:8000/documentation/'
+	@python3 -m http.server --bind 127.0.0.1 --directory ./_site
 
 .PHONY: docs
-docs:
-	@echo Updating documentation...
-	@rm -rf ./api-docs
-	@mkdir -p ./api-docs
-	@if [ -z "$${DOCS_BASE_PATH}" ] ; then \
-		scripts/make-docs.sh ./api-docs ; \
-	else \
-		scripts/make-docs.sh ./api-docs $${DOCS_BASE_PATH} ; \
-	fi
+docs: _site
+
+_site:
+	@echo Updating API documentation...
+	rm -rf $@
+	@scripts/make-docs.sh $@
 
 .PHONY: cleancontent
 cleancontent:

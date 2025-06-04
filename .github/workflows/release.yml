@@ -15,6 +15,7 @@ jobs:
     permissions:
       contents: read
       packages: read
+      pages: write
   release:
     name: Publish release
     timeout-minutes: 30
@@ -23,6 +24,7 @@ jobs:
     permissions:
       contents: write
       packages: read
+      pages: write
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4

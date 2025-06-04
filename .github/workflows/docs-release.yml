@@ -1,0 +1,39 @@
+# Manual workflow for releasing docs ad-hoc. Workflow can only be run for main or release branches. 
+# Workflow does NOT publish a release of container.
+name: Deploy application website
+on: 
+  workflow_dispatch:
+
+jobs: 
+  checkBranch:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'ref/heads/release')
+    steps:
+      - name: Branch validation 
+        run: echo "Branch ${{ github.ref_name }} is allowed"
+
+  buildSite:
+    name: Build application website
+    needs: checkBranch
+    uses: ./.github/workflows/common.yml
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write
+      pages: write
+
+  deployDocs:
+    runs-on: ubuntu-latest
+    needs: [checkBranch, buildSite]
+    permissions:
+      contents: read
+      pages: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
