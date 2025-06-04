@@ -25,11 +25,17 @@ To build the Containerization package, your system needs either:
 
 There are [significant networking limitations](https://github.com/apple/container#macos-sequoia-limitations) that impact the usability `container` on macOS Sequoia.
 
-### Install and run
+### Install or upgrade
+
+If you're upgrading, first uninstall your existing `container` while preserving your user data:
+
+```bash
+uninstall-container.sh -k
+```
 
 Download the latest application installer package from the [Github release page](https://github.com/apple/container/releases).
 
-To install the application, double click the installer package and follow the instructions. Enter your administrator password when prompted to give the installer permission to place the application under `/usr/local`.
+To install the application, double click the package file and follow the instructions. Enter your administrator password when prompted to give the installer permission to place the application under `/usr/local`.
 
 ### Uninstall
 
@@ -164,7 +170,7 @@ mkdir web-test
 cd web-test
 ```
 
-Download an image file for your web server can use (TODO: substitute the container logo):
+Download an image file for your web server can use:
 
 ```bash
 curl -L -o logo.jpg https://github.com/apple/container/tree/main/docs/assets/logo.jpg
@@ -586,13 +592,11 @@ None of this workflow would be practical without ensuring interoperability betwe
 
 Many operating systems support containers, but the most commonly encountered containers are those that run on the Linux operating system. On macOS, the typical way to run Linux containers is to launch a Linux virtual machine (VM) that hosts all of your containers.
 
-`container` runs containers differently: using the open source Containerization library, it runs a lightweight virtual machine for each container that you create. Running containers as individual VMs offers certain advantages compared to running them in a shared VM:
+`container` runs containers differently. Using the open source Containerization library, it runs a lightweight VM for each container that you create. This approach has the following properties:
 
-- Security: Each container runs in its own Linux kernel environment, so that TODO.
-- Privacy: To share host files easily with traditional containers, all of your user data needs to be mounted into the shared VM. With a `container`, you can choose exactly which data you want to give to each container.
-- Performance: TODO something something
-
-[TODO: diagram showing shared vs discrete VMs]
+- Security: Each container has the isolation properties of a full VM, using a minimal set of core utilities and dynamic libraries to reduce resource utilization and attack surface.
+- Privacy: When sharing host data using `container`, you mount only necessary data into each VM. With a shared VM, you need to mount all data that you may ever want to use into the VM, so that it can be mounted selectively into containers.
+- Performance: Containers created using `container` require less memory than full VMs, with boot times that are comparable to containers running in a shared VM.
 
 Since `container` consumes and produces standard OCI images, you can easily build with and run images produced by other container applications, and the images that you build will run everywhere.
 
@@ -604,15 +608,13 @@ Since `container` consumes and produces standard OCI images, you can easily buil
 - Launchd for service management.
 - Keychain services for access to registry credentials.
 
-[TODO: diagram showing `container` functional organization]
+You use the `container` command line interface (CLI) to start and manage your containers, build container images, and transfer images from and to OCI container registries. The CLI uses a client library that communicates with `container-apiserver` and its helpers.
 
 The process `container-apiserver` is a launch agent that launches when you run the `container system start` command, and terminates when you run `container system stop`. It provides the client APIs for managing container, and network resources.
 
-When `container-apiserver` starts, it launches an XPC helper that exposes an API for image management, and another XPC helper for the virtual network. For each container that you create, `container-apiserver` launches a container runtime helper that exposes the management API for that specific container.
+When `container-apiserver` starts, it launches an XPC helper `container-core-images` that exposes an API for image management and manages the local content store, and another XPC helper `container-network-vmnet` for the virtual network. For each container that you create, `container-apiserver` launches a container runtime helper `container-runtime-linux` that exposes the management API for that specific container.
 
-You use the `container` command line interface (CLI) to start and manage your containers, and to build container images, and to pull images from and push images to container registries. The CLI uses a client library that communicates with `container-apiserver` and its helpers.
-
-See the design documents in the `container` and Containerization GitHub repositories for additional technical details.
+![diagram showing application functional organization](./docs/assets/functional-model-light.svg)
 
 ### What limitations does `container` have today?
 
@@ -682,14 +684,6 @@ make install
 ```bash
 make protos
 ```
-
-## Included binaries
-
-- `container` is a command-line tool for managing images and containers.
-- `container-apiserver` is an XPC service that provides an API for managing image and container resources.
-- `container-core-images` is an XPC service for managing OCI images.
-- `container-runtime-linux` is an XPC service that starts and manages the lifecycle of a single Linux container.
-- `container-network-vmnet` is an XPC service for that starts and manages the lifecycle of a single vmnet network.
 
 ## Contributing 
 
