@@ -38,19 +38,19 @@ jobs:
           # TODO [launch]: TEMPORARILY we need to exclude these files since we had to modify them to add
           # the github token for pulling the private repos. 
           if ! git diff --quiet -- . ':(exclude)Package.swift' ':(exclude)Package.resolved' ':(exclude)Protobuf.Makefile'; then echo "The following files require formatting or license header updates:\n$(git diff --name-only)" ; false ; fi 
-
         env:
           CURRENT_SDK: y
-          CONTAINERIZATION_REPO: https://${{ secrets.REPO_READ }}@github.com/apple/containerization.git 
+          CONTAINERIZATION_REPO: https://${{ secrets.REPO_READ }}@github.com/apple/containerization.git       
       - name: Set build configuration
         run: |
           echo "BUILD_CONFIGURATION=debug" >> $GITHUB_ENV
           if [ ${{ inputs.release }} == true ]; then 
             echo "BUILD_CONFIGURATION=release" >> $GITHUB_ENV
           fi
-      - name: Make the container project
+      - name: Make the container project and docs
         run: | 
-          make container dsym
+          make container dsym docs
+          tar cfz _site.tgz _site
         env:
           DEVELOPER_DIR: "/Applications/Xcode_16.3.app/Contents/Developer"
           CURRENT_SDK: y
@@ -71,8 +71,35 @@ jobs:
           DEVELOPER_DIR: "/Applications/Xcode_16.3.app/Contents/Developer"
           CURRENT_SDK: y
           CONTAINERIZATION_REPO: https://${{ secrets.REPO_READ }}@github.com/apple/containerization.git 
-      - name: Save artifacts
+      - name: Save documentation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-docs
+          path: "./_site.tgz"
+          retention-days: 14
+      - name: Save package artifacts
         uses: actions/upload-artifact@v4
         with:
           name: container-package
           path: ${{ github.workspace }}/outputs
+  uploadPages:
+    # Separate upload step required because upload-pages-artifact needs
+    # gtar which is not on the macOS runner.
+    name: Upload artifact for GitHub Pages
+    needs: buildAndTest
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Download a single artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: api-docs
+      - name: Add API docs to documentation
+        run: |
+          tar xfz _site.tgz
+      - name: Upload Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "./_site"
