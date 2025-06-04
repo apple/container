@@ -62,11 +62,11 @@ actor ContainersService {
         self.containerRoot = containerRoot
         self.pluginLoader = pluginLoader
         self.log = log
-        self.containers = try Self.loadAtBoot(root: containerRoot, log: log)
         self.runtimePlugins = pluginLoader.findPlugins().filter { $0.hasType(.runtime) }
+        self.containers = try Self.loadAtBoot(root: containerRoot, loader: pluginLoader, log: log)
     }
 
-    static func loadAtBoot(root: URL, log: Logger) throws -> [String: Item] {
+    static func loadAtBoot(root: URL, loader: PluginLoader, log: Logger) throws -> [String: Item] {
         var directories = try FileManager.default.contentsOfDirectory(
             at: root,
             includingPropertiesForKeys: [.isDirectoryKey]
@@ -75,12 +75,18 @@ actor ContainersService {
             $0.isDirectory
         }
 
+        let runtimePlugins = loader.findPlugins().filter { $0.hasType(.runtime) }
         var results = [String: Item]()
         for dir in directories {
             do {
                 let bundle = ContainerClient.Bundle(path: dir)
                 let config = try bundle.configuration
                 results[config.id] = .init(bundle: bundle, state: .dead)
+                let plugin = runtimePlugins.first { $0.name == config.runtimeHandler }
+                guard let plugin else {
+                    throw ContainerizationError(.internalError, message: "Failed to find runtime plugin \(config.runtimeHandler)")
+                }
+                try Self.registerService(plugin: plugin, loader: loader, configuration: config, path: dir)
             } catch {
                 try? FileManager.default.removeItem(at: dir)
                 log.warning("failed to load container bundle at \(dir.path)")
@@ -138,8 +144,9 @@ actor ContainersService {
             try bundle.setContainerRootFs(cloning: imageFs)
             try bundle.write(filename: "options.json", value: options)
 
-            try self.registerService(
+            try Self.registerService(
                 plugin: runtimePlugin,
+                loader: self.pluginLoader,
                 configuration: configuration,
                 path: path
             )
@@ -161,8 +168,9 @@ actor ContainersService {
         return fs
     }
 
-    private func registerService(
+    private static func registerService(
         plugin: Plugin,
+        loader: PluginLoader,
         configuration: ContainerConfiguration,
         path: URL
     ) throws {
@@ -171,7 +179,7 @@ actor ContainersService {
             "--uuid", configuration.id,
             "--debug",
         ]
-        try pluginLoader.registerWithLaunchd(
+        try loader.registerWithLaunchd(
             plugin: plugin,
             rootURL: path,
             args: args,
