@@ -55,7 +55,7 @@ actor BuildExporter: BuildPipelineHandler {
     }
 
     func handle(_ sender: AsyncStream<ClientStream>.Continuation, _ packet: ServerStream) async throws {
-        self.channel.yield((sender, packet)) // guarantees ordering while being non-blocking
+        self.channel.yield((sender, packet))  // guarantees ordering while being non-blocking
     }
 
     func write(_ sender: AsyncStream<ClientStream>.Continuation, _ packet: ServerStream) async throws {
@@ -79,7 +79,7 @@ actor BuildExporter: BuildPipelineHandler {
             response.buildTransfer = transfer
             response.packetType = .buildTransfer(transfer)
             sender.yield(response)
-            
+
             self.output.close()
             return
         }

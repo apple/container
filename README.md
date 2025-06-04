@@ -2,7 +2,7 @@
 
 ![introductory movie showing some basic commands](./docs/assets/landing-movie.gif)
 
-`container` is an application that you can use to create and run Linux containers as lightweight virtual machines on your Mac. It's written in Swift, and optimized for Apple silicon. 
+`container` is an application that you can use to create and run Linux containers as lightweight virtual machines on your Mac. It's written in Swift, and optimized for Apple Silicon. 
 
 The application consumes and produces OCI-compliant container images, so you can pull and run images from any standard container registry. You can push images that you build to those registries as well, and run the images in any other OCI-compliant application.
 
@@ -14,7 +14,7 @@ Install the `container` application on your Mac.
 
 ### Requirements
 
-You need an Apple silicon Mac to build and run `container`.
+You need an Apple Silicon Mac to build and run `container`.
 
 To build the Containerization package, your system needs either:
 
@@ -420,7 +420,7 @@ total 4
 
 ### Build and run a multiplatform image
 
-Using the [project from the tutorial example](/documentation/tutorial/#set-up-a-simple-project), you can create an image to use both on Apple silicon Macs and on AMD64 servers.
+Using the [project from the tutorial example](/documentation/tutorial/#set-up-a-simple-project), you can create an image to use both on Apple Silicon Macs and on AMD64 servers.
 
 When building the image, just add `--arch` options that directs the builder to create an image supporting both the `arm64` and `amd64` architectures:
 
