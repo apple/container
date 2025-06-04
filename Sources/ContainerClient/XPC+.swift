@@ -94,7 +94,6 @@ public enum XPCKeys: String {
     case kernelTarURL
     case kernelFilePath
     case setDefault
-    case installedKernels
     case systemPlatform
     case kernelName
 }
