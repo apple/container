@@ -31,18 +31,19 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
 
-        @Option(help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'") var platform: String?
+        @OptionGroup
+        var registry: Flags.Registry
 
-        @Flag(help: "Pull using plain-text http") var http: Bool = false
+        @Option(help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'") var platform: String?
 
         @Argument var reference: String
 
         init() {}
 
-        init(platform: String? = nil, http: Bool = false, reference: String) {
+        init(platform: String? = nil, scheme: String = "auto", reference: String) {
             self.global = Flags.Global()
+            self.registry = Flags.Registry(scheme: scheme)
             self.platform = platform
-            self.http = http
             self.reference = reference
         }
 
@@ -51,6 +52,8 @@ extension Application {
             if let platform {
                 p = try Platform(from: platform)
             }
+
+            let scheme = try RequestScheme(registry.scheme)
 
             let processedReference = try ClientImage.normalizeReference(reference)
             let progressConfig = try ProgressConfig(
@@ -70,7 +73,7 @@ extension Application {
             let taskManager = ProgressTaskCoordinator()
             let fetchTask = await taskManager.startTask()
             let image = try await ClientImage.pull(
-                reference: processedReference, platform: p, progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progress.handler)
+                reference: processedReference, platform: p, scheme: scheme, progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progress.handler)
             )
 
             progress.set(description: "Unpacking image")

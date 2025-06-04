@@ -30,9 +30,10 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
 
-        @Option(help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'") var platform: String?
+        @OptionGroup
+        var registry: Flags.Registry
 
-        @Flag(help: "Push using plain-text http") var http: Bool = false
+        @Option(help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'") var platform: String?
 
         @Argument var reference: String
 
@@ -42,6 +43,7 @@ extension Application {
                 p = try Platform(from: platform)
             }
 
+            let scheme = try RequestScheme(registry.scheme)
             let image = try await ClientImage.get(reference: reference)
 
             let progressConfig = try ProgressConfig(
@@ -56,7 +58,7 @@ extension Application {
                 progress.finish()
             }
             progress.start()
-            _ = try await image.push(platform: p, insecure: http, progressUpdate: progress.handler)
+            _ = try await image.push(platform: p, scheme: scheme, progressUpdate: progress.handler)
             progress.finish()
         }
     }

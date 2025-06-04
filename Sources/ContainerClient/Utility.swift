@@ -68,9 +68,11 @@ public struct Utility {
         process: Flags.Process,
         management: Flags.Management,
         resource: Flags.Resource,
+        registry: Flags.Registry,
         progressUpdate: @escaping ProgressUpdateHandler
     ) async throws -> (ContainerConfiguration, Kernel) {
         let requestedPlatform = Parser.platform(os: management.os, arch: management.arch)
+        let scheme = try RequestScheme(registry.scheme)
 
         await progressUpdate([
             .setDescription("Fetching image"),
@@ -81,6 +83,7 @@ public struct Utility {
         let img = try await ClientImage.fetch(
             reference: image,
             platform: requestedPlatform,
+            scheme: scheme,
             progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progressUpdate)
         )
 
@@ -95,14 +98,11 @@ public struct Utility {
             progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: progressUpdate))
 
         await progressUpdate([
-            .setDescription("Fetching kernel image"),
-            .setItemsName("blobs"),
+            .setDescription("Fetching kernel"),
+            .setItemsName("binary"),
         ])
 
-        let fetchKernelTask = await taskManager.startTask()
-        let kernel = try await self.getKernel(
-            management: management,
-            progressUpdate: ProgressTaskCoordinator.handler(for: fetchKernelTask, from: progressUpdate))
+        let kernel = try await self.getKernel(management: management)
 
         // Pull and unpack the initial filesystem
         await progressUpdate([
@@ -111,7 +111,7 @@ public struct Utility {
         ])
         let fetchInitTask = await taskManager.startTask()
         let initImage = try await ClientImage.fetch(
-            reference: ClientImage.initImageRef, platform: .current,
+            reference: ClientImage.initImageRef, platform: .current, scheme: scheme,
             progressUpdate: ProgressTaskCoordinator.handler(for: fetchInitTask, from: progressUpdate))
 
         await progressUpdate([
@@ -185,18 +185,10 @@ public struct Utility {
         return (config, kernel)
     }
 
-    private static func getKernel(management: Flags.Management, progressUpdate: @escaping ProgressUpdateHandler) async throws -> Kernel {
+    private static func getKernel(management: Flags.Management) async throws -> Kernel {
         // For the image itself we'll take the user input and try with it as we can do userspace
         // emulation for x86, but for the kernel we need it to match the hosts architecture.
-        let s: SystemPlatform
-        switch Platform.current.architecture {
-        case "arm64":
-            s = .linuxArm
-        case "amd64":
-            s = .linuxAmd
-        default:
-            throw ContainerizationError.init(.unsupported, message: "platform architecture \(Platform.current.architecture)")
-        }
+        let s: SystemPlatform = .current
         if let userKernel = management.kernel {
             guard FileManager.default.fileExists(atPath: userKernel) else {
                 throw ContainerizationError(.notFound, message: "Kernel file not found at path \(userKernel)")

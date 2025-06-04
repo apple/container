@@ -169,11 +169,17 @@ extension ImagesService {
         authentication = try? keychain.lookup(domain: host)
         do {
             return try await body(authentication)
-        } catch {
-            guard authentication != nil else {
-                throw ContainerizationError(.internalError, message: "\(String(describing: error)). No credentials found for host \(host)")
+        } catch let err as RegistryClient.Error {
+            guard case .invalidStatus(_, let status) = err else {
+                throw err
             }
-            throw error
+            guard status == .unauthorized || status == .forbidden else {
+                throw err
+            }
+            guard authentication != nil else {
+                throw ContainerizationError(.internalError, message: "\(String(describing: err)). No credentials found for host \(host)")
+            }
+            throw err
         }
     }
 

@@ -33,10 +33,6 @@ public struct Flags {
             help: "Current working directory for the container")
         public var cwd: String?
 
-        // FIXME: Implement.
-        //        @Option(name: .customLong("shm-size"), help: "Size of /dev/shm")
-        //        public var shmSize: String = ""
-
         @Option(name: [.customLong("env"), .customShort("e")], help: "Set environment variables")
         public var env: [String] = []
 
@@ -73,17 +69,15 @@ public struct Flags {
         public var memory: String?
     }
 
-    public struct Pull: ParsableArguments {
+    public struct Registry: ParsableArguments {
         public init() {}
 
-    }
+        public init(scheme: String) {
+            self.scheme = scheme
+        }
 
-    public struct Detach: ParsableArguments {
-        public init() {}
-
-        // FIXME: Implement.
-        //        @Option(name: .customLong("detach-keys"), help: "Override the key sequence for detaching a container")
-        //        public var detachKeys: String?
+        @Option(help: "Scheme to use when conntecting to the container registry. One of (http, https, auto)")
+        public var scheme: String = "auto"
     }
 
     public struct Management: ParsableArguments {
@@ -113,10 +107,6 @@ public struct Flags {
         @Option(
             name: [.customLong("arch"), .customShort("a")], help: "Set arch if image can target multiple architectures")
         public var arch: String = Arch.hostArchitecture().rawValue
-
-        // FIXME: Implement
-        //        @Option(name: [.customLong("publish"), .customShort("p")], help: "Publish a container's port(s) to the host")
-        //        public var ports: [String] = []
 
         @Option(name: [.customLong("volume"), .customShort("v")], help: "Bind mount a volume into the container")
         public var volumes: [String] = []

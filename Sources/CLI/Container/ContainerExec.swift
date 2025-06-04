@@ -29,10 +29,6 @@ extension Application {
         @OptionGroup
         var processFlags: Flags.Process
 
-        // FIXME: Add in detach keys support.
-        @OptionGroup(visibility: .hidden)
-        var detachFlags: Flags.Detach
-
         @OptionGroup
         var global: Flags.Global
 
