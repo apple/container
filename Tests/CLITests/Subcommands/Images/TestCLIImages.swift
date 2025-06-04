@@ -211,7 +211,7 @@ extension TestCLIImagesCommand {
     @Test func testImageDefaultRegistry() throws {
         do {
             let defaultDomain = "ghcr.io"
-            let imageName = "ghcr.io/linuxcontainers/alpine:3.20"
+            let imageName = "linuxcontainers/alpine:3.20"
             defer {
                 try? doDefaultRegistrySet(domain: "docker.io")
             }
