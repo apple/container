@@ -42,7 +42,7 @@ extension Application {
         var managementFlags: Flags.Management
 
         @OptionGroup
-        var pullFlags: Flags.Pull
+        var registryFlags: Flags.Registry
 
         @OptionGroup
         var global: Flags.Global
@@ -75,6 +75,7 @@ extension Application {
                 process: processFlags,
                 management: managementFlags,
                 resource: resourceFlags,
+                registry: registryFlags,
                 progressUpdate: progress.handler
             )
 

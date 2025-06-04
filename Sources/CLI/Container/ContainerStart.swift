@@ -32,10 +32,6 @@ extension Application {
         @Flag(name: .shortAndLong, help: "Attach container's STDIN")
         var interactive = false
 
-        // FIXME: Add in detach keys support.
-        @OptionGroup(visibility: .hidden)
-        var detachFlags: Flags.Detach
-
         @OptionGroup
         var global: Flags.Global
 

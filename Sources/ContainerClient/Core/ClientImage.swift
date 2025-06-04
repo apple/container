@@ -201,14 +201,20 @@ extension ClientImage {
         })
     }
 
-    public static func pull(reference: String, platform: Platform? = nil, insecure: Bool = false, progressUpdate: ProgressUpdateHandler? = nil) async throws -> ClientImage {
+    public static func pull(reference: String, platform: Platform? = nil, scheme: RequestScheme = .auto, progressUpdate: ProgressUpdateHandler? = nil) async throws -> ClientImage {
         let client = newXPCClient()
         let request = newRequest(.imagePull)
 
         let reference = try self.normalizeReference(reference)
+        guard let host = try Reference.parse(reference).domain else {
+            throw ContainerizationError(.invalidArgument, message: "Could not extract host from reference \(reference)")
+        }
 
         request.set(key: .imageReference, value: reference)
         try request.set(platform: platform)
+
+        let insecure = try scheme.schemeFor(host: host) == .http
+        request.set(key: .insecureFlag, value: insecure)
 
         var progressUpdateClient: ProgressUpdateClient?
         if let progressUpdate {
@@ -252,7 +258,8 @@ extension ClientImage {
         return (digests, size)
     }
 
-    public static func fetch(reference: String, platform: Platform? = nil, progressUpdate: ProgressUpdateHandler? = nil) async throws -> ClientImage {
+    public static func fetch(reference: String, platform: Platform? = nil, scheme: RequestScheme = .auto, progressUpdate: ProgressUpdateHandler? = nil) async throws -> ClientImage
+    {
         do {
             let match = try await self.get(reference: reference)
             if let platform {
@@ -265,7 +272,7 @@ extension ClientImage {
             guard err.isCode(.notFound) else {
                 throw err
             }
-            return try await Self.pull(reference: reference, platform: platform, progressUpdate: progressUpdate)
+            return try await Self.pull(reference: reference, platform: platform, scheme: scheme, progressUpdate: progressUpdate)
         }
     }
 }
@@ -273,11 +280,18 @@ extension ClientImage {
 // MARK: Instance methods
 
 extension ClientImage {
-    public func push(platform: Platform? = nil, insecure: Bool = false, progressUpdate: ProgressUpdateHandler?) async throws {
+    public func push(platform: Platform? = nil, scheme: RequestScheme, progressUpdate: ProgressUpdateHandler?) async throws {
         let client = Self.newXPCClient()
         let request = Self.newRequest(.imagePush)
-        request.set(key: .imageReference, value: self.description.reference)
+
+        guard let host = try Reference.parse(reference).domain else {
+            throw ContainerizationError(.invalidArgument, message: "Could not extract host from reference \(reference)")
+        }
+        request.set(key: .imageReference, value: reference)
+
+        let insecure = try scheme.schemeFor(host: host) == .http
         request.set(key: .insecureFlag, value: insecure)
+
         try request.set(platform: platform)
 
         var progressUpdateClient: ProgressUpdateClient?

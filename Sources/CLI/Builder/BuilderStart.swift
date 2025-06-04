@@ -203,21 +203,11 @@ extension Application {
 
             let kernel = try await {
                 await progressUpdate([
-                    .setDescription("Fetching kernel image"),
-                    .setItemsName("blobs"),
+                    .setDescription("Fetching kernel"),
+                    .setItemsName("binary"),
                 ])
 
-                let s: SystemPlatform
-                let architecture = builderPlatform.architecture
-                switch architecture {
-                case "arm64":
-                    s = .linuxArm
-                case "amd64":
-                    s = .linuxAmd
-                default:
-                    throw ContainerizationError.init(.unsupported, message: "platform architecture \(architecture)")
-                }
-                let kernel = try await ClientKernel.getDefaultKernel(for: s)
+                let kernel = try await ClientKernel.getDefaultKernel(for: .current)
                 return kernel
             }()
 

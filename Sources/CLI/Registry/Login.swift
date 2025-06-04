@@ -33,13 +33,14 @@ extension Application {
         @Flag(help: "Take the password from stdin")
         var passwordStdin: Bool = false
 
-        @Flag(help: "Login using plain-text http") var http: Bool = false
-
         @Argument(help: "Registry server name")
         var server: String
 
         @OptionGroup
         var global: Flags.Global
+
+        @OptionGroup
+        var registry: Flags.Registry
 
         func run() async throws {
             var username = self.username
@@ -63,11 +64,12 @@ extension Application {
                 print()
             }
 
-            let scheme = http ? "http" : "https"
             let server = Reference.resolveDomain(domain: server)
+            let scheme = try RequestScheme(registry.scheme).schemeFor(host: server)
+
             let client = RegistryClient(
                 host: server,
-                scheme: scheme,
+                scheme: scheme.rawValue,
                 authentication: BasicAuthentication(username: username, password: password),
                 retryOptions: .init(
                     maxRetries: 10,

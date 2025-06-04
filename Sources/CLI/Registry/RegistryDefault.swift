@@ -39,20 +39,24 @@ extension Application {
             abstract: "Set the default registry"
         )
 
-        @Flag(help: "Try to connect to the registry using plain-text http")
-        var http: Bool = false
+        @OptionGroup
+        var global: Flags.Global
+
+        @OptionGroup
+        var registry: Flags.Registry
 
         @Argument
         var host: String
 
         func run() async throws {
-            let scheme = http ? "http" : "https"
+            let scheme = try RequestScheme(registry.scheme).schemeFor(host: host)
+
             let _url = "\(scheme)://\(host)"
             guard let url = URL(string: _url), let domain = url.host() else {
                 throw ContainerizationError(.invalidArgument, message: "Cannot convert \(_url) to URL")
             }
             let resolvedDomain = Reference.resolveDomain(domain: domain)
-            let client = RegistryClient(host: resolvedDomain, scheme: scheme, port: url.port)
+            let client = RegistryClient(host: resolvedDomain, scheme: scheme.rawValue, port: url.port)
             do {
                 try await client.ping()
             } catch let err as RegistryClient.Error {
