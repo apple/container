@@ -85,13 +85,13 @@ extension Application {
                 )
             }
 
-            var kernelConfigured: Bool = false
+            var kernelConfigured: Bool = true
             var missingDependencies: [Dependencies] = []
             if await !initImageExists() {
                 missingDependencies.append(.initFs)
             }
             if await !kernelExists() {
-                kernelConfigured = true
+                kernelConfigured = false
                 missingDependencies.append(.kernel)
             }
             guard missingDependencies.count > 0 else {

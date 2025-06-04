@@ -77,9 +77,8 @@ actor KernelService {
             .setDescription("Unpacking kernel")
         ])
         let archiveReader = try ArchiveReader(file: tarFile)
-        try archiveReader.extractContents(to: tempDir)
-        let kernelPath = tempDir.appendingPathComponent(kernelFilePath).resolvingSymlinksInPath()
-        try self.installKernel(kernelFile: kernelPath, platform: platform)
+        let kernelFile = try archiveReader.extractFile(from: kernelFilePath, to: tempDir)
+        try self.installKernel(kernelFile: kernelFile, platform: platform)
 
         if !FileManager.default.fileExists(atPath: tar.absoluteString) {
             try FileManager.default.removeItem(at: tarFile)
@@ -106,5 +105,16 @@ actor KernelService {
             throw ContainerizationError(.notFound, message: "Default kernel not found at \(defaultKernelPath)")
         }
         return Kernel(path: defaultKernelPath, platform: platform)
+    }
+}
+
+extension ArchiveReader {
+    fileprivate func extractFile(from: String, to directory: URL) throws -> URL {
+        let (_, data) = try self.extractFile(path: from)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
+        let fileName = URL(filePath: from).lastPathComponent
+        let fileURL = directory.appendingPathComponent(fileName)
+        try data.write(to: fileURL, options: .atomic)
+        return fileURL
     }
 }
