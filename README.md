@@ -75,7 +75,8 @@ make protos
 
 ## Contributing 
 
-See [docs](./docs) for information on development and contribution to the container project. 
+Contributions are welcome and encouraged! Read our [main contributing guide](https://github.com/apple/containerization/blob/main/CONTRIBUTING.md) to get started.  If you're developing using a local copy of 
+Containerization read the [docs here](./docs/localSwiftContainerization.md)
 
  ## More Info:
 
