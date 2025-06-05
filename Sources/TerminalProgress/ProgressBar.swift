@@ -38,7 +38,7 @@ public final class ProgressBar: Sendable {
     }
 
     deinit {
-        ProgressBar.clear()
+        clear()
     }
 
     /// Allows resetting the progress state.
@@ -48,7 +48,7 @@ public final class ProgressBar: Sendable {
 
     /// Allows resetting the progress state of the current task.
     public func resetCurrentTask() {
-        ProgressBar.clear()
+        clear()
         state = State(description: state.description, itemsName: state.itemsName, tasks: state.tasks, totalTasks: state.totalTasks, startTime: state.startTime)
     }
 
@@ -125,7 +125,7 @@ public final class ProgressBar: Sendable {
         }
 
         if config.clearOnFinish {
-            ProgressBar.clearAndResetCursor()
+            clearAndResetCursor()
         } else {
             ProgressBar.resetCursor()
         }

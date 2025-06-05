@@ -20,7 +20,6 @@ import Foundation
 enum EscapeSequence {
     static let hideCursor = "\u{001B}[?25l"
     static let showCursor = "\u{001B}[?25h"
-    static let clearLine = "\u{001B}[2K"
     static let moveUp = "\u{001B}[1A"
 }
 
@@ -38,14 +37,15 @@ extension ProgressBar {
     }
 
     /// Clears the progress bar and resets the cursor.
-    static public func clearAndResetCursor() {
-        ProgressBar.clear()
+    public func clearAndResetCursor() {
+        clear()
         ProgressBar.resetCursor()
     }
 
     /// Clears the progress bar.
-    static public func clear() {
-        ProgressBar.display(EscapeSequence.clearLine)
+    public func clear() {
+        // We can't use "\u{001B}[2K" for clearing the line because this may lead to a race with `stdout` when using `stderr` for progress updates.
+        displayText("")
     }
 
     /// Resets the cursor.
