@@ -93,9 +93,7 @@ public enum XPCKeys: String {
     case kernel
     case kernelTarURL
     case kernelFilePath
-    case setDefault
     case systemPlatform
-    case kernelName
 }
 
 public enum XPCRoute: String {

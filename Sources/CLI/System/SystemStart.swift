@@ -77,7 +77,6 @@ extension Application {
             do {
                 print("Verifying apiserver is running...")
                 try await ClientHealthCheck.ping(timeout: .seconds(10))
-                print("Done")
             } catch {
                 throw ContainerizationError(
                     .internalError,
@@ -85,65 +84,50 @@ extension Application {
                 )
             }
 
-            var kernelConfigured: Bool = true
-            var missingDependencies: [Dependencies] = []
             if await !initImageExists() {
-                missingDependencies.append(.initFs)
+                try? await installInitialFilesystem()
             }
-            if await !kernelExists() {
-                kernelConfigured = false
-                missingDependencies.append(.kernel)
-            }
-            guard missingDependencies.count > 0 else {
+
+            guard await !kernelExists() else {
                 return
             }
+            try await installDefaultKernel()
+        }
 
-            print("Missing required runtime dependencies:")
-            for (idx, dependency) in missingDependencies.enumerated() {
-                print(" \(idx+1). \(dependency.rawValue)")
+        private func installInitialFilesystem() async throws {
+            let dep = Dependencies.initFs
+            let pullCommand = ImagePull(reference: dep.source)
+            print("Installing base container filesystem...")
+            do {
+                try await pullCommand.run()
+            } catch {
+                log.error("Failed to install base container filesystem: \(error)")
             }
+        }
 
+        private func installDefaultKernel() async throws {
+            let kernelDependency = Dependencies.kernel
+            let defaultKernelURL = kernelDependency.source
+            let defaultKernelBinaryPath = ClientDefaults.get(key: .defaultKernelBinaryPath)
+
+            print("No default kernel configured.")
+            print("Install the recommended default kernel from [\(kernelDependency.source)]? [Y/n]: ", terminator: "")
             if !installDependencies {
-                print("Would like to install them now? [Y/n]: ", terminator: "")
                 guard let read = readLine(strippingNewline: true) else {
                     throw ContainerizationError(.internalError, message: "Failed to read user input")
                 }
                 guard read.lowercased() == "y" || read.count == 0 else {
-                    if !kernelConfigured {
-                        print("Please use the `container system kernel set` command to configure the kernel")
-                    }
+                    print("Please use the `container system kernel set --recommended` command to configure the default kernel")
                     return
                 }
             }
-            try await installDeps(deps: missingDependencies)
-        }
-
-        private func installDeps(deps: [Dependencies]) async throws {
-            if deps.contains(.kernel) {
-                try await installDefaultKernel()
-            }
-            if deps.contains(.initFs) {
-                try await installInitialFilesystem()
-            }
-        }
-
-        private func installInitialFilesystem() async throws {
-            let reference = ClientDefaults.get(key: .defaultInitImage)
-            let pullCommand = ImagePull(reference: reference)
-            print("Installing initial filesystem from [\(reference)]...")
-            try await pullCommand.run()
-        }
-
-        private func installDefaultKernel() async throws {
-            let defaultKernelURL = ClientDefaults.get(key: .defaultKernelURL)
-            let defaultKernelBinaryPath = ClientDefaults.get(key: .defaultKernelBinaryPath)
-            print("Installing default kernel from [\(defaultKernelURL)]...")
+            print("Installing kernel...")
             try await KernelSet.downloadAndInstallWithProgressBar(tarRemoteURL: defaultKernelURL, kernelFilePath: defaultKernelBinaryPath)
         }
 
         private func initImageExists() async -> Bool {
             do {
-                let img = try await ClientImage.get(reference: ClientDefaults.get(key: .defaultInitImage))
+                let img = try await ClientImage.get(reference: Dependencies.initFs.source)
                 let _ = try await img.getSnapshot(platform: .current)
                 return true
             } catch {
@@ -162,7 +146,16 @@ extension Application {
     }
 
     private enum Dependencies: String {
-        case kernel = "Kernel"
-        case initFs = "Initial filesystem"
+        case kernel
+        case initFs
+
+        var source: String {
+            switch self {
+            case .initFs:
+                return ClientDefaults.get(key: .defaultInitImage)
+            case .kernel:
+                return ClientDefaults.get(key: .defaultKernelURL)
+            }
+        }
     }
 }

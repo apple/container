@@ -39,13 +39,14 @@ extension Application {
         @Option(name: .customLong("arch"), help: "The architecture of the kernel binary. One of (amd64, arm64)")
         var architecture: String = ContainerizationOCI.Platform.current.architecture.description
 
-        @Flag(name: .customLong("install-recommended"), help: "Download and install the recommended kernel as the default. This flag ignores any other arguments")
-        var installRecommended: Bool = false
+        @Flag(name: .customLong("recommended"), help: "Download and install the recommended kernel as the default. This flag ignores any other arguments")
+        var recommended: Bool = false
 
         func run() async throws {
-            if installRecommended {
+            if recommended {
                 let url = ClientDefaults.get(key: .defaultKernelURL)
                 let path = ClientDefaults.get(key: .defaultKernelBinaryPath)
+                print("Installing the recommended kernel from \(url)...")
                 try await Self.downloadAndInstallWithProgressBar(tarRemoteURL: url, kernelFilePath: path)
                 return
             }
