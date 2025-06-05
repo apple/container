@@ -279,18 +279,26 @@ extension Application {
     }
 
     private static func releaseVersion() -> String {
-        var extras = "release"
+        var versionDetails: [String: String] = ["build": "release"]
         #if DEBUG
-        extras = "debug"
+        versionDetails["build"] = "debug"
         #endif
         #if CURRENT_SDK
-        extras += " MacOS 15 SDK"
+        versionDetails["sdk"] = "MacOS 15"
         #endif
+        let gitCommit = {
+            let sha = get_git_commit().map { String(cString: $0) }
+            guard let sha else {
+                return "unspecified"
+            }
+            return String(sha.prefix(7))
+        }()
+        versionDetails["commit"] = gitCommit
+        let extras: String = versionDetails.map { "\($0): \($1)" }.sorted().joined(separator: ", ")
 
         let bundleVersion = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String)
         let releaseVersion = bundleVersion ?? get_release_version().map { String(cString: $0) } ?? "0.0.0"
-        let scVersion = get_swift_containerization_version().map { String(cString: $0) } ?? "0.0.0"
-        let gitCommit = get_git_commit().map { String(cString: $0) } ?? "unspecified"
-        return "app \(releaseVersion) commit \(gitCommit) containerization \(scVersion) \(extras)"
+
+        return "container CLI version \(releaseVersion) (\(extras))"
     }
 }
