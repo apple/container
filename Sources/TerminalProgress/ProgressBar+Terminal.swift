@@ -20,20 +20,32 @@ import Foundation
 enum EscapeSequence {
     static let hideCursor = "\u{001B}[?25l"
     static let showCursor = "\u{001B}[?25h"
-    static let clearLine = "\u{001B}[2K"
     static let moveUp = "\u{001B}[1A"
 }
 
 extension ProgressBar {
+    static var terminalWidth: Int {
+        guard
+            let termimalHandle = ProgressBar.term,
+            let terminal = try? Terminal(descriptor: termimalHandle.fileDescriptor)
+        else {
+            return 0
+        }
+
+        let terminalWidth = (try? Int(terminal.size.width)) ?? 0
+        return terminalWidth
+    }
+
     /// Clears the progress bar and resets the cursor.
-    static public func clearAndResetCursor() {
-        ProgressBar.clear()
+    public func clearAndResetCursor() {
+        clear()
         ProgressBar.resetCursor()
     }
 
     /// Clears the progress bar.
-    static public func clear() {
-        ProgressBar.display(EscapeSequence.clearLine)
+    public func clear() {
+        // We can't use "\u{001B}[2K" for clearing the line because this may lead to a race with `stdout` when using `stderr` for progress updates.
+        displayText("")
     }
 
     /// Resets the cursor.
@@ -59,13 +71,6 @@ extension ProgressBar {
     }
 
     func displayText(_ text: String, terminating: String = "\r") {
-        guard
-            let termimalHandle = ProgressBar.term,
-            let terminal = try? Terminal(descriptor: termimalHandle.fileDescriptor)
-        else {
-            return
-        }
-
         var text = text
 
         // Clears previously printed characters if the new string is shorter.
@@ -73,10 +78,9 @@ extension ProgressBar {
         state.output = text
 
         // Clears previously printed lines.
-        let terminalWidth = (try? Int(terminal.size.width)) ?? 0
         var lines = ""
-        if terminalWidth > 0 {
-            let lineCount = (text.count - 1) / terminalWidth
+        if ProgressBar.terminalWidth > 0 {
+            let lineCount = (text.count - 1) / ProgressBar.terminalWidth
             for _ in 0..<lineCount {
                 lines += EscapeSequence.moveUp
             }
