@@ -264,7 +264,7 @@ public actor SandboxService {
         for mount in config.mounts {
             if try mount.isSocket() {
                 let socket = UnixSocketConfiguration(
-                    host: URL(filePath: mount.source),
+                    source: URL(filePath: mount.source),
                     destination: URL(filePath: mount.destination)
                 )
                 container.sockets.append(socket)

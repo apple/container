@@ -26,7 +26,7 @@ if let path = ProcessInfo.processInfo.environment["CONTAINERIZATION_PATH"] {
     scDependency = .package(path: path)
     scVersion = "latest"
 } else {
-    scVersion = "0.0.2"
+    scVersion = "0.0.3"
     if let containerizationRepo = ProcessInfo.processInfo.environment["CONTAINERIZATION_REPO"], containerizationRepo != "" {
         scDependency = .package(url: containerizationRepo, exact: Version(stringLiteral: scVersion))
     } else {
