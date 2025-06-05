@@ -117,9 +117,14 @@ extension Application {
                 fh.readabilityHandler = { handle in
                     let data = handle.availableData
                     if data.isEmpty {
-                        fh.readabilityHandler = nil
-                        cont.finish()
-                        return
+                        // Triggers on container restart - can exit here as well
+                        do {
+                            _ = try fh.seekToEnd() // To continue streaming existing truncated log files
+                        } catch {
+                            fh.readabilityHandler = nil
+                            cont.finish()   
+                            return
+                        }
                     }
                     if let str = String(data: data, encoding: .utf8), !str.isEmpty {
                         var lines = str.components(separatedBy: .newlines)

@@ -697,7 +697,8 @@ extension ContainerClient.Bundle {
 
     func createLogFile() throws {
         // Create the log file we'll write stdio to.
-        let fd = Darwin.open(self.containerLog.path, O_CREAT | O_RDONLY, 0o644)
+        // O_TRUNC resolves a log delay issue on restarted containers by force-updating internal state
+        let fd = Darwin.open(self.containerLog.path, O_CREAT | O_RDONLY | O_TRUNC, 0o644)
         guard fd > 0 else {
             throw POSIXError(.init(rawValue: errno)!)
         }
