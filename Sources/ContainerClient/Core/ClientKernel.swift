@@ -80,7 +80,7 @@ extension ClientKernel {
                 throw err
             }
             throw ContainerizationError(
-                .notFound, message: "Default kernel not configured for architecture \(platform.architecture). Please use the `container system kernel` command to configure it")
+                .notFound, message: "Default kernel not configured for architecture \(platform.architecture). Please use the `container system kernel set` command to configure it")
         }
     }
 }

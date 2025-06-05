@@ -42,6 +42,7 @@ actor KernelService {
         let kFile = url.resolvingSymlinksInPath()
         let destPath = self.kernelDirectory.appendingPathComponent(kFile.lastPathComponent)
         try FileManager.default.copyItem(at: kFile, to: destPath)
+        try Task.checkCancellation()
         try self.setDefaultKernel(name: kFile.lastPathComponent, platform: platform)
     }
 

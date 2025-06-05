@@ -178,6 +178,7 @@ _site:
 
 .PHONY: cleancontent
 cleancontent:
+	@bin/container system stop || true
 	@echo Cleaning the content...
 	@rm -rf ~/Library/Application\ Support/com.apple.container
 
