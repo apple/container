@@ -131,6 +131,8 @@ public final class ProgressBar: Sendable {
         } else {
             resetCursor()
         }
+        // Allow printed output to flush.
+        usleep(100_000)
     }
 }
 
