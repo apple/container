@@ -149,4 +149,14 @@ public final class ReservedVmnetNetwork: Network {
         )
     }
 }
+
+extension NSLock {
+    /// lock during the execution of the provided function
+    fileprivate func lock<T>(_ fn: () throws -> T) rethrows -> T {
+        self.lock()
+        defer { self.unlock() }
+
+        return try fn()
+    }
+}
 #endif
