@@ -1,4 +1,3 @@
-![introductory movie showing some basic commands](./docs/assets/landing-movie.gif)
 
 # `container`
 
@@ -7,6 +6,8 @@
 The application consumes and produces OCI-compliant container images, so you can pull and run images from any standard container registry. You can push images that you build to those registries as well, and run the images in any other OCI-compliant application.
 
 `container` uses the [Containerization](https://github.com/apple/containerization) Swift package for low level container, image and process management.
+
+![introductory movie showing some basic commands](./docs/assets/landing-movie.gif)
 
 ## Get started
 
