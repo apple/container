@@ -18,8 +18,16 @@ import ContainerNetworkService
 import ContainerXPC
 import Containerization
 
-/// Customized interface creation strategy.
+/// A strategy for mapping network attachment information to a network interface.
 public protocol InterfaceStrategy: Sendable {
     /// Map a client network attachment request to a network interface specification.
+    ///
+    /// - Parameters:
+    ///   - attachment: General attachment information that is common
+    ///     for all networks.
+    ///   - additionalData: If present, attachment information that is
+    ///     specific for the network to which the container will attach.
+    ///
+    /// - Returns: An XPC message with no parameters.
     func toInterface(attachment: Attachment, additionalData: XPCMessage?) throws -> Interface
 }
