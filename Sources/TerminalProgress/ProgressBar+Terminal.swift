@@ -24,9 +24,9 @@ enum EscapeSequence {
 }
 
 extension ProgressBar {
-    static var terminalWidth: Int {
+    private var terminalWidth: Int {
         guard
-            let termimalHandle = ProgressBar.term,
+            let termimalHandle = term,
             let terminal = try? Terminal(descriptor: termimalHandle.fileDescriptor)
         else {
             return 0
@@ -39,7 +39,7 @@ extension ProgressBar {
     /// Clears the progress bar and resets the cursor.
     public func clearAndResetCursor() {
         clear()
-        ProgressBar.resetCursor()
+        resetCursor()
     }
 
     /// Clears the progress bar.
@@ -49,18 +49,11 @@ extension ProgressBar {
     }
 
     /// Resets the cursor.
-    static public func resetCursor() {
-        ProgressBar.display(EscapeSequence.showCursor)
+    public func resetCursor() {
+        display(EscapeSequence.showCursor)
     }
 
-    static func getTerminal() -> FileHandle? {
-        let standardError = FileHandle.standardError
-        let fd = standardError.fileDescriptor
-        let isATTY = isatty(fd)
-        return isATTY == 1 ? standardError : nil
-    }
-
-    static func display(_ text: String) {
+    func display(_ text: String) {
         guard let term else {
             return
         }
@@ -79,14 +72,14 @@ extension ProgressBar {
 
         // Clears previously printed lines.
         var lines = ""
-        if ProgressBar.terminalWidth > 0 {
-            let lineCount = (text.count - 1) / ProgressBar.terminalWidth
+        if terminalWidth > 0 {
+            let lineCount = (text.count - 1) / terminalWidth
             for _ in 0..<lineCount {
                 lines += EscapeSequence.moveUp
             }
         }
 
         text = "\(text)\(terminating)\(lines)"
-        ProgressBar.display(text)
+        display(text)
     }
 }

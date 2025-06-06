@@ -18,6 +18,8 @@ import Foundation
 
 /// A configuration for displaying a progress bar.
 public struct ProgressConfig: Sendable {
+    /// The file handle for progress updates.
+    let terminal: FileHandle
     /// The initial description of the progress bar.
     let initialDescription: String
     /// The initial additional description of the progress bar.
@@ -65,6 +67,7 @@ public struct ProgressConfig: Sendable {
     public let disableProgressUpdates: Bool
     /// Creates a new instance of `ProgressConfig`.
     /// - Parameters:
+    ///   - terminal: The file handle for progress updates. The default value is `FileHandle.standardOutput`.
     ///   - description: The initial description of the progress bar. The default value is `""`.
     ///   - subDescription: The initial additional description of the progress bar. The default value is `""`.
     ///   - itemsName: The initial items name. The default value is `"it"`.
@@ -86,6 +89,7 @@ public struct ProgressConfig: Sendable {
     ///   - clearOnFinish: The flag indicating whether to clear the progress bar before reseting the cursor. The default is `true`.
     ///   - disableProgressUpdates: The flag indicating whether to update the progress bar. The default is `false`.
     public init(
+        terminal: FileHandle = .standardError,
         description: String = "",
         subDescription: String = "",
         itemsName: String = "it",
@@ -123,6 +127,7 @@ public struct ProgressConfig: Sendable {
             }
         }
 
+        self.terminal = terminal
         self.initialDescription = description
         self.initialSubDescription = subDescription
         self.initialItemsName = itemsName

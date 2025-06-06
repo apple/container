@@ -22,19 +22,20 @@ public final class ProgressBar: Sendable {
     let config: ProgressConfig
     @SendableProperty
     var state: State
-    static let term: FileHandle? = getTerminal()
-    static let termQueue = DispatchQueue(label: "com.apple.container.ProgressBar")
+    let term: FileHandle?
+    let termQueue = DispatchQueue(label: "com.apple.container.ProgressBar")
     private let standardError = StandardError()
 
     /// Creates a new progress bar.
     /// - Parameter config: The configuration for the progress bar.
     public init(config: ProgressConfig) {
         self.config = config
+        term = isatty(config.terminal.fileDescriptor) == 1 ? config.terminal : nil
         state = State(
             description: config.initialDescription, itemsName: config.initialItemsName, totalTasks: config.initialTotalTasks,
             totalItems: config.initialTotalItems,
             totalSize: config.initialTotalSize)
-        ProgressBar.display(EscapeSequence.hideCursor)
+        display(EscapeSequence.hideCursor)
     }
 
     deinit {
@@ -127,7 +128,7 @@ public final class ProgressBar: Sendable {
         if config.clearOnFinish {
             clearAndResetCursor()
         } else {
-            ProgressBar.resetCursor()
+            resetCursor()
         }
     }
 }
@@ -140,7 +141,7 @@ extension ProgressBar {
     }
 
     func render() {
-        guard ProgressBar.term != nil && !config.disableProgressUpdates else {
+        guard term != nil && !config.disableProgressUpdates else {
             return
         }
         let output = draw()

@@ -140,7 +140,10 @@ struct Application: AsyncParsableCommand {
         signal(SIGTERM, signalHandler)
         // Normal and explicit exit.
         atexit {
-            ProgressBar.resetCursor()
+            if let progressConfig = try? ProgressConfig() {
+                let progressBar = ProgressBar(config: progressConfig)
+                progressBar.resetCursor()
+            }
         }
     }
 
