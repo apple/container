@@ -1,4 +1,4 @@
-# Security process
+# Security disclosure process
 
 If you believe that you have discovered a security or privacy vulnerability in our open source software, please report it to us using the [GitHub private vulnerability feature](https://github.com/apple/container/security/advisories/new). Reports should include specific product and software version(s) that you believe are affected; a technical description of the behavior that you observed and the behavior that you expected; the steps required to reproduce the issue; and a proof of concept or exploit.
 
