@@ -14,77 +14,82 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-//
-
 import Foundation
 
-extension URL {
-    func parentOf(_ url: URL) -> Bool {
-        // if self is a relative path
-        guard self.cleanPath.hasPrefix("/") else {
-            return true
-        }
-        let pathItems = self.standardizedFileURL.absoluteURL.pathComponents.map { $0.cleanPathComponent }
-        let urlItems = url.standardizedFileURL.absoluteURL.pathComponents.map { $0.cleanPathComponent }
+extension String {
+    fileprivate var fs_cleaned: String {
+        var value = self
 
-        if pathItems.count > urlItems.count {
-            return false
+        if value.hasPrefix("file://") {
+            value.removeFirst("file://".count)
         }
-        for (index, pathItem) in pathItems.enumerated() {
-            if urlItems[index] != pathItem {
-                return false
+
+        if value.count > 1 && value.last == "/" {
+            value.removeLast()
+        }
+
+        return value.removingPercentEncoding ?? value
+    }
+
+    fileprivate var fs_components: [String] {
+        var parts: [String] = []
+        for segment in self.split(separator: "/", omittingEmptySubsequences: true) {
+            switch segment {
+            case ".":
+                continue
+            case "..":
+                if !parts.isEmpty { parts.removeLast() }
+            default:
+                parts.append(String(segment))
             }
         }
-        return true
+        return parts
+    }
+
+    fileprivate var fs_isAbsolute: Bool { first == "/" }
+}
+
+extension URL {
+    var cleanPath: String {
+        self.path.fs_cleaned
+    }
+
+    func parentOf(_ url: URL) -> Bool {
+        let parentPath = self.absoluteURL.cleanPath
+        let childPath = url.absoluteURL.cleanPath
+
+        guard parentPath.fs_isAbsolute else {
+            return true
+        }
+
+        let parentParts = parentPath.fs_components
+        let childParts = childPath.fs_components
+
+        guard parentParts.count <= childParts.count else { return false }
+        return zip(parentParts, childParts).allSatisfy { $0 == $1 }
     }
 
     func relativeChildPath(to context: URL) throws -> String {
-        if !context.parentOf(self.absoluteURL.standardizedFileURL) {
-            throw BuildFSSync.Error.pathIsNotChild(self.cleanPath, context.cleanPath)
+        guard context.parentOf(self) else {
+            throw BuildFSSync.Error.pathIsNotChild(cleanPath, context.cleanPath)
         }
 
-        let pathItems = context.standardizedFileURL.pathComponents.map { $0.cleanPathComponent }
-        let urlItems = self.standardizedFileURL.pathComponents.map { $0.cleanPathComponent }
+        let ctxParts = context.cleanPath.fs_components
+        let selfParts = cleanPath.fs_components
 
-        return String(urlItems.dropFirst(pathItems.count).joined(separator: "/").trimming { $0 == "/" })
-    }
-
-    var cleanPath: String {
-        let pathStr = self.path(percentEncoded: false)
-        if let cleanPath = pathStr.removingPercentEncoding {
-            return cleanPath
-        }
-        return pathStr
+        return selfParts.dropFirst(ctxParts.count).joined(separator: "/")
     }
 
     func relativePathFrom(from base: URL) -> String {
-        let destComponents = self.standardizedFileURL.pathComponents.map { $0.cleanPathComponent }
-        let baseComponents = base.standardizedFileURL.pathComponents.map { $0.cleanPathComponent }
+        let destParts = cleanPath.fs_components
+        let baseParts = base.cleanPath.fs_components
 
-        // Find the last common path between the two
-        var lastCommon: Int = 0
-        while lastCommon < baseComponents.count && lastCommon < destComponents.count && baseComponents[lastCommon] == destComponents[lastCommon] {
-            lastCommon += 1
-        }
+        let common = zip(destParts, baseParts).prefix { $0 == $1 }.count
+        guard common > 0 else { return cleanPath }
 
-        if lastCommon == 0 {
-            return self.path
-        }
-
-        var relPath: [String] = []
-
-        // Add "../" for each component that's a directory after the common prefix
-        for i in lastCommon..<baseComponents.count {
-            let sub = baseComponents[0...i]
-            let currentPath = URL(filePath: sub.joined(separator: "/"))
-            let resourceValues: URLResourceValues? = try? currentPath.resourceValues(forKeys: [.isDirectoryKey])
-            if case let isDirectory = resourceValues?.isDirectory, isDirectory == true {
-                relPath.append("..")
-            }
-        }
-
-        relPath.append(contentsOf: destComponents[lastCommon...])
-        return relPath.joined(separator: "/")
+        let ups = Array(repeating: "..", count: baseParts.count - common)
+        let remainder = destParts.dropFirst(common)
+        return (ups + remainder).joined(separator: "/")
     }
 
     func zeroCopyReader(

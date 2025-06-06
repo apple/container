@@ -65,7 +65,15 @@ actor BuildFSSync: BuildPipelineHandler {
     func read(_ sender: AsyncStream<ClientStream>.Continuation, _ packet: BuildTransfer, _ buildID: String) async throws {
         let offset: UInt64 = packet.offset() ?? 0
         let size: Int = packet.len() ?? 0
-        var path: URL = URL(filePath: packet.source.cleanPathComponent)
+        var path: URL
+        if packet.source.hasPrefix("/") {
+            path = URL(fileURLWithPath: packet.source).standardizedFileURL
+        } else {
+            path =
+                contextDir
+                .appendingPathComponent(packet.source)
+                .standardizedFileURL
+        }
         if !FileManager.default.fileExists(atPath: path.cleanPath) {
             path = URL(filePath: self.contextDir.cleanPath)
             path.append(components: packet.source.cleanPathComponent)
@@ -87,8 +95,15 @@ actor BuildFSSync: BuildPipelineHandler {
     }
 
     func info(_ sender: AsyncStream<ClientStream>.Continuation, _ packet: BuildTransfer, _ buildID: String) async throws {
-        var path = self.contextDir
-        path.append(components: packet.source.cleanPathComponent)
+        let path: URL
+        if packet.source.hasPrefix("/") {
+            path = URL(fileURLWithPath: packet.source).standardizedFileURL
+        } else {
+            path =
+                contextDir
+                .appendingPathComponent(packet.source)
+                .standardizedFileURL
+        }
         let transfer = try path.buildTransfer(id: packet.id, contextDir: self.contextDir, complete: true)
         var response = ClientStream()
         response.buildID = buildID
@@ -123,6 +138,9 @@ actor BuildFSSync: BuildPipelineHandler {
 
         let followPathsWalked = try walk(root: self.contextDir, includePatterns: followPaths)
         for url in followPathsWalked {
+            guard self.contextDir.absoluteURL.cleanPath != url.absoluteURL.cleanPath else {
+                continue
+            }
             guard self.contextDir.parentOf(url) else {
                 continue
             }

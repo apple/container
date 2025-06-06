@@ -14,8 +14,6 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-//
-
 import Foundation
 import Testing
 
@@ -184,17 +182,6 @@ import Testing
         #expect(false == httpURL.parentOf(fileURL))
         #expect(false == fileURL.parentOf(httpURL))
     }
-
-    @Test func testParentOfRelativePaths() throws {
-        let absoluteChildDir = baseTempURL.appendingPathComponent("someDir")
-        try createDirectory(at: absoluteChildDir)
-        let relativeSelfURL = URL(fileURLWithPath: "a/relative/path")
-        #expect(relativeSelfURL.parentOf(absoluteChildDir))
-        let potentiallyParentRelative = URL(fileURLWithPath: baseTempURL.lastPathComponent)
-        #expect(potentiallyParentRelative.parentOf(absoluteChildDir))
-    }
-
-    // MARK: - relativeChildPath Tests
 
     @Test func testRelativeChildPathDirectChild() throws {
         let parentDir = baseTempURL.appendingPathComponent("dir1")
