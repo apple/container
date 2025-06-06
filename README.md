@@ -52,3 +52,7 @@ uninstall-container.sh -k
 - Learn how to [use various `container` features](./docs/how-to.md).
 - Read a brief description and [technical overview](./docs/technical-overview.md) of `container`.
 
+## Contributing
+
+Contributions to Containerization are welcomed and encouraged. Please see our [main contributing guide](https://github.com/apple/containerization/blob/main/CONTRIBUTING.md) for more information.
+
