@@ -242,7 +242,7 @@ public actor SandboxService {
     ///
     /// Use this procedure to run ad hoc processes in the virtual
     /// machine (`container exec`).
-    /// 
+    ///
     /// - Parameters:
     ///   - message: An XPC message with the following parameters:
     ///     - id: A client identifier for the process.

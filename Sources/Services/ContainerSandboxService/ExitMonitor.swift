@@ -32,7 +32,7 @@ public actor ExitMonitor {
     /// Create a new monitor.
     ///
     /// - Parameters:
-    ///   - log: The destination for log messages.  
+    ///   - log: The destination for log messages.
     public init(log: Logger? = nil) {
         self.log = log
     }
