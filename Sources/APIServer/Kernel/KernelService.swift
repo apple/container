@@ -43,7 +43,12 @@ actor KernelService {
         let destPath = self.kernelDirectory.appendingPathComponent(kFile.lastPathComponent)
         try FileManager.default.copyItem(at: kFile, to: destPath)
         try Task.checkCancellation()
-        try self.setDefaultKernel(name: kFile.lastPathComponent, platform: platform)
+        do {
+            try self.setDefaultKernel(name: kFile.lastPathComponent, platform: platform)
+        } catch {
+            try? FileManager.default.removeItem(at: destPath)
+            throw error
+        }
     }
 
     /// Copies a kernel binary from inside of tar file into the managed kernels directory
