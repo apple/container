@@ -22,6 +22,8 @@ public final class ProgressBar: Sendable {
     let config: ProgressConfig
     @SendableProperty
     var state: State
+    @SendableProperty
+    var printedWidth = 0
     let term: FileHandle?
     let termQueue = DispatchQueue(label: "com.apple.container.ProgressBar")
     private let standardError = StandardError()
