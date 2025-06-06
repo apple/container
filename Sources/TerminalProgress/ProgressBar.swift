@@ -142,7 +142,7 @@ extension ProgressBar {
     }
 
     func render() {
-        guard term != nil && !config.disableProgressUpdates else {
+        guard term != nil && !config.disableProgressUpdates && !isFinished else {
             return
         }
         let output = draw()
