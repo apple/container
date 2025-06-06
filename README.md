@@ -1,6 +1,6 @@
-# `container`
-
 ![introductory movie showing some basic commands](./docs/assets/landing-movie.gif)
+
+# `container`
 
 `container` is an application that you can use to create and run Linux containers as lightweight virtual machines on your Mac. It's written in Swift, and optimized for Apple Silicon. 
 
@@ -14,14 +14,9 @@ Install the `container` application on your Mac.
 
 ### Requirements
 
-You need an Apple Silicon Mac to build and run `container`.
+You need an Apple Silicon Mac to run `container`. To build the application, see the [BUILDING](./BUILDING.md) document.
 
-To build the Containerization package, your system needs either:
-
-- macOS 15 or newer and Xcode 17 beta.
-- macOS 16 Developer Preview.
-
-`container` is designed to take advantage of the features of the macOS 16 Developer Preview. You can run the application on macOS Sequoia, but the `container` maintainers typically will not address Sequoia issues that cannot be reproduced on the macOS 16 Developer Beta.
+`container` is designed to take advantage of the features of the macOS 16 Developer Preview. You can run the application on macOS Sequoia, but the `container` maintainers typically will not address Sequoia issues that cannot be reproduced on the macOS 16 Developer Preview.
 
 There are [significant networking limitations](https://github.com/apple/container#macos-sequoia-limitations) that impact the usability `container` on macOS Sequoia.
 
@@ -51,36 +46,9 @@ To retain your user data so that it is available should you reinstall later, run
 uninstall-container.sh -k
 ```
 
-## Build the application from source
-
-Build `container` and the background services from sources and run basic and integration tests:
-
-```bash
-make all test integration
-```
-
-Copy the binaries to `/usr/local/bin` and `/usr/local/libexec` (requires entering the administrator's password):
-
-```bash
-make install
-```
-
-### Protobufs
-
-`container` depends on specific versions of `grpc-swift` and `swift-protobuf`. You can install them and re-generate RPC interfaces with:
-
-```bash
-make protos
-```
-
-## Contributing 
-
-Contributions are welcome and encouraged! Read our [main contributing guide](https://github.com/apple/containerization/blob/main/CONTRIBUTING.md) to get started.  If you're developing using a local copy of 
-Containerization read the [docs here](./docs/localSwiftContainerization.md)
-
- ## More Info:
+## Next steps
 
 - Take [a guided tour of `container`](./docs/tutorial.md) by building, running, and publishing a simple web server image.
-- Read through [How to use the features of `container`.](./docs/how-to.md)
-- A brief description and [technical overview](./docs/technical-overview.md) of `container`.
+- Learn how to [use various `container` features](./docs/how-to.md).
+- Read a brief description and [technical overview](./docs/technical-overview.md) of `container`.
 

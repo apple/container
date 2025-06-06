@@ -40,11 +40,11 @@ The process `container-apiserver` is a launch agent that launches when you run t
 
 When `container-apiserver` starts, it launches an XPC helper `container-core-images` that exposes an API for image management and manages the local content store, and another XPC helper `container-network-vmnet` for the virtual network. For each container that you create, `container-apiserver` launches a container runtime helper `container-runtime-linux` that exposes the management API for that specific container.
 
-![diagram showing application functional organization](./docs/assets/functional-model-light.svg)
+![diagram showing application functional organization](/docs/assets/functional-model-light.svg)
 
 ## What limitations does `container` have today?
 
-With the initial release of `container`, you get basic facilities for building and running containers, but many common containerization features remain to be implemented. Consider [contributing](/community) new features and bug fixes to `container` and the Containerization projects!
+With the initial release of `container`, you get basic facilities for building and running containers, but many common containerization features remain to be implemented. Consider [contributing](/CONTRIBUTING.md) new features and bug fixes to `container` and the Containerization projects!
 
 ### Container to host networking
 

@@ -1,8 +1,35 @@
-# Develop using a local copy of Containerization
+# Building the project
 
-This page describes how to build and run container using a local copy of [`Containerization`](https://github.com/apple/containerization).
+To build the Containerization package, your system needs either:
 
-## Use the local copy of containerization
+- macOS 15 or newer and Xcode 17 beta.
+- macOS 16 Developer Preview.
+
+## Compile and test
+
+Build `container` and the background services from source, and run basic and integration tests:
+
+```bash
+make all test integration
+```
+
+Copy the binaries to `/usr/local/bin` and `/usr/local/libexec` (requires entering the an administrator password):
+
+```bash
+make install
+```
+
+## Compile protobufs
+
+`container` uses gRPC to communicate to the builder virtual machine that creates images from `Dockerfile`s, and depends on specific versions of `grpc-swift` and `swift-protobuf`. If you make changes to the gRPC APIs in the [container-builder-shim](https://github.com/apple/container-builder-shim) project, install the tools and re-generate the gRPC code in this project using:
+
+```bash
+make protos
+```
+
+## Develop using a local copy of Containerization
+
+To make changes to `container` that require changes to the Containerization project, or vice versa:
 
 1. Clone the [Containerization](https://github.com/apple/containerization) repository such that it sits next to your clone of the `container` repository.
 
@@ -43,7 +70,7 @@ This page describes how to build and run container using a local copy of [`Conta
     bin/container system start
     ```
 
-## Revert to the versioned Containerization package
+To revert to using the Containerization dependency from your `Package.swift`:
 
 1. Unset your `CONTAINERIZATION_PATH` environment variable, and update `Package.resolved`.
     

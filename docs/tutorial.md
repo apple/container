@@ -19,14 +19,10 @@ If you have not installed a Linux kernel yet, the command will prompt you to ins
 ```shellsession
 % container system start
 Verifying apiserver is running...
-Done
-Missing required runtime dependencies:
- 1. Initial Filesystem
- 2. Kernel
-Would like to install them now? [Y/n]: Y
-Installing default kernel from [https://github.com/kata-containers/kata-containers/releases/download/3.17.0/kata-static-3.17.0-arm64.tar.xz]...
-Installing initial filesystem from [ghcr.io/apple/containerization/vminit:0.1.34]...
-%
+Installing base container filesystem...
+No default kernel configured.                                                              
+Install the recommended default kernel from [https://github.com/kata-containers/kata-containers/releases/download/3.17.0/kata-static-3.17.0-arm64.tar.xz]? [Y/n]:                                                                   y                        
+Installing kernel...
 ```
 
 Then, verify that the application is working by running a command to list all containers:
@@ -100,9 +96,12 @@ Use the `--help` flag to see which abbreviations exist.
 
 ```bash
 sudo container system dns create test
+container system dns default set test
 ```
 
-Enter your administrator password when prompted. The command requires administrator privileges to create a file containing the domain configuration under the `/etc/resolver` directory, and to tell the macOS DNS resolver to reload its configuration files.
+Enter your administrator password when prompted. The first command requires administrator privileges to create a file containing the domain configuration under the `/etc/resolver` directory, and to tell the macOS DNS resolver to reload its configuration files.
+
+The second command makes `test` the default domain to use when running a container with an unqualified name. For example, if the default domain is `test` and you use `--name my-web-server` to start a container, queries to `my-web-server.test` will respond with that container's IP address.
 
 ## Build an image
 
