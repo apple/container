@@ -44,7 +44,6 @@ extension ProgressBar {
 
     /// Clears the progress bar.
     public func clear() {
-        // We can't use "\u{001B}[2K" for clearing the line because this may lead to a race with `stdout` when using `stderr` for progress updates.
         displayText("")
     }
 
