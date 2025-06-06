@@ -21,7 +21,7 @@ import ContainerizationExtras
 import Foundation
 import Logging
 
-/// Track when a long running work exits, and notify the caller via a callback.
+/// Track when long running work exits, and notify the caller via a callback.
 public actor ExitMonitor {
     /// A callback that receives the client identifier and exit code.
     public typealias ExitCallback = @Sendable (String, Int32) async throws -> Void
