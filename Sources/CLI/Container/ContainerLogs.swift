@@ -119,10 +119,10 @@ extension Application {
                     if data.isEmpty {
                         // Triggers on container restart - can exit here as well
                         do {
-                            _ = try fh.seekToEnd() // To continue streaming existing truncated log files
+                            _ = try fh.seekToEnd()  // To continue streaming existing truncated log files
                         } catch {
                             fh.readabilityHandler = nil
-                            cont.finish()   
+                            cont.finish()
                             return
                         }
                     }
