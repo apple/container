@@ -51,7 +51,6 @@ public final class ProgressBar: Sendable {
 
     /// Allows resetting the progress state of the current task.
     public func resetCurrentTask() {
-        clear()
         state = State(description: state.description, itemsName: state.itemsName, tasks: state.tasks, totalTasks: state.totalTasks, startTime: state.startTime)
     }
 
