@@ -72,7 +72,7 @@ extension ProgressBar {
 
         // Clears previously printed lines.
         var lines = ""
-        if terminalWidth > 0 {
+        if terminating.hasSuffix("\r") && terminalWidth > 0 {
             let lineCount = (text.count - 1) / terminalWidth
             for _ in 0..<lineCount {
                 lines += EscapeSequence.moveUp
