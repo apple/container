@@ -67,7 +67,7 @@ public struct ProgressConfig: Sendable {
     public let disableProgressUpdates: Bool
     /// Creates a new instance of `ProgressConfig`.
     /// - Parameters:
-    ///   - terminal: The file handle for progress updates. The default value is `FileHandle.standardOutput`.
+    ///   - terminal: The file handle for progress updates. The default value is `FileHandle.standardError`.
     ///   - description: The initial description of the progress bar. The default value is `""`.
     ///   - subDescription: The initial additional description of the progress bar. The default value is `""`.
     ///   - itemsName: The initial items name. The default value is `"it"`.
