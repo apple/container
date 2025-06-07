@@ -1,9 +1,9 @@
 # Building the project
 
-To build the Containerization package, your system needs either:
+To build the `container` project, your system needs either:
 
-- macOS 15 or newer and Xcode 17 beta.
-- macOS 16 Developer Preview.
+- macOS Sequoia 10.15 or newer and Xcode 17 beta.
+- macOS Developer Preview.
 
 ## Compile and test
 
@@ -39,7 +39,7 @@ To make changes to `container` that require changes to the Containerization proj
     cd container
     ```
 
-3. If the application services are already running, stop them. 
+3. If the `container` services are already running, stop them. 
 
     ```
     bin/container system stop
@@ -52,10 +52,10 @@ To make changes to `container` that require changes to the Containerization proj
     swift package update containerization
     ```
 
-5. Build the init filesystem for your local copy of containerization.
+5. Build the init filesystem for your local copy of the Containerization project.
 
     ```
-    (cd ../swiftcontainerization && make clean all)
+    (cd ${CONTAINERIZATION_PATH} && make clean all)
     ```
 
 6. Build `container`.
@@ -64,7 +64,7 @@ To make changes to `container` that require changes to the Containerization proj
     make clean all
     ```
 
-7. Start the application services.
+7. Start the `container` services.
 
     ```
     bin/container system start
@@ -85,7 +85,7 @@ To revert to using the Containerization dependency from your `Package.swift`:
     make clean all
     ```
 
-3. Restart application services.
+3. Restart the `container` services.
 
     ```
     bin/container system restart

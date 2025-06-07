@@ -142,7 +142,7 @@ The `RUN` line creates a simple HTML landing page named `/content/index.html`.
 
 The `CMD` line configures the container to run a simple web server in Python on port 80. Since the working directory is `/content`, the web server runs in that directory and delivers the content of the file `/content/index.html` when a user requests the index page URL.
 
-The server binds to the wildcard address `0.0.0.0` to allow connections from the host and other containers. To ensure security, the virtual network used by the containers is not accessible by external systems.
+The server listens on the wildcard address `0.0.0.0` to allow connections from the host and other containers. You can safely use the listen address `0.0.0.0` inside the container, because external systems have no access to the virtual network to which the container attaches.
 
 ### Build the web server image
 
@@ -183,7 +183,7 @@ When you list containers now, `my-web-server` is present, along with the contain
 ```shellsession
 % container ls
 ID             IMAGE                                                   OS     ARCH   STATE    ADDR
-buildkit       ghcr.io/apple/container-builder-shim/builder:2.1.1  linux  arm64  running  192.168.64.2
+buildkit       ghcr.io/apple/container-builder-shim/builder:2.1.1      linux  arm64  running  192.168.64.2
 my-web-server  web-test:latest                                         linux  arm64  running  192.168.64.3
 %
 ```
@@ -220,10 +220,10 @@ index.html  logo.jpg
 root@my-web-server:/content# uname -a
 Linux my-web-server 6.1.68 #1 SMP Mon Mar 31 18:27:51 UTC 2025 aarch64 GNU/Linux
 root@my-web-server:/content# exit
-exit%
+%
 ```
 
-The `--tty` and `--interactive` flag allow you to interact with the shell from your host terminal. The `--tty` flag tells the shell in the container that its input is a terminal device, and the `--interacive` flag connects what you input in your host terminal to the input of the shell in the container.
+The `--tty` and `--interactive` flag allow you to interact with the shell from your host terminal. The `--tty` flag tells the shell in the container that its input is a terminal device, and the `--interactive` flag connects what you input in your host terminal to the input of the shell in the container.
 
 You will often see these two options abbreviated and specified together as `-ti` or `-it`.
 

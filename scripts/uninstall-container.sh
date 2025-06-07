@@ -75,7 +75,7 @@ for ((i=${#DIRS[@]}-1; i>=0; i--)); do
 done
 
 sudo pkgutil --forget com.apple.container-installer > /dev/null
-echo 'Removed `container` application'
+echo 'Removed `container` tool and helpers'
 
 if [ "$DELETE_DATA" = true ]; then
     echo 'Removing `container` user data'

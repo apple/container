@@ -4,7 +4,7 @@ How to use the features of `container`.
 
 ## Configure memory and CPUs for your containers
 
-Since the containers created by `container` are lightweight virtual machines, you need to consider the needs of your containerized application when you `container run` a container.  The `--memory` and `--cpus` options allow you to override the default memory and CPU limits for the virtual machine. The default values are 1 gigabyte of RAM and 4 CPUs. You can use abbreviations for memory units; for example, to run a container for image `big` with 8 CPUs and 32 gigabytes of memory, use:
+Since the containers created by `container` are lightweight virtual machines, you need to consider the needs of your containerized application when you use `container run`.  The `--memory` and `--cpus` options allow you to override the default memory and CPU limits for the virtual machine. The default values are 1 gigabyte of RAM and 4 CPUs. You can use abbreviations for memory units; for example, to run a container for image `big` with 8 CPUs and 32 gigabytes of memory, use:
 
 ```bash
 container run --rm --cpus 8 --memory 32g big
@@ -12,7 +12,7 @@ container run --rm --cpus 8 --memory 32g big
 
 ## Configure memory and CPUs for large builds
 
-When you first run `container build`, `container` starts a *builder*, which is a utility container that performs image build. As with anything you run with `container run`, the builder runs in a lightweight virtual machine, so for resource-intensive builds, you may need to increase the memory and CPU limits for the builder VM.
+When you first run `container build`, `container` starts a *builder*, which is a utility container that builds images from your `Dockerfile`s. As with anything you run with `container run`, the builder runs in a lightweight virtual machine, so for resource-intensive builds, you may need to increase the memory and CPU limits for the builder VM.
 
 By default, the builder VM receives 2 gigabytes of RAM and 2 CPUs. You can change these limits by starting the builder container before running `container build`:
 
@@ -46,7 +46,7 @@ total 4
 
 The argument to `--volume` in the example consists of the full pathname for the host folder and the full pathname for the mount point in the container, separated by a colon.
 
-The `--mount` option uses a comma separated `key=value` syntax to achieve the same result:
+The `--mount` option uses a comma-separated `key=value` syntax to achieve the same result:
 
 ```shellsession
 % container run --mount source=${HOME}/Desktop/assets,target=/content/assets docker.io/python:slim ls -l /content/assets
@@ -57,9 +57,9 @@ total 4
 
 ## Build and run a multiplatform image
 
-Using the [project from the tutorial example](/documentation/tutorial/#set-up-a-simple-project), you can create an image to use both on Apple Silicon Macs and on AMD64 servers.
+Using the [project from the tutorial example](/documentation/tutorial/#set-up-a-simple-project), you can create an image to use both on Apple silicon Macs and on x86-64 servers.
 
-When building the image, just add `--arch` options that directs the builder to create an image supporting both the `arm64` and `amd64` architectures:
+When building the image, just add `--arch` options that direct the builder to create an image supporting both the `arm64` and `amd64` architectures:
 
 ```bash
 container build --arch arm64 --arch amd64 --tag registry.example.com/fido/web-test:latest --file Dockerfile .
@@ -73,7 +73,7 @@ Linux 7932ce5f-ec10-4fbe-a2dc-f29129a86b64 6.1.68 #1 SMP Mon Mar 31 18:27:51 UTC
 %
 ```
 
-When you run the command with the `amd64` architecture, the AMD64 version of `uname` of Python using Rosetta translation, so that you will see information for an AMD64 system:
+When you run the command with the `amd64` architecture, the x86-64 version of `uname` runs under Rosetta translation, so that you will see information for an x86-64 system:
 
 ```shellsession
 container run --arch amd64 --rm registry.example.com/fido/web-test:latest uname -a
