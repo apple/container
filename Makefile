@@ -128,10 +128,10 @@ dsym:
 test:
 	@$(SWIFT) test -c $(BUILD_CONFIGURATION) $(CURRENT_SDK_ARGS) --skip TestCLI
 
-.PHONY: fetch-default-kernel
-fetch-default-kernel:
+.PHONY: install-kernel
+install-kernel:
 	@bin/container system stop || true
-	@bin/container system start --fetch-default-kernel yes
+	@bin/container system start --enable-kernel-install  
 
 .PHONY: integration
 integration: init-block
