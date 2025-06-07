@@ -34,7 +34,9 @@ extension Application {
         @Flag(name: .long, help: "Enable debug logging for the runtime daemon.")
         var debug = false
 
-        @Flag(name: .long, inversion: .prefixedEnableDisable, help: "Specify if the default kernel should be installed or not.")
+        @Flag(
+            name: .long, inversion: .prefixedEnableDisable,
+            help: "Specify whether the default kernel should be installed or not. The default behavior is to prompt the user for a response.")
         var kernelInstall: Bool?
 
         func run() async throws {
