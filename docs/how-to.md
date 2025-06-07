@@ -4,7 +4,7 @@ How to use the features of `container`.
 
 ## Configure memory and CPUs for your containers
 
-Since the containers created by `container` are lightweight virtual machines, you need to consider the needs of your containerized application when you use `container run`.  The `--memory` and `--cpus` options allow you to override the default memory and CPU limits for the virtual machine. The default values are 1 gigabyte of RAM and 4 CPUs. You can use abbreviations for memory units; for example, to run a container for image `big` with 8 CPUs and 32 gigabytes of memory, use:
+Since the containers created by `container` are lightweight virtual machines, consider the needs of your containerized application when you use `container run`.  The `--memory` and `--cpus` options allow you to override the default memory and CPU limits for the virtual machine. The default values are 1 gigabyte of RAM and 4 CPUs. You can use abbreviations for memory units; for example, to run a container for image `big` with 8 CPUs and 32 gigabytes of memory, use:
 
 ```bash
 container run --rm --cpus 8 --memory 32g big

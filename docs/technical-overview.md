@@ -51,7 +51,7 @@ With the initial release of `container`, you get basic facilities for building a
 
 In the initial release, there is no way to route traffic directly from a client in a container to an host-based application listening on the loopback interface at 127.0.0.1. If you were to configure the application in your container to connect to 127.0.0.1 or `localhost`, requests would simply go to the loopback interface in the container, rather than your host-based service.
 
-You can work around this limitation configuring the host-based application to listen on the wildcard address 0.0.0.0, but this practice is insecure and not recommended because, without firewall rules, this exposes the application to external requests.
+You can work around this limitation by configuring the host-based application to listen on the wildcard address 0.0.0.0, but this practice is insecure and not recommended because, without firewall rules, this exposes the application to external requests.
 
 A more secure approach uses `socat` to redirect traffic from the container network gateway to the host-based service. For example, to forward traffic for port 8000, configure your containerized application to connect to `192.68.64.1:8000` instead of `127.0.0.1:8000`, and then run the following command in a terminal on your Mac to forward the port traffic from the gateway to the host:
 
@@ -61,9 +61,9 @@ socat TCP-LISTEN:8000,fork,bind=192.168.64.1 TCP:127.0.0.1:8000
 
 ### Releasing container memory to macOS
 
-The macOS Virtualization framework implements only partial support for memory ballooning, which is a technology that allows virtual machines to dynamically use and relinquish host memory. When you create a container, the underlying virtual machine only uses the amount of memory that the containerized application needs. For example, you might start a container using the option `--memory 16g`, but see that the application is only using 2 gigabytes of system memory.
+The macOS Virtualization framework implements only partial support for memory ballooning, which is a technology that allows virtual machines to dynamically use and relinquish host memory. When you create a container, the underlying virtual machine only uses the amount of memory that the containerized application needs. For example, you might start a container using the option `--memory 16g`, but see that the application is only using 2 gigabytes of RAM in the macOS Activity Monitor.
 
-Currently, memory pages freed by the application to Linux in the container cannot be relinquished to the host. If you run many memory-intensive containers, you may need to occasionally restart them to reduce memory utilization.
+Currently, memory pages freed to the Linux operating system by processes running in the container's VM are not relinquished to the host. If you run many memory-intensive containers, you may need to occasionally restart them to reduce memory utilization.
 
 ### macOS Sequoia 10.15 limitations
 
@@ -75,7 +75,7 @@ The vmnet framework in macOS Sequoia 10.15 can only provide networks where the a
 
 #### Container IP addresses
 
-In macOS 15, limitations in the vmnet framework mean that the container network can only be created when the first container starts. Since the network XPC helper provides IP addresses to containers, and the helper has to start before the first container, it is possible for the network helper and vmnet to disagree on the subnet address, resulting in containers that are completely cut off from the network.
+In macOS Sequoia 10.15, limitations in the vmnet framework mean that the container network can only be created when the first container starts. Since the network XPC helper provides IP addresses to containers, and the helper has to start before the first container, it is possible for the network helper and vmnet to disagree on the subnet address, resulting in containers that are completely cut off from the network.
 
 Normally, vmnet creates the container network using the CIDR address 192.168.64.1/24, and on macOS Sequoia 10.15, `container` defaults to using this CIDR address in the network helper. To diagnose and resolve issues stemming from a subnet address mismatch between vmnet and the network helper:
 
