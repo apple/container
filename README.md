@@ -1,7 +1,7 @@
 
 # `container`
 
-`container` is an application that you can use to create and run Linux containers as lightweight virtual machines on your Mac. It's written in Swift, and optimized for Apple Silicon. 
+`container` is an application that you can use to create and run Linux containers as lightweight virtual machines on your Mac. It's written in Swift, and optimized for Apple silicon. 
 
 The application consumes and produces OCI-compliant container images, so you can pull and run images from any standard container registry. You can push images that you build to those registries as well, and run the images in any other OCI-compliant application.
 
@@ -15,7 +15,7 @@ Install the `container` application on your Mac.
 
 ### Requirements
 
-You need an Apple Silicon Mac to run `container`. To build the application, see the [BUILDING](./BUILDING.md) document.
+You need an Apple silicon Mac to run `container`. To build the application, see the [BUILDING](./BUILDING.md) document.
 
 `container` is designed to take advantage of the features of the macOS 16 Developer Preview. You can run the application on macOS Sequoia, but the `container` maintainers typically will not address Sequoia issues that cannot be reproduced on the macOS 16 Developer Preview.
 
