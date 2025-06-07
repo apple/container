@@ -34,8 +34,14 @@ extension Application {
         @Flag(name: .long, help: "Enable debug logging for the runtime daemon.")
         var debug = false
 
-        @Flag(name: .long, help: "Do not prompt for confirmation before installing runtime dependencies")
-        var installDependencies: Bool = false
+        @Option(name: .long, help: "Specify the behavior on how to fetch the default kernel. Valid responses are 'yes', 'no', and 'prompt'.")
+        var fetchDefaultKernel: String = "prompt"
+
+        private var kernelFetchBehavior: KernelFetchBehavior {
+            get throws {
+                try KernelFetchBehavior(fetchDefaultKernel)
+            }
+        }
 
         func run() async throws {
             // Without the true path to the binary in the plist, `container-apiserver` won't launch properly.
@@ -109,10 +115,12 @@ extension Application {
             let kernelDependency = Dependencies.kernel
             let defaultKernelURL = kernelDependency.source
             let defaultKernelBinaryPath = ClientDefaults.get(key: .defaultKernelBinaryPath)
-
-            print("No default kernel configured.")
-            print("Install the recommended default kernel from [\(kernelDependency.source)]? [Y/n]: ", terminator: "")
-            if !installDependencies {
+            guard try kernelFetchBehavior != .no else {
+                return
+            }
+            if try kernelFetchBehavior == .prompt {
+                print("No default kernel configured.")
+                print("Install the recommended default kernel from [\(kernelDependency.source)]? [Y/n]: ", terminator: "")
                 guard let read = readLine(strippingNewline: true) else {
                     throw ContainerizationError(.internalError, message: "Failed to read user input")
                 }
@@ -155,6 +163,25 @@ extension Application {
                 return ClientDefaults.get(key: .defaultInitImage)
             case .kernel:
                 return ClientDefaults.get(key: .defaultKernelURL)
+            }
+        }
+    }
+
+    private enum KernelFetchBehavior: String {
+        case yes
+        case no
+        case prompt
+
+        init(_ rawValue: String) throws {
+            switch rawValue.lowercased() {
+            case "yes":
+                self = .yes
+            case "no":
+                self = .no
+            case "prompt":
+                self = .prompt
+            default:
+                throw ArgumentParser.ValidationError("Invalid value for `--fetch-default-kernel`: \(rawValue)")
             }
         }
     }

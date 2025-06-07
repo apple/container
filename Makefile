@@ -128,13 +128,18 @@ dsym:
 test:
 	@$(SWIFT) test -c $(BUILD_CONFIGURATION) $(CURRENT_SDK_ARGS) --skip TestCLI
 
+.PHONY: fetch-default-kernel
+fetch-default-kernel:
+	@bin/container system stop || true
+	@bin/container system start --fetch-default-kernel yes
+
 .PHONY: integration
-integration: cleancontent init-block
+integration: init-block
 	@echo Ensuring apiserver stopped before the CLI integration tests...
 	@bin/container system stop
 	@scripts/ensure-container-stopped.sh
 	@echo Running the integration tests...
-	@bin/container system start --install-dependencies
+	@bin/container system start
 	@echo "Removing any existing containers"
 	@bin/container rm --all
 	@echo "Starting CLI integration tests"

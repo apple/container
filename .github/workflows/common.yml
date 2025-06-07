@@ -63,7 +63,7 @@ jobs:
       - name: Test the container project
         run: |
           launchctl setenv HTTP_PROXY $HTTP_PROXY
-          make test integration
+          make test cleancontent fetch-default-kernel integration
         env:
           CONTAINER_REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CONTAINER_REGISTRY_USER: ${{ github.actor }}
