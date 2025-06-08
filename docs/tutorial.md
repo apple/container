@@ -231,7 +231,11 @@ You will often see these two options abbreviated and specified together as `-ti`
 
 ### Access the web server from another container
 
-Your web server is accessible from other containers as well as from your host. Launch a second container using your `web-test` image, and this time, specify a `wget` command to retrieve the `index.html` content from the first container.
+Your web server is accessible from other containers as well as from your host. Launch a second container using your `web-test` image, and this time, specify a `curl` command to retrieve the `index.html` content from the first container.
+
+```bash
+container run -it --rm web-test curl http://192.168.64.3
+```
 
 <pre>
 % container run -it --rm web-test curl http://192.168.64.3
