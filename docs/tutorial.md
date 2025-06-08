@@ -16,14 +16,16 @@ container system start
 
 If you have not installed a Linux kernel yet, the command will prompt you to install one:
 
-```shellsession
+<pre>
 % container system start
+
 Verifying apiserver is running...
 Installing base container filesystem...
-No default kernel configured.                                                              
-Install the recommended default kernel from [https://github.com/kata-containers/kata-containers/releases/download/3.17.0/kata-static-3.17.0-arm64.tar.xz]? [Y/n]: y                        
+No default kernel configured.                                                             
+Install the recommended default kernel from [https://github.com/kata-containers/kata-containers/releases/download/3.17.0/kata-static-3.17.0-arm64.tar.xz]? [Y/n]: y
 Installing kernel...
-```
+%
+</pre>
 
 Then, verify that the application is working by running a command to list all containers:
 
@@ -33,17 +35,17 @@ container list --all
 
 If you haven't created any containers yet, the command outputs an empty list:
 
-```shellsession
+<pre>
 % container list --all
 ID  IMAGE  OS  ARCH  STATE  ADDR
 %
-```
+</pre>
 
 ### Get CLI help
 
 You can get help for any `container` CLI command by appending the `--help` option:
 
-```shellsession
+<pre>
 % container --help
 OVERVIEW: A container platform for macOS
 
@@ -76,17 +78,17 @@ SYSTEM SUBCOMMANDS:
   system, s               Manage system components
 
 %
-```
+</pre>
 
 ### Abbreviations
 
 You can save keystrokes by abbreviating commands and options. For example, abbreviate the `container list` command to `container ls`, and the `--all` option to `-a`:
 
-```shellsession
+<pre>
 % container ls -a
 ID  IMAGE  OS  ARCH  STATE  ADDR
 %
-```
+</pre>
 
 Use the `--help` flag to see which abbreviations exist.
 
@@ -124,8 +126,8 @@ curl -L -o logo.jpg https://github.com/apple/container/tree/main/docs/assets/log
 
 In the `web-test` directory, create a file named `Dockerfile` with this content:
 
-```docker
-FROM docker.io/python:slim
+```dockerfile
+FROM docker.io/python:3-bookworm
 WORKDIR /content
 COPY logo.jpg ./
 RUN echo '<!DOCTYPE html><html><head><title>Hello</title></head><body><p><img src="logo.jpg" style="width: 2rem; height: 2rem;">Hello, world!</p></body></html>' > index.html
@@ -156,13 +158,13 @@ The last argument `.` tells the builder to use the current directory (`web-test`
 
 After the build completes, list the images. You should see both the base image and the image that you built in the results:
 
-```shellsession
+<pre>
 % container images list
-NAME                      TAG     DIGEST
-docker.io/library/python  slim    56a11364ffe0fee3bd60af6d...
-web-test                  latest  bf91dc9d42f0110d3aac41dd...
+NAME      TAG         DIGEST
+python    3-bookworm  8300f4e04ed367fafc5877b3...
+web-test  latest      464b4a20ac896b8e48e3d248...
 %
-```
+</pre>
 
 ## Run containers
 
@@ -173,20 +175,20 @@ Using your container image, run a web server and try out different ways of inter
 Use `container run` to start a container named `my-web-server` that runs your webserver:
 
 ```bash
-container run --name my-web-server --dns-domain test --detach --rm web-test
+container run --name my-web-server --detach --rm web-test
 ```
 
 The `--detach` flag runs the container in the background, so that you can continue running commands in the same terminal. The `--rm` flag causes the container to be removed automatically after it stops.
 
 When you list containers now, `my-web-server` is present, along with the container that `container` started to build your image. Note that its IP address, shown in the `ADDR` column, is `192.168.64.3`:
 
-```shellsession
+<pre>
 % container ls
-ID             IMAGE                                                   OS     ARCH   STATE    ADDR
-buildkit       ghcr.io/apple/container-builder-shim/builder:2.1.1      linux  arm64  running  192.168.64.2
-my-web-server  web-test:latest                                         linux  arm64  running  192.168.64.3
+ID             IMAGE                                               OS     ARCH   STATE    ADDR
+my-web-server  web-test:latest                                     linux  arm64  running  192.168.64.3
+buildkit       ghcr.io/apple/container-builder-shim/builder:0.0.3  linux  arm64  running  192.168.64.2
 %
-```
+</pre>
 
 Open the website, using the container's IP address in the URL:
 
@@ -204,24 +206,24 @@ open http://my-web-server.test
 
 You can run other commands in `my-web-server` by using the `container exec` command. To list the files under the content directory, run an `ls` command:
 
-```shellsession
+<pre>
 % container exec my-web-server ls /content
 index.html
 logo.jpg
 %
-```
+</pre>
 
 If you want to poke around in the container, run a shell and issue one or more commands:
 
-```shellsession
-% container exec --tty --interactive my-web-server bash
-root@my-web-server:/content# ls
+<pre>
+% container exec --tty --interactive my-web-server sh  
+# ls
 index.html  logo.jpg
-root@my-web-server:/content# uname -a
-Linux my-web-server 6.1.68 #1 SMP Mon Mar 31 18:27:51 UTC 2025 aarch64 GNU/Linux
-root@my-web-server:/content# exit
+# uname -a
+Linux my-web-server 6.12.28 #1 SMP Tue May 20 15:19:05 UTC 2025 aarch64 GNU/Linux
+# exit
 %
-```
+</pre>
 
 The `--tty` and `--interactive` flag allow you to interact with the shell from your host terminal. The `--tty` flag tells the shell in the container that its input is a terminal device, and the `--interactive` flag connects what you input in your host terminal to the input of the shell in the container.
 
@@ -229,13 +231,13 @@ You will often see these two options abbreviated and specified together as `-ti`
 
 ### Access the web server from another container
 
-Your web server is accessible from other containers as well as from your host. Launch a second container using your `web-test` image, and this time, specify a `curl` command to retrieve the `index.html` content from the first container.
+Your web server is accessible from other containers as well as from your host. Launch a second container using your `web-test` image, and this time, specify a `wget` command to retrieve the `index.html` content from the first container.
 
-```shellsession
+<pre>
 % container run -it --rm web-test curl http://192.168.64.3
-<!DOCTYPE html><html><head><title>Hello</title></head><body><p><img src="logo.jpg" style="width: 2rem; height: 2rem;">Hello, world!</p></body></html>
+&lt;!DOCTYPE html>&lt;html>&lt;head>&lt;title>Hello&lt;/title>&lt;/head>&lt;body>&lt;p>&lt;img src="logo.jpg" style="width: 2rem; height: 2rem;">Hello, world!&lt;/p>&lt;/body>&lt;/html>
 %
-```
+</pre>
 
 If you set up the `test` domain earlier, you can achieve the same result with:
 
@@ -271,11 +273,12 @@ container images push registry.example.com/fido/web-test:latest
 
 ### Pull and run your image
 
-To validate your published image, remove your existing web server image, and then run using the remote image:
+To validate your published image, stop your current web server container, remove the image that you built, and then run using the remote image:
 
 ```bash
+container stop my-web-server
 container images delete web-test registry.example.com/fido/web-test:latest
-container run --name my-web-server --dns-domain test --detach --rm registry.example.com/fido/web-test:latest
+container run --name my-web-server --detach --rm registry.example.com/fido/web-test:latest
 ```
 
 ## Clean up
@@ -292,18 +295,12 @@ container stop my-web-server
 
 If you list all running and stopped containers, you will see that the `--rm` flag you supplied with the `container run` command caused the container to be removed:
 
-```bash
-% container ls --all
-ID        IMAGE                                                   OS     ARCH   STATE    ADDR
-buildkit  ghcr.io/apple/container-builder-shim/builder:2.1.1  linux  arm64  running  192.168.64.2
+<pre>
+% container list --all
+ID        IMAGE                                               OS     ARCH   STATE    ADDR
+buildkit  ghcr.io/apple/container-builder-shim/builder:0.0.3  linux  arm64  running  192.168.64.2
 %
-```
-
-To shut down and remove all containers, run:
-
-```bash
-container rm --all --force
-```
+</pre>
 
 ### Stop the container service
 

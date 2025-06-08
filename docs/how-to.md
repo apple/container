@@ -34,7 +34,7 @@ With the `--volume` option of `container run`, you can share data between the ho
 
 This example mounts a folder named `assets` on your Desktop to the directory `/content/assets` in a container:
 
-```shellsession
+<pre>
 % ls -l ~/Desktop/assets
 total 8
 -rw-r--r--@ 1 fido  staff  2410 May 13 18:36 link.svg
@@ -42,18 +42,18 @@ total 8
 total 4
 -rw-r--r-- 1 root root 2410 May 14 01:36 link.svg
 %
-```
+</pre>
 
 The argument to `--volume` in the example consists of the full pathname for the host folder and the full pathname for the mount point in the container, separated by a colon.
 
 The `--mount` option uses a comma-separated `key=value` syntax to achieve the same result:
 
-```shellsession
+<pre>
 % container run --mount source=${HOME}/Desktop/assets,target=/content/assets docker.io/python:slim ls -l /content/assets
 total 4
 -rw-r--r-- 1 root root 2410 May 14 01:36 link.svg
 %
-```
+</pre>
 
 ## Build and run a multiplatform image
 
@@ -67,18 +67,19 @@ container build --arch arm64 --arch amd64 --tag registry.example.com/fido/web-te
 
 Try running the command `uname -a` with the `arm64` variant of the image to see the system information that the virtual machine reports:
 
-```shellsession
+<pre>
 % container run --arch arm64 --rm registry.example.com/fido/web-test:latest uname -a
 Linux 7932ce5f-ec10-4fbe-a2dc-f29129a86b64 6.1.68 #1 SMP Mon Mar 31 18:27:51 UTC 2025 aarch64 GNU/Linux
 %
-```
+</pre>
 
 When you run the command with the `amd64` architecture, the x86-64 version of `uname` runs under Rosetta translation, so that you will see information for an x86-64 system:
 
-```shellsession
-container run --arch amd64 --rm registry.example.com/fido/web-test:latest uname -a
+<pre>
+% container run --arch amd64 --rm registry.example.com/fido/web-test:latest uname -a
 Linux c0376e0a-0bfd-4eea-9e9e-9f9a2c327051 6.1.68 #1 SMP Mon Mar 31 18:27:51 UTC 2025 x86_64 GNU/Linux
-```
+%
+</pre>
 
 The command to push your multiplatform image to a registry is no different than that for a single-platform image:
 
@@ -92,7 +93,7 @@ container images push registry.example.com/fido/web-test:latest
 
 Use the `inspect` command and send the result to the `jq` command to get pretty-printed JSON for the images or containers that you specify:
 
-```shellsession
+<pre>
 % container images inspect web-test | jq       
 [
   {
@@ -128,11 +129,11 @@ Use the `inspect` command and send the result to the `jq` command to get pretty-
         "memoryInBytes": 1073741824,
       },
 ...
-```
+</pre>
 
 Use the `list` command with the `--format` option to display information for all images or containers. In this example, the `--all` option shows stopped as well as running containers, and `jq` selects the IP address for each running container:
 
-```shellsession
+<pre>
 % container ls --format json --all | jq '.[] | select ( .status == "running" ) | [ .configuration.id, .networks[0].address ]'
 [
   "my-web-server",
@@ -142,25 +143,25 @@ Use the `list` command with the `--format` option to display information for all
   "buildkit",
   "192.168.64.2/24"
 ]
-```
+</pre>
 
 ## View container logs
 
 The `container logs` command displays the output from your containerized application:
 
-```shellsession
+<pre>
 % container run -d --dns-domain test --name my-web-server --rm registry.example.com/fido/web-test:latest
 my-web-server
 % curl http://my-web-server.test                                                                                   
-<!DOCTYPE html><html><head><title>Hello</title></head><body><p><img src="logo.jpg" style="width: 2rem; height: 2rem;">Hello, world!</p></body></html>
+&lt;!DOCTYPE html>&lt;html>&lt;head>&lt;title>Hello&lt;/title>&lt;/head>&lt;body>&lt;p>&lt;img src="logo.jpg" style="width: 2rem; height: 2rem;">Hello, world!&lt;/p>&lt;/body>&lt;/html>
 % container logs my-web-server                                                                            
 192.168.64.1 - - [15/May/2025 03:00:03] "GET / HTTP/1.1" 200 -
 %
-```
+</pre>
 
 Use the `--boot` option to see the logs for the virtual machine boot and init process:
 
-```shellsession
+<pre>
 % container logs --boot my-web-server
 [    0.098284] cacheinfo: Unable to detect cache hierarchy for CPU 0
 [    0.098466] random: crng init done
@@ -184,13 +185,13 @@ Use the `--boot` option to see the logs for the virtual machine boot and init pr
 [    1.122742] IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
 2025-05-15T02:24:39+0000 debug vminitd : sec=1747275879 usec=478412 [vminitd] setTime
 %
-```
+</pre>
 
 ## View system logs
 
 The `container system logs` command allows you to look at the log messages that `container` writes:
 
-```shellsession
+<pre>
 % container system logs | tail -8
 2025-06-02 16:46:11.560780-0700 0xf6dc5    Info        0x0                  61684  0    container-apiserver: [com.apple.container:APIServer] Registering plugin [id=com.apple.container.container-runtime-linux.my-web-server]
 2025-06-02 16:46:11.699095-0700 0xf6ea8    Info        0x0                  61733  0    container-runtime-linux: [com.apple.container:RuntimeLinuxHelper] starting container-runtime-linux [uuid=my-web-server]
@@ -201,4 +202,4 @@ The `container system logs` command allows you to look at the log messages that 
 2025-06-02 16:46:12.293193-0700 0xf6eaa    Info        0x0                  61733  0    container-runtime-linux: [com.apple.container:RuntimeLinuxHelper] `start` xpc handler [uuid=my-web-server]
 2025-06-02 16:46:12.368723-0700 0xf6e93    Info        0x0                  61684  0    container-apiserver: [com.apple.container:APIServer] Handling container my-web-server Start.
 %
-```
+</pre>

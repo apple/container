@@ -29,7 +29,7 @@ If you're upgrading, first uninstall your existing `container` while preserving 
 uninstall-container.sh -k
 ```
 
-Download the latest signed installer package for `container` from the [Github release page](https://github.com/apple/container/releases).
+Download the latest signed installer package for `container` from the [GitHub release page](https://github.com/apple/container/releases).
 
 To install the tool, double click the package file and follow the instructions. Enter your administrator password when prompted, to give the installer permission to place the installed files under `/usr/local`.
 
