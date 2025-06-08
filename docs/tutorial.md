@@ -16,14 +16,14 @@ container system start
 
 If you have not installed a Linux kernel yet, the command will prompt you to install one:
 
-```shellsession
+<pre>
 % container system start
 Verifying apiserver is running...
 Installing base container filesystem...
 No default kernel configured.                                                              
 Install the recommended default kernel from [https://github.com/kata-containers/kata-containers/releases/download/3.17.0/kata-static-3.17.0-arm64.tar.xz]? [Y/n]: y                        
 Installing kernel...
-```
+</pre>
 
 Then, verify that the application is working by running a command to list all containers:
 
@@ -33,17 +33,17 @@ container list --all
 
 If you haven't created any containers yet, the command outputs an empty list:
 
-```shellsession
+<pre>
 % container list --all
 ID  IMAGE  OS  ARCH  STATE  ADDR
 %
-```
+</pre>
 
 ### Get CLI help
 
 You can get help for any `container` CLI command by appending the `--help` option:
 
-```shellsession
+<pre>
 % container --help
 OVERVIEW: A container platform for macOS
 
@@ -76,17 +76,17 @@ SYSTEM SUBCOMMANDS:
   system, s               Manage system components
 
 %
-```
+</pre>
 
 ### Abbreviations
 
 You can save keystrokes by abbreviating commands and options. For example, abbreviate the `container list` command to `container ls`, and the `--all` option to `-a`:
 
-```shellsession
+<pre>
 % container ls -a
 ID  IMAGE  OS  ARCH  STATE  ADDR
 %
-```
+</pre>
 
 Use the `--help` flag to see which abbreviations exist.
 
@@ -156,13 +156,13 @@ The last argument `.` tells the builder to use the current directory (`web-test`
 
 After the build completes, list the images. You should see both the base image and the image that you built in the results:
 
-```shellsession
+<pre>
 % container images list
 NAME                      TAG     DIGEST
 docker.io/library/python  slim    56a11364ffe0fee3bd60af6d...
 web-test                  latest  bf91dc9d42f0110d3aac41dd...
 %
-```
+</pre>
 
 ## Run containers
 
@@ -180,13 +180,13 @@ The `--detach` flag runs the container in the background, so that you can contin
 
 When you list containers now, `my-web-server` is present, along with the container that `container` started to build your image. Note that its IP address, shown in the `ADDR` column, is `192.168.64.3`:
 
-```shellsession
+<pre>
 % container ls
 ID             IMAGE                                                   OS     ARCH   STATE    ADDR
 buildkit       ghcr.io/apple/container-builder-shim/builder:2.1.1  linux  arm64  running  192.168.64.2
 my-web-server  web-test:latest                                         linux  arm64  running  192.168.64.3
 %
-```
+</pre>
 
 Open the website, using the container's IP address in the URL:
 
@@ -202,18 +202,26 @@ open http://my-web-server.test
 
 ### Run other commands in the container
 
-You can run other commands in `my-web-server` by using the `container exec` command. To list the files under the content directory, run an `ls` command:
+You can run other commands in `my-web-server` by using the `container exec` command.
 
 ```shellsession
+container exec my-web-server ls /content
+```
+This will list all the files under the content directory
+<pre>
 % container exec my-web-server ls /content
 index.html
 logo.jpg
-%
-```
+</pre>
 
-If you want to poke around in the container, run a shell and issue one or more commands:
+If you want to poke around in the container, run a shell
 
 ```shellsession
+container exec --tty --interactive my-web-server bash
+```
+... and issue one or more commands inside the container :
+
+<pre>
 % container exec --tty --interactive my-web-server bash
 root@my-web-server:/content# ls
 index.html  logo.jpg
@@ -221,7 +229,8 @@ root@my-web-server:/content# uname -a
 Linux my-web-server 6.1.68 #1 SMP Mon Mar 31 18:27:51 UTC 2025 aarch64 GNU/Linux
 root@my-web-server:/content# exit
 exit%
-```
+
+</pre>
 
 The `--tty` and `--interactive` flag allow you to interact with the shell from your host terminal. The `--tty` flag tells the shell in the container that its input is a terminal device, and the `--interacive` flag connects what you input in your host terminal to the input of the shell in the container.
 
@@ -232,10 +241,14 @@ You will often see these two options abbreviated and specified together as `-ti`
 Your web server is accessible from other containers as well as from your host. Launch a second container using your `web-test` image, and this time, specify a `curl` command to retrieve the `index.html` content from the first container.
 
 ```shellsession
+container run -it --rm web-test curl http://192.168.64.3
+```
+You will see the same web content we saw earlier in this tutorial
+<pre>
 % container run -it --rm web-test curl http://192.168.64.3
 <!DOCTYPE html><html><head><title>Hello</title></head><body><p><img src="logo.jpg" style="width: 2rem; height: 2rem;">Hello, world!</p></body></html>
 %
-```
+</pre>
 
 If you set up the `test` domain earlier, you can achieve the same result with:
 
@@ -292,12 +305,12 @@ container stop my-web-server
 
 If you list all running and stopped containers, you will see that the `--rm` flag you supplied with the `container run` command caused the container to be removed:
 
-```bash
+<pre>
 % container ls --all
 ID        IMAGE                                                   OS     ARCH   STATE    ADDR
 buildkit  ghcr.io/apple/container-builder-shim/builder:2.1.1  linux  arm64  running  192.168.64.2
 %
-```
+</pre>
 
 To shut down and remove all containers, run:
 
