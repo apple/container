@@ -38,7 +38,7 @@ This example mounts a folder named `assets` on your Desktop to the directory `/c
 % ls -l ~/Desktop/assets
 total 8
 -rw-r--r--@ 1 fido  staff  2410 May 13 18:36 link.svg
-% container run --volume ${HOME}/Desktop/assets:/content/assets docker.io/python:slim ls -l /content/assets
+% container run --volume ${HOME}/Desktop/assets:/content/assets docker.io/python:alpine ls -l /content/assets
 total 4
 -rw-r--r-- 1 root root 2410 May 14 01:36 link.svg
 %
@@ -49,7 +49,7 @@ The argument to `--volume` in the example consists of the full pathname for the 
 The `--mount` option uses a comma-separated `key=value` syntax to achieve the same result:
 
 <pre>
-% container run --mount source=${HOME}/Desktop/assets,target=/content/assets docker.io/python:slim ls -l /content/assets
+% container run --mount source=${HOME}/Desktop/assets,target=/content/assets docker.io/python:alpine ls -l /content/assets
 total 4
 -rw-r--r-- 1 root root 2410 May 14 01:36 link.svg
 %

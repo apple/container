@@ -84,7 +84,7 @@ public final class ReservedVmnetNetwork: Network {
 
     private func startNetwork(configuration: NetworkConfiguration, log: Logger) throws {
         log.info(
-            "starting nmos vmnet network",
+            "starting vmnet network",
             metadata: [
                 "id": "\(configuration.id)",
                 "mode": "\(configuration.mode)",
@@ -140,7 +140,7 @@ public final class ReservedVmnetNetwork: Network {
         let runningGateway = IPv4Address(fromValue: runningSubnet.lower.value + 1)
         self._state = .running(configuration, NetworkStatus(address: runningSubnet.description, gateway: runningGateway.description))
         log.info(
-            "started (reservation) nmos vmnet network",
+            "started vmnet network",
             metadata: [
                 "id": "\(configuration.id)",
                 "mode": "\(configuration.mode)",

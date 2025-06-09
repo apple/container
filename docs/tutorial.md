@@ -118,19 +118,13 @@ mkdir web-test
 cd web-test
 ```
 
-Download an image file for your web server can use:
-
-```bash
-curl -L -o logo.jpg https://github.com/apple/container/tree/main/docs/assets/logo.jpg
-```
-
 In the `web-test` directory, create a file named `Dockerfile` with this content:
 
 ```dockerfile
-FROM docker.io/python:3-bookworm
+FROM docker.io/python:alpine
 WORKDIR /content
-COPY logo.jpg ./
-RUN echo '<!DOCTYPE html><html><head><title>Hello</title></head><body><p><img src="logo.jpg" style="width: 2rem; height: 2rem;">Hello, world!</p></body></html>' > index.html
+RUN apk add curl
+RUN echo '<!DOCTYPE html><html><head><title>Hello</title></head><body><h1>Hello, world!</h1></body></html>' > index.html
 CMD ["python3", "-m", "http.server", "80", "--bind", "0.0.0.0"]
 ```
 
@@ -138,9 +132,7 @@ The `FROM` line instructs the `container` builder to start with a base image con
 
 The `WORKDIR` line creates a directory `/content` in the image, and makes it the current directory.
 
-The `COPY` command copies the image file `logo.jpg` from your build context to the image. See the following section for a description of the build context.
-
-The `RUN` line creates a simple HTML landing page named `/content/index.html`.
+The first `RUN` line adds the `curl` command to your image, and the second `RUN` line creates a simple HTML landing page named `/content/index.html`.
 
 The `CMD` line configures the container to run a simple web server in Python on port 80. Since the working directory is `/content`, the web server runs in that directory and delivers the content of the file `/content/index.html` when a user requests the index page URL.
 
@@ -160,9 +152,9 @@ After the build completes, list the images. You should see both the base image a
 
 <pre>
 % container images list
-NAME      TAG         DIGEST
-python    3-bookworm  8300f4e04ed367fafc5877b3...
-web-test  latest      464b4a20ac896b8e48e3d248...
+NAME      TAG     DIGEST
+python    alpine  b4d299311845147e7e47c970...
+web-test  latest  25b99501f174803e21c58f9c...
 %
 </pre>
 
@@ -185,8 +177,8 @@ When you list containers now, `my-web-server` is present, along with the contain
 <pre>
 % container ls
 ID             IMAGE                                               OS     ARCH   STATE    ADDR
-my-web-server  web-test:latest                                     linux  arm64  running  192.168.64.3
 buildkit       ghcr.io/apple/container-builder-shim/builder:0.0.3  linux  arm64  running  192.168.64.2
+my-web-server  web-test:latest                                     linux  arm64  running  192.168.64.3
 %
 </pre>
 
@@ -209,19 +201,18 @@ You can run other commands in `my-web-server` by using the `container exec` comm
 <pre>
 % container exec my-web-server ls /content
 index.html
-logo.jpg
 %
 </pre>
 
 If you want to poke around in the container, run a shell and issue one or more commands:
 
 <pre>
-% container exec --tty --interactive my-web-server sh  
-# ls
-index.html  logo.jpg
-# uname -a
-Linux my-web-server 6.12.28 #1 SMP Tue May 20 15:19:05 UTC 2025 aarch64 GNU/Linux
-# exit
+% container exec --tty --interactive my-web-server sh
+/content # ls
+index.html
+/content # uname -a
+Linux my-web-server 6.12.28 #1 SMP Tue May 20 15:19:05 UTC 2025 aarch64 Linux
+/content # exit
 %
 </pre>
 
@@ -236,6 +227,8 @@ Your web server is accessible from other containers as well as from your host. L
 ```bash
 container run -it --rm web-test curl http://192.168.64.3
 ```
+
+The output should appear as:
 
 <pre>
 % container run -it --rm web-test curl http://192.168.64.3
