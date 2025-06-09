@@ -265,7 +265,7 @@ public struct Parser {
                 key = "ro"
                 skipValue = true
             default:
-                throw ContainerizationError(.invalidArgument, message: "unknwon directive \(key) when parsing mount \(mount)")
+                throw ContainerizationError(.invalidArgument, message: "unknown directive \(key) when parsing mount \(mount)")
             }
             var value = ""
             if !skipValue {
