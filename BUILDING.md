@@ -31,7 +31,9 @@ make protos
 
 To make changes to `container` that require changes to the Containerization project, or vice versa:
 
-1. Clone the [Containerization](https://github.com/apple/containerization) repository such that it sits next to your clone of the `container` repository.
+1. Clone the [Containerization](https://github.com/apple/containerization) repository such that it sits next to your clone
+of the `container` repository. Ensure that you [follow containerization instructions](https://github.com/apple/containerization/blob/main/README.md#prepare-to-build-package)
+to prepare your build environment.
 
 2. In your development shell, go to the `container` project directory.
     
