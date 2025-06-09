@@ -3,7 +3,7 @@
 To build the `container` project, your system needs either:
 
 - macOS 15 or newer and Xcode 26 Beta
-- macOS 26 Beta 1
+- macOS 26 Beta 1 or newer
 
 ## Compile and test
 
