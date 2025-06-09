@@ -24,7 +24,7 @@ import Virtualization
 import vmnet
 
 #if !CURRENT_SDK
-/// Interface strategy for containers running on macOS 16.
+/// Interface strategy for containers that use macOS's custom network feature.
 @available(macOS 16, *)
 struct NonisolatedInterfaceStrategy: InterfaceStrategy {
     private let log: Logger

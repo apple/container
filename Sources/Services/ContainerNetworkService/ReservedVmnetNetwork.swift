@@ -27,7 +27,7 @@ import XPC
 import vmnet
 
 #if !CURRENT_SDK
-/// Creates a vmnet network with macOS 16 reservation APIs.
+/// Creates a vmnet network with reservation APIs.
 @available(macOS 16, *)
 public final class ReservedVmnetNetwork: Network {
     @SendableProperty
