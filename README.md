@@ -11,8 +11,6 @@ The tool consumes and produces OCI-compliant container images, so you can pull a
 
 ## Get started
 
-Install `container` on your Mac.
-
 ### Requirements
 
 You need an Apple silicon Mac to run `container`. To build it, see the [BUILDING](./BUILDING.md) document.
