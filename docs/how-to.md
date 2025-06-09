@@ -153,7 +153,7 @@ The `container logs` command displays the output from your containerized applica
 % container run -d --dns-domain test --name my-web-server --rm registry.example.com/fido/web-test:latest
 my-web-server
 % curl http://my-web-server.test                                                                                   
-&lt;!DOCTYPE html>&lt;html>&lt;head>&lt;title>Hello&lt;/title>&lt;/head>&lt;body>&lt;p>&lt;img src="logo.jpg" style="width: 2rem; height: 2rem;">Hello, world!&lt;/p>&lt;/body>&lt;/html>
+&lt;!DOCTYPE html>&lt;html>&lt;head>&lt;title>Hello&lt;/title>&lt;/head>&lt;body>&lt;h1>Hello, world!&lt;/h1>&lt;/body>&lt;/html>
 % container logs my-web-server                                                                            
 192.168.64.1 - - [15/May/2025 03:00:03] "GET / HTTP/1.1" 200 -
 %

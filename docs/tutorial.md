@@ -232,7 +232,7 @@ The output should appear as:
 
 <pre>
 % container run -it --rm web-test curl http://192.168.64.3
-&lt;!DOCTYPE html>&lt;html>&lt;head>&lt;title>Hello&lt;/title>&lt;/head>&lt;body>&lt;p>&lt;img src="logo.jpg" style="width: 2rem; height: 2rem;">Hello, world!&lt;/p>&lt;/body>&lt;/html>
+&lt;!DOCTYPE html>&lt;html>&lt;head>&lt;title>Hello&lt;/title>&lt;/head>&lt;body>&lt;h1>Hello, world!&lt;/h1>&lt;/body>&lt;/html>
 %
 </pre>
 
