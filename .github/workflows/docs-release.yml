@@ -7,7 +7,7 @@ on:
 jobs: 
   checkBranch:
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags') || startsWith(github.ref, 'refs/heads/release')
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags') || startsWith(github.ref, 'refs/heads/release')
     steps:
       - name: Branch validation 
         run: echo "Branch ${{ github.ref_name }} is allowed"
