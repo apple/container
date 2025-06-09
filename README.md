@@ -17,9 +17,9 @@ Install `container` on your Mac.
 
 You need an Apple silicon Mac to run `container`. To build it, see the [BUILDING](./BUILDING.md) document.
 
-`container` is designed to use the new features in the macOS Developer Preview. You can run the tool on macOS Sequoia 15, but the `container` maintainers typically will not address issues discovered on macOS Sequoia 15 that cannot be reproduced on the macOS Developer Preview.
+`container` is designed to use the new features in the macOS Developer Preview. You can run the tool on macOS 15, but the `container` maintainers typically will not address issues discovered on macOS 15 that cannot be reproduced on the macOS Developer Preview.
 
-There are [significant networking limitations](/docs/technical-overview.md#macos-sequoia-15-limitations) that impact the usability `container` on macOS Sequoia 15.
+There are [significant networking limitations](/docs/technical-overview.md#macos-15-limitations) that impact the usability `container` on macOS 15.
 
 ### Install or upgrade
 

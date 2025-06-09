@@ -65,19 +65,19 @@ The macOS Virtualization framework implements only partial support for memory ba
 
 Currently, memory pages freed to the Linux operating system by processes running in the container's VM are not relinquished to the host. If you run many memory-intensive containers, you may need to occasionally restart them to reduce memory utilization.
 
-### macOS Sequoia 15 limitations
+### macOS 15 limitations
 
-`container` relies on the new features and enhancements present in the macOS Developer Preview. You can run `container` on macOS Sequoia 15, but you will need to be aware of some user experience quirks and functional limitations. There is no plan to address issues found with macOS Sequoia 15 that cannot be reproduced in the macOS Developer Preview.
+`container` relies on the new features and enhancements present in the macOS Developer Preview. You can run `container` on macOS 15, but you will need to be aware of some user experience quirks and functional limitations. There is no plan to address issues found with macOS 15 that cannot be reproduced in the macOS Developer Preview.
 
 #### Network isolation
 
-The vmnet framework in macOS Sequoia 15 can only provide networks where the attached containers are isolated from one another. Container-to-container communication over the virtual network is not possible.
+The vmnet framework in macOS 15 can only provide networks where the attached containers are isolated from one another. Container-to-container communication over the virtual network is not possible.
 
 #### Container IP addresses
 
-In macOS Sequoia 15, limitations in the vmnet framework mean that the container network can only be created when the first container starts. Since the network XPC helper provides IP addresses to containers, and the helper has to start before the first container, it is possible for the network helper and vmnet to disagree on the subnet address, resulting in containers that are completely cut off from the network.
+In macOS 15, limitations in the vmnet framework mean that the container network can only be created when the first container starts. Since the network XPC helper provides IP addresses to containers, and the helper has to start before the first container, it is possible for the network helper and vmnet to disagree on the subnet address, resulting in containers that are completely cut off from the network.
 
-Normally, vmnet creates the container network using the CIDR address 192.168.64.1/24, and on macOS Sequoia 15, `container` defaults to using this CIDR address in the network helper. To diagnose and resolve issues stemming from a subnet address mismatch between vmnet and the network helper:
+Normally, vmnet creates the container network using the CIDR address 192.168.64.1/24, and on macOS 15, `container` defaults to using this CIDR address in the network helper. To diagnose and resolve issues stemming from a subnet address mismatch between vmnet and the network helper:
 
 - Before creating the first container, scan the output of the command `ifconfig` for all bridge interface named similarly to `bridge100`.
 - After creating the first container, run `ifconfig` again, and locate the new bridge interface to determine container the subnet address.

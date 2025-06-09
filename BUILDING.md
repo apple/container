@@ -2,7 +2,7 @@
 
 To build the `container` project, your system needs either:
 
-- macOS Sequoia 15 or newer and Xcode 17 beta.
+- macOS 15 or newer and Xcode 17 beta.
 - macOS Developer Preview.
 
 ## Compile and test
