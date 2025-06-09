@@ -24,8 +24,6 @@ jobs:
       - name: Update containerization
         run: | 
           /usr/bin/swift package update containerization
-        env:
-          CONTAINERIZATION_REPO: https://${{ secrets.REPO_READ }}@github.com/apple/containerization.git 
       - name: Check formatting
         run: | 
           ./scripts/install-hawkeye.sh
@@ -33,14 +31,13 @@ jobs:
           if ! git diff --quiet -- . ':(exclude)Package.swift' ':(exclude)Package.resolved'; then echo "The following files require formatting or license header updates:\n$(git diff --name-only)" ; false ; fi 
       - name: Check protobuf 
         run: | 
-          make BUILDER_SHIM_REPO=https://${{ secrets.REPO_READ }}@github.com/apple/container-builder-shim.git protos 
+          make protos 
 
           # TODO [launch]: TEMPORARILY we need to exclude these files since we had to modify them to add
           # the github token for pulling the private repos. 
           if ! git diff --quiet -- . ':(exclude)Package.swift' ':(exclude)Package.resolved' ':(exclude)Protobuf.Makefile'; then echo "The following files require formatting or license header updates:\n$(git diff --name-only)" ; false ; fi 
         env:
           CURRENT_SDK: y
-          CONTAINERIZATION_REPO: https://${{ secrets.REPO_READ }}@github.com/apple/containerization.git       
       - name: Set build configuration
         run: |
           echo "BUILD_CONFIGURATION=debug" >> $GITHUB_ENV
@@ -54,7 +51,6 @@ jobs:
         env:
           DEVELOPER_DIR: "/Applications/Xcode_16.3.app/Contents/Developer"
           CURRENT_SDK: y
-          CONTAINERIZATION_REPO: https://${{ secrets.REPO_READ }}@github.com/apple/containerization.git 
       - name: Create package 
         run: |
           mkdir -p outputs
@@ -70,7 +66,6 @@ jobs:
           CONTAINER_REGISTRY_HOST: ghcr.io
           DEVELOPER_DIR: "/Applications/Xcode_16.3.app/Contents/Developer"
           CURRENT_SDK: y
-          CONTAINERIZATION_REPO: https://${{ secrets.REPO_READ }}@github.com/apple/containerization.git 
       - name: Save documentation artifact
         uses: actions/upload-artifact@v4
         with:
