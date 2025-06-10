@@ -94,7 +94,7 @@ container images push registry.example.com/fido/web-test:latest
 Use the `inspect` command and send the result to the `jq` command to get pretty-printed JSON for the images or containers that you specify:
 
 <pre>
-% container images inspect web-test | jq       
+% container images inspect web-test | jq
 [
   {
     "name": "web-test:latest",
@@ -152,9 +152,9 @@ The `container logs` command displays the output from your containerized applica
 <pre>
 % container run -d --dns-domain test --name my-web-server --rm registry.example.com/fido/web-test:latest
 my-web-server
-% curl http://my-web-server.test                                                                                   
+% curl http://my-web-server.test
 &lt;!DOCTYPE html>&lt;html>&lt;head>&lt;title>Hello&lt;/title>&lt;/head>&lt;body>&lt;h1>Hello, world!&lt;/h1>&lt;/body>&lt;/html>
-% container logs my-web-server                                                                            
+% container logs my-web-server
 192.168.64.1 - - [15/May/2025 03:00:03] "GET / HTTP/1.1" 200 -
 %
 </pre>

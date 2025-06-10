@@ -21,7 +21,7 @@ If you have not installed a Linux kernel yet, the command will prompt you to ins
 
 Verifying apiserver is running...
 Installing base container filesystem...
-No default kernel configured.                                                             
+No default kernel configured.
 Install the recommended default kernel from [https://github.com/kata-containers/kata-containers/releases/download/3.17.0/kata-static-3.17.0-arm64.tar.xz]? [Y/n]: y
 Installing kernel...
 %
@@ -188,7 +188,7 @@ Open the website, using the container's IP address in the URL:
 open http://192.168.64.3
 ```
 
-If you configured the local domain `test` earlier in the tutorial, you can also open the page the full hostname for the container:
+If you configured the local domain `test` earlier in the tutorial, you can also open the page with the full hostname for the container:
 
 ```bash
 open http://my-web-server.test
@@ -244,7 +244,7 @@ container run -it --rm web-test curl http://my-web-server.test
 
 ## Run a published image
 
-Push your image to a container registry, publishing it so that you and others can use it. 
+Push your image to a container registry, publishing it so that you and others can use it.
 
 ### Publish the web server image
 

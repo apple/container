@@ -45,15 +45,15 @@ When `container-apiserver` starts, it launches an XPC helper `container-core-ima
 
 ## What limitations does `container` have today?
 
-With the initial release of `container`, you get basic facilities for building and running containers, but many common containerization features remain to be implemented. Consider [contributing](/CONTRIBUTING.md) new features and bug fixes to `container` and the Containerization projects!
+With the initial release of `container`, you get basic facilities for building and running containers, but many common containerization features remain to be implemented. Consider [contributing](../CONTRIBUTING.md) new features and bug fixes to `container` and the Containerization projects!
 
 ### Container to host networking
 
-In the initial release, there is no way to route traffic directly from a client in a container to an host-based application listening on the loopback interface at 127.0.0.1. If you were to configure the application in your container to connect to 127.0.0.1 or `localhost`, requests would simply go to the loopback interface in the container, rather than your host-based service.
+In the initial release, there is no way to route traffic directly from a client in a container to a host-based application listening on the loopback interface at 127.0.0.1. If you were to configure the application in your container to connect to 127.0.0.1 or `localhost`, requests would simply go to the loopback interface in the container, rather than your host-based service.
 
 You can work around this limitation by configuring the host-based application to listen on the wildcard address 0.0.0.0, but this practice is insecure and not recommended because, without firewall rules, this exposes the application to external requests.
 
-A more secure approach uses `socat` to redirect traffic from the container network gateway to the host-based service. For example, to forward traffic for port 8000, configure your containerized application to connect to `192.68.64.1:8000` instead of `127.0.0.1:8000`, and then run the following command in a terminal on your Mac to forward the port traffic from the gateway to the host:
+A more secure approach uses `socat` to redirect traffic from the container network gateway to the host-based service. For example, to forward traffic for port 8000, configure your containerized application to connect to `192.168.64.1:8000` instead of `127.0.0.1:8000`, and then run the following command in a terminal on your Mac to forward the port traffic from the gateway to the host:
 
 ```bash
 socat TCP-LISTEN:8000,fork,bind=192.168.64.1 TCP:127.0.0.1:8000
@@ -79,7 +79,7 @@ In macOS 15, limitations in the vmnet framework mean that the container network 
 
 Normally, vmnet creates the container network using the CIDR address 192.168.64.1/24, and on macOS 15, `container` defaults to using this CIDR address in the network helper. To diagnose and resolve issues stemming from a subnet address mismatch between vmnet and the network helper:
 
-- Before creating the first container, scan the output of the command `ifconfig` for all bridge interface named similarly to `bridge100`.
+- Before creating the first container, scan the output of the command `ifconfig` for a bridge interface named similarly to `bridge100`.
 - After creating the first container, run `ifconfig` again, and locate the new bridge interface to determine container the subnet address.
 - Run `container ls` to check the IP address given to the container by the network helper. If the address corresponds to a different network:
   - Run `container system stop` to terminate the services for `container`.
