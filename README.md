@@ -50,7 +50,7 @@ uninstall-container.sh -k
 - Take [a guided tour of `container`](./docs/tutorial.md) by building, running, and publishing a simple web server image.
 - Learn how to [use various `container` features](./docs/how-to.md).
 - Read a brief description and [technical overview](./docs/technical-overview.md) of `container`.
-- View the project [API documentation](https://pages.github.com/apple/container/).
+- View the project [API documentation](https://apple.github.io/container/documentation/).
 
 ## Contributing
 
