@@ -27,6 +27,7 @@ extension Application {
                 SystemRestart.self,
                 SystemStart.self,
                 SystemStop.self,
+                SystemStatus.self,
                 SystemKernel.self,
             ],
             aliases: ["s"]
