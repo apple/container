@@ -13,7 +13,7 @@ Build `container` and the background services from source, and run basic and int
 make all test integration
 ```
 
-Copy the binaries to `/usr/local/bin` and `/usr/local/libexec` (requires entering the an administrator password):
+Copy the binaries to `/usr/local/bin` and `/usr/local/libexec` (requires entering an administrator password):
 
 ```bash
 make install
@@ -36,19 +36,19 @@ of the `container` repository. Ensure that you [follow containerization instruct
 to prepare your build environment.
 
 2. In your development shell, go to the `container` project directory.
-    
+
     ```
     cd container
     ```
 
-3. If the `container` services are already running, stop them. 
+3. If the `container` services are already running, stop them.
 
     ```
     bin/container system stop
     ```
 
 4. Configure the environment variable `CONTAINERIZATION_PATH` to refer to your Containerization project, and update your `Package.resolved` file.
-    
+
     ```
     export CONTAINERIZATION_PATH=../containerization
     swift package update containerization
@@ -75,7 +75,7 @@ to prepare your build environment.
 To revert to using the Containerization dependency from your `Package.swift`:
 
 1. Unset your `CONTAINERIZATION_PATH` environment variable, and update `Package.resolved`.
-    
+
     ```
     unset CONTAINERIZATION_PATH
     swift package update containerization
