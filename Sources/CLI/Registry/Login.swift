@@ -37,9 +37,6 @@ extension Application {
         var server: String
 
         @OptionGroup
-        var global: Flags.Global
-
-        @OptionGroup
         var registry: Flags.Registry
 
         func run() async throws {
