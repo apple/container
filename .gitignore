@@ -27,3 +27,4 @@ test_results/
 
 # API docs for local preview only.
 _site/
+_serve/
