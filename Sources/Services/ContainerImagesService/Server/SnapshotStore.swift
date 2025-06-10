@@ -62,6 +62,9 @@ public actor SnapshotStore {
             guard let platform = desc.platform else {
                 throw ContainerizationError(.internalError, message: "Missing platform for descriptor \(desc.digest)")
             }
+            guard Self.shouldUnpackPlatform(platform) else {
+                continue
+            }
             let currentSubTask = await taskManager.startTask()
             if let progressUpdate {
                 let _taskUpdateProgress = ProgressTaskCoordinator.handler(for: currentSubTask, from: progressUpdate)
@@ -182,6 +185,13 @@ public actor SnapshotStore {
         let uniqueDirectoryURL = ingestDir.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try self.fm.createDirectory(at: uniqueDirectoryURL, withIntermediateDirectories: true, attributes: nil)
         return uniqueDirectoryURL
+    }
+
+    private static func shouldUnpackPlatform(_ platform: Platform) -> Bool {
+        guard platform.os == "linux" else {
+            return false
+        }
+        return true
     }
 }
 
