@@ -92,9 +92,14 @@ extension ProgressBar {
 
     /// Performs an addition to the current tasks.
     /// - Parameter tasks: The tasks to add to the current tasks.
-    public func add(tasks toAdd: Int, render: Bool = true) {
-        let newTasks = state.tasks + toAdd
-        set(tasks: newTasks, render: render)
+    public func add(tasks delta: Int, render: Bool = true) {
+        _state.withLock {
+            let newTasks = $0.tasks + delta
+            $0.tasks = newTasks
+        }
+        if render {
+            self.render()
+        }
     }
 
     /// Sets the total tasks.
@@ -108,10 +113,15 @@ extension ProgressBar {
 
     /// Performs an addition to the total tasks.
     /// - Parameter totalTasks: The tasks to add to the total tasks.
-    public func add(totalTasks toAdd: Int, render: Bool = true) {
-        let totalTasks = state.totalTasks ?? 0
-        let newTotalTasks = totalTasks + toAdd
-        set(totalTasks: newTotalTasks, render: render)
+    public func add(totalTasks delta: Int, render: Bool = true) {
+        _state.withLock {
+            let totalTasks = $0.totalTasks ?? 0
+            let newTotalTasks = totalTasks + delta
+            $0.totalTasks = newTotalTasks
+        }
+        if render {
+            self.render()
+        }
     }
 
     /// Sets the items name.
@@ -134,9 +144,14 @@ extension ProgressBar {
 
     /// Performs an addition to the current items.
     /// - Parameter items: The items to add to the current items.
-    public func add(items toAdd: Int, render: Bool = true) {
-        let newItems = state.items + toAdd
-        set(items: newItems, render: render)
+    public func add(items delta: Int, render: Bool = true) {
+        _state.withLock {
+            let newItems = $0.items + delta
+            $0.items = newItems
+        }
+        if render {
+            self.render()
+        }
     }
 
     /// Sets the total items.
@@ -150,10 +165,15 @@ extension ProgressBar {
 
     /// Performs an addition to the total items.
     /// - Parameter totalItems: The items to add to the total items.
-    public func add(totalItems toAdd: Int, render: Bool = true) {
-        let totalItems = state.totalItems ?? 0
-        let newTotalItems = totalItems + toAdd
-        set(totalItems: newTotalItems, render: render)
+    public func add(totalItems delta: Int, render: Bool = true) {
+        _state.withLock {
+            let totalItems = $0.totalItems ?? 0
+            let newTotalItems = totalItems + delta
+            $0.totalItems = newTotalItems
+        }
+        if render {
+            self.render()
+        }
     }
 
     /// Sets the current size.
@@ -167,9 +187,14 @@ extension ProgressBar {
 
     /// Performs an addition to the current size.
     /// - Parameter size: The size to add to the current size.
-    public func add(size toAdd: Int64, render: Bool = true) {
-        let newSize = state.size + toAdd
-        set(size: newSize, render: render)
+    public func add(size delta: Int64, render: Bool = true) {
+        _state.withLock {
+            let newSize = $0.size + delta
+            $0.size = newSize
+        }
+        if render {
+            self.render()
+        }
     }
 
     /// Sets the total size.
@@ -183,9 +208,14 @@ extension ProgressBar {
 
     /// Performs an addition to the total size.
     /// - Parameter totalSize: The size to add to the total size.
-    public func add(totalSize toAdd: Int64, render: Bool = true) {
-        let totalSize = state.totalSize ?? 0
-        let newTotalSize = totalSize + toAdd
-        set(totalSize: newTotalSize, render: render)
+    public func add(totalSize delta: Int64, render: Bool = true) {
+        _state.withLock {
+            let totalSize = $0.totalSize ?? 0
+            let newTotalSize = totalSize + delta
+            $0.totalSize = newTotalSize
+        }
+        if render {
+            self.render()
+        }
     }
 }

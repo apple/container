@@ -20,8 +20,9 @@ import SendableProperty
 /// A progress bar that updates itself as tasks are completed.
 public final class ProgressBar: Sendable {
     let config: ProgressConfig
+    // `@SendableProperty` adds `_state: Synchronized<State>`, which can be updated inside a lock using `_state.withLock()`.
     @SendableProperty
-    var state: State
+    var state = State()
     @SendableProperty
     var printedWidth = 0
     let term: FileHandle?
