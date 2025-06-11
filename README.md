@@ -21,6 +21,13 @@ There are [significant networking limitations](/docs/technical-overview.md#macos
 
 ### Install or upgrade
 
+You can install `container` using homebrew:
+
+```bash
+brew install --cask container
+```
+
+
 If you're upgrading, first uninstall your existing `container` while preserving your user data:
 
 ```bash
