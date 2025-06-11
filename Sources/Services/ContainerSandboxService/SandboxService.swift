@@ -665,11 +665,26 @@ public actor SandboxService {
     }
 
     private nonisolated func modifyingEnvironment(_ config: ProcessConfiguration) -> [String] {
-        guard config.terminal else {
-            return config.environment
+        var env = config.environment
+
+        // Ensure HOME is set for root user
+        if !env.contains(where: { $0.hasPrefix("HOME=") }) {
+            switch config.user {
+            case .id(let uid, _) where uid == 0:
+                env.append("HOME=/root")
+            case .raw(let userString) where userString.isEmpty || userString == "root" || userString.hasPrefix("0:"):
+                env.append("HOME=/root")
+            default:
+                break
+            }
         }
-        // Prepend the TERM env var. If the user has it specified our value will be overridden.
-        return ["TERM=xterm"] + config.environment
+
+        // Prepend TERM for terminal sessions
+        if config.terminal && !env.contains(where: { $0.hasPrefix("TERM=") }) {
+            env.insert("TERM=xterm", at: 0)
+        }
+
+        return env
     }
 
     private func getContainer() throws -> ContainerInfo {
