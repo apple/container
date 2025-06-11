@@ -27,11 +27,7 @@ if let path = ProcessInfo.processInfo.environment["CONTAINERIZATION_PATH"] {
     scVersion = "latest"
 } else {
     scVersion = "0.1.0"
-    if let containerizationRepo = ProcessInfo.processInfo.environment["CONTAINERIZATION_REPO"], containerizationRepo != "" {
-        scDependency = .package(url: containerizationRepo, exact: Version(stringLiteral: scVersion))
-    } else {
-        scDependency = .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion))
-    }
+    scDependency = .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion))
 }
 
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
