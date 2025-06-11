@@ -98,7 +98,7 @@ public final class ProgressBar: Sendable {
             printFullDescription()
         }
 
-        while !isFinished {
+        while !state.finished {
             let intervalNanoseconds = UInt64(intervalSeconds * 1_000_000_000)
             render()
             state.iteration += 1
@@ -118,7 +118,7 @@ public final class ProgressBar: Sendable {
 
     /// Finishes the progress bar.
     public func finish() {
-        guard !isFinished else {
+        guard !state.finished else {
             return
         }
 
