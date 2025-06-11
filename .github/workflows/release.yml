@@ -1,15 +1,15 @@
 name: container project - release build
 
-on: 
-  push: 
+on:
+  push:
     tags:
       - "[0-9]+.[0-9]+.[0-9]+"
 
-jobs: 
+jobs:
   build:
     name: Invoke build and release
     uses: ./.github/workflows/common.yml
-    with: 
+    with:
       release: true
     secrets: inherit
     permissions:
