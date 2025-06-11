@@ -239,13 +239,13 @@ extension ProgressBar {
                         formattedCombinedSize = formattedSize
                     }
                 }
-                
+
                 var formattedSpeed = ""
                 if config.showSpeed {
                     formattedSpeed = "\(state.sizeSpeed ?? state.averageSizeSpeed)"
                     formattedSpeed = adjustFormattedSize(formattedSpeed)
                 }
-                
+
                 if config.showSize && config.showSpeed {
                     additionalComponents.append(formattedCombinedSize)
                     additionalComponents.append(formattedSpeed)
