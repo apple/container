@@ -61,23 +61,24 @@ extension ProgressBar {
 
     /// Performs a check to see if the progress bar should be finished.
     public func checkIfFinished() {
-        if let totalTasks = state.totalTasks {
+        var finished = true
+        var defined = false
+        if let totalTasks = state.totalTasks, totalTasks > 0 {
             // For tasks, we're showing the current task rather then the number of completed tasks.
-            guard state.tasks > totalTasks else {
-                return
-            }
+            finished = finished && state.tasks > totalTasks
+            defined = true
         }
-        if let totalItems = state.totalItems {
-            guard state.items == totalItems else {
-                return
-            }
+        if let totalItems = state.totalItems, totalItems > 0 {
+            finished = finished && state.items == totalItems
+            defined = true
         }
-        if let totalSize = state.totalSize {
-            guard state.size == totalSize else {
-                return
-            }
+        if let totalSize = state.totalSize, totalSize > 0 {
+            finished = finished && state.size == totalSize
+            defined = true
         }
-        finish()
+        if defined && finished {
+            finish()
+        }
     }
 
     /// Sets the current tasks.
