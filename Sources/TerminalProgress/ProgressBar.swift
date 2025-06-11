@@ -123,6 +123,10 @@ public final class ProgressBar: Sendable {
         }
 
         state.finished = true
+
+        // The last render.
+        render(force: true)
+
         if !config.disableProgressUpdates && !config.clearOnFinish {
             displayText(state.output, terminating: "\n")
         }
@@ -144,8 +148,8 @@ extension ProgressBar {
         return timeDifferenceSeconds
     }
 
-    func render() {
-        guard term != nil && !config.disableProgressUpdates && !isFinished else {
+    func render(force: Bool = false) {
+        guard term != nil && !config.disableProgressUpdates && (force || !state.finished) else {
             return
         }
         let output = draw()
@@ -155,8 +159,12 @@ extension ProgressBar {
     func draw() -> String {
         var components = [String]()
         if config.showSpinner && !config.showProgressBar {
-            let spinnerIcon = config.theme.getSpinnerIcon(state.iteration)
-            components.append("\(spinnerIcon)")
+            if !state.finished {
+                let spinnerIcon = config.theme.getSpinnerIcon(state.iteration)
+                components.append("\(spinnerIcon)")
+            } else {
+                components.append("\(config.theme.done)")
+            }
         }
 
         if config.showTasks, let totalTasks = state.totalTasks {
@@ -177,13 +185,13 @@ extension ProgressBar {
         let total = state.totalSize ?? Int64(state.totalItems ?? 0)
 
         if config.showPercent && total > 0 && allowProgress {
-            components.append("\(state.percent)")
+            components.append("\(state.finished ? "100%" : state.percent)")
         }
 
         if config.showProgressBar, total > 0, allowProgress {
             let usedWidth = components.joined(separator: " ").count + 45 /* the maximum number of characters we may need */
             let remainingWidth = max(config.width - usedWidth, 1 /* the minumum width of a progress bar */)
-            let barLength = Int(Int64(remainingWidth) * value / total)
+            let barLength = state.finished ? remainingWidth : Int(Int64(remainingWidth) * value / total)
             let barPaddingLength = remainingWidth - barLength
             let bar = "\(String(repeating: config.theme.bar, count: barLength))\(String(repeating: " ", count: barPaddingLength))"
             components.append("|\(bar)|")
@@ -196,40 +204,56 @@ extension ProgressBar {
             if !state.itemsName.isEmpty {
                 itemsName = " \(state.itemsName)"
             }
-            if let totalItems = state.totalItems {
-                additionalComponents.append("\(state.items.formattedNumber()) of \(totalItems.formattedNumber())\(itemsName)")
+            if state.finished {
+                if let totalItems = state.totalItems {
+                    additionalComponents.append("\(totalItems.formattedNumber())\(itemsName)")
+                }
             } else {
-                additionalComponents.append("\(state.items.formattedNumber())\(itemsName)")
+                if let totalItems = state.totalItems {
+                    additionalComponents.append("\(state.items.formattedNumber()) of \(totalItems.formattedNumber())\(itemsName)")
+                } else {
+                    additionalComponents.append("\(state.items.formattedNumber())\(itemsName)")
+                }
             }
         }
 
         if state.size > 0 && allowProgress {
-            var formattedCombinedSize = ""
-            if config.showSize {
-                var formattedSize = state.size.formattedSize()
-                formattedSize = adjustFormattedSize(formattedSize)
-                if let totalSize = state.totalSize {
-                    var formattedTotalSize = totalSize.formattedSize()
-                    formattedTotalSize = adjustFormattedSize(formattedTotalSize)
-                    formattedCombinedSize = combineSize(size: formattedSize, totalSize: formattedTotalSize)
-                } else {
-                    formattedCombinedSize = formattedSize
+            if state.finished {
+                if config.showSize {
+                    if let totalSize = state.totalSize {
+                        var formattedTotalSize = totalSize.formattedSize()
+                        formattedTotalSize = adjustFormattedSize(formattedTotalSize)
+                        additionalComponents.append(formattedTotalSize)
+                    }
                 }
-            }
-
-            var formattedSpeed = ""
-            if config.showSpeed {
-                formattedSpeed = "\(state.sizeSpeed ?? state.averageSizeSpeed)"
-                formattedSpeed = adjustFormattedSize(formattedSpeed)
-            }
-
-            if config.showSize && config.showSpeed {
-                additionalComponents.append(formattedCombinedSize)
-                additionalComponents.append(formattedSpeed)
-            } else if config.showSize {
-                additionalComponents.append(formattedCombinedSize)
-            } else if config.showSpeed {
-                additionalComponents.append(formattedSpeed)
+            } else {
+                var formattedCombinedSize = ""
+                if config.showSize {
+                    var formattedSize = state.size.formattedSize()
+                    formattedSize = adjustFormattedSize(formattedSize)
+                    if let totalSize = state.totalSize {
+                        var formattedTotalSize = totalSize.formattedSize()
+                        formattedTotalSize = adjustFormattedSize(formattedTotalSize)
+                        formattedCombinedSize = combineSize(size: formattedSize, totalSize: formattedTotalSize)
+                    } else {
+                        formattedCombinedSize = formattedSize
+                    }
+                }
+                
+                var formattedSpeed = ""
+                if config.showSpeed {
+                    formattedSpeed = "\(state.sizeSpeed ?? state.averageSizeSpeed)"
+                    formattedSpeed = adjustFormattedSize(formattedSpeed)
+                }
+                
+                if config.showSize && config.showSpeed {
+                    additionalComponents.append(formattedCombinedSize)
+                    additionalComponents.append(formattedSpeed)
+                } else if config.showSize {
+                    additionalComponents.append(formattedCombinedSize)
+                } else if config.showSpeed {
+                    additionalComponents.append(formattedSpeed)
+                }
             }
         }
 

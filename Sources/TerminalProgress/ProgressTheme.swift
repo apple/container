@@ -20,11 +20,14 @@ public protocol ProgressTheme: Sendable {
     var spinner: [String] { get }
     /// The icons used to represent a progress bar.
     var bar: String { get }
+    /// The icon used to indicate that a progress bar finished.
+    var done: String { get }
 }
 
 public struct DefaultProgressTheme: ProgressTheme {
     public let spinner = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
     public let bar = "█"
+    public let done = "✔"
 }
 
 extension ProgressTheme {
