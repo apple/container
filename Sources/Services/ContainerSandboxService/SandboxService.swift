@@ -93,7 +93,7 @@ public actor SandboxService {
 
             let fqdn: String
             if let hostname = config.hostname {
-                if let suite = UserDefaults.init(suiteName: "com.apple.container.defaults"),
+                if let suite = UserDefaults.init(suiteName: UserDefaults.appSuiteName),
                     let dnsDomain = suite.string(forKey: "dns.domain"),
                     !hostname.contains(".")
                 {
