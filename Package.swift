@@ -310,7 +310,7 @@ let package = Package(
                 .define("CZ_VERSION", to: "\"\(scVersion)\""),
                 .define("GIT_COMMIT", to: "\"\(gitCommit)\""),
                 .define("RELEASE_VERSION", to: "\"\(releaseVersion)\""),
-                .define("BUILDER_SHIM_VERSION", to: "\"\(builderShimVersion)\"")
+                .define("BUILDER_SHIM_VERSION", to: "\"\(builderShimVersion)\""),
             ]
         ),
     ]
