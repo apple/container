@@ -39,7 +39,7 @@ class TestCLIRmRaceCondition: CLITest {
             do {
                 try doRemove(name: name)
             } catch CLITest.CLIError.executionFailed(let message) {
-                if message.contains("container is not yet stopped and can not be deleted") {
+                if message.contains("is not yet stopped and can not be deleted") {
                     didThrowExpectedError = true
                 } else {
                     Issue.record("Unexpected error message: \(message)")
