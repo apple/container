@@ -1,0 +1,78 @@
+name: Bug Report
+description: File a bug report.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: checkboxes
+    id: prereqs
+    attributes:
+      label: I have done the following
+      description: Select that you have completed the following prerequisites. 
+      options:
+        - label: I have searched the existing issues
+          required: true
+        - label: If possible, I've reproduced the issue using the 'main' branch of this project
+          required: false
+  - type: input
+    id: contact
+    attributes:
+      label: Contact Details
+      description: How can we get in touch with you if we need more info? ex. email@example.com
+    validations:
+      required: false
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Explain how to reproduce the incorrect behavior. 
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Current behavior
+      description: A concise description of what you're experiencing.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: A concise description of what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Environment 
+      description: |
+        examples: 
+          - **OS**: MacOS 26 Beta 1
+          - **swift**: Apple Swift version 6.2
+          - **xcode**: Xcode 26 Beta 17A5241e
+          - **container**: container CLI version 0.1.0
+      value: |
+        - OS: 
+        - swift: 
+        - xcode: 
+        - container: 
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
+      render: shell
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      description: By submitting this issue, you agree to follow our [Code of Conduct](https://github.com/apple/container/blob/main/CONTRIBUTING.md). 
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true

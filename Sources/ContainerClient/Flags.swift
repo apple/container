@@ -138,6 +138,14 @@ public struct Flags {
 
         @Option(name: [.customLong("label"), .customShort("l")], help: "Add a key=value label to the container")
         public var labels: [String] = []
+    }
+
+    public struct Progress: ParsableArguments {
+        public init() {}
+
+        public init(disableProgressUpdates: Bool) {
+            self.disableProgressUpdates = disableProgressUpdates
+        }
 
         @Flag(name: .customLong("disable-progress-updates"), help: "Disable progress bar updates")
         public var disableProgressUpdates = false
