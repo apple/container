@@ -61,9 +61,6 @@ jobs:
           launchctl setenv HTTP_PROXY $HTTP_PROXY
           make test cleancontent install-kernel integration
         env:
-          CONTAINER_REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CONTAINER_REGISTRY_USER: ${{ github.actor }}
-          CONTAINER_REGISTRY_HOST: ghcr.io
           DEVELOPER_DIR: "/Applications/Xcode_16.3.app/Contents/Developer"
           CURRENT_SDK: y
       - name: Save documentation artifact
