@@ -94,10 +94,10 @@ extension XPCClient {
             if reply.connectionError {
                 code = .interrupted
             }
-            throw ContainerizationError(
-                code,
-                message: "XPC connection error: \(reply.errorDescription ?? "unknown")"
-            )
+            guard reply.errorDescription?.range(of: "Connection invalid", options: .caseInsensitive) != nil else {
+                throw ContainerizationError(code, message: "XPC connection error: \(reply.errorDescription ?? "unknown")")
+            }
+            throw ContainerizationError(code, message: "\(reply.errorDescription ?? "unknown"): ensure container system has been started with `container system start`")
         case XPC_TYPE_DICTIONARY:
             let message = XPCMessage(object: reply)
             // check errors from our protocol
