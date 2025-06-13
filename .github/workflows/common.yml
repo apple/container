@@ -33,26 +33,18 @@ jobs:
           ./scripts/install-hawkeye.sh
           make fmt
 
-          EXCLUDES=(':(exclude)Package.swift' ':(exclude)Package.resolved')
-
-          if ! git diff --quiet -- . "${EXCLUDES[@]}"; then
+          if ! git diff --quiet -- . ; then
             echo "❌ The following files require formatting or license header updates:"
-            git diff --name-only -- . "${EXCLUDES[@]}"
+            git diff --name-only -- .
             false
           fi
 
       - name: Check protobuf
         run: |
           make protos
-
-          # TODO [launch]: TEMPORARILY we need to exclude these files since we had to modify them to add
-          # the github token for pulling the private repos.
-
-          EXCLUDES=(':(exclude)Package.swift' ':(exclude)Package.resolved' ':(exclude)Protobuf.Makefile')
-
-          if ! git diff --quiet -- . "${EXCLUDES[@]}"; then
+          if ! git diff --quiet -- . ; then
             echo "❌ The following files require formatting or license header updates:"
-            git diff --name-only -- . "${EXCLUDES[@]}"
+            git diff --name-only -- .
             false
           fi
   
