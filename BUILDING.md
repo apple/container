@@ -1,9 +1,10 @@
 # Building the project
 
-To build the `container` project, your system needs either:
+To build the `container` project, you need:
 
-- macOS 15 or newer and Xcode 26 Beta
-- macOS 26 Beta 1 or newer
+- Mac with Apple silicon
+- macOS 15 minimum, macOS 26 beta recommended
+- Xcode 26 beta
 
 ## Compile and test
 
