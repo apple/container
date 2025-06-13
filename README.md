@@ -55,3 +55,7 @@ uninstall-container.sh -k
 ## Contributing
 
 Contributions to `container` are welcomed and encouraged. Please see our [main contributing guide](https://github.com/apple/containerization/blob/main/CONTRIBUTING.md) for more information.
+
+## Project Status
+
+The container project is currently under active development. Its stability, both for consuming the project as a Swift package and the `container` tool, is only guaranteed within minor versions, such as between 0.1.1 and 0.1.2. Minor version number releases may include breaking changes until we achieve a 1.0.0 release.
