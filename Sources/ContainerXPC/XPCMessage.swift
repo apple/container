@@ -18,7 +18,7 @@
 import ContainerizationError
 import Foundation
 
-/// A message that can be pass across application boundries via XPC.
+/// A message that can be pass across application boundaries via XPC.
 public struct XPCMessage: Sendable {
     /// Defined message key storing the route value.
     public static let routeKey = "com.apple.container.xpc.route"

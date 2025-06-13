@@ -399,7 +399,7 @@ public actor SandboxService {
                     return message.reply()
                 }
 
-                // TODO: fix underying signal value to int64
+                // TODO: fix underlying signal value to int64
                 try await ctr.container.kill(Int32(try message.signal()))
                 return message.reply()
             }
