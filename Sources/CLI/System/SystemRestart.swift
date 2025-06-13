@@ -17,12 +17,16 @@
 import ArgumentParser
 import ContainerClient
 import ContainerPlugin
+import ContainerizationOS
 import ContainerizationError
 import Foundation
 import Logging
 
 extension Application {
+
     struct SystemRestart: AsyncParsableCommand {
+        private static let stopTimeoutSeconds: Int32 = 5
+
         static let configuration = CommandConfiguration(
             commandName: "restart",
             abstract: "Restart API server for `container`"
@@ -32,6 +36,19 @@ extension Application {
         var prefix: String = "com.apple.container."
 
         func run() async throws {
+            log.info("stopping containers", metadata: ["stopTimeoutSeconds": "\(Self.stopTimeoutSeconds)"])
+            do {
+                let containers = try await ClientContainer.list()
+                let signal = try Signals.parseSignal("SIGTERM")
+                let opts = ContainerStopOptions(timeoutInSeconds: Self.stopTimeoutSeconds, signal: signal)
+                let failed = try await ContainerStop.stopContainers(containers: containers, stopOptions: opts)
+                if !failed.isEmpty {
+                    log.warning("some containers could not be stopped gracefully", metadata: ["ids": "\(failed)"])
+                }
+            } catch {
+                log.warning("failed to stop all containers", metadata: ["error": "\(error)"])
+            }
+            
             let launchdDomainString = try ServiceManager.getDomainString()
             let fullLabel = "\(launchdDomainString)/\(prefix)apiserver"
             try ServiceManager.kickstart(fullServiceLabel: fullLabel)
