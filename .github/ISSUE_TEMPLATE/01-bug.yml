@@ -50,9 +50,9 @@ body:
       label: Environment 
       description: |
         Examples: 
-          - **OS**: MacOS 26 Beta 1
-          - **Xcode**: Xcode 26 Beta 17A5241e
-          - **Container**: container CLI version 0.1.0
+          - **OS**: macOS 26.0 Beta (25A5279m)
+          - **Xcode**: Version 26.0 beta (17A5241e)
+          - **Container**: Container CLI version 0.1.0
       value: |
         - OS: 
         - Xcode: 
