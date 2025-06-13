@@ -24,7 +24,6 @@ extension Application {
             subcommands: [
                 SystemDNS.self,
                 SystemLogs.self,
-                SystemRestart.self,
                 SystemStart.self,
                 SystemStop.self,
                 SystemStatus.self,

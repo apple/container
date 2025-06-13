@@ -227,7 +227,7 @@ public actor SandboxService {
                     stdout: stdio[1],
                     stderr: stdio[2]
                 )
-                try await self.setUnderlingProcess(id, process)
+                try await self.setUnderlyingProcess(id, process)
                 try await process.start()
                 let waitFunc: ExitMonitor.WaitHandler = {
                     try await process.wait()
@@ -866,7 +866,7 @@ extension SandboxService {
         self.waiters[id] = []
     }
 
-    private func setUnderlingProcess(_ id: String, _ process: LinuxProcess) throws {
+    private func setUnderlyingProcess(_ id: String, _ process: LinuxProcess) throws {
         guard var info = self.processes[id] else {
             throw ContainerizationError(.invalidState, message: "Process \(id) not found")
         }
