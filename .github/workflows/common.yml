@@ -24,10 +24,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Update containerization
-        run: |
-          /usr/bin/swift package update containerization
-
       - name: Check formatting
         run: |
           ./scripts/install-hawkeye.sh
