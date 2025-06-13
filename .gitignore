@@ -12,9 +12,6 @@ Packages/
 api-docs/
 workdir/
 installer/
-.xcode/
-.vscode/
-.idea/
 .venv/
 .clitests/
 test_results/
