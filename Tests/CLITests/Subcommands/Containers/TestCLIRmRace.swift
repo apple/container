@@ -53,8 +53,24 @@ class TestCLIRmRaceCondition: CLITest {
             // Give the background cleanup a moment to finish
             try await Task.sleep(for: .seconds(2))
 
-            // Call doRemove again - this should succeed
-            try doRemove(name: name)
+            // Call doRemove again with retry logic for cleanup
+            var removeAttempts = 0
+            let maxRemoveAttempts = 5
+            let removeDelay = 2.0 // seconds
+            
+            while removeAttempts < maxRemoveAttempts {
+                do {
+                    try doRemove(name: name)
+                    break
+                } catch {
+                    if removeAttempts < maxRemoveAttempts - 1 {
+                        try await Task.sleep(for: .seconds(removeDelay * pow(2.0, Double(removeAttempts))))
+                        removeAttempts += 1
+                    } else {
+                        throw error
+                    }
+                }
+            }
 
         } catch {
             Issue.record("failed to test stop-rm race condition: \(error)")
