@@ -127,6 +127,11 @@ extension Application {
                     try await existingContainer.delete()
                 case .unknown:
                     break
+                case .stopping:
+                    throw ContainerizationError(
+                        .invalidState,
+                        message: "builder is stopping, please wait until it is fully stopped before proceeding"
+                    )
                 }
             }
 
