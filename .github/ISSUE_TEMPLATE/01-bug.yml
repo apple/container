@@ -17,13 +17,6 @@ body:
           required: true
         - label: If possible, I've reproduced the issue using the 'main' branch of this project
           required: false
-  - type: input
-    id: contact
-    attributes:
-      label: Contact Details
-      description: How can we get in touch with you if we need more info? ex. email@example.com
-    validations:
-      required: false
   - type: textarea
     id: reproduce
     attributes:
