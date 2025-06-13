@@ -49,7 +49,7 @@ jobs:
           make container dsym docs
           tar cfz _site.tgz _site
         env:
-          DEVELOPER_DIR: "/Applications/Xcode_16.3.app/Contents/Developer"
+          DEVELOPER_DIR: "/Applications/Xcode_26.b1.app/Contents/Developer"
           CURRENT_SDK: y
       - name: Create package
         run: |
@@ -61,7 +61,7 @@ jobs:
           launchctl setenv HTTP_PROXY $HTTP_PROXY
           make test cleancontent install-kernel integration
         env:
-          DEVELOPER_DIR: "/Applications/Xcode_16.3.app/Contents/Developer"
+          DEVELOPER_DIR: "/Applications/Xcode_26.b1.app/Contents/Developer"
           CURRENT_SDK: y
       - name: Save documentation artifact
         uses: actions/upload-artifact@v4
