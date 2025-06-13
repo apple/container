@@ -70,13 +70,11 @@ public struct ServiceManager {
         launchctl.waitUntilExit()
         let status = launchctl.terminationStatus
         guard status == 0 else {
-            // TODO: review error handling
-            return []
+            throw ContainerizationError(.internalError, message: "Command `launchctl list` failed with status \(status)")
         }
 
         guard let outputText = String(data: outputData, encoding: .utf8) else {
-            // TODO: review error handling
-            return []
+            throw ContainerizationError(.internalError, message: "Could not decode output of command `launchctl list`")
         }
 
         // The third field of each line of launchctl list output is the label
