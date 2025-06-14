@@ -101,12 +101,13 @@ public actor FilesystemEntityStore<T>: EntityStore where T: Codable & Identifiab
     private static func load(path: URL, log: Logger) throws -> Index {
         let directories = try FileManager.default.contentsOfDirectory(at: path, includingPropertiesForKeys: nil)
         var index: FilesystemEntityStore<T>.Index = Index()
+        let decoder = JSONDecoder()
 
         for entityUrl in directories {
             do {
                 let metadataUrl = entityUrl.appendingPathComponent(metadataFilename)
                 let data = try Data(contentsOf: metadataUrl)
-                let entity = try JSONDecoder().decode(T.self, from: data)
+                let entity = try decoder.decode(T.self, from: data)
                 index[entity.id] = entity
             } catch {
                 log.warning(

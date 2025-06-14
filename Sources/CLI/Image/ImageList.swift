@@ -144,8 +144,8 @@ extension Application {
             if options.quiet && options.verbose {
                 throw ContainerizationError(.invalidArgument, message: "Cannot use flag --quite and --verbose together")
             }
-            let modifer = options.quiet || options.verbose
-            if modifer && options.format == .json {
+            let modifier = options.quiet || options.verbose
+            if modifier && options.format == .json {
                 throw ContainerizationError(.invalidArgument, message: "Cannot use flag --quite or --verbose along with --format json")
             }
         }

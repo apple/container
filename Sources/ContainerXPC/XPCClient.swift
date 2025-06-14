@@ -19,7 +19,6 @@ import ContainerizationError
 import Foundation
 
 public struct XPCClient: Sendable {
-    // Access to `connection` is protected by a lock
     private nonisolated(unsafe) let connection: xpc_connection_t
     private let q: DispatchQueue?
     private let service: String

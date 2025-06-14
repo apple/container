@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
-  - name: container community support
+  - name: Container community support
     url: https://github.com/apple/container/discussions
     about: Please ask and answer questions here.

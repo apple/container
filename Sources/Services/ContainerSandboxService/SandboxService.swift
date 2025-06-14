@@ -93,7 +93,7 @@ public actor SandboxService {
 
             let fqdn: String
             if let hostname = config.hostname {
-                if let suite = UserDefaults.init(suiteName: "com.apple.container.defaults"),
+                if let suite = UserDefaults.init(suiteName: UserDefaults.appSuiteName),
                     let dnsDomain = suite.string(forKey: "dns.domain"),
                     !hostname.contains(".")
                 {
@@ -227,7 +227,7 @@ public actor SandboxService {
                     stdout: stdio[1],
                     stderr: stdio[2]
                 )
-                try await self.setUnderlingProcess(id, process)
+                try await self.setUnderlyingProcess(id, process)
                 try await process.start()
                 let waitFunc: ExitMonitor.WaitHandler = {
                     try await process.wait()
@@ -401,7 +401,7 @@ public actor SandboxService {
                     return message.reply()
                 }
 
-                // TODO: fix underying signal value to int64
+                // TODO: fix underlying signal value to int64
                 try await ctr.container.kill(Int32(try message.signal()))
                 return message.reply()
             }
@@ -868,7 +868,7 @@ extension SandboxService {
         self.waiters[id] = []
     }
 
-    private func setUnderlingProcess(_ id: String, _ process: LinuxProcess) throws {
+    private func setUnderlyingProcess(_ id: String, _ process: LinuxProcess) throws {
         guard var info = self.processes[id] else {
             throw ContainerizationError(.invalidState, message: "Process \(id) not found")
         }

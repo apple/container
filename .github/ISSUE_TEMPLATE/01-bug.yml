@@ -1,4 +1,4 @@
-name: Bug Report
+name: Bug report
 description: File a bug report.
 title: "[Bug]: "
 labels: ["bug", "triage"]
@@ -17,13 +17,6 @@ body:
           required: true
         - label: If possible, I've reproduced the issue using the 'main' branch of this project
           required: false
-  - type: input
-    id: contact
-    attributes:
-      label: Contact Details
-      description: How can we get in touch with you if we need more info? ex. email@example.com
-    validations:
-      required: false
   - type: textarea
     id: reproduce
     attributes:
@@ -49,16 +42,14 @@ body:
     attributes:
       label: Environment 
       description: |
-        examples: 
-          - **OS**: MacOS 26 Beta 1
-          - **swift**: Apple Swift version 6.2
-          - **xcode**: Xcode 26 Beta 17A5241e
-          - **container**: container CLI version 0.1.0
+        Examples: 
+          - **OS**: macOS 26.0 Beta (25A5279m)
+          - **Xcode**: Version 26.0 beta (17A5241e)
+          - **Container**: Container CLI version 0.1.0
       value: |
         - OS: 
-        - swift: 
-        - xcode: 
-        - container: 
+        - Xcode: 
+        - Container: 
       render: markdown
     validations:
       required: true
@@ -72,7 +63,7 @@ body:
     id: terms
     attributes:
       label: Code of Conduct
-      description: By submitting this issue, you agree to follow our [Code of Conduct](https://github.com/apple/container/blob/main/CONTRIBUTING.md). 
+      description: By submitting this issue, you agree to follow our [Code of Conduct](https://github.com/apple/.github/blob/main/CODE_OF_CONDUCT.md).
       options:
         - label: I agree to follow this project's Code of Conduct
           required: true

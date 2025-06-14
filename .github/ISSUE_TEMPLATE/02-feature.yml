@@ -1,4 +1,4 @@
-name: Feature or Enhancement request
+name: Feature or enhancement request
 description: File a request for a feature or enhancement
 title: "[Request]: "
 labels: ["feature", "triage"]
@@ -7,14 +7,6 @@ body:
     attributes:
       value: |
         Thanks for contributing to the container project!
-  - type: input
-    id: contact
-    attributes:
-      label: Contact Details
-      description: How can we get in touch with you if we need more info?
-      placeholder: ex. email@example.com
-    validations:
-      required: false
   - type: textarea
     id: request
     attributes:
@@ -26,7 +18,7 @@ body:
     id: terms
     attributes:
       label: Code of Conduct
-      description: By submitting this issue, you agree to follow our [Code of Conduct](https://example.com). 
+      description: By submitting this issue, you agree to follow our [Code of Conduct](https://github.com/apple/.github/blob/main/CODE_OF_CONDUCT.md). 
       options:
         - label: I agree to follow this project's Code of Conduct
           required: true
