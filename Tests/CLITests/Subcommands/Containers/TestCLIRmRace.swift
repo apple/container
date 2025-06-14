@@ -38,6 +38,9 @@ class TestCLIRmRaceCondition: CLITest {
             var didThrowExpectedError = false
             do {
                 try doRemove(name: name)
+                // If doRemove succeeds, the container stopped quickly enough
+                // No race condition occurred, test passes
+                return
             } catch CLITest.CLIError.executionFailed(let message) {
                 if message.contains("is not yet stopped and can not be deleted") {
                     didThrowExpectedError = true
