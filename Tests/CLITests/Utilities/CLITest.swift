@@ -367,4 +367,17 @@ class CLITest {
             throw CLIError.executionFailed("command failed: \(error)")
         }
     }
+
+    func doRemove(name: String, force: Bool = false) throws {
+        var args = ["delete"]
+        if force {
+            args.append("--force")
+        }
+        args.append(name)
+
+        let (_, error, status) = try run(arguments: args)
+        if status != 0 {
+            throw CLIError.executionFailed("command failed: \(error)")
+        }
+    }
 }

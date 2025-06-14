@@ -24,4 +24,6 @@ public enum RuntimeStatus: String, CaseIterable, Sendable, Codable {
     case stopped
     /// The object is currently running.
     case running
+    /// The object is currently stopping.
+    case stopping
 }

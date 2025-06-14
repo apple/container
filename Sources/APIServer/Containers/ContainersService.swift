@@ -209,10 +209,10 @@ actor ContainersService {
         switch item.state {
         case .alive(let client):
             let state = try await client.state()
-            if state.status == .running {
+            if state.status == .running || state.status == .stopping {
                 throw ContainerizationError(
                     .invalidState,
-                    message: "container with ID \(id) is running"
+                    message: "container \(id) is not yet stopped and can not be deleted"
                 )
             }
             try self._cleanup(id: id, item: item)
