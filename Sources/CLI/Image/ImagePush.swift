@@ -33,6 +33,9 @@ extension Application {
         @OptionGroup
         var registry: Flags.Registry
 
+        @OptionGroup
+        var progressFlags: Flags.Progress
+
         @Option(help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'") var platform: String?
 
         @Argument var reference: String
@@ -46,13 +49,18 @@ extension Application {
             let scheme = try RequestScheme(registry.scheme)
             let image = try await ClientImage.get(reference: reference)
 
-            let progressConfig = try ProgressConfig(
-                description: "Pushing image \(image.reference)",
-                itemsName: "blobs",
-                showItems: true,
-                showSpeed: false,
-                ignoreSmallSize: true
-            )
+            var progressConfig: ProgressConfig
+            if progressFlags.disableProgressUpdates {
+                progressConfig = try ProgressConfig(disableProgressUpdates: progressFlags.disableProgressUpdates)
+            } else {
+                progressConfig = try ProgressConfig(
+                    description: "Pushing image \(image.reference)",
+                    itemsName: "blobs",
+                    showItems: true,
+                    showSpeed: false,
+                    ignoreSmallSize: true
+                )
+            }
             let progress = ProgressBar(config: progressConfig)
             defer {
                 progress.finish()

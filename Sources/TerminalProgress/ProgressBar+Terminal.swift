@@ -26,8 +26,8 @@ enum EscapeSequence {
 extension ProgressBar {
     private var terminalWidth: Int {
         guard
-            let termimalHandle = term,
-            let terminal = try? Terminal(descriptor: termimalHandle.fileDescriptor)
+            let terminalHandle = term,
+            let terminal = try? Terminal(descriptor: terminalHandle.fileDescriptor)
         else {
             return 0
         }

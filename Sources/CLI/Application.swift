@@ -150,6 +150,13 @@ struct Application: AsyncParsableCommand {
     public static func main() async throws {
         restoreCursorAtExit()
 
+        #if DEBUG
+        let warning = "Running debug build. Performance may be degraded."
+        let formattedWarning = "\u{001B}[33mWarning!\u{001B}[0m \(warning)\n"
+        let warningData = Data(formattedWarning.utf8)
+        FileHandle.standardError.write(warningData)
+        #endif
+
         let fullArgs = CommandLine.arguments
         let args = Array(fullArgs.dropFirst())
 

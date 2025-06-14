@@ -1,0 +1,69 @@
+name: Bug report
+description: File a bug report.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: checkboxes
+    id: prereqs
+    attributes:
+      label: I have done the following
+      description: Select that you have completed the following prerequisites. 
+      options:
+        - label: I have searched the existing issues
+          required: true
+        - label: If possible, I've reproduced the issue using the 'main' branch of this project
+          required: false
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Explain how to reproduce the incorrect behavior. 
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Current behavior
+      description: A concise description of what you're experiencing.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: A concise description of what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Environment 
+      description: |
+        Examples: 
+          - **OS**: macOS 26.0 Beta (25A5279m)
+          - **Xcode**: Version 26.0 beta (17A5241e)
+          - **Container**: Container CLI version 0.1.0
+      value: |
+        - OS: 
+        - Xcode: 
+        - Container: 
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
+      render: shell
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      description: By submitting this issue, you agree to follow our [Code of Conduct](https://github.com/apple/.github/blob/main/CODE_OF_CONDUCT.md).
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true

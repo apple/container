@@ -64,7 +64,7 @@ struct RuntimeLinuxHelper: AsyncParsableCommand {
             log.info("configuring XPC server")
             let interfaceStrategy: any InterfaceStrategy
             #if !CURRENT_SDK
-            if #available(macOS 16, *) {
+            if #available(macOS 26, *) {
                 interfaceStrategy = NonisolatedInterfaceStrategy(log: log)
             } else {
                 interfaceStrategy = IsolatedInterfaceStrategy()

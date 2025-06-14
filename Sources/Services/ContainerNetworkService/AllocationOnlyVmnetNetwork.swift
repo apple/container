@@ -64,7 +64,7 @@ public actor AllocationOnlyVmnetNetwork: Network {
             ]
         )
 
-        if let suite = UserDefaults.init(suiteName: "com.apple.container.defaults") {
+        if let suite = UserDefaults.init(suiteName: UserDefaults.appSuiteName) {
             // TODO: Make the suiteName a constant defined in ClientDefaults and use that.
             // This will need some re-working of dependencies between NetworkService and Client
             defaultSubnet = suite.string(forKey: "network.subnet") ?? defaultSubnet

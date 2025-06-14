@@ -17,6 +17,6 @@ if command -v .local/bin/hawkeye >/dev/null 2>&1; then
     echo "hawkeye already installed"
 else
     echo "Installing hawkeye"
-    export VERSION=v6.0.4
+    export VERSION=v6.1.0
     curl --proto '=https' --tlsv1.2 -LsSf https://github.com/korandoru/hawkeye/releases/download/${VERSION}/hawkeye-installer.sh | CARGO_HOME=.local sh -s -- --no-modify-path
 fi

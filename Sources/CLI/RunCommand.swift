@@ -45,6 +45,9 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
 
+        @OptionGroup
+        var progressFlags: Flags.Progress
+
         @Argument(help: "Image name")
         var image: String
 
@@ -56,8 +59,8 @@ extension Application {
             let id = Utility.createContainerID(name: self.managementFlags.name)
 
             var progressConfig: ProgressConfig
-            if managementFlags.disableProgressUpdates {
-                progressConfig = try ProgressConfig(disableProgressUpdates: managementFlags.disableProgressUpdates)
+            if progressFlags.disableProgressUpdates {
+                progressConfig = try ProgressConfig(disableProgressUpdates: progressFlags.disableProgressUpdates)
             } else {
                 progressConfig = try ProgressConfig(
                     showTasks: true,

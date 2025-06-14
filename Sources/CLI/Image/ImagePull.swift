@@ -34,15 +34,19 @@ extension Application {
         @OptionGroup
         var registry: Flags.Registry
 
+        @OptionGroup
+        var progressFlags: Flags.Progress
+
         @Option(help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'") var platform: String?
 
         @Argument var reference: String
 
         init() {}
 
-        init(platform: String? = nil, scheme: String = "auto", reference: String) {
+        init(platform: String? = nil, scheme: String = "auto", reference: String, disableProgress: Bool = false) {
             self.global = Flags.Global()
             self.registry = Flags.Registry(scheme: scheme)
+            self.progressFlags = Flags.Progress(disableProgressUpdates: disableProgress)
             self.platform = platform
             self.reference = reference
         }
@@ -56,12 +60,19 @@ extension Application {
             let scheme = try RequestScheme(registry.scheme)
 
             let processedReference = try ClientImage.normalizeReference(reference)
-            let progressConfig = try ProgressConfig(
-                showTasks: true,
-                showItems: true,
-                ignoreSmallSize: true,
-                totalTasks: 2
-            )
+
+            var progressConfig: ProgressConfig
+            if self.progressFlags.disableProgressUpdates {
+                progressConfig = try ProgressConfig(disableProgressUpdates: self.progressFlags.disableProgressUpdates)
+            } else {
+                progressConfig = try ProgressConfig(
+                    showTasks: true,
+                    showItems: true,
+                    ignoreSmallSize: true,
+                    totalTasks: 2
+                )
+            }
+
             let progress = ProgressBar(config: progressConfig)
             defer {
                 progress.finish()

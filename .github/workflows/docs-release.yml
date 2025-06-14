@@ -1,15 +1,15 @@
-# Manual workflow for releasing docs ad-hoc. Workflow can only be run for main or release branches. 
+# Manual workflow for releasing docs ad-hoc. Workflow can only be run for main or release branches.
 # Workflow does NOT publish a release of container.
 name: Deploy application website
-on: 
+on:
   workflow_dispatch:
 
-jobs: 
+jobs:
   checkBranch:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags') || startsWith(github.ref, 'refs/heads/release')
     steps:
-      - name: Branch validation 
+      - name: Branch validation
         run: echo "Branch ${{ github.ref_name }} is allowed"
 
   buildSite:

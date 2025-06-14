@@ -42,3 +42,7 @@ const char* get_release_version() {
 const char* get_swift_containerization_version() {
     return CZ_VERSION;
 }
+
+const char* get_container_builder_shim_version() {
+    return BUILDER_SHIM_VERSION;
+}

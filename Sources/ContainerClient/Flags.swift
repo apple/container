@@ -76,7 +76,7 @@ public struct Flags {
             self.scheme = scheme
         }
 
-        @Option(help: "Scheme to use when conntecting to the container registry. One of (http, https, auto)")
+        @Option(help: "Scheme to use when connecting to the container registry. One of (http, https, auto)")
         public var scheme: String = "auto"
     }
 
@@ -138,6 +138,14 @@ public struct Flags {
 
         @Option(name: [.customLong("label"), .customShort("l")], help: "Add a key=value label to the container")
         public var labels: [String] = []
+    }
+
+    public struct Progress: ParsableArguments {
+        public init() {}
+
+        public init(disableProgressUpdates: Bool) {
+            self.disableProgressUpdates = disableProgressUpdates
+        }
 
         @Flag(name: .customLong("disable-progress-updates"), help: "Disable progress bar updates")
         public var disableProgressUpdates = false

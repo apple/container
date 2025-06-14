@@ -33,7 +33,7 @@ import SwiftProtobuf
 /// To perform a build:
 ///
 /// 1. CreateBuild to create a new build
-/// 2. StartBuild to start the build exection where client and server
+/// 2. StartBuild to start the build execution where client and server
 ///    both have a stream for exchanging data during the build.
 ///
 ///    The client may send:
@@ -96,7 +96,7 @@ import SwiftProtobuf
 ///         source path, and empty data
 ///      2. server archives the data at source path, and starts to send chunks to
 ///      the client
-///      3. server coninues to send all chunks until last chunk, which server
+///      3. server continues to send all chunks until last chunk, which server
 ///      will send with
 ///         'complete' set to true
 ///      4. client starts to receive the data and stream to a temporary file
@@ -263,7 +263,7 @@ public struct Com_Apple_Container_Build_V1_BuilderNIOClient: Com_Apple_Container
 /// To perform a build:
 ///
 /// 1. CreateBuild to create a new build
-/// 2. StartBuild to start the build exection where client and server
+/// 2. StartBuild to start the build execution where client and server
 ///    both have a stream for exchanging data during the build.
 ///
 ///    The client may send:
@@ -326,7 +326,7 @@ public struct Com_Apple_Container_Build_V1_BuilderNIOClient: Com_Apple_Container
 ///         source path, and empty data
 ///      2. server archives the data at source path, and starts to send chunks to
 ///      the client
-///      3. server coninues to send all chunks until last chunk, which server
+///      3. server continues to send all chunks until last chunk, which server
 ///      will send with
 ///         'complete' set to true
 ///      4. client starts to receive the data and stream to a temporary file
@@ -526,7 +526,7 @@ public enum Com_Apple_Container_Build_V1_BuilderClientMetadata {
 /// To perform a build:
 ///
 /// 1. CreateBuild to create a new build
-/// 2. StartBuild to start the build exection where client and server
+/// 2. StartBuild to start the build execution where client and server
 ///    both have a stream for exchanging data during the build.
 ///
 ///    The client may send:
@@ -589,7 +589,7 @@ public enum Com_Apple_Container_Build_V1_BuilderClientMetadata {
 ///         source path, and empty data
 ///      2. server archives the data at source path, and starts to send chunks to
 ///      the client
-///      3. server coninues to send all chunks until last chunk, which server
+///      3. server continues to send all chunks until last chunk, which server
 ///      will send with
 ///         'complete' set to true
 ///      4. client starts to receive the data and stream to a temporary file
@@ -673,7 +673,7 @@ extension Com_Apple_Container_Build_V1_BuilderProvider {
 /// To perform a build:
 ///
 /// 1. CreateBuild to create a new build
-/// 2. StartBuild to start the build exection where client and server
+/// 2. StartBuild to start the build execution where client and server
 ///    both have a stream for exchanging data during the build.
 ///
 ///    The client may send:
@@ -736,7 +736,7 @@ extension Com_Apple_Container_Build_V1_BuilderProvider {
 ///         source path, and empty data
 ///      2. server archives the data at source path, and starts to send chunks to
 ///      the client
-///      3. server coninues to send all chunks until last chunk, which server
+///      3. server continues to send all chunks until last chunk, which server
 ///      will send with
 ///         'complete' set to true
 ///      4. client starts to receive the data and stream to a temporary file

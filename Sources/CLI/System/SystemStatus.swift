@@ -22,29 +22,30 @@ import Foundation
 import Logging
 
 extension Application {
-    struct SystemRestart: AsyncParsableCommand {
+    struct SystemStatus: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
-            commandName: "restart",
-            abstract: "Restart API server for `container`"
+            commandName: "status",
+            abstract: "Show the status of `container` services"
         )
 
         @Option(name: .shortAndLong, help: "Launchd prefix for `container` services")
         var prefix: String = "com.apple.container."
 
         func run() async throws {
-            let launchdDomainString = try ServiceManager.getDomainString()
-            let fullLabel = "\(launchdDomainString)/\(prefix)apiserver"
-            try ServiceManager.kickstart(fullServiceLabel: fullLabel)
+            let isRegistered = try ServiceManager.isRegistered(fullServiceLabel: "\(prefix)apiserver")
+            if !isRegistered {
+                print("apiserver is not running and not registered with launchd")
+                Application.exit(withError: ExitCode(1))
+            }
+
             // Now ping our friendly daemon. Fail after 10 seconds with no response.
             do {
                 print("Verifying apiserver is running...")
                 try await ClientHealthCheck.ping(timeout: .seconds(10))
-                print("Done")
+                print("apiserver is running")
             } catch {
-                throw ContainerizationError(
-                    .internalError,
-                    message: "failed to get a response from apiserver after 10 seconds: \(error)"
-                )
+                print("apiserver is not running")
+                Application.exit(withError: ExitCode(1))
             }
         }
     }
