@@ -154,88 +154,111 @@ public actor SandboxService {
     @Sendable
     public func startProcess(_ message: XPCMessage) async throws -> XPCMessage {
         self.log.info("`start` xpc handler")
-        return try await self.lock.withLock { _ in
+        return try await self.lock.withLock { lock in
             let id = try message.id()
             let stdio = message.stdio()
             let containerInfo = try await self.getContainer()
             let containerId = containerInfo.container.id
-            let container = containerInfo.container
-            let bundle = containerInfo.bundle
             if id == containerId {
-                guard await self.state == .booted else {
-                    throw ContainerizationError(
-                        .invalidState,
-                        message: "container expected to be in booted state, got: \(await self.state)"
-                    )
-                }
-                let containerLog = try FileHandle(forWritingTo: bundle.containerLog)
-                let config = containerInfo.config
-                let stdout = {
-                    if let h = stdio[1] {
-                        return MultiWriter(handles: [h, containerLog])
-                    }
-                    return MultiWriter(handles: [containerLog])
-                }()
-                let stderr: MultiWriter? = {
-                    if !config.initProcess.terminal {
-                        if let h = stdio[2] {
-                            return MultiWriter(handles: [h, containerLog])
-                        }
-                        return MultiWriter(handles: [containerLog])
-                    }
-                    return nil
-                }()
-                if let h = stdio[0] {
-                    container.stdin = h
-                }
-                container.stdout = stdout
-                if let stderr {
-                    container.stderr = stderr
-                }
-                await self.setState(.starting)
-                do {
-                    try await container.start()
-                    let waitFunc: ExitMonitor.WaitHandler = {
-                        let code = try await container.wait()
-                        return code
-                    }
-                    try await self.monitor.track(id: id, waitingOn: waitFunc)
-                } catch {
-                    try? await self.cleanupContainer()
-                    await self.setState(.created)
-                    try await self.sendContainerEvent(.containerExit(id: id, exitCode: -1))
-                    throw error
-                }
+                try await self.startInitProcess(stdio: stdio, lock: lock)
                 await self.setState(.running)
                 try await self.sendContainerEvent(.containerStart(id: id))
             } else {
-                // we are starting a process other than the init process. Check if it exists
-                guard let processInfo = await self.processes[id] else {
-                    throw ContainerizationError(.notFound, message: "Process with id \(id)")
-                }
-                let ociConfig = self.configureProcessConfig(config: processInfo.config)
-                let stdin: ReaderStream? = {
-                    if let h = stdio[0] {
-                        return h
-                    }
-                    return nil
-                }()
-                let process = try await container.exec(
-                    id,
-                    configuration: ociConfig,
-                    stdin: stdin,
-                    stdout: stdio[1],
-                    stderr: stdio[2]
-                )
-                try await self.setUnderlyingProcess(id, process)
-                try await process.start()
-                let waitFunc: ExitMonitor.WaitHandler = {
-                    try await process.wait()
-                }
-                try await self.monitor.track(id: id, waitingOn: waitFunc)
+                try await self.startExecProcess(processId: id, stdio: stdio, lock: lock)
             }
             return message.reply()
         }
+    }
+
+    private func startInitProcess(stdio: [FileHandle?], lock: AsyncLock.Context) async throws {
+        let info = try self.getContainer()
+        let container = info.container
+        let bundle = info.bundle
+        let id = container.id
+        guard self.state == .booted else {
+            throw ContainerizationError(
+                .invalidState,
+                message: "container expected to be in booted state, got: \(self.state)"
+            )
+        }
+        let containerLog = try FileHandle(forWritingTo: bundle.containerLog)
+        let config = info.config
+        let stdout = {
+            if let h = stdio[1] {
+                return MultiWriter(handles: [h, containerLog])
+            }
+            return MultiWriter(handles: [containerLog])
+        }()
+        let stderr: MultiWriter? = {
+            if !config.initProcess.terminal {
+                if let h = stdio[2] {
+                    return MultiWriter(handles: [h, containerLog])
+                }
+                return MultiWriter(handles: [containerLog])
+            }
+            return nil
+        }()
+        if let h = stdio[0] {
+            container.stdin = h
+        }
+        container.stdout = stdout
+        if let stderr {
+            container.stderr = stderr
+        }
+        self.setState(.starting)
+        do {
+            try await container.start()
+            let waitFunc: ExitMonitor.WaitHandler = {
+                let code = try await container.wait()
+                if let out = stdio[1] {
+                    try self.closeHandle(out.fileDescriptor)
+                }
+                if let err = stdio[2] {
+                    try self.closeHandle(err.fileDescriptor)
+                }
+                return code
+            }
+            try await self.monitor.track(id: id, waitingOn: waitFunc)
+        } catch {
+            try? await self.cleanupContainer()
+            self.setState(.created)
+            try await self.sendContainerEvent(.containerExit(id: id, exitCode: -1))
+            throw error
+        }
+    }
+
+    private func startExecProcess(processId id: String, stdio: [FileHandle?], lock: AsyncLock.Context) async throws {
+        let container = try self.getContainer().container
+        guard let processInfo = self.processes[id] else {
+            throw ContainerizationError(.notFound, message: "Process with id \(id)")
+        }
+        let ociConfig = self.configureProcessConfig(config: processInfo.config)
+        let stdin: ReaderStream? = {
+            if let h = stdio[0] {
+                return h
+            }
+            return nil
+        }()
+        let process = try await container.exec(
+            id,
+            configuration: ociConfig,
+            stdin: stdin,
+            stdout: stdio[1],
+            stderr: stdio[2]
+        )
+        try self.setUnderlyingProcess(id, process)
+        try await process.start()
+        let waitFunc: ExitMonitor.WaitHandler = {
+            let code = try await process.wait()
+            if let out = stdio[1] {
+                try self.closeHandle(out.fileDescriptor)
+            }
+            if let err = stdio[2] {
+                try self.closeHandle(err.fileDescriptor)
+            }
+            return code
+        }
+        try await self.monitor.track(id: id, waitingOn: waitFunc)
     }
 
     /// Create a process inside the virtual machine for the container.
@@ -267,13 +290,14 @@ public actor SandboxService {
                 try await self.monitor.registerProcess(
                     id: id,
                     onExit: { id, code in
-                        guard await self.processes[id] != nil else {
+                        guard let process = await self.processes[id]?.process else {
                             throw ContainerizationError(.invalidState, message: "ProcessInfo missing for process \(id)")
                         }
                         for cc in await self.waiters[id] ?? [] {
                             cc.resume(returning: code)
                         }
                         await self.removeWaiters(for: id)
+                        try await process.delete()
                         try await self.setProcessState(id: id, state: .stopped(code))
                     })
                 return message.reply()
@@ -662,6 +686,15 @@ public actor SandboxService {
         }
 
         return proc
+    }
+
+    private nonisolated func closeHandle(_ handle: Int32) throws {
+        guard close(handle) == 0 else {
+            guard let errCode = POSIXErrorCode(rawValue: errno) else {
+                fatalError("failed to convert errno to POSIXErrorCode")
+            }
+            throw POSIXError(errCode)
+        }
     }
 
     private nonisolated func modifyingEnvironment(_ config: ProcessConfiguration) -> [String] {
