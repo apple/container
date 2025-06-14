@@ -290,13 +290,14 @@ public actor SandboxService {
                 try await self.monitor.registerProcess(
                     id: id,
                     onExit: { id, code in
-                        guard await self.processes[id] != nil else {
+                        guard let process = await self.processes[id]?.process else {
                             throw ContainerizationError(.invalidState, message: "ProcessInfo missing for process \(id)")
                         }
                         for cc in await self.waiters[id] ?? [] {
                             cc.resume(returning: code)
                         }
                         await self.removeWaiters(for: id)
+                        try await process.delete()
                         try await self.setProcessState(id: id, state: .stopped(code))
                     })
                 return message.reply()
