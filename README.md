@@ -15,7 +15,7 @@ The tool consumes and produces OCI-compliant container images, so you can pull a
 
 You need an Apple silicon Mac to run `container`. To build it, see the [BUILDING](./BUILDING.md) document.
 
-`container` relies on the new features and enhancements present in the macOS 26 Beta 1. You can run the tool on macOS 15, but the `container` maintainers typically will not address issues discovered on macOS 15 that cannot be reproduced on the macOS 26 Beta 1.
+`container` relies on the new features and enhancements present in the macOS 26 beta. You can run the tool on macOS 15, but the `container` maintainers typically will not address issues discovered on macOS 15 that cannot be reproduced on the macOS 26 beta.
 
 There are [significant networking limitations](/docs/technical-overview.md#macos-15-limitations) that impact the usability of `container` on macOS 15.
 
@@ -62,3 +62,7 @@ uninstall-container.sh -k
 ## Contributing
 
 Contributions to `container` are welcomed and encouraged. Please see our [main contributing guide](https://github.com/apple/containerization/blob/main/CONTRIBUTING.md) for more information.
+
+## Project Status
+
+The container project is currently under active development. Its stability, both for consuming the project as a Swift package and the `container` tool, is only guaranteed within minor versions, such as between 0.1.1 and 0.1.2. Minor version number releases may include breaking changes until we achieve a 1.0.0 release.

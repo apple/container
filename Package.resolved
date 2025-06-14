@@ -1,5 +1,5 @@
 {
-  "originHash" : "ea3144c0718528cd6faef7841a8c1fb6ae9339473ba78f9d5d87b16415d46d58",
+  "originHash" : "4ac93777a9a369fb7c46f1af4cd15c516926a8f4b23679f1ee2bc40b9a422313",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/containerization.git",
       "state" : {
-        "revision" : "56c06be9a9473b6df9031dd217551e6ad9a97d29",
-        "version" : "0.1.0"
+        "revision" : "4b05e5f2313e881ee048f7063b30e73070fbd1b1",
+        "version" : "0.1.1"
       }
     },
     {
@@ -87,8 +87,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-atomics.git",
       "state" : {
-        "revision" : "cd142fd2f64be2100422d658e7411e39489da985",
-        "version" : "1.2.0"
+        "revision" : "b601256eab081c0f92f059e12818ac1d4f178ff7",
+        "version" : "1.3.0"
       }
     },
     {

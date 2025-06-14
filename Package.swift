@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.2
 //===----------------------------------------------------------------------===//
 // Copyright © 2025 Apple Inc. and the container project authors. All rights reserved.
 //
@@ -26,16 +26,13 @@ if let path = ProcessInfo.processInfo.environment["CONTAINERIZATION_PATH"] {
     scDependency = .package(path: path)
     scVersion = "latest"
 } else {
-    scVersion = "0.1.0"
-    if let containerizationRepo = ProcessInfo.processInfo.environment["CONTAINERIZATION_REPO"], containerizationRepo != "" {
-        scDependency = .package(url: containerizationRepo, exact: Version(stringLiteral: scVersion))
-    } else {
-        scDependency = .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion))
-    }
+    scVersion = "0.1.1"
+    scDependency = .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion))
 }
 
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
+let builderShimVersion = "0.2.0"
 
 let package = Package(
     name: "container",
@@ -313,6 +310,7 @@ let package = Package(
                 .define("CZ_VERSION", to: "\"\(scVersion)\""),
                 .define("GIT_COMMIT", to: "\"\(gitCommit)\""),
                 .define("RELEASE_VERSION", to: "\"\(releaseVersion)\""),
+                .define("BUILDER_SHIM_VERSION", to: "\"\(builderShimVersion)\""),
             ]
         ),
     ]

@@ -63,10 +63,18 @@ extension Application {
 
             let server = Reference.resolveDomain(domain: server)
             let scheme = try RequestScheme(registry.scheme).schemeFor(host: server)
+            let _url = "\(scheme)://\(server)"
+            guard let url = URL(string: _url) else {
+                throw ContainerizationError(.invalidArgument, message: "Cannot convert \(_url) to URL")
+            }
+            guard let host = url.host else {
+                throw ContainerizationError(.invalidArgument, message: "Invalid host \(server)")
+            }
 
             let client = RegistryClient(
-                host: server,
+                host: host,
                 scheme: scheme.rawValue,
+                port: url.port,
                 authentication: BasicAuthentication(username: username, password: password),
                 retryOptions: .init(
                     maxRetries: 10,

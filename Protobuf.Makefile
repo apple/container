@@ -17,7 +17,9 @@ LOCAL_DIR := $(ROOT_DIR)/.local
 LOCALBIN := $(LOCAL_DIR)/bin
 
 BUILDER_SHIM_REPO ?= https://github.com/apple/container-builder-shim.git
+
 ## Versions
+BUILDER_SHIM_VERSION ?= $(shell sed -n 's/let builderShimVersion *= *"\(.*\)"/\1/p' Package.swift)
 PROTOC_VERSION=26.1
 
 # protoc binary installation
@@ -41,7 +43,7 @@ protoc-gen-swift:
 protos: $(PROTOC) protoc-gen-swift protoc_gen_grpc_swift 
 	@echo Generating protocol buffers source code...
 	@mkdir -p $(LOCAL_DIR)
-	@cd $(LOCAL_DIR) && git clone $(BUILDER_SHIM_REPO)
+	@cd $(LOCAL_DIR) && git clone --branch $(BUILDER_SHIM_VERSION) --depth 1 $(BUILDER_SHIM_REPO)
 	@$(PROTOC) $(LOCAL_DIR)/container-builder-shim/pkg/api/Builder.proto \
 		--plugin=protoc-gen-grpc-swift=$(BUILD_BIN_DIR)/protoc-gen-grpc-swift \
 		--plugin=protoc-gen-swift=$(BUILD_BIN_DIR)/protoc-gen-swift \

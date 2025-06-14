@@ -1,0 +1,12 @@
+version: 1
+builder:
+  configs:
+    - documentation_targets:
+      - ContainerSandboxService
+      - ContainerNetworkService
+      - ContainerImagesService
+      - ContainerClient
+      - ContainerLog
+      - ContainerPlugin
+      - ContainerXPC
+      - TerminalProgress

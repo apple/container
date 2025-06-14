@@ -129,7 +129,7 @@ let testCases = [
     func testGlobMatching(_ test: TestCase) throws {
         let globber = Globber(URL(fileURLWithPath: "/"))
         let found = try globber.glob(test.fileName, test.pattern)
-        #expect(found == test.expectSuccess, "expected found to be \(test.expectSuccess), instaed got \(found)")
+        #expect(found == test.expectSuccess, "expected found to be \(test.expectSuccess), instead got \(found)")
     }
 
     @Test("Invalid computed regex patterns throw error", arguments: errorGlobTestCases)
