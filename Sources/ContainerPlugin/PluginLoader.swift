@@ -169,7 +169,7 @@ extension PluginLoader {
         instanceId: String? = nil
     ) throws {
         // We only care about loading plugins that have a service
-        // to expose, otherwise they may just be CLI commands.
+        // to expose; otherwise, they may just be CLI commands.
         guard let serviceConfig = plugin.config.servicesConfig else {
             return
         }
@@ -201,7 +201,7 @@ extension PluginLoader {
 
     public func deregisterWithLaunchd(plugin: Plugin, instanceId: String? = nil) throws {
         // We only care about loading plugins that have a service
-        // to expose, otherwise they may just be CLI commands.
+        // to expose; otherwise, they may just be CLI commands.
         guard plugin.config.servicesConfig != nil else {
             return
         }

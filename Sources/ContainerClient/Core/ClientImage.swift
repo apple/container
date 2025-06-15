@@ -99,7 +99,7 @@ extension ClientImage {
 
     public static func normalizeReference(_ ref: String) throws -> String {
         guard ref != Self.initImageRef else {
-            // Don't modify the the default init image reference.
+            // Don't modify the default init image reference.
             // This is to allow for easier local development against
             // an updated containerization.
             return ref

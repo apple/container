@@ -770,53 +770,53 @@ extension Com_Apple_Container_Build_V1_ClientStream: SwiftProtobuf.Message, Swif
         case 1: try { try decoder.decodeSingularStringField(value: &_storage._buildID) }()
         case 2: try {
           var v: Com_Apple_Container_Build_V1_Signal?
-          var hadOneofValue = false
+          var hadOneOfValue = false
           if let current = _storage._packetType {
-            hadOneofValue = true
+            hadOneOfValue = true
             if case .signal(let m) = current {v = m}
           }
           try decoder.decodeSingularMessageField(value: &v)
           if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            if hadOneOfValue {try decoder.handleConflictingOneOf()}
             _storage._packetType = .signal(v)
           }
         }()
         case 3: try {
           var v: Com_Apple_Container_Build_V1_Run?
-          var hadOneofValue = false
+          var hadOneOfValue = false
           if let current = _storage._packetType {
-            hadOneofValue = true
+            hadOneOfValue = true
             if case .command(let m) = current {v = m}
           }
           try decoder.decodeSingularMessageField(value: &v)
           if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            if hadOneOfValue {try decoder.handleConflictingOneOf()}
             _storage._packetType = .command(v)
           }
         }()
         case 4: try {
           var v: Com_Apple_Container_Build_V1_BuildTransfer?
-          var hadOneofValue = false
+          var hadOneOfValue = false
           if let current = _storage._packetType {
-            hadOneofValue = true
+            hadOneOfValue = true
             if case .buildTransfer(let m) = current {v = m}
           }
           try decoder.decodeSingularMessageField(value: &v)
           if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            if hadOneOfValue {try decoder.handleConflictingOneOf()}
             _storage._packetType = .buildTransfer(v)
           }
         }()
         case 5: try {
           var v: Com_Apple_Container_Build_V1_ImageTransfer?
-          var hadOneofValue = false
+          var hadOneOfValue = false
           if let current = _storage._packetType {
-            hadOneofValue = true
+            hadOneOfValue = true
             if case .imageTransfer(let m) = current {v = m}
           }
           try decoder.decodeSingularMessageField(value: &v)
           if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            if hadOneOfValue {try decoder.handleConflictingOneOf()}
             _storage._packetType = .imageTransfer(v)
           }
         }()
@@ -1173,66 +1173,66 @@ extension Com_Apple_Container_Build_V1_ServerStream: SwiftProtobuf.Message, Swif
         case 1: try { try decoder.decodeSingularStringField(value: &_storage._buildID) }()
         case 2: try {
           var v: Com_Apple_Container_Build_V1_IO?
-          var hadOneofValue = false
+          var hadOneOfValue = false
           if let current = _storage._packetType {
-            hadOneofValue = true
+            hadOneOfValue = true
             if case .io(let m) = current {v = m}
           }
           try decoder.decodeSingularMessageField(value: &v)
           if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            if hadOneOfValue {try decoder.handleConflictingOneOf()}
             _storage._packetType = .io(v)
           }
         }()
         case 3: try {
           var v: Com_Apple_Container_Build_V1_BuildError?
-          var hadOneofValue = false
+          var hadOneOfValue = false
           if let current = _storage._packetType {
-            hadOneofValue = true
+            hadOneOfValue = true
             if case .buildError(let m) = current {v = m}
           }
           try decoder.decodeSingularMessageField(value: &v)
           if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            if hadOneOfValue {try decoder.handleConflictingOneOf()}
             _storage._packetType = .buildError(v)
           }
         }()
         case 4: try {
           var v: Com_Apple_Container_Build_V1_RunComplete?
-          var hadOneofValue = false
+          var hadOneOfValue = false
           if let current = _storage._packetType {
-            hadOneofValue = true
+            hadOneOfValue = true
             if case .commandComplete(let m) = current {v = m}
           }
           try decoder.decodeSingularMessageField(value: &v)
           if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            if hadOneOfValue {try decoder.handleConflictingOneOf()}
             _storage._packetType = .commandComplete(v)
           }
         }()
         case 5: try {
           var v: Com_Apple_Container_Build_V1_BuildTransfer?
-          var hadOneofValue = false
+          var hadOneOfValue = false
           if let current = _storage._packetType {
-            hadOneofValue = true
+            hadOneOfValue = true
             if case .buildTransfer(let m) = current {v = m}
           }
           try decoder.decodeSingularMessageField(value: &v)
           if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            if hadOneOfValue {try decoder.handleConflictingOneOf()}
             _storage._packetType = .buildTransfer(v)
           }
         }()
         case 6: try {
           var v: Com_Apple_Container_Build_V1_ImageTransfer?
-          var hadOneofValue = false
+          var hadOneOfValue = false
           if let current = _storage._packetType {
-            hadOneofValue = true
+            hadOneOfValue = true
             if case .imageTransfer(let m) = current {v = m}
           }
           try decoder.decodeSingularMessageField(value: &v)
           if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            if hadOneOfValue {try decoder.handleConflictingOneOf()}
             _storage._packetType = .imageTransfer(v)
           }
         }()

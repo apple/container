@@ -64,7 +64,7 @@ extension ProgressBar {
         var finished = true
         var defined = false
         if let totalTasks = state.totalTasks, totalTasks > 0 {
-            // For tasks, we're showing the current task rather then the number of completed tasks.
+            // For tasks, we're showing the current task rather than the number of completed tasks.
             finished = finished && state.tasks == totalTasks
             defined = true
         }

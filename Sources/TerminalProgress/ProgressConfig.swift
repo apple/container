@@ -27,7 +27,7 @@ public struct ProgressConfig: Sendable {
     /// The initial items name (e.g., "files").
     let initialItemsName: String
     /// A flag indicating whether to show a spinner (e.g., "⠋").
-    /// The spinner is hidden when when a progress bar is shown.
+    /// The spinner is hidden when a progress bar is shown.
     public let showSpinner: Bool
     /// A flag indicating whether to show tasks and total tasks (e.g., "[1]" or "[1/3]").
     public let showTasks: Bool

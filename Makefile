@@ -49,7 +49,7 @@ all: init-block
 .PHONY: build
 build:
 	@echo Building container binaries...
-	@#Remove this when the updated MacOS SDK is available publicly
+	@#Remove this when the updated macOS SDK is available publicly
 	$(SWIFT) build -c $(BUILD_CONFIGURATION) $(CURRENT_SDK_ARGS) ; \
 
 .PHONY: container
