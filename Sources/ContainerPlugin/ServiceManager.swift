@@ -60,7 +60,6 @@ public struct ServiceManager {
         launchctl.executableURL = URL(fileURLWithPath: "/bin/launchctl")
         launchctl.arguments = ["list"]
 
-        let null = FileHandle.nullDevice
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
         launchctl.standardOutput = stdoutPipe
