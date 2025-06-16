@@ -321,8 +321,10 @@ public actor SandboxService {
         var cs: ContainerSnapshot?
 
         switch state {
-        case .created, .stopped(_), .starting, .booted, .stopping:
+        case .created, .stopped(_), .starting, .booted:
             status = .stopped
+        case .stopping:
+            status = .stopping
         case .running:
             let ctr = try getContainer()
 
