@@ -36,7 +36,7 @@ public enum XPCKeys: String {
     case port
     /// Exit code for a process
     case exitCode
-    /// An event that occured in a container
+    /// An event that occurred in a container
     case containerEvent
     /// Error key.
     case error

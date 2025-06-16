@@ -61,8 +61,8 @@ extension Application {
                 containers = ctrs.filter { c in
                     set.contains(c.id)
                 }
-                // If one of the containers requested isn't present lets throw. We don't need to do
-                // this for --all as --all should be perfectly usable with no containers to remove, otherwise
+                // If one of the containers requested isn't present, let's throw. We don't need to do
+                // this for --all as --all should be perfectly usable with no containers to remove; otherwise,
                 // it'd be quite clunky.
                 if containers.count != set.count {
                     let missing = set.filter { id in

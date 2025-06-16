@@ -27,7 +27,7 @@ public struct ProgressConfig: Sendable {
     /// The initial items name (e.g., "files").
     let initialItemsName: String
     /// A flag indicating whether to show a spinner (e.g., "⠋").
-    /// The spinner is hidden when when a progress bar is shown.
+    /// The spinner is hidden when a progress bar is shown.
     public let showSpinner: Bool
     /// A flag indicating whether to show tasks and total tasks (e.g., "[1]" or "[1/3]").
     public let showTasks: Bool
@@ -61,7 +61,7 @@ public struct ProgressConfig: Sendable {
     public let width: Int
     /// The theme of the progress bar.
     public let theme: ProgressTheme
-    /// The flag indicating whether to clear the progress bar before reseting the cursor.
+    /// The flag indicating whether to clear the progress bar before resetting the cursor.
     public let clearOnFinish: Bool
     /// The flag indicating whether to update the progress bar.
     public let disableProgressUpdates: Bool
@@ -86,7 +86,7 @@ public struct ProgressConfig: Sendable {
     ///   - totalSize: The initial total size of the progress bar. The default value is `nil`.
     ///   - width: The width of the progress bar in characters. The default value is `120`.
     ///   - theme: The theme of the progress bar. The default value is `nil`.
-    ///   - clearOnFinish: The flag indicating whether to clear the progress bar before reseting the cursor. The default is `true`.
+    ///   - clearOnFinish: The flag indicating whether to clear the progress bar before resetting the cursor. The default is `true`.
     ///   - disableProgressUpdates: The flag indicating whether to update the progress bar. The default is `false`.
     public init(
         terminal: FileHandle = .standardError,

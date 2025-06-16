@@ -182,9 +182,9 @@ struct APIServer: AsyncParsableCommand {
 
     private func initializeKernelService(log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) throws {
         let svc = try KernelService(log: log, appRoot: Self.appRoot)
-        let harnsess = KernelHarness(service: svc, log: log)
-        routes[XPCRoute.installKernel] = harnsess.install
-        routes[XPCRoute.getDefaultKernel] = harnsess.getDefaultKernel
+        let harness = KernelHarness(service: svc, log: log)
+        routes[XPCRoute.installKernel] = harness.install
+        routes[XPCRoute.getDefaultKernel] = harness.getDefaultKernel
     }
 
     private func initializeContainerService(root: URL, pluginLoader: PluginLoader, log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) throws {

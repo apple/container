@@ -67,7 +67,7 @@ Currently, memory pages freed to the Linux operating system by processes running
 
 ### macOS 15 limitations
 
-`container` relies on the new features and enhancements present in the macOS 26 Beta 1. You can run `container` on macOS 15, but you will need to be aware of some user experience and functional limitations. There is no plan to address issues found with macOS 15 that cannot be reproduced in the macOS 26 Beta 1.
+`container` relies on the new features and enhancements present in the macOS 26 beta. You can run `container` on macOS 15, but you will need to be aware of some user experience and functional limitations. There is no plan to address issues found with macOS 15 that cannot be reproduced in the macOS 26 beta.
 
 #### Network isolation
 
@@ -85,7 +85,7 @@ Normally, vmnet creates the container network using the CIDR address 192.168.64.
   - Run `container system stop` to terminate the services for `container`.
   - Using the macOS `defaults` command, update the default subnet value used by the network helper process. For example, if the bridge address shown by `ifconfig` is 192.168.66.1, run:
     ```bash
-    defaults write com.apple.container.defaults default.subnet 192.168.66.1/24
+    defaults write com.apple.container.defaults network.subnet 192.168.66.1/24
     ```
   - Run `container system start` to launch services again.
   - Try running the container again and verify that its IP address matches the current bridge interface value.

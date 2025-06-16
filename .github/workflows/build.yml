@@ -1,6 +1,6 @@
 name: container project - PR/merge build
 
-on: 
+on:
   pull_request:
     types: [opened, reopened, synchronize]
   push:
@@ -8,7 +8,7 @@ on:
       - main
       - release/*
 
-jobs: 
+jobs:
   build:
     name: Invoke build
     uses: ./.github/workflows/common.yml

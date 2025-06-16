@@ -86,7 +86,7 @@ extension TestCLIBuildBase {
                 """
             let context: [FileSystemEntry] = [.file("emptyFile", content: .zeroFilled(size: 1))]
             try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
-            let imageName = "regitry.local/scratch-add:\(UUID().uuidString)"
+            let imageName = "registry.local/scratch-add:\(UUID().uuidString)"
             try self.build(tag: imageName, tempDir: tempDir)
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
@@ -108,7 +108,7 @@ extension TestCLIBuildBase {
                 .file("emptyFile", content: .zeroFilled(size: 1)),
             ]
             try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
-            let imageName: String = "regitry.local/add-all:\(UUID().uuidString)"
+            let imageName: String = "registry.local/add-all:\(UUID().uuidString)"
             try self.build(tag: imageName, tempDir: tempDir)
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
@@ -122,7 +122,7 @@ extension TestCLIBuildBase {
                 RUN nc -zv ${ADDRESS%:*} ${ADDRESS##*:} || exit 1
                 """
             try createContext(tempDir: tempDir, dockerfile: dockerfile)
-            let imageName = "regitry.local/build-network-access:\(UUID().uuidString)"
+            let imageName = "registry.local/build-network-access:\(UUID().uuidString)"
 
             let proxyEnv = ProcessInfo.processInfo.environment["HTTP_PROXY"]
             var address = "8.8.8.8:53"
@@ -226,7 +226,7 @@ extension TestCLIBuildBase {
             ]
             try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
 
-            let imageName = "regitry.local/dockerfile-keywords:\(UUID().uuidString)"
+            let imageName = "registry.local/dockerfile-keywords:\(UUID().uuidString)"
             try self.build(tag: imageName, tempDir: tempDir)
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
@@ -279,7 +279,7 @@ extension TestCLIBuildBase {
                 .symbolicLink("Test3Source2/Dest", target: "Test3Source/Source"),
             ]
             try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
-            let imageName = "regitry.local/build-symlinks:\(UUID().uuidString)"
+            let imageName = "registry.local/build-symlinks:\(UUID().uuidString)"
 
             #expect(throws: Never.self) {
                 try self.build(tag: imageName, tempDir: tempDir)
@@ -338,7 +338,7 @@ extension TestCLIBuildBase {
             ]
             try createContext(tempDir: buildContextDir, dockerfile: "", context: buildContext)
 
-            let imageName = "regitry.local/build-diff-context:\(UUID().uuidString)"
+            let imageName = "registry.local/build-diff-context:\(UUID().uuidString)"
             #expect(throws: Never.self) {
                 try self.buildWithPaths(tag: imageName, tempContext: buildContextDir, tempDockerfileContext: dockerfileCtxDir)
             }

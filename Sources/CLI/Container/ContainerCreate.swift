@@ -48,17 +48,12 @@ extension Application {
         var global: Flags.Global
 
         func run() async throws {
-            var progressConfig: ProgressConfig
-            if managementFlags.disableProgressUpdates {
-                progressConfig = try ProgressConfig(disableProgressUpdates: managementFlags.disableProgressUpdates)
-            } else {
-                progressConfig = try ProgressConfig(
-                    showTasks: true,
-                    showItems: true,
-                    ignoreSmallSize: true,
-                    totalTasks: 3
-                )
-            }
+            let progressConfig = try ProgressConfig(
+                showTasks: true,
+                showItems: true,
+                ignoreSmallSize: true,
+                totalTasks: 3
+            )
             let progress = ProgressBar(config: progressConfig)
             defer {
                 progress.finish()

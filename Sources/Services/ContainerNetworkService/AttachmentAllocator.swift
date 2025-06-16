@@ -22,9 +22,9 @@ actor AttachmentAllocator {
     private var hostnames: [String: UInt32] = [:]
 
     init(lower: UInt32, size: Int) throws {
-        allocator = try UInt32.allocator(
+        allocator = try UInt32.rotatingAllocator(
             lower: lower,
-            size: size
+            size: UInt32(size)
         )
     }
 

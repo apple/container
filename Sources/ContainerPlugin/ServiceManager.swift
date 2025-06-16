@@ -60,23 +60,24 @@ public struct ServiceManager {
         launchctl.executableURL = URL(fileURLWithPath: "/bin/launchctl")
         launchctl.arguments = ["list"]
 
-        let null = FileHandle.nullDevice
         let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
         launchctl.standardOutput = stdoutPipe
-        launchctl.standardError = null
+        launchctl.standardError = stderrPipe
 
         try launchctl.run()
         let outputData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+        let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
         launchctl.waitUntilExit()
         let status = launchctl.terminationStatus
         guard status == 0 else {
-            // TODO: review error handling
-            return []
+            throw ContainerizationError(
+                .internalError, message: "Command `launchctl list` failed with status \(status). Message: \(String(data: stderrData, encoding: .utf8) ?? "No error message")")
         }
 
         guard let outputText = String(data: outputData, encoding: .utf8) else {
-            // TODO: review error handling
-            return []
+            throw ContainerizationError(
+                .internalError, message: "Could not decode output of command `launchctl list`. Message: \(String(data: stderrData, encoding: .utf8) ?? "No error message")")
         }
 
         // The third field of each line of launchctl list output is the label

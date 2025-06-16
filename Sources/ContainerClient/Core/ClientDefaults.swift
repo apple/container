@@ -63,7 +63,8 @@ extension ClientDefaults.Keys {
         case .defaultKernelBinaryPath:
             return "opt/kata/share/kata-containers/vmlinux-6.12.28-153"
         case .defaultBuilderImage:
-            return "ghcr.io/apple/container-builder-shim/builder:0.1.0"
+            let tag = String(cString: get_container_builder_shim_version())
+            return "ghcr.io/apple/container-builder-shim/builder:\(tag)"
         case .defaultDNSDomain:
             return "test"
         case .defaultRegistryDomain:
