@@ -102,12 +102,12 @@ extension Application {
         @Flag(name: .shortAndLong, help: "Suppress build output")
         var quiet: Bool = false
 
-        /// Checks for the existence of 'Containerfile' or 'Dockerfile' in the specified directory.
+        /// Locates the default build file (e.g. Dockerfile or Containerfile) in the specified directory.
         /// - Parameter buildDirectory: The directory to search within.
-        /// - Returns: The Path to the found 'Containerfile' or 'Dockerfile'.
-        /// - Throws: ValidationError if neither file is found.
+        /// - Returns: The Path to the found build file.
+        /// - Throws: ValidationError if no default build file is found.
         ///
-        private static func checkForDockerOrContainerfile(in buildDirectory: String, using defaultBuildFileNames: Set<String>) throws -> Data {
+        private static func locateDefaultBuildFile(in buildDirectory: String, using defaultBuildFileNames: Set<String>) throws -> Data {
             let fileManager = FileManager.default
 
             for filename in defaultBuildFileNames {
@@ -124,7 +124,7 @@ extension Application {
             throw NSError(
                 domain: "BuildFileError",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "No valid Dockerfile or Containerfile found in \(buildDirectory)"]
+                userInfo: [NSLocalizedDescriptionKey: "No valid default build file found in \(buildDirectory)"]
             )
         }
 
@@ -199,7 +199,7 @@ extension Application {
                 let dockerfile: Data
 
                 if defaultBuildFileNames.contains(file) {
-                    dockerfile = try BuildCommand.checkForDockerOrContainerfile(in: FileManager.default.currentDirectoryPath, using: defaultBuildFileNames)
+                    dockerfile = try BuildCommand.locateDefaultBuildFile(in: FileManager.default.currentDirectoryPath, using: defaultBuildFileNames)
                 } else {
                     let fileURL = URL(filePath: file)
                     guard FileManager.default.fileExists(atPath: file) else {
