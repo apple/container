@@ -101,7 +101,7 @@ public actor NetworkService: Sendable {
         }
 
         let hostname = try message.hostname()
-        let index = try await allocator.lookup(hostname: hostname)
+        let index = try allocator.lookup(hostname: hostname)
         let reply = message.reply()
         guard let index else {
             return reply
