@@ -184,7 +184,9 @@ struct Application: AsyncParsableCommand {
         let signals = AsyncSignalHandler.create(notify: Application.signalSet)
         return try await withThrowingTaskGroup(of: Int32?.self, returning: Int32.self) { group in
             let waitAdded = group.addTaskUnlessCancelled {
-                try await process.wait()
+                let code = try await process.wait()
+                try await io.wait()
+                return code
             }
 
             guard waitAdded else {
@@ -294,7 +296,7 @@ extension Application {
         versionDetails["build"] = "debug"
         #endif
         #if CURRENT_SDK
-        versionDetails["sdk"] = "MacOS 15"
+        versionDetails["sdk"] = "macOS 15"
         #endif
         let gitCommit = {
             let sha = get_git_commit().map { String(cString: $0) }

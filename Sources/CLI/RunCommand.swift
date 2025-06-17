@@ -18,6 +18,7 @@ import ArgumentParser
 import ContainerClient
 import Containerization
 import ContainerizationError
+import ContainerizationExtras
 import ContainerizationOS
 import Foundation
 import NIOCore
@@ -169,6 +170,13 @@ struct ProcessIO {
     let stdin: Pipe?
     let stdout: Pipe?
     let stderr: Pipe?
+    var ioTracker: IoTracker?
+
+    struct IoTracker {
+        let stream: AsyncStream<Void>
+        let cont: AsyncStream<Void>.Continuation
+        let configuredStreams: Int
+    }
 
     let stdio: [FileHandle?]
 
@@ -224,7 +232,11 @@ struct ProcessIO {
             }
             return Pipe()
         }()
+
+        var configuredStreams = 0
+        let (stream, cc) = AsyncStream<Void>.makeStream()
         if let stdout {
+            configuredStreams += 1
             let pout: FileHandle = {
                 if let current {
                     return current.handle
@@ -237,6 +249,7 @@ struct ProcessIO {
                 let data = handle.availableData
                 if data.isEmpty {
                     rout.readabilityHandler = nil
+                    cc.yield()
                     return
                 }
                 try! pout.write(contentsOf: data)
@@ -251,12 +264,14 @@ struct ProcessIO {
             return Pipe()
         }()
         if let stderr {
+            configuredStreams += 1
             let perr: FileHandle = .standardError
             let rerr = stderr.fileHandleForReading
             rerr.readabilityHandler = { handle in
                 let data = handle.availableData
                 if data.isEmpty {
                     rerr.readabilityHandler = nil
+                    cc.yield()
                     return
                 }
                 try! perr.write(contentsOf: data)
@@ -264,12 +279,39 @@ struct ProcessIO {
             stdio[2] = stderr.fileHandleForWriting
         }
 
+        var ioTracker: IoTracker? = nil
+        if configuredStreams > 0 {
+            ioTracker = .init(stream: stream, cont: cc, configuredStreams: configuredStreams)
+        }
+
         return .init(
             stdin: stdin,
             stdout: stdout,
             stderr: stderr,
+            ioTracker: ioTracker,
             stdio: stdio,
             console: current
         )
+    }
+
+    public func wait() async throws {
+        guard let ioTracker = self.ioTracker else {
+            return
+        }
+        do {
+            try await Timeout.run(seconds: 3) {
+                var counter = ioTracker.configuredStreams
+                for await _ in ioTracker.stream {
+                    counter -= 1
+                    if counter == 0 {
+                        ioTracker.cont.finish()
+                        break
+                    }
+                }
+            }
+        } catch {
+            log.error("Timeout waiting for IO to complete : \(error)")
+            throw error
+        }
     }
 }

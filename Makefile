@@ -49,7 +49,7 @@ all: init-block
 .PHONY: build
 build:
 	@echo Building container binaries...
-	@#Remove this when the updated MacOS SDK is available publicly
+	@#Remove this when the updated macOS SDK is available publicly
 	$(SWIFT) build -c $(BUILD_CONFIGURATION) $(CURRENT_SDK_ARGS) ; \
 
 .PHONY: container
@@ -143,7 +143,12 @@ integration: init-block
 	@echo "Removing any existing containers"
 	@bin/container rm --all
 	@echo "Starting CLI integration tests"
-	@RUN_CLI_INTEGRATION_TESTS=1 $(SWIFT) test -c $(BUILD_CONFIGURATION) $(CURRENT_SDK_ARGS) --filter TestCLI
+	@$(SWIFT) test -c $(BUILD_CONFIGURATION) $(CURRENT_SDK_ARGS) --filter TestCLIRunLifecycle
+	@$(SWIFT) test -c $(BUILD_CONFIGURATION) $(CURRENT_SDK_ARGS) --filter TestCLIExecCommand
+	@$(SWIFT) test -c $(BUILD_CONFIGURATION) $(CURRENT_SDK_ARGS) --filter TestCLIRunCommand
+	@$(SWIFT) test -c $(BUILD_CONFIGURATION) $(CURRENT_SDK_ARGS) --filter TestCLIImagesCommand
+	@$(SWIFT) test -c $(BUILD_CONFIGURATION) $(CURRENT_SDK_ARGS) --filter TestCLIRunBase
+	@$(SWIFT) test -c $(BUILD_CONFIGURATION) $(CURRENT_SDK_ARGS) --filter TestCLIBuildBase
 	@echo Ensuring apiserver stopped after the CLI integration tests...
 	@scripts/ensure-container-stopped.sh
 
