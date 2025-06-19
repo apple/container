@@ -620,6 +620,16 @@ public actor SandboxService {
             }
         }
 
+        for publishedSocket in config.publishedSockets {
+            let socketConfig = UnixSocketConfiguration(
+                source: publishedSocket.containerPath,
+                destination: publishedSocket.hostPath,
+                permissions: publishedSocket.permissions,
+                direction: .outOf
+            )
+            container.sockets.append(socketConfig)
+        }
+
         container.hostname = config.hostname ?? config.id
 
         if let dns = config.dns {
