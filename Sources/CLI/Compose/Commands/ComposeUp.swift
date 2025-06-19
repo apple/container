@@ -519,9 +519,10 @@ struct ComposeUp: AsyncParsableCommand, @unchecked Sendable {
 
         // Determine image tag for built image
         let imageToRun = service.image ?? "\(serviceName):latest"
+        let searchName = imageToRun.split(separator: ":").first
         
         let imagesList = try await runCommand("container", args: ["images", "list"]).stdout
-        if !rebuild, imagesList.contains(serviceName) {
+        if !rebuild, let searchName, imagesList.contains(searchName) {
             return imageToRun
         }
         
