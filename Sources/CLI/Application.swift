@@ -56,6 +56,7 @@ struct Application: AsyncParsableCommand {
             CommandGroup(
                 name: "Container",
                 subcommands: [
+                    ComposeCommand.self,
                     ContainerCreate.self,
                     ContainerDelete.self,
                     ContainerExec.self,
@@ -81,14 +82,6 @@ struct Application: AsyncParsableCommand {
                 subcommands: [
                     BuilderCommand.self,
                     SystemCommand.self,
-                ]
-            ),
-            CommandGroup(
-                name: "Compose",
-                subcommands: [
-                    ComposeCommand.self,
-                    ComposeUp.self,
-                    ComposeDown.self,
                 ]
             ),
         ],

@@ -28,7 +28,7 @@ import Yams
 struct ComposeCommand: AsyncParsableCommand {
     static let configuration: CommandConfiguration = .init(
         commandName: "compose",
-        abstract: "A tool to use manage Docker Compose files with Apple Container",
+        abstract: "Manage containers with Docker Compose files",
         subcommands: [
             ComposeUp.self,
             ComposeDown.self,
