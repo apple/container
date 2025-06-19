@@ -1,19 +1,3 @@
-//===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors. All rights reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//   https://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//===----------------------------------------------------------------------===//
-
 //
 //  ComposeDown.swift
 //  Container-Compose
@@ -21,9 +5,9 @@
 //  Created by Morris Richman on 6/19/25.
 //
 
-import ArgumentParser
 import ContainerClient
 import Foundation
+import ArgumentParser
 import Yams
 
 struct ComposeDown: AsyncParsableCommand {
@@ -41,32 +25,30 @@ struct ComposeDown: AsyncParsableCommand {
 
     private var fileManager: FileManager { FileManager.default }
     private var projectName: String?
-
+    
     mutating func run() async throws {
         // Read docker-compose.yml content
         guard let yamlData = fileManager.contents(atPath: dockerComposePath) else {
             throw YamlError.dockerfileNotFound(dockerComposePath)
         }
-
+        
         // Decode the YAML file into the DockerCompose struct
         let dockerComposeString = String(data: yamlData, encoding: .utf8)!
         let dockerCompose = try YAMLDecoder().decode(DockerCompose.self, from: dockerComposeString)
-
+        
         // Determine project name for container naming
         if let name = dockerCompose.name {
             projectName = name
             print("Info: Docker Compose project name parsed as: \(name)")
-            print(
-                "Note: The 'name' field currently only affects container naming (e.g., '\(name)-serviceName'). Full project-level isolation for other resources (networks, implicit volumes) is not implemented by this tool."
-            )
+            print("Note: The 'name' field currently only affects container naming (e.g., '\(name)-serviceName'). Full project-level isolation for other resources (networks, implicit volumes) is not implemented by this tool.")
         } else {
-            projectName = URL(fileURLWithPath: cwd).lastPathComponent  // Default to directory name
+            projectName = URL(fileURLWithPath: cwd).lastPathComponent // Default to directory name
             print("Info: No 'name' field found in docker-compose.yml. Using directory name as project name: \(projectName)")
         }
-
+        
         try await stopOldStuff(remove: false)
     }
-
+    
     /// Returns the names of all containers whose names start with a given prefix.
     /// - Parameter prefix: The container name prefix (e.g. `"Assignment"`).
     /// - Returns: An array of matching container names.
@@ -81,13 +63,13 @@ struct ComposeDown: AsyncParsableCommand {
             return name.hasPrefix(prefix) ? String(name) : nil
         }
     }
-
+    
     func stopOldStuff(remove: Bool) async throws {
         guard let projectName else { return }
         let containers = try await getContainersWithPrefix(projectName)
-
+        
         for container in containers {
-            print("Removing old container: \(container)")
+            print("Stopping container: \(container)")
             do {
                 try await runCommand("container", args: ["stop", container])
                 if remove {
@@ -97,7 +79,7 @@ struct ComposeDown: AsyncParsableCommand {
             }
         }
     }
-
+    
     /// Runs a command-line tool asynchronously and captures its output and exit code.
     ///
     /// This function uses async/await and `Process` to launch a command-line tool,
@@ -115,7 +97,7 @@ struct ComposeDown: AsyncParsableCommand {
     /// ```
     @discardableResult
     func runCommand(_ command: String, args: [String] = []) async throws -> CommandResult {
-        try await withCheckedThrowingContinuation { continuation in
+        return try await withCheckedThrowingContinuation { continuation in
             let process = Process()
             let stdoutPipe = Pipe()
             let stderrPipe = Pipe()
@@ -141,7 +123,7 @@ struct ComposeDown: AsyncParsableCommand {
             process.terminationHandler = { proc in
                 let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
                 let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-
+                
                 guard stderrData.isEmpty else {
                     continuation.resume(throwing: TerminalError.commandFailed(String(decoding: stderrData, as: UTF8.self)))
                     return

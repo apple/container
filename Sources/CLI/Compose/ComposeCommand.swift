@@ -24,6 +24,7 @@
 import ArgumentParser
 import Foundation
 import Yams
+import Rainbow
 
 struct ComposeCommand: AsyncParsableCommand {
     static let configuration: CommandConfiguration = .init(
@@ -45,4 +46,8 @@ struct CommandResult {
 
     /// The exit code returned by the process upon termination.
     let exitCode: Int32
+}
+
+extension NamedColor: Codable {
+    
 }
