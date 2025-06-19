@@ -83,6 +83,14 @@ struct Application: AsyncParsableCommand {
                     SystemCommand.self,
                 ]
             ),
+            CommandGroup(
+                name: "Compose",
+                subcommands: [
+                    ComposeCommand.self,
+                    ComposeUp.self,
+                    ComposeDown.self,
+                ]
+            ),
         ],
         // Hidden command to handle plugins on unrecognized input.
         defaultSubcommand: DefaultCommand.self
