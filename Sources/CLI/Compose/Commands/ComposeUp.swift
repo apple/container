@@ -30,7 +30,7 @@ import Yams
 struct ComposeUp: AsyncParsableCommand, @unchecked Sendable {
     static let configuration: CommandConfiguration = .init(
         commandName: "up",
-        abstract: "Start containers with container-compose"
+        abstract: "Start containers with compose"
     )
 
     @Flag(

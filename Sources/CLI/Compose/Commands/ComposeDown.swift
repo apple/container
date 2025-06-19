@@ -29,7 +29,7 @@ import Yams
 struct ComposeDown: AsyncParsableCommand {
     static let configuration: CommandConfiguration = .init(
         commandName: "down",
-        abstract: "Stop containers with container-compose"
+        abstract: "Stop containers with compose"
     )
 
     @OptionGroup
