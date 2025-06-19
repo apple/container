@@ -23,8 +23,8 @@
 
 import ArgumentParser
 import Foundation
-import Yams
 import Rainbow
+import Yams
 
 struct ComposeCommand: AsyncParsableCommand {
     static let configuration: CommandConfiguration = .init(
@@ -49,5 +49,5 @@ struct CommandResult {
 }
 
 extension NamedColor: Codable {
-    
+
 }
