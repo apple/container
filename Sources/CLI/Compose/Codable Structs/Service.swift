@@ -21,33 +21,82 @@
 //  Created by Morris Richman on 6/17/25.
 //
 
+import Foundation
+
 
 /// Represents a single service definition within the `services` section.
 struct Service: Codable, Hashable {
-    let image: String? // Docker image name
-    let build: Build? // Build configuration if the service is built from a Dockerfile
-    let deploy: Deploy? // Deployment configuration (primarily for Swarm)
-    let restart: String? // Restart policy (e.g., 'unless-stopped', 'always')
-    let healthcheck: Healthcheck? // Healthcheck configuration
-    let volumes: [String]? // List of volume mounts (e.g., "hostPath:containerPath", "namedVolume:/path")
-    let environment: [String: String]? // Environment variables to set in the container
-    let env_file: [String]? // List of .env files to load environment variables from
-    let ports: [String]? // Port mappings (e.g., "hostPort:containerPort")
-    let command: [String]? // Command to execute in the container, overriding the image's default
-    let depends_on: [String]? // Services this service depends on (for startup order)
-    let user: String? // User or UID to run the container as
+    /// Docker image name
+    let image: String?
 
-    let container_name: String? // Explicit name for the container instance
-    let networks: [String]? // List of networks the service will connect to
-    let hostname: String? // Container hostname
-    let entrypoint: [String]? // Entrypoint to execute in the container, overriding the image's default
-    let privileged: Bool? // Run container in privileged mode
-    let read_only: Bool? // Mount container's root filesystem as read-only
-    let working_dir: String? // Working directory inside the container
-    let configs: [ServiceConfig]? // Service-specific config usage (primarily for Swarm)
-    let secrets: [ServiceSecret]? // Service-specific secret usage (primarily for Swarm)
-    let stdin_open: Bool? // Keep STDIN open (-i flag for `container run`)
-    let tty: Bool? // Allocate a pseudo-TTY (-t flag for `container run`)
+    /// Build configuration if the service is built from a Dockerfile
+    let build: Build?
+
+    /// Deployment configuration (primarily for Swarm)
+    let deploy: Deploy?
+
+    /// Restart policy (e.g., 'unless-stopped', 'always')
+    let restart: String?
+
+    /// Healthcheck configuration
+    let healthcheck: Healthcheck?
+
+    /// List of volume mounts (e.g., "hostPath:containerPath", "namedVolume:/path")
+    let volumes: [String]?
+
+    /// Environment variables to set in the container
+    let environment: [String: String]?
+
+    /// List of .env files to load environment variables from
+    let env_file: [String]?
+
+    /// Port mappings (e.g., "hostPort:containerPort")
+    let ports: [String]?
+
+    /// Command to execute in the container, overriding the image's default
+    let command: [String]?
+
+    /// Services this service depends on (for startup order)
+    let depends_on: [String]?
+
+    /// User or UID to run the container as
+    let user: String?
+
+    /// Explicit name for the container instance
+    let container_name: String?
+
+    /// List of networks the service will connect to
+    let networks: [String]?
+
+    /// Container hostname
+    let hostname: String?
+
+    /// Entrypoint to execute in the container, overriding the image's default
+    let entrypoint: [String]?
+
+    /// Run container in privileged mode
+    let privileged: Bool?
+
+    /// Mount container's root filesystem as read-only
+    let read_only: Bool?
+
+    /// Working directory inside the container
+    let working_dir: String?
+
+    /// Service-specific config usage (primarily for Swarm)
+    let configs: [ServiceConfig]?
+
+    /// Service-specific secret usage (primarily for Swarm)
+    let secrets: [ServiceSecret]?
+
+    /// Keep STDIN open (-i flag for `container run`)
+    let stdin_open: Bool?
+
+    /// Allocate a pseudo-TTY (-t flag for `container run`)
+    let tty: Bool?
+    
+    /// Other services that depend on this service
+    var dependedBy: [String] = []
     
     // Defines custom coding keys to map YAML keys to Swift properties
     enum CodingKeys: String, CodingKey {
@@ -106,5 +155,45 @@ struct Service: Codable, Hashable {
         secrets = try container.decodeIfPresent([ServiceSecret].self, forKey: .secrets)
         stdin_open = try container.decodeIfPresent(Bool.self, forKey: .stdin_open)
         tty = try container.decodeIfPresent(Bool.self, forKey: .tty)
+    }
+    
+    /// Returns the services in topological order based on `depends_on` relationships.
+    static func topoSortConfiguredServices(
+        _ services: [(serviceName: String, service: Service)]
+    ) throws -> [(serviceName: String, service: Service)] {
+        
+        var visited = Set<String>()
+        var visiting = Set<String>()
+        var sorted: [(String, Service)] = []
+
+        func visit(_ name: String, from service: String? = nil) throws {
+            guard var serviceTuple = services.first(where: { $0.serviceName == name }) else { return }
+            if let service {
+                serviceTuple.service.dependedBy.append(service)
+            }
+            
+            if visiting.contains(name) {
+                throw NSError(domain: "ComposeError", code: 1, userInfo: [
+                    NSLocalizedDescriptionKey: "Cyclic dependency detected involving '\(name)'"
+                ])
+            }
+            guard !visited.contains(name) else { return }
+
+            visiting.insert(name)
+            for depName in serviceTuple.service.depends_on ?? [] {
+                try visit(depName, from: name)
+            }
+            visiting.remove(name)
+            visited.insert(name)
+            sorted.append(serviceTuple)
+        }
+
+        for (serviceName, _) in services {
+            if !visited.contains(serviceName) {
+                try visit(serviceName)
+            }
+        }
+
+        return sorted
     }
 }

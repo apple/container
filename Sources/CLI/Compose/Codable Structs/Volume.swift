@@ -24,11 +24,20 @@
 
 /// Represents a top-level volume definition.
 struct Volume: Codable {
-    let driver: String? // Volume driver (e.g., 'local')
-    let driver_opts: [String: String]? // Driver-specific options
-    let name: String? // Explicit name for the volume
-    let labels: [String: String]? // Labels for the volume
-    let external: ExternalVolume? // Indicates if the volume is external (pre-existing)
+    /// Volume driver (e.g., 'local')
+    let driver: String?
+
+    /// Driver-specific options
+    let driver_opts: [String: String]?
+
+    /// Explicit name for the volume
+    let name: String?
+
+    /// Labels for the volume
+    let labels: [String: String]?
+
+    /// Indicates if the volume is external (pre-existing)
+    let external: ExternalVolume?
 
     enum CodingKeys: String, CodingKey {
         case driver, driver_opts, name, labels, external

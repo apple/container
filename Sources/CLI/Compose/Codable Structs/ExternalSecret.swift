@@ -24,6 +24,8 @@
 
 /// Represents an external secret reference.
 struct ExternalSecret: Codable {
-    let isExternal: Bool // True if the secret is external
-    let name: String? // Optional name of the external secret if different from key
+    /// True if the secret is external
+    let isExternal: Bool
+    /// Optional name of the external secret if different from key
+    let name: String?
 }

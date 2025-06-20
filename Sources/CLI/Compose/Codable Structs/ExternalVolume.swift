@@ -24,6 +24,8 @@
 
 /// Represents an external volume reference.
 struct ExternalVolume: Codable {
-    let isExternal: Bool // True if the volume is external
-    let name: String? // Optional name of the external volume if different from key
+    /// True if the volume is external
+    let isExternal: Bool
+    /// Optional name of the external volume if different from key
+    let name: String?
 }

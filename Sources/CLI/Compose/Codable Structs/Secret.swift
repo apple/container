@@ -24,11 +24,16 @@
 
 /// Represents a top-level secret definition (primarily for Swarm).
 struct Secret: Codable {
-    let file: String? // Path to the file containing the secret content
-    let environment: String? // Environment variable to populate with the secret content
-    let external: ExternalSecret? // Indicates if the secret is external (pre-existing)
-    let name: String? // Explicit name for the secret
-    let labels: [String: String]? // Labels for the secret
+    /// Path to the file containing the secret content
+    let file: String?
+    /// Environment variable to populate with the secret content
+    let environment: String?
+    /// Indicates if the secret is external (pre-existing)
+    let external: ExternalSecret?
+    /// Explicit name for the secret
+    let name: String?
+    /// Labels for the secret
+    let labels: [String: String]?
 
     enum CodingKeys: String, CodingKey {
         case file, environment, external, name, labels

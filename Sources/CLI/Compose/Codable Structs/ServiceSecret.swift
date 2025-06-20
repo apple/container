@@ -24,11 +24,20 @@
 
 /// Represents a service's usage of a secret.
 struct ServiceSecret: Codable, Hashable {
-    let source: String // Name of the secret being used
-    let target: String? // Path in the container where the secret will be mounted
-    let uid: String? // User ID for the mounted secret file
-    let gid: String? // Group ID for the mounted secret file
-    let mode: Int? // Permissions mode for the mounted secret file
+    /// Name of the secret being used
+    let source: String
+
+    /// Path in the container where the secret will be mounted
+    let target: String?
+
+    /// User ID for the mounted secret file
+    let uid: String?
+
+    /// Group ID for the mounted secret file
+    let gid: String?
+
+    /// Permissions mode for the mounted secret file
+    let mode: Int?
 
     /// Custom initializer to handle `secret_name` (string) or `{ source: secret_name, target: /path }` (object).
     init(from decoder: Decoder) throws {

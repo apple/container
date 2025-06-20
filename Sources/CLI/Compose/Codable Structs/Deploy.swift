@@ -24,8 +24,12 @@
 
 /// Represents the `deploy` configuration for a service (primarily for Swarm orchestration).
 struct Deploy: Codable, Hashable {
-    let mode: String? // Deployment mode (e.g., 'replicated', 'global')
-    let replicas: Int? // Number of replicated service tasks
-    let resources: DeployResources? // Resource constraints (limits, reservations)
-    let restart_policy: DeployRestartPolicy? // Restart policy for tasks
+    /// Deployment mode (e.g., 'replicated', 'global')
+    let mode: String?
+    /// Number of replicated service tasks
+    let replicas: Int?
+    /// Resource constraints (limits, reservations)
+    let resources: DeployResources?
+    /// Restart policy for tasks
+    let restart_policy: DeployRestartPolicy?
 }

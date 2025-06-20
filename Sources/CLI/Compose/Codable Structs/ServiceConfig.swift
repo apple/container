@@ -24,11 +24,20 @@
 
 /// Represents a service's usage of a config.
 struct ServiceConfig: Codable, Hashable {
-    let source: String // Name of the config being used
-    let target: String? // Path in the container where the config will be mounted
-    let uid: String? // User ID for the mounted config file
-    let gid: String? // Group ID for the mounted config file
-    let mode: Int? // Permissions mode for the mounted config file
+    /// Name of the config being used
+    let source: String
+
+    /// Path in the container where the config will be mounted
+    let target: String?
+
+    /// User ID for the mounted config file
+    let uid: String?
+
+    /// Group ID for the mounted config file
+    let gid: String?
+
+    /// Permissions mode for the mounted config file
+    let mode: Int?
 
     /// Custom initializer to handle `config_name` (string) or `{ source: config_name, target: /path }` (object).
     init(from decoder: Decoder) throws {

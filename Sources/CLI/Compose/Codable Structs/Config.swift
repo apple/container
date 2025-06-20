@@ -24,10 +24,14 @@
 
 /// Represents a top-level config definition (primarily for Swarm).
 struct Config: Codable {
-    let file: String? // Path to the file containing the config content
-    let external: ExternalConfig? // Indicates if the config is external (pre-existing)
-    let name: String? // Explicit name for the config
-    let labels: [String: String]? // Labels for the config
+    /// Path to the file containing the config content
+    let file: String?
+    /// Indicates if the config is external (pre-existing)
+    let external: ExternalConfig?
+    /// Explicit name for the config
+    let name: String?
+    /// Labels for the config
+    let labels: [String: String]?
 
     enum CodingKeys: String, CodingKey {
         case file, external, name, labels

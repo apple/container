@@ -24,6 +24,8 @@
 
 /// Resource constraints for deployment.
 struct DeployResources: Codable, Hashable {
-    let limits: ResourceLimits? // Hard limits on resources
-    let reservations: ResourceReservations? // Guarantees for resources
+    /// Hard limits on resources
+    let limits: ResourceLimits?
+    /// Guarantees for resources
+    let reservations: ResourceReservations?
 }

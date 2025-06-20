@@ -24,11 +24,14 @@
 
 /// Represents the `build` configuration for a service.
 struct Build: Codable, Hashable {
-    let context: String // Path to the build context
-    let dockerfile: String? // Optional path to the Dockerfile within the context
-    let args: [String: String]? // Build arguments
+    /// Path to the build context
+    let context: String
+    /// Optional path to the Dockerfile within the context
+    let dockerfile: String?
+    /// Build arguments
+    let args: [String: String]?
     
-    // Custom initializer to handle `build: .` (string) or `build: { context: . }` (object)
+    /// Custom initializer to handle `build: .` (string) or `build: { context: . }` (object)
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         if let contextString = try? container.decode(String.self) {

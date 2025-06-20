@@ -24,16 +24,24 @@
 
 /// Represents a top-level network definition.
 struct Network: Codable {
-    let driver: String? // Network driver (e.g., 'bridge', 'overlay')
-    let driver_opts: [String: String]? // Driver-specific options
-    let attachable: Bool? // Allow standalone containers to attach to this network
-    let enable_ipv6: Bool? // Enable IPv6 networking
-    let isInternal: Bool? // RENAMED: from `internal` to `isInternal` to avoid keyword clash
-    let labels: [String: String]? // Labels for the network
-    let name: String? // Explicit name for the network
-    let external: ExternalNetwork? // Indicates if the network is external (pre-existing)
+    /// Network driver (e.g., 'bridge', 'overlay')
+    let driver: String?
+    /// Driver-specific options
+    let driver_opts: [String: String]?
+    /// Allow standalone containers to attach to this network
+    let attachable: Bool?
+    /// Enable IPv6 networking
+    let enable_ipv6: Bool?
+    /// RENAMED: from `internal` to `isInternal` to avoid keyword clash
+    let isInternal: Bool?
+    /// Labels for the network
+    let labels: [String: String]?
+    /// Explicit name for the network
+    let name: String?
+    /// Indicates if the network is external (pre-existing)
+    let external: ExternalNetwork?
 
-    // Updated CodingKeys to map 'internal' from YAML to 'isInternal' Swift property
+    /// Updated CodingKeys to map 'internal' from YAML to 'isInternal' Swift property
     enum CodingKeys: String, CodingKey {
         case driver, driver_opts, attachable, enable_ipv6, isInternal = "internal", labels, name, external
     }
