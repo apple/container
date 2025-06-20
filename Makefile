@@ -136,6 +136,7 @@ integration: init-block
 	@echo "Removing any existing containers"
 	@bin/container rm --all
 	@echo "Starting CLI integration tests"
+	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLINetwork
 	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunLifecycle
 	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIExecCommand
 	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunCommand

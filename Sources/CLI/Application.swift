@@ -77,11 +77,8 @@ struct Application: AsyncParsableCommand {
                 ]
             ),
             CommandGroup(
-                name: "System",
-                subcommands: [
-                    BuilderCommand.self,
-                    SystemCommand.self,
-                ]
+                name: "Other",
+                subcommands: Self.otherCommands()
             ),
         ],
         // Hidden command to handle plugins on unrecognized input.
@@ -111,42 +108,6 @@ struct Application: AsyncParsableCommand {
         try! FileManager.default.createDirectory(at: statePath, withIntermediateDirectories: true)
         return PluginLoader(pluginDirectories: pluginDirectories, pluginFactories: pluginFactories, defaultResourcePath: statePath, log: log)
     }()
-
-    func validate() throws {
-        // Not really a "validation", but a cheat to run this before
-        // any of the commands do their business.
-        let debugEnvVar = ProcessInfo.processInfo.environment["CONTAINER_DEBUG"]
-        if self.global.debug || debugEnvVar != nil {
-            log.logLevel = .debug
-        }
-        // Ensure we're not running under Rosetta.
-        if try isTranslated() {
-            throw ValidationError(
-                """
-                `container` is currently running under Rosetta Translation, which could be
-                caused by your terminal application. Please ensure this is turned off.
-                """
-            )
-        }
-    }
-
-    private static func restoreCursorAtExit() {
-        let signalHandler: @convention(c) (Int32) -> Void = { signal in
-            let exitCode = ExitCode(signal + 128)
-            Application.exit(withError: exitCode)
-        }
-        // Termination by Ctrl+C.
-        signal(SIGINT, signalHandler)
-        // Termination using `kill`.
-        signal(SIGTERM, signalHandler)
-        // Normal and explicit exit.
-        atexit {
-            if let progressConfig = try? ProgressConfig() {
-                let progressBar = ProgressBar(config: progressConfig)
-                progressBar.resetCursor()
-            }
-        }
-    }
 
     public static func main() async throws {
         restoreCursorAtExit()
@@ -259,6 +220,57 @@ struct Application: AsyncParsableCommand {
                 }
             }
             return -1
+        }
+    }
+
+    func validate() throws {
+        // Not really a "validation", but a cheat to run this before
+        // any of the commands do their business.
+        let debugEnvVar = ProcessInfo.processInfo.environment["CONTAINER_DEBUG"]
+        if self.global.debug || debugEnvVar != nil {
+            log.logLevel = .debug
+        }
+        // Ensure we're not running under Rosetta.
+        if try isTranslated() {
+            throw ValidationError(
+                """
+                `container` is currently running under Rosetta Translation, which could be
+                caused by your terminal application. Please ensure this is turned off.
+                """
+            )
+        }
+    }
+
+    private static func otherCommands() -> [any ParsableCommand.Type] {
+        guard #available(macOS 26, *) else {
+            return [
+                BuilderCommand.self,
+                SystemCommand.self,
+            ]
+        }
+
+        return [
+            BuilderCommand.self,
+            NetworkCommand.self,
+            SystemCommand.self,
+        ]
+    }
+
+    private static func restoreCursorAtExit() {
+        let signalHandler: @convention(c) (Int32) -> Void = { signal in
+            let exitCode = ExitCode(signal + 128)
+            Application.exit(withError: exitCode)
+        }
+        // Termination by Ctrl+C.
+        signal(SIGINT, signalHandler)
+        // Termination using `kill`.
+        signal(SIGTERM, signalHandler)
+        // Normal and explicit exit.
+        atexit {
+            if let progressConfig = try? ProgressConfig() {
+                let progressBar = ProgressBar(config: progressConfig)
+                progressBar.resetCursor()
+            }
         }
     }
 }
