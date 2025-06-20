@@ -31,6 +31,9 @@ struct ComposeDown: AsyncParsableCommand {
         commandName: "down",
         abstract: "Stop containers with compose"
     )
+    
+    @Argument(help: "Specify the services to stop")
+    var services: [String] = []
 
     @OptionGroup
     var process: Flags.Process
@@ -47,45 +50,38 @@ struct ComposeDown: AsyncParsableCommand {
         guard let yamlData = fileManager.contents(atPath: dockerComposePath) else {
             throw YamlError.dockerfileNotFound(dockerComposePath)
         }
-
+        
         // Decode the YAML file into the DockerCompose struct
         let dockerComposeString = String(data: yamlData, encoding: .utf8)!
         let dockerCompose = try YAMLDecoder().decode(DockerCompose.self, from: dockerComposeString)
-
+        
         // Determine project name for container naming
         if let name = dockerCompose.name {
             projectName = name
             print("Info: Docker Compose project name parsed as: \(name)")
-            print(
-                "Note: The 'name' field currently only affects container naming (e.g., '\(name)-serviceName'). Full project-level isolation for other resources (networks, implicit volumes) is not implemented by this tool."
-            )
+            print("Note: The 'name' field currently only affects container naming (e.g., '\(name)-serviceName'). Full project-level isolation for other resources (networks, implicit volumes) is not implemented by this tool.")
         } else {
-            projectName = URL(fileURLWithPath: cwd).lastPathComponent  // Default to directory name
+            projectName = URL(fileURLWithPath: cwd).lastPathComponent // Default to directory name
             print("Info: No 'name' field found in docker-compose.yml. Using directory name as project name: \(projectName)")
         }
-
-        try await stopOldStuff(remove: false)
-    }
-
-    /// Returns the names of all containers whose names start with a given prefix.
-    /// - Parameter prefix: The container name prefix (e.g. `"Assignment"`).
-    /// - Returns: An array of matching container names.
-    func getContainersWithPrefix(_ prefix: String) async throws -> [String] {
-        let result = try await runCommand("container", args: ["list", "-a"])
-        let lines = result.stdout.split(separator: "\n")
-
-        return lines.compactMap { line in
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            let components = trimmed.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
-            guard let name = components.first else { return nil }
-            return name.hasPrefix(prefix) ? String(name) : nil
+        
+        var services: [(serviceName: String, service: Service)] = dockerCompose.services.map({ ($0, $1) })
+        services = try Service.topoSortConfiguredServices(services)
+        
+        // Filter for specified services
+        if !self.services.isEmpty {
+            services = services.filter({ serviceName, service in
+                self.services.contains(where: { $0 == serviceName }) || self.services.contains(where: { service.dependedBy.contains($0) })
+            })
         }
+        
+        try await stopOldStuff(services.map({ $0.serviceName }), remove: false)
     }
 
-    func stopOldStuff(remove: Bool) async throws {
+    func stopOldStuff(_ services: [String], remove: Bool) async throws {
         guard let projectName else { return }
-        let containers = try await getContainersWithPrefix(projectName)
-
+        let containers = services.map { "\(projectName)-\($0)" }
+        
         for container in containers {
             print("Stopping container: \(container)")
             do {
