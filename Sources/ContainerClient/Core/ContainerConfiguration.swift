@@ -63,7 +63,8 @@ public struct ContainerConfiguration: Sendable, Codable {
         case runtimeHandler
     }
 
-    // Customizing the decoder to handle the optional publishedSockets field.
+    /// Create a configuration from the supplied Decoder, initializing missing
+    /// values where possible to reasonable defaults.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
