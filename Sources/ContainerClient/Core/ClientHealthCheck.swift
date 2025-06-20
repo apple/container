@@ -17,9 +17,8 @@
 import ContainerXPC
 import Foundation
 
-public struct ClientHealthCheck {
+public enum ClientHealthCheck {
     static let serviceIdentifier = "com.apple.container.apiserver"
-
 }
 
 extension ClientHealthCheck {
