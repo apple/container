@@ -102,6 +102,32 @@ extension Application {
         @Flag(name: .shortAndLong, help: "Suppress build output")
         var quiet: Bool = false
 
+        /// Locates the default build file (e.g. Dockerfile or Containerfile) in the specified directory.
+        /// - Parameter buildDirectory: The directory to search within.
+        /// - Returns: The Path to the found build file.
+        /// - Throws: ValidationError if no default build file is found.
+        ///
+        private static func locateDefaultBuildFile(in buildDirectory: String, using defaultBuildFileNames: Set<String>) throws -> Data {
+            let fileManager = FileManager.default
+
+            for filename in defaultBuildFileNames {
+                let filePath = buildDirectory + "/" + filename
+                if fileManager.fileExists(atPath: filePath) {
+                    let data = try Data(contentsOf: URL(filePath: filePath))
+                    if !data.isEmpty {
+                        print("Using \(filename) at: \(filePath)")
+                        return data
+                    }
+                }
+            }
+
+            throw NSError(
+                domain: "BuildFileError",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "No valid default build file found in \(buildDirectory)"]
+            )
+        }
+
         func run() async throws {
             do {
                 let timeout: Duration = .seconds(300)
@@ -169,7 +195,19 @@ extension Application {
                     throw ValidationError("builder is not running")
                 }
 
-                let dockerfile = try Data(contentsOf: URL(filePath: file))
+                let defaultBuildFileNames: Set<String> = ["Dockerfile", "Containerfile"]
+                let dockerfile: Data
+
+                if defaultBuildFileNames.contains(file) {
+                    dockerfile = try BuildCommand.locateDefaultBuildFile(in: FileManager.default.currentDirectoryPath, using: defaultBuildFileNames)
+                } else {
+                    let fileURL = URL(filePath: file)
+                    guard FileManager.default.fileExists(atPath: file) else {
+                        throw ValidationError("Provided container build file does not exist: \(file)")
+                    }
+                    dockerfile = try Data(contentsOf: fileURL)
+                }
+
                 let exportPath = Application.appRoot.appendingPathComponent(".build")
 
                 let buildID = UUID().uuidString
@@ -299,9 +337,6 @@ extension Application {
         }
 
         func validate() throws {
-            guard FileManager.default.fileExists(atPath: file) else {
-                throw ValidationError("Dockerfile does not exist at path: \(file)")
-            }
             guard FileManager.default.fileExists(atPath: contextDir) else {
                 throw ValidationError("context dir does not exist \(contextDir)")
             }
