@@ -21,6 +21,7 @@ import CVersion
 import ContainerClient
 import ContainerLog
 import ContainerPlugin
+import ContainerizationError
 import ContainerizationOS
 import Foundation
 import Logging
@@ -176,7 +177,13 @@ struct Application: AsyncParsableCommand {
                 Self.printModifiedHelpText()
                 return
             }
-            Application.exit(withError: error)
+            let errorAsString: String = String(describing: error)
+            if errorAsString.contains("XPC connection error") {
+                let modifiedError = ContainerizationError(.interrupted, message: "\(error)\nEnsure container system service has been started with `container system start`.")
+                Application.exit(withError: modifiedError)
+            } else {
+                Application.exit(withError: error)
+            }
         }
     }
 

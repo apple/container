@@ -182,6 +182,10 @@ public struct Utility {
 
         config.labels = try Parser.labels(management.labels)
 
+        // Parse --publish-socket arguments and add to container configuration
+        // to enable socket forwarding from container to host.
+        config.publishedSockets = try Parser.publishSockets(management.publishSockets)
+
         return (config, kernel)
     }
 

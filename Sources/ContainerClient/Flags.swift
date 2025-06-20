@@ -92,6 +92,9 @@ public struct Flags {
         @Option(name: .customLong("mount"), help: "Add a mount to the container (type=<>,source=<>,target=<>,readonly)")
         public var mounts: [String] = []
 
+        @Option(name: .customLong("publish-socket"), help: "Publish a socket from container to host (format: host_path:container_path)")
+        public var publishSockets: [String] = []
+
         @Option(name: .customLong("tmpfs"), help: "Add a tmpfs mount to the container at the given path")
         public var tmpFs: [String] = []
 
