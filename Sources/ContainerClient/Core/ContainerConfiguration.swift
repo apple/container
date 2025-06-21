@@ -23,6 +23,8 @@ public struct ContainerConfiguration: Sendable, Codable {
     public var image: ImageDescription
     /// External mounts to add to the container.
     public var mounts: [Filesystem] = []
+    /// Sockets to publish from container to host.
+    public var publishedSockets: [PublishSocket] = []
     /// Key/Value labels for the container.
     public var labels: [String: String] = [:]
     /// System controls for the container.
@@ -43,6 +45,44 @@ public struct ContainerConfiguration: Sendable, Codable {
     public var resources: Resources = .init()
     /// Name of the runtime that supports the container
     public var runtimeHandler: String = "container-runtime-linux"
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case image
+        case mounts
+        case publishedSockets
+        case labels
+        case sysctls
+        case networks
+        case dns
+        case rosetta
+        case hostname
+        case initProcess
+        case platform
+        case resources
+        case runtimeHandler
+    }
+
+    /// Create a configuration from the supplied Decoder, initializing missing
+    /// values where possible to reasonable defaults.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        id = try container.decode(String.self, forKey: .id)
+        image = try container.decode(ImageDescription.self, forKey: .image)
+        mounts = try container.decodeIfPresent([Filesystem].self, forKey: .mounts) ?? []
+        publishedSockets = try container.decodeIfPresent([PublishSocket].self, forKey: .publishedSockets) ?? []
+        labels = try container.decodeIfPresent([String: String].self, forKey: .labels) ?? [:]
+        sysctls = try container.decodeIfPresent([String: String].self, forKey: .sysctls) ?? [:]
+        networks = try container.decodeIfPresent([String].self, forKey: .networks) ?? []
+        dns = try container.decodeIfPresent(DNSConfiguration.self, forKey: .dns)
+        rosetta = try container.decodeIfPresent(Bool.self, forKey: .rosetta) ?? false
+        hostname = try container.decodeIfPresent(String.self, forKey: .hostname)
+        initProcess = try container.decode(ProcessConfiguration.self, forKey: .initProcess)
+        platform = try container.decodeIfPresent(ContainerizationOCI.Platform.self, forKey: .platform) ?? .current
+        resources = try container.decodeIfPresent(Resources.self, forKey: .resources) ?? .init()
+        runtimeHandler = try container.decodeIfPresent(String.self, forKey: .runtimeHandler) ?? "container-runtime-linux"
+    }
 
     public struct DNSConfiguration: Sendable, Codable {
         public static let defaultNameservers = ["1.1.1.1"]

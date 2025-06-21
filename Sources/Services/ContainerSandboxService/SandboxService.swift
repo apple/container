@@ -321,8 +321,10 @@ public actor SandboxService {
         var cs: ContainerSnapshot?
 
         switch state {
-        case .created, .stopped(_), .starting, .booted, .stopping:
+        case .created, .stopped(_), .starting, .booted:
             status = .stopped
+        case .stopping:
+            status = .stopping
         case .running:
             let ctr = try getContainer()
 
@@ -616,6 +618,16 @@ public actor SandboxService {
             } else {
                 container.mounts.append(mount.asMount)
             }
+        }
+
+        for publishedSocket in config.publishedSockets {
+            let socketConfig = UnixSocketConfiguration(
+                source: publishedSocket.containerPath,
+                destination: publishedSocket.hostPath,
+                permissions: publishedSocket.permissions,
+                direction: .outOf
+            )
+            container.sockets.append(socketConfig)
         }
 
         container.hostname = config.hostname ?? config.id

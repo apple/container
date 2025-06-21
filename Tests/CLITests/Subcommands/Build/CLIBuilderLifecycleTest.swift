@@ -24,14 +24,14 @@ extension TestCLIBuildBase {
         override init() throws {}
         @Test func testBuilderStartStopCommand() throws {
             #expect(throws: Never.self) {
-                try builderStart()
-                try waitForBuilderRunning()
-                let status = try getContainerStatus("buildkit")
+                try self.builderStart()
+                try self.waitForBuilderRunning()
+                let status = try self.getContainerStatus("buildkit")
                 #expect(status == "running", "BuildKit container is not running")
             }
             #expect(throws: Never.self) {
-                try builderStop()
-                let status = try getContainerStatus("buildkit")
+                try self.builderStop()
+                let status = try self.getContainerStatus("buildkit")
                 #expect(status == "stopped", "BuildKit container is not stopped")
             }
         }

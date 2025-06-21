@@ -15,15 +15,26 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import SystemPackage
 
-/// Runtime status for a sandbox or container.
-public enum RuntimeStatus: String, CaseIterable, Sendable, Codable {
-    /// The object is in an unknown status.
-    case unknown
-    /// The object is currently stopped.
-    case stopped
-    /// The object is currently running.
-    case running
-    /// The object is currently stopping.
-    case stopping
+/// Represents a socket that should be published from container to host.
+public struct PublishSocket: Sendable, Codable {
+    /// The path to the socket in the container.
+    public var containerPath: URL
+
+    /// The path where the socket should appear on the host.
+    public var hostPath: URL
+
+    /// File permissions for the socket on the host.
+    public var permissions: FilePermissions?
+
+    public init(
+        containerPath: URL,
+        hostPath: URL,
+        permissions: FilePermissions? = nil
+    ) {
+        self.containerPath = containerPath
+        self.hostPath = hostPath
+        self.permissions = permissions
+    }
 }

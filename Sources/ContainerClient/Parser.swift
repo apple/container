@@ -396,4 +396,94 @@ public struct Parser {
             throw ContainerizationError(.invalidArgument, message: "mount destination cannot be empty")
         }
     }
+
+    // Parse --publish-socket arguments into PublishSocket objects
+    // Format: "host_path:container_path" (e.g., "/tmp/docker.sock:/var/run/docker.sock")
+    //
+    // - Parameter rawPublishSockets: Array of socket specifications
+    // - Returns: Array of PublishSocket objects
+    // - Throws: ContainerizationError if parsing fails
+    static func publishSockets(_ rawPublishSockets: [String]) throws -> [PublishSocket] {
+        var sockets: [PublishSocket] = []
+
+        // Process each raw socket string
+        for socket in rawPublishSockets {
+            let parsedSocket = try Parser.publishSocket(socket)
+            sockets.append(parsedSocket)
+        }
+        return sockets
+    }
+
+    // Parse a single --publish-socket argument and validate paths
+    // Format: "host_path:container_path" -> PublishSocket
+    private static func publishSocket(_ socket: String) throws -> PublishSocket {
+        // Split by colon to two parts: [host_path, container_path]
+        let parts = socket.split(separator: ":")
+
+        switch parts.count {
+        case 2:
+            // Extract host and container paths
+            let hostPath = String(parts[0])
+            let containerPath = String(parts[1])
+
+            // Validate paths are not empty
+            if hostPath.isEmpty {
+                throw ContainerizationError(
+                    .invalidArgument, message: "host socket path cannot be empty")
+            }
+            if containerPath.isEmpty {
+                throw ContainerizationError(
+                    .invalidArgument, message: "container socket path cannot be empty")
+            }
+
+            // Ensure container path must start with /
+            if !containerPath.hasPrefix("/") {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "container socket path must be absolute: \(containerPath)")
+            }
+
+            // Convert host path to absolute path for consistency
+            let hostURL = URL(fileURLWithPath: hostPath)
+            let absoluteHostPath = hostURL.absoluteURL.path
+
+            // Check if host socket already exists and might be in use
+            if FileManager.default.fileExists(atPath: absoluteHostPath) {
+                do {
+                    let attrs = try FileManager.default.attributesOfItem(atPath: absoluteHostPath)
+                    if let fileType = attrs[.type] as? FileAttributeType, fileType == .typeSocket {
+                        throw ContainerizationError(
+                            .invalidArgument,
+                            message: "host socket \(absoluteHostPath) already exists and may be in use")
+                    }
+                    // If it exists but is not a socket, we can remove it and create socket
+                    try FileManager.default.removeItem(atPath: absoluteHostPath)
+                } catch let error as ContainerizationError {
+                    throw error
+                } catch {
+                    // For other file system errors, continue with creation
+                }
+            }
+
+            // Create host directory if it doesn't exist
+            let hostDir = hostURL.deletingLastPathComponent()
+            if !FileManager.default.fileExists(atPath: hostDir.path) {
+                try FileManager.default.createDirectory(
+                    at: hostDir, withIntermediateDirectories: true)
+            }
+
+            // Create and return PublishSocket object with validated paths
+            return PublishSocket(
+                containerPath: URL(fileURLWithPath: containerPath),
+                hostPath: URL(fileURLWithPath: absoluteHostPath),
+                permissions: nil
+            )
+
+        default:
+            throw ContainerizationError(
+                .invalidArgument,
+                message:
+                    "invalid publish-socket format \(socket). Expected: host_path:container_path")
+        }
+    }
 }
