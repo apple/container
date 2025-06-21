@@ -17,6 +17,7 @@
 //
 
 import ContainerClient
+import ContainerNetworkService
 import Containerization
 import ContainerizationOS
 import Foundation
@@ -250,6 +251,7 @@ class CLITest {
     struct inspectOutput: Codable {
         let status: String
         let configuration: ContainerConfiguration
+        let networks: [ContainerNetworkService.Attachment]
     }
 
     func getContainerStatus(_ name: String) throws -> String {

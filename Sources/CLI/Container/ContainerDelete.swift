@@ -45,7 +45,7 @@ extension Application {
             if containerIDs.count > 0 && all {
                 throw ContainerizationError(
                     .invalidArgument,
-                    message: "explicitly supplied container IDs conflicts with the --all flag"
+                    message: "explicitly supplied container ID(s) conflict with the --all flag"
                 )
             }
         }

@@ -295,10 +295,13 @@ let package = Package(
         .testTarget(
             name: "CLITests",
             dependencies: [
-                .product(name: "ContainerizationOS", package: "containerization"),
+                .product(name: "AsyncHTTPClient", package: "async-http-client"),
                 .product(name: "Containerization", package: "containerization"),
-                "ContainerClient",
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                .product(name: "ContainerizationOS", package: "containerization"),
                 "ContainerBuild",
+                "ContainerClient",
+                "ContainerNetworkService",
             ],
             path: "Tests/CLITests"
         ),

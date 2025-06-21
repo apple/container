@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerizationError
 import Foundation
 
 public struct Flags {
@@ -120,6 +121,9 @@ public struct Flags {
                 URL(fileURLWithPath: str, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false)
             })
         public var kernel: String?
+
+        @Option(name: [.customLong("network")], help: "Attach the container to a network")
+        public var networks: [String] = []
 
         @Option(name: .customLong("cidfile"), help: "Write the container ID to the path provided")
         public var cidfile = ""

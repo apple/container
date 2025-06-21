@@ -73,6 +73,10 @@ Currently, memory pages freed to the Linux operating system by processes running
 
 The vmnet framework in macOS 15 can only provide networks where the attached containers are isolated from one another. Container-to-container communication over the virtual network is not possible.
 
+#### Multiple networks
+
+In macOS 15, all containers attach to the default vmnet network. The `container network` commands are not available on macOS 15, and using the `--network` option for `container run` or `container create` will result in an error.
+
 #### Container IP addresses
 
 In macOS 15, limitations in the vmnet framework mean that the container network can only be created when the first container starts. Since the network XPC helper provides IP addresses to containers, and the helper has to start before the first container, it is possible for the network helper and vmnet to disagree on the subnet address, resulting in containers that are completely cut off from the network.
