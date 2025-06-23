@@ -107,7 +107,7 @@ installer-pkg: $(STAGING_DIR)
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. --entitlements=signing/container-network-vmnet.entitlements $(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin/container-network-vmnet)
 
 	@echo Creating application installer
-	@pkgbuild --root $(STAGING_DIR) --identifier com.apple.container-installer --install-location /usr/local $(PKG_PATH)
+	@pkgbuild --root $(STAGING_DIR) --identifier com.apple.container-installer --install-location /usr/local --version ${RELEASE_VERSION} $(PKG_PATH)
 	@rm -rf $(STAGING_DIR)
 
 .PHONY: dsym
