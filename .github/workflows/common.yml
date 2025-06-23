@@ -17,8 +17,6 @@ jobs:
     permissions:
       contents: read
       packages: read
-    env:
-      CURRENT_SDK: y
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -73,7 +71,6 @@ jobs:
           make test cleancontent install-kernel integration
         env:
           DEVELOPER_DIR: "/Applications/Xcode_26.b1.app/Contents/Developer"
-          CURRENT_SDK: y # explicitly repeated due to local env block
 
       - name: Save documentation artifact
         uses: actions/upload-artifact@v4

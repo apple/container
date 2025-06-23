@@ -14,9 +14,6 @@
 # limitations under the License.
 
 opts=()
-if [ ! -z "${CURRENT_SDK}" ] ; then
-    opts+=("-Xswiftc" "-DCURRENT_SDK")
-fi
 opts+=("--allow-writing-to-directory" "$1")
 opts+=("generate-documentation")
 opts+=("--target" "ContainerSandboxService")
