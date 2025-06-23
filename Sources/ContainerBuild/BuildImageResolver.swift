@@ -70,11 +70,12 @@ struct BuildImageResolver: BuildPipelineHandler {
                     continue
                 }
                 let enc = JSONEncoder()
+                let normalizedReference = try ClientImage.normalizeReference(ref)
                 let data = try enc.encode(ociImage)
                 let transfer = try ImageTransfer(
                     id: imageTransfer.id,
                     digest: img.descriptor.digest,
-                    ref: ref,
+                    ref: normalizedReference,
                     platform: platform.description,
                     data: data
                 )
