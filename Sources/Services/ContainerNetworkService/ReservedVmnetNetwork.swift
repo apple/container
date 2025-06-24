@@ -60,7 +60,7 @@ public final class ReservedVmnetNetwork: Network {
     }
 
     public nonisolated func withAdditionalData(_ handler: (XPCMessage?) throws -> Void) throws {
-        try networkLock.lock {
+        try networkLock.withLock {
             try handler(network.map { try Self.serialize_network_ref(ref: $0) })
         }
     }
@@ -146,15 +146,5 @@ public final class ReservedVmnetNetwork: Network {
                 "cidr": "\(runningSubnet)",
             ]
         )
-    }
-}
-
-extension NSLock {
-    /// lock during the execution of the provided function
-    fileprivate func lock<T>(_ fn: () throws -> T) rethrows -> T {
-        self.lock()
-        defer { self.unlock() }
-
-        return try fn()
     }
 }
