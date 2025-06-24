@@ -80,7 +80,7 @@ In macOS 15, limitations in the vmnet framework mean that the container network 
 Normally, vmnet creates the container network using the CIDR address 192.168.64.1/24, and on macOS 15, `container` defaults to using this CIDR address in the network helper. To diagnose and resolve issues stemming from a subnet address mismatch between vmnet and the network helper:
 
 - Before creating the first container, scan the output of the command `ifconfig` for a bridge interface named similarly to `bridge100`.
-- After creating the first container, run `ifconfig` again, and locate the new bridge interface to determine container the subnet address.
+- After creating the first container, run `ifconfig` again, and locate the new bridge interface to determine the container subnet address.
 - Run `container ls` to check the IP address given to the container by the network helper. If the address corresponds to a different network:
   - Run `container system stop` to terminate the services for `container`.
   - Using the macOS `defaults` command, update the default subnet value used by the network helper process. For example, if the bridge address shown by `ifconfig` is 192.168.66.1, run:
