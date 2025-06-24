@@ -302,9 +302,6 @@ extension Application {
         #if DEBUG
         versionDetails["build"] = "debug"
         #endif
-        #if CURRENT_SDK
-        versionDetails["sdk"] = "macOS 15"
-        #endif
         let gitCommit = {
             let sha = get_git_commit().map { String(cString: $0) }
             guard let sha else {

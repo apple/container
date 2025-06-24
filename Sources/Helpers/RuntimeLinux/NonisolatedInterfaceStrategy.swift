@@ -23,7 +23,6 @@ import Logging
 import Virtualization
 import vmnet
 
-#if !CURRENT_SDK
 /// Interface strategy for containers that use macOS's custom network feature.
 @available(macOS 26, *)
 struct NonisolatedInterfaceStrategy: InterfaceStrategy {
@@ -47,4 +46,3 @@ struct NonisolatedInterfaceStrategy: InterfaceStrategy {
         return NATNetworkInterface(address: attachment.address, gateway: attachment.gateway, reference: networkRef)
     }
 }
-#endif

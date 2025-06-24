@@ -26,9 +26,8 @@ import SystemConfiguration
 import XPC
 import vmnet
 
-#if !CURRENT_SDK
 /// Creates a vmnet network with reservation APIs.
-@available(macOS 16, *)
+@available(macOS 26, *)
 public final class ReservedVmnetNetwork: Network {
     @SendableProperty
     private var _state: NetworkState
@@ -159,4 +158,3 @@ extension NSLock {
         return try fn()
     }
 }
-#endif

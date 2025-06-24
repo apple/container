@@ -63,15 +63,11 @@ struct RuntimeLinuxHelper: AsyncParsableCommand {
 
             log.info("configuring XPC server")
             let interfaceStrategy: any InterfaceStrategy
-            #if !CURRENT_SDK
             if #available(macOS 26, *) {
                 interfaceStrategy = NonisolatedInterfaceStrategy(log: log)
             } else {
                 interfaceStrategy = IsolatedInterfaceStrategy()
             }
-            #else
-            interfaceStrategy = IsolatedInterfaceStrategy()
-            #endif
             let server = SandboxService(root: .init(fileURLWithPath: root), interfaceStrategy: interfaceStrategy, log: log)
             let xpc = XPCServer(
                 identifier: machServiceLabel,
