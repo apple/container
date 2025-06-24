@@ -110,7 +110,7 @@ import SwiftProtobuf
 ///
 ///
 ///    NOTE: the client should close the send stream once it has finished
-///    receiving the build output or abadon the current build due to error.
+///    receiving the build output or abandon the current build due to error.
 ///    Server should keep the stream open until it receives the EOF that client
 ///    has closed the stream, which the server should then close its send stream.
 ///
@@ -340,7 +340,7 @@ public struct Com_Apple_Container_Build_V1_BuilderNIOClient: Com_Apple_Container
 ///
 ///
 ///    NOTE: the client should close the send stream once it has finished
-///    receiving the build output or abadon the current build due to error.
+///    receiving the build output or abandon the current build due to error.
 ///    Server should keep the stream open until it receives the EOF that client
 ///    has closed the stream, which the server should then close its send stream.
 @available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
@@ -603,7 +603,7 @@ public enum Com_Apple_Container_Build_V1_BuilderClientMetadata {
 ///
 ///
 ///    NOTE: the client should close the send stream once it has finished
-///    receiving the build output or abadon the current build due to error.
+///    receiving the build output or abandon the current build due to error.
 ///    Server should keep the stream open until it receives the EOF that client
 ///    has closed the stream, which the server should then close its send stream.
 ///
@@ -750,7 +750,7 @@ extension Com_Apple_Container_Build_V1_BuilderProvider {
 ///
 ///
 ///    NOTE: the client should close the send stream once it has finished
-///    receiving the build output or abadon the current build due to error.
+///    receiving the build output or abandon the current build due to error.
 ///    Server should keep the stream open until it receives the EOF that client
 ///    has closed the stream, which the server should then close its send stream.
 ///
