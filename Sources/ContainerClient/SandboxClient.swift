@@ -20,6 +20,26 @@ import ContainerizationOS
 import Foundation
 import TerminalProgress
 
+// Sandbox transport protocol for dependency injection
+public protocol SandboxTransport: Sendable {
+    func sendMessage(_ message: XPCMessage, to service: String, timeout: Duration?) async throws -> XPCMessage
+}
+
+// Default production sandbox transport
+public struct DefaultSandboxTransport: SandboxTransport {
+    public init() {}
+    
+    public func sendMessage(_ message: XPCMessage, to service: String, timeout: Duration? = nil) async throws -> XPCMessage {
+        let client = XPCClient(service: service)
+        defer { client.close() }
+        if let timeout = timeout {
+            return try await client.send(message, responseTimeout: timeout)
+        } else {
+            return try await client.send(message)
+        }
+    }
+}
+
 /// A client for interacting with a single sandbox.
 public struct SandboxClient: Sendable, Codable {
     static let label = "com.apple.container.runtime"
@@ -34,11 +54,31 @@ public struct SandboxClient: Sendable, Codable {
 
     let id: String
     let runtime: String
+    private let transport: SandboxTransport
 
     /// Create a container.
-    public init(id: String, runtime: String) {
+    public init(id: String, runtime: String, transport: SandboxTransport = DefaultSandboxTransport()) {
         self.id = id
         self.runtime = runtime
+        self.transport = transport
+    }
+    
+    // Simplified manual Codable - just encode/decode the stored properties
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        runtime = try container.decode(String.self, forKey: .runtime)
+        transport = DefaultSandboxTransport()
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(runtime, forKey: .runtime)
+    }
+    
+    private enum CodingKeys: CodingKey {
+        case id, runtime
     }
 }
 
@@ -46,18 +86,12 @@ public struct SandboxClient: Sendable, Codable {
 extension SandboxClient {
     public func bootstrap() async throws {
         let request = XPCMessage(route: SandboxRoutes.bootstrap.rawValue)
-        let client = createClient()
-        defer { client.close() }
-
-        try await client.send(request)
+        _ = try await transport.sendMessage(request, to: machServiceLabel, timeout: nil)
     }
 
     public func state() async throws -> SandboxSnapshot {
         let request = XPCMessage(route: SandboxRoutes.state.rawValue)
-        let client = createClient()
-        defer { client.close() }
-
-        let response = try await client.send(request)
+        let response = try await transport.sendMessage(request, to: machServiceLabel, timeout: nil)
         return try response.sandboxSnapshot()
     }
 
@@ -67,9 +101,7 @@ extension SandboxClient {
         let data = try JSONEncoder().encode(config)
         request.set(key: .processConfig, value: data)
 
-        let client = createClient()
-        defer { client.close() }
-        try await client.send(request)
+        _ = try await transport.sendMessage(request, to: machServiceLabel, timeout: nil)
     }
 
     public func startProcess(_ id: String, stdio: [FileHandle?]) async throws {
@@ -91,10 +123,23 @@ extension SandboxClient {
         }
         request.set(key: .id, value: id)
 
-        let client = createClient()
-        defer { client.close() }
-
-        try await client.send(request)
+        _ = try await transport.sendMessage(request, to: machServiceLabel, timeout: nil)
+    }
+    
+    public func startProcessWithServerStdio(_ id: String) async throws -> [FileHandle?] {
+        let request = XPCMessage(route: SandboxRoutes.start.rawValue)
+        request.set(key: .id, value: id)
+        request.set(key: .serverOwnedStdio, value: true)
+        
+        let response = try await transport.sendMessage(request, to: machServiceLabel, timeout: nil)
+        
+        // Extract stdio handles from response
+        var stdio: [FileHandle?] = [nil, nil, nil]
+        stdio[0] = response.fileHandle(key: .stdin)
+        stdio[1] = response.fileHandle(key: .stdout)
+        stdio[2] = response.fileHandle(key: .stderr)
+        
+        return stdio
     }
 
     public func stop(options: ContainerStopOptions) async throws {
@@ -103,10 +148,8 @@ extension SandboxClient {
         let data = try JSONEncoder().encode(options)
         request.set(key: .stopOptions, value: data)
 
-        let client = createClient()
-        defer { client.close() }
         let responseTimeout = Duration(.seconds(Int64(options.timeoutInSeconds + 1)))
-        try await client.send(request, responseTimeout: responseTimeout)
+        _ = try await transport.sendMessage(request, to: machServiceLabel, timeout: responseTimeout)
     }
 
     public func kill(_ id: String, signal: Int64) async throws {
@@ -114,9 +157,7 @@ extension SandboxClient {
         request.set(key: .id, value: id)
         request.set(key: .signal, value: signal)
 
-        let client = createClient()
-        defer { client.close() }
-        try await client.send(request)
+        _ = try await transport.sendMessage(request, to: machServiceLabel, timeout: nil)
     }
 
     public func resize(_ id: String, size: Terminal.Size) async throws {
@@ -125,18 +166,14 @@ extension SandboxClient {
         request.set(key: .width, value: UInt64(size.width))
         request.set(key: .height, value: UInt64(size.height))
 
-        let client = createClient()
-        defer { client.close() }
-        try await client.send(request)
+        _ = try await transport.sendMessage(request, to: machServiceLabel, timeout: nil)
     }
 
     public func wait(_ id: String) async throws -> Int32 {
         let request = XPCMessage(route: SandboxRoutes.wait.rawValue)
         request.set(key: .id, value: id)
 
-        let client = createClient()
-        defer { client.close() }
-        let response = try await client.send(request)
+        let response = try await transport.sendMessage(request, to: machServiceLabel, timeout: nil)
         let code = response.int64(key: .exitCode)
         return Int32(code)
     }
@@ -145,10 +182,7 @@ extension SandboxClient {
         let request = XPCMessage(route: SandboxRoutes.dial.rawValue)
         request.set(key: .port, value: UInt64(port))
 
-        let client = createClient()
-        defer { client.close() }
-
-        let response = try await client.send(request)
+        let response = try await transport.sendMessage(request, to: machServiceLabel, timeout: nil)
         guard let fh = response.fileHandle(key: .fd) else {
             throw ContainerizationError(
                 .internalError,
@@ -156,6 +190,22 @@ extension SandboxClient {
             )
         }
         return fh
+    }
+    
+    public func attach(containerID: String, sendHistory: Bool = true) async throws -> [FileHandle?] {
+        let request = XPCMessage(route: SandboxRoutes.attach.rawValue)
+        request.set(key: .id, value: containerID)
+        request.set(key: .sendHistory, value: sendHistory)
+        
+        let response = try await transport.sendMessage(request, to: machServiceLabel, timeout: nil)
+        
+        // Extract stdio handles from response
+        var stdio: [FileHandle?] = [nil, nil, nil]
+        stdio[0] = response.fileHandle(key: .stdin)
+        stdio[1] = response.fileHandle(key: .stdout)
+        stdio[2] = response.fileHandle(key: .stderr)
+        
+        return stdio
     }
 
     private func createClient() -> XPCClient {

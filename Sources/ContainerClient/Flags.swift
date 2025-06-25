@@ -23,6 +23,9 @@ public struct Flags {
 
         @Flag(name: .long, help: "Enable debug output [environment: CONTAINER_DEBUG]")
         public var debug = false
+        
+        @Flag(name: .long, help: "Use legacy client-owned stdio (for compatibility)")
+        public var legacyStdio = false
     }
 
     public struct Process: ParsableArguments {
@@ -53,6 +56,9 @@ public struct Flags {
 
         @Option(name: [.customLong("user"), .customShort("u")], help: "Set the user for the process")
         public var user: String?
+        
+        @Option(name: .customLong("detach-keys"), help: "Override the key sequence for detaching a container")
+        public var detachKeys: String?
     }
 
     public struct Resource: ParsableArguments {
