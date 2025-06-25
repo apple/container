@@ -229,7 +229,7 @@ actor BuildFSSync: BuildPipelineHandler {
                 pathInArchive: URL(fileURLWithPath: rel))
         }
 
-        for await chunk in try tarURL.zeroCopyReader() {
+        for try await chunk in try tarURL.bufferedCopyReader() {
             let part = BuildTransfer(
                 id: packet.id,
                 source: tarURL.path,
