@@ -181,8 +181,13 @@ extension ClientImage {
             let r = try Reference.parse(reference)
             r.normalize()
             let withDefaultTag = r.description
+            
+            var withDefaultDomainAndTag = withDefaultTag
+            if r.domain == nil {
+                withDefaultDomainAndTag = "\(Self.defaultRegistryDomain)/\(withDefaultTag)"
+            }
 
-            let localImageMatches = all.filter { $0.description.nameFromAnnotation() == withDefaultTag }
+            let localImageMatches = all.filter { $0.description.matchWithNameFromAnnotation(name: withDefaultTag, normalizedName: withDefaultDomainAndTag) }
             guard localImageMatches.count > 1 else {
                 return localImageMatches.first
             }
@@ -442,5 +447,16 @@ extension ImageDescription {
             return nil
         }
         return name
+    }
+
+    fileprivate func matchWithNameFromAnnotation(name: String, normalizedName: String) -> Bool {
+        guard let annotations = self.descriptor.annotations else {
+            return false
+        }
+        
+        return annotations[AnnotationKeys.containerizationImageName] == name
+            || annotations[AnnotationKeys.containerdImageName] == name
+            || annotations[AnnotationKeys.containerizationImageName] == normalizedName
+            || annotations[AnnotationKeys.containerdImageName] == normalizedName
     }
 }

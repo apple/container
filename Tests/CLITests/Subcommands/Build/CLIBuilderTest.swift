@@ -67,7 +67,7 @@ extension TestCLIBuildBase {
             let newTempDir: URL = try createTempDir()
             let newDockerfile: String =
                 """
-                 FROM local-only:\(imageName)
+                 FROM \(imageName)
                 """
             let newContext: [FileSystemEntry] = []
             try createContext(tempDir: newTempDir, dockerfile: newDockerfile, context: newContext)
