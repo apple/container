@@ -1,7 +1,6 @@
 name: Feature or enhancement request
 description: File a request for a feature or enhancement
 title: "[Request]: "
-labels: ["triage"]
 type: "Feature"
 body:
   - type: markdown
