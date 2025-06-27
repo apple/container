@@ -29,18 +29,18 @@ class TestCLINetwork: CLITest {
 
     @available(macOS 26, *)
     @Test func testNetworkCreateAndUse() async throws {
-        defer {
-
-        }
         do {
             let name = Test.current!.name.trimmingCharacters(in: ["(", ")"])
-            var args = ["network", "delete", name]
-            _ = try? run(arguments: args)
+            let networkDeleteArgs = ["network", "delete", name]
+            _ = try? run(arguments: networkDeleteArgs)
 
-            args = ["network", "create", name]
-            let result = try run(arguments: args)
+            let networkCreateArgs = ["network", "create", name]
+            let result = try run(arguments: networkCreateArgs)
             if result.status != 0 {
                 throw CLIError.executionFailed("command failed: \(result.error)")
+            }
+            defer {
+                _ = try? run(arguments: networkDeleteArgs)
             }
             let port = UInt16.random(in: 50000..<60000)
             try doLongRun(
@@ -61,20 +61,19 @@ class TestCLINetwork: CLITest {
             let client = getClient()
             defer { _ = client.shutdown() }
             var retriesRemaining = Self.retries
-            retryLoop: while retriesRemaining > 0 {
+            var success = false
+            while !success && retriesRemaining > 0 {
                 do {
                     let response = try await client.execute(request, timeout: .seconds(Self.retryDelaySeconds))
-                    if response.status == .ok {
-                        break retryLoop
-                    }
-                    print("request to \(url) failed, status \(response.status)")
+                    try #require(response.status == .ok)
+                    success = true
                 } catch {
                     print("request to \(url) failed, error \(error)")
                     try await Task.sleep(for: .seconds(Self.retryDelaySeconds))
                 }
                 retriesRemaining -= 1
             }
-            #expect(retriesRemaining > 0, "Request to \(url) failed after \(Self.retries) retries")
+            #expect(success, "Request to \(url) failed after \(Self.retries - retriesRemaining) retries")
             try doStop(name: name)
         } catch {
             Issue.record("failed to run container \(error)")
