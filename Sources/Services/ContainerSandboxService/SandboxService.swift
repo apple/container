@@ -114,7 +114,7 @@ public actor SandboxService {
                 let hostname = index == 0 ? fqdn : config.id
                 let (attachment, additionalData) = try await client.allocate(hostname: hostname)
                 attachments.append(attachment)
-                let interface = try self.interfaceStrategy.toInterface(attachment: attachment, additionalData: additionalData)
+                let interface = try self.interfaceStrategy.toInterface(attachment: attachment, interfaceIndex: index, additionalData: additionalData)
                 container.interfaces.append(interface)
             }
 

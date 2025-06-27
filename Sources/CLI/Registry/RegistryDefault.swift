@@ -61,7 +61,7 @@ extension Application {
                 try await client.ping()
             } catch let err as RegistryClient.Error {
                 switch err {
-                case .invalidStatus(url: _, .unauthorized), .invalidStatus(url: _, .forbidden):
+                case .invalidStatus(url: _, .unauthorized, _), .invalidStatus(url: _, .forbidden, _):
                     break
                 default:
                     throw err

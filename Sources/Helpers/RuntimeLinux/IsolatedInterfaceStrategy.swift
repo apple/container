@@ -23,7 +23,8 @@ import Containerization
 /// container to container networking, but it is the only approach that
 /// works for macOS Sequoia.
 struct IsolatedInterfaceStrategy: InterfaceStrategy {
-    public func toInterface(attachment: Attachment, additionalData: XPCMessage?) -> Interface {
-        NATInterface(address: attachment.address, gateway: attachment.gateway)
+    public func toInterface(attachment: Attachment, interfaceIndex: Int, additionalData: XPCMessage?) -> Interface {
+        let gateway = interfaceIndex == 0 ? attachment.gateway : nil
+        return NATInterface(address: attachment.address, gateway: gateway)
     }
 }
