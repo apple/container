@@ -41,6 +41,73 @@ public actor SandboxService {
     private let log: Logging.Logger
     private var state: State = .created
     private var processes: [String: ProcessInfo] = [:]
+    private var serverOwnedStdio: [String: ServerStdio] = [:]
+    private let ptySessionManager: PTYSessionManager
+    
+    struct ServerStdio {
+        let stdin: Pipe?
+        let stdout: Pipe?
+        let stderr: Pipe?
+        let ptySession: PTYSession?
+        
+        init(stdin: Pipe?, stdout: Pipe?, stderr: Pipe?, ptySession: PTYSession? = nil) {
+            self.stdin = stdin
+            self.stdout = stdout
+            self.stderr = stderr
+            self.ptySession = ptySession
+        }
+        
+        var clientHandles: [FileHandle?] {
+            if let ptySession = ptySession {
+                // For PTY sessions, return handles for attach command
+                // These will be temporary handles that forward to the PTY
+                return createPTYClientHandles(for: ptySession)
+            }
+            return [
+                stdin?.fileHandleForWriting,
+                stdout?.fileHandleForReading,
+                stderr?.fileHandleForReading
+            ]
+        }
+        
+        var serverHandles: [FileHandle?] {
+            if let ptySession = ptySession {
+                // For PTY sessions, container uses the slave side
+                let slave = ptySession.ptySlave
+                return [slave, slave, slave]
+            }
+            return [
+                stdin?.fileHandleForReading,
+                stdout?.fileHandleForWriting,
+                stderr?.fileHandleForWriting
+            ]
+        }
+        
+        private func createPTYClientHandles(for session: PTYSession) -> [FileHandle?] {
+            // Create pipes that will forward to/from the PTY session
+            let stdinPipe = Pipe()
+            let stdoutPipe = Pipe()
+            
+            // Attach to the session with these pipes
+            do {
+                _ = try session.attach(
+                    stdout: stdoutPipe.fileHandleForWriting,
+                    stderr: stdoutPipe.fileHandleForWriting, // PTY combines stdout/stderr
+                    stdin: stdinPipe.fileHandleForReading,
+                    sendHistory: true
+                )
+            } catch {
+                // Log error but continue - client will get empty handles
+                return [nil, nil, nil]
+            }
+            
+            return [
+                stdinPipe.fileHandleForWriting,
+                stdoutPipe.fileHandleForReading,
+                nil // No separate stderr for PTY
+            ]
+        }
+    }
 
     /// Create an instance with a bundle that describes the container.
     ///
@@ -54,6 +121,7 @@ public actor SandboxService {
         self.interfaceStrategy = interfaceStrategy
         self.log = log
         self.monitor = ExitMonitor(log: log)
+        self.ptySessionManager = PTYSessionManager(logger: log)
     }
 
     /// Start the VM and the guest agent process for a container.
@@ -149,14 +217,40 @@ public actor SandboxService {
     ///   - message: An XPC message with the following parameters:
     ///     - id: A client identifier for the process.
     ///     - stdio: An array of file handles for standard input, output, and error.
+    ///     - serverOwnedStdio: Optional boolean to create server-owned stdio pipes.
     ///
-    /// - Returns: An XPC message with no parameters.
+    /// - Returns: An XPC message with stdio handles if server-owned.
     @Sendable
     public func startProcess(_ message: XPCMessage) async throws -> XPCMessage {
         self.log.info("`start` xpc handler")
         return try await self.lock.withLock { lock in
             let id = try message.id()
-            let stdio = message.stdio()
+            let useServerStdio = message.bool(key: .serverOwnedStdio)
+            
+            let stdio: [FileHandle?]
+            let reply = message.reply()
+            
+            if useServerStdio {
+                // Create server-owned pipes
+                let serverStdio = try await self.createServerStdio(for: id)
+                await self.setServerStdio(id, serverStdio)
+                stdio = serverStdio.serverHandles
+                
+                // Return client handles in reply
+                if let stdin = serverStdio.clientHandles[0] {
+                    reply.set(key: .stdin, value: stdin)
+                }
+                if let stdout = serverStdio.clientHandles[1] {
+                    reply.set(key: .stdout, value: stdout)
+                }
+                if let stderr = serverStdio.clientHandles[2] {
+                    reply.set(key: .stderr, value: stderr)
+                }
+            } else {
+                // Use client-provided handles (legacy mode)
+                stdio = message.stdio()
+            }
+            
             let containerInfo = try await self.getContainer()
             let containerId = containerInfo.container.id
             if id == containerId {
@@ -166,8 +260,40 @@ public actor SandboxService {
             } else {
                 try await self.startExecProcess(processId: id, stdio: stdio, lock: lock)
             }
-            return message.reply()
+            return reply
         }
+    }
+    
+    private func createServerStdio(for processId: String) async throws -> ServerStdio {
+        let containerInfo = try self.getContainer()
+        let config = containerInfo.config
+        let containerId = containerInfo.container.id
+        
+        // Check if this is a terminal session
+        let isTerminal = (processId == containerId) ? config.initProcess.terminal : 
+                         (processes[processId]?.config.terminal ?? false)
+        
+        if isTerminal {
+            // Create or get PTY session for terminal mode
+            let session = try await ptySessionManager.createSession(
+                containerID: containerId,
+                bufferSize: nil // Use default buffer size
+            )
+            
+            // Return ServerStdio with PTY session
+            return ServerStdio(stdin: nil, stdout: nil, stderr: nil, ptySession: session)
+        } else {
+            // Create regular pipes for non-terminal mode
+            let stdin = Pipe()
+            let stdout = Pipe()
+            let stderr = Pipe()
+            
+            return ServerStdio(stdin: stdin, stdout: stdout, stderr: stderr)
+        }
+    }
+    
+    private func setServerStdio(_ id: String, _ stdio: ServerStdio) async {
+        self.serverOwnedStdio[id] = stdio
     }
 
     private func startInitProcess(stdio: [FileHandle?], lock: AsyncLock.Context) async throws {
@@ -183,18 +309,23 @@ public actor SandboxService {
         }
         let containerLog = try FileHandle(forWritingTo: bundle.containerLog)
         let config = info.config
+        
+        // Always include containerLog for persistence
         let stdout = {
+            var handles: [FileHandle] = [containerLog]
             if let h = stdio[1] {
-                return MultiWriter(handles: [h, containerLog])
+                handles.append(h)
             }
-            return MultiWriter(handles: [containerLog])
+            return MultiWriter(handles: handles)
         }()
+        
         let stderr: MultiWriter? = {
             if !config.initProcess.terminal {
+                var handles: [FileHandle] = [containerLog]
                 if let h = stdio[2] {
-                    return MultiWriter(handles: [h, containerLog])
+                    handles.append(h)
                 }
-                return MultiWriter(handles: [containerLog])
+                return MultiWriter(handles: handles)
             }
             return nil
         }()
@@ -960,4 +1091,51 @@ extension SandboxService {
     func setState(_ new: State) {
         self.state = new
     }
+    
+    // MARK: - PTY Session Management
+    
+    /// Attach to a PTY session
+    /// - Parameter message: XPC message containing:
+    ///   - sessionId: The container ID for the session
+    ///   - sendHistory: Whether to send buffered history (optional, defaults to true)
+    /// - Returns: XPC message with:
+    ///   - stdin, stdout, stderr: File handles for the attached session
+    ///   - historyBytes: Number of bytes of history sent
+    ///   - truncated: Whether history was truncated
+    @Sendable
+    public func attach(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`attach` xpc handler")
+        
+        guard let sessionId = message.string(key: .sessionId) else {
+            throw ContainerizationError(.invalidArgument, message: "Missing sessionId in attach message")
+        }
+        
+        let sendHistory = message.bool(key: .sendHistory)
+        
+        guard let session = await ptySessionManager.getSession(containerID: sessionId) else {
+            throw ContainerizationError(.notFound, message: "No PTY session found for container \(sessionId)")
+        }
+        
+        // Create pipes for client communication
+        let stdinPipe = Pipe()
+        let stdoutPipe = Pipe()
+        
+        // Attach to the session
+        let (historyBytes, truncated) = try session.attach(
+            stdout: stdoutPipe.fileHandleForWriting,
+            stderr: stdoutPipe.fileHandleForWriting, // PTY combines stdout/stderr
+            stdin: stdinPipe.fileHandleForReading,
+            sendHistory: sendHistory
+        )
+        
+        let reply = message.reply()
+        reply.set(key: .stdin, value: stdinPipe.fileHandleForWriting)
+        reply.set(key: .stdout, value: stdoutPipe.fileHandleForReading)
+        // No separate stderr for PTY
+        reply.set(key: .historyBytes, value: historyBytes)
+        reply.set(key: .truncated, value: truncated)
+        
+        return reply
+    }
+    
 }

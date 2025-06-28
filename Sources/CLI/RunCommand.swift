@@ -114,12 +114,9 @@ extension Application {
             progress.finish()
 
             do {
-                let io = try ProcessIO.create(
-                    tty: self.processFlags.tty,
-                    interactive: self.processFlags.interactive,
-                    detach: detach
-                )
-
+                // Use server-owned stdio by default unless legacy flag is set
+                let useLegacyStdio = self.global.legacyStdio || ProcessInfo.processInfo.environment["CONTAINER_LEGACY_STDIO"] != nil
+                
                 if !self.managementFlags.cidfile.isEmpty {
                     let path = self.managementFlags.cidfile
                     let data = id.data(using: .utf8)
@@ -137,6 +134,12 @@ extension Application {
                 }
 
                 if detach {
+                    let io = try ProcessIO.create(
+                        tty: self.processFlags.tty,
+                        interactive: self.processFlags.interactive,
+                        detach: detach,
+                        detachKeys: self.processFlags.detachKeys
+                    )
                     try await process.start(io.stdio)
                     defer {
                         try? io.close()
@@ -146,6 +149,7 @@ extension Application {
                     return
                 }
 
+                // Set up signal threshold handler for non-TTY mode
                 if !self.processFlags.tty {
                     var handler = SignalThreshold(threshold: 3, signals: [SIGINT, SIGTERM])
                     handler.start {
@@ -153,8 +157,27 @@ extension Application {
                         Darwin.exit(1)
                     }
                 }
-
-                exitCode = try await Application.handleProcess(io: io, process: process)
+                
+                // Determine if we should use server-owned stdio
+                // Use server-owned stdio when we have both interactive and tty flags, unless legacy is forced
+                let useServerStdio = !useLegacyStdio && self.processFlags.interactive && self.processFlags.tty
+                
+                if useServerStdio {
+                    // Server-owned stdio path
+                    let handles = try await process.startWithServerStdio()
+                    let io = try ProcessIO.createServerOwned(tty: true, handles: handles, detachKeys: self.processFlags.detachKeys)
+                    exitCode = try await Application.handleProcess(io: io, process: process, serverOwnedStdio: true)
+                } else {
+                    // Legacy client-owned stdio path
+                    let actualTty = self.processFlags.tty
+                    let io = try ProcessIO.create(
+                        tty: actualTty,
+                        interactive: self.processFlags.interactive,
+                        detach: detach,
+                        detachKeys: self.processFlags.detachKeys
+                    )
+                    exitCode = try await Application.handleProcess(io: io, process: process)
+                }
             } catch {
                 if error is ContainerizationError {
                     throw error
@@ -171,6 +194,7 @@ struct ProcessIO {
     let stdout: Pipe?
     let stderr: Pipe?
     var ioTracker: IoTracker?
+    let detachKeyDetector: DetachKeyDetector?
 
     struct IoTracker {
         let stream: AsyncStream<Void>
@@ -192,17 +216,42 @@ struct ProcessIO {
         try console?.reset()
     }
 
-    static func create(tty: Bool, interactive: Bool, detach: Bool) throws -> ProcessIO {
+    static func create(tty: Bool, interactive: Bool, detach: Bool, serverOwned: Bool = false, detachKeys: String? = nil) throws -> ProcessIO {
+        // If server-owned, we'll get handles later
+        if serverOwned {
+            return .init(
+                stdin: nil,
+                stdout: nil,
+                stderr: nil,
+                ioTracker: nil,
+                detachKeyDetector: nil,
+                stdio: [nil, nil, nil],
+                console: nil
+            )
+        }
+        
         let current: Terminal? = try {
             if !tty {
                 return nil
             }
-            let current = try Terminal.current
-            try current.setraw()
-            return current
+            // Try to get current terminal, but gracefully handle test environments
+            if let current = try? Terminal.current {
+                try current.setraw()
+                return current
+            }
+            return nil
         }()
 
         var stdio = [FileHandle?](repeating: nil, count: 3)
+
+        // Create detach key detector early if we need it
+        let detachKeyDetector: DetachKeyDetector? = {
+            if interactive && tty && !detach {
+                let sequence = detachKeys ?? DetachKeys.defaultSequence
+                return DetachKeyDetector(sequence: sequence)
+            }
+            return nil
+        }()
 
         let stdin: Pipe? = {
             if !interactive && !tty {
@@ -220,7 +269,25 @@ struct ProcessIO {
                         pin.readabilityHandler = nil
                         return
                     }
-                    try! stdin.fileHandleForWriting.write(contentsOf: data)
+                    
+                    // Process input through detach key detector if available
+                    if let detector = detachKeyDetector {
+                        Task {
+                            let (shouldDetach, dataToForward) = await detector.processInput(data)
+                            if shouldDetach {
+                                // Detach sequence detected - stop reading and close handlers
+                                pin.readabilityHandler = nil
+                                print("\r\nDetaching from container...")
+                                return
+                            }
+                            if !dataToForward.isEmpty {
+                                try! stdin.fileHandleForWriting.write(contentsOf: dataToForward)
+                            }
+                        }
+                    } else {
+                        // No detector, forward data directly
+                        try! stdin.fileHandleForWriting.write(contentsOf: data)
+                    }
                 }
             }
             stdio[0] = stdin.fileHandleForReading
@@ -284,11 +351,13 @@ struct ProcessIO {
             ioTracker = .init(stream: stream, cont: cc, configuredStreams: configuredStreams)
         }
 
+
         return .init(
             stdin: stdin,
             stdout: stdout,
             stderr: stderr,
             ioTracker: ioTracker,
+            detachKeyDetector: detachKeyDetector,
             stdio: stdio,
             console: current
         )
@@ -313,5 +382,116 @@ struct ProcessIO {
             log.error("Timeout waiting for IO to complete : \(error)")
             throw error
         }
+    }
+    
+    static func createServerOwned(tty: Bool, handles: [FileHandle?], detachKeys: String? = nil) throws -> ProcessIO {
+        // Set up terminal if TTY mode and terminal is available
+        let current: Terminal? = {
+            if !tty {
+                return nil
+            }
+            // Try to get current terminal, but don't fail if not available
+            if let current = try? Terminal.current {
+                try? current.setraw()
+                return current
+            }
+            return nil
+        }()
+        
+        var configuredStreams = 0
+        let (stream, cc) = AsyncStream<Void>.makeStream()
+        
+        // Create detach key detector for TTY mode
+        let detachKeyDetector: DetachKeyDetector? = {
+            if tty {
+                let sequence = detachKeys ?? DetachKeys.defaultSequence
+                return DetachKeyDetector(sequence: sequence)
+            }
+            return nil
+        }()
+        
+        // Set up stdin forwarding from terminal to server handle
+        if let stdinHandle = handles[0] {
+            let pin = FileHandle.standardInput
+            pin.readabilityHandler = { handle in
+                let data = handle.availableData
+                if data.isEmpty {
+                    pin.readabilityHandler = nil
+                    return
+                }
+                
+                // Process input through detach key detector if available
+                if let detector = detachKeyDetector {
+                    Task {
+                        let (shouldDetach, dataToForward) = await detector.processInput(data)
+                        if shouldDetach {
+                            // Detach sequence detected - stop reading and close handlers
+                            pin.readabilityHandler = nil
+                            print("\r\nDetaching from container...")
+                            return
+                        }
+                        if !dataToForward.isEmpty {
+                            try! stdinHandle.write(contentsOf: dataToForward)
+                        }
+                    }
+                } else {
+                    // No detector, forward data directly
+                    try! stdinHandle.write(contentsOf: data)
+                }
+            }
+        }
+        
+        // Set up stdout forwarding from server handle to terminal
+        if let stdoutHandle = handles[1] {
+            configuredStreams += 1
+            let pout: FileHandle = {
+                if let current {
+                    return current.handle
+                }
+                return .standardOutput
+            }()
+            
+            stdoutHandle.readabilityHandler = { handle in
+                let data = handle.availableData
+                if data.isEmpty {
+                    stdoutHandle.readabilityHandler = nil
+                    cc.yield()
+                    return
+                }
+                try! pout.write(contentsOf: data)
+            }
+        }
+        
+        // Set up stderr forwarding (only if not TTY)
+        if !tty, let stderrHandle = handles[2] {
+            configuredStreams += 1
+            let perr = FileHandle.standardError
+            
+            stderrHandle.readabilityHandler = { handle in
+                let data = handle.availableData
+                if data.isEmpty {
+                    stderrHandle.readabilityHandler = nil
+                    cc.yield()
+                    return
+                }
+                try! perr.write(contentsOf: data)
+            }
+        }
+        
+        var ioTracker: IoTracker? = nil
+        if configuredStreams > 0 {
+            ioTracker = .init(stream: stream, cont: cc, configuredStreams: configuredStreams)
+        }
+        
+        // Return ProcessIO with no pipes (server owns them)
+        return .init(
+            stdin: nil,
+            stdout: nil,
+            stderr: nil,
+            ioTracker: ioTracker,
+            detachKeyDetector: detachKeyDetector,
+            stdio: handles,
+            console: current
+        )
     }
 }
