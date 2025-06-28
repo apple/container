@@ -52,7 +52,7 @@ actor AttachmentAllocator {
     }
 
     /// Retrieve the allocator index for a hostname.
-    func lookup(hostname: String) async throws -> UInt32? {
+    func lookup(hostname: String) throws -> UInt32? {
         hostnames[hostname]
     }
 }
