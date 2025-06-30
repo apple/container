@@ -80,12 +80,15 @@ struct ContainerDNSHandler: DNSHandler {
         }
 
         let components = ipAllocation.address.split(separator: "/")
-        guard components.count > 0 else {
-            return nil
+        guard !components.isEmpty else {
+            throw DNSResolverError.serverError("Invalid IP format: empty address")
         }
-        guard let ip = IPv4(String(components[0])) else {
-            return nil
+
+        let ipString = String(components[0])
+        guard let ip = IPv4(ipString) else {
+            throw DNSResolverError.serverError("Failed to parse IP address: \(ipString)")
         }
+
         return HostRecord<IPv4>(name: question.name, ttl: ttl, ip: ip)
     }
 }

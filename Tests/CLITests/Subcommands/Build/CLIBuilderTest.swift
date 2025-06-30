@@ -113,6 +113,19 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
+        @Test func testBuildArg() throws {
+            let tempDir: URL = try createTempDir()
+            let dockerfile: String =
+                """
+                ARG TAG=unknown 
+                FROM ghcr.io/linuxcontainers/alpine:${TAG} 
+                """
+            try createContext(tempDir: tempDir, dockerfile: dockerfile)
+            let imageName: String = "registry.local/build-arg:\(UUID().uuidString)"
+            try self.build(tag: imageName, tempDir: tempDir, args: ["TAG=3.20"])
+            #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
+        }
+
         @Test func testBuildNetworkAccess() throws {
             let tempDir: URL = try createTempDir()
             let dockerfile: String =

@@ -14,9 +14,6 @@
 # limitations under the License.
 
 opts=()
-if [ ! -z "${CURRENT_SDK}" ] ; then
-    opts+=("-Xswiftc" "-DCURRENT_SDK")
-fi
 opts+=("--allow-writing-to-directory" "$1")
 opts+=("generate-documentation")
 opts+=("--target" "ContainerSandboxService")
@@ -40,3 +37,15 @@ fi
 /usr/bin/swift package ${opts[@]}
 
 echo '{}' > "$1/theme-settings.json"
+
+cat > "$1/index.html" <<'EOF'
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="refresh" content="0; url=./documentation/">
+  </head>
+  <body>
+    <p>If you are not redirected automatically, <a href="./documentation/">click here</a>.</p>
+  </body>
+</html>
+EOF

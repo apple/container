@@ -21,8 +21,7 @@ import Foundation
 import Testing
 
 extension TestCLIRunBase {
-    // This test class is NOT thread safe
-    class TestCLITermIO: TestCLIRunBase, @unchecked Sendable {
+    class TestCLITermIO: TestCLIRunBase {
         override var ContainerImage: String {
             "ghcr.io/linuxcontainers/alpine:3.20"
         }

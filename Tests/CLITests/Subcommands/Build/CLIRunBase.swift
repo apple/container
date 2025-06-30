@@ -20,8 +20,7 @@ import ContainerizationOS
 import Foundation
 import Testing
 
-// This test class is not thread safe
-class TestCLIRunBase: CLITest, @unchecked Sendable {
+class TestCLIRunBase: CLITest {
     var terminal: Terminal!
     var containerName: String = UUID().uuidString
 
@@ -62,7 +61,12 @@ class TestCLIRunBase: CLITest, @unchecked Sendable {
     func containerRun(stdin: [String], findMessage: String) async throws -> Bool {
         let stdout = FileHandle(fileDescriptor: terminal.handle.fileDescriptor, closeOnDealloc: false)
         let stdoutListenTask = Task {
-            try await findStdoutOutput(stdout: stdout, findMessage: findMessage)
+            for try await line in stdout.bytes.lines {
+                if line.contains(findMessage) && !line.contains("echo") {
+                    return true
+                }
+            }
+            return false
         }
 
         let timeoutTask = Task {
@@ -80,15 +84,6 @@ class TestCLIRunBase: CLITest, @unchecked Sendable {
         } catch {
             throw error
         }
-    }
-
-    func findStdoutOutput(stdout: FileHandle, findMessage: String) async throws -> Bool {
-        for try await line in stdout.bytes.lines {
-            if line.contains(findMessage) && !line.contains("echo") {
-                return true
-            }
-        }
-        return false
     }
 
     func exec(commands: [String]) throws {

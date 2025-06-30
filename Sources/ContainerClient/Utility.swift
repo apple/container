@@ -150,14 +150,28 @@ public struct Utility {
         mounts.append(contentsOf: volumes)
         config.mounts = mounts
 
-        let network = try await ClientNetwork.get(id: ClientNetwork.defaultNetworkName)
-        guard case .running(_, let networkStatus) = network else {
-            throw ContainerizationError(.invalidState, message: "default network is not running")
+        if management.networks.isEmpty {
+            config.networks = [ClientNetwork.defaultNetworkName]
+        } else {
+            // networks may only be specified for macOS 26+
+            guard #available(macOS 26, *) else {
+                throw ContainerizationError(.invalidArgument, message: "non-default network configuration requires macOS 26 or newer")
+            }
+            config.networks = management.networks
         }
+
+        var networkStatuses: [NetworkStatus] = []
+        for networkName in config.networks {
+            let network: NetworkState = try await ClientNetwork.get(id: networkName)
+            guard case .running(_, let networkStatus) = network else {
+                throw ContainerizationError(.invalidState, message: "network \(networkName) is not running")
+            }
+            networkStatuses.append(networkStatus)
+        }
+
         let nameservers: [String]
-        config.networks = [network.id]
         if management.dnsNameservers.isEmpty {
-            let subnet = try CIDRAddress(networkStatus.address)
+            let subnet = try CIDRAddress(networkStatuses[0].address)
             let nameserver = IPv4Address(fromValue: subnet.lower.value + 1).description
             nameservers = [nameserver]
         } else {

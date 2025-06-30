@@ -73,6 +73,10 @@ Currently, memory pages freed to the Linux operating system by processes running
 
 The vmnet framework in macOS 15 can only provide networks where the attached containers are isolated from one another. Container-to-container communication over the virtual network is not possible.
 
+#### Multiple networks
+
+In macOS 15, all containers attach to the default vmnet network. The `container network` commands are not available on macOS 15, and using the `--network` option for `container run` or `container create` will result in an error.
+
 #### Container IP addresses
 
 In macOS 15, limitations in the vmnet framework mean that the container network can only be created when the first container starts. Since the network XPC helper provides IP addresses to containers, and the helper has to start before the first container, it is possible for the network helper and vmnet to disagree on the subnet address, resulting in containers that are completely cut off from the network.
@@ -80,7 +84,7 @@ In macOS 15, limitations in the vmnet framework mean that the container network 
 Normally, vmnet creates the container network using the CIDR address 192.168.64.1/24, and on macOS 15, `container` defaults to using this CIDR address in the network helper. To diagnose and resolve issues stemming from a subnet address mismatch between vmnet and the network helper:
 
 - Before creating the first container, scan the output of the command `ifconfig` for a bridge interface named similarly to `bridge100`.
-- After creating the first container, run `ifconfig` again, and locate the new bridge interface to determine container the subnet address.
+- After creating the first container, run `ifconfig` again, and locate the new bridge interface to determine the container subnet address.
 - Run `container ls` to check the IP address given to the container by the network helper. If the address corresponds to a different network:
   - Run `container system stop` to terminate the services for `container`.
   - Using the macOS `defaults` command, update the default subnet value used by the network helper process. For example, if the bridge address shown by `ifconfig` is 192.168.66.1, run:

@@ -14,17 +14,29 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ArgumentParser
+import ContainerClient
 import ContainerNetworkService
-import ContainerSandboxService
-import ContainerXPC
-import Containerization
+import ContainerizationError
+import Foundation
+import TerminalProgress
 
-/// Isolated container network interface strategy. This strategy prohibits
-/// container to container networking, but it is the only approach that
-/// works for macOS Sequoia.
-struct IsolatedInterfaceStrategy: InterfaceStrategy {
-    public func toInterface(attachment: Attachment, interfaceIndex: Int, additionalData: XPCMessage?) -> Interface {
-        let gateway = interfaceIndex == 0 ? attachment.gateway : nil
-        return NATInterface(address: attachment.address, gateway: gateway)
+extension Application {
+    struct NetworkCreate: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "create",
+            abstract: "Create a new network")
+
+        @Argument(help: "Network name")
+        var name: String
+
+        @OptionGroup
+        var global: Flags.Global
+
+        func run() async throws {
+            let config = NetworkConfiguration(id: self.name, mode: .nat)
+            let state = try await ClientNetwork.create(configuration: config)
+            print(state.id)
+        }
     }
 }

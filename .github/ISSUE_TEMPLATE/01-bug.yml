@@ -1,7 +1,7 @@
 name: Bug report
 description: File a bug report.
 title: "[Bug]: "
-labels: ["bug", "triage"]
+type: "Bug"
 body:
   - type: markdown
     attributes:
@@ -34,7 +34,7 @@ body:
   - type: textarea
     id: expected
     attributes:
-      label: Expected Behavior
+      label: Expected behavior
       description: A concise description of what you expected to happen.
     validations:
       required: true

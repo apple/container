@@ -105,15 +105,11 @@ extension NetworkVmnetHelper {
         }
 
         private static func createNetwork(configuration: NetworkConfiguration, log: Logger) throws -> Network {
-            guard #available(macOS 16, *) else {
+            guard #available(macOS 26, *) else {
                 return try AllocationOnlyVmnetNetwork(configuration: configuration, log: log)
             }
 
-            #if !CURRENT_SDK
             return try ReservedVmnetNetwork(configuration: configuration, log: log)
-            #else
-            return try AllocationOnlyVmnetNetwork(configuration: configuration, log: log)
-            #endif
         }
     }
 

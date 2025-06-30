@@ -28,12 +28,6 @@ DSYM_DIR := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM
 DSYM_PATH := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM.zip
 CODESIGN_OPTS ?= --force --sign - --timestamp=none
 
-ifeq (,$(CURRENT_SDK))
-	CURRENT_SDK_ARGS :=
-else
-	CURRENT_SDK_ARGS := -Xswiftc -DCURRENT_SDK
-endif
-
 MACOS_VERSION := $(shell sw_vers -productVersion)
 MACOS_MAJOR := $(shell echo $(MACOS_VERSION) | cut -d. -f1)
 
@@ -49,8 +43,7 @@ all: init-block
 .PHONY: build
 build:
 	@echo Building container binaries...
-	@#Remove this when the updated macOS SDK is available publicly
-	$(SWIFT) build -c $(BUILD_CONFIGURATION) $(CURRENT_SDK_ARGS) ; \
+	@$(SWIFT) build -c $(BUILD_CONFIGURATION)
 
 .PHONY: container
 container: build 
@@ -107,7 +100,7 @@ installer-pkg: $(STAGING_DIR)
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. --entitlements=signing/container-network-vmnet.entitlements $(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin/container-network-vmnet)
 
 	@echo Creating application installer
-	@pkgbuild --root $(STAGING_DIR) --identifier com.apple.container-installer --install-location /usr/local $(PKG_PATH)
+	@pkgbuild --root $(STAGING_DIR) --identifier com.apple.container-installer --install-location /usr/local --version ${RELEASE_VERSION} $(PKG_PATH)
 	@rm -rf $(STAGING_DIR)
 
 .PHONY: dsym
@@ -126,7 +119,7 @@ dsym:
 
 .PHONY: test
 test:
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) $(CURRENT_SDK_ARGS) --skip TestCLI
+	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --skip TestCLI
 
 .PHONY: install-kernel
 install-kernel:
@@ -143,12 +136,13 @@ integration: init-block
 	@echo "Removing any existing containers"
 	@bin/container rm --all
 	@echo "Starting CLI integration tests"
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) $(CURRENT_SDK_ARGS) --filter TestCLIRunLifecycle
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) $(CURRENT_SDK_ARGS) --filter TestCLIExecCommand
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) $(CURRENT_SDK_ARGS) --filter TestCLIRunCommand
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) $(CURRENT_SDK_ARGS) --filter TestCLIImagesCommand
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) $(CURRENT_SDK_ARGS) --filter TestCLIRunBase
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) $(CURRENT_SDK_ARGS) --filter TestCLIBuildBase
+	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLINetwork
+	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunLifecycle
+	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIExecCommand
+	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunCommand
+	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIImagesCommand
+	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunBase
+	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIBuildBase
 	@echo Ensuring apiserver stopped after the CLI integration tests...
 	@scripts/ensure-container-stopped.sh
 
@@ -182,12 +176,10 @@ serve-docs:
 	@python3 -m http.server --bind 127.0.0.1 --directory ./_serve
 
 .PHONY: docs
-docs: _site
-
-_site:
+docs:
 	@echo Updating API documentation...
-	rm -rf $@
-	@scripts/make-docs.sh $@ container
+	@rm -rf _site
+	@scripts/make-docs.sh _site container
 
 .PHONY: cleancontent
 cleancontent:
