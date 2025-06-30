@@ -21,6 +21,7 @@ import ContainerizationExtras
 import ContainerizationOCI
 import ContainerizationOS
 import Foundation
+import Logging
 import TerminalProgress
 
 public actor SnapshotStore {
@@ -28,14 +29,33 @@ public actor SnapshotStore {
     private static let snapshotInfoFileName = "snapshot-info"
     private static let ingestDirName = "ingest"
 
+    /// Return the Unpacker to use for a given image.
+    /// If the given platform for the image cannot be unpacked return `nil`.
+    public typealias UnpackStrategy = @Sendable (Containerization.Image, Platform) async throws -> Unpacker?
+
+    public static let defaultUnpackStrategy: UnpackStrategy = { image, platform in
+        guard platform.os == "linux" else {
+            return nil
+        }
+        var minBlockSize = 512.gib()
+        if image.reference == ClientDefaults.get(key: .defaultInitImage) {
+            minBlockSize = 512.mib()
+        }
+        return EXT4Unpacker(blockSizeInBytes: minBlockSize)
+    }
+
     let path: URL
     let fm = FileManager.default
     let ingestDir: URL
+    let unpackStrategy: UnpackStrategy
+    let log: Logger?
 
-    public init(path: URL) throws {
+    public init(path: URL, unpackStrategy: @escaping UnpackStrategy, log: Logger?) throws {
         let root = path.appendingPathComponent("snapshots")
         self.path = root
         self.ingestDir = self.path.appendingPathComponent(Self.ingestDirName)
+        self.unpackStrategy = unpackStrategy
+        self.log = log
         try self.fm.createDirectory(at: root, withIntermediateDirectories: true)
         try self.fm.createDirectory(at: self.ingestDir, withIntermediateDirectories: true)
     }
@@ -62,7 +82,8 @@ public actor SnapshotStore {
             guard let platform = desc.platform else {
                 throw ContainerizationError(.internalError, message: "Missing platform for descriptor \(desc.digest)")
             }
-            guard Self.shouldUnpackPlatform(platform) else {
+            guard let unpacker = try await self.unpackStrategy(image, platform) else {
+                self.log?.warning("Skipping unpack for \(image.reference) for platform \(platform.description). No unpacker configured.")
                 continue
             }
             let currentSubTask = await taskManager.startTask()
@@ -79,7 +100,8 @@ public actor SnapshotStore {
             let tempSnapshotPath = tempDir.appendingPathComponent(Self.snapshotFileName, isDirectory: false)
             let infoPath = tempDir.appendingPathComponent(Self.snapshotInfoFileName, isDirectory: false)
             do {
-                let mount = try await image.unpack(for: platform, at: tempSnapshotPath, progress: ContainerizationProgressAdapter.handler(from: taskUpdateProgress))
+                let progress = ContainerizationProgressAdapter.handler(from: taskUpdateProgress)
+                let mount = try await unpacker.unpack(image, for: platform, at: tempSnapshotPath, progress: progress)
                 let fs = Filesystem.block(
                     format: mount.type,
                     source: self.snapshotPath(desc).absolutePath(),
@@ -185,13 +207,6 @@ public actor SnapshotStore {
         let uniqueDirectoryURL = ingestDir.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try self.fm.createDirectory(at: uniqueDirectoryURL, withIntermediateDirectories: true, attributes: nil)
         return uniqueDirectoryURL
-    }
-
-    private static func shouldUnpackPlatform(_ platform: Platform) -> Bool {
-        guard platform.os == "linux" else {
-            return false
-        }
-        return true
     }
 }
 

@@ -60,6 +60,8 @@ extension ImagesHelper {
             .appendingPathComponent("com.apple.container")
         }()
 
+        private static let unpackStrategy = SnapshotStore.defaultUnpackStrategy
+
         func run() async throws {
             let commandName = ImagesHelper._commandName
             let log = setupLogger()
@@ -89,7 +91,7 @@ extension ImagesHelper {
         private func initializeImagesService(root: URL, log: Logger, routes: inout [String: XPCServer.RouteHandler]) throws {
             let contentStore = RemoteContentStoreClient()
             let imageStore = try ImageStore(path: root, contentStore: contentStore)
-            let snapshotStore = try SnapshotStore(path: root)
+            let snapshotStore = try SnapshotStore(path: root, unpackStrategy: Self.unpackStrategy, log: log)
             let service = try ImagesService(contentStore: contentStore, imageStore: imageStore, snapshotStore: snapshotStore, log: log)
             let harness = ImagesServiceHarness(service: service, log: log)
 
