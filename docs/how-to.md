@@ -235,6 +235,22 @@ Use the `--boot` option to see the logs for the virtual machine boot and init pr
 %
 </pre>
 
+## Configure container defaults
+
+`container` uses macOS user defaults to store configuration settings that persist between sessions. You can customize various aspects of container behavior, including build settings, default images, and network configuration.
+
+For a complete list of available configuration options and detailed usage instructions, see the [user defaults documentation](user-defaults.md).
+
+### Example: Disable Rosetta for builds
+
+If you want to prevent the use of Rosetta translation during container builds on Apple Silicon Macs:
+
+```bash
+defaults write com.apple.container.defaults build.rosetta -bool false
+```
+
+This is useful when you want to ensure builds only produce native arm64 images and avoid any x86_64 emulation.
+
 ## View system logs
 
 The `container system logs` command allows you to look at the log messages that `container` writes:
