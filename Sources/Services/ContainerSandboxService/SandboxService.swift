@@ -82,13 +82,26 @@ public actor SandboxService {
                 bootlog: bundle.bootlog.path,
                 logger: self.log
             )
-            let config = try bundle.configuration
+            var config = try bundle.configuration
             let container = LinuxContainer(
                 config.id,
                 rootfs: try bundle.containerRootfs.asMount,
                 vmm: vmm,
                 logger: self.log
             )
+
+            // dynamically configure the DNS nameserver from a network if no explicit configuration
+            if let dns = config.dns, dns.nameservers.isEmpty {
+                if let nameserver = try await self.getDefaultNameserver(networks: config.networks) {
+                    config.dns = ContainerConfiguration.DNSConfiguration(
+                        nameservers: [nameserver],
+                        domain: dns.domain,
+                        searchDomains: dns.searchDomains,
+                        options: dns.options
+                    )
+                }
+            }
+
             try await self.configureContainer(container: container, config: config)
 
             let fqdn: String
@@ -639,6 +652,19 @@ public actor SandboxService {
         }
 
         configureInitialProcess(container: container, process: config.initProcess)
+    }
+
+    private func getDefaultNameserver(networks: [String]) async throws -> String? {
+        for network in networks {
+            let client = NetworkClient(id: network)
+            let state = try await client.state()
+            guard case .running(_, let status) = state else {
+                continue
+            }
+            return status.gateway
+        }
+
+        return nil
     }
 
     private func configureInitialProcess(container: LinuxContainer, process: ProcessConfiguration) {

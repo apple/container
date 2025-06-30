@@ -169,21 +169,12 @@ public struct Utility {
             networkStatuses.append(networkStatus)
         }
 
-        let nameservers: [String]
-        if management.dnsNameservers.isEmpty {
-            let subnet = try CIDRAddress(networkStatuses[0].address)
-            let nameserver = IPv4Address(fromValue: subnet.lower.value + 1).description
-            nameservers = [nameserver]
-        } else {
-            nameservers = management.dnsNameservers
-        }
-
         if management.dnsDisabled {
             config.dns = nil
         } else {
             let domain = management.dnsDomain ?? ClientDefaults.getOptional(key: .defaultDNSDomain)
             config.dns = .init(
-                nameservers: nameservers,
+                nameservers: management.dnsNameservers,
                 domain: domain,
                 searchDomains: management.dnsSearchDomains,
                 options: management.dnsOptions
