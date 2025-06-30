@@ -251,3 +251,9 @@ The `container system logs` command allows you to look at the log messages that 
 2025-06-02 16:46:12.368723-0700 0xf6e93    Info        0x0                  61684  0    container-apiserver: [com.apple.container:APIServer] Handling container my-web-server Start.
 %
 </pre>
+
+## Setup shell completion
+
+The `container --generate-completion-script [zsh|bash|fish]` command generates completion scripts for the provided shell. 
+
+A detailed guide on how to install the completion scripts can be found [here](https://swiftpackageindex.com/apple/swift-argument-parser/1.5.1/documentation/argumentparser/installingcompletionscripts)
