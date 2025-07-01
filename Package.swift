@@ -32,7 +32,7 @@ if let path = ProcessInfo.processInfo.environment["CONTAINERIZATION_PATH"] {
 
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
-let builderShimVersion = "0.2.1"
+let builderShimVersion = "0.3.0"
 
 let package = Package(
     name: "container",
