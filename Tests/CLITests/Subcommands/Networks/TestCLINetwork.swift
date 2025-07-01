@@ -45,7 +45,7 @@ class TestCLINetwork: CLITest {
             let port = UInt16.random(in: 50000..<60000)
             try doLongRun(
                 name: name,
-                image: "docker.io/library/python:latest",
+                image: "docker.io/library/python:alpine",
                 args: ["--network", name],
                 containerArgs: ["python3", "-m", "http.server", "--bind", "0.0.0.0", "\(port)"])
             defer {

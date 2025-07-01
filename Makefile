@@ -129,8 +129,7 @@ install-kernel:
 .PHONY: integration
 integration: init-block
 	@echo Ensuring apiserver stopped before the CLI integration tests...
-	@bin/container system stop
-	@scripts/ensure-container-stopped.sh
+	@bin/container system stop && sleep 3 && scripts/ensure-container-stopped.sh
 	@echo Running the integration tests...
 	@bin/container system start
 	@echo "Removing any existing containers"
