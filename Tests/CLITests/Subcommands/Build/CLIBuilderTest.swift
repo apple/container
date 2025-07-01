@@ -67,12 +67,12 @@ extension TestCLIBuildBase {
             let newTempDir: URL = try createTempDir()
             let newDockerfile: String =
                 """
-                 FROM local-only:\(imageName)
+                 FROM \(imageName)
                 """
             let newContext: [FileSystemEntry] = []
             try createContext(tempDir: newTempDir, dockerfile: newDockerfile, context: newContext)
             let newImageName = "from-local:\(UUID().uuidString)"
-            try self.build(tag: newImageName, tempDir: tempDir)
+            try self.build(tag: newImageName, tempDir: newTempDir)
             #expect(try self.inspectImage(newImageName) == newImageName, "expected to have successfully built \(newImageName)")
         }
 
