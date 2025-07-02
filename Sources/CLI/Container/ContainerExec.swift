@@ -69,21 +69,37 @@ extension Application {
             config.supplementalGroups.append(contentsOf: additionalGroups)
 
             do {
-                let io = try ProcessIO.create(tty: tty, interactive: stdin, detach: false)
+                // Use server-owned stdio by default unless legacy flag is set
+                let useLegacyStdio = self.global.legacyStdio || ProcessInfo.processInfo.environment["CONTAINER_LEGACY_STDIO"] != nil
+                
+                let process = try await container.createProcess(
+                    id: UUID().uuidString.lowercased(),
+                    configuration: config)
 
-                if !self.processFlags.tty {
+                // Set up signal threshold handler for non-TTY mode
+                if !tty {
                     var handler = SignalThreshold(threshold: 3, signals: [SIGINT, SIGTERM])
                     handler.start {
                         print("Received 3 SIGINT/SIGTERM's, forcefully exiting.")
                         Darwin.exit(1)
                     }
                 }
-
-                let process = try await container.createProcess(
-                    id: UUID().uuidString.lowercased(),
-                    configuration: config)
-
-                exitCode = try await Application.handleProcess(io: io, process: process)
+                
+                // Determine if we should use server-owned stdio
+                // Use server-owned stdio when we have both interactive and tty flags, unless legacy is forced
+                let useServerStdio = !useLegacyStdio && stdin && tty
+                
+                if useServerStdio {
+                    // Server-owned stdio path
+                    let handles = try await process.startWithServerStdio()
+                    let io = try ProcessIO.createServerOwned(tty: true, handles: handles, detachKeys: self.processFlags.detachKeys)
+                    exitCode = try await Application.handleProcess(io: io, process: process, serverOwnedStdio: true)
+                } else {
+                    // Legacy client-owned stdio path
+                    let actualTty = tty
+                    let io = try ProcessIO.create(tty: actualTty, interactive: stdin, detach: false, detachKeys: self.processFlags.detachKeys)
+                    exitCode = try await Application.handleProcess(io: io, process: process)
+                }
             } catch {
                 if error is ContainerizationError {
                     throw error
