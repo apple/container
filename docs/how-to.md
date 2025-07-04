@@ -145,12 +145,60 @@ Use the `list` command with the `--format` option to display information for all
 ]
 </pre>
 
+## Create and use a separate isolated network
+
+> [!NOTE]
+> This feature is available on macOS 26 and later.
+
+Running `container system start` creates a vmnet network named `default` to which your containers will attach unless you specify otherwise.
+
+You can create a separate isolated network using `container network create`.
+
+This command creates a network named `foo`:
+
+```bash
+container network create foo
+```
+
+The `foo` network, the default network, and any other networks you create are isolated from one another. A container on one network has no connectivity to containers on other networks.
+
+Run `container network list` to see the networks that exist:
+
+```console
+% container network list
+NETWORK  STATE    SUBNET
+default  running  192.168.64.0/24
+foo      running  192.168.65.0/24
+%
+```
+
+Run a container that is attached to that network using the `--network` flag:
+
+```console
+container run -d --name my-web-server --network foo --rm web-test
+```
+
+Use `container ls` to see that the container is on the `foo` subnet:
+
+```console
+ % container ls
+ID             IMAGE            OS     ARCH   STATE    ADDR
+my-web-server  web-test:latest  linux  arm64  running  192.168.65.2
+```
+
+You can delete networks that you create once no containers are attached:
+
+```bash
+container stop my-web-server
+container network delete foo
+```
+
 ## View container logs
 
 The `container logs` command displays the output from your containerized application:
 
 <pre>
-% container run -d --dns-domain test --name my-web-server --rm registry.example.com/fido/web-test:latest
+% container run -d --name my-web-server --rm registry.example.com/fido/web-test:latest
 my-web-server
 % curl http://my-web-server.test
 &lt;!DOCTYPE html>&lt;html>&lt;head>&lt;title>Hello&lt;/title>&lt;/head>&lt;body>&lt;h1>Hello, world!&lt;/h1>&lt;/body>&lt;/html>
@@ -187,6 +235,22 @@ Use the `--boot` option to see the logs for the virtual machine boot and init pr
 %
 </pre>
 
+## Configure container defaults
+
+`container` uses macOS user defaults to store configuration settings that persist between sessions. You can customize various aspects of container behavior, including build settings, default images, and network configuration.
+
+For a complete list of available configuration options and detailed usage instructions, see the [user defaults documentation](user-defaults.md).
+
+### Example: Disable Rosetta for builds
+
+If you want to prevent the use of Rosetta translation during container builds on Apple Silicon Macs:
+
+```bash
+defaults write com.apple.container.defaults build.rosetta -bool false
+```
+
+This is useful when you want to ensure builds only produce native arm64 images and avoid any x86_64 emulation.
+
 ## View system logs
 
 The `container system logs` command allows you to look at the log messages that `container` writes:
@@ -203,3 +267,9 @@ The `container system logs` command allows you to look at the log messages that 
 2025-06-02 16:46:12.368723-0700 0xf6e93    Info        0x0                  61684  0    container-apiserver: [com.apple.container:APIServer] Handling container my-web-server Start.
 %
 </pre>
+
+## Setup shell completion
+
+The `container --generate-completion-script [zsh|bash|fish]` command generates completion scripts for the provided shell. 
+
+A detailed guide on how to install the completion scripts can be found [here](https://swiftpackageindex.com/apple/swift-argument-parser/1.5.1/documentation/argumentparser/installingcompletionscripts)

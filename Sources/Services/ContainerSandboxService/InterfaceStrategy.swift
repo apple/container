@@ -25,9 +25,10 @@ public protocol InterfaceStrategy: Sendable {
     /// - Parameters:
     ///   - attachment: General attachment information that is common
     ///     for all networks.
+    ///   - interfaceIndex: The zero-based index of the interface.
     ///   - additionalData: If present, attachment information that is
     ///     specific for the network to which the container will attach.
     ///
     /// - Returns: An XPC message with no parameters.
-    func toInterface(attachment: Attachment, additionalData: XPCMessage?) throws -> Interface
+    func toInterface(attachment: Attachment, interfaceIndex: Int, additionalData: XPCMessage?) throws -> Interface
 }

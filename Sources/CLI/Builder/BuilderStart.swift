@@ -194,7 +194,8 @@ extension Application {
                     options: []
                 ),
             ]
-            config.rosetta = true
+            // Enable Rosetta only if the user didn't ask to disable it
+            config.rosetta = ClientDefaults.getBool(key: .buildRosetta) ?? true
 
             let network = try await ClientNetwork.get(id: ClientNetwork.defaultNetworkName)
             guard case .running(_, let networkStatus) = network else {

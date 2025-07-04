@@ -23,7 +23,6 @@ import Logging
 import Virtualization
 import vmnet
 
-#if !CURRENT_SDK
 /// Interface strategy for containers that use macOS's custom network feature.
 @available(macOS 26, *)
 struct NonisolatedInterfaceStrategy: InterfaceStrategy {
@@ -33,7 +32,7 @@ struct NonisolatedInterfaceStrategy: InterfaceStrategy {
         self.log = log
     }
 
-    public func toInterface(attachment: Attachment, additionalData: XPCMessage?) throws -> Interface {
+    public func toInterface(attachment: Attachment, interfaceIndex: Int, additionalData: XPCMessage?) throws -> Interface {
         guard let additionalData else {
             throw ContainerizationError(.invalidState, message: "network state does not contain custom network reference")
         }
@@ -44,7 +43,7 @@ struct NonisolatedInterfaceStrategy: InterfaceStrategy {
         }
 
         log.info("creating NATNetworkInterface with network reference")
-        return NATNetworkInterface(address: attachment.address, gateway: attachment.gateway, reference: networkRef)
+        let gateway = interfaceIndex == 0 ? attachment.gateway : nil
+        return NATNetworkInterface(address: attachment.address, gateway: gateway, reference: networkRef)
     }
 }
-#endif

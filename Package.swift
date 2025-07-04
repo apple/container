@@ -26,13 +26,13 @@ if let path = ProcessInfo.processInfo.environment["CONTAINERIZATION_PATH"] {
     scDependency = .package(path: path)
     scVersion = "latest"
 } else {
-    scVersion = "0.1.1"
+    scVersion = "0.3.0"
     scDependency = .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion))
 }
 
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
-let builderShimVersion = "0.2.0"
+let builderShimVersion = "0.3.0"
 
 let package = Package(
     name: "container",
@@ -299,10 +299,13 @@ let package = Package(
         .testTarget(
             name: "CLITests",
             dependencies: [
-                .product(name: "ContainerizationOS", package: "containerization"),
+                .product(name: "AsyncHTTPClient", package: "async-http-client"),
                 .product(name: "Containerization", package: "containerization"),
-                "ContainerClient",
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                .product(name: "ContainerizationOS", package: "containerization"),
                 "ContainerBuild",
+                "ContainerClient",
+                "ContainerNetworkService",
             ],
             path: "Tests/CLITests"
         ),

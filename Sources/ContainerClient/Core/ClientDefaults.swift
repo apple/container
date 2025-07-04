@@ -28,6 +28,7 @@ public enum ClientDefaults {
         case defaultInitImage = "image.init"
         case defaultKernelURL = "kernel.url"
         case defaultKernelBinaryPath = "kernel.binaryPath"
+        case buildRosetta = "build.rosetta"
     }
 
     public static func set(value: String, key: ClientDefaults.Keys) {
@@ -45,6 +46,15 @@ public enum ClientDefaults {
 
     public static func getOptional(key: ClientDefaults.Keys) -> String? {
         udSuite.string(forKey: key.rawValue)
+    }
+
+    public static func setBool(value: Bool, key: ClientDefaults.Keys) {
+        udSuite.set(value, forKey: key.rawValue)
+    }
+
+    public static func getBool(key: ClientDefaults.Keys) -> Bool? {
+        guard udSuite.object(forKey: key.rawValue) != nil else { return nil }
+        return udSuite.bool(forKey: key.rawValue)
     }
 
     private static var udSuite: UserDefaults {
@@ -75,6 +85,9 @@ extension ClientDefaults.Keys {
                 return "vminit:latest"
             }
             return "ghcr.io/apple/containerization/vminit:\(tag)"
+        case .buildRosetta:
+            // This is a boolean key, not used with the string get() method
+            return "true"
         }
     }
 }
