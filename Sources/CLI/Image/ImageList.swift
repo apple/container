@@ -82,10 +82,11 @@ extension Application {
 
                     let processedReferenceString = try ClientImage.denormalizeReference(image.reference)
                     let reference = try ContainerizationOCI.Reference.parse(processedReferenceString)
+                    let displayDigest = try await image.displayDigest()
                     let row = [
                         reference.name,
                         reference.tag ?? "<none>",
-                        Utility.trimDigest(digest: image.descriptor.digest),
+                        Utility.trimDigest(digest: displayDigest),
                         os,
                         arch,
                         variant,
@@ -130,10 +131,11 @@ extension Application {
             for image in images {
                 let processedReferenceString = try ClientImage.denormalizeReference(image.reference)
                 let reference = try ContainerizationOCI.Reference.parse(processedReferenceString)
+                let displayDigest = try await image.displayDigest()
                 rows.append([
                     reference.name,
                     reference.tag ?? "<none>",
-                    Utility.trimDigest(digest: image.descriptor.digest),
+                    Utility.trimDigest(digest: displayDigest),
                 ])
             }
             let formatter = TableOutput(rows: rows)
