@@ -43,10 +43,17 @@ public struct ImageDetail: Codable {
 
 extension ClientImage {
     public func details() async throws -> ImageDetail {
-        let indexDescriptor = self.descriptor
+        let index = try await self.index()
         let reference = self.reference
+
+        let descriptor: Descriptor = if self.descriptor.annotations?[AnnotationKeys.containerizationIndexIndirect] == "true" {
+            index.manifests.first!
+        } else {
+            self.descriptor
+        }
+
         var variants: [ImageDetail.Variants] = []
-        for desc in try await self.index().manifests {
+        for desc in index.manifests {
             guard let platform = desc.platform else {
                 continue
             }
@@ -61,6 +68,6 @@ extension ClientImage {
             let size = desc.size + manifest.config.size + manifest.layers.reduce(0, { (l, r) in l + r.size })
             variants.append(.init(platform: platform, size: size, config: config))
         }
-        return ImageDetail(name: reference, index: indexDescriptor, variants: variants)
+        return ImageDetail(name: reference, index: descriptor, variants: variants)
     }
 }
