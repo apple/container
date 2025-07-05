@@ -26,7 +26,7 @@ extension Application {
         static let configuration = CommandConfiguration(
             commandName: "list",
             abstract: "List containers",
-            aliases: ["ls"])
+            aliases: ["ls", "ps"])
 
         @Flag(name: .shortAndLong, help: "Show stopped containers as well")
         var all = false
