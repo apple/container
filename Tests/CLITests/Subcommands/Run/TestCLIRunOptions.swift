@@ -22,6 +22,10 @@ import Foundation
 import Testing
 
 class TestCLIRunCommand: CLITest {
+    static let isRosettaInstalled: Bool = {
+        FileManager.default.fileExists(atPath: "/Library/Apple/usr/libexec/oah/RosettaLinux/rosetta")
+    }()
+
     @Test func testRunCommand() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
@@ -260,7 +264,8 @@ class TestCLIRunCommand: CLITest {
         }
     }
 
-    @Test func testRunCommandOSArch() throws {
+    @Test(.enabled(if: isRosettaInstalled))
+    func testRunCommandOSArch() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
             let os = "linux"
