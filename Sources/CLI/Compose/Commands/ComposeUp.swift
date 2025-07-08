@@ -145,7 +145,7 @@ extension Application {
             fatalError("unreachable")
         }
         
-        func getIPForRunningService(_ serviceName: String) async throws -> String? {
+        private func getIPForRunningService(_ serviceName: String) async throws -> String? {
             guard let projectName else { return nil }
             
             let containerName = "\(projectName)-\(serviceName)"
@@ -179,7 +179,7 @@ extension Application {
         ///   - timeout: Max seconds to wait before failing.
         ///   - interval: How often to poll (in seconds).
         /// - Returns: `true` if the container reached "running" state within the timeout.
-        func waitUntilServiceIsRunning(_ serviceName: String, timeout: TimeInterval = 30, interval: TimeInterval = 0.5) async throws {
+        private func waitUntilServiceIsRunning(_ serviceName: String, timeout: TimeInterval = 30, interval: TimeInterval = 0.5) async throws {
             guard let projectName else { return }
             let containerName = "\(projectName)-\(serviceName)"
             
@@ -205,7 +205,7 @@ extension Application {
                 ])
         }
         
-        func stopOldStuff(_ services: [String], remove: Bool) async throws {
+        private func stopOldStuff(_ services: [String], remove: Bool) async throws {
             guard let projectName else { return }
             let containers = services.map { "\(projectName)-\($0)" }
             
@@ -226,7 +226,7 @@ extension Application {
         
         // MARK: Compose Top Level Functions
         
-        mutating func updateEnvironmentWithServiceIP(_ serviceName: String) async throws {
+        private mutating func updateEnvironmentWithServiceIP(_ serviceName: String) async throws {
             let ip = try await getIPForRunningService(serviceName)
             self.containerIps[serviceName] = ip
             for (key, value) in environmentVariables.map({ ($0, $1) }) where value == serviceName {
@@ -234,7 +234,7 @@ extension Application {
             }
         }
         
-        func createVolumeHardLink(name volumeName: String, config volumeConfig: Volume) async {
+        private func createVolumeHardLink(name volumeName: String, config volumeConfig: Volume) async {
             guard let projectName else { return }
             let actualVolumeName = volumeConfig.name ?? volumeName  // Use explicit name or key as name
             
@@ -247,7 +247,7 @@ extension Application {
             try? fileManager.createDirectory(atPath: volumePath, withIntermediateDirectories: true)
         }
         
-        func setupNetwork(name networkName: String, config networkConfig: Network) async throws {
+        private func setupNetwork(name networkName: String, config networkConfig: Network) async throws {
             let actualNetworkName = networkConfig.name ?? networkName  // Use explicit name or key as name
             
             if let externalNetwork = networkConfig.external, externalNetwork.isExternal {
@@ -303,7 +303,7 @@ extension Application {
         }
         
         // MARK: Compose Service Level Functions
-        mutating func configService(_ service: Service, serviceName: String, from dockerCompose: DockerCompose) async throws {
+        private mutating func configService(_ service: Service, serviceName: String, from dockerCompose: DockerCompose) async throws {
             guard let projectName else { throw ComposeError.invalidProjectName }
             
             var imageToRun: String
@@ -534,7 +534,7 @@ extension Application {
             }
         }
         
-        func pullImage(_ image: String) async throws {
+        private func pullImage(_ image: String) async throws {
             let imageList = try await runCommand("container", args: ["images", "ls"]).stdout.replacingOccurrences(of: " ", with: "")
             guard !imageList.contains(image.replacingOccurrences(of: ":", with: "")) else {
                 return
@@ -556,7 +556,7 @@ extension Application {
         ///   - serviceName: The fallback name for the image
         ///
         /// - Returns: Image Name (`String`)
-        func buildService(_ buildConfig: Build, for service: Service, serviceName: String) async throws -> String {
+        private func buildService(_ buildConfig: Build, for service: Service, serviceName: String) async throws -> String {
             
             var buildCommandArgs: [String] = ["build"]
             
@@ -607,7 +607,7 @@ extension Application {
             return imageToRun
         }
         
-        func configVolume(_ volume: String) async throws -> [String] {
+        private func configVolume(_ volume: String) async throws -> [String] {
             let resolvedVolume = resolveVariable(volume, with: environmentVariables)
             
             var runCommandArgs: [String] = []

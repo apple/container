@@ -79,7 +79,7 @@ extension Application {
             try await stopOldStuff(services.map({ $0.serviceName }), remove: false)
         }
         
-        func stopOldStuff(_ services: [String], remove: Bool) async throws {
+        private func stopOldStuff(_ services: [String], remove: Bool) async throws {
             guard let projectName else { return }
             let containers = services.map { "\(projectName)-\($0)" }
             
@@ -114,7 +114,7 @@ extension Application {
         /// print(result.stdout) // "Hello\n"
         /// ```
         @discardableResult
-        func runCommand(_ command: String, args: [String] = []) async throws -> CommandResult {
+        private func runCommand(_ command: String, args: [String] = []) async throws -> CommandResult {
             try await withCheckedThrowingContinuation { continuation in
                 let process = Process()
                 let stdoutPipe = Pipe()
