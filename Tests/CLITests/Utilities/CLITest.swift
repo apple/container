@@ -37,6 +37,7 @@ class CLITest {
     }
 
     let alpine = "ghcr.io/linuxcontainers/alpine:3.20"
+    let alpine318 = "ghcr.io/linuxcontainers/alpine:3.18"
     let busybox = "ghcr.io/containerd/busybox:1.36"
 
     let defaultContainerArgs = ["sleep", "infinity"]

@@ -71,7 +71,11 @@ public struct Utility {
         registry: Flags.Registry,
         progressUpdate: @escaping ProgressUpdateHandler
     ) async throws -> (ContainerConfiguration, Kernel) {
-        let requestedPlatform = Parser.platform(os: management.os, arch: management.arch)
+        var requestedPlatform = Parser.platform(os: management.os, arch: management.arch)
+        // Prefer --platform
+        if let platform = management.platform {
+            requestedPlatform = try Parser.platform(from: platform)
+        }
         let scheme = try RequestScheme(registry.scheme)
 
         await progressUpdate([
@@ -155,7 +159,10 @@ public struct Utility {
         } else {
             // networks may only be specified for macOS 26+
             guard #available(macOS 26, *) else {
-                throw ContainerizationError(.invalidArgument, message: "non-default network configuration requires macOS 26 or newer")
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "non-default network configuration requires macOS 26 or newer"
+                )
             }
             config.networks = management.networks
         }

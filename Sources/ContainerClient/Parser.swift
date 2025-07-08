@@ -31,7 +31,6 @@ public struct Parser {
         user: String?, uid: UInt32?, gid: UInt32?,
         defaultUser: ProcessConfiguration.User = .id(uid: 0, gid: 0)
     ) -> (user: ProcessConfiguration.User, groups: [UInt32]) {
-
         var supplementalGroups: [UInt32] = []
         let user: ProcessConfiguration.User = {
             if let user = user, !user.isEmpty {
@@ -58,6 +57,10 @@ public struct Parser {
 
     public static func platform(os: String, arch: String) -> ContainerizationOCI.Platform {
         .init(arch: arch, os: os)
+    }
+
+    public static func platform(from platform: String) throws -> ContainerizationOCI.Platform {
+        try .init(from: platform)
     }
 
     public static func resources(cpus: Int64?, memory: String?) throws -> ContainerConfiguration.Resources {

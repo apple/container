@@ -87,6 +87,9 @@ extension Application {
             ["linux"]
         }()
 
+        @Option(name: .long, help: "set the builds platform. This takes precedence over --os and --arch")
+        var platform: [String] = []
+
         @Option(name: .long, help: ArgumentHelp("Progress type - one of [auto|plain|tty]", valueName: "type"))
         var progress: String = "auto"
 
@@ -219,6 +222,16 @@ extension Application {
                     }
                     let platforms: [Platform] = try {
                         var results: [Platform] = []
+                        if !self.platform.isEmpty {
+                            for platform in self.platform {
+                                guard let p = try? Platform(from: platform) else {
+                                    throw ValidationError("invalid platform specified \(platform)")
+                                }
+                                results.append(p)
+                            }
+                            return results
+                        }
+
                         for o in self.os {
                             for a in self.arch {
                                 guard let platform = try? Platform(from: "\(o)/\(a)") else {
