@@ -1,12 +1,14 @@
 version: 1
 builder:
   configs:
-    - documentation_targets:
-      - ContainerSandboxService
-      - ContainerNetworkService
-      - ContainerImagesService
-      - ContainerClient
-      - ContainerLog
-      - ContainerPlugin
-      - ContainerXPC
-      - TerminalProgress
+    -
+      documentation_targets:
+        - ContainerSandboxService
+        - ContainerNetworkService
+        - ContainerImagesService
+        - ContainerClient
+        - ContainerLog
+        - ContainerPlugin
+        - ContainerXPC
+        - TerminalProgress
+      swift_version: '6.2'
