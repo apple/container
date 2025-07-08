@@ -151,7 +151,6 @@ extension Application {
             let containerName = "\(projectName)-\(serviceName)"
             
             // Run the container list command
-            let containers = ContainerList(all: true)
             let containerCommandOutput = try await runCommand("container", args: ["list", "-a"])
             let allLines = containerCommandOutput.stdout.components(separatedBy: .newlines)
             
@@ -713,7 +712,7 @@ extension Application.ComposeUp {
                 let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
 
                 guard stderrData.isEmpty else {
-                    continuation.resume(throwing: TerminalError.commandFailed(String(decoding: stderrData, as: UTF8.self)))
+                    continuation.resume(throwing: Application.TerminalError.commandFailed(String(decoding: stderrData, as: UTF8.self)))
                     return
                 }
 
