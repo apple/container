@@ -63,7 +63,7 @@ extension Application {
                 print("Note: The 'name' field currently only affects container naming (e.g., '\(name)-serviceName'). Full project-level isolation for other resources (networks, implicit volumes) is not implemented by this tool.")
             } else {
                 projectName = URL(fileURLWithPath: cwd).lastPathComponent // Default to directory name
-                print("Info: No 'name' field found in docker-compose.yml. Using directory name as project name: \(projectName)")
+                print("Info: No 'name' field found in docker-compose.yml. Using directory name as project name: \(projectName ?? "")")
             }
             
             var services: [(serviceName: String, service: Service)] = dockerCompose.services.map({ ($0, $1) })

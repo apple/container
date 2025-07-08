@@ -88,7 +88,7 @@ extension Application {
                 print("Note: The 'name' field currently only affects container naming (e.g., '\(name)-serviceName'). Full project-level isolation for other resources (networks, implicit volumes) is not implemented by this tool.")
             } else {
                 projectName = URL(fileURLWithPath: cwd).lastPathComponent // Default to directory name
-                print("Info: No 'name' field found in docker-compose.yml. Using directory name as project name: \(projectName)")
+                print("Info: No 'name' field found in docker-compose.yml. Using directory name as project name: \(projectName ?? "")")
             }
             
             // Get Services to use
@@ -258,12 +258,12 @@ extension Application {
                 
                 #warning("Docker Compose Network Options Not Supported")
                 // Add driver and driver options
-                if let driver = networkConfig.driver {
+                if let driver = networkConfig.driver, !driver.isEmpty {
 //                    networkCreateArgs.append("--driver")
 //                    networkCreateArgs.append(driver)
                     print("Network Driver Detected, But Not Supported")
                 }
-                if let driverOpts = networkConfig.driver_opts {
+                if let driverOpts = networkConfig.driver_opts, !driverOpts.isEmpty {
 //                    for (optKey, optValue) in driverOpts {
 //                        networkCreateArgs.append("--opt")
 //                        networkCreateArgs.append("\(optKey)=\(optValue)")
@@ -285,7 +285,7 @@ extension Application {
                 }  // CORRECTED: Use isInternal
                 
                 // Add labels
-                if let labels = networkConfig.labels {
+                if let labels = networkConfig.labels, !labels.isEmpty {
                     print("Network Labels Detected, But Not Supported")
 //                    for (labelKey, labelValue) in labels {
 //                        networkCreateArgs.append("--label")
