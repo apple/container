@@ -256,28 +256,41 @@ extension Application {
             } else {
                 var networkCreateArgs: [String] = ["network", "create"]
                 
+                #warning("Docker Compose Network Options Not Supported")
                 // Add driver and driver options
                 if let driver = networkConfig.driver {
-                    networkCreateArgs.append("--driver")
-                    networkCreateArgs.append(driver)
+//                    networkCreateArgs.append("--driver")
+//                    networkCreateArgs.append(driver)
+                    print("Network Driver Detected, But Not Supported")
                 }
                 if let driverOpts = networkConfig.driver_opts {
-                    for (optKey, optValue) in driverOpts {
-                        networkCreateArgs.append("--opt")
-                        networkCreateArgs.append("\(optKey)=\(optValue)")
-                    }
+//                    for (optKey, optValue) in driverOpts {
+//                        networkCreateArgs.append("--opt")
+//                        networkCreateArgs.append("\(optKey)=\(optValue)")
+//                    }
+                    print("Network Options Detected, But Not Supported")
                 }
                 // Add various network flags
-                if networkConfig.attachable == true { networkCreateArgs.append("--attachable") }
-                if networkConfig.enable_ipv6 == true { networkCreateArgs.append("--ipv6") }
-                if networkConfig.isInternal == true { networkCreateArgs.append("--internal") }  // CORRECTED: Use isInternal
+                if networkConfig.attachable == true {
+//                    networkCreateArgs.append("--attachable")
+                    print("Network Attachable Flag Detected, But Not Supported")
+                }
+                if networkConfig.enable_ipv6 == true {
+//                    networkCreateArgs.append("--ipv6")
+                    print("Network IPv6 Flag Detected, But Not Supported")
+                }
+                if networkConfig.isInternal == true {
+//                    networkCreateArgs.append("--internal")
+                    print("Network Internal Flag Detected, But Not Supported")
+                }  // CORRECTED: Use isInternal
                 
                 // Add labels
                 if let labels = networkConfig.labels {
-                    for (labelKey, labelValue) in labels {
-                        networkCreateArgs.append("--label")
-                        networkCreateArgs.append("\(labelKey)=\(labelValue)")
-                    }
+                    print("Network Labels Detected, But Not Supported")
+//                    for (labelKey, labelValue) in labels {
+//                        networkCreateArgs.append("--label")
+//                        networkCreateArgs.append("\(labelKey)=\(labelValue)")
+//                    }
                 }
                 
                 networkCreateArgs.append(actualNetworkName)  // Add the network name
@@ -285,7 +298,6 @@ extension Application {
                 print("Creating network: \(networkName) (Actual name: \(actualNetworkName))")
                 print("Executing container network create: container \(networkCreateArgs.joined(separator: " "))")
                 let _ = try await runCommand("container", args: networkCreateArgs)
-#warning("Network creation output not used")
                 print("Network '\(networkName)' created or already exists.")
             }
         }
