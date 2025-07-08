@@ -194,7 +194,7 @@ struct ProcessIO {
 
     static func create(tty: Bool, interactive: Bool, detach: Bool) throws -> ProcessIO {
         let current: Terminal? = try {
-            if !tty {
+            if !tty || !interactive {
                 return nil
             }
             let current = try Terminal.current
