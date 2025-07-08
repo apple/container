@@ -297,7 +297,7 @@ extension Application {
                 
                 print("Creating network: \(networkName) (Actual name: \(actualNetworkName))")
                 print("Executing container network create: container \(networkCreateArgs.joined(separator: " "))")
-                let _ = try await runCommand("container", args: networkCreateArgs)
+                let _ = try? await runCommand("container", args: networkCreateArgs)
                 print("Network '\(networkName)' created or already exists.")
             }
         }
