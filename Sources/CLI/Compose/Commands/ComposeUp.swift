@@ -564,9 +564,8 @@ extension Application {
         private func buildService(_ buildConfig: Build, for service: Service, serviceName: String) async throws -> String {
             // Determine image tag for built image
             let imageToRun = service.image ?? "\(serviceName):latest"
-            let searchName = imageToRun.split(separator: ":").first
-            let imagesList = try await runCommand("container", args: ["images", "list"]).stdout
-            if !rebuild, let searchName, imagesList.contains(searchName) {
+            let imageList = try await ClientImage.list()
+            if !rebuild, imageList.contains(where: { $0.description.reference.components(separatedBy: "/").last == imageToRun }) {
                 return imageToRun
             }
             
