@@ -278,12 +278,18 @@ extension Application {
 //                    }
                 }
                 
-                networkCreateArgs.append(actualNetworkName)  // Add the network name
-                
                 print("Creating network: \(networkName) (Actual name: \(actualNetworkName))")
                 print("Executing container network create: container \(networkCreateArgs.joined(separator: " "))")
-                let _ = try? await runCommand("container", args: networkCreateArgs)
-                print("Network '\(networkName)' created or already exists.")
+                guard (try? await ClientNetwork.get(id: actualNetworkName)) == nil else {
+                    print("Network '\(networkName)' already exists")
+                    return
+                }
+                var networkCreate = NetworkCreate()
+                networkCreate.global = global
+                networkCreate.name = actualNetworkName
+                
+                try await networkCreate.run()
+                print("Network '\(networkName)' created")
             }
         }
         
@@ -519,18 +525,29 @@ extension Application {
             }
         }
         
-        private func pullImage(_ image: String) async throws {
-            let imageList = try await runCommand("container", args: ["images", "ls"]).stdout.replacingOccurrences(of: " ", with: "")
-            guard !imageList.contains(image.replacingOccurrences(of: ":", with: "")) else {
+        private func pullImage(_ imageName: String) async throws {
+            let imageList = try await ClientImage.list()
+            guard !imageList.contains(where: { $0.description.reference.components(separatedBy: "/").last == imageName }) else {
                 return
             }
             
-            print("Pulling Image \(image)...")
-            try await streamCommand("container", args: ["image", "pull", image]) { str in
-                print(str.blue)
-            } onStderr: { str in
-                print(str.red)
-            }
+            print("Pulling Image \(imageName)...")
+            
+            let processedReference = try ClientImage.normalizeReference(imageName)
+            
+            var registry = Flags.Registry()
+            registry.scheme = "auto" // Set or SwiftArgumentParser gets mad
+            
+            var progress = Flags.Progress()
+            progress.disableProgressUpdates = false
+            
+            var imagePull = ImagePull()
+            imagePull.progressFlags = progress
+            imagePull.registry = registry
+            imagePull.global = global
+            imagePull.reference = imageName
+            imagePull.platform = nil
+            try await imagePull.run()
         }
         
         /// Builds Docker Service
