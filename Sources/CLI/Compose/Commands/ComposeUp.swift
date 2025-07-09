@@ -46,6 +46,9 @@ extension Application {
         @Flag(name: [.customShort("b"), .customLong("build")])
         var rebuild: Bool = false
         
+        @Flag(name: .long, help: "Do not use cache")
+        var noCache: Bool = false
+        
         @OptionGroup
         var process: Flags.Process
         
@@ -559,50 +562,49 @@ extension Application {
         ///
         /// - Returns: Image Name (`String`)
         private func buildService(_ buildConfig: Build, for service: Service, serviceName: String) async throws -> String {
-            
-            var buildCommandArgs: [String] = ["build"]
-            
             // Determine image tag for built image
             let imageToRun = service.image ?? "\(serviceName):latest"
             let searchName = imageToRun.split(separator: ":").first
-            BuildCommand(targetImageName: <#T##String#>)
             let imagesList = try await runCommand("container", args: ["images", "list"]).stdout
             if !rebuild, let searchName, imagesList.contains(searchName) {
                 return imageToRun
             }
             
-            do {
-                try await runCommand("container", args: ["images", "rm", imageToRun])
-            } catch {
-            }
+            var buildCommand = BuildCommand()
             
-            buildCommandArgs.append("--tag")
-            buildCommandArgs.append(imageToRun)
+            // Set Build Commands
+            buildCommand.buildArg = (buildConfig.args ?? [:]).map({ "\($0.key)=\(resolveVariable($0.value, with: environmentVariables))" })
             
-            // Resolve build context path
-            let resolvedContext = resolveVariable(buildConfig.context, with: environmentVariables)
-            buildCommandArgs.append(resolvedContext)
+            // Locate Dockerfile and context
+            buildCommand.contextDir = buildConfig.context
+            buildCommand.file = buildConfig.dockerfile ?? "Dockerfile"
             
-            // Add Dockerfile path if specified
-            if let dockerfile = buildConfig.dockerfile {
-                let resolvedDockerfile = resolveVariable(dockerfile, with: environmentVariables)
-                buildCommandArgs.append("--file")
-                buildCommandArgs.append(resolvedDockerfile)
-            }
+            // Handle Caching
+            buildCommand.noCache = noCache
+            buildCommand.cacheIn = []
+            buildCommand.cacheOut = []
             
-            // Add build arguments
-            if let args = buildConfig.args {
-                for (key, value) in args {
-                    let resolvedValue = resolveVariable(value, with: environmentVariables)
-                    buildCommandArgs.append("--build-arg")
-                    buildCommandArgs.append("\(key)=\(resolvedValue)")
-                }
-            }
+            // Handle OS/Arch
+            let split = service.platform?.split(separator: "/")
+            buildCommand.os = [String(split?.first ?? "linux")]
+            buildCommand.arch = [String(((split ?? []).count >= 1 ? split?.last : nil) ?? "arm64")]
             
+            // Set Image Name
+            buildCommand.targetImageName = imageToRun
+            
+            // Set CPU & Memory
+            buildCommand.cpus = Int64(service.deploy?.resources?.limits?.cpus ?? "2") ?? 2
+            buildCommand.memory = service.deploy?.resources?.limits?.memory ?? "2048MB"
+            
+            // Set Miscelaneous
+            buildCommand.label = [] // No Label Equivalent?
+            buildCommand.progress = "auto"
+            buildCommand.vsockPort = 8080
+            buildCommand.quiet = false
+            buildCommand.target = ""
             print("\n----------------------------------------")
             print("Building image for service: \(serviceName) (Tag: \(imageToRun))")
-            print("Executing container build: container \(buildCommandArgs.joined(separator: " "))")
-            try await streamCommand("container", args: buildCommandArgs, onStdout: { print($0.blue) }, onStderr: { print($0.blue) })
+            try await buildCommand.run()
             print("Image build for \(serviceName) completed.")
             print("----------------------------------------")
             

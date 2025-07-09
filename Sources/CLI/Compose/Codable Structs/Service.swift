@@ -104,7 +104,7 @@ struct Service: Codable, Hashable {
     // Defines custom coding keys to map YAML keys to Swift properties
     enum CodingKeys: String, CodingKey {
         case image, build, deploy, restart, healthcheck, volumes, environment, env_file, ports, command, depends_on, user,
-             container_name, networks, hostname, entrypoint, privileged, read_only, working_dir, configs, secrets, stdin_open, tty
+             container_name, networks, hostname, entrypoint, privileged, read_only, working_dir, configs, secrets, stdin_open, tty, platform
     }
 
     /// Custom initializer to handle decoding and basic validation.
@@ -158,6 +158,7 @@ struct Service: Codable, Hashable {
         secrets = try container.decodeIfPresent([ServiceSecret].self, forKey: .secrets)
         stdin_open = try container.decodeIfPresent(Bool.self, forKey: .stdin_open)
         tty = try container.decodeIfPresent(Bool.self, forKey: .tty)
+        platform = try container.decodeIfPresent(String.self, forKey: .platform)
     }
     
     /// Returns the services in topological order based on `depends_on` relationships.
