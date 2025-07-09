@@ -576,8 +576,8 @@ extension Application {
             buildCommand.buildArg = (buildConfig.args ?? [:]).map({ "\($0.key)=\(resolveVariable($0.value, with: environmentVariables))" })
             
             // Locate Dockerfile and context
-            buildCommand.contextDir = buildConfig.context
-            buildCommand.file = buildConfig.dockerfile ?? "Dockerfile"
+            buildCommand.contextDir = "\(self.cwd)/\(buildConfig.context)"
+            buildCommand.file = "\(self.cwd)/\(buildConfig.dockerfile ?? "Dockerfile")"
             
             // Handle Caching
             buildCommand.noCache = noCache
@@ -599,11 +599,13 @@ extension Application {
             // Set Miscelaneous
             buildCommand.label = [] // No Label Equivalent?
             buildCommand.progress = "auto"
-            buildCommand.vsockPort = 8080
+            buildCommand.vsockPort = 8088
             buildCommand.quiet = false
             buildCommand.target = ""
+            buildCommand.output = ["type=oci"]
             print("\n----------------------------------------")
             print("Building image for service: \(serviceName) (Tag: \(imageToRun))")
+            try buildCommand.validate()
             try await buildCommand.run()
             print("Image build for \(serviceName) completed.")
             print("----------------------------------------")

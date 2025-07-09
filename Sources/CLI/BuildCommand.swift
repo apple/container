@@ -127,8 +127,7 @@ extension Application {
                             do {
                                 let container = try await ClientContainer.get(id: "buildkit")
                                 let fh = try await container.dial(self.vsockPort)
-
-                                progress.set(description: "FH: \(fh.debugDescription)")
+                                
                                 let threadGroup: MultiThreadedEventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
                                 let b = try Builder(socket: fh, group: threadGroup)
 
@@ -138,14 +137,14 @@ extension Application {
                             } catch {
                                 // If we get here, "Dialing builder" is shown for such a short period
                                 // of time that it's invisible to the user.
-//                                progress.set(tasks: 0)
-//                                progress.set(totalTasks: 3)
-//
-//                                try await BuilderStart.start(
-//                                    cpus: self.cpus,
-//                                    memory: self.memory,
-//                                    progressUpdate: progress.handler
-//                                )
+                                progress.set(tasks: 0)
+                                progress.set(totalTasks: 3)
+
+                                try await BuilderStart.start(
+                                    cpus: self.cpus,
+                                    memory: self.memory,
+                                    progressUpdate: progress.handler
+                                )
 
                                 // wait (seconds) for builder to start listening on vsock
                                 try await Task.sleep(for: .seconds(5))
