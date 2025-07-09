@@ -535,9 +535,6 @@ extension Application {
             }
             
             print("Pulling Image \(imageName)...")
-            
-            let processedReference = try ClientImage.normalizeReference(imageName)
-            
             var registry = Flags.Registry()
             registry.scheme = "auto" // Set or SwiftArgumentParser gets mad
             
