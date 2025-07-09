@@ -42,6 +42,7 @@ let package = Package(
         .library(name: "ContainerNetworkService", targets: ["ContainerNetworkService"]),
         .library(name: "ContainerImagesService", targets: ["ContainerImagesService", "ContainerImagesServiceClient"]),
         .library(name: "ContainerClient", targets: ["ContainerClient"]),
+        .library(name: "ContainerCLI", targets: ["ContainerCLI"]),
         .library(name: "ContainerBuild", targets: ["ContainerBuild"]),
         .library(name: "ContainerLog", targets: ["ContainerLog"]),
         .library(name: "ContainerPersistence", targets: ["ContainerPersistence"]),
