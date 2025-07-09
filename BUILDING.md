@@ -41,23 +41,29 @@ to prepare your build environment.
 
 2. In your development shell, go to the `container` project directory.
 
-    ```
+    ```bash
     cd container
     ```
 
 3. If the `container` services are already running, stop them.
 
-    ```
+    ```bash
     bin/container system stop
     ```
 
 4. Use the Swift package manager to configure use your local `containerization` package and update your `Package.resolved` file.
 
-    ```
+    ```bash
     /usr/bin/swift package edit --path ../containerization containerization
     /usr/bin/swift package update containerization
     ```
 
+    > [!IMPORTANT]
+    > If you are using Xcode, you will need to temporarily modify `Package.swift` instead of using `swift package edit`, using a path dependency in place of the versioned `container` dependency:
+    >
+    >    ```swift
+    >    .package(.path: "../containerization"),
+    >    ```
 5. Build `container`.
 
     ```
@@ -73,22 +79,22 @@ to prepare your build environment.
 
 To revert to using the Containerization dependency from your `Package.swift`:
 
-1. Use the Swift package manager to restore the normal `containerization` dependency and update your `Package.resolved` file.
+1. Use the Swift package manager to restore the normal `containerization` dependency and update your `Package.resolved` file. If you are using Xcode, revert your `Package.swift` change instead of using `swift package unedit`.
 
-    ```
+    ```bash
     /usr/bin/swift package unedit containerization
     /usr/bin/swift package update containerization
     ```
 
 2. Rebuild `container`.
 
-    ```
+    ```bash
     make clean all
     ```
 
 3. Restart the `container` services.
 
-    ```
+    ```bash
     bin/container system stop
     bin/container system start
     ```
