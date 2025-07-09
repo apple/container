@@ -305,7 +305,7 @@ extension Application {
             } else if let img = service.image {
                 // Use specified image if no build config
                 // Pull image if necessary
-                try await pullImage(img)
+                try await pullImage(img, platform: service.container_name)
                 imageToRun = img
             } else {
                 // Should not happen due to Service init validation, but as a fallback
@@ -525,7 +525,7 @@ extension Application {
             }
         }
         
-        private func pullImage(_ imageName: String) async throws {
+        private func pullImage(_ imageName: String, platform: String?) async throws {
             let imageList = try await ClientImage.list()
             guard !imageList.contains(where: { $0.description.reference.components(separatedBy: "/").last == imageName }) else {
                 return
@@ -546,7 +546,7 @@ extension Application {
             imagePull.registry = registry
             imagePull.global = global
             imagePull.reference = imageName
-            imagePull.platform = nil
+            imagePull.platform = platform
             try await imagePull.run()
         }
         
@@ -565,7 +565,7 @@ extension Application {
             // Determine image tag for built image
             let imageToRun = service.image ?? "\(serviceName):latest"
             let searchName = imageToRun.split(separator: ":").first
-            
+            BuildCommand(targetImageName: <#T##String#>)
             let imagesList = try await runCommand("container", args: ["images", "list"]).stdout
             if !rebuild, let searchName, imagesList.contains(searchName) {
                 return imageToRun

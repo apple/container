@@ -83,6 +83,9 @@ struct Service: Codable, Hashable {
     /// Working directory inside the container
     let working_dir: String?
 
+    /// Platform architecture for the service
+    let platform: String?
+
     /// Service-specific config usage (primarily for Swarm)
     let configs: [ServiceConfig]?
 
