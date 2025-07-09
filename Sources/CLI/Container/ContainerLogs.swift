@@ -17,6 +17,7 @@
 import ArgumentParser
 import ContainerClient
 import ContainerizationError
+import Darwin
 import Dispatch
 import Foundation
 
@@ -106,7 +107,9 @@ extension Application {
                 print(str.trimmingCharacters(in: .newlines))
             }
 
+            fflush(stdout)
             if follow {
+                setbuf(stdout, nil)
                 try await Self.followFile(fh: fh)
             }
         }
