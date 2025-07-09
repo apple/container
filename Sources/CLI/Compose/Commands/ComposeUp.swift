@@ -26,6 +26,7 @@ import ContainerClient
 import Foundation
 @preconcurrency import Rainbow
 import Yams
+import ContainerizationExtras
 
 extension Application {
     struct ComposeUp: AsyncParsableCommand, @unchecked Sendable {
@@ -47,6 +48,9 @@ extension Application {
         
         @OptionGroup
         var process: Flags.Process
+        
+        @OptionGroup
+        var global: Flags.Global
         
         private var cwd: String { process.cwd ?? FileManager.default.currentDirectoryPath }
         var dockerComposePath: String { "\(cwd)/docker-compose.yml" }  // Path to docker-compose.yml
@@ -150,27 +154,10 @@ extension Application {
             
             let containerName = "\(projectName)-\(serviceName)"
             
-            // Run the container list command
-            let containerCommandOutput = try await runCommand("container", args: ["list", "-a"])
-            let allLines = containerCommandOutput.stdout.components(separatedBy: .newlines)
+            let container = try await ClientContainer.get(id: containerName)
+            let ip = container.networks.compactMap { try? CIDRAddress($0.address).address.description }.first
             
-            // Find the line matching the full container name
-            guard let matchingLine = allLines.first(where: { $0.contains(containerName) }) else {
-                return nil
-            }
-            
-            // Extract IP using regex
-            let pattern = #"\b(?:\d{1,3}\.){3}\d{1,3}\b"#
-            let regex = try NSRegularExpression(pattern: pattern)
-            
-            let range = NSRange(matchingLine.startIndex..<matchingLine.endIndex, in: matchingLine)
-            if let match = regex.firstMatch(in: matchingLine, range: range),
-               let matchRange = Range(match.range, in: matchingLine)
-            {
-                return String(matchingLine[matchRange])
-            }
-            
-            return nil
+            return ip
         }
         
         /// Repeatedly checks `container list -a` until the given container is listed as `running`.
@@ -186,12 +173,8 @@ extension Application {
             let deadline = Date().addingTimeInterval(timeout)
             
             while Date() < deadline {
-                let result = try await runCommand("container", args: ["list", "-a"])
-                let lines = result.stdout
-                    .split(separator: "\n")
-                    .map(String.init)
-                
-                if lines.contains(where: { $0.contains(containerName) && $0.contains("running") }) {
+                let container = try? await ClientContainer.get(id: containerName)
+                if container?.status == .running {
                     return
                 }
                 
@@ -211,13 +194,15 @@ extension Application {
             
             for container in containers {
                 print("Stopping container: \(container)")
+                guard let container = try? await ClientContainer.get(id: container) else { continue }
+                
                 do {
-                    try await runCommand("container", args: ["stop", container])
+                    try await container.stop()
                 } catch {
                 }
                 if remove {
                     do {
-                        try await runCommand("container", args: ["rm", container])
+                        try await container.delete()
                     } catch {
                     }
                 }
