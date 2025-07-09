@@ -127,7 +127,7 @@ extension Application {
                             do {
                                 let container = try await ClientContainer.get(id: "buildkit")
                                 let fh = try await container.dial(self.vsockPort)
-
+                                
                                 let threadGroup: MultiThreadedEventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
                                 let b = try Builder(socket: fh, group: threadGroup)
 
