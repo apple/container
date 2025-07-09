@@ -27,8 +27,10 @@ import Foundation
 import Yams
 
 extension Application {
-    struct ComposeDown: AsyncParsableCommand {
-        static let configuration: CommandConfiguration = .init(
+    public struct ComposeDown: AsyncParsableCommand {
+        public init() {}
+        
+        public static let configuration: CommandConfiguration = .init(
             commandName: "down",
             abstract: "Stop containers with compose"
         )
@@ -46,7 +48,7 @@ extension Application {
         private var fileManager: FileManager { FileManager.default }
         private var projectName: String?
         
-        mutating func run() async throws {
+        public mutating func run() async throws {
             // Read docker-compose.yml content
             guard let yamlData = fileManager.contents(atPath: dockerComposePath) else {
                 throw YamlError.dockerfileNotFound(dockerComposePath)

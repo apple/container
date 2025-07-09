@@ -29,8 +29,10 @@ import Yams
 import ContainerizationExtras
 
 extension Application {
-    struct ComposeUp: AsyncParsableCommand, @unchecked Sendable {
-        static let configuration: CommandConfiguration = .init(
+    public struct ComposeUp: AsyncParsableCommand, @unchecked Sendable {
+        public init() {}
+        
+        public static let configuration: CommandConfiguration = .init(
             commandName: "up",
             abstract: "Start containers with compose"
         )
@@ -69,7 +71,7 @@ extension Application {
             .blue, .cyan, .magenta, .lightBlack, .lightBlue, .lightCyan, .lightYellow, .yellow, .lightGreen, .green,
         ]
         
-        mutating func run() async throws {
+        public mutating func run() async throws {
             // Read docker-compose.yml content
             guard let yamlData = fileManager.contents(atPath: dockerComposePath) else {
                 throw YamlError.dockerfileNotFound(dockerComposePath)
