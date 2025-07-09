@@ -6,6 +6,9 @@ To build the `container` project, you need:
 - macOS 15 minimum, macOS 26 beta recommended
 - Xcode 26 beta
 
+> [!IMPORTANT]
+> There is a bug in the `vmnet` framework on macOS 26 beta that causes network creation to fail if the `container` helper applications are located under your `Documents` or `Desktop` directories. If you use `make install`, you can simply run the `container` binary in `/usr/local`. If you prefer to use the binaries that `make all` creates in your project `bin` and `libexec` directories, locate your project elsewhere, such as `~/projects/container`, until this issue is resolved.
+
 ## Compile and test
 
 Build `container` and the background services from source, and run basic and integration tests:
@@ -48,38 +51,33 @@ to prepare your build environment.
     bin/container system stop
     ```
 
-4. Configure the environment variable `CONTAINERIZATION_PATH` to refer to your Containerization project, and update your `Package.resolved` file.
+4. Use the Swift package manager to configure use your local `containerization` package and update your `Package.resolved` file.
 
     ```
-    export CONTAINERIZATION_PATH=../containerization
-    swift package update containerization
+    /usr/bin/swift package edit --path ../containerization containerization
+    /usr/bin/swift package update containerization
     ```
 
-5. Build the init filesystem for your local copy of the Containerization project.
-
-    ```
-    (cd ${CONTAINERIZATION_PATH} && make clean all)
-    ```
-
-6. Build `container`.
+5. Build `container`.
 
     ```
     make clean all
     ```
 
-7. Start the `container` services.
+6. Restart the `container` services.
 
     ```
+    bin/container system stop
     bin/container system start
     ```
 
 To revert to using the Containerization dependency from your `Package.swift`:
 
-1. Unset your `CONTAINERIZATION_PATH` environment variable, and update `Package.resolved`.
+1. Use the Swift package manager to restore the normal `containerization` dependency and update your `Package.resolved` file.
 
     ```
-    unset CONTAINERIZATION_PATH
-    swift package update containerization
+    /usr/bin/swift package unedit containerization
+    /usr/bin/swift package update containerization
     ```
 
 2. Rebuild `container`.
@@ -91,5 +89,6 @@ To revert to using the Containerization dependency from your `Package.swift`:
 3. Restart the `container` services.
 
     ```
-    bin/container system restart
+    bin/container system stop
+    bin/container system start
     ```

@@ -18,9 +18,13 @@ IMAGE_NAME="vminit:latest"
 DESTDIR="${1:-$(git rev-parse --show-toplevel)/bin}"
 mkdir -p "${DESTDIR}"
 
-CONTAINERIZATION_VERSION="${CONTAINERIZATION_VERSION:-$(${SWIFT} package show-dependencies --format json | jq -r '.dependencies[] | select(.identity == "containerization") | .version')}"
-if [ ! -z "${CONTAINERIZATION_PATH}" -o "${CONTAINERIZATION_VERSION}" == "unspecified" ] ; then
-	CONTAINERIZATION_PATH="${CONTAINERIZATION_PATH:-$(${SWIFT} package show-dependencies --format json | jq -r '.dependencies[] | select(.identity == "containerization") | .path')}"
+CONTAINERIZATION_VERSION="$(${SWIFT} package show-dependencies --format json | jq -r '.dependencies[] | select(.identity == "containerization") | .version')"
+if [ "${CONTAINERIZATION_VERSION}" == "unspecified" ] ; then
+	CONTAINERIZATION_PATH="$(${SWIFT} package show-dependencies --format json | jq -r '.dependencies[] | select(.identity == "containerization") | .path')"
+	if [ ! -d "${CONTAINERIZATION_PATH}" ] ; then
+		echo "editable containerization directory at ${CONTAINERIZATION_PATH} does not exist"
+		exit 1
+	fi
 	echo "Creating InitImage"
 	make -C ${CONTAINERIZATION_PATH} init
 	${CONTAINERIZATION_PATH}/bin/cctl images save -o /tmp/init.tar ${IMAGE_NAME}
