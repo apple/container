@@ -84,6 +84,26 @@ let package = Package(
             ],
             path: "Sources/CLI"
         ),
+        .target(
+            name: "ContainerCLI",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "SwiftProtobuf", package: "swift-protobuf"),
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                .product(name: "ContainerizationOS", package: "containerization"),
+                "CVersion",
+                "TerminalProgress",
+                "ContainerBuild",
+                "ContainerClient",
+                "ContainerPlugin",
+                "ContainerLog",
+                "Yams",
+                "Rainbow",
+            ],
+            path: "Sources/ContainerCLI"
+        ),
         .executableTarget(
             name: "container-apiserver",
             dependencies: [
