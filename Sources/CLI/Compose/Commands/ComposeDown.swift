@@ -85,75 +85,17 @@ extension Application {
             
             for container in containers {
                 print("Stopping container: \(container)")
+                guard let container = try? await ClientContainer.get(id: container) else { continue }
+                
                 do {
-                    try await runCommand("container", args: ["stop", container])
+                    try await container.stop()
                 } catch {
                 }
                 if remove {
                     do {
-                        try await runCommand("container", args: ["rm", container])
+                        try await container.delete()
                     } catch {
                     }
-                }
-            }
-        }
-        
-        /// Runs a command-line tool asynchronously and captures its output and exit code.
-        ///
-        /// This function uses async/await and `Process` to launch a command-line tool,
-        /// returning a `CommandResult` containing the output, error, and exit code upon completion.
-        ///
-        /// - Parameters:
-        ///   - command: The full path to the executable to run (e.g., `/bin/ls`).
-        ///   - args: An array of arguments to pass to the command. Defaults to an empty array.
-        /// - Returns: A `CommandResult` containing `stdout`, `stderr`, and `exitCode`.
-        /// - Throws: An error if the process fails to launch.
-        /// - Example:
-        /// ```swift
-        /// let result = try await runCommand("/bin/echo", args: ["Hello"])
-        /// print(result.stdout) // "Hello\n"
-        /// ```
-        @discardableResult
-        private func runCommand(_ command: String, args: [String] = []) async throws -> CommandResult {
-            try await withCheckedThrowingContinuation { continuation in
-                let process = Process()
-                let stdoutPipe = Pipe()
-                let stderrPipe = Pipe()
-                
-                process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-                process.arguments = [command] + args
-                process.currentDirectoryURL = URL(fileURLWithPath: cwd)
-                process.standardOutput = stdoutPipe
-                process.standardError = stderrPipe
-                
-                // Manually set PATH so it can find `container`
-                process.environment = ProcessInfo.processInfo.environment.merging([
-                    "PATH": "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-                ]) { _, new in new }
-                
-                do {
-                    try process.run()
-                } catch {
-                    continuation.resume(throwing: error)
-                    return
-                }
-                
-                process.terminationHandler = { proc in
-                    let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-                    let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-                    
-                    guard stderrData.isEmpty else {
-                        continuation.resume(throwing: TerminalError.commandFailed(String(decoding: stderrData, as: UTF8.self)))
-                        return
-                    }
-                    
-                    let result = CommandResult(
-                        stdout: String(decoding: stdoutData, as: UTF8.self),
-                        stderr: String(decoding: stderrData, as: UTF8.self),
-                        exitCode: proc.terminationStatus
-                    )
-                    
-                    continuation.resume(returning: result)
                 }
             }
         }

@@ -684,66 +684,6 @@ extension Application {
 // MARK: CommandLine Functions
 extension Application.ComposeUp {
 
-    /// Runs a command-line tool asynchronously and captures its output and exit code.
-    ///
-    /// This function uses async/await and `Process` to launch a command-line tool,
-    /// returning a `CommandResult` containing the output, error, and exit code upon completion.
-    ///
-    /// - Parameters:
-    ///   - command: The full path to the executable to run (e.g., `/bin/ls`).
-    ///   - args: An array of arguments to pass to the command. Defaults to an empty array.
-    /// - Returns: A `CommandResult` containing `stdout`, `stderr`, and `exitCode`.
-    /// - Throws: An error if the process fails to launch.
-    /// - Example:
-    /// ```swift
-    /// let result = try await runCommand("/bin/echo", args: ["Hello"])
-    /// print(result.stdout) // "Hello\n"
-    /// ```
-    @discardableResult
-    func runCommand(_ command: String, args: [String] = []) async throws -> CommandResult {
-        try await withCheckedThrowingContinuation { continuation in
-            let process = Process()
-            let stdoutPipe = Pipe()
-            let stderrPipe = Pipe()
-
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-            process.arguments = [command] + args
-            process.currentDirectoryURL = URL(fileURLWithPath: cwd)
-            process.standardOutput = stdoutPipe
-            process.standardError = stderrPipe
-
-            // Manually set PATH so it can find `container`
-            process.environment = ProcessInfo.processInfo.environment.merging([
-                "PATH": "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-            ]) { _, new in new }
-
-            do {
-                try process.run()
-            } catch {
-                continuation.resume(throwing: error)
-                return
-            }
-
-            process.terminationHandler = { proc in
-                let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-                let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-
-                guard stderrData.isEmpty else {
-                    continuation.resume(throwing: Application.TerminalError.commandFailed(String(decoding: stderrData, as: UTF8.self)))
-                    return
-                }
-
-                let result = CommandResult(
-                    stdout: String(decoding: stdoutData, as: UTF8.self),
-                    stderr: String(decoding: stderrData, as: UTF8.self),
-                    exitCode: proc.terminationStatus
-                )
-
-                continuation.resume(returning: result)
-            }
-        }
-    }
-
     /// Runs a command, streams stdout and stderr via closures, and completes when the process exits.
     ///
     /// - Parameters:
@@ -806,40 +746,5 @@ extension Application.ComposeUp {
                 continuation.resume(throwing: error)
             }
         }
-    }
-
-    /// Launches a detached command-line process without waiting for its output or termination.
-    ///
-    /// This function is useful when you want to spawn a process that runs in the background
-    /// independently of the current ComposeUp. Output streams are redirected to null devices.
-    ///
-    /// - Parameters:
-    ///   - command: The full path to the executable to launch (e.g., `/usr/bin/open`).
-    ///   - args: An array of arguments to pass to the command. Defaults to an empty array.
-    /// - Returns: The `Process` instance that was launched, in case you want to retain or manage it.
-    /// - Throws: An error if the process fails to launch.
-    /// - Example:
-    /// ```swift
-    /// try launchDetachedCommand("/usr/bin/open", args: ["/ComposeUps/Calculator.app"])
-    /// ```
-    @discardableResult
-    func launchDetachedCommand(_ command: String, args: [String] = []) throws -> Process {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = [command] + args
-        process.currentDirectoryURL = URL(fileURLWithPath: cwd)
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        process.standardInput = FileHandle.nullDevice
-        // Manually set PATH so it can find `container`
-        process.environment = ProcessInfo.processInfo.environment.merging([
-            "PATH": "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-        ]) { _, new in new }
-
-        // Set this to true to run independently of the launching app
-        process.qualityOfService = .background
-
-        try process.run()
-        return process
     }
 }
