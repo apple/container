@@ -215,12 +215,18 @@ struct ProcessIO {
             if interactive {
                 let pin = FileHandle.standardInput
                 pin.readabilityHandler = { handle in
-                    let data = handle.availableData
-                    if data.isEmpty {
+                    do {
+                        let sent = try Self.streamStdin(to: stdin.fileHandleForWriting)
+                        // readabilityHandler only fires once for regular files. So the classic
+                        // `let data = handle.availableData -> data.isEmpty` check isn't sufficient.
+                        if sent == 0 || pin.isRegularFile {
+                            pin.readabilityHandler = nil
+                            try? stdin.fileHandleForWriting.close()
+                        }
+                    } catch {
                         pin.readabilityHandler = nil
-                        return
+                        try? stdin.fileHandleForWriting.close()
                     }
-                    try! stdin.fileHandleForWriting.write(contentsOf: data)
                 }
             }
             stdio[0] = stdin.fileHandleForReading
@@ -294,6 +300,22 @@ struct ProcessIO {
         )
     }
 
+    static func streamStdin(to: FileHandle) throws -> Int {
+        let from = FileHandle.standardInput
+
+        var sent = 0
+        let pageSize = Int(getpagesize())
+        while true {
+            let data = try from.read(upToCount: pageSize) ?? Data()
+            if data.isEmpty {
+                break
+            }
+            try to.write(contentsOf: data)
+            sent += data.count
+        }
+        return sent
+    }
+
     public func wait() async throws {
         guard let ioTracker = self.ioTracker else {
             return
@@ -313,5 +335,15 @@ struct ProcessIO {
             log.error("Timeout waiting for IO to complete : \(error)")
             throw error
         }
+    }
+}
+
+extension FileHandle {
+    var isRegularFile: Bool {
+        var statbuf = stat()
+        if fstat(self.fileDescriptor, &statbuf) != 0 {
+            return false
+        }
+        return (statbuf.st_mode & S_IFMT) == S_IFREG
     }
 }
