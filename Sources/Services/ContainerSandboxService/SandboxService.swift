@@ -26,6 +26,7 @@ import ContainerizationOCI
 import ContainerizationOS
 import Foundation
 import Logging
+import Darwin
 
 import struct ContainerizationOCI.Mount
 import struct ContainerizationOCI.Process
@@ -41,7 +42,8 @@ public actor SandboxService {
     private let log: Logging.Logger
     private var state: State = .created
     private var processes: [String: ProcessInfo] = [:]
-
+    private var ptySession: PTYSession?
+    
     /// Create an instance with a bundle that describes the container.
     ///
     /// - Parameters:
@@ -162,26 +164,111 @@ public actor SandboxService {
     ///   - message: An XPC message with the following parameters:
     ///     - id: A client identifier for the process.
     ///     - stdio: An array of file handles for standard input, output, and error.
+    ///     - serverOwnedStdio: Optional boolean to create server-owned stdio pipes.
     ///
-    /// - Returns: An XPC message with no parameters.
+    /// - Returns: An XPC message with stdio handles if server-owned.
     @Sendable
     public func startProcess(_ message: XPCMessage) async throws -> XPCMessage {
         self.log.info("`start` xpc handler")
+        
+        let id = try message.id()
+        let useServerStdio = message.bool(key: .serverOwnedStdio)
+        let containerInfo = try self.getContainer()
+        let containerId = containerInfo.container.id
+        let isMainProcess = id == containerId
+        
+        self.log.info("startProcess: id=\(id), useServerStdio=\(useServerStdio), isMainProcess=\(isMainProcess)")
+        
+        // Create PTYSession outside of lock if needed
+        let session: PTYSession?
+        if useServerStdio && isMainProcess && containerInfo.config.initProcess.terminal {
+            session = try await self.getOrCreatePTYSession(containerID: id)
+        } else {
+            session = nil
+        }
+        
         return try await self.lock.withLock { lock in
-            let id = try message.id()
-            let stdio = message.stdio()
-            let containerInfo = try await self.getContainer()
-            let containerId = containerInfo.container.id
-            if id == containerId {
+            let stdio: [FileHandle?]
+            let reply = message.reply()
+            
+            if useServerStdio {
+                
+                guard isMainProcess else {
+                    throw ContainerizationError(.invalidState, message: "Server-owned stdio only supported for main container process")
+                }
+                
+                guard containerInfo.config.initProcess.terminal else {
+                    throw ContainerizationError(.invalidState, message: "Server-owned stdio only supported for terminal mode")
+                }
+                
+                // Use the session we created outside the lock
+                guard let session = session else {
+                    throw ContainerizationError(.internalError, message: "PTYSession should have been created")
+                }
+                
+                // Get handles from PTYSession
+                stdio = session.containerHandles
+                let clientHandles = session.clientHandles
+                
+                // Return client handles in reply
+                // IMPORTANT: XPC closes the file descriptor when setting it in the message
+                // We must duplicate the handles and let XPC close the duplicates
+                if let stdin = clientHandles[0] {
+                    let dupFD = dup(stdin.fileDescriptor)
+                    if dupFD >= 0 {
+                        // Create a FileHandle that XPC will take ownership of and close
+                        let dupHandle = FileHandle(fileDescriptor: dupFD, closeOnDealloc: false)
+                        reply.set(key: .stdin, value: dupHandle)
+                    }
+                }
+                if let stdout = clientHandles[1] {
+                    let dupFD = dup(stdout.fileDescriptor)
+                    if dupFD >= 0 {
+                        // Create a FileHandle that XPC will take ownership of and close
+                        let dupHandle = FileHandle(fileDescriptor: dupFD, closeOnDealloc: false)
+                        reply.set(key: .stdout, value: dupHandle)
+                    }
+                }
+                if let stderr = clientHandles[2] {
+                    let dupFD = dup(stderr.fileDescriptor)
+                    if dupFD >= 0 {
+                        // Create a FileHandle that XPC will take ownership of and close
+                        let dupHandle = FileHandle(fileDescriptor: dupFD, closeOnDealloc: false)
+                        reply.set(key: .stderr, value: dupHandle)
+                    }
+                }
+            } else {
+                // Use client-provided handles (legacy mode)
+                stdio = message.stdio()
+            }
+            
+            if isMainProcess {
                 try await self.startInitProcess(stdio: stdio, lock: lock)
                 await self.setState(.running)
                 try await self.sendContainerEvent(.containerStart(id: id))
             } else {
                 try await self.startExecProcess(processId: id, stdio: stdio, lock: lock)
             }
-            return message.reply()
+            return reply
         }
     }
+    
+    // Create PTYSession - must be called outside of lock context
+    private func getOrCreatePTYSession(containerID: String) async throws -> PTYSession {
+        if let existing = self.ptySession {
+            return existing
+        }
+        
+        let session = try PTYSession(
+            containerID: containerID,
+            terminal: true,
+            bufferSize: PTYSession.defaultBufferSize,
+            logger: self.log
+        )
+        self.ptySession = session
+        return session
+    }
+    
 
     private func startInitProcess(stdio: [FileHandle?], lock: AsyncLock.Context) async throws {
         let info = try self.getContainer()
@@ -196,18 +283,23 @@ public actor SandboxService {
         }
         let containerLog = try FileHandle(forWritingTo: bundle.containerLog)
         let config = info.config
+        
+        // Always include containerLog for persistence
         let stdout = {
+            var handles: [FileHandle] = [containerLog]
             if let h = stdio[1] {
-                return MultiWriter(handles: [h, containerLog])
+                handles.append(h)
             }
-            return MultiWriter(handles: [containerLog])
+            return MultiWriter(handles: handles)
         }()
+        
         let stderr: MultiWriter? = {
             if !config.initProcess.terminal {
+                var handles: [FileHandle] = [containerLog]
                 if let h = stdio[2] {
-                    return MultiWriter(handles: [h, containerLog])
+                    handles.append(h)
                 }
-                return MultiWriter(handles: [containerLog])
+                return MultiWriter(handles: handles)
             }
             return nil
         }()
@@ -986,4 +1078,61 @@ extension SandboxService {
     func setState(_ new: State) {
         self.state = new
     }
+    
+    // MARK: - PTY Session Management
+    
+    /// Attach to a PTY session
+    /// - Parameter message: XPC message containing:
+    ///   - sendHistory: Whether to send buffered history (optional, defaults to true)
+    /// - Returns: XPC message with:
+    ///   - stdin, stdout, stderr: File handles for the attached session
+    ///   - historyBytes: Number of bytes of history sent
+    ///   - truncated: Whether history was truncated
+    @Sendable
+    public func attach(_ message: XPCMessage) async throws -> XPCMessage {
+        
+        let sendHistory = message.bool(key: .sendHistory)
+        
+        guard let session = self.ptySession else {
+            throw ContainerizationError(.notFound, message: "Cannot attach. Container was not started as interactive or it was launched in legacy stdio mode.")
+        }
+        
+        // Get the same client handles that were created during start
+        let clientHandles = session.clientHandles
+        
+        var historyBytes = 0
+        var truncated = false
+        
+        // Send history if requested
+        if sendHistory {
+            let (bytes, trunc) = session.sendHistory()
+            historyBytes = bytes
+            truncated = trunc
+        }
+        
+        let reply = message.reply()
+        
+        // Duplicate handles for XPC (as done in startProcess)
+        if let stdin = clientHandles[0] {
+            let dupFD = dup(stdin.fileDescriptor)
+            if dupFD >= 0 {
+                let dupHandle = FileHandle(fileDescriptor: dupFD, closeOnDealloc: false)
+                reply.set(key: .stdin, value: dupHandle)
+            }
+        }
+        if let stdout = clientHandles[1] {
+            let dupFD = dup(stdout.fileDescriptor)
+            if dupFD >= 0 {
+                let dupHandle = FileHandle(fileDescriptor: dupFD, closeOnDealloc: false)
+                reply.set(key: .stdout, value: dupHandle)
+            }
+        }
+        // No separate stderr for PTY
+        
+        reply.set(key: .historyBytes, value: historyBytes)
+        reply.set(key: .truncated, value: truncated)
+        
+        return reply
+    }
+    
 }

@@ -219,7 +219,11 @@ let package = Package(
             name: "ContainerClientTests",
             dependencies: [
                 .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationOS", package: "containerization"),
+                .product(name: "Logging", package: "swift-log"),
                 "ContainerClient",
+                "ContainerSandboxService",
+                "ContainerXPC",
             ]
         ),
         .target(
@@ -290,9 +294,12 @@ let package = Package(
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                "ContainerSandboxService",
                 "ContainerBuild",
                 "ContainerClient",
                 "ContainerNetworkService",
+                "ContainerXPC",
             ],
             path: "Tests/CLITests"
         ),

@@ -248,4 +248,26 @@ extension ClientContainer {
             )
         }
     }
+    
+    /// Attach to a PTY session for this container
+    /// - Parameter sendHistory: Whether to send buffered history when attaching
+    /// - Returns: A ClientProcess that represents the attached session
+    public func attachToSession(sendHistory: Bool = true) async throws -> ClientProcess {
+        do {
+            let client = self.sandboxClient
+            let handles = try await client.attach(containerID: self.id, sendHistory: sendHistory)
+            return ClientProcessImpl(
+                containerId: self.id,
+                processId: nil,
+                client: client,
+                attachHandles: handles
+            )
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to attach to container \(self.id)",
+                cause: error
+            )
+        }
+    }
 }

@@ -33,6 +33,8 @@ public protocol ClientProcess: Sendable {
 
     /// Start the underlying process inside of the container.
     func start(_ stdio: [FileHandle?]) async throws
+    /// Start the underlying process with server-owned stdio.
+    func startWithServerStdio() async throws -> [FileHandle?]
     /// Send a terminal resize request to the process `id`.
     func resize(_ size: Terminal.Size) async throws
     /// Send or "kill" a signal to the process `id`.
@@ -41,6 +43,8 @@ public protocol ClientProcess: Sendable {
     ///  Wait for the process `id` to complete and return its exit code.
     /// This method blocks until the process exits and the code is obtained.
     func wait() async throws -> Int32
+    /// Get attach handles if this process was created via attach.
+    func getAttachHandles() async throws -> [FileHandle?]
 }
 
 struct ClientProcessImpl: ClientProcess, Sendable {
@@ -54,15 +58,19 @@ struct ClientProcessImpl: ClientProcess, Sendable {
     /// This field is nil if the process this objects refers to is the
     /// init process of the container.
     public let processId: String?
+    
+    /// Attach handles if this process was created via attach
+    private let attachHandles: [FileHandle?]?
 
     public var id: String {
         processId ?? containerId
     }
 
-    init(containerId: String, processId: String? = nil, client: SandboxClient) {
+    init(containerId: String, processId: String? = nil, client: SandboxClient, attachHandles: [FileHandle?]? = nil) {
         self.containerId = containerId
         self.processId = processId
         self.client = client
+        self.attachHandles = attachHandles
     }
 
     /// Start the container and return the initial process.
@@ -74,6 +82,20 @@ struct ClientProcessImpl: ClientProcess, Sendable {
             throw ContainerizationError(
                 .internalError,
                 message: "failed to start container",
+                cause: error
+            )
+        }
+    }
+    
+    /// Start the container with server-owned stdio.
+    public func startWithServerStdio() async throws -> [FileHandle?] {
+        do {
+            let client = self.client
+            return try await client.startProcessWithServerStdio(self.id)
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to start container with server stdio",
                 cause: error
             )
         }
@@ -119,5 +141,15 @@ struct ClientProcessImpl: ClientProcess, Sendable {
                 cause: error
             )
         }
+    }
+    
+    public func getAttachHandles() async throws -> [FileHandle?] {
+        guard let handles = attachHandles else {
+            throw ContainerizationError(
+                .internalError,
+                message: "No attach handles available for this process"
+            )
+        }
+        return handles
     }
 }

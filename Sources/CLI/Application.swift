@@ -56,6 +56,7 @@ struct Application: AsyncParsableCommand {
             CommandGroup(
                 name: "Container",
                 subcommands: [
+                    ContainerAttach.self,
                     ContainerCreate.self,
                     ContainerDelete.self,
                     ContainerExec.self,
@@ -148,7 +149,7 @@ struct Application: AsyncParsableCommand {
         }
     }
 
-    static func handleProcess(io: ProcessIO, process: ClientProcess) async throws -> Int32 {
+    static func handleProcess(io: ProcessIO, process: ClientProcess, serverOwnedStdio: Bool = false) async throws -> Int32 {
         let signals = AsyncSignalHandler.create(notify: Application.signalSet)
         return try await withThrowingTaskGroup(of: Int32?.self, returning: Int32.self) { group in
             let waitAdded = group.addTaskUnlessCancelled {
@@ -162,11 +163,15 @@ struct Application: AsyncParsableCommand {
                 return -1
             }
 
-            try await process.start(io.stdio)
+            if !serverOwnedStdio {
+                try await process.start(io.stdio)
+            }
             defer {
                 try? io.close()
             }
-            try io.closeAfterStart()
+            if !serverOwnedStdio {
+                try io.closeAfterStart()
+            }
 
             if let current = io.console {
                 let size = try current.size

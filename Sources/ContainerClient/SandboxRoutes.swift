@@ -35,4 +35,6 @@ public enum SandboxRoutes: String {
     case exec = "com.apple.container.sandbox/exec"
     /// Dial a vsock port in the sandbox.
     case dial = "com.apple.container.sandbox/dial"
+    /// Attach to a PTY session for a container.
+    case attach = "com.apple.container.sandbox/attach"
 }
