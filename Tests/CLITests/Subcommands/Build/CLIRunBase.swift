@@ -21,7 +21,7 @@ import Foundation
 import Testing
 
 class TestCLIRunBase: CLITest {
-    var terminal: Terminal!
+    var terminal: InteractiveTerminal!
     var containerName: String = UUID().uuidString
 
     var ContainerImage: String {
@@ -59,15 +59,15 @@ class TestCLIRunBase: CLITest {
     }
 
     func containerRun(stdin: [String], findMessage: String) async throws -> Bool {
-        let stdout = FileHandle(fileDescriptor: terminal.handle.fileDescriptor, closeOnDealloc: false)
+        let readLines = self.terminal.readLines()
         let stdoutListenTask = Task {
-            for try await line in stdout.bytes.lines {
+            for try await line in readLines {
                 if line.contains(findMessage) && !line.contains("echo") {
                     return true
                 }
             }
             return false
-        }
+}
 
         let timeoutTask = Task {
             try await Task.sleep(nanoseconds: 5 * 1_000_000_000)
@@ -87,18 +87,14 @@ class TestCLIRunBase: CLITest {
     }
 
     func exec(commands: [String]) throws {
-        let stdin = FileHandle(fileDescriptor: terminal.handle.fileDescriptor, closeOnDealloc: false)
         try commands.forEach { cmd in
             let cmdLine = cmd.appending("\n")
-            guard let cmdNormalized = cmdLine.data(using: .ascii) else {
-                throw CLIError.invalidInput("shell command \(cmd) is invalid")
-            }
-            try stdin.write(contentsOf: cmdNormalized)
+            try self.terminal.write(cmdLine, using: .ascii)
         }
-        try stdin.synchronize()
+        try self.terminal.synchronize()
     }
 
-    func containerStart(_ name: String) throws -> Terminal {
+    func containerStart(_ name: String) throws -> InteractiveTerminal {
         if name.count == 0 {
             throw CLIError.invalidInput("container name cannot be empty")
         }

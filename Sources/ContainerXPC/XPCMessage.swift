@@ -203,7 +203,7 @@ extension XPCMessage {
         }
         if let fd {
             let fd2 = xpc_fd_dup(fd)
-            return FileHandle(fileDescriptor: fd2, closeOnDealloc: false)
+            return FileHandle(fileDescriptor: fd2, closeOnDealloc: true)
         }
         return nil
     }
@@ -227,8 +227,8 @@ extension XPCMessage {
                 return nil
             }
             return [
-                FileHandle(fileDescriptor: fd1, closeOnDealloc: false),
-                FileHandle(fileDescriptor: fd2, closeOnDealloc: false),
+                FileHandle(fileDescriptor: fd1, closeOnDealloc: true),
+                FileHandle(fileDescriptor: fd2, closeOnDealloc: true),
             ]
         }
         return nil
