@@ -62,7 +62,7 @@ to prepare your build environment.
     > If you are using Xcode, you will need to temporarily modify `Package.swift` instead of using `swift package edit`, using a path dependency in place of the versioned `container` dependency:
     >
     >    ```swift
-    >    .package(.path: "../containerization"),
+    >    .package(path: "../containerization"),
     >    ```
 5. Build `container`.
 
