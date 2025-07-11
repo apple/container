@@ -15,8 +15,8 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import Synchronization
 import SendableProperty
+import Synchronization
 
 /// A progress bar that updates itself as tasks are completed.
 public final class ProgressBar: Sendable {
@@ -165,7 +165,7 @@ extension ProgressBar {
 
     func draw() -> String {
         let state = self.state.withLock { $0 }
-        
+
         var components = [String]()
         if config.showSpinner && !config.showProgressBar {
             if !state.finished {

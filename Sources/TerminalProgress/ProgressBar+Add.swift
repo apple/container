@@ -62,7 +62,7 @@ extension ProgressBar {
     /// Performs a check to see if the progress bar should be finished.
     public func checkIfFinished() {
         let state = self.state.withLock { $0 }
-        
+
         var finished = true
         var defined = false
         if let totalTasks = state.totalTasks, totalTasks > 0 {
