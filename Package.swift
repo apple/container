@@ -20,18 +20,9 @@
 import Foundation
 import PackageDescription
 
-let scDependency: Package.Dependency
-let scVersion: String
-if let path = ProcessInfo.processInfo.environment["CONTAINERIZATION_PATH"] {
-    scDependency = .package(path: path)
-    scVersion = "latest"
-} else {
-    scVersion = "0.3.0"
-    scDependency = .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion))
-}
-
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
+let scVersion = "0.3.0"
 let builderShimVersion = "0.3.0"
 
 let package = Package(
@@ -58,7 +49,7 @@ let package = Package(
         .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.20.1"),
         .package(url: "https://github.com/orlandos-nl/DNSClient.git", from: "2.4.1"),
         .package(url: "https://github.com/Bouke/DNS.git", from: "1.2.0"),
-        scDependency,
+        .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion)),
     ],
     targets: [
         .executableTarget(
