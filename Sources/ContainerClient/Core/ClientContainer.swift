@@ -47,6 +47,9 @@ public struct ClientContainer: Sendable, Codable {
     /// Network allocated to the container.
     public let networks: [Attachment]
 
+    /// When the container was started.
+    public let startedAt: Date?
+
     package init(configuration: ContainerConfiguration) {
         self.configuration = configuration
         self.status = .stopped
@@ -57,6 +60,7 @@ public struct ClientContainer: Sendable, Codable {
         self.configuration = snapshot.configuration
         self.status = snapshot.status
         self.networks = snapshot.networks
+        self.startedAt = snapshot.startedAt
     }
 
     public var initProcess: ClientProcess {
@@ -248,4 +252,6 @@ extension ClientContainer {
             )
         }
     }
+
+    
 }

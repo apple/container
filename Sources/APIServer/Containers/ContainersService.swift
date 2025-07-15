@@ -41,6 +41,7 @@ actor ContainersService {
     struct Item: Sendable {
         let bundle: ContainerClient.Bundle
         var state: State
+        var startedAt: Date?
 
         enum State: Sendable {
             case dead
@@ -81,7 +82,7 @@ actor ContainersService {
             do {
                 let bundle = ContainerClient.Bundle(path: dir)
                 let config = try bundle.configuration
-                results[config.id] = .init(bundle: bundle, state: .dead)
+                results[config.id] = .init(bundle: bundle, state: .dead, startedAt: nil)
                 let plugin = runtimePlugins.first { $0.name == config.runtimeHandler }
                 guard let plugin else {
                     throw ContainerizationError(.internalError, message: "Failed to find runtime plugin \(config.runtimeHandler)")
@@ -158,7 +159,7 @@ actor ContainersService {
             }
             throw error
         }
-        self.containers[configuration.id] = Item(bundle: bundle, state: .dead)
+        self.containers[configuration.id] = Item(bundle: bundle, state: .dead, startedAt: nil)
     }
 
     private func getInitBlock(for platform: Platform) async throws -> Filesystem {
@@ -277,6 +278,7 @@ actor ContainersService {
             let configuration = try item.bundle.configuration
             let client = SandboxClient(id: configuration.id, runtime: configuration.runtimeHandler)
             item.state = .alive(client)
+            item.startedAt = Date()
             await self.setContainer(id, item, context: context)
         } catch {
             self.log.error(
@@ -347,6 +349,7 @@ extension ContainersService.Item {
                     configuration: config,
                     status: RuntimeStatus.stopped,
                     networks: []
+                    started: self.startedAt
                 ), .stopped
             )
         case .alive(let client):
@@ -355,7 +358,8 @@ extension ContainersService.Item {
                 .init(
                     configuration: config,
                     status: state.status,
-                    networks: state.networks
+                    networks: state.networks,
+                    startedAt: self.startedAt
                 ), state.status
             )
         }
