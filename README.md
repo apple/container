@@ -1,7 +1,7 @@
 
 # `container`
 
-`container` is a tool that you can use to create and run Linux containers as lightweight virtual machines on your Mac. It's written in Swift, and optimized for Apple silicon.
+`container` is a tool that you can use to create and run Linux containers as lightweight virtual machines on your Mac. It's written in Swift, and optimized for **Apple silicon**.
 
 The tool consumes and produces OCI-compliant container images, so you can pull and run images from any standard container registry. You can push images that you build to those registries as well, and run the images in any other OCI-compliant application.
 
@@ -13,7 +13,7 @@ The tool consumes and produces OCI-compliant container images, so you can pull a
 
 ### Requirements
 
-You need an Apple silicon Mac to run `container`. To build it, see the [BUILDING](./BUILDING.md) document.
+### **You need an Apple silicon Mac** to run `container`. To build it, see the [BUILDING](./BUILDING.md) document.
 
 `container` relies on the new features and enhancements present in the macOS 26 beta. You can run the tool on macOS 15, but the `container` maintainers typically will not address issues discovered on macOS 15 that cannot be reproduced on the macOS 26 beta.
 
