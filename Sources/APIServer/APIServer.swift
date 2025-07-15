@@ -129,9 +129,11 @@ struct APIServer: AsyncParsableCommand {
     }
 
     private func initializePluginLoader(log: Logger) throws -> PluginLoader {
-        // create user-installed plugins directory if it doesn't exist
-        let pluginsURL = PluginLoader.userPluginsDir(root: Self.appRoot)
-        try FileManager.default.createDirectory(at: pluginsURL, withIntermediateDirectories: true)
+        let installRoot = CommandLine.executableDirectoryUrl.appendingPathComponent("../libexec")
+        let pluginsURL = PluginLoader.userPluginsDir(root: installRoot)
+        var directoryExists: ObjCBool = false
+        _ = FileManager.default.fileExists(atPath: pluginsURL.path, isDirectory: &directoryExists)
+        let userPluginsURL = directoryExists.boolValue ? pluginsURL : nil
 
         // plugins built into the application installed as a macOS app bundle
         let appBundlePluginsURL = Bundle.main.resourceURL?.appending(path: "plugins")
@@ -140,7 +142,7 @@ struct APIServer: AsyncParsableCommand {
         let installRootPluginsURL = CommandLine.executableDirectoryUrl.appendingPathComponent("../libexec/container/plugins")
 
         let pluginDirectories = [
-            pluginsURL,
+            userPluginsURL,
             appBundlePluginsURL,
             installRootPluginsURL,
         ].compactMap { $0 }

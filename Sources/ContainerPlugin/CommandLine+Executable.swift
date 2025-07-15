@@ -18,7 +18,7 @@ import Foundation
 
 extension CommandLine {
     public static var executableDirectoryUrl: URL {
-        let executablePath = Self.arguments[0]
+        let executablePath = ProcessInfo.processInfo.arguments.first!
         let executableUrl = URL(filePath: executablePath)
         let executableDirectoryUrl = executableUrl.deletingLastPathComponent()
         return executableDirectoryUrl.standardized
