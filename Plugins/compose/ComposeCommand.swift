@@ -25,7 +25,7 @@ import ArgumentParser
 import Foundation
 import Rainbow
 import Yams
-import container
+import ContainerCLI
 
 extension Application {
     struct ComposeCommand: AsyncParsableCommand {

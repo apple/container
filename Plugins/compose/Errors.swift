@@ -22,7 +22,7 @@
 //
 
 import Foundation
-import container
+import ContainerCLI
 
 extension Application {
     internal enum YamlError: Error, LocalizedError {

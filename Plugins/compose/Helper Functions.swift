@@ -23,7 +23,7 @@
 
 import Foundation
 import Yams
-import container
+import ContainerCLI
 
 extension Application {
     /// Loads environment variables from a .env file.
