@@ -68,7 +68,13 @@ install: installer-pkg
 		rm -rf $${temp_dir} ; \
 	else \
 		$(SUDO) installer -pkg $(PKG_PATH) -target / ; \
-	fi 
+	fi
+	
+	@echo Installing compose into $(DESTDIR)...
+	@$(SUDO) mkdir -p $(join $(DESTDIR), libexec/container-plugins/compose/bin)
+	@$(SUDO) install $(BUILD_BIN_DIR)/compose $(join $(DESTDIR), libexec/container-plugins/compose/bin/compose)
+	@$(SUDO) install config/compose-config.json $(join $(DESTDIR), libexec/container-plugins/compose/config.json)
+	@$(SUDO) codesign $(CODESIGN_OPTS) $(join $(DESTDIR), libexec/container-plugins/compose/bin/compose)
 	
 $(STAGING_DIR): 
 	@echo Installing container binaries from $(BUILD_BIN_DIR) into $(STAGING_DIR)...
