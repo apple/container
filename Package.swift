@@ -69,8 +69,6 @@ let package = Package(
                 "ContainerClient",
                 "ContainerPlugin",
                 "ContainerLog",
-                "Yams",
-                "Rainbow",
             ],
             path: "Sources/CLI"
         ),
@@ -311,5 +309,16 @@ let package = Package(
                 .define("BUILDER_SHIM_VERSION", to: "\"\(builderShimVersion)\""),
             ]
         ),
+        
+        // MARK: Plugins
+        .executableTarget(
+            name: "Compose",
+            dependencies: [
+                "container",
+                "Yams",
+                "Rainbow",
+            ],
+            path: "Plugins/compose"
+        )
     ]
 )

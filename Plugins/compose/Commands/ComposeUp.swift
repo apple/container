@@ -27,6 +27,7 @@ import Foundation
 @preconcurrency import Rainbow
 import Yams
 import ContainerizationExtras
+import container
 
 extension Application {
     public struct ComposeUp: AsyncParsableCommand, @unchecked Sendable {
