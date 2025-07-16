@@ -47,7 +47,7 @@ extension Application {
             help:
                 "Amount of memory in bytes, kilobytes (K), megabytes (M), or gigabytes (G) for the container, with MB granularity (for example, 1024K will result in 1MB being allocated for the container)"
         )
-        var memory: String = "2048MB"
+        public var memory: String = "2048MB"
 
         @Option(name: .long, help: ArgumentHelp("Set build-time variables", valueName: "key=val"))
         public var buildArg: [String] = []
@@ -93,7 +93,7 @@ extension Application {
         public var progress: String = "auto"
 
         @Option(name: .long, help: ArgumentHelp("Builder-shim vsock port", valueName: "port"))
-        var vsockPort: UInt32 = 8088
+        public var vsockPort: UInt32 = 8088
 
         @Option(name: [.customShort("t"), .customLong("tag")], help: ArgumentHelp("Name for the built image", valueName: "name"))
         public var targetImageName: String = UUID().uuidString.lowercased()
