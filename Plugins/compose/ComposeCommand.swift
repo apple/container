@@ -27,16 +27,15 @@ import Rainbow
 import Yams
 import ContainerCLI
 
-extension Application {
-    struct ComposeCommand: AsyncParsableCommand {
-        static let configuration: CommandConfiguration = .init(
-            commandName: "compose",
-            abstract: "Manage containers with Docker Compose files",
-            subcommands: [
-                ComposeUp.self,
-                ComposeDown.self,
-            ])
-    }
+@main
+struct ComposeCommand: AsyncParsableCommand {
+    static let configuration: CommandConfiguration = .init(
+        commandName: "compose",
+        abstract: "Manage containers with Docker Compose files",
+        subcommands: [
+            ComposeUp.self,
+            ComposeDown.self,
+        ])
 }
 
 /// A structure representing the result of a command-line process execution.

@@ -25,11 +25,11 @@ import Foundation
 import Yams
 import ContainerCLI
 
-extension Application {
+//extension Application {
     /// Loads environment variables from a .env file.
     /// - Parameter path: The full path to the .env file.
     /// - Returns: A dictionary of key-value pairs representing environment variables.
-    internal static func loadEnvFile(path: String) -> [String: String] {
+    internal func loadEnvFile(path: String) -> [String: String] {
         var envVars: [String: String] = [:]
         let fileURL = URL(fileURLWithPath: path)
         do {
@@ -60,7 +60,7 @@ extension Application {
     ///   - value: The string possibly containing environment variable references.
     ///   - envVars: A dictionary of environment variables to use for resolution.
     /// - Returns: The string with all recognized environment variables resolved.
-    internal static func resolveVariable(_ value: String, with envVars: [String: String]) -> String {
+    internal func resolveVariable(_ value: String, with envVars: [String: String]) -> String {
         var resolvedValue = value
         // Regex to find ${VAR}, ${VAR:-default}, ${VAR:?error}
         let regex = try! NSRegularExpression(pattern: "\\$\\{([A-Z0-9_]+)(:?-(.*?))?(:\\?(.*?))?\\}", options: [])
@@ -92,6 +92,6 @@ extension Application {
         }
         return resolvedValue
     }
-}
+//}
 
 extension String: @retroactive Error {}

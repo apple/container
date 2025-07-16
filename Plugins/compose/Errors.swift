@@ -24,8 +24,8 @@
 import Foundation
 import ContainerCLI
 
-extension Application {
-    internal enum YamlError: Error, LocalizedError {
+//extension Application {
+    enum YamlError: Error, LocalizedError {
         case dockerfileNotFound(String)
         
         var errorDescription: String? {
@@ -36,7 +36,7 @@ extension Application {
         }
     }
     
-    internal enum ComposeError: Error, LocalizedError {
+    enum ComposeError: Error, LocalizedError {
         case imageNotFound(String)
         case invalidProjectName
         
@@ -50,7 +50,7 @@ extension Application {
         }
     }
     
-    internal enum TerminalError: Error, LocalizedError {
+    enum TerminalError: Error, LocalizedError {
         case commandFailed(String)
         
         var errorDescription: String? {
@@ -59,9 +59,9 @@ extension Application {
     }
     
     /// An enum representing streaming output from either `stdout` or `stderr`.
-    internal enum CommandOutput {
+    enum CommandOutput {
         case stdout(String)
         case stderr(String)
         case exitCode(Int32)
     }
-}
+//}

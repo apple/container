@@ -27,78 +27,76 @@ import Foundation
 import Yams
 import ContainerCLI
 
-extension Application {
-    public struct ComposeDown: AsyncParsableCommand {
-        public init() {}
-        
-        public static let configuration: CommandConfiguration = .init(
-            commandName: "down",
-            abstract: "Stop containers with compose"
-        )
-        
-        @Argument(help: "Specify the services to stop")
-        var services: [String] = []
-        
-        @OptionGroup
-        var process: Flags.Process
-        
-        private var cwd: String { process.cwd ?? FileManager.default.currentDirectoryPath }
-        
-        var dockerComposePath: String { "\(cwd)/docker-compose.yml" }  // Path to docker-compose.yml
-        
-        private var fileManager: FileManager { FileManager.default }
-        private var projectName: String?
-        
-        public mutating func run() async throws {
-            // Read docker-compose.yml content
-            guard let yamlData = fileManager.contents(atPath: dockerComposePath) else {
-                throw YamlError.dockerfileNotFound(dockerComposePath)
-            }
-            
-            // Decode the YAML file into the DockerCompose struct
-            let dockerComposeString = String(data: yamlData, encoding: .utf8)!
-            let dockerCompose = try YAMLDecoder().decode(DockerCompose.self, from: dockerComposeString)
-            
-            // Determine project name for container naming
-            if let name = dockerCompose.name {
-                projectName = name
-                print("Info: Docker Compose project name parsed as: \(name)")
-                print("Note: The 'name' field currently only affects container naming (e.g., '\(name)-serviceName'). Full project-level isolation for other resources (networks, implicit volumes) is not implemented by this tool.")
-            } else {
-                projectName = URL(fileURLWithPath: cwd).lastPathComponent // Default to directory name
-                print("Info: No 'name' field found in docker-compose.yml. Using directory name as project name: \(projectName ?? "")")
-            }
-            
-            var services: [(serviceName: String, service: Service)] = dockerCompose.services.map({ ($0, $1) })
-            services = try Service.topoSortConfiguredServices(services)
-            
-            // Filter for specified services
-            if !self.services.isEmpty {
-                services = services.filter({ serviceName, service in
-                    self.services.contains(where: { $0 == serviceName }) || self.services.contains(where: { service.dependedBy.contains($0) })
-                })
-            }
-            
-            try await stopOldStuff(services.map({ $0.serviceName }), remove: false)
+struct ComposeDown: AsyncParsableCommand {
+    public init() {}
+    
+    public static let configuration: CommandConfiguration = .init(
+        commandName: "down",
+        abstract: "Stop containers with compose"
+    )
+    
+    @Argument(help: "Specify the services to stop")
+    var services: [String] = []
+    
+    @OptionGroup
+    var process: Flags.Process
+    
+    private var cwd: String { process.cwd ?? FileManager.default.currentDirectoryPath }
+    
+    var dockerComposePath: String { "\(cwd)/docker-compose.yml" }  // Path to docker-compose.yml
+    
+    private var fileManager: FileManager { FileManager.default }
+    private var projectName: String?
+    
+    public mutating func run() async throws {
+        // Read docker-compose.yml content
+        guard let yamlData = fileManager.contents(atPath: dockerComposePath) else {
+            throw YamlError.dockerfileNotFound(dockerComposePath)
         }
         
-        private func stopOldStuff(_ services: [String], remove: Bool) async throws {
-            guard let projectName else { return }
-            let containers = services.map { "\(projectName)-\($0)" }
+        // Decode the YAML file into the DockerCompose struct
+        let dockerComposeString = String(data: yamlData, encoding: .utf8)!
+        let dockerCompose = try YAMLDecoder().decode(DockerCompose.self, from: dockerComposeString)
+        
+        // Determine project name for container naming
+        if let name = dockerCompose.name {
+            projectName = name
+            print("Info: Docker Compose project name parsed as: \(name)")
+            print("Note: The 'name' field currently only affects container naming (e.g., '\(name)-serviceName'). Full project-level isolation for other resources (networks, implicit volumes) is not implemented by this tool.")
+        } else {
+            projectName = URL(fileURLWithPath: cwd).lastPathComponent // Default to directory name
+            print("Info: No 'name' field found in docker-compose.yml. Using directory name as project name: \(projectName ?? "")")
+        }
+        
+        var services: [(serviceName: String, service: Service)] = dockerCompose.services.map({ ($0, $1) })
+        services = try Service.topoSortConfiguredServices(services)
+        
+        // Filter for specified services
+        if !self.services.isEmpty {
+            services = services.filter({ serviceName, service in
+                self.services.contains(where: { $0 == serviceName }) || self.services.contains(where: { service.dependedBy.contains($0) })
+            })
+        }
+        
+        try await stopOldStuff(services.map({ $0.serviceName }), remove: false)
+    }
+    
+    private func stopOldStuff(_ services: [String], remove: Bool) async throws {
+        guard let projectName else { return }
+        let containers = services.map { "\(projectName)-\($0)" }
+        
+        for container in containers {
+            print("Stopping container: \(container)")
+            guard let container = try? await ClientContainer.get(id: container) else { continue }
             
-            for container in containers {
-                print("Stopping container: \(container)")
-                guard let container = try? await ClientContainer.get(id: container) else { continue }
-                
+            do {
+                try await container.stop()
+            } catch {
+            }
+            if remove {
                 do {
-                    try await container.stop()
+                    try await container.delete()
                 } catch {
-                }
-                if remove {
-                    do {
-                        try await container.delete()
-                    } catch {
-                    }
                 }
             }
         }
