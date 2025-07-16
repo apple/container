@@ -25,6 +25,7 @@ import ArgumentParser
 import Foundation
 import Rainbow
 import Yams
+import container
 
 extension Application {
     struct ComposeCommand: AsyncParsableCommand {
