@@ -60,7 +60,6 @@ let package = Package(
             name: "container",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
-                "ContainerClient",
                 "ContainerCLI",
             ],
             path: "Sources/ExecutableCLI"

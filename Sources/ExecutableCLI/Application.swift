@@ -16,27 +16,37 @@
 
 //
 
-import ContainerCLI
-import ContainerClient
+//import ContainerCLI
 import ArgumentParser
+import CVersion
+import ContainerClient
+import ContainerLog
+import ContainerPlugin
+import ContainerizationError
+import ContainerizationOS
+import Foundation
+import Logging
+import TerminalProgress
 
 @main
 public struct Executable: AsyncParsableCommand {
     public init() {}
     
-    @OptionGroup
-    var global: Flags.Global
+//    @OptionGroup
+//    var global: Flags.Global
 
-    public static let configuration = Application.configuration
+    public static let configuration = CommandConfiguration(
+        commandName: "container",
+        abstract: "A container platform for macOS",
+        subcommands: [
+        ]
+    )
 
     public static func main() async throws {
-        try await Application.main()
+//        try await Application.main()
     }
 
-    public func run() async throws {
-        var application = Application()
-        application.global = global
-        try application.validate()
-        try application.run()
+    public func validate() throws {
+//        try Application.validate()
     }
 }
