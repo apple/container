@@ -40,12 +40,11 @@ nonisolated(unsafe) var log = {
     return log
 }()
 
-@main
 public struct Application: AsyncParsableCommand {
     public init() {}
     
     @OptionGroup
-    var global: Flags.Global
+    public var global: Flags.Global
 
     public static let configuration = CommandConfiguration(
         commandName: "container",
