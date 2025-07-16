@@ -33,7 +33,7 @@ let package = Package(
         .library(name: "ContainerNetworkService", targets: ["ContainerNetworkService"]),
         .library(name: "ContainerImagesService", targets: ["ContainerImagesService", "ContainerImagesServiceClient"]),
         .library(name: "ContainerClient", targets: ["ContainerClient"]),
-//        .library(name: "ContainerCLI", targets: ["ContainerCLI"]),
+        .library(name: "ContainerCLI", targets: ["ContainerCLI"]),
         .library(name: "ContainerBuild", targets: ["ContainerBuild"]),
         .library(name: "ContainerLog", targets: ["ContainerLog"]),
         .library(name: "ContainerPersistence", targets: ["ContainerPersistence"]),
@@ -76,26 +76,26 @@ let package = Package(
             ],
             path: "Sources/CLI"
         ),
-//        .target(
-//            name: "ContainerCLI",
-//            dependencies: [
-//                .product(name: "ArgumentParser", package: "swift-argument-parser"),
-//                .product(name: "Logging", package: "swift-log"),
-//                .product(name: "SwiftProtobuf", package: "swift-protobuf"),
-//                .product(name: "Containerization", package: "containerization"),
-//                .product(name: "ContainerizationOCI", package: "containerization"),
-//                .product(name: "ContainerizationOS", package: "containerization"),
-//                "CVersion",
-//                "TerminalProgress",
-//                "ContainerBuild",
-//                "ContainerClient",
-//                "ContainerPlugin",
-//                "ContainerLog",
-//                "Yams",
-//                "Rainbow",
-//            ],
-//            path: "Sources/ContainerCLI"
-//        ),
+        .target(
+            name: "ContainerCLI",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "SwiftProtobuf", package: "swift-protobuf"),
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                .product(name: "ContainerizationOS", package: "containerization"),
+                "CVersion",
+                "TerminalProgress",
+                "ContainerBuild",
+                "ContainerClient",
+                "ContainerPlugin",
+                "ContainerLog",
+                "Yams",
+                "Rainbow",
+            ],
+            path: "Sources/ContainerCLI"
+        ),
         .executableTarget(
             name: "container-apiserver",
             dependencies: [
