@@ -129,7 +129,10 @@ struct APIServer: AsyncParsableCommand {
     }
 
     private func initializePluginLoader(log: Logger) throws -> PluginLoader {
-        let installRoot = CommandLine.executableDirectoryUrl.appendingPathComponent("../libexec")
+        let installRoot = CommandLine.executablePathUrl
+            .deletingLastPathComponent()
+            .appendingPathComponent("..")
+            .standardized
         let pluginsURL = PluginLoader.userPluginsDir(root: installRoot)
         var directoryExists: ObjCBool = false
         _ = FileManager.default.fileExists(atPath: pluginsURL.path, isDirectory: &directoryExists)
@@ -139,7 +142,11 @@ struct APIServer: AsyncParsableCommand {
         let appBundlePluginsURL = Bundle.main.resourceURL?.appending(path: "plugins")
 
         // plugins built into the application installed as a Unix-like application
-        let installRootPluginsURL = CommandLine.executableDirectoryUrl.appendingPathComponent("../libexec/container/plugins")
+        let installRootPluginsURL = installRoot
+            .appendingPathComponent("libexec")
+            .appendingPathComponent("container")
+            .appendingPathComponent("plugins")
+            .standardized
 
         let pluginDirectories = [
             userPluginsURL,
@@ -152,6 +159,7 @@ struct APIServer: AsyncParsableCommand {
             AppBundlePluginFactory(),
         ]
 
+        log.info("PLUGINS: \(pluginDirectories)")
         let statePath = PluginLoader.defaultPluginResourcePath(root: Self.appRoot)
         try FileManager.default.createDirectory(at: statePath, withIntermediateDirectories: true)
         return PluginLoader(pluginDirectories: pluginDirectories, pluginFactories: pluginFactories, defaultResourcePath: statePath, log: log)

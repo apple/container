@@ -44,7 +44,10 @@ public struct PluginLoader: Sendable {
     }
 
     static public func userPluginsDir(root: URL) -> URL {
-        root.appending(path: "container-plugins").resolvingSymlinksInPath()
+        root
+            .appending(path: "libexec")
+            .appending(path: "container-plugins")
+            .resolvingSymlinksInPath()
     }
 }
 

@@ -17,10 +17,20 @@
 import Foundation
 
 extension CommandLine {
-    public static var executableDirectoryUrl: URL {
-        let executablePath = ProcessInfo.processInfo.arguments.first!
-        let executableUrl = URL(filePath: executablePath)
-        let executableDirectoryUrl = executableUrl.deletingLastPathComponent()
-        return executableDirectoryUrl.standardized
+    public static var executablePathUrl: URL {
+        /// _NSGetExecutablePath with a zero-length buffer returns the needed buffer length
+        var bufferSize: Int32 = 0
+        var buffer = [CChar](repeating: 0, count: Int(bufferSize))
+        _ = _NSGetExecutablePath(&buffer, &bufferSize)
+
+        /// Create the buffer and get the path
+        buffer = [CChar](repeating: 0, count: Int(bufferSize))
+        guard _NSGetExecutablePath(&buffer, &bufferSize) == 0 else {
+            fatalError("UNEXPECTED: failed to get executable path")
+        }
+
+        /// Return the path with the executable file component removed the last component and 
+        let executablePath = String(cString: &buffer)
+        return URL(filePath: executablePath)
     }
 }
