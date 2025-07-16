@@ -29,7 +29,7 @@ extension CommandLine {
             fatalError("UNEXPECTED: failed to get executable path")
         }
 
-        /// Return the path with the executable file component removed the last component and 
+        /// Return the path with the executable file component removed the last component and
         let executablePath = String(cString: &buffer)
         return URL(filePath: executablePath)
     }

@@ -142,7 +142,8 @@ struct APIServer: AsyncParsableCommand {
         let appBundlePluginsURL = Bundle.main.resourceURL?.appending(path: "plugins")
 
         // plugins built into the application installed as a Unix-like application
-        let installRootPluginsURL = installRoot
+        let installRootPluginsURL =
+            installRoot
             .appendingPathComponent("libexec")
             .appendingPathComponent("container")
             .appendingPathComponent("plugins")
