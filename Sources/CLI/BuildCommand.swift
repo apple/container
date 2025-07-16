@@ -47,7 +47,7 @@ extension Application {
             help:
                 "Amount of memory in bytes, kilobytes (K), megabytes (M), or gigabytes (G) for the container, with MB granularity (for example, 1024K will result in 1MB being allocated for the container)"
         )
-        public var memory: String = "2048MB"
+        var memory: String = "2048MB"
 
         @Option(name: .long, help: ArgumentHelp("Set build-time variables", valueName: "key=val"))
         public var buildArg: [String] = []
@@ -93,7 +93,7 @@ extension Application {
         public var progress: String = "auto"
 
         @Option(name: .long, help: ArgumentHelp("Builder-shim vsock port", valueName: "port"))
-        public var vsockPort: UInt32 = 8088
+        var vsockPort: UInt32 = 8088
 
         @Option(name: [.customShort("t"), .customLong("tag")], help: ArgumentHelp("Name for the built image", valueName: "name"))
         public var targetImageName: String = UUID().uuidString.lowercased()
@@ -124,17 +124,18 @@ extension Application {
                         group.cancelAll()
                     }
 
-                    group.addTask {
+                    group.addTask { [vsockPort, cpus, memory] in
                         while true {
                             do {
                                 let container = try await ClientContainer.get(id: "buildkit")
-                                let fh = try await container.dial(self.vsockPort)
+                                let fh = try await container.dial(vsockPort)
                                 
                                 let threadGroup: MultiThreadedEventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
                                 let b = try Builder(socket: fh, group: threadGroup)
 
                                 // If this call succeeds, then BuildKit is running.
                                 let _ = try await b.info()
+                                
                                 return b
                             } catch {
                                 // If we get here, "Dialing builder" is shown for such a short period
@@ -143,8 +144,8 @@ extension Application {
                                 progress.set(totalTasks: 3)
 
                                 try await BuilderStart.start(
-                                    cpus: self.cpus,
-                                    memory: self.memory,
+                                    cpus: cpus,
+                                    memory: memory,
                                     progressUpdate: progress.handler
                                 )
 
@@ -231,7 +232,7 @@ extension Application {
                         }
                         return results
                     }()
-                    group.addTask { [terminal] in
+                    group.addTask { [buildArg, contextDir, label, noCache, terminal, target, quiet, cacheIn, cacheOut] in
                         let config = ContainerBuild.Builder.BuildConfig(
                             buildID: buildID,
                             contentStore: RemoteContentStoreClient(),
