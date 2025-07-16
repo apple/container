@@ -20,18 +20,9 @@
 import Foundation
 import PackageDescription
 
-let scDependency: Package.Dependency
-let scVersion: String
-if let path = ProcessInfo.processInfo.environment["CONTAINERIZATION_PATH"] {
-    scDependency = .package(path: path)
-    scVersion = "latest"
-} else {
-    scVersion = "0.3.0"
-    scDependency = .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion))
-}
-
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
+let scVersion = "0.4.1"
 let builderShimVersion = "0.3.0"
 
 let package = Package(
@@ -62,6 +53,7 @@ let package = Package(
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.6"),
         .package(url: "https://github.com/onevcat/Rainbow", .upToNextMajor(from: "4.0.0")),
         scDependency,
+        .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion)),
     ],
     targets: [
         .executableTarget(

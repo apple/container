@@ -16,13 +16,12 @@
 
 import Foundation
 import SendableProperty
+import Synchronization
 
 /// A progress bar that updates itself as tasks are completed.
 public final class ProgressBar: Sendable {
     let config: ProgressConfig
-    // `@SendableProperty` adds `_state: Synchronized<State>`, which can be updated inside a lock using `_state.withLock()`.
-    @SendableProperty
-    var state = State()
+    let state: Mutex<State>
     @SendableProperty
     var printedWidth = 0
     let term: FileHandle?
@@ -31,7 +30,7 @@ public final class ProgressBar: Sendable {
 
     /// Returns `true` if the progress bar has finished.
     public var isFinished: Bool {
-        state.finished
+        state.withLock { $0.finished }
     }
 
     /// Creates a new progress bar.
@@ -39,10 +38,11 @@ public final class ProgressBar: Sendable {
     public init(config: ProgressConfig) {
         self.config = config
         term = isatty(config.terminal.fileDescriptor) == 1 ? config.terminal : nil
-        state = State(
+        let state = State(
             description: config.initialDescription, itemsName: config.initialItemsName, totalTasks: config.initialTotalTasks,
             totalItems: config.initialTotalItems,
             totalSize: config.initialTotalSize)
+        self.state = Mutex(state)
         display(EscapeSequence.hideCursor)
     }
 
@@ -52,19 +52,25 @@ public final class ProgressBar: Sendable {
 
     /// Allows resetting the progress state.
     public func reset() {
-        state = State(description: config.initialDescription)
+        state.withLock {
+            $0 = State(description: config.initialDescription)
+        }
     }
 
     /// Allows resetting the progress state of the current task.
     public func resetCurrentTask() {
-        state = State(description: state.description, itemsName: state.itemsName, tasks: state.tasks, totalTasks: state.totalTasks, startTime: state.startTime)
+        state.withLock {
+            $0 = State(description: $0.description, itemsName: $0.itemsName, tasks: $0.tasks, totalTasks: $0.totalTasks, startTime: $0.startTime)
+        }
     }
 
     private func printFullDescription() {
-        if state.subDescription != "" {
-            standardError.write("\(state.description) \(state.subDescription)")
+        let (description, subDescription) = state.withLock { ($0.description, $0.subDescription) }
+
+        if subDescription != "" {
+            standardError.write("\(description) \(subDescription)")
         } else {
-            standardError.write(state.description)
+            standardError.write(description)
         }
     }
 
@@ -73,13 +79,14 @@ public final class ProgressBar: Sendable {
     public func set(description: String) {
         resetCurrentTask()
 
-        state.description = description
-        state.subDescription = ""
+        state.withLock {
+            $0.description = description
+            $0.subDescription = ""
+            $0.tasks += 1
+        }
         if config.disableProgressUpdates {
             printFullDescription()
         }
-
-        state.tasks += 1
     }
 
     /// Updates the additional description of the progress bar.
@@ -87,21 +94,21 @@ public final class ProgressBar: Sendable {
     public func set(subDescription: String) {
         resetCurrentTask()
 
-        state.subDescription = subDescription
+        state.withLock { $0.subDescription = subDescription }
         if config.disableProgressUpdates {
             printFullDescription()
         }
     }
 
     private func start(intervalSeconds: TimeInterval) async {
-        if config.disableProgressUpdates && !state.description.isEmpty {
+        if config.disableProgressUpdates && !state.withLock({ $0.description.isEmpty }) {
             printFullDescription()
         }
 
-        while !state.finished {
+        while !state.withLock({ $0.finished }) {
             let intervalNanoseconds = UInt64(intervalSeconds * 1_000_000_000)
             render()
-            state.iteration += 1
+            state.withLock { $0.iteration += 1 }
             if (try? await Task.sleep(nanoseconds: intervalNanoseconds)) == nil {
                 return
             }
@@ -118,17 +125,17 @@ public final class ProgressBar: Sendable {
 
     /// Finishes the progress bar.
     public func finish() {
-        guard !state.finished else {
+        guard !state.withLock({ $0.finished }) else {
             return
         }
 
-        state.finished = true
+        state.withLock { $0.finished = true }
 
         // The last render.
         render(force: true)
 
         if !config.disableProgressUpdates && !config.clearOnFinish {
-            displayText(state.output, terminating: "\n")
+            displayText(state.withLock { $0.output }, terminating: "\n")
         }
 
         if config.clearOnFinish {
@@ -143,13 +150,13 @@ public final class ProgressBar: Sendable {
 
 extension ProgressBar {
     private func secondsSinceStart() -> Int {
-        let timeDifferenceNanoseconds = DispatchTime.now().uptimeNanoseconds - state.startTime.uptimeNanoseconds
+        let timeDifferenceNanoseconds = DispatchTime.now().uptimeNanoseconds - state.withLock { $0.startTime.uptimeNanoseconds }
         let timeDifferenceSeconds = Int(floor(Double(timeDifferenceNanoseconds) / 1_000_000_000))
         return timeDifferenceSeconds
     }
 
     func render(force: Bool = false) {
-        guard term != nil && !config.disableProgressUpdates && (force || !state.finished) else {
+        guard term != nil && !config.disableProgressUpdates && (force || !state.withLock { $0.finished }) else {
             return
         }
         let output = draw()
@@ -157,6 +164,8 @@ extension ProgressBar {
     }
 
     func draw() -> String {
+        let state = self.state.withLock { $0 }
+
         var components = [String]()
         if config.showSpinner && !config.showProgressBar {
             if !state.finished {
