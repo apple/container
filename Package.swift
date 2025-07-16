@@ -312,7 +312,7 @@ let package = Package(
         
         // MARK: Plugins
         .executableTarget(
-            name: "Compose",
+            name: "compose",
             dependencies: [
                 "container",
                 "Yams",
