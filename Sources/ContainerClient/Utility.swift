@@ -209,4 +209,22 @@ public struct Utility {
         }
         return try await ClientKernel.getDefaultKernel(for: s)
     }
+
+    /// Parses key-value pairs from command line arguments.
+    ///
+    /// Supports formats like "key=value" and standalone keys (treated as "key=").
+    /// - Parameter pairs: Array of strings in "key=value" format
+    /// - Returns: Dictionary mapping keys to values
+    public static func parseKeyValuePairs(_ pairs: [String]) -> [String: String] {
+        var result: [String: String] = [:]
+        for pair in pairs {
+            let components = pair.split(separator: "=", maxSplits: 1)
+            if components.count == 2 {
+                result[String(components[0])] = String(components[1])
+            } else {
+                result[pair] = ""
+            }
+        }
+        return result
+    }
 }
