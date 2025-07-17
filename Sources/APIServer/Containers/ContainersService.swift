@@ -215,9 +215,9 @@ actor ContainersService {
                     message: "container \(id) is not yet stopped and can not be deleted"
                 )
             }
-            try self._cleanup(id: id, item: item)
+            try await self._cleanup(id: id, item: item)
         case .dead, .exited(_):
-            try self._cleanup(id: id, item: item)
+            try await self._cleanup(id: id, item: item)
         }
     }
 
@@ -225,9 +225,10 @@ actor ContainersService {
         "\(Self.launchdDomainString)/\(Self.machServicePrefix).\(runtimeName).\(instanceId)"
     }
 
-    private func _cleanup(id: String, item: Item) throws {
+    private func _cleanup(id: String, item: Item) async throws {
         self.log.debug("\(#function)")
         let config = try item.bundle.configuration
+
         let label = Self.fullLaunchdServiceLabel(runtimeName: config.runtimeHandler, instanceId: id)
         try ServiceManager.deregister(fullServiceLabel: label)
         try item.bundle.delete()
@@ -241,7 +242,7 @@ actor ContainersService {
     }
 
     private func cleanup(id: String, item: Item, context: AsyncLock.Context) async throws {
-        try self._cleanup(id: id, item: item)
+        try await self._cleanup(id: id, item: item)
     }
 
     private func containerProcessExitHandler(_ id: String, _ exitCode: Int32, context: AsyncLock.Context) async {
@@ -333,6 +334,29 @@ extension ContainersService {
                 message: "failed to open container logs: \(error)"
             )
         }
+    }
+
+    /// Check if a volume is currently in use by any container
+    public func isVolumeInUse(_ volumeName: String) -> Bool {
+        for (_, item) in self.containers {
+            // Only check containers that are actually alive, not dead or exited
+            guard case .alive(_) = item.state else {
+                continue
+            }
+
+            do {
+                let config = try item.bundle.configuration
+                for mount in config.mounts {
+                    if mount.isVolume && mount.volumeName == volumeName {
+                        return true
+                    }
+                }
+            } catch {
+                // Skip containers with invalid configs
+                continue
+            }
+        }
+        return false
     }
 }
 

@@ -68,7 +68,7 @@ struct APIServer: AsyncParsableCommand {
             var routes = [XPCRoute: XPCServer.RouteHandler]()
             let pluginLoader = try initializePluginLoader(log: log)
             try await initializePlugins(pluginLoader: pluginLoader, log: log, routes: &routes)
-            try initializeContainerService(root: root, pluginLoader: pluginLoader, log: log, routes: &routes)
+            let containersService = try initializeContainerService(root: root, pluginLoader: pluginLoader, log: log, routes: &routes)
             let networkService = try await initializeNetworkService(
                 root: root,
                 pluginLoader: pluginLoader,
@@ -77,6 +77,7 @@ struct APIServer: AsyncParsableCommand {
             )
             initializeHealthCheckService(log: log, routes: &routes)
             try initializeKernelService(log: log, routes: &routes)
+            try await initializeVolumeService(root: root, containersService: containersService, log: log, routes: &routes)
 
             let server = XPCServer(
                 identifier: "com.apple.container.apiserver",
@@ -198,7 +199,7 @@ struct APIServer: AsyncParsableCommand {
         routes[XPCRoute.getDefaultKernel] = harness.getDefaultKernel
     }
 
-    private func initializeContainerService(root: URL, pluginLoader: PluginLoader, log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) throws {
+    private func initializeContainerService(root: URL, pluginLoader: PluginLoader, log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) throws -> ContainersService {
         let service = try ContainersService(
             root: root,
             pluginLoader: pluginLoader,
@@ -211,6 +212,8 @@ struct APIServer: AsyncParsableCommand {
         routes[XPCRoute.deleteContainer] = harness.delete
         routes[XPCRoute.containerLogs] = harness.logs
         routes[XPCRoute.containerEvent] = harness.eventHandler
+
+        return service
     }
 
     private func initializeNetworkService(
@@ -240,6 +243,18 @@ struct APIServer: AsyncParsableCommand {
         routes[XPCRoute.networkDelete] = harness.delete
         routes[XPCRoute.networkList] = harness.list
         return service
+    }
+
+    private func initializeVolumeService(root: URL, containersService: ContainersService, log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) async throws {
+        let resourceRoot = root.appendingPathComponent("volumes")
+        let service = try VolumesService(resourceRoot: resourceRoot, log: log)
+        await service.setContainersService(containersService)
+        let harness = VolumesHarness(service: service, log: log)
+
+        routes[XPCRoute.volumeCreate] = harness.create
+        routes[XPCRoute.volumeDelete] = harness.delete
+        routes[XPCRoute.volumeList] = harness.list
+        routes[XPCRoute.volumeInspect] = harness.inspect
     }
 
     private static func releaseVersion() -> String {
