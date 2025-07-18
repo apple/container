@@ -31,11 +31,13 @@ class LRUCache<K: Hashable, V> {
         }
     }
 
+    private let size: UInt
     private var head: Node?
     private var tail: Node?
     private var members: [K: Node]
 
-    init() {
+    init(size: UInt) {
+        self.size = size
         self.head = nil
         self.tail = nil
         self.members = [:]
@@ -52,17 +54,26 @@ class LRUCache<K: Hashable, V> {
         return node.value
     }
 
-    func put(key: K, value: V) throws {
-        if members[key] != nil {
-            throw KeyExistsError()
+    func put(key: K, value: V) -> (K, V)? {
+        let node = Node(key: key, value: value)
+        var evicted: (K, V)? = nil
+
+        if let existingNode = members[key] {
+            // evict the replaced node
+            listRemove(node: existingNode)
+            evicted = (existingNode.key, existingNode.value)
+        } else if self.count >= self.size {
+            // evict the least recently used node
+            evicted = evict()
         }
 
-        let node = Node(key: key, value: value)
-        listInsert(node: node, after: tail)
+        // insert the new node and return any evicted node
         members[key] = node
+        listInsert(node: node, after: tail)
+        return evicted
     }
 
-    func evict() -> (K, V)? {
+    private func evict() -> (K, V)? {
         guard let head else {
             return nil
         }

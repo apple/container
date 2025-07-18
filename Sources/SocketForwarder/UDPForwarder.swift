@@ -102,7 +102,7 @@ private struct ProxyContext {
 private final class UDPProxyFrontend: ChannelInboundHandler, Sendable {
     typealias InboundIn = AddressedEnvelope<ByteBuffer>
     typealias OutboundOut = AddressedEnvelope<ByteBuffer>
-    private let maxProxies = 256
+    private let maxProxies = UInt(256)
 
     private let proxyAddress: SocketAddress
     private let serverAddress: SocketAddress
@@ -115,7 +115,7 @@ private final class UDPProxyFrontend: ChannelInboundHandler, Sendable {
         self.proxyAddress = proxyAddress
         self.serverAddress = serverAddress
         self.eventLoopGroup = eventLoopGroup
-        self.proxies = Mutex(LRUCache())
+        self.proxies = Mutex(LRUCache(size: maxProxies))
         self.log = log
     }
 
@@ -139,13 +139,6 @@ private final class UDPProxyFrontend: ChannelInboundHandler, Sendable {
                     context.proxy.write(data: inbound.data)
                 } else {
                     self.log?.trace("frontend - creating backend")
-                    if $0.count >= maxProxies {
-                        self.log?.trace("frontend - evicting backend")
-                        if let (_, evictedContext) = $0.evict() {
-                            evictedContext.proxy.close()
-                        }
-                    }
-
                     let proxy = UDPProxyBackend(
                         clientAddress: inbound.remoteAddress,
                         serverAddress: self.serverAddress,
@@ -161,7 +154,11 @@ private final class UDPProxyFrontend: ChannelInboundHandler, Sendable {
                         .bind(to: proxyAddress)
                         .flatMap { $0.closeFuture }
                     let context = ProxyContext(proxy: proxy, closeFuture: proxyToServerFuture)
-                    try $0.put(key: key, value: context)
+                    if let (_, evictedContext) = $0.put(key: key, value: context) {
+                        self.log?.trace("frontend - closing evicted backend")
+                        evictedContext.proxy.close()
+                    }
+
                     proxy.write(data: inbound.data)
                 }
             }
