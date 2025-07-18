@@ -14,23 +14,28 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import Foundation
+import NIO
 
-extension CommandLine {
-    public static var executablePathUrl: URL {
-        /// _NSGetExecutablePath with a zero-length buffer returns the needed buffer length
-        var bufferSize: Int32 = 0
-        var buffer = [CChar](repeating: 0, count: Int(bufferSize))
-        _ = _NSGetExecutablePath(&buffer, &bufferSize)
+struct UDPEchoServer: Sendable {
+    private let serverAddress: SocketAddress
 
-        /// Create the buffer and get the path
-        buffer = [CChar](repeating: 0, count: Int(bufferSize))
-        guard _NSGetExecutablePath(&buffer, &bufferSize) == 0 else {
-            fatalError("UNEXPECTED: failed to get executable path")
-        }
+    private let eventLoopGroup: MultiThreadedEventLoopGroup
 
-        /// Return the path with the executable file component removed the last component and
-        let executablePath = String(cString: &buffer)
-        return URL(filePath: executablePath)
+    public init(serverAddress: SocketAddress, eventLoopGroup: MultiThreadedEventLoopGroup) {
+        self.serverAddress = serverAddress
+        self.eventLoopGroup = eventLoopGroup
+    }
+
+    public func run() throws -> EventLoopFuture<any Channel> {
+        let bootstrap = DatagramBootstrap(group: self.eventLoopGroup)
+            .channelInitializer { channel in
+                channel.eventLoop.makeCompletedFuture {
+                    try channel.pipeline.syncOperations.addHandler(
+                        UDPEchoHandler()
+                    )
+                }
+            }
+
+        return bootstrap.bind(to: self.serverAddress)
     }
 }

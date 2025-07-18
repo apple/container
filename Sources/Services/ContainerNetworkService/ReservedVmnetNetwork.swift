@@ -29,7 +29,7 @@ import vmnet
 /// Creates a vmnet network with reservation APIs.
 @available(macOS 26, *)
 public final class ReservedVmnetNetwork: Network {
-    @SendableProperty
+    @SendablePropertyUnchecked
     private var _state: NetworkState
     private let log: Logger
 

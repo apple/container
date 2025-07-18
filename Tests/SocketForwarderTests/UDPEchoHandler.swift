@@ -14,23 +14,17 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import Foundation
+import NIO
 
-extension CommandLine {
-    public static var executablePathUrl: URL {
-        /// _NSGetExecutablePath with a zero-length buffer returns the needed buffer length
-        var bufferSize: Int32 = 0
-        var buffer = [CChar](repeating: 0, count: Int(bufferSize))
-        _ = _NSGetExecutablePath(&buffer, &bufferSize)
+final class UDPEchoHandler: ChannelInboundHandler {
 
-        /// Create the buffer and get the path
-        buffer = [CChar](repeating: 0, count: Int(bufferSize))
-        guard _NSGetExecutablePath(&buffer, &bufferSize) == 0 else {
-            fatalError("UNEXPECTED: failed to get executable path")
-        }
+    typealias InboundIn = AddressedEnvelope<ByteBuffer>
 
-        /// Return the path with the executable file component removed the last component and
-        let executablePath = String(cString: &buffer)
-        return URL(filePath: executablePath)
+    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+        context.writeAndFlush(data, promise: nil)
+    }
+
+    func errorCaught(context: ChannelHandlerContext, error: Error) {
+        context.close(promise: nil)
     }
 }

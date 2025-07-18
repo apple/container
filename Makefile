@@ -46,9 +46,9 @@ build:
 	@$(SWIFT) build -c $(BUILD_CONFIGURATION)
 
 .PHONY: container
-container: build 
-	@# Install binaries under project directory
-	@"$(MAKE)" BUILD_CONFIGURATION=$(BUILD_CONFIGURATION) DESTDIR=$(ROOT_DIR)/ SUDO= install
+# Install binaries under project directory
+container: build
+	@"$(MAKE)" BUILD_CONFIGURATION=$(BUILD_CONFIGURATION) DESTDIR="$(ROOT_DIR)/" SUDO= install
 
 .PHONY: release
 release: BUILD_CONFIGURATION = release
@@ -60,62 +60,62 @@ init-block:
 
 .PHONY: install
 install: installer-pkg
-	@echo Installing container installer package 
+	@echo Installing container installer package
 	@if [ -z "$(SUDO)" ] ; then \
 		temp_dir=$$(mktemp -d) ; \
 		xar -xf $(PKG_PATH) -C $${temp_dir} ; \
-		(cd $${temp_dir} && tar -xf Payload -C $(DESTDIR)) ; \
+		(cd $${temp_dir} && tar -xf Payload -C "$(DESTDIR)") ; \
 		rm -rf $${temp_dir} ; \
 	else \
 		$(SUDO) installer -pkg $(PKG_PATH) -target / ; \
-	fi 
-	
-$(STAGING_DIR): 
-	@echo Installing container binaries from $(BUILD_BIN_DIR) into $(STAGING_DIR)...
-	@rm -rf $(STAGING_DIR)
-	@mkdir -p $(join $(STAGING_DIR), bin)
-	@mkdir -p $(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/bin)
-	@mkdir -p $(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin)
-	@mkdir -p $(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin)
+	fi
 
-	@install $(BUILD_BIN_DIR)/container $(join $(STAGING_DIR), bin/container)
-	@install $(BUILD_BIN_DIR)/container-apiserver $(join $(STAGING_DIR), bin/container-apiserver)
-	@install $(BUILD_BIN_DIR)/container-runtime-linux $(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/bin/container-runtime-linux)
-	@install config/container-runtime-linux-config.json $(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/config.json)
-	@install $(BUILD_BIN_DIR)/container-network-vmnet $(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin/container-network-vmnet)
-	@install config/container-network-vmnet-config.json $(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/config.json)
-	@install $(BUILD_BIN_DIR)/container-core-images $(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin/container-core-images)
-	@install config/container-core-images-config.json $(join $(STAGING_DIR), libexec/container/plugins/container-core-images/config.json)
+$(STAGING_DIR):
+	@echo Installing container binaries from "$(BUILD_BIN_DIR)" into "$(STAGING_DIR)"...
+	@rm -rf "$(STAGING_DIR)"
+	@mkdir -p "$(join $(STAGING_DIR), bin)"
+	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/bin)"
+	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin)"
+	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin)"
+
+	@install "$(BUILD_BIN_DIR)/container" "$(join $(STAGING_DIR), bin/container)"
+	@install "$(BUILD_BIN_DIR)/container-apiserver" "$(join $(STAGING_DIR), bin/container-apiserver)"
+	@install "$(BUILD_BIN_DIR)/container-runtime-linux" "$(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/bin/container-runtime-linux)"
+	@install config/container-runtime-linux-config.json "$(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/config.json)"
+	@install "$(BUILD_BIN_DIR)/container-network-vmnet" "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin/container-network-vmnet)"
+	@install config/container-network-vmnet-config.json "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/config.json)"
+	@install "$(BUILD_BIN_DIR)/container-core-images" "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin/container-core-images)"
+	@install config/container-core-images-config.json "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/config.json)"
 
 	@echo Install uninstaller script
-	@install scripts/uninstall-container.sh $(join $(STAGING_DIR), bin/uninstall-container.sh)
+	@install scripts/uninstall-container.sh "$(join $(STAGING_DIR), bin/uninstall-container.sh)"
 
 .PHONY: installer-pkg
 installer-pkg: $(STAGING_DIR)
 	@echo Signing container binaries...
-	@codesign $(CODESIGN_OPTS) --identifier com.apple.container.cli $(join $(STAGING_DIR), bin/container)
-	@codesign $(CODESIGN_OPTS) --identifier com.apple.container.apiserver $(join $(STAGING_DIR), bin/container-apiserver)
-	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. $(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin/container-core-images)
-	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. --entitlements=signing/container-runtime-linux.entitlements $(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/bin/container-runtime-linux)
-	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. --entitlements=signing/container-network-vmnet.entitlements $(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin/container-network-vmnet)
+	@codesign $(CODESIGN_OPTS) --identifier com.apple.container.cli "$(join $(STAGING_DIR), bin/container)"
+	@codesign $(CODESIGN_OPTS) --identifier com.apple.container.apiserver "$(join $(STAGING_DIR), bin/container-apiserver)"
+	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin/container-core-images)"
+	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. --entitlements=signing/container-runtime-linux.entitlements "$(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/bin/container-runtime-linux)"
+	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. --entitlements=signing/container-network-vmnet.entitlements "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin/container-network-vmnet)"
 
 	@echo Creating application installer
-	@pkgbuild --root $(STAGING_DIR) --identifier com.apple.container-installer --install-location /usr/local --version ${RELEASE_VERSION} $(PKG_PATH)
-	@rm -rf $(STAGING_DIR)
+	@pkgbuild --root "$(STAGING_DIR)" --identifier com.apple.container-installer --install-location /usr/local --version ${RELEASE_VERSION} $(PKG_PATH)
+	@rm -rf "$(STAGING_DIR)"
 
 .PHONY: dsym
 dsym:
 	@echo Copying debug symbols...
-	@rm -rf $(DSYM_DIR)
-	@mkdir -p $(DSYM_DIR)
-	@cp -a $(BUILD_BIN_DIR)/container-runtime-linux.dSYM $(DSYM_DIR)
-	@cp -a $(BUILD_BIN_DIR)/container-network-vmnet.dSYM $(DSYM_DIR)
-	@cp -a $(BUILD_BIN_DIR)/container-core-images.dSYM $(DSYM_DIR)
-	@cp -a $(BUILD_BIN_DIR)/container-apiserver.dSYM $(DSYM_DIR)
-	@cp -a $(BUILD_BIN_DIR)/container.dSYM $(DSYM_DIR)
+	@rm -rf "$(DSYM_DIR)"
+	@mkdir -p "$(DSYM_DIR)"
+	@cp -a "$(BUILD_BIN_DIR)/container-runtime-linux.dSYM" "$(DSYM_DIR)"
+	@cp -a "$(BUILD_BIN_DIR)/container-network-vmnet.dSYM" "$(DSYM_DIR)"
+	@cp -a "$(BUILD_BIN_DIR)/container-core-images.dSYM" "$(DSYM_DIR)"
+	@cp -a "$(BUILD_BIN_DIR)/container-apiserver.dSYM" "$(DSYM_DIR)"
+	@cp -a "$(BUILD_BIN_DIR)/container.dSYM" "$(DSYM_DIR)"
 
 	@echo Packaging the debug symbols...
-	@(cd $(dir $(DSYM_DIR)) ; zip -r $(notdir $(DSYM_PATH)) $(notdir $(DSYM_DIR)))
+	@(cd "$(dir $(DSYM_DIR))" ; zip -r $(notdir $(DSYM_PATH)) $(notdir $(DSYM_DIR)))
 
 .PHONY: test
 test:
@@ -124,7 +124,7 @@ test:
 .PHONY: install-kernel
 install-kernel:
 	@bin/container system stop || true
-	@bin/container system start --enable-kernel-install  
+	@bin/container system start --enable-kernel-install
 
 .PHONY: integration
 integration: init-block
@@ -146,7 +146,7 @@ integration: init-block
 	@scripts/ensure-container-stopped.sh
 
 .PHONY: fmt
-fmt:	swift-fmt update-licenses
+fmt: swift-fmt update-licenses
 
 .PHONY: swift-fmt
 SWIFT_SRC = $(shell find . -type f -name '*.swift' -not -path "*/.*" -not -path "*.pb.swift" -not -path "*.grpc.swift" -not -path "*/checkouts/*")

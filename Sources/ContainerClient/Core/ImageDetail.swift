@@ -18,14 +18,14 @@ import Containerization
 import ContainerizationOCI
 
 public struct ImageDetail: Codable {
-    let name: String
-    let index: Descriptor
-    let variants: [Variants]
+    public let name: String
+    public let index: Descriptor
+    public let variants: [Variants]
 
-    struct Variants: Codable {
-        let platform: Platform
-        let config: ContainerizationOCI.Image
-        let size: Int64
+    public struct Variants: Codable {
+        public let platform: Platform
+        public let config: ContainerizationOCI.Image
+        public let size: Int64
 
         init(platform: Platform, size: Int64, config: ContainerizationOCI.Image) {
             self.platform = platform

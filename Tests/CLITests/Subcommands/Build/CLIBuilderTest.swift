@@ -47,6 +47,23 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
+        @Test func testBuildFromPreviousStage() throws {
+            let tempDir: URL = try createTempDir()
+            let dockerfile =
+                """
+                FROM ghcr.io/linuxcontainers/alpine:3.20 AS layer1
+                RUN sh -c "echo 'layer1' > /layer1.txt"
+
+                FROM layer1
+                CMD ["cat", "/layer1.txt"]
+                """
+
+            try createContext(tempDir: tempDir, dockerfile: dockerfile)
+            let imageName = "registry.local/from-previous-layer:\(UUID().uuidString)"
+            try self.build(tag: imageName, tempDir: tempDir)
+            #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully build \(imageName)")
+        }
+
         @Test func testBuildFromLocalImage() throws {
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
