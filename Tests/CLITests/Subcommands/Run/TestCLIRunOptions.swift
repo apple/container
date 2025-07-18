@@ -449,7 +449,8 @@ class TestCLIRunCommand: CLITest {
             let url = "http://\(proxyIp):\(proxyPort)"
             var request = HTTPClientRequest(url: url)
             request.method = .GET
-            let client = getClient()
+            let config = HTTPClient.Configuration(proxy: nil)
+            let client = HTTPClient(eventLoopGroupProvider: .singleton, configuration: config)
             defer { _ = client.shutdown() }
             var retriesRemaining = retries
             var success = false
