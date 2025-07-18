@@ -26,6 +26,9 @@ import ContainerizationOCI
 import ContainerizationOS
 import Foundation
 import Logging
+import NIO
+import NIOFoundationCompat
+import SocketForwarder
 
 import struct ContainerizationOCI.Mount
 import struct ContainerizationOCI.Process
@@ -36,11 +39,13 @@ public actor SandboxService {
     private let interfaceStrategy: InterfaceStrategy
     private var container: ContainerInfo?
     private let monitor: ExitMonitor
+    private let eventLoopGroup: MultiThreadedEventLoopGroup
     private var waiters: [String: [CheckedContinuation<Int32, Never>]] = [:]
     private let lock: AsyncLock = AsyncLock()
     private let log: Logging.Logger
     private var state: State = .created
     private var processes: [String: ProcessInfo] = [:]
+    private var socketForwarders: [SocketForwarderResult] = []
 
     /// Create an instance with a bundle that describes the container.
     ///
@@ -54,6 +59,7 @@ public actor SandboxService {
         self.interfaceStrategy = interfaceStrategy
         self.log = log
         self.monitor = ExitMonitor(log: log)
+        self.eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
     }
 
     /// Start the VM and the guest agent process for a container.
@@ -142,6 +148,11 @@ public actor SandboxService {
             do {
                 try await container.create()
                 try await self.monitor.registerProcess(id: config.id, onExit: self.onContainerExit)
+                if !container.interfaces.isEmpty {
+                    let firstCidr = try CIDRAddress(container.interfaces[0].address)
+                    let ipAddress = firstCidr.address.description
+                    try await self.startSocketForwarders(containerIpAddress: ipAddress, publishedPorts: config.publishedPorts)
+                }
                 await self.setState(.booted)
             } catch {
                 do {
@@ -272,6 +283,57 @@ public actor SandboxService {
             return code
         }
         try await self.monitor.track(id: id, waitingOn: waitFunc)
+    }
+
+    private func startSocketForwarders(containerIpAddress: String, publishedPorts: [PublishPort]) async throws {
+        var forwarders: [SocketForwarderResult] = []
+        try await withThrowingTaskGroup(of: SocketForwarderResult.self) { group in
+            for publishedPort in publishedPorts {
+                let proxyAddress = try SocketAddress(ipAddress: publishedPort.hostAddress, port: Int(publishedPort.hostPort))
+                let serverAddress = try SocketAddress(ipAddress: containerIpAddress, port: Int(publishedPort.containerPort))
+                log.info(
+                    "creating forwarder for",
+                    metadata: [
+                        "proxy": "\(proxyAddress)",
+                        "server": "\(serverAddress)",
+                        "protocol": "\(publishedPort.proto)",
+                    ])
+                group.addTask {
+                    let forwarder: SocketForwarder
+                    switch publishedPort.proto {
+                    case .tcp:
+                        forwarder = try TCPForwarder(
+                            proxyAddress: proxyAddress,
+                            serverAddress: serverAddress,
+                            eventLoopGroup: self.eventLoopGroup,
+                            log: self.log
+                        )
+                    case .udp:
+                        forwarder = try UDPForwarder(
+                            proxyAddress: proxyAddress,
+                            serverAddress: serverAddress,
+                            eventLoopGroup: self.eventLoopGroup,
+                            log: self.log
+                        )
+                    }
+                    return try await forwarder.run().get()
+                }
+            }
+            for try await result in group {
+                forwarders.append(result)
+            }
+        }
+
+        self.socketForwarders = forwarders
+    }
+
+    private func stopSocketForwarders() async {
+        log.info("closing forwarders")
+        for forwarder in self.socketForwarders {
+            forwarder.close()
+            try? await forwarder.wait()
+        }
+        log.info("closed forwarders")
     }
 
     /// Create a process inside the virtual machine for the container.
@@ -776,6 +838,7 @@ public actor SandboxService {
 
     private func cleanupContainer() async throws {
         // Give back our lovely IP(s)
+        await self.stopSocketForwarders()
         let containerInfo = try self.getContainer()
         for attachment in containerInfo.attachments {
             let client = NetworkClient(id: attachment.network)
