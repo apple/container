@@ -19,27 +19,34 @@ import Foundation
 import Logging
 import NIO
 import NIOFoundationCompat
+import Synchronization
 
 // Proxy backend for a single client address (clientIP, clientPort).
 private final class UDPProxyBackend: ChannelInboundHandler, Sendable {
     typealias InboundIn = AddressedEnvelope<ByteBuffer>
     typealias OutboundOut = AddressedEnvelope<ByteBuffer>
 
+    private struct State {
+        var queuedPayloads: Deque<ByteBuffer>
+        var channel: (any Channel)?
+    }
+
     private let clientAddress: SocketAddress
     private let serverAddress: SocketAddress
     private let frontendChannel: any Channel
     private let log: Logger?
 
+    private let state: Mutex<State>
+
     private let lock: NSLock = NSLock()
-    private nonisolated(unsafe) var queuedPayloads: Deque<ByteBuffer>
-    private nonisolated(unsafe) var channel: (any Channel)?
 
     init(clientAddress: SocketAddress, serverAddress: SocketAddress, frontendChannel: any Channel, log: Logger? = nil) {
         self.clientAddress = clientAddress
         self.serverAddress = serverAddress
         self.frontendChannel = frontendChannel
         self.log = log
-        self.queuedPayloads = Deque()
+        let state = State(queuedPayloads: Deque(), channel: nil)
+        self.state = Mutex(state)
     }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
@@ -51,22 +58,22 @@ private final class UDPProxyBackend: ChannelInboundHandler, Sendable {
     }
 
     func channelActive(context: ChannelHandlerContext) {
-        lock.withLock {
-            if !queuedPayloads.isEmpty {
-                self.log?.trace("backend - writing \(queuedPayloads.count) queued datagrams to server")
-                while let queuedData = queuedPayloads.popFirst() {
+        state.withLock {
+            if !$0.queuedPayloads.isEmpty {
+                self.log?.trace("backend - writing \($0.queuedPayloads.count) queued datagrams to server")
+                while let queuedData = $0.queuedPayloads.popFirst() {
                     let outbound: UDPProxyBackend.OutboundOut = OutboundOut(remoteAddress: self.serverAddress, data: queuedData)
                     _ = context.channel.writeAndFlush(outbound)
                 }
             }
-            self.channel = context.channel
+            $0.channel = context.channel
         }
     }
 
     func write(data: ByteBuffer) {
         // change package remote address from proxy server to real server
-        lock.withLock {
-            if let channel {
+        state.withLock {
+            if let channel = $0.channel {
                 // channel has been initialized, so relay any queued packets, along with this one to outbound
                 self.log?.trace("backend - writing datagram to server")
                 let outbound: UDPProxyBackend.OutboundOut = OutboundOut(remoteAddress: self.serverAddress, data: data)
@@ -74,14 +81,14 @@ private final class UDPProxyBackend: ChannelInboundHandler, Sendable {
             } else {
                 // channel is initializing, queue
                 self.log?.trace("backend - queuing datagram")
-                queuedPayloads.append(data)
+                $0.queuedPayloads.append(data)
             }
         }
     }
 
     func close() {
-        lock.withLock {
-            guard let channel else {
+        state.withLock {
+            guard let channel = $0.channel else {
                 self.log?.warning("backend - close on inactive channel")
                 return
             }
@@ -105,14 +112,13 @@ private final class UDPProxyFrontend: ChannelInboundHandler, Sendable {
     private let eventLoopGroup: any EventLoopGroup
     private let log: Logger?
 
-    private nonisolated(unsafe) var proxies: LRUCache<String, ProxyContext>
-    private let lock = NSLock()
+    private let proxies: Mutex<LRUCache<String, ProxyContext>>
 
     init(proxyAddress: SocketAddress, serverAddress: SocketAddress, eventLoopGroup: any EventLoopGroup, log: Logger? = nil) {
         self.proxyAddress = proxyAddress
         self.serverAddress = serverAddress
         self.eventLoopGroup = eventLoopGroup
-        self.proxies = LRUCache()
+        self.proxies = Mutex(LRUCache())
         self.log = log
     }
 
@@ -131,14 +137,14 @@ private final class UDPProxyFrontend: ChannelInboundHandler, Sendable {
 
         let key = "\(clientIP):\(clientPort)"
         do {
-            try lock.withLock {
-                if let context = proxies.get(key) {
+            try proxies.withLock {
+                if let context = $0.get(key) {
                     context.proxy.write(data: inbound.data)
                 } else {
                     self.log?.trace("frontend - creating backend")
-                    if proxies.count >= maxProxies {
+                    if $0.count >= maxProxies {
                         self.log?.trace("frontend - evicting backend")
-                        if let (_, evictedContext) = proxies.evict() {
+                        if let (_, evictedContext) = $0.evict() {
                             evictedContext.proxy.close()
                         }
                     }
@@ -158,7 +164,7 @@ private final class UDPProxyFrontend: ChannelInboundHandler, Sendable {
                         .bind(to: proxyAddress)
                         .flatMap { $0.closeFuture }
                     let context = ProxyContext(proxy: proxy, closeFuture: proxyToServerFuture)
-                    try proxies.put(key: key, value: context)
+                    try $0.put(key: key, value: context)
                     proxy.write(data: inbound.data)
                 }
             }
