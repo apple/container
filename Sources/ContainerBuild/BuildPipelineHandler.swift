@@ -26,14 +26,8 @@ protocol BuildPipelineHandler: Sendable {
 public actor BuildPipeline {
     let handlers: [BuildPipelineHandler]
     public init(_ config: Builder.BuildConfig) async throws {
-        let exporters: [BuildPipelineHandler] = try config.exports.map { export in
-            guard let destination = export.destination else {
-                throw Builder.Error.invalidExport(export.rawValue, "dest is required")
-            }
-            return try BuildExporter(output: destination)
-        }
         self.handlers =
-            exporters + [
+            [
                 try BuildFSSync(URL(filePath: config.contextDir)),
                 try BuildRemoteContentProxy(config.contentStore),
                 try BuildImageResolver(config.contentStore),

@@ -267,6 +267,7 @@ extension Application {
                 }
                 unpackProgress.start()
 
+                var finalMessage = "Successfully built \(imageName)"
                 let taskManager = ProgressTaskCoordinator()
                 // Currently, only a single export can be specified.
                 for exp in exports {
@@ -285,14 +286,19 @@ extension Application {
                             try await image.unpack(platform: nil, progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: unpackProgress.handler))
                         }
                     case "tar":
-                        break
+                        guard let dest = exp.destination else {
+                            throw ContainerizationError(.invalidArgument, message: "dest is required \(exp.rawValue)")
+                        }
+                        let tarURL = tempURL.appendingPathComponent("out.tar")
+                        try FileManager.default.moveItem(at: tarURL, to: dest)
+                        finalMessage = "Successfully exported to \(dest.absolutePath())"
                     default:
                         throw ContainerizationError(.invalidArgument, message: "invalid exporter \(exp.rawValue)")
                     }
                 }
                 await taskManager.finish()
                 unpackProgress.finish()
-                print("Successfully built \(imageName)")
+                print(finalMessage)
             } catch {
                 throw NSError(domain: "Build", code: 1, userInfo: [NSLocalizedDescriptionKey: "\(error)"])
             }
