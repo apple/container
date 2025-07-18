@@ -35,15 +35,15 @@ class LRUCache<K: Hashable, V> {
     private var tail: Node?
     private var members: [K: Node]
 
-    public init() {
+    init() {
         self.head = nil
         self.tail = nil
         self.members = [:]
     }
 
-    public var count: Int { members.count }
+    var count: Int { members.count }
 
-    public func get(_ key: K) -> V? {
+    func get(_ key: K) -> V? {
         guard let node = members[key] else {
             return nil
         }
@@ -52,7 +52,7 @@ class LRUCache<K: Hashable, V> {
         return node.value
     }
 
-    public func put(key: K, value: V) throws {
+    func put(key: K, value: V) throws {
         if members[key] != nil {
             throw KeyExistsError()
         }
@@ -62,7 +62,7 @@ class LRUCache<K: Hashable, V> {
         members[key] = node
     }
 
-    public func evict() -> (K, V)? {
+    func evict() -> (K, V)? {
         guard let head else {
             return nil
         }

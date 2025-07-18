@@ -35,10 +35,7 @@ private final class UDPProxyBackend: ChannelInboundHandler, Sendable {
     private let serverAddress: SocketAddress
     private let frontendChannel: any Channel
     private let log: Logger?
-
     private let state: Mutex<State>
-
-    private let lock: NSLock = NSLock()
 
     init(clientAddress: SocketAddress, serverAddress: SocketAddress, frontendChannel: any Channel, log: Logger? = nil) {
         self.clientAddress = clientAddress
