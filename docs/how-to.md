@@ -57,7 +57,7 @@ total 4
 
 ## Build and run a multiplatform image
 
-Using the [project from the tutorial example](/documentation/tutorial/#set-up-a-simple-project), you can create an image to use both on Apple silicon Macs and on x86-64 servers.
+Using the [project from the tutorial example](tutorial.md#set-up-a-simple-project), you can create an image to use both on Apple silicon Macs and on x86-64 servers.
 
 When building the image, just add `--arch` options that direct the builder to create an image supporting both the `arm64` and `amd64` architectures:
 
