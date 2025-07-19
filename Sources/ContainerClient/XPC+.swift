@@ -64,6 +64,13 @@ public enum XPCKeys: String {
     case width
     case height
     case processConfig
+    case serverOwnedStdio
+    /// Send history flag for attach
+    case sendHistory
+    /// History bytes sent on attach
+    case historyBytes
+    /// Whether history was truncated
+    case truncated
 
     /// Update progress
     case progressUpdateEndpoint

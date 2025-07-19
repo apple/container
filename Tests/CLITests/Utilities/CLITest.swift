@@ -23,6 +23,60 @@ import ContainerizationOS
 import Foundation
 import Testing
 
+/// A wrapper that provides unified Terminal-like interface for both PTY and pipe-based I/O
+struct InteractiveTerminal {
+    let process: Process
+    private let terminal: Terminal? // For PTY mode
+    private let stdinPipe: Pipe? // For pipe mode
+    private let stdoutPipe: Pipe? // For pipe mode
+    let stderrPipe: Pipe? // For pipe mode - made public for debugging
+
+    init(process: Process, terminal: Terminal?, stdinPipe: Pipe?, stdoutPipe: Pipe?, stderrPipe: Pipe?) {
+        self.process = process
+        self.terminal = terminal
+        self.stdinPipe = stdinPipe
+        self.stdoutPipe = stdoutPipe
+        self.stderrPipe = stderrPipe
+    }
+
+    /// Returns a handle for reading.
+    private var readHandle: FileHandle {
+        if let terminal = terminal {
+            return terminal.handle
+        } else if let stdout = stdoutPipe {
+            return stdout.fileHandleForReading
+        }
+        return FileHandle.nullDevice
+    }
+
+    /// Returns a handle for writing.
+    private var writeHandle: FileHandle {
+        if let terminal = terminal {
+            return terminal.handle
+        } else if let stdin = stdinPipe {
+            return stdin.fileHandleForWriting
+        }
+        return FileHandle.nullDevice
+    }
+
+    public func readLines() -> AsyncLineSequence<FileHandle.AsyncBytes> {
+        self.readHandle.bytes.lines
+    }
+
+    public func write(_ string: String, using encoding: String.Encoding = .utf8) throws {
+        guard let data = string.data(using: encoding) else {
+            throw CLITest.CLIError.invalidInput("string \(string) is invalid for encoding \(encoding)")
+        }
+        try self.writeHandle.write(contentsOf: data)
+    }
+
+    public func synchronize() throws {
+        // synchronize() is not supported on pipe file handles but might be needed for PTY
+        // Try it but don't fail if it's not supported
+        try? self.writeHandle.synchronize()
+    }
+}
+
 class CLITest {
     init() throws {}
 
@@ -114,7 +168,7 @@ class CLITest {
         return (output: output, error: error, status: process.terminationStatus)
     }
 
-    func runInteractive(arguments: [String], currentDirectory: URL? = nil) throws -> Terminal {
+    func runInteractive(arguments: [String], currentDirectory: URL? = nil) throws -> InteractiveTerminal {
         let process = Process()
         process.executableURL = try executablePath
         process.arguments = arguments
@@ -122,19 +176,29 @@ class CLITest {
             process.currentDirectoryURL = directory
         }
 
-        do {
-            let (parent, child) = try Terminal.create()
-            process.standardInput = child.handle
-            process.standardOutput = child.handle
-            process.standardError = child.handle
-
-            try process.run()
-            return parent
-        } catch {
-            fatalError(error.localizedDescription)
-        }
+        // Set up pipes for communication
+        let stdinPipe = Pipe()
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        
+        process.standardInput = stdinPipe
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+        
+        // Note: With server stdio, the CLI will forward container output to these pipes
+        
+        try process.run()
+        
+        // Return wrapper that provides unified interface for pipe-based I/O
+        return InteractiveTerminal(
+            process: process,
+            terminal: nil,
+            stdinPipe: stdinPipe,
+            stdoutPipe: stdoutPipe,
+            stderrPipe: stderrPipe
+        )
     }
-
+    
     func waitForContainerRunning(_ name: String, _ totalAttempts: Int64 = 100) throws {
         var attempt = 0
         var found = false

@@ -54,6 +54,9 @@ public struct Flags {
 
         @Option(name: [.customLong("user"), .customShort("u")], help: "Set the user for the process")
         public var user: String?
+        
+        @Option(name: .customLong("detach-keys"), help: "Override the key sequence for detaching a container")
+        public var detachKeys: String?
     }
 
     public struct Resource: ParsableArguments {
