@@ -145,7 +145,7 @@ private final class UDPProxyFrontend: ChannelInboundHandler, Sendable {
                         frontendChannel: context.channel,
                         log: log
                     )
-                    let proxyAddress = try SocketAddress(ipAddress: "127.0.0.1", port: 0)
+                    let proxyAddress = try SocketAddress(ipAddress: "0.0.0.0", port: 0)
                     let proxyToServerFuture = DatagramBootstrap(group: self.eventLoopGroup)
                         .channelInitializer {
                             self.log?.trace("frontend - initializing backend")
