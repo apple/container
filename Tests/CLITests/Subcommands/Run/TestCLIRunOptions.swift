@@ -16,7 +16,9 @@
 
 //
 
+import AsyncHTTPClient
 import ContainerClient
+import ContainerizationExtras
 import ContainerizationOS
 import Foundation
 import Testing
@@ -421,6 +423,50 @@ class TestCLIRunCommand: CLITest {
             #expect(words.count == 2, "expected 'opts \(dnsOption)', instead got '\(lines[1])'")
             #expect(words[0].lowercased() == "opts", "expected entry to list dns options, instead got '\(words[0])'")
             #expect(words[1].lowercased() == dnsOption, "expected option '\(dnsOption)', instead got '\(words[1])'")
+        } catch {
+            Issue.record("failed to run container \(error)")
+            return
+        }
+    }
+
+    @Test func testForwardTCP() async throws {
+        let retries = 10
+        let retryDelaySeconds = Int64(3)
+        do {
+            let name = Test.current!.name.trimmingCharacters(in: ["(", ")"])
+            let proxyIp = "127.0.0.1"
+            let proxyPort = UInt16.random(in: 50000..<55000)
+            let serverPort = UInt16.random(in: 55000..<60000)
+            try doLongRun(
+                name: name,
+                image: "docker.io/library/python:alpine",
+                args: ["--publish", "\(proxyIp):\(proxyPort):\(serverPort)/tcp"],
+                containerArgs: ["python3", "-m", "http.server", "--bind", "0.0.0.0", "\(serverPort)"])
+            defer {
+                try? doStop(name: name)
+            }
+
+            let url = "http://\(proxyIp):\(proxyPort)"
+            var request = HTTPClientRequest(url: url)
+            request.method = .GET
+            let config = HTTPClient.Configuration(proxy: nil)
+            let client = HTTPClient(eventLoopGroupProvider: .singleton, configuration: config)
+            defer { _ = client.shutdown() }
+            var retriesRemaining = retries
+            var success = false
+            while !success && retriesRemaining > 0 {
+                do {
+                    let response = try await client.execute(request, timeout: .seconds(retryDelaySeconds))
+                    try #require(response.status == .ok)
+                    success = true
+                } catch {
+                    print("request to \(url) failed, error \(error)")
+                    try await Task.sleep(for: .seconds(retryDelaySeconds))
+                }
+                retriesRemaining -= 1
+            }
+            #expect(success, "Request to \(url) failed after \(retries - retriesRemaining) retries")
+            try doStop(name: name)
         } catch {
             Issue.record("failed to run container \(error)")
             return
