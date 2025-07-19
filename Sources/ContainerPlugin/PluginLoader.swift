@@ -60,7 +60,6 @@ extension PluginLoader {
         }
 
         var lines = original.split(separator: "\n").map { String($0) }
-        let footer = String(lines.removeLast())
 
         let sectionHeader = "PLUGINS:"
         lines.append(sectionHeader)
@@ -69,8 +68,6 @@ extension PluginLoader {
             let helpText = plugin.helpText(padding: 24)
             lines.append(helpText)
         }
-        lines.append("")
-        lines.append(footer)
 
         return lines.joined(separator: "\n")
     }

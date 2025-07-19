@@ -23,7 +23,7 @@ import PackageDescription
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
 let scVersion = "0.4.1"
-let builderShimVersion = "0.3.0"
+let builderShimVersion = "0.5.0"
 
 let package = Package(
     name: "container",
@@ -39,10 +39,12 @@ let package = Package(
         .library(name: "ContainerPersistence", targets: ["ContainerPersistence"]),
         .library(name: "ContainerPlugin", targets: ["ContainerPlugin"]),
         .library(name: "ContainerXPC", targets: ["ContainerXPC"]),
+        .library(name: "SocketForwarder", targets: ["SocketForwarder"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
+        .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
         .package(url: "https://github.com/grpc/grpc-swift.git", from: "1.26.0"),
         .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.29.0"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.80.0"),
@@ -128,6 +130,7 @@ let package = Package(
                 "ContainerNetworkService",
                 "ContainerClient",
                 "ContainerXPC",
+                "SocketForwarder",
             ],
             path: "Sources/Services/ContainerSandboxService"
         ),
@@ -294,6 +297,19 @@ let package = Package(
                 .product(name: "DNS", package: "DNS"),
                 "DNSServer",
             ]
+        ),
+        .target(
+            name: "SocketForwarder",
+            dependencies: [
+                .product(name: "Collections", package: "swift-collections"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOFoundationCompat", package: "swift-nio"),
+            ]
+        ),
+        .testTarget(
+            name: "SocketForwarderTests",
+            dependencies: ["SocketForwarder"]
         ),
         .testTarget(
             name: "CLITests",
