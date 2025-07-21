@@ -86,7 +86,11 @@ extension XPCMessage {
     }
 
     public func set(error: ContainerizationError) {
-        let serializableError = ContainerXPCError(code: error.code.description, message: error.message)
+        var message = error.message
+        if let cause = error.cause {
+            message += " (cause: \"\(cause)\")"
+        }
+        let serializableError = ContainerXPCError(code: error.code.description, message: message)
         let data = try? JSONEncoder().encode(serializableError)
         precondition(data != nil)
 
