@@ -175,6 +175,10 @@ public struct Builder: Sendable {
                 if destinationValue == nil {
                     throw Builder.Error.invalidExport(input, "dest field is required")
                 }
+            case "local":
+                if destinationValue == nil {
+                    throw Builder.Error.invalidExport(input, "dest field is required")
+                }
             default:
                 throw Builder.Error.invalidExport(input, "unsupported output type")
             }
@@ -187,7 +191,7 @@ public struct Builder: Sendable {
                 var components = ["type=\(type)"]
 
                 switch type {
-                case "oci", "tar":
+                case "oci", "tar", "local":
                     break  // ignore destination
                 default:
                     throw Builder.Error.invalidExport(rawValue, "unsupported output type")

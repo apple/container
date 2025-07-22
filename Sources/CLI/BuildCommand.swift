@@ -292,6 +292,17 @@ extension Application {
                         let tarURL = tempURL.appendingPathComponent("out.tar")
                         try FileManager.default.moveItem(at: tarURL, to: dest)
                         finalMessage = "Successfully exported to \(dest.absolutePath())"
+                    case "local":
+                        guard let dest = exp.destination else {
+                            throw ContainerizationError(.invalidArgument, message: "dest is required \(exp.rawValue)")
+                        }
+                        let localDir = tempURL.appendingPathComponent("local")
+
+                        guard FileManager.default.fileExists(atPath: localDir.path) else {
+                            throw ContainerizationError(.invalidArgument, message: "expected local output not found")
+                        }
+                        try FileManager.default.copyItem(at: localDir, to: dest)
+                        finalMessage = "Successfully exported to \(dest.absolutePath())"
                     default:
                         throw ContainerizationError(.invalidArgument, message: "invalid exporter \(exp.rawValue)")
                     }
