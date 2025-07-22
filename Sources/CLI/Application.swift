@@ -182,7 +182,7 @@ struct Application: AsyncParsableCommand {
                 return -1
             }
 
-            try await process.start(io.stdio)
+            try await process.start()
             defer {
                 try? io.close()
             }

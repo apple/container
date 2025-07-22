@@ -32,7 +32,7 @@ public protocol ClientProcess: Sendable {
     var id: String { get }
 
     /// Start the underlying process inside of the container.
-    func start(_ stdio: [FileHandle?]) async throws
+    func start() async throws
     /// Send a terminal resize request to the process `id`.
     func resize(_ size: Terminal.Size) async throws
     /// Send or "kill" a signal to the process `id`.
@@ -66,10 +66,10 @@ struct ClientProcessImpl: ClientProcess, Sendable {
     }
 
     /// Start the container and return the initial process.
-    public func start(_ stdio: [FileHandle?]) async throws {
+    public func start() async throws {
         do {
             let client = self.client
-            try await client.startProcess(self.id, stdio: stdio)
+            try await client.startProcess(self.id)
         } catch {
             throw ContainerizationError(
                 .internalError,

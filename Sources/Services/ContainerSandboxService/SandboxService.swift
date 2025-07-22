@@ -29,6 +29,7 @@ import Logging
 import NIO
 import NIOFoundationCompat
 import SocketForwarder
+import Synchronization
 
 import struct ContainerizationOCI.Mount
 import struct ContainerizationOCI.Process
@@ -89,14 +90,8 @@ public actor SandboxService {
                 logger: self.log
             )
             var config = try bundle.configuration
-            let container = LinuxContainer(
-                config.id,
-                rootfs: try bundle.containerRootfs.asMount,
-                vmm: vmm,
-                logger: self.log
-            )
 
-            // dynamically configure the DNS nameserver from a network if no explicit configuration
+            // Dynamically configure the DNS nameserver from a network if no explicit configuration
             if let dns = config.dns, dns.nameservers.isEmpty {
                 if let nameserver = try await self.getDefaultNameserver(networks: config.networks) {
                     config.dns = ContainerConfiguration.DNSConfiguration(
@@ -107,8 +102,6 @@ public actor SandboxService {
                     )
                 }
             }
-
-            try await self.configureContainer(container: container, config: config)
 
             let fqdn: String
             if let hostname = config.hostname {
@@ -127,14 +120,53 @@ public actor SandboxService {
             }
 
             var attachments: [Attachment] = []
+            var interfaces: [Interface] = []
             for index in 0..<config.networks.count {
                 let network = config.networks[index]
                 let client = NetworkClient(id: network)
                 let hostname = index == 0 ? fqdn : config.id
                 let (attachment, additionalData) = try await client.allocate(hostname: hostname)
                 attachments.append(attachment)
-                let interface = try self.interfaceStrategy.toInterface(attachment: attachment, interfaceIndex: index, additionalData: additionalData)
-                container.interfaces.append(interface)
+
+                let interface = try self.interfaceStrategy.toInterface(
+                    attachment: attachment,
+                    interfaceIndex: index,
+                    additionalData: additionalData
+                )
+                interfaces.append(interface)
+            }
+
+            let stdio = message.stdio()
+            let containerLog = try FileHandle(forWritingTo: bundle.containerLog)
+            let stdout = {
+                if let h = stdio[1] {
+                    return MultiWriter(handles: [h, containerLog])
+                }
+                return MultiWriter(handles: [containerLog])
+            }()
+
+            let stderr: MultiWriter? = {
+                if !config.initProcess.terminal {
+                    if let h = stdio[2] {
+                        return MultiWriter(handles: [h, containerLog])
+                    }
+                    return MultiWriter(handles: [containerLog])
+                }
+                return nil
+            }()
+
+            let stdin = {
+                stdio[0] ?? nil
+            }()
+
+            let id = config.id
+            let rootfs = try bundle.containerRootfs.asMount
+            let container = try LinuxContainer(id, rootfs: rootfs, vmm: vmm, logger: self.log) { czConfig in
+                try Self.configureContainer(czConfig: &czConfig, config: config)
+                czConfig.interfaces = interfaces
+                czConfig.process.stdout = stdout
+                czConfig.process.stderr = stderr
+                czConfig.process.stdin = stdin
             }
 
             await self.setContainer(
@@ -142,7 +174,8 @@ public actor SandboxService {
                     container: container,
                     config: config,
                     attachments: attachments,
-                    bundle: bundle
+                    bundle: bundle,
+                    io: (in: stdin, out: stdout, err: stderr)
                 ))
 
             do {
@@ -180,65 +213,43 @@ public actor SandboxService {
         self.log.info("`start` xpc handler")
         return try await self.lock.withLock { lock in
             let id = try message.id()
-            let stdio = message.stdio()
             let containerInfo = try await self.getContainer()
             let containerId = containerInfo.container.id
             if id == containerId {
-                try await self.startInitProcess(stdio: stdio, lock: lock)
+                try await self.startInitProcess(lock: lock)
                 await self.setState(.running)
                 try await self.sendContainerEvent(.containerStart(id: id))
             } else {
-                try await self.startExecProcess(processId: id, stdio: stdio, lock: lock)
+                try await self.startExecProcess(processId: id, lock: lock)
             }
             return message.reply()
         }
     }
 
-    private func startInitProcess(stdio: [FileHandle?], lock: AsyncLock.Context) async throws {
+    private func startInitProcess(lock: AsyncLock.Context) async throws {
         let info = try self.getContainer()
         let container = info.container
-        let bundle = info.bundle
         let id = container.id
+
         guard self.state == .booted else {
             throw ContainerizationError(
                 .invalidState,
                 message: "container expected to be in booted state, got: \(self.state)"
             )
         }
-        let containerLog = try FileHandle(forWritingTo: bundle.containerLog)
-        let config = info.config
-        let stdout = {
-            if let h = stdio[1] {
-                return MultiWriter(handles: [h, containerLog])
-            }
-            return MultiWriter(handles: [containerLog])
-        }()
-        let stderr: MultiWriter? = {
-            if !config.initProcess.terminal {
-                if let h = stdio[2] {
-                    return MultiWriter(handles: [h, containerLog])
-                }
-                return MultiWriter(handles: [containerLog])
-            }
-            return nil
-        }()
-        if let h = stdio[0] {
-            container.stdin = h
-        }
-        container.stdout = stdout
-        if let stderr {
-            container.stderr = stderr
-        }
+
         self.setState(.starting)
         do {
+            let io = info.io
+
             try await container.start()
             let waitFunc: ExitMonitor.WaitHandler = {
                 let code = try await container.wait()
-                if let out = stdio[1] {
-                    try self.closeHandle(out.fileDescriptor)
+                if let out = io.out {
+                    try out.close()
                 }
-                if let err = stdio[2] {
-                    try self.closeHandle(err.fileDescriptor)
+                if let err = io.err {
+                    try err.close()
                 }
                 return code
             }
@@ -251,33 +262,25 @@ public actor SandboxService {
         }
     }
 
-    private func startExecProcess(processId id: String, stdio: [FileHandle?], lock: AsyncLock.Context) async throws {
+    private func startExecProcess(processId id: String, lock: AsyncLock.Context) async throws {
         let container = try self.getContainer().container
         guard let processInfo = self.processes[id] else {
             throw ContainerizationError(.notFound, message: "Process with id \(id)")
         }
-        let ociConfig = self.configureProcessConfig(config: processInfo.config)
-        let stdin: ReaderStream? = {
-            if let h = stdio[0] {
-                return h
-            }
-            return nil
-        }()
-        let process = try await container.exec(
-            id,
-            configuration: ociConfig,
-            stdin: stdin,
-            stdout: stdio[1],
-            stderr: stdio[2]
-        )
+
+        let czConfig = self.configureProcessConfig(config: processInfo.config, stdio: processInfo.io)
+
+        let process = try await container.exec(id, configuration: czConfig)
         try self.setUnderlyingProcess(id, process)
+
         try await process.start()
+
         let waitFunc: ExitMonitor.WaitHandler = {
             let code = try await process.wait()
-            if let out = stdio[1] {
+            if let out = processInfo.io[1] {
                 try self.closeHandle(out.fileDescriptor)
             }
-            if let err = stdio[2] {
+            if let err = processInfo.io[2] {
                 try self.closeHandle(err.fileDescriptor)
             }
             return code
@@ -361,12 +364,18 @@ public actor SandboxService {
             case .running, .booted:
                 let id = try message.id()
                 let config = try message.processConfig()
-                await self.addNewProcess(id, config)
+                let stdio = message.stdio()
+
+                await self.addNewProcess(id, config, stdio)
+
                 try await self.monitor.registerProcess(
                     id: id,
                     onExit: { id, code in
                         guard let process = await self.processes[id]?.process else {
-                            throw ContainerizationError(.invalidState, message: "ProcessInfo missing for process \(id)")
+                            throw ContainerizationError(
+                                .invalidState,
+                                message: "ProcessInfo missing for process \(id)"
+                            )
                         }
                         for cc in await self.waiters[id] ?? [] {
                             cc.resume(returning: code)
@@ -374,7 +383,9 @@ public actor SandboxService {
                         await self.removeWaiters(for: id)
                         try await process.delete()
                         try await self.setProcessState(id: id, state: .stopped(code))
-                    })
+                    }
+                )
+
                 return message.reply()
             }
         }
@@ -675,11 +686,14 @@ public actor SandboxService {
         }
     }
 
-    private func configureContainer(container: LinuxContainer, config: ContainerConfiguration) throws {
-        container.cpus = config.resources.cpus
-        container.memoryInBytes = config.resources.memoryInBytes
-        container.rosetta = config.rosetta
-        container.sysctl = config.sysctls.reduce(into: [String: String]()) {
+    private static func configureContainer(
+        czConfig: inout LinuxContainer.Configuration,
+        config: ContainerConfiguration
+    ) throws {
+        czConfig.cpus = config.resources.cpus
+        czConfig.memoryInBytes = config.resources.memoryInBytes
+        czConfig.rosetta = config.rosetta
+        czConfig.sysctl = config.sysctls.reduce(into: [String: String]()) {
             $0[$1.key] = $1.value
         }
 
@@ -689,9 +703,9 @@ public actor SandboxService {
                     source: URL(filePath: mount.source),
                     destination: URL(filePath: mount.destination)
                 )
-                container.sockets.append(socket)
+                czConfig.sockets.append(socket)
             } else {
-                container.mounts.append(mount.asMount)
+                czConfig.mounts.append(mount.asMount)
             }
         }
 
@@ -702,18 +716,18 @@ public actor SandboxService {
                 permissions: publishedSocket.permissions,
                 direction: .outOf
             )
-            container.sockets.append(socketConfig)
+            czConfig.sockets.append(socketConfig)
         }
 
-        container.hostname = config.hostname ?? config.id
+        czConfig.hostname = config.hostname ?? config.id
 
         if let dns = config.dns {
-            container.dns = DNS(
+            czConfig.dns = DNS(
                 nameservers: dns.nameservers, domain: dns.domain,
                 searchDomains: dns.searchDomains, options: dns.options)
         }
 
-        configureInitialProcess(container: container, process: config.initProcess)
+        Self.configureInitialProcess(czConfig: &czConfig, process: config.initProcess)
     }
 
     private func getDefaultNameserver(networks: [String]) async throws -> String? {
@@ -729,17 +743,20 @@ public actor SandboxService {
         return nil
     }
 
-    private func configureInitialProcess(container: LinuxContainer, process: ProcessConfiguration) {
-        container.arguments = [process.executable] + process.arguments
-        container.environment = modifyingEnvironment(process)
-        container.terminal = process.terminal
-        container.workingDirectory = process.workingDirectory
-        container.rlimits = process.rlimits.map {
+    private static func configureInitialProcess(
+        czConfig: inout LinuxContainer.Configuration,
+        process: ProcessConfiguration
+    ) {
+        czConfig.process.arguments = [process.executable] + process.arguments
+        czConfig.process.environmentVariables = process.environment
+        czConfig.process.terminal = process.terminal
+        czConfig.process.workingDirectory = process.workingDirectory
+        czConfig.process.rlimits = process.rlimits.map {
             .init(type: $0.limit, hard: $0.hard, soft: $0.soft)
         }
         switch process.user {
         case .raw(let name):
-            container.user = .init(
+            czConfig.process.user = .init(
                 uid: 0,
                 gid: 0,
                 umask: nil,
@@ -747,7 +764,7 @@ public actor SandboxService {
                 username: name
             )
         case .id(let uid, let gid):
-            container.user = .init(
+            czConfig.process.user = .init(
                 uid: uid,
                 gid: gid,
                 umask: nil,
@@ -757,12 +774,16 @@ public actor SandboxService {
         }
     }
 
-    private nonisolated func configureProcessConfig(config: ProcessConfiguration) -> ContainerizationOCI.Process {
-        var proc = ContainerizationOCI.Process()
-        proc.args = [config.executable] + config.arguments
-        proc.env = modifyingEnvironment(config)
+    private nonisolated func configureProcessConfig(config: ProcessConfiguration, stdio: [FileHandle?]) -> LinuxContainer.Configuration.Process {
+        var proc = LinuxContainer.Configuration.Process()
+        proc.stdin = stdio[0]
+        proc.stdout = stdio[1]
+        proc.stderr = stdio[2]
+
+        proc.arguments = [config.executable] + config.arguments
+        proc.environmentVariables = config.environment
         proc.terminal = config.terminal
-        proc.cwd = config.workingDirectory
+        proc.workingDirectory = config.workingDirectory
         proc.rlimits = config.rlimits.map {
             .init(type: $0.limit, hard: $0.hard, soft: $0.soft)
         }
@@ -795,14 +816,6 @@ public actor SandboxService {
             }
             throw POSIXError(errCode)
         }
-    }
-
-    private nonisolated func modifyingEnvironment(_ config: ProcessConfiguration) -> [String] {
-        guard config.terminal else {
-            return config.environment
-        }
-        // Prepend the TERM env var. If the user has it specified our value will be overridden.
-        return ["TERM=xterm"] + config.environment
     }
 
     private func getContainer() throws -> ContainerInfo {
@@ -960,8 +973,18 @@ extension Filesystem {
 struct MultiWriter: Writer {
     let handles: [FileHandle]
 
+    init(handles: [FileHandle]) {
+        self.handles = handles
+    }
+
+    func close() throws {
+        for handle in handles {
+            try handle.close()
+        }
+    }
+
     func write(_ data: Data) throws {
-        for handle in self.handles {
+        for handle in handles {
             try handle.write(contentsOf: data)
         }
     }
@@ -1020,14 +1043,15 @@ extension SandboxService {
         self.container = info
     }
 
-    private func addNewProcess(_ id: String, _ config: ProcessConfiguration) {
-        self.processes[id] = ProcessInfo(config: config, process: nil, state: .created)
+    private func addNewProcess(_ id: String, _ config: ProcessConfiguration, _ io: [FileHandle?]) {
+        self.processes[id] = ProcessInfo(config: config, process: nil, state: .created, io: io)
     }
 
     private struct ProcessInfo {
         let config: ProcessConfiguration
         var process: LinuxProcess?
         var state: State
+        let io: [FileHandle?]
     }
 
     private struct ContainerInfo {
@@ -1035,6 +1059,7 @@ extension SandboxService {
         let config: ContainerConfiguration
         let attachments: [Attachment]
         let bundle: ContainerClient.Bundle
+        let io: (in: FileHandle?, out: MultiWriter?, err: MultiWriter?)
     }
 
     public enum State: Sendable, Equatable {

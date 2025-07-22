@@ -81,7 +81,9 @@ extension Application {
 
                 let process = try await container.createProcess(
                     id: UUID().uuidString.lowercased(),
-                    configuration: config)
+                    configuration: config,
+                    stdio: io.stdio
+                )
 
                 exitCode = try await Application.handleProcess(io: io, process: process)
             } catch {
