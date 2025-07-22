@@ -27,6 +27,8 @@ public struct ProcessConfiguration: Sendable, Codable {
     /// A boolean value indicating if a Terminal or PTY device should
     /// be attached to the Process's Standard I/O.
     public var terminal: Bool
+    /// A boolean value indicating to open standard input for the process.
+    public var openStdin: Bool
     /// The User a Process should execute under.
     public var user: User
     /// Supplemental groups for the Process.
@@ -76,6 +78,7 @@ public struct ProcessConfiguration: Sendable, Codable {
         environment: [String],
         workingDirectory: String = "/",
         terminal: Bool = false,
+        openStdin: Bool = false,
         user: User = .id(uid: 0, gid: 0),
         supplementalGroups: [UInt32] = [],
         rlimits: [Rlimit] = []
@@ -85,6 +88,7 @@ public struct ProcessConfiguration: Sendable, Codable {
         self.environment = environment
         self.workingDirectory = workingDirectory
         self.terminal = terminal
+        self.openStdin = openStdin
         self.user = user
         self.supplementalGroups = supplementalGroups
         self.rlimits = rlimits
