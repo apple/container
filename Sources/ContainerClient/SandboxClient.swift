@@ -96,6 +96,25 @@ extension SandboxClient {
 
         try await client.send(request)
     }
+    
+    public func startProcessWithServerStdio(_ id: String) async throws -> [FileHandle?] {
+        let request = XPCMessage(route: SandboxRoutes.start.rawValue)
+        request.set(key: .id, value: id)
+        request.set(key: .serverOwnedStdio, value: true)
+        
+        let client = createClient()
+        defer { client.close() }
+        
+        let response = try await client.send(request)
+        
+        // Extract stdio handles from response
+        var stdio: [FileHandle?] = [nil, nil, nil]
+        stdio[0] = response.fileHandle(key: .stdin)
+        stdio[1] = response.fileHandle(key: .stdout)
+        stdio[2] = response.fileHandle(key: .stderr)
+        
+        return stdio
+    }
 
     public func stop(options: ContainerStopOptions) async throws {
         let request = XPCMessage(route: SandboxRoutes.stop.rawValue)
@@ -156,6 +175,25 @@ extension SandboxClient {
             )
         }
         return fh
+    }
+    
+    public func attach(containerID: String, sendHistory: Bool = true) async throws -> [FileHandle?] {
+        let request = XPCMessage(route: SandboxRoutes.attach.rawValue)
+        request.set(key: .id, value: containerID)
+        request.set(key: .sendHistory, value: sendHistory)
+        
+        let client = createClient()
+        defer { client.close() }
+        
+        let response = try await client.send(request)
+        
+        // Extract stdio handles from response
+        var stdio: [FileHandle?] = [nil, nil, nil]
+        stdio[0] = response.fileHandle(key: .stdin)
+        stdio[1] = response.fileHandle(key: .stdout)
+        stdio[2] = response.fileHandle(key: .stderr)
+        
+        return stdio
     }
 
     private func createClient() -> XPCClient {

@@ -27,6 +27,7 @@ PKG_PATH := bin/$(BUILD_CONFIGURATION)/container-installer-unsigned.pkg
 DSYM_DIR := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM
 DSYM_PATH := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM.zip
 CODESIGN_OPTS ?= --force --sign - --timestamp=none
+INTEGRATION_TEST_FILTER ?= TestCLI
 
 MACOS_VERSION := $(shell sw_vers -productVersion)
 MACOS_MAJOR := $(shell echo $(MACOS_VERSION) | cut -d. -f1)
@@ -119,7 +120,7 @@ dsym:
 
 .PHONY: test
 test:
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --skip TestCLI
+	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --skip TestCLI $$(if [ -n "$(TEST_FILTER)" ]; then echo "--filter $(TEST_FILTER)"; fi)
 
 .PHONY: install-kernel
 install-kernel:
@@ -135,13 +136,7 @@ integration: init-block
 	@echo "Removing any existing containers"
 	@bin/container rm --all
 	@echo "Starting CLI integration tests"
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLINetwork
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunLifecycle
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIExecCommand
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunCommand
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIImagesCommand
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunBase
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIBuildBase
+	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --no-parallel --filter $(INTEGRATION_TEST_FILTER) $$(if [ -n "$(INTEGRATION_TEST_SKIP)" ]; then echo "--skip $(INTEGRATION_TEST_SKIP)"; fi)
 	@echo Ensuring apiserver stopped after the CLI integration tests...
 	@scripts/ensure-container-stopped.sh
 
