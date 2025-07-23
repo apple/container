@@ -214,13 +214,21 @@ struct ProcessIO {
         if let stdin {
             if interactive {
                 let pin = FileHandle.standardInput
-                pin.readabilityHandler = { handle in
-                    let data = handle.availableData
-                    if data.isEmpty {
+                let stdinOSFile = OSFile(fd: pin.fileDescriptor)
+                let pipeOSFile = OSFile(fd: stdin.fileHandleForWriting.fileDescriptor)
+                try stdinOSFile.makeNonBlocking()
+                nonisolated(unsafe) let buf = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: Int(getpagesize()))
+
+                pin.readabilityHandler = { _ in
+                    Self.streamStdin(
+                        from: stdinOSFile,
+                        to: pipeOSFile,
+                        buffer: buf,
+                    ) {
                         pin.readabilityHandler = nil
-                        return
+                        buf.deallocate()
+                        try? stdin.fileHandleForWriting.close()
                     }
-                    try! stdin.fileHandleForWriting.write(contentsOf: data)
                 }
             }
             stdio[0] = stdin.fileHandleForReading
@@ -294,6 +302,39 @@ struct ProcessIO {
         )
     }
 
+    static func streamStdin(
+        from: OSFile,
+        to: OSFile,
+        buffer: UnsafeMutableBufferPointer<UInt8>,
+        onErrorOrEOF: () -> Void,
+    ) {
+        while true {
+            let (bytesRead, action) = from.read(buffer)
+            if bytesRead > 0 {
+                let view = UnsafeMutableBufferPointer(
+                    start: buffer.baseAddress,
+                    count: bytesRead
+                )
+
+                let (bytesWritten, _) = to.write(view)
+                if bytesWritten != bytesRead {
+                    onErrorOrEOF()
+                    return
+                }
+            }
+
+            switch action {
+            case .error(_), .eof, .brokenPipe:
+                onErrorOrEOF()
+                return
+            case .again:
+                return
+            case .success:
+                break
+            }
+        }
+    }
+
     public func wait() async throws {
         guard let ioTracker = self.ioTracker else {
             return
@@ -312,6 +353,99 @@ struct ProcessIO {
         } catch {
             log.error("Timeout waiting for IO to complete : \(error)")
             throw error
+        }
+    }
+}
+
+struct OSFile: Sendable {
+    private let fd: Int32
+
+    enum IOAction: Equatable {
+        case eof
+        case again
+        case success
+        case brokenPipe
+        case error(_ errno: Int32)
+    }
+
+    init(fd: Int32) {
+        self.fd = fd
+    }
+
+    init(handle: FileHandle) {
+        self.fd = handle.fileDescriptor
+    }
+
+    func makeNonBlocking() throws {
+        let flags = fcntl(fd, F_GETFL)
+        guard flags != -1 else {
+            throw POSIXError.fromErrno()
+        }
+
+        if fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1 {
+            throw POSIXError.fromErrno()
+        }
+    }
+
+    func write(_ buffer: UnsafeMutableBufferPointer<UInt8>) -> (wrote: Int, action: IOAction) {
+        if buffer.count == 0 {
+            return (0, .success)
+        }
+
+        var bytesWrote: Int = 0
+        while true {
+            let n = Darwin.write(
+                self.fd,
+                buffer.baseAddress!.advanced(by: bytesWrote),
+                buffer.count - bytesWrote
+            )
+            if n == -1 {
+                if errno == EAGAIN || errno == EIO {
+                    return (bytesWrote, .again)
+                }
+                return (bytesWrote, .error(errno))
+            }
+
+            if n == 0 {
+                return (bytesWrote, .brokenPipe)
+            }
+
+            bytesWrote += n
+            if bytesWrote < buffer.count {
+                continue
+            }
+            return (bytesWrote, .success)
+        }
+    }
+
+    func read(_ buffer: UnsafeMutableBufferPointer<UInt8>) -> (read: Int, action: IOAction) {
+        if buffer.count == 0 {
+            return (0, .success)
+        }
+
+        var bytesRead: Int = 0
+        while true {
+            let n = Darwin.read(
+                self.fd,
+                buffer.baseAddress!.advanced(by: bytesRead),
+                buffer.count - bytesRead
+            )
+            if n == -1 {
+                if errno == EAGAIN || errno == EIO {
+                    return (bytesRead, .again)
+                }
+                return (bytesRead, .error(errno))
+            }
+
+            if n == 0 {
+                return (bytesRead, .eof)
+            }
+
+            bytesRead += n
+            if bytesRead < buffer.count {
+                continue
+            }
+            return (bytesRead, .success)
         }
     }
 }
