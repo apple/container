@@ -207,6 +207,7 @@ public struct Parser {
             environment: envvars,
             workingDirectory: workingDir,
             terminal: processFlags.tty,
+            openStdin: processFlags.interactive,
             user: user,
             supplementalGroups: additionalGroups
         )
