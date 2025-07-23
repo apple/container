@@ -21,10 +21,10 @@ import ContainerizationExtras
 import Dispatch
 import Foundation
 import Logging
+import Synchronization
 import SystemConfiguration
 import XPC
 import vmnet
-import Synchronization
 
 /// Creates a vmnet network with reservation APIs.
 @available(macOS 26, *)
@@ -123,8 +123,8 @@ public final class ReservedVmnetNetwork: Network {
         guard let network = vmnet_network_create(vmnetConfiguration, &status), status == .VMNET_SUCCESS else {
             throw ContainerizationError(.unsupported, message: "failed to create vmnet network with status \(status)")
         }
-        
-        let newNetwork = { network } // A workaround for "'inout sending' parameter '$0' cannot be task-isolated at end of function".
+
+        let newNetwork = { network }  // A workaround for "'inout sending' parameter '$0' cannot be task-isolated at end of function".
         self.network.withLock {
             $0 = newNetwork()
         }

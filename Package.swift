@@ -261,7 +261,7 @@ let package = Package(
         .target(
             name: "TerminalProgress",
             dependencies: [
-                .product(name: "ContainerizationOS", package: "containerization"),
+                .product(name: "ContainerizationOS", package: "containerization")
             ]
         ),
         .testTarget(
