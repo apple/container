@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerClient
+import Foundation
 
 extension Application.VolumeCommand {
     struct VolumeCreate: AsyncParsableCommand {
@@ -34,14 +35,18 @@ extension Application.VolumeCommand {
         var labels: [String] = []
 
         func run() async throws {
-            print("TODO: Create volume '\(name)'")
-
-            // Parse driver options and labels
             let parsedDriverOpts = Utility.parseKeyValuePairs(driverOpts)
             let parsedLabels = Utility.parseKeyValuePairs(labels)
 
-            print("Driver options: \(parsedDriverOpts)")
-            print("Labels: \(parsedLabels)")
+            let request = VolumeCreateRequest(
+                name: name,
+                driver: "local",
+                driverOpts: parsedDriverOpts,
+                labels: parsedLabels
+            )
+
+            let volume = try await ClientVolume.create(request)
+            print(volume.name)
         }
     }
 }

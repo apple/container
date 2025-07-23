@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerClient
+import Foundation
 
 extension Application.VolumeCommand {
     struct VolumeDelete: AsyncParsableCommand {
@@ -30,7 +31,9 @@ extension Application.VolumeCommand {
 
         func run() async throws {
             for name in names {
-                print("TODO: Delete volume '\(name)'")
+                let request = VolumeDeleteRequest(name: name)
+                try await ClientVolume.delete(request)
+                print(name)
             }
         }
     }

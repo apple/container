@@ -144,7 +144,7 @@ public struct Utility {
         )
 
         let tmpfs = try Parser.tmpfsMounts(management.tmpFs)
-        let volumes = try Parser.volumes(management.volumes)
+        let volumes = try await Parser.volumes(management.volumes)
         var mounts = try Parser.mounts(management.mounts)
         mounts.append(contentsOf: tmpfs)
         mounts.append(contentsOf: volumes)

@@ -77,6 +77,7 @@ struct APIServer: AsyncParsableCommand {
             )
             initializeHealthCheckService(log: log, routes: &routes)
             try initializeKernelService(log: log, routes: &routes)
+            try initializeVolumeService(root: root, log: log, routes: &routes)
 
             let server = XPCServer(
                 identifier: "com.apple.container.apiserver",
@@ -240,6 +241,17 @@ struct APIServer: AsyncParsableCommand {
         routes[XPCRoute.networkDelete] = harness.delete
         routes[XPCRoute.networkList] = harness.list
         return service
+    }
+
+    private func initializeVolumeService(root: URL, log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) throws {
+        let resourceRoot = root.appendingPathComponent("volumes")
+        let service = try VolumesService(resourceRoot: resourceRoot, log: log)
+        let harness = VolumesHarness(service: service, log: log)
+
+        routes[XPCRoute.volumeCreate] = harness.create
+        routes[XPCRoute.volumeDelete] = harness.delete
+        routes[XPCRoute.volumeList] = harness.list
+        routes[XPCRoute.volumeInspect] = harness.inspect
     }
 
     private static func releaseVersion() -> String {

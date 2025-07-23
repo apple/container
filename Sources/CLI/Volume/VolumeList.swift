@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerClient
+import Foundation
 
 extension Application.VolumeCommand {
     struct VolumeList: AsyncParsableCommand {
@@ -32,9 +33,41 @@ extension Application.VolumeCommand {
         var quiet: Bool = false
 
         func run() async throws {
-            print("TODO: List volumes")
-            print("Filters: \(filter)")
-            print("Quiet: \(quiet)")
+            let response = try await ClientVolume.list()
+            let parsedFilters = Utility.parseKeyValuePairs(filter)
+
+            let filteredVolumes = response.volumes.filter { volume in
+                for (key, value) in parsedFilters {
+                    switch key {
+                    case "name":
+                        if !volume.name.contains(value) && volume.name != value { return false }
+                    case "driver":
+                        if volume.driver != value { return false }
+                    case "label":
+                        if value.isEmpty {
+                            if volume.labels.isEmpty { return false }
+                        } else if let labelValue = volume.labels[value] {
+                            if labelValue.isEmpty { return false }
+                        } else {
+                            return false
+                        }
+                    default:
+                        break
+                    }
+                }
+                return true
+            }
+
+            if quiet {
+                for volume in filteredVolumes {
+                    print(volume.name)
+                }
+            } else {
+                print("DRIVER\tVOLUME NAME")
+                for volume in filteredVolumes {
+                    print("\(volume.driver)\t\(volume.name)")
+                }
+            }
         }
     }
 }

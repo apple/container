@@ -335,17 +335,17 @@ public struct Parser {
         return fs
     }
 
-    static func volumes(_ rawVolumes: [String]) throws -> [Filesystem] {
+    static func volumes(_ rawVolumes: [String]) async throws -> [Filesystem] {
         var mounts: [Filesystem] = []
         for volume in rawVolumes {
-            let m = try Parser.volume(volume)
+            let m = try await Parser.volume(volume)
             try Parser.validateMount(m)
             mounts.append(m)
         }
         return mounts
     }
 
-    private static func volume(_ volume: String) throws -> Filesystem {
+    private static func volume(_ volume: String) async throws -> Filesystem {
         var vol = volume
         vol.trimLeft(char: ":")
 
@@ -354,17 +354,40 @@ public struct Parser {
         case 1:
             throw ContainerizationError(.invalidArgument, message: "anonymous volumes are not supported")
         case 2, 3:
-            // Bind / volume mounts.
             let src = String(parts[0])
             let dst = String(parts[1])
 
-            let abs = URL(filePath: src).absoluteURL.path
-            if !FileManager.default.fileExists(atPath: abs) {
-                throw ContainerizationError(.invalidArgument, message: "named volumes are not supported")
+            var sourcePath = src
+
+            // Check if it's an absolute directory path first
+            if src.hasPrefix("/") {
+                let url = URL(filePath: src)
+                let absolutePath = url.absoluteURL.path
+
+                var isDirectory: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: absolutePath, isDirectory: &isDirectory) else {
+                    throw ContainerizationError(.invalidArgument, message: "path '\(src)' does not exist")
+                }
+                guard isDirectory.boolValue else {
+                    throw ContainerizationError(.invalidArgument, message: "path '\(src)' is not a directory")
+                }
+                sourcePath = absolutePath
+            } else {
+                // Must be a named volume - validate name and check if it exists
+                guard VolumeStorage.isValidVolumeName(src) else {
+                    throw ContainerizationError(.invalidArgument, message: "invalid volume name '\(src)': only [a-zA-Z0-9][a-zA-Z0-9_.-] are allowed")
+                }
+
+                do {
+                    let response = try await ClientVolume.inspect(src)
+                    sourcePath = response.volume.mountpoint
+                } catch {
+                    throw ContainerizationError(.invalidArgument, message: "volume '\(src)' not found")
+                }
             }
 
             var fs = Filesystem.virtiofs(
-                source: URL(fileURLWithPath: src).absolutePath(),
+                source: URL(fileURLWithPath: sourcePath).absolutePath(),
                 destination: dst,
                 options: []
             )

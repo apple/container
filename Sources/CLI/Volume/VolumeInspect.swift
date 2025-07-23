@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerClient
+import Foundation
 
 extension Application.VolumeCommand {
     struct VolumeInspect: AsyncParsableCommand {
@@ -28,8 +29,23 @@ extension Application.VolumeCommand {
         var names: [String]
 
         func run() async throws {
+            var volumes: [Volume] = []
+
             for name in names {
-                print("TODO: Inspect volume '\(name)'")
+                let response = try await ClientVolume.inspect(name)
+                volumes.append(response.volume)
+            }
+
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            encoder.dateEncodingStrategy = .iso8601
+
+            if volumes.count == 1 {
+                let data = try encoder.encode(volumes[0])
+                print(String(data: data, encoding: .utf8)!)
+            } else {
+                let data = try encoder.encode(volumes)
+                print(String(data: data, encoding: .utf8)!)
             }
         }
     }

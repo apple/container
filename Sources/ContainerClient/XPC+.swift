@@ -94,6 +94,14 @@ public enum XPCKeys: String {
     case kernelTarURL
     case kernelFilePath
     case systemPlatform
+
+    /// Volume
+    case volume
+    case volumeName
+    case volumeCreateRequest
+    case volumeDeleteRequest
+    case volumeListResponse
+    case volumeInspectResponse
 }
 
 public enum XPCRoute: String {
@@ -112,6 +120,11 @@ public enum XPCRoute: String {
     case networkCreate
     case networkDelete
     case networkList
+
+    case volumeCreate
+    case volumeDelete
+    case volumeList
+    case volumeInspect
 
     case ping
 
