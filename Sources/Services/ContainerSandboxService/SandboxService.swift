@@ -39,7 +39,7 @@ public actor SandboxService {
     private let interfaceStrategy: InterfaceStrategy
     private var container: ContainerInfo?
     private let monitor: ExitMonitor
-    private let eventLoopGroup: MultiThreadedEventLoopGroup
+    private let eventLoopGroup: any EventLoopGroup
     private var waiters: [String: [CheckedContinuation<Int32, Never>]] = [:]
     private let lock: AsyncLock = AsyncLock()
     private let log: Logging.Logger
@@ -54,12 +54,12 @@ public actor SandboxService {
     ///   - interfaceStrategy: The strategy for producing network interface
     ///     objects for each network to which the container attaches.
     ///   - log: The destination for log messages.
-    public init(root: URL, interfaceStrategy: InterfaceStrategy, log: Logger) {
+    public init(root: URL, interfaceStrategy: InterfaceStrategy, eventLoopGroup: any EventLoopGroup, log: Logger) {
         self.root = root
         self.interfaceStrategy = interfaceStrategy
         self.log = log
         self.monitor = ExitMonitor(log: log)
-        self.eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
+        self.eventLoopGroup = eventLoopGroup
     }
 
     /// Start the VM and the guest agent process for a container.
