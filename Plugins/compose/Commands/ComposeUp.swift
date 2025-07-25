@@ -45,10 +45,10 @@ public struct ComposeUp: AsyncParsableCommand, @unchecked Sendable {
         help: "Detatches from container logs. Note: If you do NOT detatch, killing this process will NOT kill the container. To kill the container, run container-compose down")
     var detatch: Bool = false
     
-    @Argument(help: "The path to your Docker Compose file")
+    @Option(name: [.customShort("f"), .customLong("file")], help: "The path to your Docker Compose file")
     var composeFile: String = "docker-compose.yml"
     
-    @Argument(help: "The path to your environment file")
+    @Option(name: [.customShort("e"), .long], help: "The path to your environment file")
     var envFile: String = ".env"
     
     @Flag(name: [.customShort("b"), .customLong("build")])
