@@ -36,7 +36,7 @@ extension Application {
             config.helpNames = NameSpecification(arrayLiteral: .customShort("h"), .customLong("help"))
             return config
         }
-        
+
         public init() {}
 
         @Option(name: [.customLong("cpus"), .customShort("c")], help: "Number of CPUs to allocate to the container")
@@ -129,13 +129,13 @@ extension Application {
                             do {
                                 let container = try await ClientContainer.get(id: "buildkit")
                                 let fh = try await container.dial(vsockPort)
-                                
+
                                 let threadGroup: MultiThreadedEventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
                                 let b = try Builder(socket: fh, group: threadGroup)
 
                                 // If this call succeeds, then BuildKit is running.
                                 let _ = try await b.info()
-                                
+
                                 return b
                             } catch {
                                 // If we get here, "Dialing builder" is shown for such a short period

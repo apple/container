@@ -26,7 +26,7 @@ extension Application {
         public static let configuration = CommandConfiguration(
             commandName: "create",
             abstract: "Create a new network")
-        
+
         public init() {}
 
         @Argument(help: "Network name")

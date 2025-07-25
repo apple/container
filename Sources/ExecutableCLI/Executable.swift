@@ -16,14 +16,14 @@
 
 //
 
+import ArgumentParser
 import ContainerCLI
 import ContainerClient
-import ArgumentParser
 
 @main
 public struct Executable: AsyncParsableCommand {
     public init() {}
-    
+
     @OptionGroup
     var global: Flags.Global
 

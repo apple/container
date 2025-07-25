@@ -335,7 +335,7 @@ let package = Package(
                 .define("BUILDER_SHIM_VERSION", to: "\"\(builderShimVersion)\""),
             ]
         ),
-        
+
         // MARK: Plugins
         .executableTarget(
             name: "compose",
@@ -346,6 +346,6 @@ let package = Package(
                 "Rainbow",
             ],
             path: "Plugins/compose"
-        )
+        ),
     ]
 )

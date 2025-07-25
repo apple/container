@@ -22,10 +22,10 @@
 //
 
 import ArgumentParser
+import ContainerCLI
 import Foundation
 import Rainbow
 import Yams
-import ContainerCLI
 
 @main
 struct ComposeCommand: AsyncParsableCommand {
