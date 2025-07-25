@@ -123,8 +123,8 @@ actor VolumesService {
             throw VolumeError.volumeNotFound(name)
         }
 
-        try removeVolumeDirectory(for: name)
         try await store.delete(name)
+        try removeVolumeDirectory(for: name)
 
         log.info("Deleted volume", metadata: ["name": "\(name)"])
     }
