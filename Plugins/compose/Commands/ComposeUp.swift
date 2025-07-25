@@ -75,6 +75,15 @@ public struct ComposeUp: AsyncParsableCommand, @unchecked Sendable {
     ]
     
     public mutating func run() async throws {
+        // Check for .yml vs .yaml file extension
+        if !fileManager.fileExists(atPath: dockerComposePath) {
+            let url = URL(filePath: dockerComposePath)
+            
+            let fileNameNoExtension = url.deletingPathExtension().lastPathComponent
+            let newExtension = url.pathExtension == "yaml" ? "yml" : "yaml"
+            composeFile = "\(fileNameNoExtension).\(newExtension)"
+        }
+        
         // Read docker-compose.yml content
         guard let yamlData = fileManager.contents(atPath: dockerComposePath) else {
             throw YamlError.dockerfileNotFound(dockerComposePath)
