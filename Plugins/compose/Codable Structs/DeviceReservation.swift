@@ -14,31 +14,22 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ArgumentParser
-import ContainerClient
-import ContainerNetworkService
-import ContainerizationError
-import Foundation
-import TerminalProgress
+//
+//  DeviceReservation.swift
+//  container-compose-app
+//
+//  Created by Morris Richman on 6/17/25.
+//
 
-extension Application {
-    public struct NetworkCreate: AsyncParsableCommand {
-        public static let configuration = CommandConfiguration(
-            commandName: "create",
-            abstract: "Create a new network")
 
-        public init() {}
-
-        @Argument(help: "Network name")
-        public var name: String
-
-        @OptionGroup
-        public var global: Flags.Global
-
-        public func run() async throws {
-            let config = NetworkConfiguration(id: self.name, mode: .nat)
-            let state = try await ClientNetwork.create(configuration: config)
-            print(state.id)
-        }
-    }
+/// Device reservations for GPUs or other devices.
+struct DeviceReservation: Codable, Hashable {
+    /// Device capabilities
+    let capabilities: [String]?
+    /// Device driver
+    let driver: String?
+    /// Number of devices
+    let count: String?
+    /// Specific device IDs
+    let device_ids: [String]?
 }

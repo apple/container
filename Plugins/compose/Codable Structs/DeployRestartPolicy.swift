@@ -14,31 +14,22 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ArgumentParser
-import ContainerClient
-import ContainerNetworkService
-import ContainerizationError
-import Foundation
-import TerminalProgress
+//
+//  DeployRestartPolicy.swift
+//  container-compose-app
+//
+//  Created by Morris Richman on 6/17/25.
+//
 
-extension Application {
-    public struct NetworkCreate: AsyncParsableCommand {
-        public static let configuration = CommandConfiguration(
-            commandName: "create",
-            abstract: "Create a new network")
 
-        public init() {}
-
-        @Argument(help: "Network name")
-        public var name: String
-
-        @OptionGroup
-        public var global: Flags.Global
-
-        public func run() async throws {
-            let config = NetworkConfiguration(id: self.name, mode: .nat)
-            let state = try await ClientNetwork.create(configuration: config)
-            print(state.id)
-        }
-    }
+/// Restart policy for deployed tasks.
+struct DeployRestartPolicy: Codable, Hashable {
+    /// Condition to restart on (e.g., 'on-failure', 'any')
+    let condition: String?
+    /// Delay before attempting restart
+    let delay: String?
+    /// Maximum number of restart attempts
+    let max_attempts: Int?
+    /// Window to evaluate restart policy
+    let window: String?
 }
