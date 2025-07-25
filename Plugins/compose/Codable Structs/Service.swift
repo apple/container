@@ -135,7 +135,11 @@ struct Service: Codable, Hashable {
             command = nil
         }
         
-        depends_on = try container.decodeIfPresent([String].self, forKey: .depends_on)
+        if let dependsOnString = try? container.decodeIfPresent(String.self, forKey: .depends_on) {
+            depends_on = [dependsOnString]
+        } else {
+            depends_on = try container.decodeIfPresent([String].self, forKey: .depends_on)
+        }
         user = try container.decodeIfPresent(String.self, forKey: .user)
 
         container_name = try container.decodeIfPresent(String.self, forKey: .container_name)
