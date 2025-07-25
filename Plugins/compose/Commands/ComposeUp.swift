@@ -48,9 +48,6 @@ public struct ComposeUp: AsyncParsableCommand, @unchecked Sendable {
     @Option(name: [.customShort("f"), .customLong("file")], help: "The path to your Docker Compose file")
     var composeFile: String = "docker-compose.yml"
     
-    @Option(name: [.customShort("e"), .long], help: "The path to your environment file")
-    var envFile: String = ".env"
-    
     @Flag(name: [.customShort("b"), .customLong("build")])
     var rebuild: Bool = false
     
@@ -65,7 +62,7 @@ public struct ComposeUp: AsyncParsableCommand, @unchecked Sendable {
     
     private var cwd: String { process.cwd ?? FileManager.default.currentDirectoryPath }
     var dockerComposePath: String { "\(cwd)/\(composeFile)" }  // Path to docker-compose.yml
-    var envFilePath: String { "\(cwd)/\(envFile)" }  // Path to optional .env file
+    var envFilePath: String { "\(cwd)/\(process.envFile.first ?? ".env")" }  // Path to optional .env file
     
     private var fileManager: FileManager { FileManager.default }
     private var projectName: String?
