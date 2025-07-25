@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerClient
+import ContainerizationExtras
 import Foundation
 
 extension Application.VolumeCommand {
@@ -31,6 +32,9 @@ extension Application.VolumeCommand {
 
         @Flag(name: .shortAndLong, help: "Only display volume names")
         var quiet: Bool = false
+
+        @Option(name: .long, help: "Format of the output")
+        var format: Application.ListFormat = .table
 
         func run() async throws {
             let response = try await ClientVolume.list()
@@ -58,16 +62,45 @@ extension Application.VolumeCommand {
                 return true
             }
 
-            if quiet {
-                for volume in filteredVolumes {
-                    print(volume.name)
-                }
-            } else {
-                print("DRIVER\tVOLUME NAME")
-                for volume in filteredVolumes {
-                    print("\(volume.driver)\t\(volume.name)")
-                }
-            }
+            try printVolumes(volumes: filteredVolumes, format: format)
         }
+
+        private func createHeader() -> [[String]] {
+            [["NAME", "DRIVER", "OPTIONS"]]
+        }
+
+        private func printVolumes(volumes: [Volume], format: Application.ListFormat) throws {
+            if format == .json {
+                let data = try JSONEncoder().encode(volumes)
+                print(String(data: data, encoding: .utf8)!)
+                return
+            }
+
+            if quiet {
+                volumes.forEach {
+                    print($0.name)
+                }
+                return
+            }
+
+            var rows = createHeader()
+            for volume in volumes {
+                rows.append(volume.asRow)
+            }
+
+            let formatter = TableOutput(rows: rows)
+            print(formatter.format())
+        }
+    }
+}
+
+extension Volume {
+    var asRow: [String] {
+        let optionsString = options.isEmpty ? "" : options.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
+        return [
+            self.name,
+            self.driver,
+            optionsString,
+        ]
     }
 }

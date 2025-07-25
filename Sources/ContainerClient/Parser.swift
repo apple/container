@@ -317,10 +317,29 @@ public struct Parser {
                 let s = "mode=\(val)"
                 fs.options.append(s)
             case "source":
-                let absPath = URL(filePath: val).absoluteURL.path
                 switch type {
                 case "virtiofs", "bind":
-                    fs.source = absPath
+                    // Check if it's an absolute directory path first
+                    if val.hasPrefix("/") {
+                        let url = URL(filePath: val)
+                        let absolutePath = url.absoluteURL.path
+
+                        var isDirectory: ObjCBool = false
+                        guard FileManager.default.fileExists(atPath: absolutePath, isDirectory: &isDirectory) else {
+                            throw ContainerizationError(.invalidArgument, message: "path '\(val)' does not exist")
+                        }
+                        guard isDirectory.boolValue else {
+                            throw ContainerizationError(.invalidArgument, message: "path '\(val)' is not a directory")
+                        }
+                        fs.source = absolutePath
+                    } else {
+                        guard VolumeStorage.isValidVolumeName(val) else {
+                            throw ContainerizationError(.invalidArgument, message: "invalid volume name '\(val)': only [a-zA-Z0-9][a-zA-Z0-9_.-] are allowed")
+                        }
+
+                        // Use special marker to indicate this needs volume resolution during semantic validation
+                        fs.source = "named-volume:\(val)"
+                    }
                 case "tmpfs":
                     throw ContainerizationError(.invalidArgument, message: "cannot specify source for tmpfs mount")
                 default:
@@ -335,17 +354,17 @@ public struct Parser {
         return fs
     }
 
-    static func volumes(_ rawVolumes: [String]) async throws -> [Filesystem] {
+    static func volumes(_ rawVolumes: [String]) throws -> [Filesystem] {
         var mounts: [Filesystem] = []
         for volume in rawVolumes {
-            let m = try await Parser.volume(volume)
+            let m = try Parser.volume(volume)
             try Parser.validateMount(m)
             mounts.append(m)
         }
         return mounts
     }
 
-    private static func volume(_ volume: String) async throws -> Filesystem {
+    private static func volume(_ volume: String) throws -> Filesystem {
         var vol = volume
         vol.trimLeft(char: ":")
 
@@ -373,21 +392,17 @@ public struct Parser {
                 }
                 sourcePath = absolutePath
             } else {
-                // Must be a named volume - validate name and check if it exists
+                // Named volume - validate name syntax only (no semantic validation)
                 guard VolumeStorage.isValidVolumeName(src) else {
                     throw ContainerizationError(.invalidArgument, message: "invalid volume name '\(src)': only [a-zA-Z0-9][a-zA-Z0-9_.-] are allowed")
                 }
 
-                do {
-                    let response = try await ClientVolume.inspect(src)
-                    sourcePath = response.volume.mountpoint
-                } catch {
-                    throw ContainerizationError(.invalidArgument, message: "volume '\(src)' not found")
-                }
+                // Use special marker to indicate this needs volume resolution during semantic validation
+                sourcePath = "named-volume:\(src)"
             }
 
             var fs = Filesystem.virtiofs(
-                source: URL(fileURLWithPath: sourcePath).absolutePath(),
+                source: sourcePath.hasPrefix("named-volume:") ? sourcePath : URL(fileURLWithPath: sourcePath).absolutePath(),
                 destination: dst,
                 options: []
             )
@@ -406,6 +421,10 @@ public struct Parser {
 
     static func validateMount(_ mount: Filesystem) throws {
         if !mount.isTmpfs {
+            if mount.source.hasPrefix("named-volume:") {
+                return
+            }
+
             if !mount.source.isAbsolutePath() {
                 throw ContainerizationError(
                     .invalidArgument, message: "\(mount.source) is not an absolute path on the host")

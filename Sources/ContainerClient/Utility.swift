@@ -144,10 +144,24 @@ public struct Utility {
         )
 
         let tmpfs = try Parser.tmpfsMounts(management.tmpFs)
-        let volumes = try await Parser.volumes(management.volumes)
+        let volumes = try Parser.volumes(management.volumes)
         var mounts = try Parser.mounts(management.mounts)
         mounts.append(contentsOf: tmpfs)
         mounts.append(contentsOf: volumes)
+
+        // Semantic validation: resolve named volume markers to actual paths
+        for i in 0..<mounts.count {
+            if mounts[i].source.hasPrefix("named-volume:") {
+                let volumeName = String(mounts[i].source.dropFirst("named-volume:".count))
+                do {
+                    let response = try await ClientVolume.inspect(volumeName)
+                    mounts[i].source = response.volume.mountpoint
+                } catch {
+                    throw ContainerizationError(.invalidArgument, message: "volume '\(volumeName)' not found")
+                }
+            }
+        }
+
         config.mounts = mounts
 
         if management.networks.isEmpty {

@@ -40,13 +40,8 @@ extension Application.VolumeCommand {
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             encoder.dateEncodingStrategy = .iso8601
 
-            if volumes.count == 1 {
-                let data = try encoder.encode(volumes[0])
-                print(String(data: data, encoding: .utf8)!)
-            } else {
-                let data = try encoder.encode(volumes)
-                print(String(data: data, encoding: .utf8)!)
-            }
+            let data = try encoder.encode(volumes)
+            print(String(data: data, encoding: .utf8)!)
         }
     }
 }

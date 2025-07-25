@@ -183,14 +183,15 @@ public struct VolumeStorage {
     }
 
     public static func isValidVolumeName(_ name: String) -> Bool {
-        // Volume name must start with alphanumeric, followed by alphanumeric/underscore/period/hyphen
+        // Volume name must start with ASCII alphanumeric, followed by ASCII alphanumeric/underscore/period/hyphen
         // Regex: ^[A-Za-z0-9][A-Za-z0-9_.-]*$
         guard !name.isEmpty && name.count <= 255 else { return false }
 
         let firstChar = name.first!
-        guard firstChar.isLetter || firstChar.isNumber else { return false }
+        guard firstChar.isASCII && (firstChar.isLetter || firstChar.isNumber) else { return false }
 
-        let allowedCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_.-"))
+        // Only allow ASCII characters: A-Z, a-z, 0-9, _, ., -
+        let allowedCharacters = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-")
         return name.rangeOfCharacter(from: allowedCharacters.inverted) == nil
     }
 
