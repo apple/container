@@ -38,14 +38,12 @@ extension Application.VolumeCommand {
             let parsedDriverOpts = Utility.parseKeyValuePairs(driverOpts)
             let parsedLabels = Utility.parseKeyValuePairs(labels)
 
-            let request = VolumeCreateRequest(
+            let volume = try await ClientVolume.create(
                 name: name,
                 driver: "local",
                 driverOpts: parsedDriverOpts,
                 labels: parsedLabels
             )
-
-            let volume = try await ClientVolume.create(request)
             print(volume.name)
         }
     }

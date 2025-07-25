@@ -71,63 +71,6 @@ public struct VolumeUsageData: Sendable, Codable, Equatable {
     }
 }
 
-/// Request to create a new volume.
-public struct VolumeCreateRequest: Sendable, Codable {
-    // Name of the volume to create.
-    public var name: String
-    // Driver to use for the volume.
-    public var driver: String
-    // Driver-specific options.
-    public var driverOpts: [String: String]
-    // User-defined labels.
-    public var labels: [String: String]
-
-    public init(
-        name: String,
-        driver: String = "local",
-        driverOpts: [String: String] = [:],
-        labels: [String: String] = [:]
-    ) {
-        self.name = name
-        self.driver = driver
-        self.driverOpts = driverOpts
-        self.labels = labels
-    }
-}
-
-/// Request to delete a volume.
-public struct VolumeDeleteRequest: Sendable, Codable {
-    // Name of the volume to delete.
-    public var name: String
-
-    public init(name: String) {
-        self.name = name
-    }
-}
-
-/// Response containing a list of volumes.
-public struct VolumeListResponse: Sendable, Codable {
-    // List of volumes.
-    public var volumes: [Volume]
-    // Warnings from the operation.
-    public var warnings: [String]
-
-    public init(volumes: [Volume], warnings: [String] = []) {
-        self.volumes = volumes
-        self.warnings = warnings
-    }
-}
-
-/// Response containing volume details.
-public struct VolumeInspectResponse: Sendable, Codable {
-    // The volume details.
-    public var volume: Volume
-
-    public init(volume: Volume) {
-        self.volume = volume
-    }
-}
-
 /// Error types for volume operations.
 public enum VolumeError: Error, LocalizedError {
     case volumeNotFound(String)

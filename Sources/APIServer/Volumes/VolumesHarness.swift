@@ -31,23 +31,37 @@ struct VolumesHarness: Sendable {
 
     @Sendable
     func list(_ message: XPCMessage) async throws -> XPCMessage {
-        let response = try await service.list()
-        let data = try JSONEncoder().encode(response)
+        let volumes = try await service.list()
+        let data = try JSONEncoder().encode(volumes)
 
         let reply = message.reply()
-        reply.set(key: .volumeListResponse, value: data)
+        reply.set(key: .volumes, value: data)
         return reply
     }
 
     @Sendable
     func create(_ message: XPCMessage) async throws -> XPCMessage {
-        let data = message.dataNoCopy(key: .volumeCreateRequest)
-        guard let data else {
-            throw ContainerizationError(.invalidArgument, message: "volume create request cannot be empty")
+        guard let name = message.string(key: .volumeName) else {
+            throw ContainerizationError(.invalidArgument, message: "volume name cannot be empty")
         }
 
-        let request = try JSONDecoder().decode(VolumeCreateRequest.self, from: data)
-        let volume = try await service.create(request)
+        let driver = message.string(key: .volumeDriver) ?? "local"
+
+        let driverOpts: [String: String]
+        if let driverOptsData = message.dataNoCopy(key: .volumeDriverOpts) {
+            driverOpts = try JSONDecoder().decode([String: String].self, from: driverOptsData)
+        } else {
+            driverOpts = [:]
+        }
+
+        let labels: [String: String]
+        if let labelsData = message.dataNoCopy(key: .volumeLabels) {
+            labels = try JSONDecoder().decode([String: String].self, from: labelsData)
+        } else {
+            labels = [:]
+        }
+
+        let volume = try await service.create(name: name, driver: driver, driverOpts: driverOpts, labels: labels)
         let responseData = try JSONEncoder().encode(volume)
 
         let reply = message.reply()
@@ -57,29 +71,25 @@ struct VolumesHarness: Sendable {
 
     @Sendable
     func delete(_ message: XPCMessage) async throws -> XPCMessage {
-        let data = message.dataNoCopy(key: .volumeDeleteRequest)
-        guard let data else {
-            throw ContainerizationError(.invalidArgument, message: "volume delete request cannot be empty")
+        guard let name = message.string(key: .volumeName) else {
+            throw ContainerizationError(.invalidArgument, message: "volume name cannot be empty")
         }
 
-        let request = try JSONDecoder().decode(VolumeDeleteRequest.self, from: data)
-        try await service.delete(request)
-
+        try await service.delete(name: name)
         return message.reply()
     }
 
     @Sendable
     func inspect(_ message: XPCMessage) async throws -> XPCMessage {
-        let name = message.string(key: .volumeName)
-        guard let name else {
+        guard let name = message.string(key: .volumeName) else {
             throw ContainerizationError(.invalidArgument, message: "volume name cannot be empty")
         }
 
-        let response = try await service.inspect(name)
-        let data = try JSONEncoder().encode(response)
+        let volume = try await service.inspect(name)
+        let data = try JSONEncoder().encode(volume)
 
         let reply = message.reply()
-        reply.set(key: .volumeInspectResponse, value: data)
+        reply.set(key: .volume, value: data)
         return reply
     }
 }

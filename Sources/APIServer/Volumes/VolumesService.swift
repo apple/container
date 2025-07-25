@@ -79,59 +79,63 @@ actor VolumesService {
         }
     }
 
-    public func create(_ request: VolumeCreateRequest) async throws -> Volume {
-        guard VolumeStorage.isValidVolumeName(request.name) else {
-            throw VolumeError.invalidVolumeName("Invalid volume name '\(request.name)': must match \(VolumeStorage.volumeNamePattern)")
+    public func create(
+        name: String,
+        driver: String = "local",
+        driverOpts: [String: String] = [:],
+        labels: [String: String] = [:]
+    ) async throws -> Volume {
+        guard VolumeStorage.isValidVolumeName(name) else {
+            throw VolumeError.invalidVolumeName("Invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
         }
 
         // Check if volume already exists by trying to list and finding it
         let existingVolumes = try await store.list()
-        if existingVolumes.contains(where: { $0.name == request.name }) {
-            throw VolumeError.volumeAlreadyExists(request.name)
+        if existingVolumes.contains(where: { $0.name == name }) {
+            throw VolumeError.volumeAlreadyExists(name)
         }
 
-        try createVolumeDirectory(for: request.name)
-        try createVolumeImage(for: request.name)
+        try createVolumeDirectory(for: name)
+        try createVolumeImage(for: name)
 
         let volume = Volume(
-            name: request.name,
-            driver: request.driver,
-            source: blockPath(for: request.name),
-            labels: request.labels,
-            options: request.driverOpts
+            name: name,
+            driver: driver,
+            source: blockPath(for: name),
+            labels: labels,
+            options: driverOpts
         )
 
         try await store.create(volume)
 
-        log.info("Created volume", metadata: ["name": "\(request.name)", "driver": "\(request.driver)"])
+        log.info("Created volume", metadata: ["name": "\(name)", "driver": "\(driver)"])
         return volume
     }
 
-    public func delete(_ request: VolumeDeleteRequest) async throws {
-        guard VolumeStorage.isValidVolumeName(request.name) else {
-            throw VolumeError.invalidVolumeName("Invalid volume name '\(request.name)': only [a-zA-Z0-9][a-zA-Z0-9_.-] are allowed")
+    public func delete(name: String) async throws {
+        guard VolumeStorage.isValidVolumeName(name) else {
+            throw VolumeError.invalidVolumeName("Invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
         }
 
         // Check if volume exists by trying to list and finding it
         let existingVolumes = try await store.list()
-        guard existingVolumes.contains(where: { $0.name == request.name }) else {
-            throw VolumeError.volumeNotFound(request.name)
+        guard existingVolumes.contains(where: { $0.name == name }) else {
+            throw VolumeError.volumeNotFound(name)
         }
 
-        try removeVolumeDirectory(for: request.name)
-        try await store.delete(request.name)
+        try removeVolumeDirectory(for: name)
+        try await store.delete(name)
 
-        log.info("Deleted volume", metadata: ["name": "\(request.name)"])
+        log.info("Deleted volume", metadata: ["name": "\(name)"])
     }
 
-    public func list() async throws -> VolumeListResponse {
-        let volumes = try await store.list()
-        return VolumeListResponse(volumes: volumes)
+    public func list() async throws -> [Volume] {
+        try await store.list()
     }
 
-    public func inspect(_ name: String) async throws -> VolumeInspectResponse {
+    public func inspect(_ name: String) async throws -> Volume {
         guard VolumeStorage.isValidVolumeName(name) else {
-            throw VolumeError.invalidVolumeName("Invalid volume name '\(name)': only [a-zA-Z0-9][a-zA-Z0-9_.-] are allowed")
+            throw VolumeError.invalidVolumeName("Invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
         }
 
         let volumes = try await store.list()
@@ -139,6 +143,6 @@ actor VolumesService {
             throw VolumeError.volumeNotFound(name)
         }
 
-        return VolumeInspectResponse(volume: volume)
+        return volume
     }
 }

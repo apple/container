@@ -157,10 +157,10 @@ public struct Utility {
                 resolvedMounts.append(fs)
             case .volume(let parsed):
                 do {
-                    let response = try await ClientVolume.inspect(parsed.name)
+                    let volume = try await ClientVolume.inspect(parsed.name)
                     let blockMount = Filesystem.block(
                         format: "ext4",
-                        source: response.volume.source,
+                        source: volume.source,
                         destination: parsed.destination,
                         options: parsed.options
                     )

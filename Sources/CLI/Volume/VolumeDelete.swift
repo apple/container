@@ -31,8 +31,7 @@ extension Application.VolumeCommand {
 
         func run() async throws {
             for name in names {
-                let request = VolumeDeleteRequest(name: name)
-                try await ClientVolume.delete(request)
+                try await ClientVolume.delete(name: name)
                 print(name)
             }
         }

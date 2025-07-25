@@ -32,8 +32,8 @@ extension Application.VolumeCommand {
             var volumes: [Volume] = []
 
             for name in names {
-                let response = try await ClientVolume.inspect(name)
-                volumes.append(response.volume)
+                let volume = try await ClientVolume.inspect(name)
+                volumes.append(volume)
             }
 
             let encoder = JSONEncoder()

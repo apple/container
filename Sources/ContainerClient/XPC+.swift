@@ -97,11 +97,11 @@ public enum XPCKeys: String {
 
     /// Volume
     case volume
+    case volumes
     case volumeName
-    case volumeCreateRequest
-    case volumeDeleteRequest
-    case volumeListResponse
-    case volumeInspectResponse
+    case volumeDriver
+    case volumeDriverOpts
+    case volumeLabels
 }
 
 public enum XPCRoute: String {

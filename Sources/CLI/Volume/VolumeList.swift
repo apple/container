@@ -34,8 +34,8 @@ extension Application.VolumeCommand {
         var format: Application.ListFormat = .table
 
         func run() async throws {
-            let response = try await ClientVolume.list()
-            try printVolumes(volumes: response.volumes, format: format)
+            let volumes = try await ClientVolume.list()
+            try printVolumes(volumes: volumes, format: format)
         }
 
         private func createHeader() -> [[String]] {
