@@ -26,11 +26,57 @@ actor VolumesService {
     private let store: ContainerPersistence.FilesystemEntityStore<Volume>
     private let log: Logger
 
+    // Storage constants
+    private static let entityFile = "entity.json"
+    private static let blockFile = "volume.img"
+
     public init(resourceRoot: URL, log: Logger) throws {
         try FileManager.default.createDirectory(at: resourceRoot, withIntermediateDirectories: true)
         self.resourceRoot = resourceRoot
         self.store = try FilesystemEntityStore<Volume>(path: resourceRoot, type: "volumes", log: log)
         self.log = log
+    }
+
+    // MARK: - Storage Utilities
+
+    private func volumePath(for name: String) -> String {
+        resourceRoot.appendingPathComponent(name).path
+    }
+
+    private func entityPath(for name: String) -> String {
+        "\(volumePath(for: name))/\(Self.entityFile)"
+    }
+
+    private func blockPath(for name: String) -> String {
+        "\(volumePath(for: name))/\(Self.blockFile)"
+    }
+
+    private func createVolumeDirectory(for name: String) throws {
+        let volumePath = volumePath(for: name)
+        let fm = FileManager.default
+        try fm.createDirectory(atPath: volumePath, withIntermediateDirectories: true, attributes: nil)
+    }
+
+    private func createVolumeImage(for name: String, sizeInBytes: UInt64 = 1024 * 1024 * 1024) throws {
+        let blockPath = blockPath(for: name)
+        let fm = FileManager.default
+
+        // Create sparse file
+        fm.createFile(atPath: blockPath, contents: nil, attributes: nil)
+
+        // Truncate to desired size to create sparse file
+        let fileHandle = try FileHandle(forWritingTo: URL(fileURLWithPath: blockPath))
+        defer { try? fileHandle.close() }
+        try fileHandle.truncate(atOffset: sizeInBytes)
+    }
+
+    private func removeVolumeDirectory(for name: String) throws {
+        let volumePath = volumePath(for: name)
+        let fm = FileManager.default
+
+        if fm.fileExists(atPath: volumePath) {
+            try fm.removeItem(atPath: volumePath)
+        }
     }
 
     public func create(_ request: VolumeCreateRequest) async throws -> Volume {
@@ -44,15 +90,13 @@ actor VolumesService {
             throw VolumeError.volumeAlreadyExists(request.name)
         }
 
-        let volumePath = resourceRoot.appendingPathComponent(request.name).path
-
-        try VolumeStorage.createVolumeDirectory(for: request.name)
-        try VolumeStorage.createVolumeImage(for: request.name)
+        try createVolumeDirectory(for: request.name)
+        try createVolumeImage(for: request.name)
 
         let volume = Volume(
             name: request.name,
             driver: request.driver,
-            source: volumePath,
+            source: blockPath(for: request.name),
             labels: request.labels,
             options: request.driverOpts
         )
@@ -74,7 +118,7 @@ actor VolumesService {
             throw VolumeError.volumeNotFound(request.name)
         }
 
-        try VolumeStorage.removeVolumeDirectory(for: request.name)
+        try removeVolumeDirectory(for: request.name)
         try await store.delete(request.name)
 
         log.info("Deleted volume", metadata: ["name": "\(request.name)"])

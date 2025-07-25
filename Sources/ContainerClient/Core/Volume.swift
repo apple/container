@@ -159,31 +159,6 @@ public enum VolumeError: Error, LocalizedError {
 public struct VolumeStorage {
     public static let volumeNamePattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
 
-    public static let volumesDirectory: String = {
-        FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first!
-        .appendingPathComponent("com.apple.container")
-        .appendingPathComponent("volumes")
-        .path
-    }()
-
-    public static let entityFile = "entity.json"
-    public static let blockFile = "volume.img"
-
-    public static func volumePath(for name: String) -> String {
-        "\(volumesDirectory)/\(name)"
-    }
-
-    public static func entityPath(for name: String) -> String {
-        "\(volumePath(for: name))/\(entityFile)"
-    }
-
-    public static func blockPath(for name: String) -> String {
-        "\(volumePath(for: name))/\(blockFile)"
-    }
-
     public static func isValidVolumeName(_ name: String) -> Bool {
         guard name.count <= 255 else { return false }
 
@@ -192,46 +167,6 @@ public struct VolumeStorage {
             return name.contains(regex)
         } catch {
             return false
-        }
-    }
-
-    // Creates the volumes directory if it doesn't exist.
-    public static func ensureVolumesDirectory() throws {
-        let fm = FileManager.default
-        if !fm.fileExists(atPath: volumesDirectory) {
-            try fm.createDirectory(atPath: volumesDirectory, withIntermediateDirectories: true, attributes: nil)
-        }
-    }
-
-    // Creates a volume directory structure.
-    public static func createVolumeDirectory(for name: String) throws {
-        let volumePath = volumePath(for: name)
-        let fm = FileManager.default
-
-        try fm.createDirectory(atPath: volumePath, withIntermediateDirectories: true, attributes: nil)
-    }
-
-    // Creates an ext4 sparse image file for the volume.
-    public static func createVolumeImage(for name: String, sizeInBytes: UInt64 = 1024 * 1024 * 1024) throws {
-        let blockPath = blockPath(for: name)
-        let fm = FileManager.default
-
-        // Create sparse file
-        fm.createFile(atPath: blockPath, contents: nil, attributes: nil)
-
-        // Truncate to desired size to create sparse file
-        let fileHandle = try FileHandle(forWritingTo: URL(fileURLWithPath: blockPath))
-        defer { try? fileHandle.close() }
-        try fileHandle.truncate(atOffset: sizeInBytes)
-    }
-
-    // Removes a volume directory and all its contents.
-    public static func removeVolumeDirectory(for name: String) throws {
-        let volumePath = volumePath(for: name)
-        let fm = FileManager.default
-
-        if fm.fileExists(atPath: volumePath) {
-            try fm.removeItem(atPath: volumePath)
         }
     }
 }
