@@ -144,25 +144,34 @@ public struct Utility {
         )
 
         let tmpfs = try Parser.tmpfsMounts(management.tmpFs)
-        let volumes = try Parser.volumes(management.volumes)
-        var mounts = try Parser.mounts(management.mounts)
-        mounts.append(contentsOf: tmpfs)
-        mounts.append(contentsOf: volumes)
+        let volumesOrFs = try Parser.volumes(management.volumes)
+        let mountsOrFs = try Parser.mounts(management.mounts)
 
-        // Semantic validation: resolve named volume markers to actual paths
-        for i in 0..<mounts.count {
-            if mounts[i].source.hasPrefix("named-volume:") {
-                let volumeName = String(mounts[i].source.dropFirst("named-volume:".count))
+        var resolvedMounts: [Filesystem] = []
+        resolvedMounts.append(contentsOf: tmpfs)
+
+        // Resolve volumes and filesystems
+        for item in (volumesOrFs + mountsOrFs) {
+            switch item {
+            case .filesystem(let fs):
+                resolvedMounts.append(fs)
+            case .volume(let parsed):
                 do {
-                    let response = try await ClientVolume.inspect(volumeName)
-                    mounts[i].source = response.volume.mountpoint
+                    _ = try await ClientVolume.inspect(parsed.name)
+                    let blockMount = Filesystem.block(
+                        format: "ext4",
+                        source: VolumeStorage.blockPath(for: parsed.name),
+                        destination: parsed.destination,
+                        options: parsed.options
+                    )
+                    resolvedMounts.append(blockMount)
                 } catch {
-                    throw ContainerizationError(.invalidArgument, message: "volume '\(volumeName)' not found")
+                    throw ContainerizationError(.invalidArgument, message: "volume '\(parsed.name)' not found")
                 }
             }
         }
 
-        config.mounts = mounts
+        config.mounts = resolvedMounts
 
         if management.networks.isEmpty {
             config.networks = [ClientNetwork.defaultNetworkName]

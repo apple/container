@@ -25,7 +25,7 @@ public struct Volume: Sendable, Codable, Equatable, Identifiable {
     // Driver used to create the volume.
     public var driver: String
     // The mount point of the volume on the host.
-    public var mountpoint: String
+    public var source: String
     // Timestamp when the volume was created.
     public var createdAt: Date
     // User-defined key/value metadata.
@@ -40,7 +40,7 @@ public struct Volume: Sendable, Codable, Equatable, Identifiable {
     public init(
         name: String,
         driver: String = "local",
-        mountpoint: String,
+        source: String,
         createdAt: Date = Date(),
         labels: [String: String] = [:],
         options: [String: String] = [:],
@@ -49,7 +49,7 @@ public struct Volume: Sendable, Codable, Equatable, Identifiable {
     ) {
         self.name = name
         self.driver = driver
-        self.mountpoint = mountpoint
+        self.source = source
         self.createdAt = createdAt
         self.labels = labels
         self.options = options

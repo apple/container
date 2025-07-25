@@ -52,7 +52,7 @@ actor VolumesService {
         let volume = Volume(
             name: request.name,
             driver: request.driver,
-            mountpoint: volumePath,
+            source: volumePath,
             labels: request.labels,
             options: request.driverOpts
         )

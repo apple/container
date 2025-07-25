@@ -27,9 +27,6 @@ extension Application.VolumeCommand {
             aliases: ["ls"]
         )
 
-        @Option(name: .long, help: "Provide filter values (e.g., 'dangling=true')")
-        var filter: [String] = []
-
         @Flag(name: .shortAndLong, help: "Only display volume names")
         var quiet: Bool = false
 
@@ -38,31 +35,7 @@ extension Application.VolumeCommand {
 
         func run() async throws {
             let response = try await ClientVolume.list()
-            let parsedFilters = Utility.parseKeyValuePairs(filter)
-
-            let filteredVolumes = response.volumes.filter { volume in
-                for (key, value) in parsedFilters {
-                    switch key {
-                    case "name":
-                        if !volume.name.contains(value) && volume.name != value { return false }
-                    case "driver":
-                        if volume.driver != value { return false }
-                    case "label":
-                        if value.isEmpty {
-                            if volume.labels.isEmpty { return false }
-                        } else if let labelValue = volume.labels[value] {
-                            if labelValue.isEmpty { return false }
-                        } else {
-                            return false
-                        }
-                    default:
-                        break
-                    }
-                }
-                return true
-            }
-
-            try printVolumes(volumes: filteredVolumes, format: format)
+            try printVolumes(volumes: response.volumes, format: format)
         }
 
         private func createHeader() -> [[String]] {

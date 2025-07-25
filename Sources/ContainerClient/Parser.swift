@@ -20,6 +20,25 @@ import ContainerizationOCI
 import ContainerizationOS
 import Foundation
 
+/// A parsed volume specification from user input
+public struct ParsedVolume {
+    public let name: String
+    public let destination: String
+    public let options: [String]
+
+    public init(name: String, destination: String, options: [String] = []) {
+        self.name = name
+        self.destination = destination
+        self.options = options
+    }
+}
+
+/// Union type for parsed mount specifications
+public enum VolumeOrFilesystem {
+    case filesystem(Filesystem)
+    case volume(ParsedVolume)
+}
+
 public struct Parser {
     public static func memoryString(_ memory: String) throws -> Int64 {
         let ram = try Measurement.parse(parsing: memory)
@@ -227,14 +246,14 @@ public struct Parser {
         let mounts = mounts.dedupe()
         for tmpfs in mounts {
             let fs = Filesystem.tmpfs(destination: tmpfs, options: [])
-            try validateMount(fs)
+            try validateMount(.filesystem(fs))
             result.append(fs)
         }
         return result
     }
 
-    static func mounts(_ rawMounts: [String]) throws -> [Filesystem] {
-        var mounts: [Filesystem] = []
+    static func mounts(_ rawMounts: [String]) throws -> [VolumeOrFilesystem] {
+        var mounts: [VolumeOrFilesystem] = []
         let rawMounts = rawMounts.dedupe()
         for mount in rawMounts {
             let m = try Parser.mount(mount)
@@ -244,7 +263,7 @@ public struct Parser {
         return mounts
     }
 
-    static func mount(_ mount: String) throws -> Filesystem {
+    static func mount(_ mount: String) throws -> VolumeOrFilesystem {
         let parts = mount.split(separator: ",")
         if parts.count == 0 {
             throw ContainerizationError(.invalidArgument, message: "invalid mount format: \(mount)")
@@ -278,6 +297,8 @@ public struct Parser {
         }
 
         var fs = Filesystem()
+        var isVolume = false
+        var volumeName = ""
         for (key, val) in directives {
             var val = val
             let type = directives["type"] ?? ""
@@ -337,8 +358,10 @@ public struct Parser {
                             throw ContainerizationError(.invalidArgument, message: "Invalid volume name '\(val)': must match \(VolumeStorage.volumeNamePattern)")
                         }
 
-                        // Use special marker to indicate this needs volume resolution during semantic validation
-                        fs.source = "named-volume:\(val)"
+                        // This is a named volume
+                        isVolume = true
+                        volumeName = val
+                        fs.source = val
                     }
                 case "tmpfs":
                     throw ContainerizationError(.invalidArgument, message: "cannot specify source for tmpfs mount")
@@ -351,11 +374,20 @@ public struct Parser {
                 throw ContainerizationError(.invalidArgument, message: "unknown mount directive \(key)")
             }
         }
-        return fs
+
+        guard isVolume else {
+            return .filesystem(fs)
+        }
+        return .volume(
+            ParsedVolume(
+                name: volumeName,
+                destination: fs.destination,
+                options: fs.options
+            ))
     }
 
-    static func volumes(_ rawVolumes: [String]) throws -> [Filesystem] {
-        var mounts: [Filesystem] = []
+    static func volumes(_ rawVolumes: [String]) throws -> [VolumeOrFilesystem] {
+        var mounts: [VolumeOrFilesystem] = []
         for volume in rawVolumes {
             let m = try Parser.volume(volume)
             try Parser.validateMount(m)
@@ -364,7 +396,7 @@ public struct Parser {
         return mounts
     }
 
-    private static func volume(_ volume: String) throws -> Filesystem {
+    private static func volume(_ volume: String) throws -> VolumeOrFilesystem {
         var vol = volume
         vol.trimLeft(char: ":")
 
@@ -376,40 +408,43 @@ public struct Parser {
             let src = String(parts[0])
             let dst = String(parts[1])
 
-            var sourcePath = src
-
             // Check if it's an absolute directory path first
-            if src.hasPrefix("/") {
-                let url = URL(filePath: src)
-                let absolutePath = url.absoluteURL.path
-
-                var isDirectory: ObjCBool = false
-                guard FileManager.default.fileExists(atPath: absolutePath, isDirectory: &isDirectory) else {
-                    throw ContainerizationError(.invalidArgument, message: "path '\(src)' does not exist")
-                }
-                guard isDirectory.boolValue else {
-                    throw ContainerizationError(.invalidArgument, message: "path '\(src)' is not a directory")
-                }
-                sourcePath = absolutePath
-            } else {
-                // Named volume - validate name syntax only (no semantic validation)
+            guard src.hasPrefix("/") else {
+                // Named volume - validate name syntax only
                 guard VolumeStorage.isValidVolumeName(src) else {
                     throw ContainerizationError(.invalidArgument, message: "Invalid volume name '\(src)': must match \(VolumeStorage.volumeNamePattern)")
                 }
 
-                // Use special marker to indicate this needs volume resolution during semantic validation
-                sourcePath = "named-volume:\(src)"
+                // This is a named volume
+                let options = parts.count == 3 ? parts[2].split(separator: ",").map { String($0) } : []
+                return .volume(
+                    ParsedVolume(
+                        name: src,
+                        destination: dst,
+                        options: options
+                    ))
+            }
+            let url = URL(filePath: src)
+            let absolutePath = url.absoluteURL.path
+
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: absolutePath, isDirectory: &isDirectory) else {
+                throw ContainerizationError(.invalidArgument, message: "path '\(src)' does not exist")
+            }
+            guard isDirectory.boolValue else {
+                throw ContainerizationError(.invalidArgument, message: "path '\(src)' is not a directory")
             }
 
+            // This is a filesystem mount
             var fs = Filesystem.virtiofs(
-                source: sourcePath.hasPrefix("named-volume:") ? sourcePath : URL(fileURLWithPath: sourcePath).absolutePath(),
+                source: URL(fileURLWithPath: absolutePath).absolutePath(),
                 destination: dst,
                 options: []
             )
             if parts.count == 3 {
                 fs.options = parts[2].split(separator: ",").map { String($0) }
             }
-            return fs
+            return .filesystem(fs)
         default:
             throw ContainerizationError(.invalidArgument, message: "invalid volume format \(volume)")
         }
@@ -419,23 +454,27 @@ public struct Parser {
         mountTypes.contains(type)
     }
 
-    static func validateMount(_ mount: Filesystem) throws {
-        if !mount.isTmpfs {
-            if mount.source.hasPrefix("named-volume:") {
-                return
+    static func validateMount(_ mount: VolumeOrFilesystem) throws {
+        switch mount {
+        case .filesystem(let fs):
+            if !fs.isTmpfs {
+                if !fs.source.isAbsolutePath() {
+                    throw ContainerizationError(
+                        .invalidArgument, message: "\(fs.source) is not an absolute path on the host")
+                }
+                if !FileManager.default.fileExists(atPath: fs.source) {
+                    throw ContainerizationError(.invalidArgument, message: "file path '\(fs.source)' does not exist")
+                }
             }
 
-            if !mount.source.isAbsolutePath() {
-                throw ContainerizationError(
-                    .invalidArgument, message: "\(mount.source) is not an absolute path on the host")
+            if fs.destination.isEmpty {
+                throw ContainerizationError(.invalidArgument, message: "mount destination cannot be empty")
             }
-            if !FileManager.default.fileExists(atPath: mount.source) {
-                throw ContainerizationError(.invalidArgument, message: "file path '\(mount.source)' does not exist")
+        case .volume(let vol):
+            if vol.destination.isEmpty {
+                throw ContainerizationError(.invalidArgument, message: "volume destination cannot be empty")
             }
-        }
-
-        if mount.destination.isEmpty {
-            throw ContainerizationError(.invalidArgument, message: "mount destination cannot be empty")
+        // Volume name validation already done during parsing
         }
     }
 
