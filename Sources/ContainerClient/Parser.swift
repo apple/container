@@ -334,7 +334,7 @@ public struct Parser {
                         fs.source = absolutePath
                     } else {
                         guard VolumeStorage.isValidVolumeName(val) else {
-                            throw ContainerizationError(.invalidArgument, message: "invalid volume name '\(val)': only [a-zA-Z0-9][a-zA-Z0-9_.-] are allowed")
+                            throw ContainerizationError(.invalidArgument, message: "Invalid volume name '\(val)': must match \(VolumeStorage.volumeNamePattern)")
                         }
 
                         // Use special marker to indicate this needs volume resolution during semantic validation
@@ -394,7 +394,7 @@ public struct Parser {
             } else {
                 // Named volume - validate name syntax only (no semantic validation)
                 guard VolumeStorage.isValidVolumeName(src) else {
-                    throw ContainerizationError(.invalidArgument, message: "invalid volume name '\(src)': only [a-zA-Z0-9][a-zA-Z0-9_.-] are allowed")
+                    throw ContainerizationError(.invalidArgument, message: "Invalid volume name '\(src)': must match \(VolumeStorage.volumeNamePattern)")
                 }
 
                 // Use special marker to indicate this needs volume resolution during semantic validation

@@ -29,17 +29,13 @@ actor VolumesService {
     public init(resourceRoot: URL, log: Logger) throws {
         try FileManager.default.createDirectory(at: resourceRoot, withIntermediateDirectories: true)
         self.resourceRoot = resourceRoot
-        self.store = try FilesystemEntityStore<Volume>(path: resourceRoot, type: "volume", log: log)
+        self.store = try FilesystemEntityStore<Volume>(path: resourceRoot, type: "volumes", log: log)
         self.log = log
     }
 
     public func create(_ request: VolumeCreateRequest) async throws -> Volume {
-        guard !request.name.isEmpty else {
-            throw VolumeError.invalidVolumeName("Volume name cannot be empty")
-        }
-
         guard VolumeStorage.isValidVolumeName(request.name) else {
-            throw VolumeError.invalidVolumeName("Invalid volume name '\(request.name)': only [a-zA-Z0-9][a-zA-Z0-9_.-] are allowed")
+            throw VolumeError.invalidVolumeName("Invalid volume name '\(request.name)': must match \(VolumeStorage.volumeNamePattern)")
         }
 
         // Check if volume already exists by trying to list and finding it

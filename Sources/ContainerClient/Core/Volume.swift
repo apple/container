@@ -157,6 +157,8 @@ public enum VolumeError: Error, LocalizedError {
 
 /// Volume storage management utilities.
 public struct VolumeStorage {
+    public static let volumeNamePattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+
     public static let volumesDirectory: String = {
         FileManager.default.urls(
             for: .applicationSupportDirectory,
@@ -183,16 +185,14 @@ public struct VolumeStorage {
     }
 
     public static func isValidVolumeName(_ name: String) -> Bool {
-        // Volume name must start with ASCII alphanumeric, followed by ASCII alphanumeric/underscore/period/hyphen
-        // Regex: ^[A-Za-z0-9][A-Za-z0-9_.-]*$
-        guard !name.isEmpty && name.count <= 255 else { return false }
+        guard name.count <= 255 else { return false }
 
-        let firstChar = name.first!
-        guard firstChar.isASCII && (firstChar.isLetter || firstChar.isNumber) else { return false }
-
-        // Only allow ASCII characters: A-Z, a-z, 0-9, _, ., -
-        let allowedCharacters = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-")
-        return name.rangeOfCharacter(from: allowedCharacters.inverted) == nil
+        do {
+            let regex = try Regex(volumeNamePattern)
+            return name.contains(regex)
+        } catch {
+            return false
+        }
     }
 
     // Creates the volumes directory if it doesn't exist.
