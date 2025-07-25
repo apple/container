@@ -43,7 +43,7 @@ jobs:
             false
           fi
         env:
-          DEVELOPER_DIR: "/Applications/Xcode_26.b1.app/Contents/Developer"
+          DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
 
       - name: Set build configuration
         run: |
@@ -57,7 +57,7 @@ jobs:
           make container dsym docs
           tar cfz _site.tgz _site
         env:
-          DEVELOPER_DIR: "/Applications/Xcode_26.b1.app/Contents/Developer"
+          DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
 
       - name: Create package
         run: |
@@ -70,7 +70,7 @@ jobs:
           launchctl setenv HTTP_PROXY $HTTP_PROXY
           make test cleancontent install-kernel integration
         env:
-          DEVELOPER_DIR: "/Applications/Xcode_26.b1.app/Contents/Developer"
+          DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
 
       - name: Save documentation artifact
         uses: actions/upload-artifact@v4
