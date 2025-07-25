@@ -45,6 +45,12 @@ public struct ComposeUp: AsyncParsableCommand, @unchecked Sendable {
         help: "Detatches from container logs. Note: If you do NOT detatch, killing this process will NOT kill the container. To kill the container, run container-compose down")
     var detatch: Bool = false
     
+    @Argument(help: "The path to your Docker Compose file")
+    var composeFile: String = "docker-compose.yml"
+    
+    @Argument(help: "The path to your environment file")
+    var envFile: String = ".env"
+    
     @Flag(name: [.customShort("b"), .customLong("build")])
     var rebuild: Bool = false
     
@@ -58,9 +64,9 @@ public struct ComposeUp: AsyncParsableCommand, @unchecked Sendable {
     var global: Flags.Global
     
     private var cwd: String { process.cwd ?? FileManager.default.currentDirectoryPath }
-    var dockerComposePath: String { "\(cwd)/docker-compose.yml" }  // Path to docker-compose.yml
-    var envFilePath: String { "\(cwd)/.env" }  // Path to optional .env file
-    //
+    var dockerComposePath: String { "\(cwd)/\(composeFile)" }  // Path to docker-compose.yml
+    var envFilePath: String { "\(cwd)/\(envFile)" }  // Path to optional .env file
+    
     private var fileManager: FileManager { FileManager.default }
     private var projectName: String?
     private var environmentVariables: [String: String] = [:]
