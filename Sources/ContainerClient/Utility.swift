@@ -187,6 +187,8 @@ public struct Utility {
 
         config.labels = try Parser.labels(management.labels)
 
+        config.publishedPorts = try Parser.publishPorts(management.publishPorts)
+
         // Parse --publish-socket arguments and add to container configuration
         // to enable socket forwarding from container to host.
         config.publishedSockets = try Parser.publishSockets(management.publishSockets)
