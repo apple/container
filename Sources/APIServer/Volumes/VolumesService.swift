@@ -18,8 +18,10 @@ import ContainerClient
 import ContainerPersistence
 import Containerization
 import ContainerizationError
+import ContainerizationEXT4
 import Foundation
 import Logging
+import SystemPackage
 
 actor VolumesService {
     private let resourceRoot: URL
@@ -59,15 +61,15 @@ actor VolumesService {
 
     private func createVolumeImage(for name: String, sizeInBytes: UInt64 = 1024 * 1024 * 1024) throws {
         let blockPath = blockPath(for: name)
-        let fm = FileManager.default
-
-        // Create sparse file
-        fm.createFile(atPath: blockPath, contents: nil, attributes: nil)
-
-        // Truncate to desired size to create sparse file
-        let fileHandle = try FileHandle(forWritingTo: URL(fileURLWithPath: blockPath))
-        defer { try? fileHandle.close() }
-        try fileHandle.truncate(atOffset: sizeInBytes)
+        
+        // Use the containerization library's EXT4 formatter
+        let formatter = try EXT4.Formatter(
+            FilePath(blockPath),
+            blockSize: 4096,
+            minDiskSize: sizeInBytes
+        )
+        
+        try formatter.close()
     }
 
     private func removeVolumeDirectory(for name: String) throws {
