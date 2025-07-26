@@ -102,6 +102,8 @@ public enum XPCKeys: String {
     case volumeDriver
     case volumeDriverOpts
     case volumeLabels
+    case volumeReadonly
+    case volumeContainerId
 }
 
 public enum XPCRoute: String {
@@ -125,6 +127,8 @@ public enum XPCRoute: String {
     case volumeDelete
     case volumeList
     case volumeInspect
+    case volumeReserve
+    case volumeRelease
 
     case ping
 

@@ -228,10 +228,59 @@ actor ContainersService {
     private func _cleanup(id: String, item: Item) throws {
         self.log.debug("\(#function)")
         let config = try item.bundle.configuration
+
+        // Release volumes before deleting the container
+        Task {
+            do {
+                try await self.releaseVolumes(for: config, containerId: id)
+            } catch {
+                self.log.error("Failed to release volumes for container \(id): \(error)")
+                // Don't fail the cleanup process if volume release fails
+            }
+        }
+
         let label = Self.fullLaunchdServiceLabel(runtimeName: config.runtimeHandler, instanceId: id)
         try ServiceManager.deregister(fullServiceLabel: label)
         try item.bundle.delete()
         self.containers.removeValue(forKey: id)
+    }
+
+    private func releaseVolumes(for config: ContainerConfiguration, containerId: String) async throws {
+        let volumePrefix = "volumes/"
+        let volumeSuffix = "/volume.img"
+
+        for mount in config.mounts {
+            // Check if this is a named volume by looking at the source path
+            if mount.isBlock && mount.source.contains(volumePrefix) && mount.source.hasSuffix(volumeSuffix) {
+                // Extract volume name from path like ".../volumes/myvolume/volume.img"
+                let sourcePath = mount.source
+                if let volumeStart = sourcePath.range(of: volumePrefix)?.upperBound,
+                    let volumeEnd = sourcePath.range(of: volumeSuffix)?.lowerBound
+                {
+                    let volumeName = String(sourcePath[volumeStart..<volumeEnd])
+                    let readonly = mount.options.readonly
+
+                    do {
+                        try await ClientVolume.release(name: volumeName, readonly: readonly, containerId: containerId)
+                        self.log.info(
+                            "Released volume",
+                            metadata: [
+                                "volume": "\(volumeName)",
+                                "container": "\(containerId)",
+                                "readonly": "\(readonly)",
+                            ])
+                    } catch {
+                        self.log.error(
+                            "Failed to release volume",
+                            metadata: [
+                                "volume": "\(volumeName)",
+                                "container": "\(containerId)",
+                                "error": "\(error)",
+                            ])
+                    }
+                }
+            }
+        }
     }
 
     private func _shutdown(id: String, item: Item) throws {

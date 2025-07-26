@@ -60,14 +60,25 @@ public struct Volume: Sendable, Codable, Equatable, Identifiable {
 
 /// Usage information for a volume.
 public struct VolumeUsageData: Sendable, Codable, Equatable {
-    // Size of the volume in bytes.
-    public var sizeInBytes: Int64
+    /// Container usage information.
+    public struct ContainerUsage: Sendable, Codable, Equatable {
+        public var container: String
+        public var mode: String
+
+        public init(container: String, mode: String) {
+            self.container = container
+            self.mode = mode
+        }
+    }
+
     // Number of containers currently using this volume.
     public var refCount: Int64
+    // List of containers currently using this volume.
+    public var usedBy: [ContainerUsage]
 
-    public init(sizeInBytes: Int64, refCount: Int64) {
-        self.sizeInBytes = sizeInBytes
+    public init(refCount: Int64, usedBy: [ContainerUsage] = []) {
         self.refCount = refCount
+        self.usedBy = usedBy
     }
 }
 
@@ -87,7 +98,7 @@ public enum VolumeError: Error, LocalizedError {
         case .volumeAlreadyExists(let name):
             return "Volume '\(name)' already exists"
         case .volumeInUse(let name):
-            return "Volume '\(name)' is in use and cannot be removed"
+            return "Volume '\(name)' is currently in use and cannot be deleted.\n  Run 'container volume inspect \(name)' for details."
         case .invalidVolumeName(let name):
             return "Invalid volume name '\(name)'"
         case .driverNotSupported(let driver):

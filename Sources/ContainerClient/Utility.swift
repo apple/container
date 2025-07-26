@@ -157,7 +157,8 @@ public struct Utility {
                 resolvedMounts.append(fs)
             case .volume(let parsed):
                 do {
-                    let volume = try await ClientVolume.inspect(parsed.name)
+                    let readonly = parsed.options.contains("ro")
+                    let volume = try await ClientVolume.reserve(name: parsed.name, readonly: readonly, containerId: id)
                     let blockMount = Filesystem.block(
                         format: "ext4",
                         source: volume.source,

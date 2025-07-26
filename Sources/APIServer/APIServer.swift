@@ -252,6 +252,8 @@ struct APIServer: AsyncParsableCommand {
         routes[XPCRoute.volumeDelete] = harness.delete
         routes[XPCRoute.volumeList] = harness.list
         routes[XPCRoute.volumeInspect] = harness.inspect
+        routes[XPCRoute.volumeReserve] = harness.reserve
+        routes[XPCRoute.volumeRelease] = harness.release
     }
 
     private static func releaseVersion() -> String {

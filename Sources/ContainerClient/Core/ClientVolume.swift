@@ -80,4 +80,30 @@ public struct ClientVolume {
 
         return try JSONDecoder().decode(Volume.self, from: responseData)
     }
+
+    public static func reserve(name: String, readonly: Bool, containerId: String) async throws -> Volume {
+        let client = XPCClient(service: serviceIdentifier)
+        let message = XPCMessage(route: .volumeReserve)
+        message.set(key: .volumeName, value: name)
+        message.set(key: .volumeReadonly, value: readonly)
+        message.set(key: .volumeContainerId, value: containerId)
+
+        let reply = try await client.send(message)
+
+        guard let responseData = reply.dataNoCopy(key: .volume) else {
+            throw VolumeError.volumeNotFound(name)
+        }
+
+        return try JSONDecoder().decode(Volume.self, from: responseData)
+    }
+
+    public static func release(name: String, readonly: Bool, containerId: String) async throws {
+        let client = XPCClient(service: serviceIdentifier)
+        let message = XPCMessage(route: .volumeRelease)
+        message.set(key: .volumeName, value: name)
+        message.set(key: .volumeReadonly, value: readonly)
+        message.set(key: .volumeContainerId, value: containerId)
+
+        _ = try await client.send(message)
+    }
 }

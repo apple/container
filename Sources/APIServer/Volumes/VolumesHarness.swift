@@ -92,4 +92,40 @@ struct VolumesHarness: Sendable {
         reply.set(key: .volume, value: data)
         return reply
     }
+
+    @Sendable
+    func reserve(_ message: XPCMessage) async throws -> XPCMessage {
+        guard let name = message.string(key: .volumeName) else {
+            throw ContainerizationError(.invalidArgument, message: "volume name cannot be empty")
+        }
+
+        guard let containerId = message.string(key: .volumeContainerId) else {
+            throw ContainerizationError(.invalidArgument, message: "container ID cannot be empty")
+        }
+
+        let readonly = message.bool(key: .volumeReadonly) ?? false
+
+        let volume = try await service.reserve(name: name, readonly: readonly, containerId: containerId)
+        let responseData = try JSONEncoder().encode(volume)
+
+        let reply = message.reply()
+        reply.set(key: .volume, value: responseData)
+        return reply
+    }
+
+    @Sendable
+    func release(_ message: XPCMessage) async throws -> XPCMessage {
+        guard let name = message.string(key: .volumeName) else {
+            throw ContainerizationError(.invalidArgument, message: "volume name cannot be empty")
+        }
+
+        guard let containerId = message.string(key: .volumeContainerId) else {
+            throw ContainerizationError(.invalidArgument, message: "container ID cannot be empty")
+        }
+
+        let readonly = message.bool(key: .volumeReadonly) ?? false
+
+        try await service.release(name: name, readonly: readonly, containerId: containerId)
+        return message.reply()
+    }
 }
