@@ -682,6 +682,8 @@ public actor SandboxService {
         container.sysctl = config.sysctls.reduce(into: [String: String]()) {
             $0[$1.key] = $1.value
         }
+        // If the host doesn't support this, we'll throw on container creation.
+        container.virtualization = config.virtualization
 
         for mount in config.mounts {
             if try mount.isSocket() {

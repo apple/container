@@ -47,6 +47,8 @@ public struct ContainerConfiguration: Sendable, Codable {
     public var resources: Resources = .init()
     /// Name of the runtime that supports the container
     public var runtimeHandler: String = "container-runtime-linux"
+    /// Configure exposing virtualization support in the container.
+    public var virtualization: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -64,6 +66,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         case platform
         case resources
         case runtimeHandler
+        case virtualization
     }
 
     /// Create a configuration from the supplied Decoder, initializing missing
@@ -86,6 +89,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         platform = try container.decodeIfPresent(ContainerizationOCI.Platform.self, forKey: .platform) ?? .current
         resources = try container.decodeIfPresent(Resources.self, forKey: .resources) ?? .init()
         runtimeHandler = try container.decodeIfPresent(String.self, forKey: .runtimeHandler) ?? "container-runtime-linux"
+        virtualization = try container.decodeIfPresent(Bool.self, forKey: .virtualization) ?? false
     }
 
     public struct DNSConfiguration: Sendable, Codable {
