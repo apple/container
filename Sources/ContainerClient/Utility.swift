@@ -150,6 +150,8 @@ public struct Utility {
         mounts.append(contentsOf: volumes)
         config.mounts = mounts
 
+        config.virtualization = management.virtualization
+
         if management.networks.isEmpty {
             config.networks = [ClientNetwork.defaultNetworkName]
         } else {

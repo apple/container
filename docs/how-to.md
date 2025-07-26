@@ -286,6 +286,32 @@ Use the `--boot` option to see the logs for the virtual machine boot and init pr
 %
 </pre>
 
+## Expose virtualization capabilities to a container
+
+> [!NOTE]
+> This feature requires a M3 or newer Apple silicon machine and a Linux kernel that supports virtualization. For a kernel configuration that has all of the right features enabled, see https://github.com/apple/containerization/blob/0.5.0/kernel/config-arm64#L602.
+
+You can enable virtualization capabilities in containers by using the `--virtualization` option of `container run` and `container create`.
+
+If your machine does not have support for nested virtualization, you will see the following:
+
+```console
+container run --name nested-virtualization --virtualization --kernel /path/to/a/kernel/with/virtualization/support --rm ubuntu:latest sh -c "dmesg | grep kvm"
+Error: unsupported: "nested virtualization is not supported on the platform"
+```
+
+When nested virtualization is enabled successfully, `dmesg` will show output like the following:
+
+```console
+container run --name nested-virtualization --virtualization --kernel /path/to/a/kernel/with/virtualization/support --rm ubuntu:latest sh -c "dmesg | grep kvm"
+[    0.017245] kvm [1]: IPA Size Limit: 40 bits
+[    0.017499] kvm [1]: GICv3: no GICV resource entry
+[    0.017501] kvm [1]: disabling GICv2 emulation
+[    0.017506] kvm [1]: GIC system register CPU interface enabled
+[    0.017685] kvm [1]: vgic interrupt IRQ9
+[    0.017893] kvm [1]: Hyp mode initialized successfully
+```
+
 ## Configure container defaults
 
 `container` uses macOS user defaults to store configuration settings that persist between sessions. You can customize various aspects of container behavior, including build settings, default images, and network configuration.
