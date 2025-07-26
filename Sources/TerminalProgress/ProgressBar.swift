@@ -15,15 +15,13 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import SendableProperty
 import Synchronization
 
 /// A progress bar that updates itself as tasks are completed.
 public final class ProgressBar: Sendable {
     let config: ProgressConfig
     let state: Mutex<State>
-    @SendableProperty
-    var printedWidth = 0
+    let printedWidth = Mutex(0)
     let term: FileHandle?
     let termQueue = DispatchQueue(label: "com.apple.container.ProgressBar")
     private let standardError = StandardError()

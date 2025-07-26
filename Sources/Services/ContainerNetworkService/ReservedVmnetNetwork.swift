@@ -21,7 +21,7 @@ import ContainerizationExtras
 import Dispatch
 import Foundation
 import Logging
-import SendableProperty
+import Synchronization
 import SystemConfiguration
 import XPC
 import vmnet
@@ -29,15 +29,13 @@ import vmnet
 /// Creates a vmnet network with reservation APIs.
 @available(macOS 26, *)
 public final class ReservedVmnetNetwork: Network {
-    @SendablePropertyUnchecked
-    private var _state: NetworkState
-    private let log: Logger
+    private struct State {
+        var networkState: NetworkState
+        var network: vmnet_network_ref?
+    }
 
-    @SendableProperty
-    private var network: vmnet_network_ref?
-    @SendableProperty
-    private var interface: interface_ref?
-    private let networkLock = NSLock()
+    private let stateMutex: Mutex<State>
+    private let log: Logger
 
     /// Configure a bridge network that allows external system access using
     /// network address translation.
@@ -51,23 +49,25 @@ public final class ReservedVmnetNetwork: Network {
 
         log.info("creating vmnet network")
         self.log = log
-        _state = .created(configuration)
+        let initialState = State(networkState: .created(configuration))
+        stateMutex = Mutex(initialState)
         log.info("created vmnet network")
     }
 
     public var state: NetworkState {
-        get async { _state }
+        stateMutex.withLock { $0.networkState }
     }
 
     public nonisolated func withAdditionalData(_ handler: (XPCMessage?) throws -> Void) throws {
-        try networkLock.withLock {
-            try handler(network.map { try Self.serialize_network_ref(ref: $0) })
+        try stateMutex.withLock { state in
+            try handler(state.network.map { try Self.serialize_network_ref(ref: $0) })
         }
     }
 
     public func start() async throws {
-        guard case .created(let configuration) = _state else {
-            throw ContainerizationError(.invalidArgument, message: "cannot start network that is in \(_state.state) state")
+        let networkState = stateMutex.withLock { $0.networkState }
+        guard case .created(let configuration) = networkState else {
+            throw ContainerizationError(.invalidArgument, message: "cannot start network that is in \(networkState.state) state")
         }
 
         try startNetwork(configuration: configuration, log: log)
@@ -125,7 +125,6 @@ public final class ReservedVmnetNetwork: Network {
         guard let network = vmnet_network_create(vmnetConfiguration, &status), status == .VMNET_SUCCESS else {
             throw ContainerizationError(.unsupported, message: "failed to create vmnet network with status \(status)")
         }
-        self.network = network
 
         // retrieve the subnet since the caller may not have provided one
         var subnetAddr = in_addr()
@@ -137,7 +136,14 @@ public final class ReservedVmnetNetwork: Network {
         let upper = IPv4Address(fromValue: lower.value + ~maskValue)
         let runningSubnet = try CIDRAddress(lower: lower, upper: upper)
         let runningGateway = IPv4Address(fromValue: runningSubnet.lower.value + 1)
-        self._state = .running(configuration, NetworkStatus(address: runningSubnet.description, gateway: runningGateway.description))
+        let networkState = NetworkState.running(configuration, NetworkStatus(address: runningSubnet.description, gateway: runningGateway.description))
+
+        let newNetwork = { network }  // A workaround for "'inout sending' parameter '$0' cannot be task-isolated at end of function".
+        stateMutex.withLock { state in
+            state.network = newNetwork()
+            state.networkState = networkState
+        }
+
         log.info(
             "started vmnet network",
             metadata: [
