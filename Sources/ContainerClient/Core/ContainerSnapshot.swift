@@ -25,14 +25,18 @@ public struct ContainerSnapshot: Codable, Sendable {
     public let status: RuntimeStatus
     /// Network interfaces attached to the sandbox that are provided to the container.
     public let networks: [Attachment]
+    /// When the container was started.
+    public let startedAt: Date?
 
     public init(
         configuration: ContainerConfiguration,
         status: RuntimeStatus,
-        networks: [Attachment]
+        networks: [Attachment],
+        startedAt: Date? = nil
     ) {
         self.configuration = configuration
         self.status = status
         self.networks = networks
+        self.startedAt = startedAt
     }
 }
