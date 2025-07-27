@@ -1,0 +1,35 @@
+# Vibeman Repository Configuration
+# Simplified configuration focused on docker-compose
+
+[repository]
+name = "Apple Container"
+description = ""
+port_management = false    # Enable automatic port management (default: false)
+repo_url = ""
+default_branch = "main"
+worktree_prefix = ""       # Optional prefix for worktree names
+worktrees_dir = "../Apple Container-worktrees"
+shared_services = []       # Services shared across all worktrees
+worktree_setup = []        # Commands to run after worktree creation, e.g. ["npm install", "npm run build"]
+
+[repository.containers]
+runtime = "docker"         # Container runtime (default: "docker")
+compose_file = "./docker-compose.yaml"
+services = []              # Services to run from compose file (empty = all)
+environment = { }          # Additional environment variables
+
+[repository.ai]
+enabled = true             # Enable AI assistant (default: true)
+# image = "custom-ai-image"  # Optional custom AI image
+# env = { }                  # Additional AI environment variables
+# volumes = { }              # Additional AI volume mounts
+
+# Port configuration for automatic port management
+[ports]
+management = "manual"      # "auto" or "manual" (default: "manual")
+offset = 100              # Port offset between worktrees (default: 100)
+
+[ports.mappings]
+# Define port mappings for your services
+# backend = 3000
+# frontend = 8080
