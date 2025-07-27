@@ -39,6 +39,7 @@ let package = Package(
         .library(name: "ContainerPlugin", targets: ["ContainerPlugin"]),
         .library(name: "ContainerXPC", targets: ["ContainerXPC"]),
         .library(name: "SocketForwarder", targets: ["SocketForwarder"]),
+        .library(name: "ContainerCompose", targets: ["ContainerCompose"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
@@ -52,6 +53,7 @@ let package = Package(
         .package(url: "https://github.com/orlandos-nl/DNSClient.git", from: "2.4.1"),
         .package(url: "https://github.com/Bouke/DNS.git", from: "1.2.0"),
         .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion)),
+        .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0"),
     ],
     targets: [
         .executableTarget(
@@ -69,6 +71,7 @@ let package = Package(
                 "ContainerClient",
                 "ContainerPlugin",
                 "ContainerLog",
+                "ContainerCompose",
             ],
             path: "Sources/CLI"
         ),
@@ -321,6 +324,26 @@ let package = Package(
                 .define("GIT_COMMIT", to: "\"\(gitCommit)\""),
                 .define("RELEASE_VERSION", to: "\"\(releaseVersion)\""),
                 .define("BUILDER_SHIM_VERSION", to: "\"\(builderShimVersion)\""),
+            ]
+        ),
+        .target(
+            name: "ContainerCompose",
+            dependencies: [
+                .product(name: "Yams", package: "Yams"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationOS", package: "containerization"),
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                "ContainerClient",
+                "TerminalProgress",
+            ]
+        ),
+        .testTarget(
+            name: "ContainerComposeTests",
+            dependencies: [
+                "ContainerCompose",
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "Logging", package: "swift-log"),
             ]
         ),
     ]
