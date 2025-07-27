@@ -26,6 +26,7 @@ make install
 Or to install a release build, with better performance than the debug build:
 
 ```bash
+BUILD_CONFIGURATION=release make all test integration
 BUILD_CONFIGURATION=release make install
 ```
 
