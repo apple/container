@@ -138,6 +138,7 @@ integration: init-block
 	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLINetwork
 	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunLifecycle
 	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIExecCommand
+	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLICreateCommand
 	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunCommand
 	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIImagesCommand
 	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunBase
