@@ -44,36 +44,11 @@ public struct SandboxClient: Sendable, Codable {
 
 // Runtime Methods
 extension SandboxClient {
-    public func bootstrap() async throws {
+    public func bootstrap(stdio: [FileHandle?]) async throws {
         let request = XPCMessage(route: SandboxRoutes.bootstrap.rawValue)
         let client = createClient()
         defer { client.close() }
 
-        try await client.send(request)
-    }
-
-    public func state() async throws -> SandboxSnapshot {
-        let request = XPCMessage(route: SandboxRoutes.state.rawValue)
-        let client = createClient()
-        defer { client.close() }
-
-        let response = try await client.send(request)
-        return try response.sandboxSnapshot()
-    }
-
-    public func createProcess(_ id: String, config: ProcessConfiguration) async throws {
-        let request = XPCMessage(route: SandboxRoutes.createProcess.rawValue)
-        request.set(key: .id, value: id)
-        let data = try JSONEncoder().encode(config)
-        request.set(key: .processConfig, value: data)
-
-        let client = createClient()
-        defer { client.close() }
-        try await client.send(request)
-    }
-
-    public func startProcess(_ id: String, stdio: [FileHandle?]) async throws {
-        let request = XPCMessage(route: SandboxRoutes.start.rawValue)
         for (i, h) in stdio.enumerated() {
             let key: XPCKeys = {
                 switch i {
@@ -89,6 +64,48 @@ extension SandboxClient {
                 request.set(key: key, value: h)
             }
         }
+
+        try await client.send(request)
+    }
+
+    public func state() async throws -> SandboxSnapshot {
+        let request = XPCMessage(route: SandboxRoutes.state.rawValue)
+        let client = createClient()
+        defer { client.close() }
+
+        let response = try await client.send(request)
+        return try response.sandboxSnapshot()
+    }
+
+    public func createProcess(_ id: String, config: ProcessConfiguration, stdio: [FileHandle?]) async throws {
+        let request = XPCMessage(route: SandboxRoutes.createProcess.rawValue)
+        request.set(key: .id, value: id)
+        let data = try JSONEncoder().encode(config)
+        request.set(key: .processConfig, value: data)
+
+        for (i, h) in stdio.enumerated() {
+            let key: XPCKeys = {
+                switch i {
+                case 0: .stdin
+                case 1: .stdout
+                case 2: .stderr
+                default:
+                    fatalError("invalid fd \(i)")
+                }
+            }()
+
+            if let h {
+                request.set(key: key, value: h)
+            }
+        }
+
+        let client = createClient()
+        defer { client.close() }
+        try await client.send(request)
+    }
+
+    public func startProcess(_ id: String) async throws {
+        let request = XPCMessage(route: SandboxRoutes.start.rawValue)
         request.set(key: .id, value: id)
 
         let client = createClient()

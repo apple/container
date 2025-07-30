@@ -29,7 +29,7 @@ extension Application {
         @Argument(help: "Image name")
         var image: String
 
-        @Argument(help: "Container init process arguments")
+        @Argument(parsing: .captureForPassthrough, help: "Container init process arguments")
         var arguments: [String] = []
 
         @OptionGroup

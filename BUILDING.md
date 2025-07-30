@@ -23,6 +23,13 @@ Copy the binaries to `/usr/local/bin` and `/usr/local/libexec` (requires enterin
 make install
 ```
 
+Or to install a release build, with better performance than the debug build:
+
+```bash
+BUILD_CONFIGURATION=release make all test integration
+BUILD_CONFIGURATION=release make install
+```
+
 ## Compile protobufs
 
 `container` uses gRPC to communicate to the builder virtual machine that creates images from `Dockerfile`s, and depends on specific versions of `grpc-swift` and `swift-protobuf`. If you make changes to the gRPC APIs in the [container-builder-shim](https://github.com/apple/container-builder-shim) project, install the tools and re-generate the gRPC code in this project using:

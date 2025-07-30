@@ -245,10 +245,12 @@ extension ClientContainer {
                 detach: true
             )
             defer { try? io.close() }
-            let process = try await bootstrap()
-            _ = try await process.start(io.stdio)
+
+            let process = try await bootstrap(stdio: io.stdio)
+            _ = try await process.start()
             await taskManager?.finish()
             try io.closeAfterStart()
+
             log.debug("starting BuildKit and BuildKit-shim")
         } catch {
             try? await stop()

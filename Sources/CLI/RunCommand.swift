@@ -110,15 +110,15 @@ extension Application {
 
             let detach = self.managementFlags.detach
 
-            let process = try await container.bootstrap()
-            progress.finish()
-
             do {
                 let io = try ProcessIO.create(
                     tty: self.processFlags.tty,
                     interactive: self.processFlags.interactive,
                     detach: detach
                 )
+
+                let process = try await container.bootstrap(stdio: io.stdio)
+                progress.finish()
 
                 if !self.managementFlags.cidfile.isEmpty {
                     let path = self.managementFlags.cidfile
@@ -137,7 +137,7 @@ extension Application {
                 }
 
                 if detach {
-                    try await process.start(io.stdio)
+                    try await process.start()
                     defer {
                         try? io.close()
                     }
