@@ -43,17 +43,10 @@ public struct ImageDetail: Codable {
 
 extension ClientImage {
     public func details() async throws -> ImageDetail {
-        let index = try await self.index()
+        let descriptor = try await self.resolved()
         let reference = self.reference
-
-        let descriptor: Descriptor = if self.descriptor.annotations?[AnnotationKeys.containerizationIndexIndirect] == "true" {
-            index.manifests.first!
-        } else {
-            self.descriptor
-        }
-
         var variants: [ImageDetail.Variants] = []
-        for desc in index.manifests {
+        for desc in try await self.index().manifests {
             guard let platform = desc.platform else {
                 continue
             }

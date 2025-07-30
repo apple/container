@@ -69,17 +69,14 @@ public struct ClientImage: Sendable {
         }
         return try content.decode()
     }
-    
-    /// Returns the display digest for the image.
-    /// For single-manifest images, returns the original manifest digest instead of the wrapper index digest.
-    /// For multi-manifest images, returns the index digest.
-    public func displayDigest() async throws -> String {
-        let index = try await self.index()
 
-        if self.descriptor.annotations?[AnnotationKeys.containerizationIndexIndirect] == "true" {
-            return index.manifests.first!.digest
+    /// Returns the resolved OCI descriptor for the image.
+    package func resolved() async throws -> Descriptor {
+        let index = try await self.index()
+        if index.annotations?[AnnotationKeys.containerizationIndexIndirect] == "true" {
+            return index.manifests.first!
         } else {
-            return self.descriptor.digest
+            return self.descriptor
         }
     }
 }
