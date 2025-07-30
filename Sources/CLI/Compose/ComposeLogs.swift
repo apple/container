@@ -33,7 +33,7 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
         
-        @Flag(name: [.customLong("follow"), .customShort("f")], help: "Follow log output")
+        @Flag(name: .long, help: "Follow log output")
         var follow: Bool = false
         
         @Option(name: .long, help: "Number of lines to show from the end of the logs")
