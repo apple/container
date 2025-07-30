@@ -41,11 +41,19 @@ extension Application {
             
             // Parse compose file
             let parser = ComposeParser(log: log)
-            let composeFile = try parser.parse(from: composeOptions.getComposeFileURL())
+            let composeFile = try parser.parse(from: composeOptions.getComposeFileURLs())
             
             if !quiet {
                 print("✓ Compose file is valid")
-                print("  File: \(composeOptions.getComposeFileURL().path)")
+                let fileUrls = composeOptions.getComposeFileURLs()
+                if fileUrls.count == 1 {
+                    print("  File: \(fileUrls[0].path)")
+                } else {
+                    print("  Files:")
+                    for url in fileUrls {
+                        print("    - \(url.path)")
+                    }
+                }
                 print("  Version: \(composeFile.version ?? "not specified")")
                 print("  Services: \(composeFile.services.count)")
                 

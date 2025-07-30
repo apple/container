@@ -42,8 +42,8 @@ extension Application {
 // MARK: - Shared Options
 
 struct ComposeOptions: ParsableArguments {
-    @Option(name: [.customLong("file"), .customShort("f")], help: "Specify an alternate compose file")
-    var file: String = "docker-compose.yaml"
+    @Option(name: [.customLong("file"), .customShort("f")], help: "Specify compose file(s) (can be used multiple times)")
+    var file: [String] = []
     
     @Option(name: [.customLong("project"), .customShort("p")], help: "Specify an alternate project name")
     var project: String?
@@ -64,13 +64,40 @@ struct ComposeOptions: ParsableArguments {
         return url.lastPathComponent.lowercased().replacingOccurrences(of: " ", with: "")
     }
     
-    func getComposeFileURL() -> URL {
-        if file.hasPrefix("/") {
-            return URL(fileURLWithPath: file)
-        } else {
-            let currentPath = FileManager.default.currentDirectoryPath
-            return URL(fileURLWithPath: currentPath).appendingPathComponent(file)
+    func getComposeFileURLs() -> [URL] {
+        // If no files specified, use default
+        let files = file.isEmpty ? ["docker-compose.yaml", "docker-compose.yml", "compose.yaml", "compose.yml"] : file
+        
+        var urls: [URL] = []
+        let currentPath = FileManager.default.currentDirectoryPath
+        
+        for fileName in files {
+            let url: URL
+            if fileName.hasPrefix("/") {
+                url = URL(fileURLWithPath: fileName)
+            } else {
+                url = URL(fileURLWithPath: currentPath).appendingPathComponent(fileName)
+            }
+            
+            // For default files, only add if they exist
+            if file.isEmpty {
+                if FileManager.default.fileExists(atPath: url.path) {
+                    urls.append(url)
+                    break // Use first found default file
+                }
+            } else {
+                // For explicitly specified files, add them all (parser will check existence)
+                urls.append(url)
+            }
         }
+        
+        // If no files found from defaults, return the first default for error message
+        if urls.isEmpty && file.isEmpty {
+            let defaultFile = URL(fileURLWithPath: currentPath).appendingPathComponent("docker-compose.yaml")
+            urls.append(defaultFile)
+        }
+        
+        return urls
     }
     
     func setEnvironmentVariables() {

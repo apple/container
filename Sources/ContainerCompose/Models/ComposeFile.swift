@@ -371,4 +371,23 @@ public enum Labels: Codable {
             try container.encode(dict)
         }
     }
+    
+    public var asDictionary: [String: String] {
+        switch self {
+        case .dict(let dict):
+            return dict
+        case .list(let list):
+            var dict: [String: String] = [:]
+            for item in list {
+                let parts = item.split(separator: "=", maxSplits: 1)
+                if parts.count == 2 {
+                    dict[String(parts[0])] = String(parts[1])
+                } else if parts.count == 1 {
+                    // Label without value
+                    dict[String(parts[0])] = ""
+                }
+            }
+            return dict
+        }
+    }
 }

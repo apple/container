@@ -21,12 +21,41 @@ import Logging
 
 public struct ComposeParser {
     private let log: Logger
+    private let merger: ComposeFileMerger
     
     public init(log: Logger) {
         self.log = log
+        self.merger = ComposeFileMerger(log: log)
     }
     
-    /// Parse a docker-compose.yaml file from the given URL
+    /// Parse and merge multiple docker-compose files
+    public func parse(from urls: [URL]) throws -> ComposeFile {
+        guard !urls.isEmpty else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "No compose files specified"
+            )
+        }
+        
+        var composeFiles: [ComposeFile] = []
+        
+        for url in urls {
+            let file = try parse(from: url)
+            composeFiles.append(file)
+            log.info("Loaded compose file: \(url.lastPathComponent)")
+        }
+        
+        // Merge all files
+        let merged = merger.merge(composeFiles)
+        
+        if urls.count > 1 {
+            log.info("Merged \(urls.count) compose files")
+        }
+        
+        return merged
+    }
+    
+    /// Parse a single docker-compose.yaml file from the given URL
     public func parse(from url: URL) throws -> ComposeFile {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw ContainerizationError(

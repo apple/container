@@ -51,7 +51,7 @@ extension Application {
             
             // Parse compose file
             let parser = ComposeParser(log: log)
-            let composeFile = try parser.parse(from: composeOptions.getComposeFileURL())
+            let composeFile = try parser.parse(from: composeOptions.getComposeFileURLs())
             
             // Convert to project
             let converter = ProjectConverter(log: log)

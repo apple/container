@@ -187,4 +187,158 @@ struct ComposeParserTests {
         #expect(composeFile.services["api"]?.profiles == ["backend", "api"])
         #expect(composeFile.services["db"]?.profiles == nil)
     }
+    
+    @Test
+    func testParseMultipleFiles() throws {
+        // Create temporary directory for test files
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+        
+        // Base compose file
+        let baseYaml = """
+        version: '3.8'
+        services:
+          web:
+            image: nginx:1.19
+            ports:
+              - "8080:80"
+            environment:
+              LOG_LEVEL: info
+              APP_ENV: base
+          db:
+            image: postgres:13
+            environment:
+              POSTGRES_DB: myapp
+        """
+        
+        let baseFile = tempDir.appendingPathComponent("docker-compose.yml")
+        try baseYaml.write(to: baseFile, atomically: true, encoding: .utf8)
+        
+        // Override compose file
+        let overrideYaml = """
+        services:
+          web:
+            image: nginx:latest
+            ports:
+              - "9090:80"
+            environment:
+              LOG_LEVEL: debug
+              DEBUG: "true"
+          cache:
+            image: redis:6
+        """
+        
+        let overrideFile = tempDir.appendingPathComponent("docker-compose.override.yml")
+        try overrideYaml.write(to: overrideFile, atomically: true, encoding: .utf8)
+        
+        // Parse multiple files
+        let parser = ComposeParser(log: log)
+        let composeFile = try parser.parse(from: [baseFile, overrideFile])
+        
+        // Verify merged result
+        #expect(composeFile.version == "3.8")
+        #expect(composeFile.services.count == 3)
+        
+        // Check web service was properly overridden
+        let webService = composeFile.services["web"]
+        #expect(webService?.image == "nginx:latest")
+        #expect(webService?.ports == ["9090:80"])
+        #expect(webService?.environment?.asDictionary["LOG_LEVEL"] == "debug")
+        #expect(webService?.environment?.asDictionary["DEBUG"] == "true")
+        #expect(webService?.environment?.asDictionary["APP_ENV"] == "base")
+        
+        // Check db service was preserved
+        let dbService = composeFile.services["db"]
+        #expect(dbService?.image == "postgres:13")
+        
+        // Check cache service was added
+        let cacheService = composeFile.services["cache"]
+        #expect(cacheService?.image == "redis:6")
+    }
+    
+    @Test
+    func testParseThreeFiles() throws {
+        // Create temporary directory for test files
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+        
+        // Base file
+        let baseYaml = """
+        version: '3.8'
+        services:
+          app:
+            image: myapp:latest
+            environment:
+              ENV: base
+              PORT: "8080"
+        networks:
+          default:
+            driver: bridge
+        """
+        
+        let baseFile = tempDir.appendingPathComponent("compose.base.yml")
+        try baseYaml.write(to: baseFile, atomically: true, encoding: .utf8)
+        
+        // Dev file
+        let devYaml = """
+        services:
+          app:
+            environment:
+              ENV: dev
+              DEBUG: "true"
+            ports:
+              - "3000:8080"
+        """
+        
+        let devFile = tempDir.appendingPathComponent("compose.dev.yml")
+        try devYaml.write(to: devFile, atomically: true, encoding: .utf8)
+        
+        // Local file
+        let localYaml = """
+        services:
+          app:
+            environment:
+              LOCAL_SETTING: "value"
+            volumes:
+              - ./src:/app/src
+        """
+        
+        let localFile = tempDir.appendingPathComponent("compose.local.yml")
+        try localYaml.write(to: localFile, atomically: true, encoding: .utf8)
+        
+        // Parse all three files
+        let parser = ComposeParser(log: log)
+        let composeFile = try parser.parse(from: [baseFile, devFile, localFile])
+        
+        // Verify final merged result
+        let appService = composeFile.services["app"]
+        #expect(appService?.image == "myapp:latest")
+        #expect(appService?.ports == ["3000:8080"])
+        #expect(appService?.volumes == ["./src:/app/src"])
+        
+        let env = appService?.environment?.asDictionary
+        #expect(env?["ENV"] == "dev") // Overridden by dev file
+        #expect(env?["PORT"] == "8080") // From base
+        #expect(env?["DEBUG"] == "true") // From dev
+        #expect(env?["LOCAL_SETTING"] == "value") // From local
+    }
+    
+    @Test
+    func testParseNonExistentFile() throws {
+        let parser = ComposeParser(log: log)
+        let nonExistentFile = URL(fileURLWithPath: "/tmp/non-existent-compose.yml")
+        
+        #expect {
+            _ = try parser.parse(from: [nonExistentFile])
+        } throws: { error in
+            guard let containerError = error as? ContainerizationError else { return false }
+            return containerError.code == .notFound
+        }
+    }
 }
