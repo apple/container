@@ -34,6 +34,12 @@ public final class ReservedVmnetNetwork: Network {
         var network: vmnet_network_ref?
     }
 
+    private struct NetworkInfo {
+        let network: vmnet_network_ref
+        let subnet: CIDRAddress
+        let gateway: IPv4Address
+    }
+
     private let stateMutex: Mutex<State>
     private let log: Logger
 
@@ -65,12 +71,17 @@ public final class ReservedVmnetNetwork: Network {
     }
 
     public func start() async throws {
-        let networkState = stateMutex.withLock { $0.networkState }
-        guard case .created(let configuration) = networkState else {
-            throw ContainerizationError(.invalidArgument, message: "cannot start network that is in \(networkState.state) state")
-        }
+        try stateMutex.withLock { state in
+            guard case .created(let configuration) = state.networkState else {
+                throw ContainerizationError(.invalidArgument, message: "cannot start network that is in \(state.networkState.state) state")
+            }
 
-        try startNetwork(configuration: configuration, log: log)
+            let networkInfo = try startNetwork(configuration: configuration, log: log)
+
+            let networkStatus = NetworkStatus(address: networkInfo.subnet.description, gateway: networkInfo.gateway.description)
+            state.networkState = NetworkState.running(configuration, networkStatus)
+            state.network = networkInfo.network
+        }
     }
 
     private static func serialize_network_ref(ref: vmnet_network_ref) throws -> XPCMessage {
@@ -81,7 +92,7 @@ public final class ReservedVmnetNetwork: Network {
         return XPCMessage(object: refObject)
     }
 
-    private func startNetwork(configuration: NetworkConfiguration, log: Logger) throws {
+    private func startNetwork(configuration: NetworkConfiguration, log: Logger) throws -> NetworkInfo {
         log.info(
             "starting vmnet network",
             metadata: [
@@ -136,13 +147,6 @@ public final class ReservedVmnetNetwork: Network {
         let upper = IPv4Address(fromValue: lower.value + ~maskValue)
         let runningSubnet = try CIDRAddress(lower: lower, upper: upper)
         let runningGateway = IPv4Address(fromValue: runningSubnet.lower.value + 1)
-        let networkState = NetworkState.running(configuration, NetworkStatus(address: runningSubnet.description, gateway: runningGateway.description))
-
-        let newNetwork = { network }  // A workaround for "'inout sending' parameter '$0' cannot be task-isolated at end of function".
-        stateMutex.withLock { state in
-            state.network = newNetwork()
-            state.networkState = networkState
-        }
 
         log.info(
             "started vmnet network",
@@ -152,5 +156,7 @@ public final class ReservedVmnetNetwork: Network {
                 "cidr": "\(runningSubnet)",
             ]
         )
+
+        return NetworkInfo(network: network, subnet: runningSubnet, gateway: runningGateway)
     }
 }
