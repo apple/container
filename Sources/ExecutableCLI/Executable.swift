@@ -14,31 +14,29 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+//
+
 import ArgumentParser
+import ContainerCLI
 import ContainerClient
-import ContainerNetworkService
-import ContainerizationError
-import Foundation
-import TerminalProgress
 
-extension Application {
-    public struct NetworkCreate: AsyncParsableCommand {
-        public static let configuration = CommandConfiguration(
-            commandName: "create",
-            abstract: "Create a new network")
+@main
+public struct Executable: AsyncParsableCommand {
+    public init() {}
 
-        public init() {}
+    @OptionGroup
+    var global: Flags.Global
 
-        @Argument(help: "Network name")
-        public var name: String
+    public static let configuration = Application.configuration
 
-        @OptionGroup
-        public var global: Flags.Global
+    public static func main() async throws {
+        try await Application.main()
+    }
 
-        public func run() async throws {
-            let config = NetworkConfiguration(id: self.name, mode: .nat)
-            let state = try await ClientNetwork.create(configuration: config)
-            print(state.id)
-        }
+    public func run() async throws {
+        var application = Application()
+        application.global = global
+        try application.validate()
+        try application.run()
     }
 }

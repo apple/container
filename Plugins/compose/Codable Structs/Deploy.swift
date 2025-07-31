@@ -14,31 +14,22 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ArgumentParser
-import ContainerClient
-import ContainerNetworkService
-import ContainerizationError
-import Foundation
-import TerminalProgress
+//
+//  Deploy.swift
+//  container-compose-app
+//
+//  Created by Morris Richman on 6/17/25.
+//
 
-extension Application {
-    public struct NetworkCreate: AsyncParsableCommand {
-        public static let configuration = CommandConfiguration(
-            commandName: "create",
-            abstract: "Create a new network")
 
-        public init() {}
-
-        @Argument(help: "Network name")
-        public var name: String
-
-        @OptionGroup
-        public var global: Flags.Global
-
-        public func run() async throws {
-            let config = NetworkConfiguration(id: self.name, mode: .nat)
-            let state = try await ClientNetwork.create(configuration: config)
-            print(state.id)
-        }
-    }
+/// Represents the `deploy` configuration for a service (primarily for Swarm orchestration).
+struct Deploy: Codable, Hashable {
+    /// Deployment mode (e.g., 'replicated', 'global')
+    let mode: String?
+    /// Number of replicated service tasks
+    let replicas: Int?
+    /// Resource constraints (limits, reservations)
+    let resources: DeployResources?
+    /// Restart policy for tasks
+    let restart_policy: DeployRestartPolicy?
 }
