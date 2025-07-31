@@ -143,6 +143,7 @@ integration: init-block
 	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIImagesCommand
 	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunBase
 	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIBuildBase
+	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIVolumes
 	@echo Ensuring apiserver stopped after the CLI integration tests...
 	@scripts/ensure-container-stopped.sh
 

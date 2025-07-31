@@ -144,11 +144,35 @@ public struct Utility {
         )
 
         let tmpfs = try Parser.tmpfsMounts(management.tmpFs)
-        let volumes = try Parser.volumes(management.volumes)
-        var mounts = try Parser.mounts(management.mounts)
-        mounts.append(contentsOf: tmpfs)
-        mounts.append(contentsOf: volumes)
-        config.mounts = mounts
+        let volumesOrFs = try Parser.volumes(management.volumes)
+        let mountsOrFs = try Parser.mounts(management.mounts)
+
+        var resolvedMounts: [Filesystem] = []
+        resolvedMounts.append(contentsOf: tmpfs)
+
+        // Resolve volumes and filesystems
+        for item in (volumesOrFs + mountsOrFs) {
+            switch item {
+            case .filesystem(let fs):
+                resolvedMounts.append(fs)
+            case .volume(let parsed):
+                do {
+                    let volume = try await ClientVolume.inspect(parsed.name)
+                    let volumeMount = Filesystem.volume(
+                        name: parsed.name,
+                        format: volume.format,
+                        source: volume.source,
+                        destination: parsed.destination,
+                        options: parsed.options
+                    )
+                    resolvedMounts.append(volumeMount)
+                } catch {
+                    throw ContainerizationError(.invalidArgument, message: "volume '\(parsed.name)' not found")
+                }
+            }
+        }
+
+        config.mounts = resolvedMounts
 
         config.virtualization = management.virtualization
 
@@ -210,5 +234,23 @@ public struct Utility {
             return .init(path: p, platform: s)
         }
         return try await ClientKernel.getDefaultKernel(for: s)
+    }
+
+    /// Parses key-value pairs from command line arguments.
+    ///
+    /// Supports formats like "key=value" and standalone keys (treated as "key=").
+    /// - Parameter pairs: Array of strings in "key=value" format
+    /// - Returns: Dictionary mapping keys to values
+    public static func parseKeyValuePairs(_ pairs: [String]) -> [String: String] {
+        var result: [String: String] = [:]
+        for pair in pairs {
+            let components = pair.split(separator: "=", maxSplits: 1)
+            if components.count == 2 {
+                result[String(components[0])] = String(components[1])
+            } else {
+                result[pair] = ""
+            }
+        }
+        return result
     }
 }
