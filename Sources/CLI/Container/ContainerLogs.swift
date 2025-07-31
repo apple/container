@@ -27,28 +27,28 @@ extension Application {
             commandName: "logs",
             abstract: "Fetch container stdio or boot logs"
         )
-
+        
         @OptionGroup
         var global: Flags.Global
-
+        
         @Flag(name: .shortAndLong, help: "Follow log output")
         var follow: Bool = false
-
+        
         @Flag(name: .long, help: "Display the boot log for the container instead of stdio")
         var boot: Bool = false
-
+        
         @Option(name: [.customShort("n")], help: "Number of lines to show from the end of the logs. If not provided this will print all of the logs")
         var numLines: Int?
-
+        
         @Argument(help: "Container to fetch logs for")
         var container: String
-
+        
         func run() async throws {
             do {
                 let container = try await ClientContainer.get(id: container)
                 let fhs = try await container.logs()
                 let fileHandle = boot ? fhs[1] : fhs[0]
-
+                
                 try await Self.tail(
                     fh: fileHandle,
                     n: numLines,
@@ -61,7 +61,7 @@ extension Application {
                 )
             }
         }
-
+        
         private static func tail(
             fh: FileHandle,
             n: Int?,
@@ -72,21 +72,21 @@ extension Application {
                 let size = try fh.seekToEnd()
                 var offset = size
                 var lines: [String] = []
-
+                
                 while offset > 0, lines.count < n {
                     let readSize = min(1024, offset)
                     offset -= readSize
                     try fh.seek(toOffset: offset)
-
+                    
                     let data = fh.readData(ofLength: Int(readSize))
                     buffer.insert(contentsOf: data, at: 0)
-
+                    
                     if let chunk = String(data: buffer, encoding: .utf8) {
                         lines = chunk.components(separatedBy: .newlines)
                         lines = lines.filter { !$0.isEmpty }
                     }
                 }
-
+                
                 lines = Array(lines.suffix(n))
                 for line in lines {
                     print(line)
@@ -106,14 +106,14 @@ extension Application {
                 }
                 print(str.trimmingCharacters(in: .newlines))
             }
-
+            
             fflush(stdout)
             if follow {
                 setbuf(stdout, nil)
                 try await Self.followFile(fh: fh)
             }
         }
-
+        
         private static func followFile(fh: FileHandle) async throws {
             _ = try fh.seekToEnd()
             let stream = AsyncStream<String> { cont in
@@ -138,7 +138,7 @@ extension Application {
                     }
                 }
             }
-
+            
             for await line in stream {
                 print(line)
             }

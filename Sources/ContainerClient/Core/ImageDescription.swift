@@ -23,10 +23,10 @@ public struct ImageDescription: Sendable, Codable {
     public let reference: String
     /// The descriptor of the image.
     public let descriptor: Descriptor
-
+    
     public var digest: String { descriptor.digest }
     public var mediaType: String { descriptor.mediaType }
-
+    
     public init(reference: String, descriptor: Descriptor) {
         self.reference = reference
         self.descriptor = descriptor

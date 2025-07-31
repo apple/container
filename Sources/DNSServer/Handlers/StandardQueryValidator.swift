@@ -17,13 +17,13 @@
 /// Pass standard queries to a delegate handler.
 public struct StandardQueryValidator: DNSHandler {
     private let handler: DNSHandler
-
+    
     /// Create the handler.
     /// - Parameter delegate: the handler that receives valid queries
     public init(handler: DNSHandler) {
         self.handler = handler
     }
-
+    
     /// Ensures the query is valid before forwarding it to the delegate.
     /// - Parameter msg: the query message
     /// - Returns: the delegate response if the query is valid, and an
@@ -38,7 +38,7 @@ public struct StandardQueryValidator: DNSHandler {
                 questions: query.questions
             )
         }
-
+        
         // Standard DNS servers handle only query operations.
         guard query.operationCode == .query else {
             return Message(
@@ -48,7 +48,7 @@ public struct StandardQueryValidator: DNSHandler {
                 questions: query.questions
             )
         }
-
+        
         // Standard DNS servers only handle messages with exactly one question.
         guard query.questions.count == 1 else {
             return Message(
@@ -58,7 +58,7 @@ public struct StandardQueryValidator: DNSHandler {
                 questions: query.questions
             )
         }
-
+        
         return try await handler.answer(query: query)
     }
 }

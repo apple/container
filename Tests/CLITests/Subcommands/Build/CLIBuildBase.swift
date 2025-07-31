@@ -29,20 +29,20 @@ import Testing
 class TestCLIBuildBase: CLITest {
     override init() throws {
         try super.init()
-
+        
         try? builderDelete(force: true)
         try builderStart()
         try waitForBuilderRunning()
     }
-
+    
     deinit {
         try? builderDelete(force: true)
     }
-
+    
     func waitForBuilderRunning() throws {
         let buildkitName = "buildkit"
         try waitForContainerRunning(buildkitName, 10)
-
+        
         // exec into buildkit and check if builder-shim is running
         var attempt = 3
         while attempt > 0 {
@@ -56,32 +56,32 @@ class TestCLIBuildBase: CLITest {
         }
         throw CLIError.executionFailed("failed to wait for container-builder-shim process on \(buildkitName)")
     }
-
+    
     func createTempDir() throws -> URL {
         let tempDir = testDir.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         return tempDir
     }
-
+    
     func createContext(tempDir: URL, dockerfile: String, context: [FileSystemEntry]? = nil) throws {
         let dockerfileBytes = dockerfile.data(using: .utf8)!
         try dockerfileBytes.write(to: tempDir.appendingPathComponent("Dockerfile"), options: .atomic)
-
+        
         let contextDir: URL = tempDir.appendingPathComponent("context").absoluteURL
         try FileManager.default.createDirectory(at: contextDir, withIntermediateDirectories: true, attributes: nil)
-
+        
         if let context {
             for entry in context {
                 try createEntry(entry, contextDir)
             }
         }
     }
-
+    
     @discardableResult
     func build(tag: String, tempDir: URL, args: [String]? = nil) throws -> String {
         try buildWithPaths(tag: tag, tempContext: tempDir, tempDockerfileContext: tempDir, args: args)
     }
-
+    
     // buildWithPaths is a helper function for calling build with different paths for the build context and
     // the dockerfile path. If both paths are the same, use `build` func above.
     @discardableResult
@@ -102,15 +102,15 @@ class TestCLIBuildBase: CLITest {
             }
         }
         buildArgs.append(contextDirPath)
-
+        
         let response = try run(arguments: buildArgs)
         if response.status != 0 {
             throw CLIError.executionFailed("build failed: stdout=\(response.output) stderr=\(response.error)")
         }
-
+        
         return response.output
     }
-
+    
     enum FileSystemEntry {
         case file(
             _ path: String,
@@ -132,7 +132,7 @@ class TestCLIBuildBase: CLITest {
             gid: gid_t = 0
         )
     }
-
+    
     func createEntry(_ entry: FileSystemEntry, _ contextDir: URL) throws {
         switch entry {
         // last 2 params are uid and gid
@@ -141,13 +141,13 @@ class TestCLIBuildBase: CLITest {
             // not using .absoluteURL deletes the last component from fullPath
             let directory: URL = fullPath.absoluteURL.deletingLastPathComponent()
             let contentPath = fullPath.path
-
+            
             try FileManager.default.createDirectory(
                 atPath: directory.path,
                 withIntermediateDirectories: true,
                 attributes: nil
             )
-
+            
             switch content {
             case .data(let data):
                 try data.write(to: fullPath)
@@ -167,7 +167,7 @@ class TestCLIBuildBase: CLITest {
         //     ],
         //     ofItemAtPath: fullPath.absoluteURL.absoluteString
         // )
-
+        
         case .directory(let path, let permissions, let uid, let gid):
             let fullPath = contextDir.appendingPathComponent(path).absoluteURL
             try FileManager.default.createDirectory(
@@ -196,28 +196,28 @@ class TestCLIBuildBase: CLITest {
             lchown(fullPath.path, uid, gid)
         }
     }
-
+    
     struct FilePermissions: OptionSet {
         let rawValue: UInt16
-
+        
         static let r = FilePermissions(rawValue: 0o400)
         static let w = FilePermissions(rawValue: 0o200)
         static let x = FilePermissions(rawValue: 0o100)
-
+        
         static let gr = FilePermissions(rawValue: 0o040)
         static let gw = FilePermissions(rawValue: 0o020)
         static let gx = FilePermissions(rawValue: 0o010)
-
+        
         static let or = FilePermissions(rawValue: 0o004)
         static let ow = FilePermissions(rawValue: 0o002)
         static let ox = FilePermissions(rawValue: 0o001)
     }
-
+    
     enum FileEntryContent {
         case zeroFilled(size: Int64)
         case data(Data)
     }
-
+    
     func builderStart(cpus: Int64 = 2, memoryInGBs: Int64 = 2) throws {
         let (_, error, status) = try run(arguments: [
             "builder",
@@ -231,7 +231,7 @@ class TestCLIBuildBase: CLITest {
             throw CLIError.executionFailed("command failed: \(error)")
         }
     }
-
+    
     func builderStop() throws {
         let (_, error, status) = try run(arguments: [
             "builder",
@@ -241,7 +241,7 @@ class TestCLIBuildBase: CLITest {
             throw CLIError.executionFailed("command failed: \(error)")
         }
     }
-
+    
     func builderDelete(force: Bool = false) throws {
         let (_, error, status) = try run(
             arguments: [
@@ -253,5 +253,5 @@ class TestCLIBuildBase: CLITest {
             throw CLIError.executionFailed("command failed: \(error)")
         }
     }
-
+    
 }

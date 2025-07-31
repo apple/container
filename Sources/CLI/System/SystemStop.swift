@@ -25,15 +25,15 @@ extension Application {
     struct SystemStop: AsyncParsableCommand {
         private static let stopTimeoutSeconds: Int32 = 5
         private static let shutdownTimeoutSeconds: Int32 = 20
-
+        
         static let configuration = CommandConfiguration(
             commandName: "stop",
             abstract: "Stop all `container` services"
         )
-
+        
         @Option(name: .shortAndLong, help: "Launchd prefix for `container` services")
         var prefix: String = "com.apple.container."
-
+        
         func run() async throws {
             let log = Logger(
                 label: "com.apple.container.cli",
@@ -41,10 +41,10 @@ extension Application {
                     StreamLogHandler.standardOutput(label: label)
                 }
             )
-
+            
             let launchdDomainString = try ServiceManager.getDomainString()
             let fullLabel = "\(launchdDomainString)/\(prefix)apiserver"
-
+            
             log.info("stopping containers", metadata: ["stopTimeoutSeconds": "\(Self.stopTimeoutSeconds)"])
             do {
                 let containers = try await ClientContainer.list()
@@ -54,11 +54,11 @@ extension Application {
                 if !failed.isEmpty {
                     log.warning("some containers could not be stopped gracefully", metadata: ["ids": "\(failed)"])
                 }
-
+                
             } catch {
                 log.warning("failed to stop all containers", metadata: ["error": "\(error)"])
             }
-
+            
             log.info("waiting for containers to exit")
             do {
                 for _ in 0..<Self.shutdownTimeoutSeconds {
@@ -72,7 +72,7 @@ extension Application {
             } catch {
                 log.warning("failed to wait for all containers", metadata: ["error": "\(error)"])
             }
-
+            
             log.info("stopping service", metadata: ["label": "\(fullLabel)"])
             try ServiceManager.deregister(fullServiceLabel: fullLabel)
             // Note: The assumption here is that we would have registered the launchd services

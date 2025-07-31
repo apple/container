@@ -22,7 +22,7 @@ public struct NetworkStatus: Codable, Sendable {
     public let address: String
     /// The gateway IPv4 address.
     public let gateway: String
-
+    
     public init(
         address: String,
         gateway: String
@@ -30,7 +30,7 @@ public struct NetworkStatus: Codable, Sendable {
         self.address = address
         self.gateway = gateway
     }
-
+    
 }
 
 /// The configuration and runtime attributes for a network.
@@ -39,14 +39,14 @@ public enum NetworkState: Codable, Sendable {
     case created(NetworkConfiguration)
     // The network is running.
     case running(NetworkConfiguration, NetworkStatus)
-
+    
     public var state: String {
         switch self {
         case .created: "created"
         case .running: "running"
         }
     }
-
+    
     public var id: String {
         switch self {
         case .created(let configuration): configuration.id

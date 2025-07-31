@@ -34,7 +34,7 @@ public actor BuildPipeline {
                 try BuildStdio(quiet: config.quiet, output: config.terminal?.handle ?? FileHandle.standardError),
             ]
     }
-
+    
     public func run(
         sender: AsyncStream<ClientStream>.Continuation,
         receiver: GRPCAsyncResponseStream<ServerStream>
@@ -55,7 +55,7 @@ public actor BuildPipeline {
             }
         }
     }
-
+    
     /// untilFirstError() throws when any one of its submitted tasks fail.
     /// This is useful for asynchronous packet processing scenarios which
     /// have the following 3 requirements:
@@ -130,7 +130,7 @@ public actor BuildPipeline {
                 }
             }
             taskContinuation.yield(processTasks)
-
+            
             let mainTask = Task { @Sendable in
                 defer {
                     continuation.finish()
@@ -148,7 +148,7 @@ public actor BuildPipeline {
             }
             taskContinuation.yield(mainTask)
         }
-
+        
         // when the first handler fails, cancel all tasks and throw error
         for await item in stream {
             try Task.checkCancellation()
@@ -165,11 +165,11 @@ public actor BuildPipeline {
             try await task.value
         }
     }
-
+    
     private actor UntilFirstError {
         var stream: AsyncStream<@Sendable () async throws -> Void>?
         var continuation: AsyncStream<@Sendable () async throws -> Void>.Continuation?
-
+        
         init() async throws {
             self.stream = AsyncStream { cont in
                 self.continuation = cont
@@ -178,13 +178,13 @@ public actor BuildPipeline {
                 throw NSError()
             }
         }
-
+        
         func addTask(body: @Sendable @escaping () async throws -> Void) {
             if !Task.isCancelled {
                 self.continuation?.yield(body)
             }
         }
-
+        
         func tasks() -> AsyncStream<@Sendable () async throws -> Void> {
             self.stream!
         }

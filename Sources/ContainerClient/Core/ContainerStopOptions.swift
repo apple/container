@@ -19,12 +19,12 @@ import Foundation
 public struct ContainerStopOptions: Sendable, Codable {
     public let timeoutInSeconds: Int32
     public let signal: Int32
-
+    
     public static let `default` = ContainerStopOptions(
         timeoutInSeconds: 5,
         signal: SIGTERM
     )
-
+    
     public init(timeoutInSeconds: Int32, signal: Int32) {
         self.timeoutInSeconds = timeoutInSeconds
         self.signal = signal

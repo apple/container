@@ -19,11 +19,11 @@ import DNS
 /// Handler that returns NXDOMAIN for all hostnames.
 public struct NxDomainResolver: DNSHandler {
     private let ttl: UInt32
-
+    
     public init(ttl: UInt32 = 300) {
         self.ttl = ttl
     }
-
+    
     public func answer(query: Message) async throws -> Message? {
         let question = query.questions[0]
         switch question.type {

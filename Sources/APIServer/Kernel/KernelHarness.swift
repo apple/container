@@ -24,16 +24,16 @@ import Logging
 struct KernelHarness {
     private let log: Logging.Logger
     private let service: KernelService
-
+    
     init(service: KernelService, log: Logging.Logger) {
         self.log = log
         self.service = service
     }
-
+    
     public func install(_ message: XPCMessage) async throws -> XPCMessage {
         let kernelFilePath = try message.kernelFilePath()
         let platform = try message.platform()
-
+        
         guard let kernelTarUrl = try message.kernelTarURL() else {
             // We have been given a path to a kernel binary on disk
             guard let kernelFile = URL(string: kernelFilePath) else {
@@ -42,12 +42,12 @@ struct KernelHarness {
             try await self.service.installKernel(kernelFile: kernelFile, platform: platform)
             return message.reply()
         }
-
+        
         let progressUpdateService = ProgressUpdateService(message: message)
         try await self.service.installKernelFrom(tar: kernelTarUrl, kernelFilePath: kernelFilePath, platform: platform, progressUpdate: progressUpdateService?.handler)
         return message.reply()
     }
-
+    
     public func getDefaultKernel(_ message: XPCMessage) async throws -> XPCMessage {
         guard let platformData = message.dataNoCopy(key: .systemPlatform) else {
             throw ContainerizationError(.invalidArgument, message: "Missing SystemPlatform")
@@ -69,14 +69,14 @@ extension XPCMessage {
         let platform = try JSONDecoder().decode(SystemPlatform.self, from: platformData)
         return platform
     }
-
+    
     fileprivate func kernelFilePath() throws -> String {
         guard let kernelFilePath = self.string(key: .kernelFilePath) else {
             throw ContainerizationError(.invalidArgument, message: "Missing kernel file path in XPC Message")
         }
         return kernelFilePath
     }
-
+    
     fileprivate func kernelTarURL() throws -> URL? {
         guard let kernelTarURLString = self.string(key: .kernelTarURL) else {
             return nil

@@ -22,13 +22,13 @@ actor PluginsService {
     private let log: Logger
     private var loaded: [String: Plugin]
     private let pluginLoader: PluginLoader
-
+    
     public init(pluginLoader: PluginLoader, log: Logger) {
         self.log = log
         self.loaded = [:]
         self.pluginLoader = pluginLoader
     }
-
+    
     /// Load the specified plugins, or all plugins with services defined
     /// if none are explicitly specified.
     public func loadAll(
@@ -40,7 +40,7 @@ actor PluginsService {
             loaded[plugin.name] = plugin
         }
     }
-
+    
     /// Stop the specified plugins, or all plugins with services defined
     /// if none are explicitly specified.
     public func stopAll(_ plugins: [Plugin]? = nil) throws {
@@ -50,9 +50,9 @@ actor PluginsService {
             self.loaded.removeValue(forKey: plugin.name)
         }
     }
-
+    
     // MARK: XPC API surface.
-
+    
     /// Load a single plugin, doing nothing if the plugin is already loaded.
     public func load(name: String) throws {
         guard self.loaded[name] == nil else {
@@ -64,7 +64,7 @@ actor PluginsService {
         try pluginLoader.registerWithLaunchd(plugin: plugin)
         self.loaded[plugin.name] = plugin
     }
-
+    
     /// Get information for a loaded plugin.
     public func get(name: String) throws -> Plugin {
         guard let plugin = loaded[name] else {
@@ -72,7 +72,7 @@ actor PluginsService {
         }
         return plugin
     }
-
+    
     /// Restart a loaded plugin.
     public func restart(name: String) throws {
         guard let plugin = self.loaded[name] else {
@@ -80,7 +80,7 @@ actor PluginsService {
         }
         try ServiceManager.kickstart(fullServiceLabel: plugin.getLaunchdLabel())
     }
-
+    
     /// Unload a loaded plugin.
     public func unload(name: String) throws {
         guard let plugin = self.loaded[name] else {
@@ -89,16 +89,16 @@ actor PluginsService {
         try pluginLoader.deregisterWithLaunchd(plugin: plugin)
         self.loaded.removeValue(forKey: plugin.name)
     }
-
+    
     /// List all loaded plugins.
     public func list() throws -> [Plugin] {
         self.loaded.map { $0.value }
     }
-
+    
     public enum Error: Swift.Error, CustomStringConvertible {
         case pluginNotFound(String)
         case pluginNotLoaded(String)
-
+        
         public var description: String {
             switch self {
             case .pluginNotFound(let name):

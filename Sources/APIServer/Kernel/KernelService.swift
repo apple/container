@@ -25,16 +25,16 @@ import TerminalProgress
 
 actor KernelService {
     private static let defaultKernelNamePrefix: String = "default.kernel-"
-
+    
     private let log: Logger
     private let kernelDirectory: URL
-
+    
     public init(log: Logger, appRoot: URL) throws {
         self.log = log
         self.kernelDirectory = appRoot.appending(path: "kernels")
         try FileManager.default.createDirectory(at: self.kernelDirectory, withIntermediateDirectories: true)
     }
-
+    
     /// Copies a kernel binary from a local path on disk into the managed kernels directory
     /// as the default kernel for the provided platform.
     public func installKernel(kernelFile url: URL, platform: SystemPlatform = .linuxArm) throws {
@@ -50,18 +50,18 @@ actor KernelService {
             throw error
         }
     }
-
+    
     /// Copies a kernel binary from inside of tar file into the managed kernels directory
     /// as the default kernel for the provided platform.
     /// The parameter `tar` maybe a location to a local file on disk, or a remote URL.
     public func installKernelFrom(tar: URL, kernelFilePath: String, platform: SystemPlatform, progressUpdate: ProgressUpdateHandler?) async throws {
         self.log.info("KernelService: \(#function) - tar: \(tar), kernelFilePath: \(kernelFilePath), platform: \(String(describing: platform))")
-
+        
         let tempDir = FileManager.default.uniqueTemporaryDirectory()
         defer {
             try? FileManager.default.removeItem(at: tempDir)
         }
-
+        
         await progressUpdate?([
             .setDescription("Downloading kernel")
         ])
@@ -78,19 +78,19 @@ actor KernelService {
             try await FileDownloader.downloadFile(url: tar, to: tarFile, progressUpdate: downloadProgressUpdate)
         }
         await taskManager.finish()
-
+        
         await progressUpdate?([
             .setDescription("Unpacking kernel")
         ])
         let archiveReader = try ArchiveReader(file: tarFile)
         let kernelFile = try archiveReader.extractFile(from: kernelFilePath, to: tempDir)
         try self.installKernel(kernelFile: kernelFile, platform: platform)
-
+        
         if !FileManager.default.fileExists(atPath: tar.absoluteString) {
             try FileManager.default.removeItem(at: tarFile)
         }
     }
-
+    
     private func setDefaultKernel(name: String, platform: SystemPlatform) throws {
         self.log.info("KernelService: \(#function) - name: \(name), platform: \(String(describing: platform))")
         let kernelPath = self.kernelDirectory.appendingPathComponent(name)
@@ -102,7 +102,7 @@ actor KernelService {
         try? FileManager.default.removeItem(at: defaultKernelPath)
         try FileManager.default.createSymbolicLink(at: defaultKernelPath, withDestinationURL: kernelPath)
     }
-
+    
     public func getDefaultKernel(platform: SystemPlatform = .linuxArm) async throws -> Kernel {
         self.log.info("KernelService: \(#function) - platform: \(String(describing: platform))")
         let name = "\(Self.defaultKernelNamePrefix)\(platform.architecture)"

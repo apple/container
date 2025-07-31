@@ -42,16 +42,16 @@ extension ImagesHelper {
             commandName: "start",
             abstract: "Starts the image plugin"
         )
-
+        
         @Flag(name: .long, help: "Enable debug logging")
         var debug = false
-
+        
         @Option(name: .long, help: "XPC service prefix")
         var serviceIdentifier: String = "com.apple.container.core.container-core-images"
-
+        
         @Option(name: .shortAndLong, help: "Daemon root directory")
         var root = Self.appRoot.path
-
+        
         static let appRoot: URL = {
             FileManager.default.urls(
                 for: .applicationSupportDirectory,
@@ -61,7 +61,7 @@ extension ImagesHelper {
         }()
 
         private static let unpackStrategy = SnapshotStore.defaultUnpackStrategy
-
+        
         func run() async throws {
             let commandName = ImagesHelper._commandName
             let log = setupLogger()
@@ -87,14 +87,14 @@ extension ImagesHelper {
                 ImagesHelper.exit(withError: error)
             }
         }
-
+        
         private func initializeImagesService(root: URL, log: Logger, routes: inout [String: XPCServer.RouteHandler]) throws {
             let contentStore = RemoteContentStoreClient()
             let imageStore = try ImageStore(path: root, contentStore: contentStore)
             let snapshotStore = try SnapshotStore(path: root, unpackStrategy: Self.unpackStrategy, log: log)
             let service = try ImagesService(contentStore: contentStore, imageStore: imageStore, snapshotStore: snapshotStore, log: log)
             let harness = ImagesServiceHarness(service: service, log: log)
-
+            
             routes[ImagesServiceXPCRoute.imagePull.rawValue] = harness.pull
             routes[ImagesServiceXPCRoute.imageList.rawValue] = harness.list
             routes[ImagesServiceXPCRoute.imageDelete.rawValue] = harness.delete
@@ -107,11 +107,11 @@ extension ImagesHelper {
             routes[ImagesServiceXPCRoute.snapshotDelete.rawValue] = harness.deleteSnapshot
             routes[ImagesServiceXPCRoute.snapshotGet.rawValue] = harness.getSnapshot
         }
-
+        
         private func initializeContentService(root: URL, log: Logger, routes: inout [String: XPCServer.RouteHandler]) throws {
             let service = try ContentStoreService(root: root, log: log)
             let harness = ContentServiceHarness(service: service, log: log)
-
+            
             routes[ImagesServiceXPCRoute.contentClean.rawValue] = harness.clean
             routes[ImagesServiceXPCRoute.contentGet.rawValue] = harness.get
             routes[ImagesServiceXPCRoute.contentDelete.rawValue] = harness.delete
@@ -119,7 +119,7 @@ extension ImagesHelper {
             routes[ImagesServiceXPCRoute.contentIngestCancel.rawValue] = harness.cancelIngestSession
             routes[ImagesServiceXPCRoute.contentIngestComplete.rawValue] = harness.completeIngestSession
         }
-
+        
         private func setupLogger() -> Logger {
             LoggingSystem.bootstrap { label in
                 OSLogHandler(
@@ -134,7 +134,7 @@ extension ImagesHelper {
             return log
         }
     }
-
+    
     private static func releaseVersion() -> String {
         (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? get_release_version().map { String(cString: $0) } ?? "0.0.0"
     }

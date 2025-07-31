@@ -36,32 +36,32 @@ extension Application {
             config.helpNames = NameSpecification(arrayLiteral: .customShort("h"), .customLong("help"))
             return config
         }
-
+        
         @Option(name: [.customLong("cpus"), .customShort("c")], help: "Number of CPUs to allocate to the container")
         public var cpus: Int64 = 2
-
+        
         @Option(
             name: [.customLong("memory"), .customShort("m")],
             help:
                 "Amount of memory in bytes, kilobytes (K), megabytes (M), or gigabytes (G) for the container, with MB granularity (for example, 1024K will result in 1MB being allocated for the container)"
         )
         var memory: String = "2048MB"
-
+        
         @Option(name: .long, help: ArgumentHelp("Set build-time variables", valueName: "key=val"))
         var buildArg: [String] = []
-
+        
         @Argument(help: "Build directory")
         var contextDir: String = "."
-
+        
         @Option(name: .shortAndLong, help: ArgumentHelp("Path to Dockerfile", valueName: "path"))
         var file: String = "Dockerfile"
-
+        
         @Option(name: .shortAndLong, help: ArgumentHelp("Set a label", valueName: "key=val"))
         var label: [String] = []
-
+        
         @Flag(name: .long, help: "Do not use cache")
         var noCache: Bool = false
-
+        
         @Option(name: .shortAndLong, help: ArgumentHelp("Output configuration for the build", valueName: "value"))
         var output: [String] = {
             ["type=oci"]
@@ -89,19 +89,19 @@ extension Application {
 
         @Option(name: .long, help: ArgumentHelp("Progress type - one of [auto|plain|tty]", valueName: "type"))
         var progress: String = "auto"
-
+        
         @Option(name: .long, help: ArgumentHelp("Builder-shim vsock port", valueName: "port"))
         var vsockPort: UInt32 = 8088
-
+        
         @Option(name: [.customShort("t"), .customLong("tag")], help: ArgumentHelp("Name for the built image", valueName: "name"))
         var targetImageName: String = UUID().uuidString.lowercased()
-
+        
         @Option(name: .long, help: ArgumentHelp("Set the target build stage", valueName: "stage"))
         var target: String = ""
-
+        
         @Flag(name: .shortAndLong, help: "Suppress build output")
         var quiet: Bool = false
-
+        
         func run() async throws {
             do {
                 let timeout: Duration = .seconds(300)
@@ -114,23 +114,23 @@ extension Application {
                     progress.finish()
                 }
                 progress.start()
-
+                
                 progress.set(description: "Dialing builder")
-
+                
                 let builder: Builder? = try await withThrowingTaskGroup(of: Builder.self) { group in
                     defer {
                         group.cancelAll()
                     }
-
+                    
                     group.addTask {
                         while true {
                             do {
                                 let container = try await ClientContainer.get(id: "buildkit")
                                 let fh = try await container.dial(self.vsockPort)
-
+                                
                                 let threadGroup: MultiThreadedEventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
                                 let b = try Builder(socket: fh, group: threadGroup)
-
+                                
                                 // If this call succeeds, then BuildKit is running.
                                 let _ = try await b.info()
                                 return b
@@ -139,20 +139,20 @@ extension Application {
                                 // of time that it's invisible to the user.
                                 progress.set(tasks: 0)
                                 progress.set(totalTasks: 3)
-
+                                
                                 try await BuilderStart.start(
                                     cpus: self.cpus,
                                     memory: self.memory,
                                     progressUpdate: progress.handler
                                 )
-
+                                
                                 // wait (seconds) for builder to start listening on vsock
                                 try await Task.sleep(for: .seconds(5))
                                 continue
                             }
                         }
                     }
-
+                    
                     group.addTask {
                         try await Task.sleep(for: timeout)
                         throw ValidationError(
@@ -161,24 +161,24 @@ extension Application {
                             """
                         )
                     }
-
+                    
                     return try await group.next()
                 }
 
                 guard let builder else {
                     throw ValidationError("builder is not running")
                 }
-
+                
                 let dockerfile = try Data(contentsOf: URL(filePath: file))
                 let exportPath = Application.appRoot.appendingPathComponent(".build")
-
+                
                 let buildID = UUID().uuidString
                 let tempURL = exportPath.appendingPathComponent(buildID)
                 try FileManager.default.createDirectory(at: tempURL, withIntermediateDirectories: true, attributes: nil)
                 defer {
                     try? FileManager.default.removeItem(at: tempURL)
                 }
-
+                
                 let imageName: String = try {
                     let parsedReference = try Reference.parse(targetImageName)
                     parsedReference.normalize()
@@ -196,9 +196,9 @@ extension Application {
                 default:
                     throw ContainerizationError(.invalidArgument, message: "invalid progress mode \(self.progress)")
                 }
-
+                
                 defer { terminal?.tryReset() }
-
+                
                 let exports: [Builder.BuildExport] = try output.map { output in
                     var exp = try Builder.BuildExport(from: output)
                     if exp.destination == nil {
@@ -248,13 +248,13 @@ extension Application {
                             cacheOut: cacheOut
                         )
                         progress.finish()
-
+                        
                         try await builder.build(config)
                     }
-
+                    
                     try await group.next()
                 }
-
+                
                 let unpackProgressConfig = try ProgressConfig(
                     description: "Unpacking built image",
                     itemsName: "entries",
@@ -266,7 +266,7 @@ extension Application {
                     unpackProgress.finish()
                 }
                 unpackProgress.start()
-
+                
                 var finalMessage = "Successfully built \(imageName)"
                 let taskManager = ProgressTaskCoordinator()
                 // Currently, only a single export can be specified.
@@ -280,7 +280,7 @@ extension Application {
                             throw ContainerizationError(.invalidArgument, message: "dest is required \(exp.rawValue)")
                         }
                         let loaded = try await ClientImage.load(from: dest.absolutePath())
-
+                        
                         for image in loaded {
                             try Task.checkCancellation()
                             try await image.unpack(platform: nil, progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: unpackProgress.handler))
@@ -297,7 +297,7 @@ extension Application {
                             throw ContainerizationError(.invalidArgument, message: "dest is required \(exp.rawValue)")
                         }
                         let localDir = tempURL.appendingPathComponent("local")
-
+                        
                         guard FileManager.default.fileExists(atPath: localDir.path) else {
                             throw ContainerizationError(.invalidArgument, message: "expected local output not found")
                         }
@@ -314,7 +314,7 @@ extension Application {
                 throw NSError(domain: "Build", code: 1, userInfo: [NSLocalizedDescriptionKey: "\(error)"])
             }
         }
-
+        
         func validate() throws {
             guard FileManager.default.fileExists(atPath: file) else {
                 throw ValidationError("Dockerfile does not exist at path: \(file)")

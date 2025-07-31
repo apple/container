@@ -24,14 +24,14 @@ extension Application {
     struct RemoveImageOptions: ParsableArguments {
         @Flag(name: .shortAndLong, help: "Remove all images")
         var all: Bool = false
-
+        
         @Argument
         var images: [String] = []
-
+        
         @OptionGroup
         var global: Flags.Global
     }
-
+    
     struct RemoveImageImplementation {
         static func validate(options: RemoveImageOptions) throws {
             if options.images.count == 0 && !options.all {
@@ -41,7 +41,7 @@ extension Application {
                 throw ContainerizationError(.invalidArgument, message: "explicitly supplied images conflict with the --all flag")
             }
         }
-
+        
         static func removeImage(options: RemoveImageOptions) async throws {
             let (found, notFound) = try await {
                 if options.all {
@@ -69,7 +69,7 @@ extension Application {
             let (_, size) = try await ClientImage.pruneImages()
             let formatter = ByteCountFormatter()
             let freed = formatter.string(fromByteCount: Int64(size))
-
+            
             if didDeleteAnyImage {
                 print("Reclaimed \(freed) in disk space")
             }
@@ -78,20 +78,20 @@ extension Application {
             }
         }
     }
-
+    
     struct ImageRemove: AsyncParsableCommand {
         @OptionGroup
         var options: RemoveImageOptions
-
+        
         static let configuration = CommandConfiguration(
             commandName: "delete",
             abstract: "Remove one or more images",
             aliases: ["rm"])
-
+        
         func validate() throws {
             try RemoveImageImplementation.validate(options: options)
         }
-
+        
         mutating func run() async throws {
             try await RemoveImageImplementation.removeImage(options: options)
         }

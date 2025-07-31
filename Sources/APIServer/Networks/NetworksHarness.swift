@@ -24,39 +24,39 @@ import Logging
 struct NetworksHarness: Sendable {
     let log: Logging.Logger
     let service: NetworksService
-
+    
     init(service: NetworksService, log: Logging.Logger) {
         self.log = log
         self.service = service
     }
-
+    
     @Sendable
     func list(_ message: XPCMessage) async throws -> XPCMessage {
         let containers = try await service.list()
         let data = try JSONEncoder().encode(containers)
-
+        
         let reply = message.reply()
         reply.set(key: .networkStates, value: data)
         return reply
     }
-
+    
     @Sendable
     func create(_ message: XPCMessage) async throws -> XPCMessage {
         let data = message.dataNoCopy(key: .networkConfig)
         guard let data else {
             throw ContainerizationError(.invalidArgument, message: "network configuration cannot be empty")
         }
-
+        
         let config = try JSONDecoder().decode(NetworkConfiguration.self, from: data)
         let networkState = try await service.create(configuration: config)
-
+        
         let networkData = try JSONEncoder().encode(networkState)
-
+        
         let reply = message.reply()
         reply.set(key: .networkState, value: networkData)
         return reply
     }
-
+    
     @Sendable
     func delete(_ message: XPCMessage) async throws -> XPCMessage {
         let id = message.string(key: .networkId)
@@ -64,7 +64,7 @@ struct NetworksHarness: Sendable {
             throw ContainerizationError(.invalidArgument, message: "id cannot be empty")
         }
         try await service.delete(id: id)
-
+        
         return message.reply()
     }
 }

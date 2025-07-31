@@ -33,7 +33,7 @@ public struct ProcessConfiguration: Sendable, Codable {
     public var supplementalGroups: [UInt32]
     /// Rlimits for the Process.
     public var rlimits: [Rlimit]
-
+    
     /// Rlimits for Processes.
     public struct Rlimit: Sendable, Codable {
         /// The Rlimit type of the Process.
@@ -44,14 +44,14 @@ public struct ProcessConfiguration: Sendable, Codable {
         public let soft: UInt64
         /// The hard or max limit of the Process.
         public let hard: UInt64
-
+        
         public init(limit: String, soft: UInt64, hard: UInt64) {
             self.limit = limit
             self.soft = soft
             self.hard = hard
         }
     }
-
+    
     /// The User information for a Process.
     public enum User: Sendable, Codable, CustomStringConvertible {
         /// Given the raw user string  of the form <uid:gid> or <user:group> or <user> lookup the uid/gid within
@@ -59,7 +59,7 @@ public struct ProcessConfiguration: Sendable, Codable {
         case raw(userString: String)
         /// Set the provided uid/gid for the Process.
         case id(uid: UInt32, gid: UInt32)
-
+        
         public var description: String {
             switch self {
             case .id(let uid, let gid):
@@ -69,7 +69,7 @@ public struct ProcessConfiguration: Sendable, Codable {
             }
         }
     }
-
+    
     public init(
         executable: String,
         arguments: [String],

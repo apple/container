@@ -31,27 +31,27 @@ extension ProgressBar {
         else {
             return 0
         }
-
+        
         let terminalWidth = (try? Int(terminal.size.width)) ?? 0
         return terminalWidth
     }
-
+    
     /// Clears the progress bar and resets the cursor.
     public func clearAndResetCursor() {
         clear()
         resetCursor()
     }
-
+    
     /// Clears the progress bar.
     public func clear() {
         displayText("")
     }
-
+    
     /// Resets the cursor.
     public func resetCursor() {
         display(EscapeSequence.showCursor)
     }
-
+    
     func display(_ text: String) {
         guard let term else {
             return
@@ -61,17 +61,17 @@ extension ProgressBar {
             try? term.synchronize()
         }
     }
-
+    
     func displayText(_ text: String, terminating: String = "\r") {
         var text = text
-
+        
         // Clears previously printed characters if the new string is shorter.
         text += String(repeating: " ", count: max(printedWidth - text.count, 0))
         printedWidth = text.count
         state.withLock {
             $0.output = text
         }
-
+        
         // Clears previously printed lines.
         var lines = ""
         if terminating.hasSuffix("\r") && terminalWidth > 0 {
@@ -80,7 +80,7 @@ extension ProgressBar {
                 lines += EscapeSequence.moveUp
             }
         }
-
+        
         text = "\(text)\(terminating)\(lines)"
         display(text)
     }

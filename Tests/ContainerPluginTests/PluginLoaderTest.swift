@@ -31,10 +31,10 @@ struct PluginLoaderTest {
             pluginDirectories: [tempURL],
             pluginFactories: [factory], defaultResourcePath: tempURL)
         let plugins = loader.findPlugins()
-
+        
         #expect(Set(plugins.map { $0.name }) == Set(["cli", "service"]))
     }
-
+    
     @Test
     func testFindByName() async throws {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -44,12 +44,12 @@ struct PluginLoaderTest {
             pluginDirectories: [tempURL],
             pluginFactories: [factory], defaultResourcePath: tempURL
         )
-
+        
         #expect(loader.findPlugin(name: "cli")?.name == "cli")
         #expect(loader.findPlugin(name: "service")?.name == "service")
         #expect(loader.findPlugin(name: "throw") == nil)
     }
-
+    
     private func setupMock(tempURL: URL) throws -> MockPluginFactory {
         let cliConfig = PluginConfig(abstract: "cli", author: "CLI", servicesConfig: nil)
         let cliPlugin: Plugin = Plugin(binaryURL: URL(filePath: "/bin/cli"), config: cliConfig)
@@ -66,7 +66,7 @@ struct PluginLoaderTest {
             MockPluginFactory.throwSuffix: nil,
             "service": servicePlugin,
         ]
-
+        
         return try MockPluginFactory(tempURL: tempURL, plugins: mockPlugins)
     }
 }

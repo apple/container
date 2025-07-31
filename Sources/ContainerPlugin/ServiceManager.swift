@@ -22,49 +22,49 @@ public struct ServiceManager {
         let launchctl = Foundation.Process()
         launchctl.executableURL = URL(fileURLWithPath: "/bin/launchctl")
         launchctl.arguments = args
-
+        
         let null = FileHandle.nullDevice
         launchctl.standardOutput = null
         launchctl.standardError = null
-
+        
         try launchctl.run()
         launchctl.waitUntilExit()
-
+        
         return launchctl.terminationStatus
     }
-
+    
     /// Register a service by providing the path to a plist.
     public static func register(plistPath: String) throws {
         let domain = try Self.getDomainString()
         _ = try runLaunchctlCommand(args: ["bootstrap", domain, plistPath])
     }
-
+    
     /// Deregister a service by a launchd label.
     public static func deregister(fullServiceLabel label: String) throws {
         _ = try runLaunchctlCommand(args: ["bootout", label])
     }
-
+    
     /// Restart a service by a launchd label.
     public static func kickstart(fullServiceLabel label: String) throws {
         _ = try runLaunchctlCommand(args: ["kickstart", "-k", label])
     }
-
+    
     /// Send a signal to a service by a launchd label.
     public static func kill(fullServiceLabel label: String, signal: Int32 = 15) throws {
         _ = try runLaunchctlCommand(args: ["kill", "\(signal)", label])
     }
-
+    
     /// Retrieve labels for all loaded launch units.
     public static func enumerate() throws -> [String] {
         let launchctl = Foundation.Process()
         launchctl.executableURL = URL(fileURLWithPath: "/bin/launchctl")
         launchctl.arguments = ["list"]
-
+        
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
         launchctl.standardOutput = stdoutPipe
         launchctl.standardError = stderrPipe
-
+        
         try launchctl.run()
         let outputData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
         let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
@@ -74,35 +74,35 @@ public struct ServiceManager {
             throw ContainerizationError(
                 .internalError, message: "Command `launchctl list` failed with status \(status). Message: \(String(data: stderrData, encoding: .utf8) ?? "No error message")")
         }
-
+        
         guard let outputText = String(data: outputData, encoding: .utf8) else {
             throw ContainerizationError(
                 .internalError, message: "Could not decode output of command `launchctl list`. Message: \(String(data: stderrData, encoding: .utf8) ?? "No error message")")
         }
-
+        
         // The third field of each line of launchctl list output is the label
         return outputText.split { $0.isNewline }
             .map { String($0).split { $0.isWhitespace } }
             .filter { $0.count >= 3 }
             .map { String($0[2]) }
     }
-
+    
     /// Check if a service has been registered or not.
     public static func isRegistered(fullServiceLabel label: String) throws -> Bool {
         let exitStatus = try runLaunchctlCommand(args: ["list", label])
         return exitStatus == 0
     }
-
+    
     private static func getLaunchdSessionType() throws -> String {
         let launchctl = Foundation.Process()
         launchctl.executableURL = URL(fileURLWithPath: "/bin/launchctl")
         launchctl.arguments = ["managername"]
-
+        
         let null = FileHandle.nullDevice
         let stdoutPipe = Pipe()
         launchctl.standardOutput = stdoutPipe
         launchctl.standardError = null
-
+        
         try launchctl.run()
         let outputData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
         launchctl.waitUntilExit()
@@ -115,7 +115,7 @@ public struct ServiceManager {
         }
         return outputText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
-
+    
     public static func getDomainString() throws -> String {
         let currentSessionType = try getLaunchdSessionType()
         switch currentSessionType {

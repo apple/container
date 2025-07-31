@@ -21,19 +21,19 @@ public struct ImageDetail: Codable {
     public let name: String
     public let index: Descriptor
     public let variants: [Variants]
-
+    
     public struct Variants: Codable {
         public let platform: Platform
         public let config: ContainerizationOCI.Image
         public let size: Int64
-
+        
         init(platform: Platform, size: Int64, config: ContainerizationOCI.Image) {
             self.platform = platform
             self.config = config
             self.size = size
         }
     }
-
+    
     init(name: String, index: Descriptor, variants: [Variants]) {
         self.name = name
         self.index = index

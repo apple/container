@@ -25,13 +25,13 @@ extension Application {
         static let configuration = CommandConfiguration(
             commandName: "inspect",
             abstract: "Display information about one or more images")
-
+        
         @OptionGroup
         var global: Flags.Global
-
+        
         @Argument(help: "Images to inspect")
         var images: [String]
-
+        
         func run() async throws {
             var printable = [any Codable]()
             let result = try await ClientImage.get(names: images)

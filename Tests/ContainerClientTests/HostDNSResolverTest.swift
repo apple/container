@@ -33,7 +33,7 @@ struct HostDNSResolverTest {
             create: true
         )
         defer { try? FileManager.default.removeItem(at: tempURL) }
-
+        
         let resolver = HostDNSResolver(configURL: tempURL)
         try resolver.createDomain(name: "foo.bar")
         let resolverConfigURL = tempURL.appending(path: "containerization.foo.bar")
@@ -44,14 +44,14 @@ struct HostDNSResolverTest {
             nameserver 127.0.0.1
             port 2053
             """
-
+        
         #expect(actualText == expectedText)
-
+        
         try resolver.createDomain(name: "bar.foo")
         let domains = resolver.listDomains()
         #expect(domains == ["bar.foo", "foo.bar"])
     }
-
+    
     @Test
     func testHostDNSCreateAlreadyExists() async throws {
         let fm = FileManager.default
@@ -62,7 +62,7 @@ struct HostDNSResolverTest {
             create: true
         )
         defer { try? FileManager.default.removeItem(at: tempURL) }
-
+        
         let resolver = HostDNSResolver(configURL: tempURL)
         try resolver.createDomain(name: "foo.bar")
         #expect {
@@ -74,7 +74,7 @@ struct HostDNSResolverTest {
             return true
         }
     }
-
+    
     @Test
     func testHostDNSDelete() async throws {
         let fm = FileManager.default
@@ -85,14 +85,14 @@ struct HostDNSResolverTest {
             create: true
         )
         defer { try? FileManager.default.removeItem(at: tempURL) }
-
+        
         let resolver = HostDNSResolver(configURL: tempURL)
         try resolver.createDomain(name: "foo.bar")
         try resolver.deleteDomain(name: "foo.bar")
         let domains = resolver.listDomains()
         #expect(domains == [])
     }
-
+    
     @Test
     func testHostDNSDeleteNotFound() async throws {
         let fm = FileManager.default
@@ -103,7 +103,7 @@ struct HostDNSResolverTest {
             create: true
         )
         defer { try? FileManager.default.removeItem(at: tempURL) }
-
+        
         let resolver = HostDNSResolver(configURL: tempURL)
         try resolver.createDomain(name: "foo.bar")
         #expect {
@@ -115,7 +115,7 @@ struct HostDNSResolverTest {
             return true
         }
     }
-
+    
     @Test
     func testHostDNSReinitialize() async throws {
         let isAdmin = getuid() == 0

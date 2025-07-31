@@ -30,7 +30,7 @@ extension Application {
             config.helpNames = NameSpecification(arrayLiteral: .customShort("h"), .customLong("help"))
             return config
         }
-
+        
         func run() async throws {
             do {
                 let container = try await ClientContainer.get(id: "buildkit")

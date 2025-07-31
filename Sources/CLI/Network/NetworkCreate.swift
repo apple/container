@@ -26,13 +26,13 @@ extension Application {
         static let configuration = CommandConfiguration(
             commandName: "create",
             abstract: "Create a new network")
-
+        
         @Argument(help: "Network name")
         var name: String
-
+        
         @OptionGroup
         var global: Flags.Global
-
+        
         func run() async throws {
             let config = NetworkConfiguration(id: self.name, mode: .nat)
             let state = try await ClientNetwork.create(configuration: config)

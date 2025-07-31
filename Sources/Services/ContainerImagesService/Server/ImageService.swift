@@ -27,27 +27,27 @@ import TerminalProgress
 
 public actor ImagesService {
     public static let keychainID = "com.apple.container"
-
+    
     private let log: Logger
     private let contentStore: ContentStore
     private let imageStore: ImageStore
     private let snapshotStore: SnapshotStore
-
+    
     public init(contentStore: ContentStore, imageStore: ImageStore, snapshotStore: SnapshotStore, log: Logger) throws {
         self.contentStore = contentStore
         self.imageStore = imageStore
         self.snapshotStore = snapshotStore
         self.log = log
     }
-
+    
     private func _list() async throws -> [Containerization.Image] {
         try await imageStore.list()
     }
-
+    
     private func _get(_ reference: String) async throws -> Containerization.Image {
         try await imageStore.get(reference: reference)
     }
-
+    
     private func _get(_ description: ImageDescription) async throws -> Containerization.Image {
         let exists = try await self._get(description.reference)
         guard exists.descriptor == description.descriptor else {
@@ -55,12 +55,12 @@ public actor ImagesService {
         }
         return exists
     }
-
+    
     public func list() async throws -> [ImageDescription] {
         self.log.info("ImagesService: \(#function)")
         return try await imageStore.list().map { $0.description.fromCZ }
     }
-
+    
     public func pull(reference: String, platform: Platform?, insecure: Bool, progressUpdate: ProgressUpdateHandler?) async throws -> ImageDescription {
         self.log.info("ImagesService: \(#function) - ref: \(reference), platform: \(String(describing: platform)), insecure: \(insecure)")
         let img = try await Self.withAuthentication(ref: reference) { auth in
@@ -72,7 +72,7 @@ public actor ImagesService {
         }
         return img.description.fromCZ
     }
-
+    
     public func push(reference: String, platform: Platform?, insecure: Bool, progressUpdate: ProgressUpdateHandler?) async throws {
         self.log.info("ImagesService: \(#function) - ref: \(reference), platform: \(String(describing: platform)), insecure: \(insecure)")
         try await Self.withAuthentication(ref: reference) { auth in
@@ -80,18 +80,18 @@ public actor ImagesService {
                 reference: reference, platform: platform, insecure: insecure, auth: auth, progress: ContainerizationProgressAdapter.handler(from: progressUpdate))
         }
     }
-
+    
     public func tag(old: String, new: String) async throws -> ImageDescription {
         self.log.info("ImagesService: \(#function) - old: \(old), new: \(new)")
         let img = try await self.imageStore.tag(existing: old, new: new)
         return img.description.fromCZ
     }
-
+    
     public func delete(reference: String, garbageCollect: Bool) async throws {
         self.log.info("ImagesService: \(#function) - ref: \(reference)")
         try await self.imageStore.delete(reference: reference, performCleanup: garbageCollect)
     }
-
+    
     public func save(reference: String, out: URL, platform: Platform?) async throws {
         self.log.info("ImagesService: \(#function) - reference: \(reference) , platform: \(String(describing: platform))")
         let tempDir = FileManager.default.uniqueTemporaryDirectory()
@@ -103,7 +103,7 @@ public actor ImagesService {
         try writer.archiveDirectory(tempDir)
         try writer.finishEncoding()
     }
-
+    
     public func load(from tarFile: URL) async throws -> [ImageDescription] {
         self.log.info("ImagesService: \(#function) from: \(tarFile.absolutePath())")
         let reader = try ArchiveReader(file: tarFile)
@@ -119,7 +119,7 @@ public actor ImagesService {
         }
         return images
     }
-
+    
     public func prune() async throws -> ([String], UInt64) {
         let images = try await self._list()
         let freedSnapshotBytes = try await self.snapshotStore.clean(keepingSnapshotsFor: images)
@@ -136,13 +136,13 @@ extension ImagesService {
         let img = try await self._get(description)
         try await self.snapshotStore.unpack(image: img, platform: platform, progressUpdate: progressUpdate)
     }
-
+    
     public func deleteImageSnapshot(description: ImageDescription, platform: Platform?) async throws {
         self.log.info("ImagesService: \(#function) - description: \(description), platform: \(String(describing: platform))")
         let img = try await self._get(description)
         try await self.snapshotStore.delete(for: img, platform: platform)
     }
-
+    
     public func getImageSnapshot(description: ImageDescription, platform: Platform) async throws -> Filesystem {
         self.log.info("ImagesService: \(#function) - description: \(description), platform: \(String(describing: platform))")
         let img = try await self._get(description)
@@ -188,7 +188,7 @@ extension ImagesService {
             throw err
         }
     }
-
+    
     private static func authenticationFromEnv(host: String) -> Authentication? {
         let env = ProcessInfo.processInfo.environment
         guard env["CONTAINER_REGISTRY_HOST"] == host else {

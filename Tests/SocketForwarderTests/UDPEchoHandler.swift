@@ -17,13 +17,13 @@
 import NIO
 
 final class UDPEchoHandler: ChannelInboundHandler {
-
+    
     typealias InboundIn = AddressedEnvelope<ByteBuffer>
-
+    
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         context.writeAndFlush(data, promise: nil)
     }
-
+    
     func errorCaught(context: ChannelHandlerContext, error: Error) {
         context.close(promise: nil)
     }

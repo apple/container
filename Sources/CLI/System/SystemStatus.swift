@@ -27,17 +27,17 @@ extension Application {
             commandName: "status",
             abstract: "Show the status of `container` services"
         )
-
+        
         @Option(name: .shortAndLong, help: "Launchd prefix for `container` services")
         var prefix: String = "com.apple.container."
-
+        
         func run() async throws {
             let isRegistered = try ServiceManager.isRegistered(fullServiceLabel: "\(prefix)apiserver")
             if !isRegistered {
                 print("apiserver is not running and not registered with launchd")
                 Application.exit(withError: ExitCode(1))
             }
-
+            
             // Now ping our friendly daemon. Fail after 10 seconds with no response.
             do {
                 print("Verifying apiserver is running...")

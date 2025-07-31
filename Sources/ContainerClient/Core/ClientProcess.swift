@@ -30,7 +30,7 @@ import TerminalProgress
 public protocol ClientProcess: Sendable {
     /// Identifier for the process.
     var id: String { get }
-
+    
     /// Start the underlying process inside of the container.
     func start() async throws
     /// Send a terminal resize request to the process `id`.
@@ -47,24 +47,24 @@ struct ClientProcessImpl: ClientProcess, Sendable {
     static let serviceIdentifier = "com.apple.container.apiserver"
     /// Identifier of the container.
     public let containerId: String
-
+    
     private let client: SandboxClient
-
+    
     /// Identifier of a process. That is running inside of a container.
     /// This field is nil if the process this objects refers to is the
     /// init process of the container.
     public let processId: String?
-
+    
     public var id: String {
         processId ?? containerId
     }
-
+    
     init(containerId: String, processId: String? = nil, client: SandboxClient) {
         self.containerId = containerId
         self.processId = processId
         self.client = client
     }
-
+    
     /// Start the container and return the initial process.
     public func start() async throws {
         do {
@@ -78,10 +78,10 @@ struct ClientProcessImpl: ClientProcess, Sendable {
             )
         }
     }
-
+    
     public func kill(_ signal: Int32) async throws {
         do {
-
+            
             let client = self.client
             try await client.kill(self.id, signal: Int64(signal))
         } catch {
@@ -92,13 +92,13 @@ struct ClientProcessImpl: ClientProcess, Sendable {
             )
         }
     }
-
+    
     public func resize(_ size: ContainerizationOS.Terminal.Size) async throws {
         do {
-
+            
             let client = self.client
             try await client.resize(self.id, size: size)
-
+            
         } catch {
             throw ContainerizationError(
                 .internalError,
@@ -107,7 +107,7 @@ struct ClientProcessImpl: ClientProcess, Sendable {
             )
         }
     }
-
+    
     public func wait() async throws -> Int32 {
         do {
             let client = self.client

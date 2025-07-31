@@ -29,19 +29,19 @@ extension Application {
             commandName: "set",
             abstract: "Set the default kernel"
         )
-
+        
         @Option(name: .customLong("binary"), help: "Path to the binary to set as the default kernel. If used with --tar, this points to a location inside the tar")
         var binaryPath: String? = nil
-
+        
         @Option(name: .customLong("tar"), help: "Filesystem path or remote URL to a tar ball that contains the kernel to use")
         var tarPath: String? = nil
-
+        
         @Option(name: .customLong("arch"), help: "The architecture of the kernel binary. One of (amd64, arm64)")
         var architecture: String = ContainerizationOCI.Platform.current.architecture.description
-
+        
         @Flag(name: .customLong("recommended"), help: "Download and install the recommended kernel as the default. This flag ignores any other arguments")
         var recommended: Bool = false
-
+        
         func run() async throws {
             if recommended {
                 let url = ClientDefaults.get(key: .defaultKernelURL)
@@ -55,7 +55,7 @@ extension Application {
             }
             try await self.setKernelFromTar()
         }
-
+        
         private func setKernelFromBinary() async throws {
             guard let binaryPath else {
                 throw ArgumentParser.ValidationError("Missing argument '--binary'")
@@ -64,7 +64,7 @@ extension Application {
             let platform = try getSystemPlatform()
             try await ClientKernel.installKernel(kernelFilePath: absolutePath, platform: platform)
         }
-
+        
         private func setKernelFromTar() async throws {
             guard let binaryPath else {
                 throw ArgumentParser.ValidationError("Missing argument '--binary'")
@@ -84,7 +84,7 @@ extension Application {
             }
             try await Self.downloadAndInstallWithProgressBar(tarRemoteURL: remoteURL.absoluteString, kernelFilePath: binaryPath, platform: platform)
         }
-
+        
         private func getSystemPlatform() throws -> SystemPlatform {
             switch architecture {
             case "arm64":
@@ -95,7 +95,7 @@ extension Application {
                 throw ContainerizationError(.unsupported, message: "Unsupported architecture \(architecture)")
             }
         }
-
+        
         public static func downloadAndInstallWithProgressBar(tarRemoteURL: String, kernelFilePath: String, platform: SystemPlatform = .current) async throws {
             let progressConfig = try ProgressConfig(
                 showTasks: true,
@@ -109,6 +109,6 @@ extension Application {
             try await ClientKernel.installKernelFromTar(tarFile: tarRemoteURL, kernelFilePath: kernelFilePath, platform: platform, progressUpdate: progress.handler)
             progress.finish()
         }
-
+        
     }
 }

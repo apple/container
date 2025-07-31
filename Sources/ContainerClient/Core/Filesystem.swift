@@ -37,14 +37,14 @@ public struct Filesystem: Sendable, Codable {
         case off
         case auto
     }
-
+    
     /// Sync mode to perform at the host level.
     public enum SyncMode: Sendable, Codable {
         case full
         case fsync
         case nosync
     }
-
+    
     /// The type of filesystem attachment for the sandbox.
     public enum FSType: Sendable, Codable, Equatable {
         package enum VirtiofsType: String, Sendable, Codable, Equatable {
@@ -54,12 +54,12 @@ public struct Filesystem: Sendable, Codable {
             // the rootfs for a sandbox will be.
             case data
         }
-
+        
         case block(format: String, cache: CacheMode, sync: SyncMode)
         case virtiofs
         case tmpfs
     }
-
+    
     /// Type of the filesystem.
     public var type: FSType
     /// Source of the filesystem.
@@ -68,21 +68,21 @@ public struct Filesystem: Sendable, Codable {
     public var destination: String
     /// Mount options applied when mounting the filesystem.
     public var options: MountOptions
-
+    
     public init() {
         self.type = .tmpfs
         self.source = ""
         self.destination = ""
         self.options = []
     }
-
+    
     public init(type: FSType, source: String, destination: String, options: MountOptions) {
         self.type = type
         self.source = source
         self.destination = destination
         self.options = options
     }
-
+    
     /// A block based filesystem.
     public static func block(
         format: String, source: String, destination: String, options: MountOptions, cache: CacheMode = .auto,
@@ -95,7 +95,7 @@ public struct Filesystem: Sendable, Codable {
             options: options
         )
     }
-
+    
     /// A vritiofs backed filesystem providing a directory.
     public static func virtiofs(source: String, destination: String, options: MountOptions) -> Filesystem {
         .init(
@@ -105,7 +105,7 @@ public struct Filesystem: Sendable, Codable {
             options: options
         )
     }
-
+    
     public static func tmpfs(destination: String, options: MountOptions) -> Filesystem {
         .init(
             type: .tmpfs,
@@ -114,7 +114,7 @@ public struct Filesystem: Sendable, Codable {
             options: options
         )
     }
-
+    
     /// Returns true if the Filesystem is backed by a block device.
     public var isBlock: Bool {
         switch type {
@@ -122,7 +122,7 @@ public struct Filesystem: Sendable, Codable {
         default: false
         }
     }
-
+    
     /// Returns true if the Filesystem is backed by a in-memory mount type.
     public var isTmpfs: Bool {
         switch type {
@@ -130,7 +130,7 @@ public struct Filesystem: Sendable, Codable {
         default: false
         }
     }
-
+    
     /// Returns true if the Filesystem is backed by virtioFS.
     public var isVirtiofs: Bool {
         switch type {
@@ -138,7 +138,7 @@ public struct Filesystem: Sendable, Codable {
         default: false
         }
     }
-
+    
     /// Clone the Filesystem to the provided path.
     ///
     /// This uses `clonefile` to provide a copy-on-write copy of the Filesystem.

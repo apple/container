@@ -34,44 +34,44 @@ extension BuildTransfer {
         let stage = self.metadata["stage"]
         return stage == "" ? nil : stage
     }
-
+    
     func method() -> String? {
         let method = self.metadata["method"]
         return method == "" ? nil : method
     }
-
+    
     func includePatterns() -> [String]? {
         guard let includePatternsString = self.metadata["include-patterns"] else {
             return nil
         }
         return includePatternsString == "" ? nil : includePatternsString.components(separatedBy: ",")
     }
-
+    
     func followPaths() -> [String]? {
         guard let followPathString = self.metadata["followpaths"] else {
             return nil
         }
         return followPathString == "" ? nil : followPathString.components(separatedBy: ",")
     }
-
+    
     func mode() -> String? {
         self.metadata["mode"]
     }
-
+    
     func size() -> Int? {
         guard let sizeStr = self.metadata["size"] else {
             return nil
         }
         return sizeStr == "" ? nil : Int(sizeStr)
     }
-
+    
     func offset() -> UInt64? {
         guard let offsetStr = self.metadata["offset"] else {
             return nil
         }
         return offsetStr == "" ? nil : UInt64(offsetStr)
     }
-
+    
     func len() -> Int? {
         guard let lenStr = self.metadata["length"] else {
             return nil
@@ -84,15 +84,15 @@ extension ImageTransfer {
     func stage() -> String? {
         self.metadata["stage"]
     }
-
+    
     func method() -> String? {
         self.metadata["method"]
     }
-
+    
     func ref() -> String? {
         self.metadata["ref"]
     }
-
+    
     func platform() throws -> Platform? {
         let metadata = self.metadata
         guard let platform = metadata["platform"] else {
@@ -100,11 +100,11 @@ extension ImageTransfer {
         }
         return try Platform(from: platform)
     }
-
+    
     func mode() -> String? {
         self.metadata["mode"]
     }
-
+    
     func size() -> Int? {
         let metadata = self.metadata
         guard let sizeStr = metadata["size"] else {
@@ -112,7 +112,7 @@ extension ImageTransfer {
         }
         return Int(sizeStr)
     }
-
+    
     func len() -> Int? {
         let metadata = self.metadata
         guard let lenStr = metadata["length"] else {
@@ -120,7 +120,7 @@ extension ImageTransfer {
         }
         return Int(lenStr)
     }
-
+    
     func offset() -> UInt64? {
         let metadata = self.metadata
         guard let offsetStr = metadata["offset"] else {
@@ -137,14 +137,14 @@ extension ServerStream {
         }
         return nil
     }
-
+    
     func getBuildTransfer() -> BuildTransfer? {
         if case .buildTransfer(let v) = self.packetType {
             return v
         }
         return nil
     }
-
+    
     func getIO() -> IO? {
         if case .io(let v) = self.packetType {
             return v

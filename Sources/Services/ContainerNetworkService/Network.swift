@@ -20,10 +20,10 @@ import ContainerXPC
 public protocol Network: Sendable {
     // Contains network attributes while the network is running
     var state: NetworkState { get async }
-
+    
     // Use implementation-dependent network attributes
     nonisolated func withAdditionalData(_ handler: (XPCMessage?) throws -> Void) throws
-
+    
     // Start the network
     func start() async throws
 }

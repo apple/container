@@ -25,23 +25,23 @@ extension TestCLIRunBase {
         override var ContainerImage: String {
             "ghcr.io/linuxcontainers/alpine:3.20"
         }
-
+        
         override var Interactive: Bool {
             true
         }
-
+        
         override var Tty: Bool {
             true
         }
-
+        
         override var Command: [String]? {
             ["/bin/sh"]
         }
-
+        
         override var DisableProgressUpdates: Bool {
             true
         }
-
+        
         @Test func testTermIODoesNotPanic() async throws {
             let uniqMessage = UUID().uuidString
             let stdin: [String] = [
@@ -66,5 +66,5 @@ extension TestCLIRunBase {
             }
         }
     }
-
+    
 }

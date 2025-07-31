@@ -26,7 +26,7 @@ import NIOPosix
 public struct DNSServer {
     public var handler: DNSHandler
     let log: Logger?
-
+    
     public init(
         handler: DNSHandler,
         log: Logger? = nil
@@ -34,7 +34,7 @@ public struct DNSServer {
         self.handler = handler
         self.log = log
     }
-
+    
     public func run(host: String, port: Int) async throws {
         // TODO: TCP server
         let srv = try await DatagramBootstrap(group: NIOSingletons.posixEventLoopGroup)
@@ -50,14 +50,14 @@ public struct DNSServer {
                 )
             }
             .get()
-
+        
         try await srv.executeThenClose { inbound, outbound in
             for try await var packet in inbound {
                 try await self.handle(outbound: outbound, packet: &packet)
             }
         }
     }
-
+    
     public func run(socketPath: String) async throws {
         // TODO: TCP server
         let srv = try await DatagramBootstrap(group: NIOSingletons.posixEventLoopGroup)
@@ -72,7 +72,7 @@ public struct DNSServer {
                 )
             }
             .get()
-
+        
         try await srv.executeThenClose { inbound, outbound in
             for try await var packet in inbound {
                 log?.debug("received packet from \(packet.remoteAddress)")
@@ -81,6 +81,6 @@ public struct DNSServer {
             }
         }
     }
-
+    
     public func stop() async throws {}
 }

@@ -20,14 +20,14 @@ import ContainerizationExtras
 actor AttachmentAllocator {
     private let allocator: any AddressAllocator<UInt32>
     private var hostnames: [String: UInt32] = [:]
-
+    
     init(lower: UInt32, size: Int) throws {
         allocator = try UInt32.rotatingAllocator(
             lower: lower,
             size: UInt32(size)
         )
     }
-
+    
     /// Allocate a network address for a host.
     func allocate(hostname: String) async throws -> UInt32 {
         guard hostnames[hostname] == nil else {
@@ -35,22 +35,22 @@ actor AttachmentAllocator {
         }
         let index = try allocator.allocate()
         hostnames[hostname] = index
-
+        
         return index
     }
-
+    
     /// Free an allocated network address by hostname.
     func deallocate(hostname: String) async throws {
         if let index = hostnames.removeValue(forKey: hostname) {
             try allocator.release(index)
         }
     }
-
+    
     /// If no addresses are allocated, prevent future allocations and return true.
     func disableAllocator() async -> Bool {
         allocator.disableAllocator()
     }
-
+    
     /// Retrieve the allocator index for a hostname.
     func lookup(hostname: String) async throws -> UInt32? {
         hostnames[hostname]

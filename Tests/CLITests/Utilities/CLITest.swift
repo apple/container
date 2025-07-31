@@ -26,9 +26,9 @@ import Testing
 
 class CLITest {
     init() throws {}
-
+    
     let testUUID = UUID().uuidString
-
+    
     var testDir: URL! {
         let tempDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent(".clitests")
@@ -36,12 +36,12 @@ class CLITest {
         try! FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         return tempDir
     }
-
+    
     let alpine = "ghcr.io/linuxcontainers/alpine:3.20"
     let busybox = "ghcr.io/containerd/busybox:1.36"
-
+    
     let defaultContainerArgs = ["sleep", "infinity"]
-
+    
     var executablePath: URL {
         get throws {
             let containerPath = ProcessInfo.processInfo.environment["CONTAINER_CLI_PATH"]
@@ -50,25 +50,25 @@ class CLITest {
             }
             let fileManager = FileManager.default
             let currentDir = fileManager.currentDirectoryPath
-
+            
             let releaseURL = URL(fileURLWithPath: currentDir)
                 .appendingPathComponent(".build")
                 .appendingPathComponent("release")
                 .appendingPathComponent("container")
-
+            
             let debugURL = URL(fileURLWithPath: currentDir)
                 .appendingPathComponent(".build")
                 .appendingPathComponent("debug")
                 .appendingPathComponent("container")
-
+            
             let releaseExists = fileManager.fileExists(atPath: releaseURL.path)
             let debugExists = fileManager.fileExists(atPath: debugURL.path)
-
+            
             if releaseExists && debugExists {  // choose the latest build
                 do {
                     let releaseAttributes = try fileManager.attributesOfItem(atPath: releaseURL.path)
                     let debugAttributes = try fileManager.attributesOfItem(atPath: debugURL.path)
-
+                    
                     if let releaseDate = releaseAttributes[.modificationDate] as? Date,
                         let debugDate = debugAttributes[.modificationDate] as? Date
                     {
@@ -86,7 +86,7 @@ class CLITest {
             throw CLIError.binaryNotFound
         }
     }
-
+    
     func run(arguments: [String], currentDirectory: URL? = nil) throws -> (output: String, error: String, status: Int32) {
         let process = Process()
         process.executableURL = try executablePath
@@ -94,27 +94,27 @@ class CLITest {
         if let directory = currentDirectory {
             process.currentDirectoryURL = directory
         }
-
+        
         let outputPipe = Pipe()
         let errorPipe = Pipe()
         process.standardOutput = outputPipe
         process.standardError = errorPipe
-
+        
         do {
             try process.run()
             process.waitUntilExit()
         } catch {
             throw CLIError.executionFailed("Failed to run CLI: \(error)")
         }
-
+        
         let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
         let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
         let output = String(data: outputData, encoding: .utf8) ?? ""
         let error = String(data: errorData, encoding: .utf8) ?? ""
-
+        
         return (output: output, error: error, status: process.terminationStatus)
     }
-
+    
     func runInteractive(arguments: [String], currentDirectory: URL? = nil) throws -> Terminal {
         let process = Process()
         process.executableURL = try executablePath
@@ -122,20 +122,20 @@ class CLITest {
         if let directory = currentDirectory {
             process.currentDirectoryURL = directory
         }
-
+        
         do {
             let (parent, child) = try Terminal.create()
             process.standardInput = child.handle
             process.standardOutput = child.handle
             process.standardError = child.handle
-
+            
             try process.run()
             return parent
         } catch {
             fatalError(error.localizedDescription)
         }
     }
-
+    
     func waitForContainerRunning(_ name: String, _ totalAttempts: Int64 = 100) throws {
         var attempt = 0
         var found = false
@@ -152,7 +152,7 @@ class CLITest {
             throw CLIError.containerNotFound(name)
         }
     }
-
+    
     enum CLIError: Error {
         case executionFailed(String)
         case invalidInput(String)
@@ -162,7 +162,7 @@ class CLITest {
         case binaryNotFound
         case binaryAttributesNotFound(Error)
     }
-
+    
     func doLongRun(
         name: String,
         image: String? = nil,
@@ -179,25 +179,25 @@ class CLITest {
         if let args {
             runArgs.append(contentsOf: args)
         }
-
+        
         if let image {
             runArgs.append(image)
         } else {
             runArgs.append(alpine)
         }
-
+        
         if let containerArgs {
             runArgs.append(contentsOf: containerArgs)
         } else {
             runArgs.append(contentsOf: defaultContainerArgs)
         }
-
+        
         let (_, error, status) = try run(arguments: runArgs)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
     }
-
+    
     func doExec(name: String, cmd: [String]) throws -> String {
         var execArgs = [
             "exec",
@@ -210,7 +210,7 @@ class CLITest {
         }
         return resp
     }
-
+    
     func doStop(name: String, signal: String = "SIGKILL") throws {
         let (_, error, status) = try run(arguments: [
             "stop",
@@ -222,7 +222,7 @@ class CLITest {
             throw CLIError.executionFailed("command failed: \(error)")
         }
     }
-
+    
     func doCreate(name: String, image: String? = nil, args: [String]? = nil) throws {
         let image = image ?? alpine
         let args: [String] = args ?? ["sleep", "infinity"]
@@ -238,7 +238,7 @@ class CLITest {
             throw CLIError.executionFailed("command failed: \(error)")
         }
     }
-
+    
     func doStart(name: String) throws {
         let (_, error, status) = try run(arguments: [
             "start",
@@ -248,17 +248,17 @@ class CLITest {
             throw CLIError.executionFailed("command failed: \(error)")
         }
     }
-
+    
     struct inspectOutput: Codable {
         let status: String
         let configuration: ContainerConfiguration
         let networks: [ContainerNetworkService.Attachment]
     }
-
+    
     func getContainerStatus(_ name: String) throws -> String {
         try inspectContainer(name).status
     }
-
+    
     func inspectContainer(_ name: String) throws -> inspectOutput {
         let response = try run(arguments: [
             "inspect",
@@ -268,23 +268,23 @@ class CLITest {
         guard cmdStatus == 0 else {
             throw CLIError.executionFailed("container inspect failed: exit \(cmdStatus)")
         }
-
+        
         let output = response.output
         guard let jsonData = output.data(using: .utf8) else {
             throw CLIError.invalidOutput("container inspect output invalid")
         }
-
+        
         let decoder = JSONDecoder()
-
+        
         typealias inspectOutputs = [inspectOutput]
-
+        
         let io = try decoder.decode(inspectOutputs.self, from: jsonData)
         guard io.count > 0 else {
             throw CLIError.containerNotFound(name)
         }
         return io[0]
     }
-
+    
     func inspectImage(_ name: String) throws -> String {
         let response = try run(arguments: [
             "images",
@@ -295,27 +295,27 @@ class CLITest {
         guard cmdStatus == 0 else {
             throw CLIError.executionFailed("container inspect failed: exit \(cmdStatus)")
         }
-
+        
         let output = response.output
         guard let jsonData = output.data(using: .utf8) else {
             throw CLIError.invalidOutput("container inspect output invalid")
         }
-
+        
         let decoder = JSONDecoder()
-
+        
         struct inspectOutput: Codable {
             let name: String
         }
-
+        
         typealias inspectOutputs = [inspectOutput]
-
+        
         let io = try decoder.decode(inspectOutputs.self, from: jsonData)
         guard io.count > 0 else {
             throw CLIError.containerNotFound(name)
         }
         return io[0].name
     }
-
+    
     func doPull(imageName: String, args: [String]? = nil) throws {
         var pullArgs = [
             "images",
@@ -325,27 +325,27 @@ class CLITest {
             pullArgs.append(contentsOf: args)
         }
         pullArgs.append(imageName)
-
+        
         let (_, error, status) = try run(arguments: pullArgs)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
     }
-
+    
     func doImageListQuite() throws -> [String] {
         let args = [
             "images",
             "list",
             "-q",
         ]
-
+        
         let (out, error, status) = try run(arguments: args)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
         return out.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: .newlines)
     }
-
+    
     func doDefaultRegistrySet(domain: String) throws {
         let args = [
             "registry",
@@ -358,7 +358,7 @@ class CLITest {
             throw CLIError.executionFailed("command failed: \(error)")
         }
     }
-
+    
     func doDefaultRegistryUnset() throws {
         let args = [
             "registry",
@@ -370,20 +370,20 @@ class CLITest {
             throw CLIError.executionFailed("command failed: \(error)")
         }
     }
-
+    
     func doRemove(name: String, force: Bool = false) throws {
         var args = ["delete"]
         if force {
             args.append("--force")
         }
         args.append(name)
-
+        
         let (_, error, status) = try run(arguments: args)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
     }
-
+    
     func getClient() -> HTTPClient {
         var httpConfiguration = HTTPClient.Configuration()
         let proxyConfig: HTTPClient.Configuration.Proxy? = {

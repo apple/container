@@ -27,27 +27,27 @@ extension Application {
             commandName: "save",
             abstract: "Save an image as an OCI compatible tar archive"
         )
-
+        
         @OptionGroup
         var global: Flags.Global
-
+        
         @Option(help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'") var platform: String?
-
+        
         @Option(
             name: .shortAndLong, help: "Path to save the image tar archive", completion: .file(),
             transform: { str in
                 URL(fileURLWithPath: str, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false)
             })
         var output: String
-
+        
         @Argument var reference: String
-
+        
         func run() async throws {
             var p: Platform?
             if let platform {
                 p = try Platform(from: platform)
             }
-
+            
             let progressConfig = try ProgressConfig(
                 description: "Saving image"
             )
@@ -56,10 +56,10 @@ extension Application {
                 progress.finish()
             }
             progress.start()
-
+            
             let image = try await ClientImage.get(reference: reference)
             try await image.save(out: output, platform: p)
-
+            
             progress.finish()
             print("Image saved")
         }

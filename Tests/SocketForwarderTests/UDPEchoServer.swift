@@ -18,14 +18,14 @@ import NIO
 
 struct UDPEchoServer: Sendable {
     private let serverAddress: SocketAddress
-
+    
     private let eventLoopGroup: MultiThreadedEventLoopGroup
-
+    
     public init(serverAddress: SocketAddress, eventLoopGroup: MultiThreadedEventLoopGroup) {
         self.serverAddress = serverAddress
         self.eventLoopGroup = eventLoopGroup
     }
-
+    
     public func run() throws -> EventLoopFuture<any Channel> {
         let bootstrap = DatagramBootstrap(group: self.eventLoopGroup)
             .channelInitializer { channel in
@@ -35,7 +35,7 @@ struct UDPEchoServer: Sendable {
                     )
                 }
             }
-
+        
         return bootstrap.bind(to: self.serverAddress)
     }
 }

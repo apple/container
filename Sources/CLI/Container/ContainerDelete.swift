@@ -25,19 +25,19 @@ extension Application {
             commandName: "delete",
             abstract: "Delete one or more containers",
             aliases: ["rm"])
-
+        
         @Flag(name: .shortAndLong, help: "Force the removal of one or more running containers")
         var force = false
-
+        
         @Flag(name: .shortAndLong, help: "Remove all containers")
         var all = false
-
+        
         @OptionGroup
         var global: Flags.Global
-
+        
         @Argument(help: "Container IDs/names")
         var containerIDs: [String] = []
-
+        
         func validate() throws {
             if containerIDs.count == 0 && !all {
                 throw ContainerizationError(.invalidArgument, message: "no containers specified and --all not supplied")
@@ -49,11 +49,11 @@ extension Application {
                 )
             }
         }
-
+        
         mutating func run() async throws {
             let set = Set<String>(containerIDs)
             var containers = [ClientContainer]()
-
+            
             if all {
                 containers = try await ClientContainer.list()
             } else {
@@ -76,7 +76,7 @@ extension Application {
                     )
                 }
             }
-
+            
             var failed = [String]()
             let force = self.force
             let all = self.all
@@ -110,7 +110,7 @@ extension Application {
                         }
                     }
                 }
-
+                
                 for try await ctr in group {
                     guard let ctr else {
                         continue
@@ -118,7 +118,7 @@ extension Application {
                     failed.append(ctr.id)
                 }
             }
-
+            
             if failed.count > 0 {
                 throw ContainerizationError(.internalError, message: "delete failed for one or more containers: \(failed)")
             }

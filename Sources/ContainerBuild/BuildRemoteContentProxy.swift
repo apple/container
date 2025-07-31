@@ -23,11 +23,11 @@ import GRPC
 
 struct BuildRemoteContentProxy: BuildPipelineHandler {
     let local: ContentStore
-
+    
     public init(_ contentStore: ContentStore) throws {
         self.local = contentStore
     }
-
+    
     func accept(_ packet: ServerStream) throws -> Bool {
         guard let imageTransfer = packet.getImageTransfer() else {
             return false
@@ -37,16 +37,16 @@ struct BuildRemoteContentProxy: BuildPipelineHandler {
         }
         return true
     }
-
+    
     func handle(_ sender: AsyncStream<ClientStream>.Continuation, _ packet: ServerStream) async throws {
         guard let imageTransfer = packet.getImageTransfer() else {
             throw Error.imageTransferMissing
         }
-
+        
         guard let method = imageTransfer.method() else {
             throw Error.methodMissing
         }
-
+        
         switch try ContentStoreMethod(method) {
         case .info:
             try await self.info(sender, imageTransfer, packet.buildID)
@@ -56,7 +56,7 @@ struct BuildRemoteContentProxy: BuildPipelineHandler {
             throw Error.unknownMethod(method)
         }
     }
-
+    
     func info(_ sender: AsyncStream<ClientStream>.Continuation, _ packet: ImageTransfer, _ buildID: String) async throws {
         let descriptor = try await local.get(digest: packet.tag)
         let size = try descriptor?.size()
@@ -72,7 +72,7 @@ struct BuildRemoteContentProxy: BuildPipelineHandler {
         response.packetType = .imageTransfer(transfer)
         sender.yield(response)
     }
-
+    
     func readerAt(_ sender: AsyncStream<ClientStream>.Continuation, _ packet: ImageTransfer, _ buildID: String) async throws {
         let digest = packet.descriptor.digest
         let offset: UInt64 = packet.offset() ?? 0
@@ -99,7 +99,7 @@ struct BuildRemoteContentProxy: BuildPipelineHandler {
         guard let data = try descriptor.data(offset: offset, length: size) else {
             throw Error.invalidOffsetSizeForContent(packet.descriptor.digest, offset, size)
         }
-
+        
         let transfer = try ImageTransfer(
             id: packet.id,
             digest: packet.tag,
@@ -113,26 +113,26 @@ struct BuildRemoteContentProxy: BuildPipelineHandler {
         response.packetType = .imageTransfer(transfer)
         sender.yield(response)
     }
-
+    
     func delete(_ sender: AsyncStream<ClientStream>.Continuation, _ packet: ImageTransfer) async throws {
         throw NSError(domain: "RemoteContentProxy", code: 1, userInfo: [NSLocalizedDescriptionKey: "unimplemented method \(ContentStoreMethod.delete)"])
     }
-
+    
     func update(_ sender: AsyncStream<ClientStream>.Continuation, _ packet: ImageTransfer) async throws {
         throw NSError(domain: "RemoteContentProxy", code: 1, userInfo: [NSLocalizedDescriptionKey: "unimplemented method \(ContentStoreMethod.update)"])
     }
-
+    
     func walk(_ sender: AsyncStream<ClientStream>.Continuation, _ packet: ImageTransfer) async throws {
         throw NSError(domain: "RemoteContentProxy", code: 1, userInfo: [NSLocalizedDescriptionKey: "unimplemented method \(ContentStoreMethod.walk)"])
     }
-
+    
     enum ContentStoreMethod: String {
         case info = "/containerd.services.content.v1.Content/Info"
         case readerAt = "/containerd.services.content.v1.Content/ReaderAt"
         case delete = "/containerd.services.content.v1.Content/Delete"
         case update = "/containerd.services.content.v1.Content/Update"
         case walk = "/containerd.services.content.v1.Content/Walk"
-
+        
         init(_ method: String) throws {
             guard let value = ContentStoreMethod(rawValue: method) else {
                 throw Error.unknownMethod(method)
@@ -168,7 +168,7 @@ extension BuildRemoteContentProxy {
         case contentMissing
         case unknownMethod(String)
         case invalidOffsetSizeForContent(String, UInt64, Int)
-
+        
         var description: String {
             switch self {
             case .imageTransferMissing:
@@ -184,5 +184,5 @@ extension BuildRemoteContentProxy {
             }
         }
     }
-
+    
 }

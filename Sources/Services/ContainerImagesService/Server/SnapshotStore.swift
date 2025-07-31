@@ -28,11 +28,11 @@ public actor SnapshotStore {
     private static let snapshotFileName = "snapshot"
     private static let snapshotInfoFileName = "snapshot-info"
     private static let ingestDirName = "ingest"
-
+    
     /// Return the Unpacker to use for a given image.
     /// If the given platform for the image cannot be unpacked return `nil`.
     public typealias UnpackStrategy = @Sendable (Containerization.Image, Platform) async throws -> Unpacker?
-
+    
     public static let defaultUnpackStrategy: UnpackStrategy = { image, platform in
         guard platform.os == "linux" else {
             return nil
@@ -49,7 +49,7 @@ public actor SnapshotStore {
     let ingestDir: URL
     let unpackStrategy: UnpackStrategy
     let log: Logger?
-
+    
     public init(path: URL, unpackStrategy: @escaping UnpackStrategy, log: Logger?) throws {
         let root = path.appendingPathComponent("snapshots")
         self.path = root
@@ -59,7 +59,7 @@ public actor SnapshotStore {
         try self.fm.createDirectory(at: root, withIntermediateDirectories: true)
         try self.fm.createDirectory(at: self.ingestDir, withIntermediateDirectories: true)
     }
-
+    
     public func unpack(image: Containerization.Image, platform: Platform? = nil, progressUpdate: ProgressUpdateHandler?) async throws {
         var toUnpack: [Descriptor] = []
         if let platform {
@@ -68,10 +68,10 @@ public actor SnapshotStore {
         } else {
             toUnpack = try await image.unpackableDescriptors()
         }
-
+        
         let taskManager = ProgressTaskCoordinator()
         var taskUpdateProgress: ProgressUpdateHandler?
-
+        
         for desc in toUnpack {
             try Task.checkCancellation()
             let snapshotDir = self.snapshotDir(desc)
@@ -94,9 +94,9 @@ public actor SnapshotStore {
                 ])
                 taskUpdateProgress = _taskUpdateProgress
             }
-
+            
             let tempDir = try self.tempUnpackDir()
-
+            
             let tempSnapshotPath = tempDir.appendingPathComponent(Self.snapshotFileName, isDirectory: false)
             let infoPath = tempDir.appendingPathComponent(Self.snapshotInfoFileName, isDirectory: false)
             do {
@@ -125,7 +125,7 @@ public actor SnapshotStore {
         }
         await taskManager.finish()
     }
-
+    
     public func delete(for image: Containerization.Image, platform: Platform? = nil) async throws {
         var toDelete: [Descriptor] = []
         if let platform {
@@ -142,12 +142,12 @@ public actor SnapshotStore {
             try self.fm.removeItem(at: p)
         }
     }
-
+    
     public func get(for image: Containerization.Image, platform: Platform) async throws -> Filesystem {
         let desc = try await image.descriptor(for: platform)
         let infoPath = snapshotInfoPath(desc)
         let fsPath = snapshotPath(desc)
-
+        
         guard self.fm.fileExists(atPath: infoPath.absolutePath()),
             self.fm.fileExists(atPath: fsPath.absolutePath())
         else {
@@ -158,7 +158,7 @@ public actor SnapshotStore {
         let fs = try decoder.decode(Filesystem.self, from: data)
         return fs
     }
-
+    
     public func clean(keepingSnapshotsFor images: [Containerization.Image] = []) async throws -> UInt64 {
         var toKeep: [String] = [Self.ingestDirName]
         for image in images {
@@ -185,24 +185,24 @@ public actor SnapshotStore {
         }
         return deletedBytes
     }
-
+    
     private func snapshotDir(_ desc: Descriptor) -> URL {
         let p = self.path.appendingPathComponent(desc.digest.trimmingDigestPrefix, isDirectory: true)
         return p
     }
-
+    
     private func snapshotPath(_ desc: Descriptor) -> URL {
         let p = self.snapshotDir(desc)
             .appendingPathComponent(Self.snapshotFileName, isDirectory: false)
         return p
     }
-
+    
     private func snapshotInfoPath(_ desc: Descriptor) -> URL {
         let p = self.snapshotDir(desc)
             .appendingPathComponent(Self.snapshotInfoFileName, isDirectory: false)
         return p
     }
-
+    
     private func tempUnpackDir() throws -> URL {
         let uniqueDirectoryURL = ingestDir.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try self.fm.createDirectory(at: uniqueDirectoryURL, withIntermediateDirectories: true, attributes: nil)
@@ -217,7 +217,7 @@ extension FileManager {
         let contents = try self.contentsOfDirectory(
             at: dir,
             includingPropertiesForKeys: resourceKeys)
-
+        
         for p in contents {
             let val = try p.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey])
             size += val.totalFileAllocatedSize ?? val.fileAllocatedSize ?? 0

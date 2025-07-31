@@ -29,42 +29,42 @@ extension ClientKernel {
     private static func newClient() -> XPCClient {
         XPCClient(service: serviceIdentifier)
     }
-
+    
     public static func installKernel(kernelFilePath: String, platform: SystemPlatform) async throws {
         let client = newClient()
         let message = XPCMessage(route: .installKernel)
-
+        
         message.set(key: .kernelFilePath, value: kernelFilePath)
-
+        
         let platformData = try JSONEncoder().encode(platform)
         message.set(key: .systemPlatform, value: platformData)
         try await client.send(message)
     }
-
+    
     public static func installKernelFromTar(tarFile: String, kernelFilePath: String, platform: SystemPlatform, progressUpdate: ProgressUpdateHandler? = nil) async throws {
         let client = newClient()
         let message = XPCMessage(route: .installKernel)
-
+        
         message.set(key: .kernelTarURL, value: tarFile)
         message.set(key: .kernelFilePath, value: kernelFilePath)
-
+        
         let platformData = try JSONEncoder().encode(platform)
         message.set(key: .systemPlatform, value: platformData)
-
+        
         var progressUpdateClient: ProgressUpdateClient?
         if let progressUpdate {
             progressUpdateClient = await ProgressUpdateClient(for: progressUpdate, request: message)
         }
-
+        
         try await client.send(message)
         await progressUpdateClient?.finish()
     }
-
+    
     @discardableResult
     public static func getDefaultKernel(for platform: SystemPlatform) async throws -> Kernel {
         let client = newClient()
         let message = XPCMessage(route: .getDefaultKernel)
-
+        
         let platformData = try JSONEncoder().encode(platform)
         message.set(key: .systemPlatform, value: platformData)
         do {
@@ -72,7 +72,7 @@ extension ClientKernel {
             guard let kData = reply.dataNoCopy(key: .kernel) else {
                 throw ContainerizationError(.internalError, message: "Missing kernel data from XPC response")
             }
-
+            
             let kernel = try JSONDecoder().decode(Kernel.self, from: kData)
             return kernel
         } catch let err as ContainerizationError {

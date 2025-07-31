@@ -22,7 +22,7 @@ import TerminalProgress
 /// A service that sends progress updates to the client.
 public actor ProgressUpdateService {
     private let endpointConnection: xpc_connection_t
-
+    
     /// Creates a new instance for sending progress updates to the client.
     /// - Parameter message: The XPC message that contains the endpoint to connect to.
     public init?(message: XPCMessage) {
@@ -34,7 +34,7 @@ public actor ProgressUpdateService {
         // This connection will be closed by the client.
         xpc_connection_activate(endpointConnection)
     }
-
+    
     /// Performs a progress update.
     /// - Parameter events: The events that represent the update.
     public func handler(_ events: [ProgressUpdateEvent]) async {

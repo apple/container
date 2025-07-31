@@ -36,17 +36,17 @@ extension Application {
             config.helpNames = NameSpecification(arrayLiteral: .customShort("h"), .customLong("help"))
             return config
         }
-
+        
         @Option(name: [.customLong("cpus"), .customShort("c")], help: "Number of CPUs to allocate to the container")
         public var cpus: Int64 = 2
-
+        
         @Option(
             name: [.customLong("memory"), .customShort("m")],
             help:
                 "Amount of memory in bytes, kilobytes (K), megabytes (M), or gigabytes (G) for the container, with MB granularity (for example, 1024K will result in 1MB being allocated for the container)"
         )
         public var memory: String = "2048MB"
-
+        
         func run() async throws {
             let progressConfig = try ProgressConfig(
                 showTasks: true,
@@ -61,7 +61,7 @@ extension Application {
             try await Self.start(cpus: self.cpus, memory: self.memory, progressUpdate: progress.handler)
             progress.finish()
         }
-
+        
         static func start(cpus: Int64?, memory: String?, progressUpdate: @escaping ProgressUpdateHandler) async throws {
             await progressUpdate([
                 .setDescription("Fetching BuildKit image"),
@@ -69,10 +69,10 @@ extension Application {
             ])
             let taskManager = ProgressTaskCoordinator()
             let fetchTask = await taskManager.startTask()
-
+            
             let builderImage: String = ClientDefaults.get(key: .defaultBuilderImage)
             let exportsMount: String = Application.appRoot.appendingPathComponent(".build").absolutePath()
-
+            
             if !FileManager.default.fileExists(atPath: exportsMount) {
                 try FileManager.default.createDirectory(
                     atPath: exportsMount,
@@ -80,14 +80,14 @@ extension Application {
                     attributes: nil
                 )
             }
-
+            
             let builderPlatform = ContainerizationOCI.Platform(arch: "arm64", os: "linux", variant: "v8")
-
+            
             let existingContainer = try? await ClientContainer.get(id: "buildkit")
             if let existingContainer {
                 let existingImage = existingContainer.configuration.image.reference
                 let existingResources = existingContainer.configuration.resources
-
+                
                 // Check if we need to recreate the builder due to different image
                 let imageChanged = existingImage != builderImage
                 let cpuChanged = {
@@ -107,7 +107,7 @@ extension Application {
                     }
                     return false
                 }()
-
+                
                 switch existingContainer.status {
                 case .running:
                     guard imageChanged || cpuChanged || memChanged else {
@@ -134,7 +134,7 @@ extension Application {
                     break
                 }
             }
-
+            
             let shimArguments: [String] = [
                 "--debug",
                 "--vsock",
@@ -142,7 +142,7 @@ extension Application {
 
             let id = "buildkit"
             try ContainerClient.Utility.validEntityName(id)
-
+            
             let processConfig = ProcessConfiguration(
                 executable: "/usr/local/bin/container-builder-shim",
                 arguments: shimArguments,
@@ -151,12 +151,12 @@ extension Application {
                 terminal: false,
                 user: .id(uid: 0, gid: 0)
             )
-
+            
             let resources = try Parser.resources(
                 cpus: cpus,
                 memory: memory
             )
-
+            
             let image = try await ClientImage.fetch(
                 reference: builderImage,
                 platform: builderPlatform,
@@ -167,7 +167,7 @@ extension Application {
                 .setDescription("Unpacking BuildKit image"),
                 .setItemsName("entries"),
             ])
-
+            
             let unpackTask = await taskManager.startTask()
             _ = try await image.getCreateSnapshot(
                 platform: builderPlatform,
@@ -177,7 +177,7 @@ extension Application {
                 reference: builderImage,
                 descriptor: image.descriptor
             )
-
+            
             var config = ContainerConfiguration(id: id, image: imageConfig, process: processConfig)
             config.resources = resources
             config.mounts = [
@@ -196,7 +196,7 @@ extension Application {
             ]
             // Enable Rosetta only if the user didn't ask to disable it
             config.rosetta = ClientDefaults.getBool(key: .buildRosetta) ?? true
-
+            
             let network = try await ClientNetwork.get(id: ClientNetwork.defaultNetworkName)
             guard case .running(_, let networkStatus) = network else {
                 throw ContainerizationError(.invalidState, message: "default network is not running")
@@ -206,27 +206,27 @@ extension Application {
             let nameserver = IPv4Address(fromValue: subnet.lower.value + 1).description
             let nameservers = [nameserver]
             config.dns = ContainerConfiguration.DNSConfiguration(nameservers: nameservers)
-
+            
             let kernel = try await {
                 await progressUpdate([
                     .setDescription("Fetching kernel"),
                     .setItemsName("binary"),
                 ])
-
+                
                 let kernel = try await ClientKernel.getDefaultKernel(for: .current)
                 return kernel
             }()
-
+            
             await progressUpdate([
                 .setDescription("Starting BuildKit container")
             ])
-
+            
             let container = try await ClientContainer.create(
                 configuration: config,
                 options: .default,
                 kernel: kernel
             )
-
+            
             try await container.startBuildKit(progressUpdate, taskManager)
         }
     }
@@ -245,12 +245,12 @@ extension ClientContainer {
                 detach: true
             )
             defer { try? io.close() }
-
+            
             let process = try await bootstrap(stdio: io.stdio)
             _ = try await process.start()
             await taskManager?.finish()
             try io.closeAfterStart()
-
+            
             log.debug("starting BuildKit and BuildKit-shim")
         } catch {
             try? await stop()

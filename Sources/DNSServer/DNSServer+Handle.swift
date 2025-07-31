@@ -29,18 +29,18 @@ extension DNSServer {
     ) async throws {
         let chunkSize = 512
         var data = Data()
-
+        
         self.log?.debug("reading data")
         while packet.data.readableBytes > 0 {
             if let chunk = packet.data.readBytes(length: min(chunkSize, packet.data.readableBytes)) {
                 data.append(contentsOf: chunk)
             }
         }
-
+        
         self.log?.debug("deserializing message")
         let query = try Message(deserialize: data)
         self.log?.debug("processing query: \(query.questions)")
-
+        
         // always send response
         let responseData: Data
         do {
@@ -54,12 +54,12 @@ extension DNSServer {
                     questions: query.questions,
                     answers: []
                 )
-
+            
             // no responses
             if response.answers.isEmpty {
                 response.returnCode = .nonExistentDomain
             }
-
+            
             self.log?.debug("serializing response")
             responseData = try response.serialize()
         } catch {
@@ -73,12 +73,12 @@ extension DNSServer {
             )
             responseData = try response.serialize()
         }
-
+        
         self.log?.debug("sending response for \(query.id)")
         let rData = ByteBuffer(bytes: responseData)
         try? await outbound.write(AddressedEnvelope(remoteAddress: packet.remoteAddress, data: rData))
-
+        
         self.log?.debug("processing done")
-
+        
     }
 }

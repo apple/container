@@ -19,7 +19,7 @@ import Testing
 class TestCLIRunLifecycle: CLITest {
     @Test func testRunFailureCleanup() throws {
         let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
-
+        
         // try to create a container we know will fail
         let badArgs: [String] = [
             "--rm",
@@ -29,7 +29,7 @@ class TestCLIRunLifecycle: CLITest {
         #expect(throws: CLIError.self, "expect container to fail with invalid user") {
             try self.doLongRun(name: name, args: badArgs)
         }
-
+        
         // try to create a container with the same name but no user that should succeed
         #expect(throws: Never.self, "expected container run to succeed") {
             try self.doLongRun(name: name, args: [])

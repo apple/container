@@ -30,26 +30,26 @@ import NIO
 @main
 struct RuntimeLinuxHelper: AsyncParsableCommand {
     static let label = "com.apple.container.runtime.container-runtime-linux"
-
+    
     static let configuration = CommandConfiguration(
         commandName: "container-runtime-linux",
         abstract: "XPC Service for managing a Linux sandbox",
         version: releaseVersion()
     )
-
+    
     @Flag(name: .long, help: "Enable debug logging")
     var debug = false
-
+    
     @Option(name: .shortAndLong, help: "Sandbox UUID")
     var uuid: String
-
+    
     @Option(name: .shortAndLong, help: "Root directory for the sandbox")
     var root: String
-
+    
     var machServiceLabel: String {
         "\(Self.label).\(uuid)"
     }
-
+    
     func run() async throws {
         let commandName = Self._commandName
         let log = setupLogger()
@@ -57,12 +57,12 @@ struct RuntimeLinuxHelper: AsyncParsableCommand {
         defer {
             log.info("stopping \(commandName)")
         }
-
+        
         let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
         do {
             try adjustLimits()
             signal(SIGPIPE, SIG_IGN)
-
+            
             log.info("configuring XPC server")
             let interfaceStrategy: any InterfaceStrategy
             if #available(macOS 26, *) {
@@ -86,7 +86,7 @@ struct RuntimeLinuxHelper: AsyncParsableCommand {
                 ],
                 log: log
             )
-
+            
             log.info("starting XPC server")
             try await xpc.listen()
         } catch {
@@ -95,7 +95,7 @@ struct RuntimeLinuxHelper: AsyncParsableCommand {
             RuntimeLinuxHelper.exit(withError: error)
         }
     }
-
+    
     private func setupLogger() -> Logger {
         LoggingSystem.bootstrap { label in
             OSLogHandler(
@@ -110,7 +110,7 @@ struct RuntimeLinuxHelper: AsyncParsableCommand {
         log[metadataKey: "uuid"] = "\(uuid)"
         return log
     }
-
+    
     private func adjustLimits() throws {
         var limits = rlimit()
         guard getrlimit(RLIMIT_NOFILE, &limits) == 0 else {
@@ -122,7 +122,7 @@ struct RuntimeLinuxHelper: AsyncParsableCommand {
             throw POSIXError(.init(rawValue: errno)!)
         }
     }
-
+    
     private static func releaseVersion() -> String {
         (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? get_release_version().map { String(cString: $0) } ?? "0.0.0"
     }

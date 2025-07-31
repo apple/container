@@ -24,13 +24,13 @@ import ContainerXPC
 public struct RemoteContentStoreClient: ContentStore {
     private static let serviceIdentifier = "com.apple.container.core.container-core-images"
     private static let encoder = JSONEncoder()
-
+    
     private static func newClient() -> XPCClient {
         XPCClient(service: serviceIdentifier)
     }
-
+    
     public init() {}
-
+    
     private func _get(digest: String) async throws -> URL? {
         let client = Self.newClient()
         let request = XPCMessage(route: .contentGet)
@@ -48,65 +48,65 @@ public struct RemoteContentStoreClient: ContentStore {
             throw error
         }
     }
-
+    
     public func get(digest: String) async throws -> Content? {
         guard let url = try await self._get(digest: digest) else {
             return nil
         }
         return try LocalContent(path: url)
     }
-
+    
     public func get<T: Decodable>(digest: String) async throws -> T? {
         guard let content: Content = try await self.get(digest: digest) else {
             return nil
         }
         return try content.decode()
     }
-
+    
     public func delete(keeping: [String]) async throws -> ([String], UInt64) {
         let client = Self.newClient()
         let request = XPCMessage(route: .contentClean)
-
+        
         let d = try Self.encoder.encode(keeping)
         request.set(key: .digests, value: d)
         let response = try await client.send(request)
-
+        
         guard let data = response.dataNoCopy(key: .digests) else {
             throw ContainerizationError.init(.internalError, message: "failed to delete digests")
         }
-
+        
         let decoder = JSONDecoder()
         let deleted = try decoder.decode([String].self, from: data)
         let size = response.uint64(key: .size)
         return (deleted, size)
     }
-
+    
     @discardableResult
     public func delete(digests: [String]) async throws -> ([String], UInt64) {
         let client = Self.newClient()
         let request = XPCMessage(route: .contentDelete)
-
+        
         let d = try Self.encoder.encode(digests)
         request.set(key: .digests, value: d)
         let response = try await client.send(request)
-
+        
         guard let data = response.dataNoCopy(key: .digests) else {
             throw ContainerizationError.init(.internalError, message: "failed to delete digests")
         }
-
+        
         let decoder = JSONDecoder()
         let deleted = try decoder.decode([String].self, from: data)
         let size = response.uint64(key: .size)
         return (deleted, size)
     }
-
+    
     @discardableResult
     public func ingest(_ body: @Sendable @escaping (URL) async throws -> Void) async throws -> [String] {
         let (id, tempPath) = try await self.newIngestSession()
         try await body(tempPath)
         return try await self.completeIngestSession(id)
     }
-
+    
     public func newIngestSession() async throws -> (id: String, ingestDir: URL) {
         let client = Self.newClient()
         let request = XPCMessage(route: .contentIngestStart)
@@ -119,24 +119,24 @@ public struct RemoteContentStoreClient: ContentStore {
         }
         return (id, URL(filePath: dir))
     }
-
+    
     @discardableResult
     public func completeIngestSession(_ id: String) async throws -> [String] {
         let client = Self.newClient()
         let request = XPCMessage(route: .contentIngestComplete)
-
+        
         request.set(key: .ingestSessionId, value: id)
-
+        
         let response = try await client.send(request)
         guard let data = response.dataNoCopy(key: .digests) else {
             throw ContainerizationError.init(.internalError, message: "failed to delete digests")
         }
-
+        
         let decoder = JSONDecoder()
         let ingested = try decoder.decode([String].self, from: data)
         return ingested
     }
-
+    
     public func cancelIngestSession(_ id: String) async throws {
         let client = Self.newClient()
         let request = XPCMessage(route: .contentIngestCancel)

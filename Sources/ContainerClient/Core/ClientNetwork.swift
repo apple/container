@@ -22,7 +22,7 @@ import Foundation
 
 public struct ClientNetwork {
     static let serviceIdentifier = "com.apple.container.apiserver"
-
+    
     public static let defaultNetworkName = "default"
 }
 
@@ -30,7 +30,7 @@ extension ClientNetwork {
     private static func newClient() -> XPCClient {
         XPCClient(service: serviceIdentifier)
     }
-
+    
     private static func xpcSend(
         client: XPCClient,
         message: XPCMessage,
@@ -38,15 +38,15 @@ extension ClientNetwork {
     ) async throws -> XPCMessage {
         try await client.send(message, responseTimeout: timeout)
     }
-
+    
     public static func create(configuration: NetworkConfiguration) async throws -> NetworkState {
         let client = Self.newClient()
         let request = XPCMessage(route: .networkCreate)
         request.set(key: .networkId, value: configuration.id)
-
+        
         let data = try JSONEncoder().encode(configuration)
         request.set(key: .networkConfig, value: data)
-
+        
         let response = try await xpcSend(client: client, message: request)
         let responseData = response.dataNoCopy(key: .networkState)
         guard let responseData else {
@@ -55,11 +55,11 @@ extension ClientNetwork {
         let state = try JSONDecoder().decode(NetworkState.self, from: responseData)
         return state
     }
-
+    
     public static func list() async throws -> [NetworkState] {
         let client = Self.newClient()
         let request = XPCMessage(route: .networkList)
-
+        
         let response = try await xpcSend(client: client, message: request, timeout: .seconds(1))
         let responseData = response.dataNoCopy(key: .networkStates)
         guard let responseData else {
@@ -68,7 +68,7 @@ extension ClientNetwork {
         let states = try JSONDecoder().decode([NetworkState].self, from: responseData)
         return states
     }
-
+    
     /// Get the network for the provided id.
     public static func get(id: String) async throws -> NetworkState {
         let networks = try await list()
@@ -77,7 +77,7 @@ extension ClientNetwork {
         }
         return network
     }
-
+    
     /// Delete the network with the given id.
     public static func delete(id: String) async throws {
         let client = XPCClient(service: Self.serviceIdentifier)

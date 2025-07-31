@@ -38,7 +38,7 @@ class TestCLIRunCommand: CLITest {
             return
         }
     }
-
+    
     @Test func testRunCommandCWD() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
@@ -56,7 +56,7 @@ class TestCLIRunCommand: CLITest {
             return
         }
     }
-
+    
     @Test func testRunCommandEnv() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
@@ -75,7 +75,7 @@ class TestCLIRunCommand: CLITest {
             return
         }
     }
-
+    
     @Test func testRunCommandEnvFile() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
@@ -102,7 +102,7 @@ class TestCLIRunCommand: CLITest {
             return
         }
     }
-
+    
     @Test func testRunCommandUserIDGroupID() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
@@ -112,7 +112,7 @@ class TestCLIRunCommand: CLITest {
             defer {
                 try? doStop(name: name)
             }
-
+            
             var output = try doExec(name: name, cmd: ["id"])
             output = output.trimmingCharacters(in: .whitespacesAndNewlines)
             try #expect(output.contains(Regex("uid=\(uid).*?gid=\(gid).*")), "invalid user/group id, got \(output)")
@@ -122,7 +122,7 @@ class TestCLIRunCommand: CLITest {
             return
         }
     }
-
+    
     @Test func testRunCommandUser() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
@@ -140,7 +140,7 @@ class TestCLIRunCommand: CLITest {
             return
         }
     }
-
+    
     @Test func testRunCommandCPUs() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
@@ -158,7 +158,7 @@ class TestCLIRunCommand: CLITest {
             return
         }
     }
-
+    
     @Test func testRunCommandMemory() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
@@ -176,7 +176,7 @@ class TestCLIRunCommand: CLITest {
             return
         }
     }
-
+    
     @Test func testRunCommandMount() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
@@ -205,12 +205,12 @@ class TestCLIRunCommand: CLITest {
             return
         }
     }
-
+    
     @Test func testRunCommandUnixSocketMount() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
             let socketPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-
+            
             let socketType = try UnixType(path: socketPath.path, unlinkExisting: true)
             let socket = try Socket(type: socketType, closeOnDeinit: true)
             try socket.listen()
@@ -218,7 +218,7 @@ class TestCLIRunCommand: CLITest {
                 try? socket.close()
                 try? FileManager.default.removeItem(at: socketPath)
             }
-
+            
             try doLongRun(
                 name: name,
                 args: ["-v", "\(socketPath.path):/woo"]
@@ -229,7 +229,7 @@ class TestCLIRunCommand: CLITest {
             let output = try doExec(name: name, cmd: ["ls", "-alh", "woo"])
             let splitOutput = output.components(separatedBy: .whitespaces)
             #expect(splitOutput.count > 0, "expected split output of 'ls -alh' to be at least 1, instead got \(splitOutput.count)")
-
+            
             let perms = splitOutput[0]
             let firstChar = perms[perms.startIndex]
             #expect(firstChar == "s", "expected file in guest to be of type socket, instead got '\(firstChar)'")
@@ -239,7 +239,7 @@ class TestCLIRunCommand: CLITest {
             return
         }
     }
-
+    
     @Test func testRunCommandTmpfs() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
@@ -261,7 +261,7 @@ class TestCLIRunCommand: CLITest {
             return
         }
     }
-
+    
     @Test func testRunCommandOSArch() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
@@ -281,7 +281,7 @@ class TestCLIRunCommand: CLITest {
             return
         }
     }
-
+    
     @Test func testRunCommandVolume() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
@@ -310,7 +310,7 @@ class TestCLIRunCommand: CLITest {
             return
         }
     }
-
+    
     @Test func testRunCommandCidfile() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
@@ -330,7 +330,7 @@ class TestCLIRunCommand: CLITest {
             return
         }
     }
-
+    
     @Test func testRunCommandNoDNS() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
@@ -346,7 +346,7 @@ class TestCLIRunCommand: CLITest {
             return
         }
     }
-
+    
     @Test func testRunCommandDNS() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
@@ -365,7 +365,7 @@ class TestCLIRunCommand: CLITest {
             return
         }
     }
-
+    
     @Test func testRunCommandDNSDomain() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
@@ -386,7 +386,7 @@ class TestCLIRunCommand: CLITest {
             return
         }
     }
-
+    
     @Test func testRunCommandDNSSearch() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
@@ -407,7 +407,7 @@ class TestCLIRunCommand: CLITest {
             return
         }
     }
-
+    
     @Test func testRunCommandDNSOption() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
@@ -428,7 +428,7 @@ class TestCLIRunCommand: CLITest {
             return
         }
     }
-
+    
     @Test func testForwardTCP() async throws {
         let retries = 10
         let retryDelaySeconds = Int64(3)
@@ -445,7 +445,7 @@ class TestCLIRunCommand: CLITest {
             defer {
                 try? doStop(name: name)
             }
-
+            
             let url = "http://\(proxyIp):\(proxyPort)"
             var request = HTTPClientRequest(url: url)
             request.method = .GET

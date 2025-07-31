@@ -49,7 +49,7 @@ public struct ContainerConfiguration: Sendable, Codable {
     public var runtimeHandler: String = "container-runtime-linux"
     /// Configure exposing virtualization support in the container.
     public var virtualization: Bool = false
-
+    
     enum CodingKeys: String, CodingKey {
         case id
         case image
@@ -68,12 +68,12 @@ public struct ContainerConfiguration: Sendable, Codable {
         case runtimeHandler
         case virtualization
     }
-
+    
     /// Create a configuration from the supplied Decoder, initializing missing
     /// values where possible to reasonable defaults.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-
+        
         id = try container.decode(String.self, forKey: .id)
         image = try container.decode(ImageDescription.self, forKey: .image)
         mounts = try container.decodeIfPresent([Filesystem].self, forKey: .mounts) ?? []
@@ -91,15 +91,15 @@ public struct ContainerConfiguration: Sendable, Codable {
         runtimeHandler = try container.decodeIfPresent(String.self, forKey: .runtimeHandler) ?? "container-runtime-linux"
         virtualization = try container.decodeIfPresent(Bool.self, forKey: .virtualization) ?? false
     }
-
+    
     public struct DNSConfiguration: Sendable, Codable {
         public static let defaultNameservers = ["1.1.1.1"]
-
+        
         public let nameservers: [String]
         public let domain: String?
         public let searchDomains: [String]
         public let options: [String]
-
+        
         public init(
             nameservers: [String] = defaultNameservers,
             domain: String? = nil,
@@ -112,7 +112,7 @@ public struct ContainerConfiguration: Sendable, Codable {
             self.options = options
         }
     }
-
+    
     /// Resources like cpu, memory, and storage quota.
     public struct Resources: Sendable, Codable {
         /// Number of CPU cores allocated.
@@ -121,10 +121,10 @@ public struct ContainerConfiguration: Sendable, Codable {
         public var memoryInBytes: UInt64 = 1024.mib()
         /// Storage quota/size in bytes.
         public var storage: UInt64?
-
+        
         public init() {}
     }
-
+    
     public init(
         id: String,
         image: ImageDescription,

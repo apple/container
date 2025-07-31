@@ -23,31 +23,31 @@ import Testing
 class TestCLIRunBase: CLITest {
     var terminal: Terminal!
     var containerName: String = UUID().uuidString
-
+    
     var ContainerImage: String {
         fatalError("Subclasses must override this property")
     }
-
+    
     var Interactive: Bool {
         false
     }
-
+    
     var Tty: Bool {
         false
     }
-
+    
     var Entrypoint: String? {
         nil
     }
-
+    
     var Command: [String]? {
         nil
     }
-
+    
     var DisableProgressUpdates: Bool {
         false
     }
-
+    
     override init() throws {
         try super.init()
         do {
@@ -57,7 +57,7 @@ class TestCLIRunBase: CLITest {
             throw CLIError.containerRunFailed("failed to setup container \(error)")
         }
     }
-
+    
     func containerRun(stdin: [String], findMessage: String) async throws -> Bool {
         let stdout = FileHandle(fileDescriptor: terminal.handle.fileDescriptor, closeOnDealloc: false)
         let stdoutListenTask = Task {
@@ -68,12 +68,12 @@ class TestCLIRunBase: CLITest {
             }
             return false
         }
-
+        
         let timeoutTask = Task {
             try await Task.sleep(nanoseconds: 5 * 1_000_000_000)
             stdoutListenTask.cancel()
         }
-
+        
         do {
             try self.exec(commands: stdin)
             let found = try await stdoutListenTask.value
@@ -85,7 +85,7 @@ class TestCLIRunBase: CLITest {
             throw error
         }
     }
-
+    
     func exec(commands: [String]) throws {
         let stdin = FileHandle(fileDescriptor: terminal.handle.fileDescriptor, closeOnDealloc: false)
         try commands.forEach { cmd in
@@ -97,36 +97,36 @@ class TestCLIRunBase: CLITest {
         }
         try stdin.synchronize()
     }
-
+    
     func containerStart(_ name: String) throws -> Terminal {
         if name.count == 0 {
             throw CLIError.invalidInput("container name cannot be empty")
         }
-
+        
         var arguments = [
             "run",
             "--rm",
             "--name",
             name,
         ]
-
+        
         if Interactive && Tty {
             arguments.append("-it")
         } else {
             if Interactive { arguments.append("-i") }
             if Tty { arguments.append("-t") }
         }
-
+        
         if DisableProgressUpdates {
             arguments.append("--disable-progress-updates")
         }
-
+        
         if let entrypoint = Entrypoint {
             arguments += ["--entrypoint", entrypoint]
         }
-
+        
         arguments.append(ContainerImage)
-
+        
         if let command = Command {
             arguments += command
         }

@@ -27,22 +27,22 @@ extension Application {
             commandName: "pull",
             abstract: "Pull an image"
         )
-
+        
         @OptionGroup
         var global: Flags.Global
-
+        
         @OptionGroup
         var registry: Flags.Registry
-
+        
         @OptionGroup
         var progressFlags: Flags.Progress
-
+        
         @Option(help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'") var platform: String?
-
+        
         @Argument var reference: String
-
+        
         init() {}
-
+        
         init(platform: String? = nil, scheme: String = "auto", reference: String, disableProgress: Bool = false) {
             self.global = Flags.Global()
             self.registry = Flags.Registry(scheme: scheme)
@@ -50,17 +50,17 @@ extension Application {
             self.platform = platform
             self.reference = reference
         }
-
+        
         func run() async throws {
             var p: Platform?
             if let platform {
                 p = try Platform(from: platform)
             }
-
+            
             let scheme = try RequestScheme(registry.scheme)
-
+            
             let processedReference = try ClientImage.normalizeReference(reference)
-
+            
             var progressConfig: ProgressConfig
             if self.progressFlags.disableProgressUpdates {
                 progressConfig = try ProgressConfig(disableProgressUpdates: self.progressFlags.disableProgressUpdates)
@@ -72,13 +72,13 @@ extension Application {
                     totalTasks: 2
                 )
             }
-
+            
             let progress = ProgressBar(config: progressConfig)
             defer {
                 progress.finish()
             }
             progress.start()
-
+            
             progress.set(description: "Fetching image")
             progress.set(itemsName: "blobs")
             let taskManager = ProgressTaskCoordinator()
@@ -86,7 +86,7 @@ extension Application {
             let image = try await ClientImage.pull(
                 reference: processedReference, platform: p, scheme: scheme, progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progress.handler)
             )
-
+            
             progress.set(description: "Unpacking image")
             progress.set(itemsName: "entries")
             let unpackTask = await taskManager.startTask()

@@ -58,11 +58,11 @@ extension ProgressBar {
             }
         }
     }
-
+    
     /// Performs a check to see if the progress bar should be finished.
     public func checkIfFinished() {
         let state = self.state.withLock { $0 }
-
+        
         var finished = true
         var defined = false
         if let totalTasks = state.totalTasks, totalTasks > 0 {
@@ -82,7 +82,7 @@ extension ProgressBar {
             finish()
         }
     }
-
+    
     /// Sets the current tasks.
     /// - Parameter newTasks: The current tasks to set.
     /// - Parameter render: The flag indicating whether the progress bar has to render after the update.
@@ -93,7 +93,7 @@ extension ProgressBar {
         }
         checkIfFinished()
     }
-
+    
     /// Performs an addition to the current tasks.
     /// - Parameter delta: The tasks to add to the current tasks.
     /// - Parameter render: The flag indicating whether the progress bar has to render after the update.
@@ -106,7 +106,7 @@ extension ProgressBar {
             self.render()
         }
     }
-
+    
     /// Sets the total tasks.
     /// - Parameter newTotalTasks: The total tasks to set.
     /// - Parameter render: The flag indicating whether the progress bar has to render after the update.
@@ -116,7 +116,7 @@ extension ProgressBar {
             self.render()
         }
     }
-
+    
     /// Performs an addition to the total tasks.
     /// - Parameter delta: The tasks to add to the total tasks.
     /// - Parameter render: The flag indicating whether the progress bar has to render after the update.
@@ -130,7 +130,7 @@ extension ProgressBar {
             self.render()
         }
     }
-
+    
     /// Sets the items name.
     /// - Parameter newItemsName: The current items to set.
     /// - Parameter render: The flag indicating whether the progress bar has to render after the update.
@@ -140,7 +140,7 @@ extension ProgressBar {
             self.render()
         }
     }
-
+    
     /// Sets the current items.
     /// - Parameter newItems: The current items to set.
     public func set(items newItems: Int, render: Bool = true) {
@@ -149,7 +149,7 @@ extension ProgressBar {
             self.render()
         }
     }
-
+    
     /// Performs an addition to the current items.
     /// - Parameter delta: The items to add to the current items.
     /// - Parameter render: The flag indicating whether the progress bar has to render after the update.
@@ -162,7 +162,7 @@ extension ProgressBar {
             self.render()
         }
     }
-
+    
     /// Sets the total items.
     /// - Parameter newTotalItems: The total items to set.
     /// - Parameter render: The flag indicating whether the progress bar has to render after the update.
@@ -172,7 +172,7 @@ extension ProgressBar {
             self.render()
         }
     }
-
+    
     /// Performs an addition to the total items.
     /// - Parameter delta: The items to add to the total items.
     /// - Parameter render: The flag indicating whether the progress bar has to render after the update.
@@ -186,7 +186,7 @@ extension ProgressBar {
             self.render()
         }
     }
-
+    
     /// Sets the current size.
     /// - Parameter newSize: The current size to set.
     /// - Parameter render: The flag indicating whether the progress bar has to render after the update.
@@ -196,7 +196,7 @@ extension ProgressBar {
             self.render()
         }
     }
-
+    
     /// Performs an addition to the current size.
     /// - Parameter delta: The size to add to the current size.
     /// - Parameter render: The flag indicating whether the progress bar has to render after the update.
@@ -209,7 +209,7 @@ extension ProgressBar {
             self.render()
         }
     }
-
+    
     /// Sets the total size.
     /// - Parameter newTotalSize: The total size to set.
     /// - Parameter render: The flag indicating whether the progress bar has to render after the update.
@@ -219,7 +219,7 @@ extension ProgressBar {
             self.render()
         }
     }
-
+    
     /// Performs an addition to the total size.
     /// - Parameter delta: The size to add to the total size.
     /// - Parameter render: The flag indicating whether the progress bar has to render after the update.

@@ -24,7 +24,7 @@ public struct SandboxSnapshot: Codable, Sendable {
     public let networks: [Attachment]
     /// Containers placed in the sandbox.
     public let containers: [ContainerSnapshot]
-
+    
     public init(
         status: RuntimeStatus,
         networks: [Attachment],

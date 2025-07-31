@@ -23,17 +23,17 @@ extension ProgressBar {
         public var finished = false
         var iteration = 0
         private let speedInterval: DispatchTimeInterval = .seconds(1)
-
+        
         var description: String
         var subDescription: String
         var itemsName: String
-
+        
         var tasks: Int
         var totalTasks: Int?
-
+        
         var items: Int
         var totalItems: Int?
-
+        
         private var sizeUpdateTime: DispatchTime?
         private var sizeUpdateValue: Int64 = 0
         var size: Int64 {
@@ -52,7 +52,7 @@ extension ProgressBar {
         var averageSizeSpeed: String {
             size.formattedSizeSpeed(from: startTime)
         }
-
+        
         var percent: String {
             var value = 0
             if let totalSize, totalSize > 0 {
@@ -63,10 +63,10 @@ extension ProgressBar {
             value = min(value, 100)
             return "\(value)%"
         }
-
+        
         var startTime: DispatchTime
         var output = ""
-
+        
         init(
             description: String = "", subDescription: String = "", itemsName: String = "", tasks: Int = 0, totalTasks: Int? = nil, items: Int = 0, totalItems: Int? = nil,
             size: Int64 = 0, totalSize: Int64? = nil, startTime: DispatchTime = .now()
@@ -82,14 +82,14 @@ extension ProgressBar {
             self.totalSize = totalSize
             self.startTime = startTime
         }
-
+        
         private mutating func calculateSizeSpeed() {
             if sizeUpdateTime == nil || sizeUpdateTime! < .now() - speedInterval {
                 let partSize = size - sizeUpdateValue
                 let partStartTime = sizeUpdateTime ?? startTime
                 let partSizeSpeed = partSize.formattedSizeSpeed(from: partStartTime)
                 self.sizeUpdateSpeed = partSizeSpeed
-
+                
                 sizeUpdateTime = .now()
                 sizeUpdateValue = size
             }

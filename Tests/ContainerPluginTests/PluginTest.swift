@@ -29,13 +29,13 @@ struct PluginTest {
             author: "Ted Klondike",
             servicesConfig: nil
         )
-
+        
         let binaryPath = "/usr/local/libexec/container/plugin/bin/container-foo"
         let plugin = Plugin(
             binaryURL: URL(filePath: binaryPath),
             config: config
         )
-
+        
         #expect(plugin.name == "container-foo")
         #expect(!plugin.shouldBoot)
         #expect(plugin.getLaunchdLabel() == "com.apple.container.container-foo")
@@ -48,7 +48,7 @@ struct PluginTest {
         #expect(!plugin.hasType(.network))
         #expect(plugin.helpText(padding: 20) == "  container-foo       abstract")
     }
-
+    
     @Test
     func testServicePlugin() async throws {
         let config = PluginConfig(
@@ -63,13 +63,13 @@ struct PluginTest {
                 defaultArguments: ["foo-bar"]
             )
         )
-
+        
         let binaryPath = "/usr/local/libexec/container/plugin/linux-sandboxd/bin/linux-sandboxd"
         let plugin = Plugin(
             binaryURL: URL(filePath: binaryPath),
             config: config
         )
-
+        
         #expect(plugin.name == "linux-sandboxd")
         #expect(!plugin.shouldBoot)
         #expect(plugin.getLaunchdLabel() == "com.apple.container.linux-sandboxd")
@@ -88,7 +88,7 @@ struct PluginTest {
         #expect(!plugin.hasType(.network))
         #expect(plugin.config.servicesConfig!.defaultArguments == ["foo-bar"])
     }
-
+    
     @Test
     func testMultipleServicePlugin() async throws {
         let config = PluginConfig(
@@ -104,13 +104,13 @@ struct PluginTest {
                 defaultArguments: ["start", "with", "params"]
             )
         )
-
+        
         let binaryPath = "/usr/local/libexec/container/plugin/hydra/bin/hydra"
         let plugin = Plugin(
             binaryURL: URL(filePath: binaryPath),
             config: config
         )
-
+        
         #expect(plugin.name == "hydra")
         #expect(plugin.shouldBoot)
         #expect(plugin.getLaunchdLabel() == "com.apple.container.hydra")

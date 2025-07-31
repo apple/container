@@ -25,22 +25,22 @@ extension Application {
         static let configuration = CommandConfiguration(
             commandName: "start",
             abstract: "Start a container")
-
+        
         @Flag(name: .shortAndLong, help: "Attach STDOUT/STDERR")
         var attach = false
-
+        
         @Flag(name: .shortAndLong, help: "Attach container's STDIN")
         var interactive = false
-
+        
         @OptionGroup
         var global: Flags.Global
-
+        
         @Argument(help: "Container's ID")
         var containerID: String
-
+        
         func run() async throws {
             var exitCode: Int32 = 127
-
+            
             let progressConfig = try ProgressConfig(
                 description: "Starting container"
             )
@@ -49,7 +49,7 @@ extension Application {
                 progress.finish()
             }
             progress.start()
-
+            
             let container = try await ClientContainer.get(id: containerID)
             do {
                 let detach = !self.attach && !self.interactive
@@ -58,10 +58,10 @@ extension Application {
                     interactive: self.interactive,
                     detach: detach
                 )
-
+                
                 let process = try await container.bootstrap(stdio: io.stdio)
                 progress.finish()
-
+                
                 if detach {
                     try await process.start()
                     defer {
@@ -71,11 +71,11 @@ extension Application {
                     print(self.containerID)
                     return
                 }
-
+                
                 exitCode = try await Application.handleProcess(io: io, process: process)
             } catch {
                 try? await container.stop()
-
+                
                 if error is ContainerizationError {
                     throw error
                 }

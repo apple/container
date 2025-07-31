@@ -22,16 +22,16 @@ extension Application {
         static let configuration = CommandConfiguration(
             commandName: "tag",
             abstract: "Tag an image")
-
+        
         @Argument(help: "SOURCE_IMAGE[:TAG]")
         var source: String
-
+        
         @Argument(help: "TARGET_IMAGE[:TAG]")
         var target: String
-
+        
         @OptionGroup
         var global: Flags.Global
-
+        
         func run() async throws {
             let existing = try await ClientImage.get(reference: source)
             let targetReference = try ClientImage.normalizeReference(target)

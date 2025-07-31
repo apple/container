@@ -27,36 +27,36 @@ extension Application {
             commandName: "start",
             abstract: "Start `container` services"
         )
-
+        
         @Option(name: .shortAndLong, help: "Path to the `container-apiserver` binary")
         var path: String = Bundle.main.executablePath ?? ""
-
+        
         @Flag(name: .long, help: "Enable debug logging for the runtime daemon.")
         var debug = false
-
+        
         @Flag(
             name: .long, inversion: .prefixedEnableDisable,
             help: "Specify whether the default kernel should be installed or not. The default behavior is to prompt the user for a response.")
         var kernelInstall: Bool?
-
+        
         func run() async throws {
             // Without the true path to the binary in the plist, `container-apiserver` won't launch properly.
             let executableUrl = URL(filePath: path)
                 .resolvingSymlinksInPath()
                 .deletingLastPathComponent()
                 .appendingPathComponent("container-apiserver")
-
+            
             var args = [executableUrl.absolutePath()]
             if debug {
                 args.append("--debug")
             }
-
+            
             let apiServerDataUrl = appRoot.appending(path: "apiserver")
             try! FileManager.default.createDirectory(at: apiServerDataUrl, withIntermediateDirectories: true)
             let env = ProcessInfo.processInfo.environment.filter { key, _ in
                 key.hasPrefix("CONTAINER_")
             }
-
+            
             let logURL = apiServerDataUrl.appending(path: "apiserver.log")
             let plist = LaunchPlist(
                 label: "com.apple.container.apiserver",
@@ -68,13 +68,13 @@ extension Application {
                 stderr: logURL.path,
                 machServices: ["com.apple.container.apiserver"]
             )
-
+            
             let plistURL = apiServerDataUrl.appending(path: "apiserver.plist")
             let data = try plist.encode()
             try data.write(to: plistURL)
-
+            
             try ServiceManager.register(plistPath: plistURL.path)
-
+            
             // Now ping our friendly daemon. Fail if we don't get a response.
             do {
                 print("Verifying apiserver is running...")
@@ -85,17 +85,17 @@ extension Application {
                     message: "failed to get a response from apiserver: \(error)"
                 )
             }
-
+            
             if await !initImageExists() {
                 try? await installInitialFilesystem()
             }
-
+            
             guard await !kernelExists() else {
                 return
             }
             try await installDefaultKernel()
         }
-
+        
         private func installInitialFilesystem() async throws {
             let dep = Dependencies.initFs
             let pullCommand = ImagePull(reference: dep.source)
@@ -106,12 +106,12 @@ extension Application {
                 log.error("Failed to install base container filesystem: \(error)")
             }
         }
-
+        
         private func installDefaultKernel() async throws {
             let kernelDependency = Dependencies.kernel
             let defaultKernelURL = kernelDependency.source
             let defaultKernelBinaryPath = ClientDefaults.get(key: .defaultKernelBinaryPath)
-
+            
             var shouldInstallKernel = false
             if kernelInstall == nil {
                 print("No default kernel configured.")
@@ -133,7 +133,7 @@ extension Application {
             print("Installing kernel...")
             try await KernelSet.downloadAndInstallWithProgressBar(tarRemoteURL: defaultKernelURL, kernelFilePath: defaultKernelBinaryPath)
         }
-
+        
         private func initImageExists() async -> Bool {
             do {
                 let img = try await ClientImage.get(reference: Dependencies.initFs.source)
@@ -143,7 +143,7 @@ extension Application {
                 return false
             }
         }
-
+        
         private func kernelExists() async -> Bool {
             do {
                 try await ClientKernel.getDefaultKernel(for: .current)
@@ -153,11 +153,11 @@ extension Application {
             }
         }
     }
-
+    
     private enum Dependencies: String {
         case kernel
         case initFs
-
+        
         var source: String {
             switch self {
             case .initFs:

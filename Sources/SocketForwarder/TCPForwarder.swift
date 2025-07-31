@@ -21,13 +21,13 @@ import NIOFoundationCompat
 
 public struct TCPForwarder: SocketForwarder {
     private let proxyAddress: SocketAddress
-
+    
     private let serverAddress: SocketAddress
-
+    
     private let eventLoopGroup: any EventLoopGroup
-
+    
     private let log: Logger?
-
+    
     public init(
         proxyAddress: SocketAddress,
         serverAddress: SocketAddress,
@@ -39,10 +39,10 @@ public struct TCPForwarder: SocketForwarder {
         self.eventLoopGroup = eventLoopGroup
         self.log = log
     }
-
+    
     public func run() throws -> EventLoopFuture<SocketForwarderResult> {
         self.log?.trace("frontend - creating listener")
-
+        
         let bootstrap = ServerBootstrap(group: self.eventLoopGroup)
             .serverChannelOption(ChannelOptions.socket(.init(SOL_SOCKET), .init(SO_REUSEADDR)), value: 1)
             .childChannelOption(ChannelOptions.socket(.init(SOL_SOCKET), .init(SO_REUSEADDR)), value: 1)
@@ -53,7 +53,7 @@ public struct TCPForwarder: SocketForwarder {
                     )
                 }
             }
-
+        
         return
             bootstrap
             .bind(to: self.proxyAddress)

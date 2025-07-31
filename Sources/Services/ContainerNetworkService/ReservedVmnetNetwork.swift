@@ -32,13 +32,13 @@ public final class ReservedVmnetNetwork: Network {
     @SendablePropertyUnchecked
     private var _state: NetworkState
     private let log: Logger
-
+    
     @SendableProperty
     private var network: vmnet_network_ref?
     @SendableProperty
     private var interface: interface_ref?
     private let networkLock = NSLock()
-
+    
     /// Configure a bridge network that allows external system access using
     /// network address translation.
     public init(
@@ -48,31 +48,31 @@ public final class ReservedVmnetNetwork: Network {
         guard configuration.mode == .nat else {
             throw ContainerizationError(.unsupported, message: "invalid network mode \(configuration.mode)")
         }
-
+        
         log.info("creating vmnet network")
         self.log = log
         _state = .created(configuration)
         log.info("created vmnet network")
     }
-
+    
     public var state: NetworkState {
         get async { _state }
     }
-
+    
     public nonisolated func withAdditionalData(_ handler: (XPCMessage?) throws -> Void) throws {
         try networkLock.withLock {
             try handler(network.map { try Self.serialize_network_ref(ref: $0) })
         }
     }
-
+    
     public func start() async throws {
         guard case .created(let configuration) = _state else {
             throw ContainerizationError(.invalidArgument, message: "cannot start network that is in \(_state.state) state")
         }
-
+        
         try startNetwork(configuration: configuration, log: log)
     }
-
+    
     private static func serialize_network_ref(ref: vmnet_network_ref) throws -> XPCMessage {
         var status: vmnet_return_t = .VMNET_SUCCESS
         guard let refObject = vmnet_network_copy_serialization(ref, &status) else {
@@ -80,7 +80,7 @@ public final class ReservedVmnetNetwork: Network {
         }
         return XPCMessage(object: refObject)
     }
-
+    
     private func startNetwork(configuration: NetworkConfiguration, log: Logger) throws {
         log.info(
             "starting vmnet network",
@@ -91,18 +91,18 @@ public final class ReservedVmnetNetwork: Network {
         )
         let suite = UserDefaults.init(suiteName: UserDefaults.appSuiteName)
         let subnetText = configuration.subnet ?? suite?.string(forKey: "network.subnet")
-
+        
         // with the reservation API, subnet priority is CLI argument, UserDefault, auto
         let subnet = try subnetText.map { try CIDRAddress($0) }
-
+        
         // set up the vmnet configuration
         var status: vmnet_return_t = .VMNET_SUCCESS
         guard let vmnetConfiguration = vmnet_network_configuration_create(vmnet.operating_modes_t.VMNET_SHARED_MODE, &status), status == .VMNET_SUCCESS else {
             throw ContainerizationError(.unsupported, message: "failed to create vmnet config with status \(status)")
         }
-
+        
         vmnet_network_configuration_disable_dhcp(vmnetConfiguration)
-
+        
         // set the subnet if the caller provided one
         if let subnet {
             let gateway = IPv4Address(fromValue: subnet.lower.value + 1)
@@ -120,13 +120,13 @@ public final class ReservedVmnetNetwork: Network {
                 throw ContainerizationError(.internalError, message: "failed to set subnet \(subnet) for network \(configuration.id)")
             }
         }
-
+        
         // reserve the network
         guard let network = vmnet_network_create(vmnetConfiguration, &status), status == .VMNET_SUCCESS else {
             throw ContainerizationError(.unsupported, message: "failed to create vmnet network with status \(status)")
         }
         self.network = network
-
+        
         // retrieve the subnet since the caller may not have provided one
         var subnetAddr = in_addr()
         var maskAddr = in_addr()

@@ -25,16 +25,16 @@ struct StandardQueryValidatorTest {
     @Test func testRejectResponseAsQuery() async throws {
         let fooHandler = FooHandler()
         let handler = StandardQueryValidator(handler: fooHandler)
-
+        
         let query = Message(
             id: UInt16(1),
             type: .response,
             questions: [
                 Question(name: "foo", type: .host)
             ])
-
+        
         let response = try await handler.answer(query: query)
-
+        
         #expect(.formatError == response?.returnCode)
         #expect(1 == response?.id)
         #expect(.response == response?.type)
@@ -43,11 +43,11 @@ struct StandardQueryValidatorTest {
         #expect(.host == response?.questions[0].type)
         #expect(0 == response?.answers.count)
     }
-
+    
     @Test func testRejectNonQueryOperation() async throws {
         let fooHandler = FooHandler()
         let handler = StandardQueryValidator(handler: fooHandler)
-
+        
         let query = Message(
             id: UInt16(2),
             type: .query,
@@ -55,9 +55,9 @@ struct StandardQueryValidatorTest {
             questions: [
                 Question(name: "foo", type: .host)
             ])
-
+        
         let response = try await handler.answer(query: query)
-
+        
         #expect(.notImplemented == response?.returnCode)
         #expect(2 == response?.id)
         #expect(.response == response?.type)
@@ -66,11 +66,11 @@ struct StandardQueryValidatorTest {
         #expect(.host == response?.questions[0].type)
         #expect(0 == response?.answers.count)
     }
-
+    
     @Test func testRejectMultipleQuestions() async throws {
         let fooHandler = FooHandler()
         let handler = StandardQueryValidator(handler: fooHandler)
-
+        
         let query = Message(
             id: UInt16(2),
             type: .query,
@@ -78,9 +78,9 @@ struct StandardQueryValidatorTest {
                 Question(name: "foo", type: .host),
                 Question(name: "bar", type: .host),
             ])
-
+        
         let response = try await handler.answer(query: query)
-
+        
         #expect(.formatError == response?.returnCode)
         #expect(2 == response?.id)
         #expect(.response == response?.type)
@@ -91,20 +91,20 @@ struct StandardQueryValidatorTest {
         #expect(.host == response?.questions[1].type)
         #expect(0 == response?.answers.count)
     }
-
+    
     @Test func testSuccessfulValidation() async throws {
         let fooHandler = FooHandler()
         let handler = StandardQueryValidator(handler: fooHandler)
-
+        
         let query = Message(
             id: UInt16(2),
             type: .query,
             questions: [
                 Question(name: "foo", type: .host)
             ])
-
+        
         let response = try await handler.answer(query: query)
-
+        
         #expect(.noError == response?.returnCode)
         #expect(2 == response?.id)
         #expect(.response == response?.type)

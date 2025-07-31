@@ -26,7 +26,7 @@ extension NetworkMode {
     public init() {
         self = .nat
     }
-
+    
     public init?(_ value: String) {
         switch value.lowercased() {
         case "nat": self = .nat

@@ -25,27 +25,27 @@ extension Application {
         static let configuration = CommandConfiguration(
             commandName: "exec",
             abstract: "Run a new command in a running container")
-
+        
         @OptionGroup
         var processFlags: Flags.Process
-
+        
         @OptionGroup
         var global: Flags.Global
-
+        
         @Argument(help: "Running containers ID")
         var containerID: String
-
+        
         @Argument(parsing: .captureForPassthrough, help: "New process arguments")
         var arguments: [String]
-
+        
         func run() async throws {
             var exitCode: Int32 = 127
             let container = try await ClientContainer.get(id: containerID)
             try ensureRunning(container: container)
-
+            
             let stdin = self.processFlags.interactive
             let tty = self.processFlags.tty
-
+            
             var config = container.configuration.initProcess
             config.executable = arguments.first!
             config.arguments = [String](self.arguments.dropFirst())
@@ -56,21 +56,21 @@ extension Application {
                     envFiles: self.processFlags.envFile,
                     envs: self.processFlags.env
                 ))
-
+            
             if let cwd = self.processFlags.cwd {
                 config.workingDirectory = cwd
             }
-
+            
             let defaultUser = config.user
             let (user, additionalGroups) = Parser.user(
                 user: processFlags.user, uid: processFlags.uid,
                 gid: processFlags.gid, defaultUser: defaultUser)
             config.user = user
             config.supplementalGroups.append(contentsOf: additionalGroups)
-
+            
             do {
                 let io = try ProcessIO.create(tty: tty, interactive: stdin, detach: false)
-
+                
                 if !self.processFlags.tty {
                     var handler = SignalThreshold(threshold: 3, signals: [SIGINT, SIGTERM])
                     handler.start {
@@ -78,13 +78,13 @@ extension Application {
                         Darwin.exit(1)
                     }
                 }
-
+                
                 let process = try await container.createProcess(
                     id: UUID().uuidString.lowercased(),
                     configuration: config,
                     stdio: io.stdio
                 )
-
+                
                 exitCode = try await Application.handleProcess(io: io, process: process)
             } catch {
                 if error is ContainerizationError {

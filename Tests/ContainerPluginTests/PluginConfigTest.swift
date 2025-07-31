@@ -40,12 +40,12 @@ struct PluginConfigTest {
             """
         try configJson.write(to: configURL, atomically: true, encoding: .utf8)
         let config = try #require(try PluginConfig(configURL: configURL))
-
+        
         #expect(config.isCLI)
         #expect(config.abstract == "Default network management service")
         #expect(config.author == "Apple")
     }
-
+    
     @Test
     func testServicePluginConfigLoad() async throws {
         let tempURL = try FileManager.default.url(
@@ -75,11 +75,11 @@ struct PluginConfigTest {
             """
         try configJson.write(to: configURL, atomically: true, encoding: .utf8)
         let config = try #require(try PluginConfig(configURL: configURL))
-
+        
         #expect(!config.isCLI)
         #expect(config.abstract == "Default network management service")
         #expect(config.author == "Apple")
-
+        
         let servicesConfig = try #require(config.servicesConfig)
         #expect(servicesConfig.loadAtBoot)
         #expect(servicesConfig.runAtLoad)

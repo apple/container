@@ -21,12 +21,12 @@ import DNSServer
 struct ContainerDNSHandler: DNSHandler {
     private let networkService: NetworksService
     private let ttl: UInt32
-
+    
     public init(networkService: NetworksService, ttl: UInt32 = 5) {
         self.networkService = networkService
         self.ttl = ttl
     }
-
+    
     public func answer(query: Message) async throws -> Message? {
         let question = query.questions[0]
         let record: ResourceRecord?
@@ -60,11 +60,11 @@ struct ContainerDNSHandler: DNSHandler {
                 answers: []
             )
         }
-
+        
         guard let record else {
             return nil
         }
-
+        
         return Message(
             id: query.id,
             type: .response,
@@ -73,22 +73,22 @@ struct ContainerDNSHandler: DNSHandler {
             answers: [record]
         )
     }
-
+    
     private func answerHost(question: Question) async throws -> ResourceRecord? {
         guard let ipAllocation = try await networkService.lookup(hostname: question.name) else {
             return nil
         }
-
+        
         let components = ipAllocation.address.split(separator: "/")
         guard !components.isEmpty else {
             throw DNSResolverError.serverError("Invalid IP format: empty address")
         }
-
+        
         let ipString = String(components[0])
         guard let ip = IPv4(ipString) else {
             throw DNSResolverError.serverError("Failed to parse IP address: \(ipString)")
         }
-
+        
         return HostRecord<IPv4>(name: question.name, ttl: ttl, ip: ip)
     }
 }

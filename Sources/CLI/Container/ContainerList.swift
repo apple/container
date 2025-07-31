@@ -27,28 +27,28 @@ extension Application {
             commandName: "list",
             abstract: "List containers",
             aliases: ["ls"])
-
+        
         @Flag(name: .shortAndLong, help: "Show stopped containers as well")
         var all = false
-
+        
         @Flag(name: .shortAndLong, help: "Only output the container ID")
         var quiet = false
-
+        
         @Option(name: .long, help: "Format of the output")
         var format: ListFormat = .table
-
+        
         @OptionGroup
         var global: Flags.Global
-
+        
         func run() async throws {
             let containers = try await ClientContainer.list()
             try printContainers(containers: containers, format: format)
         }
-
+        
         private func createHeader() -> [[String]] {
             [["ID", "IMAGE", "OS", "ARCH", "STATE", "ADDR"]]
         }
-
+        
         private func printContainers(containers: [ClientContainer], format: ListFormat) throws {
             if format == .json {
                 let printables = containers.map {
@@ -56,10 +56,10 @@ extension Application {
                 }
                 let data = try JSONEncoder().encode(printables)
                 print(String(data: data, encoding: .utf8)!)
-
+                
                 return
             }
-
+            
             if self.quiet {
                 containers.forEach {
                     if !self.all && $0.status != .running {
@@ -69,7 +69,7 @@ extension Application {
                 }
                 return
             }
-
+            
             var rows = createHeader()
             for container in containers {
                 if !self.all && container.status != .running {
@@ -77,7 +77,7 @@ extension Application {
                 }
                 rows.append(container.asRow)
             }
-
+            
             let formatter = TableOutput(rows: rows)
             print(formatter.format())
         }
@@ -101,7 +101,7 @@ struct PrintableContainer: Codable {
     let status: RuntimeStatus
     let configuration: ContainerConfiguration
     let networks: [Attachment]
-
+    
     init(_ container: ClientContainer) {
         self.status = container.status
         self.configuration = container.configuration

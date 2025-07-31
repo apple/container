@@ -21,14 +21,14 @@ extension Int64 {
         let formattedSize = ByteCountFormatter.string(fromByteCount: self, countStyle: .binary)
         return formattedSize
     }
-
+    
     func formattedSizeSpeed(from startTime: DispatchTime) -> String {
         let elapsedTimeNanoseconds = DispatchTime.now().uptimeNanoseconds - startTime.uptimeNanoseconds
         let elapsedTimeSeconds = Double(elapsedTimeNanoseconds) / 1_000_000_000
         guard elapsedTimeSeconds > 0 else {
             return "0 B/s"
         }
-
+        
         let speed = Double(self) / elapsedTimeSeconds
         let formattedSpeed = ByteCountFormatter.string(fromByteCount: Int64(speed), countStyle: .binary)
         return "\(formattedSpeed)/s"

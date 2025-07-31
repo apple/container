@@ -26,10 +26,10 @@ extension Application {
             abstract: "Delete a local DNS domain (must run as an administrator)",
             aliases: ["rm"]
         )
-
+        
         @Argument(help: "the local domain name")
         var domainName: String
-
+        
         func run() async throws {
             let resolver = HostDNSResolver()
             do {
@@ -38,7 +38,7 @@ extension Application {
             } catch {
                 throw ContainerizationError(.invalidState, message: "cannot create domain (try sudo?)")
             }
-
+            
             do {
                 try HostDNSResolver.reinitialize()
             } catch {

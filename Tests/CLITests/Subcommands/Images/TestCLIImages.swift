@@ -23,7 +23,7 @@ class TestCLIImagesCommand: CLITest {
     struct Image: Codable {
         let reference: String
     }
-
+    
     struct InspectOutput: Codable {
         let name: String
         let variants: [variant]
@@ -35,25 +35,25 @@ class TestCLIImagesCommand: CLITest {
             }
         }
     }
-
+    
     func doRemoveImages(images: [String]? = nil) throws {
         var args = [
             "images",
             "rm",
         ]
-
+        
         if let images {
             args.append(contentsOf: images)
         } else {
             args.append("--all")
         }
-
+        
         let (_, error, status) = try run(arguments: args)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
     }
-
+    
     func isImagePresent(targetImage: String) throws -> Bool {
         let images = try doListImages()
         return images.contains(where: { image in
@@ -63,7 +63,7 @@ class TestCLIImagesCommand: CLITest {
             return false
         })
     }
-
+    
     func doListImages() throws -> [Image] {
         let (output, error, status) = try run(arguments: [
             "images",
@@ -74,34 +74,34 @@ class TestCLIImagesCommand: CLITest {
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
-
+        
         guard let jsonData = output.data(using: .utf8) else {
             throw CLIError.invalidOutput("image list output invalid \(output)")
         }
-
+        
         let decoder = JSONDecoder()
         return try decoder.decode([Image].self, from: jsonData)
     }
-
+    
     func doInspectImages(image: String) throws -> [InspectOutput] {
         let (output, error, status) = try run(arguments: [
             "images",
             "inspect",
             image,
         ])
-
+        
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
-
+        
         guard let jsonData = output.data(using: .utf8) else {
             throw CLIError.invalidOutput("image inspect output invalid \(output)")
         }
-
+        
         let decoder = JSONDecoder()
         return try decoder.decode([InspectOutput].self, from: jsonData)
     }
-
+    
     func doImageTag(image: String, newName: String) throws {
         let tagArgs = [
             "images",
@@ -109,17 +109,17 @@ class TestCLIImagesCommand: CLITest {
             image,
             newName,
         ]
-
+        
         let (_, error, status) = try run(arguments: tagArgs)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
     }
-
+    
 }
 
 extension TestCLIImagesCommand {
-
+    
     @Test func testPull() throws {
         do {
             try doPull(imageName: alpine)
@@ -130,15 +130,15 @@ extension TestCLIImagesCommand {
             return
         }
     }
-
+    
     @Test func testPullMulti() throws {
         do {
             try doPull(imageName: alpine)
             try doPull(imageName: busybox)
-
+            
             let alpinePresent = try isImagePresent(targetImage: alpine)
             #expect(alpinePresent, "expected to see \(alpine) pulled")
-
+            
             let busyPresent = try isImagePresent(targetImage: busybox)
             #expect(busyPresent, "expected to see \(busybox) pulled")
         } catch {
@@ -146,7 +146,7 @@ extension TestCLIImagesCommand {
             return
         }
     }
-
+    
     @Test func testPullPlatform() throws {
         do {
             let os = "linux"
@@ -155,12 +155,12 @@ extension TestCLIImagesCommand {
                 "--platform",
                 "\(os)/\(arch)",
             ]
-
+            
             try doPull(imageName: alpine, args: pullArgs)
-
+            
             let output = try doInspectImages(image: alpine)
             #expect(output.count == 1, "expected a single image inspect output, got \(output)")
-
+            
             var found = false
             for v in output[0].variants {
                 if v.platform.os == os && v.platform.architecture == arch {
@@ -173,19 +173,19 @@ extension TestCLIImagesCommand {
             return
         }
     }
-
+    
     @Test func testPullRemoveSingle() throws {
         do {
             try doPull(imageName: alpine)
             let imagePulled = try isImagePresent(targetImage: alpine)
             #expect(imagePulled, "expected to see image \(alpine) pulled")
-
+            
             // tag image so we can safely remove later
             let alpineTagged = "\(alpine.dropLast("3.21".count))testPullRemoveSingle"
             try doImageTag(image: alpine, newName: alpineTagged)
             let taggedImagePresent = try isImagePresent(targetImage: alpineTagged)
             #expect(taggedImagePresent, "expected to see image \(alpineTagged) tagged")
-
+            
             try doRemoveImages(images: [alpineTagged])
             let imageRemoved = try !isImagePresent(targetImage: alpineTagged)
             #expect(imageRemoved, "expected not to see image \(alpineTagged)")
@@ -194,7 +194,7 @@ extension TestCLIImagesCommand {
             return
         }
     }
-
+    
     @Test func testImageTag() throws {
         do {
             try doPull(imageName: alpine)
@@ -207,7 +207,7 @@ extension TestCLIImagesCommand {
             return
         }
     }
-
+    
     @Test func testImageDefaultRegistry() throws {
         do {
             let defaultDomain = "ghcr.io"
@@ -222,14 +222,14 @@ extension TestCLIImagesCommand {
                 return
             }
             #expect(alpineImageDetails.name == "\(defaultDomain)/\(imageName)")
-
+            
             try doImageTag(image: imageName, newName: "username/image-name:mytag")
             guard let taggedImage = try doInspectImages(image: "username/image-name:mytag").first else {
                 Issue.record("Tagged image not found")
                 return
             }
             #expect(taggedImage.name == "\(defaultDomain)/username/image-name:mytag")
-
+            
             let listOutput = try doImageListQuite()
             #expect(listOutput.contains("username/image-name:mytag"))
             #expect(listOutput.contains(imageName))
@@ -238,18 +238,18 @@ extension TestCLIImagesCommand {
             return
         }
     }
-
+    
     @Test func testImageSaveAndLoad() throws {
         do {
             // 1. pull image
             try doPull(imageName: alpine)
-
+            
             // 2. Tag image so we can safely remove later
             let alpineTagged = "\(alpine.dropLast("3.21".count))testImageSaveAndLoad"
             try doImageTag(image: alpine, newName: alpineTagged)
             let taggedImagePresent = try isImagePresent(targetImage: alpineTagged)
             #expect(taggedImagePresent, "expected to see image \(alpineTagged) tagged")
-
+            
             // 3. save the image as a tarball
             let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -268,14 +268,14 @@ extension TestCLIImagesCommand {
             if status != 0 {
                 throw CLIError.executionFailed("command failed: \(error)")
             }
-
+            
             // 4. remove the image through container
             try doRemoveImages(images: [alpineTagged])
-
+            
             // 5. verify image is no longer present
             let imageRemoved = try !isImagePresent(targetImage: alpineTagged)
             #expect(imageRemoved, "expected image \(alpineTagged) to be removed")
-
+            
             // 6. load the tarball
             let loadArgs = [
                 "images",
@@ -287,7 +287,7 @@ extension TestCLIImagesCommand {
             if loadStatus != 0 {
                 throw CLIError.executionFailed("command failed: \(loadErr)")
             }
-
+            
             // 7. verify image is in the list again
             let imagePresent = try isImagePresent(targetImage: alpineTagged)
             #expect(imagePresent, "expected \(alpineTagged) to be present")

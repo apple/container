@@ -22,19 +22,19 @@ import NIO
 actor BuildStdio: BuildPipelineHandler {
     public let quiet: Bool
     public let handle: FileHandle
-
+    
     init(quiet: Bool = false, output: FileHandle = FileHandle.standardError) throws {
         self.quiet = quiet
         self.handle = output
     }
-
+    
     nonisolated func accept(_ packet: ServerStream) throws -> Bool {
         guard let _ = packet.getIO() else {
             return false
         }
         return true
     }
-
+    
     func handle(_ sender: AsyncStream<ClientStream>.Continuation, _ packet: ServerStream) async throws {
         guard !quiet else {
             return

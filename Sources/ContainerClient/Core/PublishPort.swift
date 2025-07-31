@@ -18,12 +18,12 @@
 public enum PublishProtocol: String, Sendable, Codable {
     case tcp = "tcp"
     case udp = "udp"
-
+    
     /// Initialize a protocol with to default value, `.tcp`.
     public init() {
         self = .tcp
     }
-
+    
     /// Initialize a protocol value from the provided string.
     public init?(_ value: String) {
         switch value.lowercased() {
@@ -38,16 +38,16 @@ public enum PublishProtocol: String, Sendable, Codable {
 public struct PublishPort: Sendable, Codable {
     /// The IP address of the proxy listener on the host
     public let hostAddress: String
-
+    
     /// The port number of the proxy listener on the host
     public let hostPort: Int
-
+    
     /// The port number of the container listener
     public let containerPort: Int
-
+    
     /// The network protocol for the proxy
     public let proto: PublishProtocol
-
+    
     /// Creates a new port forwarding specification.
     public init(hostAddress: String, hostPort: Int, containerPort: Int, proto: PublishProtocol) {
         self.hostAddress = hostAddress

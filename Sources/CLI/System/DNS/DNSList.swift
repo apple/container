@@ -25,12 +25,12 @@ extension Application {
             abstract: "List local DNS domains",
             aliases: ["ls"]
         )
-
+        
         func run() async throws {
             let resolver: HostDNSResolver = HostDNSResolver()
             let domains = resolver.listDomains()
             print(domains.joined(separator: "\n"))
         }
-
+        
     }
 }

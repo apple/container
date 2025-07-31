@@ -30,10 +30,10 @@ extension Application {
             config.helpNames = NameSpecification(arrayLiteral: .customShort("h"), .customLong("help"))
             return config
         }
-
+        
         @Flag(name: .long, help: ArgumentHelp("Display detailed status in json format"))
         var json: Bool = false
-
+        
         func run() async throws {
             do {
                 let container = try await ClientContainer.get(id: "buildkit")
@@ -41,20 +41,20 @@ extension Application {
                     let encoder = JSONEncoder()
                     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
                     let jsonData = try encoder.encode(container)
-
+                    
                     guard let jsonString = String(data: jsonData, encoding: .utf8) else {
                         throw ContainerizationError(.internalError, message: "failed to encode BuildKit container as json")
                     }
                     print(jsonString)
                     return
                 }
-
+                
                 let image = container.configuration.image.reference
                 let resources = container.configuration.resources
                 let cpus = resources.cpus
                 let memory = resources.memoryInBytes / (1024 * 1024)  // bytes to MB
                 let addr = ""
-
+                
                 print("ID       IMAGE                           STATE   ADDR         CPUS MEMORY")
                 print("\(container.id) \(image) \(container.status.rawValue.uppercased()) \(addr) \(cpus)    \(memory) MB")
             } catch {

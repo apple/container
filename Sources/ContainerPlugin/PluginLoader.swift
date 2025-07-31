@@ -23,26 +23,26 @@ public struct PluginLoader: Sendable {
     // runtime data for loaded plugins. This includes the launchd plists
     // and logs files.
     private let defaultPluginResourcePath: URL
-
+    
     private let pluginDirectories: [URL]
-
+    
     private let pluginFactories: [PluginFactory]
-
+    
     private let log: Logger?
-
+    
     public typealias PluginQualifier = ((Plugin) -> Bool)
-
+    
     public init(pluginDirectories: [URL], pluginFactories: [PluginFactory], defaultResourcePath: URL, log: Logger? = nil) {
         self.pluginDirectories = pluginDirectories
         self.pluginFactories = pluginFactories
         self.log = log
         self.defaultPluginResourcePath = defaultResourcePath
     }
-
+    
     static public func defaultPluginResourcePath(root: URL) -> URL {
         root.appending(path: "plugin-state")
     }
-
+    
     static public func userPluginsDir(root: URL) -> URL {
         root
             .appending(path: "libexec")
@@ -58,31 +58,31 @@ extension PluginLoader {
         guard !plugins.isEmpty else {
             return original
         }
-
+        
         var lines = original.split(separator: "\n").map { String($0) }
-
+        
         let sectionHeader = "PLUGINS:"
         lines.append(sectionHeader)
-
+        
         for plugin in plugins {
             let helpText = plugin.helpText(padding: 24)
             lines.append(helpText)
         }
-
+        
         return lines.joined(separator: "\n")
     }
-
+    
     public func findPlugins() -> [Plugin] {
         let fm = FileManager.default
-
+        
         var pluginNames = Set<String>()
         var plugins: [Plugin] = []
-
+        
         for pluginDir in pluginDirectories {
             if !fm.fileExists(atPath: pluginDir.path) {
                 continue
             }
-
+            
             guard
                 var dirs = try? fm.contentsOfDirectory(
                     at: pluginDir,
@@ -95,7 +95,7 @@ extension PluginLoader {
             dirs = dirs.filter {
                 $0.isDirectory
             }
-
+            
             for installURL in dirs {
                 do {
                     guard
@@ -112,7 +112,7 @@ extension PluginLoader {
                         )
                         continue
                     }
-
+                    
                     guard !pluginNames.contains(plugin.name) else {
                         log?.warning(
                             "Not installing shadowed plugin",
@@ -122,7 +122,7 @@ extension PluginLoader {
                             ])
                         continue
                     }
-
+                    
                     plugins.append(plugin)
                     pluginNames.insert(plugin.name)
                 } catch {
@@ -136,10 +136,10 @@ extension PluginLoader {
                 }
             }
         }
-
+        
         return plugins
     }
-
+    
     public func findPlugin(name: String, log: Logger? = nil) -> Plugin? {
         do {
             return
@@ -173,7 +173,7 @@ extension PluginLoader {
         guard let serviceConfig = plugin.config.servicesConfig else {
             return
         }
-
+        
         let id = plugin.getLaunchdLabel(instanceId: instanceId)
         log?.info("Registering plugin", metadata: ["id": "\(id)"])
         let rootURL = rootURL ?? self.defaultPluginResourcePath.appending(path: plugin.name)
@@ -192,13 +192,13 @@ extension PluginLoader {
             stderr: logUrl.path,
             machServices: plugin.getMachServices(instanceId: instanceId)
         )
-
+        
         let plistUrl = rootURL.appendingPathComponent("service.plist")
         let data = try plist.encode()
         try data.write(to: plistUrl)
         try ServiceManager.register(plistPath: plistUrl.path)
     }
-
+    
     public func deregisterWithLaunchd(plugin: Plugin, instanceId: String? = nil) throws {
         // We only care about loading plugins that have a service
         // to expose; otherwise, they may just be CLI commands.

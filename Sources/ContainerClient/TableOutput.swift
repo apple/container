@@ -19,7 +19,7 @@ import Foundation
 public struct TableOutput {
     private let rows: [[String]]
     private let spacing: Int
-
+    
     public init(
         rows: [[String]],
         spacing: Int = 2
@@ -27,11 +27,11 @@ public struct TableOutput {
         self.rows = rows
         self.spacing = spacing
     }
-
+    
     public func format() -> String {
         var output = ""
         let maxLengths = self.maxLength()
-
+        
         for rowIndex in 0..<self.rows.count {
             let row = self.rows[rowIndex]
             for columnIndex in 0..<row.count - 1 {
@@ -45,7 +45,7 @@ public struct TableOutput {
         }
         return output
     }
-
+    
     /// Returns a mapping of column index and the maximum length of all elements belonging under that column.
     private func maxLength() -> [Int: Int] {
         var output: [Int: Int] = [:]

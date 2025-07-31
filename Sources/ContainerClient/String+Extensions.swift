@@ -25,17 +25,17 @@ extension String {
         }
         return nil
     }
-
+    
     public func fromISO8601Date() -> Date? {
         let iso8601DateFormatter = ISO8601DateFormatter()
         iso8601DateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return iso8601DateFormatter.date(from: self)
     }
-
+    
     public func isAbsolutePath() -> Bool {
         self.starts(with: "/")
     }
-
+    
     /// Trim all `char` characters from the left side of the string. Stops when encountering a character that
     /// doesn't match `char`.
     mutating public func trimLeft(char: Character) {

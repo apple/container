@@ -18,13 +18,13 @@
 public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     /// A unique identifier for the network
     public let id: String
-
+    
     /// The network type
     public let mode: NetworkMode
-
+    
     /// The preferred CIDR address for the subnet, if specified
     public let subnet: String?
-
+    
     /// Creates a network configuration
     public init(
         id: String,

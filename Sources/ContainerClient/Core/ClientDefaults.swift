@@ -20,7 +20,7 @@ import Foundation
 
 public enum ClientDefaults {
     private static let userDefaultDomain = "com.apple.container.defaults"
-
+    
     public enum Keys: String {
         case defaultBuilderImage = "image.builder"
         case defaultDNSDomain = "dns.domain"
@@ -30,33 +30,33 @@ public enum ClientDefaults {
         case defaultKernelBinaryPath = "kernel.binaryPath"
         case buildRosetta = "build.rosetta"
     }
-
+    
     public static func set(value: String, key: ClientDefaults.Keys) {
         udSuite.set(value, forKey: key.rawValue)
     }
-
+    
     public static func unset(key: ClientDefaults.Keys) {
         udSuite.removeObject(forKey: key.rawValue)
     }
-
+    
     public static func get(key: ClientDefaults.Keys) -> String {
         let current = udSuite.string(forKey: key.rawValue)
         return current ?? key.defaultValue
     }
-
+    
     public static func getOptional(key: ClientDefaults.Keys) -> String? {
         udSuite.string(forKey: key.rawValue)
     }
-
+    
     public static func setBool(value: Bool, key: ClientDefaults.Keys) {
         udSuite.set(value, forKey: key.rawValue)
     }
-
+    
     public static func getBool(key: ClientDefaults.Keys) -> Bool? {
         guard udSuite.object(forKey: key.rawValue) != nil else { return nil }
         return udSuite.bool(forKey: key.rawValue)
     }
-
+    
     private static var udSuite: UserDefaults {
         guard let ud = UserDefaults.init(suiteName: self.userDefaultDomain) else {
             fatalError("Failed to initialize UserDefaults for domain \(self.userDefaultDomain)")

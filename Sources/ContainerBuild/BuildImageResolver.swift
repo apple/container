@@ -23,11 +23,11 @@ import Logging
 
 struct BuildImageResolver: BuildPipelineHandler {
     let contentStore: ContentStore
-
+    
     public init(_ contentStore: ContentStore) throws {
         self.contentStore = contentStore
     }
-
+    
     func accept(_ packet: ServerStream) throws -> Bool {
         guard let imageTransfer = packet.getImageTransfer() else {
             return false
@@ -40,7 +40,7 @@ struct BuildImageResolver: BuildPipelineHandler {
         }
         return true
     }
-
+    
     func handle(_ sender: AsyncStream<ClientStream>.Continuation, _ packet: ServerStream) async throws {
         guard let imageTransfer = packet.getImageTransfer() else {
             throw Error.imageTransferMissing
@@ -48,18 +48,18 @@ struct BuildImageResolver: BuildPipelineHandler {
         guard let ref = imageTransfer.ref() else {
             throw Error.tagMissing
         }
-
+        
         guard let platform = try imageTransfer.platform() else {
             throw Error.platformMissing
         }
-
+        
         let img = try await {
             guard let img = try? await ClientImage.pull(reference: ref, platform: platform) else {
                 return try await ClientImage.fetch(reference: ref, platform: platform)
             }
             return img
         }()
-
+        
         let index: Index = try await img.index()
         let buildID = packet.buildID
         let platforms = index.manifests.compactMap { $0.platform }
@@ -121,7 +121,7 @@ extension BuildImageResolver {
         case digestIsNotIndex(String)
         case digestIsNotManifest(String)
         case unknownPlatformForImage(String, String)
-
+        
         var description: String {
             switch self {
             case .imageTransferMissing:

@@ -41,19 +41,19 @@ extension NetworkVmnetHelper {
             commandName: "start",
             abstract: "Starts the network plugin"
         )
-
+        
         @Flag(name: .long, help: "Enable debug logging")
         var debug = false
-
+        
         @Option(name: .long, help: "XPC service identifier")
         var serviceIdentifier: String
-
+        
         @Option(name: .shortAndLong, help: "Network identifier")
         var id: String
-
+        
         @Option(name: .shortAndLong, help: "CIDR address for the subnet")
         var subnet: String?
-
+        
         func run() async throws {
             let commandName = NetworkVmnetHelper._commandName
             let log = setupLogger()
@@ -61,7 +61,7 @@ extension NetworkVmnetHelper {
             defer {
                 log.info("stopping \(commandName)")
             }
-
+            
             do {
                 log.info("configuring XPC server")
                 let subnet = try self.subnet.map { try CIDRAddress($0) }
@@ -80,7 +80,7 @@ extension NetworkVmnetHelper {
                     ],
                     log: log
                 )
-
+                
                 log.info("starting XPC server")
                 try await xpc.listen()
             } catch {
@@ -88,7 +88,7 @@ extension NetworkVmnetHelper {
                 NetworkVmnetHelper.exit(withError: error)
             }
         }
-
+        
         private func setupLogger() -> Logger {
             LoggingSystem.bootstrap { label in
                 OSLogHandler(
@@ -103,16 +103,16 @@ extension NetworkVmnetHelper {
             log[metadataKey: "id"] = "\(id)"
             return log
         }
-
+        
         private static func createNetwork(configuration: NetworkConfiguration, log: Logger) throws -> Network {
             guard #available(macOS 26, *) else {
                 return try AllocationOnlyVmnetNetwork(configuration: configuration, log: log)
             }
-
+            
             return try ReservedVmnetNetwork(configuration: configuration, log: log)
         }
     }
-
+    
     private static func releaseVersion() -> String {
         (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? get_release_version().map { String(cString: $0) } ?? "0.0.0"
     }

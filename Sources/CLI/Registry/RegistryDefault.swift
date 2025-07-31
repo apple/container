@@ -32,25 +32,25 @@ extension Application {
             ]
         )
     }
-
+    
     struct DefaultSetCommand: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "set",
             abstract: "Set the default registry"
         )
-
+        
         @OptionGroup
         var global: Flags.Global
-
+        
         @OptionGroup
         var registry: Flags.Registry
-
+        
         @Argument
         var host: String
-
+        
         func run() async throws {
             let scheme = try RequestScheme(registry.scheme).schemeFor(host: host)
-
+            
             let _url = "\(scheme)://\(host)"
             guard let url = URL(string: _url), let domain = url.host() else {
                 throw ContainerizationError(.invalidArgument, message: "Cannot convert \(_url) to URL")
@@ -71,26 +71,26 @@ extension Application {
             print("Set default registry to \(host)")
         }
     }
-
+    
     struct DefaultUnsetCommand: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "unset",
             abstract: "Unset the default registry",
             aliases: ["clear"]
         )
-
+        
         func run() async throws {
             ClientDefaults.unset(key: .defaultRegistryDomain)
             print("Unset the default registry domain")
         }
     }
-
+    
     struct DefaultInspectCommand: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "inspect",
             abstract: "Display the default registry domain"
         )
-
+        
         func run() async throws {
             print(ClientDefaults.get(key: .defaultRegistryDomain))
         }

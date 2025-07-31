@@ -23,10 +23,10 @@ public struct LaunchPlist: Encodable {
         case Background
         case System
     }
-
+    
     public let label: String
     public let arguments: [String]
-
+    
     public let environment: [String: String]?
     public let cwd: String?
     public let username: String?
@@ -41,7 +41,7 @@ public struct LaunchPlist: Encodable {
     public let keepAlive: Bool?
     public let machServices: [String: Bool]?
     public let waitForDebugger: Bool?
-
+    
     enum CodingKeys: String, CodingKey {
         case label = "Label"
         case arguments = "ProgramArguments"
@@ -60,7 +60,7 @@ public struct LaunchPlist: Encodable {
         case machServices = "MachServices"
         case waitForDebugger = "WaitForDebugger"
     }
-
+    
     public init(
         label: String,
         arguments: [String],

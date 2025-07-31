@@ -22,7 +22,7 @@ class LRUCache<K: Hashable, V> {
         fileprivate var next: Node?
         fileprivate let key: K
         fileprivate let value: V
-
+        
         init(key: K, value: V) {
             self.prev = nil
             self.next = nil
@@ -30,21 +30,21 @@ class LRUCache<K: Hashable, V> {
             self.value = value
         }
     }
-
+    
     private let size: UInt
     private var head: Node?
     private var tail: Node?
     private var members: [K: Node]
-
+    
     init(size: UInt) {
         self.size = size
         self.head = nil
         self.tail = nil
         self.members = [:]
     }
-
+    
     var count: Int { members.count }
-
+    
     func get(_ key: K) -> V? {
         guard let node = members[key] else {
             return nil
@@ -53,11 +53,11 @@ class LRUCache<K: Hashable, V> {
         listInsert(node: node, after: tail)
         return node.value
     }
-
+    
     func put(key: K, value: V) -> (K, V)? {
         let node = Node(key: key, value: value)
         var evicted: (K, V)? = nil
-
+        
         if let existingNode = members[key] {
             // evict the replaced node
             listRemove(node: existingNode)
@@ -66,13 +66,13 @@ class LRUCache<K: Hashable, V> {
             // evict the least recently used node
             evicted = evict()
         }
-
+        
         // insert the new node and return any evicted node
         members[key] = node
         listInsert(node: node, after: tail)
         return evicted
     }
-
+    
     private func evict() -> (K, V)? {
         guard let head else {
             return nil
@@ -82,7 +82,7 @@ class LRUCache<K: Hashable, V> {
         members.removeValue(forKey: head.key)
         return ret
     }
-
+    
     private func listRemove(node: Node) {
         if let prev = node.prev {
             prev.next = node.next
@@ -95,7 +95,7 @@ class LRUCache<K: Hashable, V> {
             tail = node.prev
         }
     }
-
+    
     private func listInsert(node: Node, after: Node?) {
         let before: Node?
         if let after {
@@ -105,13 +105,13 @@ class LRUCache<K: Hashable, V> {
             before = head
             head = node
         }
-
+        
         if let before {
             before.prev = node
         } else {
             tail = node
         }
-
+        
         node.prev = after
         node.next = before
     }

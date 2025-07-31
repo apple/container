@@ -32,17 +32,17 @@ actor NetworksService {
     private let pluginLoader: PluginLoader
     private let log: Logger
     private let networkPlugin: Plugin
-
+    
     private var networkStates = [String: NetworkState]()
     private var busyNetworks = Set<String>()
-
+    
     public init(pluginLoader: PluginLoader, resourceRoot: URL, log: Logger) async throws {
         try FileManager.default.createDirectory(at: resourceRoot, withIntermediateDirectories: true)
         self.resourceRoot = resourceRoot
         self.store = try FilesystemEntityStore<NetworkConfiguration>(path: resourceRoot, type: "network", log: log)
         self.pluginLoader = pluginLoader
         self.log = log
-
+        
         let networkPlugin =
             pluginLoader
             .findPlugins()
@@ -52,7 +52,7 @@ actor NetworksService {
             throw ContainerizationError(.internalError, message: "cannot find network plugin")
         }
         self.networkPlugin = networkPlugin
-
+        
         let configurations = try await store.list()
         for configuration in configurations {
             do {
@@ -64,7 +64,7 @@ actor NetworksService {
                         "id": "\(configuration.id)"
                     ])
             }
-
+            
             let client = NetworkClient(id: configuration.id)
             let networkState = try await client.state()
             networkStates[configuration.id] = networkState
@@ -79,7 +79,7 @@ actor NetworksService {
             }
         }
     }
-
+    
     /// List all networks registered with the service.
     public func list() async throws -> [NetworkState] {
         log.info("network service: list")
@@ -87,33 +87,33 @@ actor NetworksService {
             $0.append($1.value)
         }
     }
-
+    
     /// Create a new network from the provided configuration.
     public func create(configuration: NetworkConfiguration) async throws -> NetworkState {
         guard !busyNetworks.contains(configuration.id) else {
             throw ContainerizationError(.exists, message: "network \(configuration.id) has a pending operation")
         }
-
+        
         busyNetworks.insert(configuration.id)
         defer { busyNetworks.remove(configuration.id) }
-
+        
         log.info(
             "network service: create",
             metadata: [
                 "id": "\(configuration.id)"
             ])
-
+        
         // Ensure the network doesn't already exist.
         guard networkStates[configuration.id] == nil else {
             throw ContainerizationError(.exists, message: "network \(configuration.id) already exists")
         }
-
+        
         // Create and start the network.
         try await registerService(configuration: configuration)
         let client = NetworkClient(id: configuration.id)
         let networkState = try await client.state()
         networkStates[configuration.id] = networkState
-
+        
         // Persist the configuration data.
         do {
             try await store.create(configuration)
@@ -130,20 +130,20 @@ actor NetworksService {
                         "error": "\(error.localizedDescription)",
                     ])
             }
-
+            
             throw error
         }
     }
-
+    
     /// Delete a network.
     public func delete(id: String) async throws {
         guard !busyNetworks.contains(id) else {
             throw ContainerizationError(.exists, message: "network \(id) has a pending operation")
         }
-
+        
         busyNetworks.insert(id)
         defer { busyNetworks.remove(id) }
-
+        
         log.info(
             "network service: delete",
             metadata: [
@@ -152,20 +152,20 @@ actor NetworksService {
         if id == ClientNetwork.defaultNetworkName {
             throw ContainerizationError(.invalidArgument, message: "cannot delete system subnet \(ClientNetwork.defaultNetworkName)")
         }
-
+        
         guard let networkState = networkStates[id] else {
             throw ContainerizationError(.notFound, message: "no network for id \(id)")
         }
-
+        
         guard case .running = networkState else {
             throw ContainerizationError(.invalidState, message: "cannot delete subnet \(id) in state \(networkState.state)")
         }
-
+        
         let client = NetworkClient(id: id)
         guard try await client.disableAllocator() else {
             throw ContainerizationError(.invalidState, message: "cannot delete subnet \(id) with containers attached")
         }
-
+        
         defer { networkStates.removeValue(forKey: id) }
         do {
             try pluginLoader.deregisterWithLaunchd(plugin: networkPlugin, instanceId: id)
@@ -177,14 +177,14 @@ actor NetworksService {
                     "error": "\(error.localizedDescription)",
                 ])
         }
-
+        
         do {
             try await store.delete(id)
         } catch {
             throw ContainerizationError(.notFound, message: error.localizedDescription)
         }
     }
-
+    
     /// Perform a hostname lookup on all networks.
     public func lookup(hostname: String) async throws -> Attachment? {
         for id in networkStates.keys {
@@ -196,12 +196,12 @@ actor NetworksService {
         }
         return nil
     }
-
+    
     private func registerService(configuration: NetworkConfiguration) async throws {
         guard configuration.mode == .nat else {
             throw ContainerizationError(.invalidArgument, message: "unsupported network mode \(configuration.mode.rawValue)")
         }
-
+        
         guard let serviceIdentifier = networkPlugin.getMachService(instanceId: configuration.id, type: .network) else {
             throw ContainerizationError(.invalidArgument, message: "unsupported network mode \(configuration.mode.rawValue)")
         }
@@ -212,7 +212,7 @@ actor NetworksService {
             "--service-identifier",
             serviceIdentifier,
         ]
-
+        
         if let subnet = (try configuration.subnet.map { try CIDRAddress($0) }) {
             var existingCidrs: [CIDRAddress] = []
             for networkState in networkStates.values {
@@ -224,10 +224,10 @@ actor NetworksService {
             if let overlap {
                 throw ContainerizationError(.exists, message: "subnet \(subnet) overlaps an existing network with subnet \(overlap)")
             }
-
+            
             args += ["--subnet", subnet.description]
         }
-
+        
         try await pluginLoader.registerWithLaunchd(
             plugin: networkPlugin,
             rootURL: store.entityUrl(configuration.id),

@@ -20,9 +20,9 @@ import ContainerizationError
 public enum RequestScheme: String, Sendable {
     case http = "http"
     case https = "https"
-
+    
     case auto = "auto"
-
+    
     public init(_ rawValue: String) throws {
         switch rawValue {
         case RequestScheme.http.rawValue:
@@ -35,7 +35,7 @@ public enum RequestScheme: String, Sendable {
             throw ContainerizationError(.invalidArgument, message: "Unsupported scheme \(rawValue)")
         }
     }
-
+    
     /// Returns the prescribed protocol to use while making a HTTP request to a webserver
     /// - Parameter host: The domain or IP address of the webserver
     /// - Returns: RequestScheme
@@ -50,7 +50,7 @@ public enum RequestScheme: String, Sendable {
             return Self.isInternalHost(host: host) ? .http : .https
         }
     }
-
+    
     /// Checks if the given `host` string is a private IP address
     /// or a domain typically reachable only on the local system.
     private static func isInternalHost(host: String) -> Bool {

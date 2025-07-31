@@ -24,13 +24,13 @@ import Testing
 
 struct RequestSchemeTests {
     static let defaultDnsDomain = ClientDefaults.get(key: .defaultDNSDomain)
-
+    
     internal struct TestArg {
         let scheme: String
         let host: String
         let expected: RequestScheme
     }
-
+    
     @Test(arguments: [
         TestArg(scheme: "http", host: "myregistry.io", expected: .http),
         TestArg(scheme: "https", host: "myregistry.io", expected: .https),
@@ -48,12 +48,12 @@ struct RequestSchemeTests {
         TestArg(scheme: "auto", host: "172.32.0.1", expected: .https),
         TestArg(scheme: "auto", host: "172.22.23.61", expected: .http),
     ])
-
+    
     func testIsConnectionSecure(arg: TestArg) throws {
         let requestScheme = RequestScheme(rawValue: arg.scheme)!
         #expect(try requestScheme.schemeFor(host: arg.host) == arg.expected)
     }
-
+    
     func testEmptyHostThrowsError() throws {
         #expect(throws: (any Error).self) {
             let requestScheme = RequestScheme(rawValue: "https")!

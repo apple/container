@@ -24,11 +24,11 @@ struct MockPluginError: Error {}
 
 struct MockPluginFactory: PluginFactory {
     public static let throwSuffix = "throw"
-
+    
     private let plugins: [URL: Plugin]
-
+    
     private let throwingURL: URL
-
+    
     public init(tempURL: URL, plugins: [String: Plugin?]) throws {
         let fm = FileManager.default
         var prefixedPlugins: [URL: Plugin] = [:]
@@ -40,7 +40,7 @@ struct MockPluginFactory: PluginFactory {
         self.plugins = prefixedPlugins
         self.throwingURL = tempURL.appending(path: Self.throwSuffix).standardizedFileURL
     }
-
+    
     public func create(installURL: URL) throws -> Plugin? {
         let url = installURL.standardizedFileURL
         guard url != self.throwingURL else {

@@ -25,18 +25,18 @@ import Synchronization
 private final class UDPProxyBackend: ChannelInboundHandler, Sendable {
     typealias InboundIn = AddressedEnvelope<ByteBuffer>
     typealias OutboundOut = AddressedEnvelope<ByteBuffer>
-
+    
     private struct State {
         var queuedPayloads: Deque<ByteBuffer>
         var channel: (any Channel)?
     }
-
+    
     private let clientAddress: SocketAddress
     private let serverAddress: SocketAddress
     private let frontendChannel: any Channel
     private let log: Logger?
     private let state: Mutex<State>
-
+    
     init(clientAddress: SocketAddress, serverAddress: SocketAddress, frontendChannel: any Channel, log: Logger? = nil) {
         self.clientAddress = clientAddress
         self.serverAddress = serverAddress
@@ -45,7 +45,7 @@ private final class UDPProxyBackend: ChannelInboundHandler, Sendable {
         let state = State(queuedPayloads: Deque(), channel: nil)
         self.state = Mutex(state)
     }
-
+    
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         // relay data from server to client.
         let inbound = self.unwrapInboundIn(data)
@@ -53,7 +53,7 @@ private final class UDPProxyBackend: ChannelInboundHandler, Sendable {
         self.log?.trace("backend - writing datagram to client")
         _ = self.frontendChannel.writeAndFlush(outbound)
     }
-
+    
     func channelActive(context: ChannelHandlerContext) {
         state.withLock {
             if !$0.queuedPayloads.isEmpty {
@@ -66,7 +66,7 @@ private final class UDPProxyBackend: ChannelInboundHandler, Sendable {
             $0.channel = context.channel
         }
     }
-
+    
     func write(data: ByteBuffer) {
         // change package remote address from proxy server to real server
         state.withLock {
@@ -82,7 +82,7 @@ private final class UDPProxyBackend: ChannelInboundHandler, Sendable {
             }
         }
     }
-
+    
     func close() {
         state.withLock {
             guard let channel = $0.channel else {
@@ -103,14 +103,14 @@ private final class UDPProxyFrontend: ChannelInboundHandler, Sendable {
     typealias InboundIn = AddressedEnvelope<ByteBuffer>
     typealias OutboundOut = AddressedEnvelope<ByteBuffer>
     private let maxProxies = UInt(256)
-
+    
     private let proxyAddress: SocketAddress
     private let serverAddress: SocketAddress
     private let eventLoopGroup: any EventLoopGroup
     private let log: Logger?
-
+    
     private let proxies: Mutex<LRUCache<String, ProxyContext>>
-
+    
     init(proxyAddress: SocketAddress, serverAddress: SocketAddress, eventLoopGroup: any EventLoopGroup, log: Logger? = nil) {
         self.proxyAddress = proxyAddress
         self.serverAddress = serverAddress
@@ -118,20 +118,20 @@ private final class UDPProxyFrontend: ChannelInboundHandler, Sendable {
         self.proxies = Mutex(LRUCache(size: maxProxies))
         self.log = log
     }
-
+    
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         let inbound = self.unwrapInboundIn(data)
-
+        
         guard let clientIP = inbound.remoteAddress.ipAddress else {
             log?.error("frontend - no client IP address in inbound payload")
             return
         }
-
+        
         guard let clientPort = inbound.remoteAddress.port else {
             log?.error("frontend - no client port in inbound payload")
             return
         }
-
+        
         let key = "\(clientIP):\(clientPort)"
         do {
             try proxies.withLock {
@@ -158,7 +158,7 @@ private final class UDPProxyFrontend: ChannelInboundHandler, Sendable {
                         self.log?.trace("frontend - closing evicted backend")
                         evictedContext.proxy.close()
                     }
-
+                    
                     proxy.write(data: inbound.data)
                 }
             }
@@ -171,13 +171,13 @@ private final class UDPProxyFrontend: ChannelInboundHandler, Sendable {
 
 public struct UDPForwarder: SocketForwarder {
     private let proxyAddress: SocketAddress
-
+    
     private let serverAddress: SocketAddress
-
+    
     private let eventLoopGroup: any EventLoopGroup
-
+    
     private let log: Logger?
-
+    
     public init(
         proxyAddress: SocketAddress,
         serverAddress: SocketAddress,
@@ -189,7 +189,7 @@ public struct UDPForwarder: SocketForwarder {
         self.eventLoopGroup = eventLoopGroup
         self.log = log
     }
-
+    
     public func run() throws -> EventLoopFuture<SocketForwarderResult> {
         self.log?.trace("frontend - creating channel")
         let proxyToServerHandler = UDPProxyFrontend(

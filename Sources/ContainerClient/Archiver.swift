@@ -22,13 +22,13 @@ public final class Archiver: Sendable {
     public struct ArchiveEntryInfo: Sendable {
         let pathOnHost: URL
         let pathInArchive: URL
-
+        
         public init(pathOnHost: URL, pathInArchive: URL) {
             self.pathOnHost = pathOnHost
             self.pathInArchive = pathInArchive
         }
     }
-
+    
     public static func compress(
         source: URL,
         destination: URL,
@@ -38,14 +38,14 @@ public final class Archiver: Sendable {
     ) throws {
         let source = source.standardizedFileURL
         let destination = destination.standardizedFileURL
-
+        
         let fileManager = FileManager.default
         try? fileManager.removeItem(at: destination)
-
+        
         do {
             let directory = destination.deletingLastPathComponent()
             try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-
+            
             guard
                 let enumerator = FileManager.default.enumerator(
                     at: source,
@@ -54,7 +54,7 @@ public final class Archiver: Sendable {
             else {
                 throw Error.fileDoesNotExist(source)
             }
-
+            
             var entryInfo = [ArchiveEntryInfo]()
             if !source.isDirectory {
                 if let info = closure(source) {
@@ -68,12 +68,12 @@ public final class Archiver: Sendable {
                     entryInfo.append(info)
                 }
             }
-
+            
             let archiver = try ArchiveWriter(
                 configuration: writerConfiguration
             )
             try archiver.open(file: destination)
-
+            
             for info in entryInfo {
                 guard let entry = try Self._createEntry(entryInfo: info) else {
                     throw Error.failedToCreateEntry
@@ -86,24 +86,24 @@ public final class Archiver: Sendable {
             throw error
         }
     }
-
+    
     public static func uncompress(source: URL, destination: URL) throws {
         let source = source.standardizedFileURL
         let destination = destination.standardizedFileURL
-
+        
         // TODO: ArchiveReader needs some enhancement to support buffered uncompression
         let reader = try ArchiveReader(
             format: .paxRestricted,
             filter: .gzip,
             file: source
         )
-
+        
         for (entry, data) in reader {
             guard let path = entry.path else {
                 continue
             }
             let uncompressPath = destination.appendingPathComponent(path)
-
+            
             let fileManager = FileManager.default
             switch entry.fileType {
             case .blockSpecial, .characterSpecial, .socket:
@@ -151,20 +151,20 @@ public final class Archiver: Sendable {
             default:
                 continue
             }
-
+            
             // FIXME: uid/gid for compress.
             try fileManager.setAttributes(
                 [.posixPermissions: NSNumber(value: entry.permissions)],
                 ofItemAtPath: uncompressPath.path
             )
-
+            
             if let creationDate = entry.creationDate {
                 try fileManager.setAttributes(
                     [.creationDate: creationDate],
                     ofItemAtPath: uncompressPath.path
                 )
             }
-
+            
             if let modificationDate = entry.modificationDate {
                 try fileManager.setAttributes(
                     [.modificationDate: modificationDate],
@@ -173,18 +173,18 @@ public final class Archiver: Sendable {
             }
         }
     }
-
+    
     // MARK: private functions
     private static func _compressFile(item: URL, entry: WriteEntry, archiver: ArchiveWriter) throws {
         guard let stream = InputStream(url: item) else {
             return
         }
-
+        
         let writer = archiver.makeTransactionWriter()
-
+        
         let bufferSize = Int(1.mib())
         let readBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
-
+        
         stream.open()
         try writer.writeHeader(entry: entry)
         while true {
@@ -201,12 +201,12 @@ public final class Archiver: Sendable {
         stream.close()
         try writer.finish()
     }
-
+    
     private static func _createEntry(entryInfo: ArchiveEntryInfo, pathPrefix: String = "") throws -> WriteEntry? {
         let entry = WriteEntry()
         let fileManager = FileManager.default
         let attributes = try fileManager.attributesOfItem(atPath: entryInfo.pathOnHost.path)
-
+        
         if let fileType = attributes[.type] as? FileAttributeType {
             switch fileType {
             case .typeBlockSpecial, .typeCharacterSpecial, .typeSocket:
@@ -245,26 +245,26 @@ public final class Archiver: Sendable {
         if let modificationDate = attributes[.modificationDate] as? Date {
             entry.modificationDate = modificationDate
         }
-
+        
         let pathTrimmed = Self._trimPathPrefix(entryInfo.pathInArchive.relativePath, pathPrefix: pathPrefix)
         entry.path = pathTrimmed
         return entry
     }
-
+    
     private static func _trimPathPrefix(_ path: String, pathPrefix: String) -> String {
         guard !path.isEmpty && !pathPrefix.isEmpty else {
             return path
         }
-
+        
         let decodedPath = path.removingPercentEncoding ?? path
-
+        
         guard decodedPath.hasPrefix(pathPrefix) else {
             return decodedPath
         }
         let trimmedPath = String(decodedPath.suffix(from: pathPrefix.endIndex))
         return trimmedPath
     }
-
+    
     private static func _isSymbolicLink(_ path: URL) throws -> Bool {
         let resourceValues = try path.resourceValues(forKeys: [.isSymbolicLinkKey])
         if let isSymbolicLink = resourceValues.isSymbolicLink {
@@ -280,7 +280,7 @@ extension Archiver {
     public enum Error: Swift.Error, CustomStringConvertible {
         case failedToCreateEntry
         case fileDoesNotExist(_ url: URL)
-
+        
         public var description: String {
             switch self {
             case .failedToCreateEntry:

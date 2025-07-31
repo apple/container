@@ -29,24 +29,24 @@ import Logging
 actor ContainersService {
     private static let machServicePrefix = "com.apple.container"
     private static let launchdDomainString = try! ServiceManager.getDomainString()
-
+    
     private let log: Logger
     private let containerRoot: URL
     private let pluginLoader: PluginLoader
     private let runtimePlugins: [Plugin]
-
+    
     private let lock = AsyncLock()
     private var containers: [String: Item]
-
+    
     struct Item: Sendable {
         let bundle: ContainerClient.Bundle
         var state: State
-
+        
         enum State: Sendable {
             case dead
             case alive(SandboxClient)
             case exited(Int32)
-
+            
             func isDead() -> Bool {
                 switch self {
                 case .dead: return true
@@ -55,7 +55,7 @@ actor ContainersService {
             }
         }
     }
-
+    
     public init(root: URL, pluginLoader: PluginLoader, log: Logger) throws {
         let containerRoot = root.appendingPathComponent("containers")
         try FileManager.default.createDirectory(at: containerRoot, withIntermediateDirectories: true)
@@ -65,7 +65,7 @@ actor ContainersService {
         self.runtimePlugins = pluginLoader.findPlugins().filter { $0.hasType(.runtime) }
         self.containers = try Self.loadAtBoot(root: containerRoot, loader: pluginLoader, log: log)
     }
-
+    
     static func loadAtBoot(root: URL, loader: PluginLoader, log: Logger) throws -> [String: Item] {
         var directories = try FileManager.default.contentsOfDirectory(
             at: root,
@@ -74,7 +74,7 @@ actor ContainersService {
         directories = directories.filter {
             $0.isDirectory
         }
-
+        
         let runtimePlugins = loader.findPlugins().filter { $0.hasType(.runtime) }
         var results = [String: Item]()
         for dir in directories {
@@ -94,17 +94,17 @@ actor ContainersService {
         }
         return results
     }
-
+    
     private func setContainer(_ id: String, _ item: Item, context: AsyncLock.Context) async {
         self.containers[id] = item
     }
-
+    
     /// List all containers registered with the service.
     public func list() async throws -> [ContainerSnapshot] {
         self.log.debug("\(#function)")
         return await lock.withLock { context in
             var snapshots = [ContainerSnapshot]()
-
+            
             for (id, item) in await self.containers {
                 do {
                     let result = try await item.asSnapshot()
@@ -116,22 +116,22 @@ actor ContainersService {
             return snapshots
         }
     }
-
+    
     /// Create a new container from the provided id and configuration.
     public func create(configuration: ContainerConfiguration, kernel: Kernel, options: ContainerCreateOptions) async throws {
         self.log.debug("\(#function)")
-
+        
         let runtimePlugin = self.runtimePlugins.filter {
             $0.name == configuration.runtimeHandler
         }.first
         guard let runtimePlugin else {
             throw ContainerizationError(.notFound, message: "unable to locate runtime plugin \(configuration.runtimeHandler)")
         }
-
+        
         let path = self.containerRoot.appendingPathComponent(configuration.id)
         let systemPlatform = kernel.platform
         let initFs = try await getInitBlock(for: systemPlatform.ociPlatform())
-
+        
         let bundle = try ContainerClient.Bundle.create(
             path: path,
             initialFilesystem: initFs,
@@ -143,7 +143,7 @@ actor ContainersService {
             let imageFs = try await containerImage.getCreateSnapshot(platform: configuration.platform)
             try bundle.setContainerRootFs(cloning: imageFs)
             try bundle.write(filename: "options.json", value: options)
-
+            
             try Self.registerService(
                 plugin: runtimePlugin,
                 loader: self.pluginLoader,
@@ -160,14 +160,14 @@ actor ContainersService {
         }
         self.containers[configuration.id] = Item(bundle: bundle, state: .dead)
     }
-
+    
     private func getInitBlock(for platform: Platform) async throws -> Filesystem {
         let initImage = try await ClientImage.fetch(reference: ClientImage.initImageRef, platform: platform)
         var fs = try await initImage.getCreateSnapshot(platform: platform)
         fs.options = ["ro"]
         return fs
     }
-
+    
     private static func registerService(
         plugin: Plugin,
         loader: PluginLoader,
@@ -186,11 +186,11 @@ actor ContainersService {
             instanceId: configuration.id
         )
     }
-
+    
     private func get(id: String, context: AsyncLock.Context) throws -> Item {
         try self._get(id: id)
     }
-
+    
     private func _get(id: String) throws -> Item {
         let item = self.containers[id]
         guard let item else {
@@ -201,7 +201,7 @@ actor ContainersService {
         }
         return item
     }
-
+    
     /// Delete a container and its resources.
     public func delete(id: String) async throws {
         self.log.debug("\(#function)")
@@ -220,11 +220,11 @@ actor ContainersService {
             try self._cleanup(id: id, item: item)
         }
     }
-
+    
     private static func fullLaunchdServiceLabel(runtimeName: String, instanceId: String) -> String {
         "\(Self.launchdDomainString)/\(Self.machServicePrefix).\(runtimeName).\(instanceId)"
     }
-
+    
     private func _cleanup(id: String, item: Item) throws {
         self.log.debug("\(#function)")
         let config = try item.bundle.configuration
@@ -233,17 +233,17 @@ actor ContainersService {
         try item.bundle.delete()
         self.containers.removeValue(forKey: id)
     }
-
+    
     private func _shutdown(id: String, item: Item) throws {
         let config = try item.bundle.configuration
         let label = Self.fullLaunchdServiceLabel(runtimeName: config.runtimeHandler, instanceId: id)
         try ServiceManager.kill(fullServiceLabel: label)
     }
-
+    
     private func cleanup(id: String, item: Item, context: AsyncLock.Context) async throws {
         try self._cleanup(id: id, item: item)
     }
-
+    
     private func containerProcessExitHandler(_ id: String, _ exitCode: Int32, context: AsyncLock.Context) async {
         self.log.info("Handling container \(id) exit. Code \(exitCode)")
         do {
@@ -268,7 +268,7 @@ actor ContainersService {
                 ])
         }
     }
-
+    
     private func containerStartHandler(_ id: String, context: AsyncLock.Context) async throws {
         self.log.debug("\(#function)")
         self.log.info("Handling container \(id) Start.")
@@ -301,7 +301,7 @@ extension ContainersService {
             }
         }
     }
-
+    
     /// Stop all containers inside the sandbox, aborting any processes currently
     /// executing inside the container, before stopping the underlying sandbox.
     public func stop(id: String, options: ContainerStopOptions) async throws {
@@ -316,7 +316,7 @@ extension ContainersService {
             }
         }
     }
-
+    
     public func logs(id: String) async throws -> [FileHandle] {
         self.log.debug("\(#function)")
         // Logs doesn't care if the container is running or not, just that
@@ -339,7 +339,7 @@ extension ContainersService {
 extension ContainersService.Item {
     func asSnapshot() async throws -> (ContainerSnapshot, RuntimeStatus) {
         let config = try self.bundle.configuration
-
+        
         switch self.state {
         case .dead, .exited(_):
             return (

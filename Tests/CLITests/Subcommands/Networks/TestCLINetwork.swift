@@ -26,14 +26,14 @@ import Testing
 class TestCLINetwork: CLITest {
     private static let retries = 10
     private static let retryDelaySeconds = Int64(3)
-
+    
     @available(macOS 26, *)
     @Test func testNetworkCreateAndUse() async throws {
         do {
             let name = Test.current!.name.trimmingCharacters(in: ["(", ")"])
             let networkDeleteArgs = ["network", "delete", name]
             _ = try? run(arguments: networkDeleteArgs)
-
+            
             let networkCreateArgs = ["network", "create", name]
             let result = try run(arguments: networkCreateArgs)
             if result.status != 0 {
@@ -51,7 +51,7 @@ class TestCLINetwork: CLITest {
             defer {
                 try? doStop(name: name)
             }
-
+            
             let container = try inspectContainer(name)
             #expect(container.networks.count > 0)
             let cidrAddress = try CIDRAddress(container.networks[0].address)

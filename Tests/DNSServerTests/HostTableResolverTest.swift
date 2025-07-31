@@ -27,56 +27,56 @@ struct HostTableResolverTest {
             throw DNSResolverError.serverError("cannot create IP address in test")
         }
         let handler = HostTableResolver(hosts4: ["foo": ip])
-
+        
         let query = Message(
             id: UInt16(1),
             type: .query,
             questions: [
                 Question(name: "foo", type: .host6)
             ])
-
+        
         let response = try await handler.answer(query: query)
-
+        
         #expect(.notImplemented == response?.returnCode)
         #expect(1 == response?.id)
         #expect(.response == response?.type)
         #expect(1 == response?.questions.count)
         #expect(0 == response?.answers.count)
     }
-
+    
     @Test func testHostNotPresent() async throws {
         guard let ip = IPv4("1.2.3.4") else {
             throw DNSResolverError.serverError("cannot create IP address in test")
         }
         let handler = HostTableResolver(hosts4: ["foo": ip])
-
+        
         let query = Message(
             id: UInt16(1),
             type: .query,
             questions: [
                 Question(name: "bar", type: .host)
             ])
-
+        
         let response = try await handler.answer(query: query)
-
+        
         #expect(nil == response)
     }
-
+    
     @Test func testHostPresent() async throws {
         guard let ip = IPv4("1.2.3.4") else {
             throw DNSResolverError.serverError("cannot create IP address in test")
         }
         let handler = HostTableResolver(hosts4: ["foo": ip])
-
+        
         let query = Message(
             id: UInt16(1),
             type: .query,
             questions: [
                 Question(name: "foo", type: .host)
             ])
-
+        
         let response = try await handler.answer(query: query)
-
+        
         #expect(.noError == response?.returnCode)
         #expect(1 == response?.id)
         #expect(.response == response?.type)

@@ -22,18 +22,18 @@ import Testing
 
 struct UDPForwarderTest {
     let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
-
+    
     @Test
     func testUDPForwarder() async throws {
         let requestCount = 100
         var responses: [String] = []
-
+        
         // bring up server on ephemeral port and get address
         let serverAddress = try SocketAddress(ipAddress: "127.0.0.1", port: 0)
         let server = UDPEchoServer(serverAddress: serverAddress, eventLoopGroup: eventLoopGroup)
         let serverChannel = try await server.run().get()
         let actualServerAddress = try #require(serverChannel.localAddress)
-
+        
         // bring up proxy on ephemeral port and get address
         let proxyAddress = try SocketAddress(ipAddress: "127.0.0.1", port: 0)
         let forwarder = try UDPForwarder(
@@ -43,7 +43,7 @@ struct UDPForwarderTest {
         )
         let forwarderResult = try await forwarder.run().get()
         let actualProxyAddress = try #require(forwarderResult.proxyAddress)
-
+        
         // send a bunch of messages and collect them
         print("testUDPForwarder: send messages")
         try await withThrowingTaskGroup(of: String.self) { group in
@@ -62,7 +62,7 @@ struct UDPForwarderTest {
                                 )
                             }
                         }
-
+                    
                     try await channel.executeThenClose { inbound, outbound in
                         let remoteAddress = try #require(channel.channel.remoteAddress)
                         let data = ByteBufferAllocator().buffer(string: "\(i): success-udp")
@@ -72,25 +72,25 @@ struct UDPForwarderTest {
                             break
                         }
                     }
-
+                    
                     return response
                 }
             }
-
+            
             for try await response in group {
                 responses.append(response)
             }
         }
-
+        
         // close everything down
         print("testUDPForwarder: close server")
         serverChannel.eventLoop.execute { _ = serverChannel.close() }
         try await serverChannel.closeFuture.get()
-
+        
         print("testUDPForwarder: close forwarder")
         forwarderResult.close()
         try await forwarderResult.wait()
-
+        
         // verify all expected messages
         print("testUDPForwarder: validate responses")
         let sortedResponses = try responses.sorted { (a, b) in

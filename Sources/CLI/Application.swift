@@ -44,7 +44,7 @@ nonisolated(unsafe) var log = {
 struct Application: AsyncParsableCommand {
     @OptionGroup
     var global: Flags.Global
-
+    
     static let configuration = CommandConfiguration(
         commandName: "container",
         abstract: "A container platform for macOS",
@@ -84,7 +84,7 @@ struct Application: AsyncParsableCommand {
         // Hidden command to handle plugins on unrecognized input.
         defaultSubcommand: DefaultCommand.self
     )
-
+    
     static let appRoot: URL = {
         FileManager.default.urls(
             for: .applicationSupportDirectory,
@@ -102,10 +102,10 @@ struct Application: AsyncParsableCommand {
         var directoryExists: ObjCBool = false
         _ = FileManager.default.fileExists(atPath: pluginsURL.path, isDirectory: &directoryExists)
         let userPluginsURL = directoryExists.boolValue ? pluginsURL : nil
-
+        
         // plugins built into the application installed as a macOS app bundle
         let appBundlePluginsURL = Bundle.main.resourceURL?.appending(path: "plugins")
-
+        
         // plugins built into the application installed as a Unix-like application
         let installRootPluginsURL =
             installRoot
@@ -113,17 +113,17 @@ struct Application: AsyncParsableCommand {
             .appendingPathComponent("container")
             .appendingPathComponent("plugins")
             .standardized
-
+        
         let pluginDirectories = [
             userPluginsURL,
             appBundlePluginsURL,
             installRootPluginsURL,
         ].compactMap { $0 }
-
+        
         let pluginFactories = [
             DefaultPluginFactory()
         ]
-
+        
         let statePath = PluginLoader.defaultPluginResourcePath(root: Self.appRoot)
         try! FileManager.default.createDirectory(at: statePath, withIntermediateDirectories: true)
         return PluginLoader(pluginDirectories: pluginDirectories, pluginFactories: pluginFactories, defaultResourcePath: statePath, log: log)
@@ -131,17 +131,17 @@ struct Application: AsyncParsableCommand {
 
     public static func main() async throws {
         restoreCursorAtExit()
-
+        
         #if DEBUG
         let warning = "Running debug build. Performance may be degraded."
         let formattedWarning = "\u{001B}[33mWarning!\u{001B}[0m \(warning)\n"
         let warningData = Data(formattedWarning.utf8)
         FileHandle.standardError.write(warningData)
         #endif
-
+        
         let fullArgs = CommandLine.arguments
         let args = Array(fullArgs.dropFirst())
-
+        
         do {
             // container -> defaultHelpCommand
             var command = try Application.parseAsRoot(args)
@@ -167,7 +167,7 @@ struct Application: AsyncParsableCommand {
             }
         }
     }
-
+    
     static func handleProcess(io: ProcessIO, process: ClientProcess) async throws -> Int32 {
         let signals = AsyncSignalHandler.create(notify: Application.signalSet)
         return try await withThrowingTaskGroup(of: Int32?.self, returning: Int32.self) { group in
@@ -176,18 +176,18 @@ struct Application: AsyncParsableCommand {
                 try await io.wait()
                 return code
             }
-
+            
             guard waitAdded else {
                 group.cancelAll()
                 return -1
             }
-
+            
             try await process.start()
             defer {
                 try? io.close()
             }
             try io.closeAfterStart()
-
+            
             if let current = io.console {
                 let size = try current.size
                 // It's supremely possible the process could've exited already. We shouldn't treat
@@ -227,7 +227,7 @@ struct Application: AsyncParsableCommand {
                     return nil
                 }
             }
-
+            
             while true {
                 let result = try await group.next()
                 if result == nil {
@@ -242,7 +242,7 @@ struct Application: AsyncParsableCommand {
             return -1
         }
     }
-
+    
     func validate() throws {
         // Not really a "validation", but a cheat to run this before
         // any of the commands do their business.
@@ -260,7 +260,7 @@ struct Application: AsyncParsableCommand {
             )
         }
     }
-
+    
     private static func otherCommands() -> [any ParsableCommand.Type] {
         guard #available(macOS 26, *) else {
             return [
@@ -268,14 +268,14 @@ struct Application: AsyncParsableCommand {
                 SystemCommand.self,
             ]
         }
-
+        
         return [
             BuilderCommand.self,
             NetworkCommand.self,
             SystemCommand.self,
         ]
     }
-
+    
     private static func restoreCursorAtExit() {
         let signalHandler: @convention(c) (Int32) -> Void = { signal in
             let exitCode = ExitCode(signal + 128)
@@ -304,12 +304,12 @@ extension Application {
         )
         print(altered)
     }
-
+    
     enum ListFormat: String, CaseIterable, ExpressibleByArgument {
         case json
         case table
     }
-
+    
     static let signalSet: [Int32] = [
         SIGTERM,
         SIGINT,
@@ -328,7 +328,7 @@ extension Application {
             throw posixErr
         }
     }
-
+    
     private static func releaseVersion() -> String {
         var versionDetails: [String: String] = ["build": "release"]
         #if DEBUG
@@ -343,10 +343,10 @@ extension Application {
         }()
         versionDetails["commit"] = gitCommit
         let extras: String = versionDetails.map { "\($0): \($1)" }.sorted().joined(separator: ", ")
-
+        
         let bundleVersion = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String)
         let releaseVersion = bundleVersion ?? get_release_version().map { String(cString: $0) } ?? "0.0.0"
-
+        
         return "container CLI version \(releaseVersion) (\(extras))"
     }
 }

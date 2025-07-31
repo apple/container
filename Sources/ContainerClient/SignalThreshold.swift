@@ -27,7 +27,7 @@ public struct SignalThreshold {
     private let threshold: Int
     private let signals: [Int32]
     private var t: Task<(), Never>?
-
+    
     public init(
         threshold: Int,
         signals: [Int32],
@@ -35,7 +35,7 @@ public struct SignalThreshold {
         self.threshold = threshold
         self.signals = signals
     }
-
+    
     // Start kicks off the signal watching. The passed in handler will
     // run only once upon passing the threshold number passed in the constructor.
     mutating public func start(handler: @Sendable @escaping () -> Void) {
@@ -54,7 +54,7 @@ public struct SignalThreshold {
             }
         }
     }
-
+    
     public func stop() {
         self.t?.cancel()
     }

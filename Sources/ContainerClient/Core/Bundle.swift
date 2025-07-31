@@ -24,28 +24,28 @@ public struct Bundle: Sendable {
     private static let kernelBinaryFilename = "kernel.bin"
     private static let containerRootFsBlockFilename = "rootfs.ext4"
     private static let containerRootFsFilename = "rootfs.json"
-
+    
     static let containerConfigFilename = "config.json"
-
+    
     /// The path to the bundle.
     public let path: URL
-
+    
     public init(path: URL) {
         self.path = path
     }
-
+    
     public var bootlog: URL {
         self.path.appendingPathComponent("vminitd.log")
     }
-
+    
     private var containerRootfsBlock: URL {
         self.path.appendingPathComponent(Self.containerRootFsBlockFilename)
     }
-
+    
     private var containerRootfsConfig: URL {
         self.path.appendingPathComponent(Self.containerRootFsFilename)
     }
-
+    
     public var containerRootfs: Filesystem {
         get throws {
             let data = try Data(contentsOf: containerRootfsConfig)
@@ -53,7 +53,7 @@ public struct Bundle: Sendable {
             return fs
         }
     }
-
+    
     /// Return the initial filesystem for a sandbox.
     public var initialFilesystem: Filesystem {
         .block(
@@ -63,13 +63,13 @@ public struct Bundle: Sendable {
             options: ["ro"]
         )
     }
-
+    
     public var kernel: Kernel {
         get throws {
             try load(path: self.path.appendingPathComponent(Self.kernelFilename))
         }
     }
-
+    
     public var configuration: ContainerConfiguration {
         get throws {
             try load(path: self.path.appendingPathComponent(Self.containerConfigFilename))
@@ -90,7 +90,7 @@ extension Bundle {
         var k = kernel
         k.path = kbin
         try write(path.appendingPathComponent(Self.kernelFilename), value: k)
-
+        
         switch initialFilesystem.type {
         case .block(let fmt, _, _):
             guard fmt == "ext4" else {
@@ -116,36 +116,36 @@ extension Bundle {
     public func set(configuration: ContainerConfiguration) throws {
         try write(filename: Self.containerConfigFilename, value: configuration)
     }
-
+    
     /// Return the full filepath for a named resource in the Bundle.
     public func filePath(for name: String) -> URL {
         path.appendingPathComponent(name)
     }
-
+    
     public func setContainerRootFs(cloning fs: Filesystem) throws {
         let cloned = try fs.clone(to: self.containerRootfsBlock.absolutePath())
         let fsData = try JSONEncoder().encode(cloned)
         try fsData.write(to: self.containerRootfsConfig)
     }
-
+    
     /// Delete the bundle and all of the resources contained inside.
     public func delete() throws {
         try FileManager.default.removeItem(at: self.path)
     }
-
+    
     public func write(filename: String, value: Encodable) throws {
         try Self.write(self.path.appendingPathComponent(filename), value: value)
     }
-
+    
     private static func write(_ path: URL, value: Encodable) throws {
         let data = try JSONEncoder().encode(value)
         try data.write(to: path)
     }
-
+    
     public func load<T>(filename: String) throws -> T where T: Decodable {
         try load(path: self.path.appendingPathComponent(filename))
     }
-
+    
     private func load<T>(path: URL) throws -> T where T: Decodable {
         let data = try Data(contentsOf: path)
         return try JSONDecoder().decode(T.self, from: data)

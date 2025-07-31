@@ -21,12 +21,12 @@ extension Int {
         let secondsInMinute = 60
         let secondsInHour = secondsInMinute * 60
         let secondsInDay = secondsInHour * 24
-
+        
         let days = self / secondsInDay
         let hours = (self % secondsInDay) / secondsInHour
         let minutes = (self % secondsInHour) / secondsInMinute
         let seconds = self % secondsInMinute
-
+        
         var components = [String]()
         if days > 0 {
             components.append("\(days)d")
@@ -40,7 +40,7 @@ extension Int {
         components.append("\(seconds)s")
         return components.joined(separator: " ")
     }
-
+    
     func formattedNumber() -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal

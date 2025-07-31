@@ -26,19 +26,19 @@ extension Application {
         static let configuration = CommandConfiguration(
             abstract: "Login to a registry"
         )
-
+        
         @Option(name: .shortAndLong, help: "Username")
         var username: String = ""
-
+        
         @Flag(help: "Take the password from stdin")
         var passwordStdin: Bool = false
-
+        
         @Argument(help: "Registry server name")
         var server: String
-
+        
         @OptionGroup
         var registry: Flags.Registry
-
+        
         func run() async throws {
             var username = self.username
             var password = ""
@@ -60,7 +60,7 @@ extension Application {
                 password = try keychain.passwordPrompt()
                 print()
             }
-
+            
             let server = Reference.resolveDomain(domain: server)
             let scheme = try RequestScheme(registry.scheme).schemeFor(host: server)
             let _url = "\(scheme)://\(server)"
@@ -70,7 +70,7 @@ extension Application {
             guard let host = url.host else {
                 throw ContainerizationError(.invalidArgument, message: "Invalid host \(server)")
             }
-
+            
             let client = RegistryClient(
                 host: host,
                 scheme: scheme.rawValue,

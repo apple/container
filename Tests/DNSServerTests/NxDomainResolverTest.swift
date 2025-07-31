@@ -24,35 +24,35 @@ import Testing
 struct NxDomainResolverTest {
     @Test func testUnsupportedQuestionType() async throws {
         let handler: NxDomainResolver = NxDomainResolver()
-
+        
         let query = Message(
             id: UInt16(1),
             type: .query,
             questions: [
                 Question(name: "foo", type: .host6)
             ])
-
+        
         let response = try await handler.answer(query: query)
-
+        
         #expect(.notImplemented == response?.returnCode)
         #expect(1 == response?.id)
         #expect(.response == response?.type)
         #expect(1 == response?.questions.count)
         #expect(0 == response?.answers.count)
     }
-
+    
     @Test func testHostNotPresent() async throws {
         let handler: NxDomainResolver = NxDomainResolver()
-
+        
         let query = Message(
             id: UInt16(1),
             type: .query,
             questions: [
                 Question(name: "bar", type: .host)
             ])
-
+        
         let response = try await handler.answer(query: query)
-
+        
         #expect(.nonExistentDomain == response?.returnCode)
         #expect(1 == response?.id)
         #expect(.response == response?.type)

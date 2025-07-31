@@ -23,7 +23,7 @@ import TerminalProgress
 public actor ProgressUpdateClient {
     private var endpointConnection: xpc_connection_t?
     private var endpoint: xpc_endpoint_t?
-
+    
     /// Creates a new client for receiving progress updates from a service.
     /// - Parameters:
     ///   - progressUpdate: The handler to invoke when progress updates are received.
@@ -32,7 +32,7 @@ public actor ProgressUpdateClient {
         createEndpoint(for: progressUpdate)
         setEndpoint(to: request)
     }
-
+    
     /// Performs a connection setup for receiving progress updates.
     /// - Parameter progressUpdate: The handler to invoke when progress updates are received.
     private func createEndpoint(for progressUpdate: @escaping ProgressUpdateHandler) {
@@ -60,11 +60,11 @@ public actor ProgressUpdateClient {
             }
         }
         xpc_connection_activate(endpointConnection)
-
+        
         self.endpointConnection = endpointConnection
         self.endpoint = xpc_endpoint_create(endpointConnection)
     }
-
+    
     /// Performs a setup of the progress update endpoint.
     /// - Parameter request: The XPC message containing the endpoint to use.
     private func setEndpoint(to request: XPCMessage) {
@@ -73,7 +73,7 @@ public actor ProgressUpdateClient {
         }
         request.set(key: .progressUpdateEndpoint, value: endpoint)
     }
-
+    
     /// Performs cleanup of the created connection.
     public func finish() {
         if let endpointConnection {
@@ -81,7 +81,7 @@ public actor ProgressUpdateClient {
             self.endpointConnection = nil
         }
     }
-
+    
     private static func handleProgressUpdate(_ message: xpc_object_t, progressUpdate: @escaping ProgressUpdateHandler) {
         switch xpc_get_type(message) {
         case XPC_TYPE_DICTIONARY:
@@ -94,10 +94,10 @@ public actor ProgressUpdateClient {
             break
         }
     }
-
+    
     private static func handleProgressUpdate(_ message: XPCMessage, progressUpdate: @escaping ProgressUpdateHandler) {
         var events = [ProgressUpdateEvent]()
-
+        
         if let description = message.string(key: .progressUpdateSetDescription) {
             events.append(.setDescription(description))
         }
@@ -155,7 +155,7 @@ public actor ProgressUpdateClient {
         if totalSize != 0 {
             events.append(.setTotalSize(totalSize))
         }
-
+        
         Task {
             await progressUpdate(events)
         }

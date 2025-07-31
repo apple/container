@@ -30,7 +30,7 @@ public struct Builder: Sendable {
     let group: EventLoopGroup
     let builderShimSocket: FileHandle
     let channel: GRPCChannel
-
+    
     public init(socket: FileHandle, group: EventLoopGroup) throws {
         try socket.setSendBufSize(4 << 20)
         try socket.setRecvBufSize(2 << 20)
@@ -52,7 +52,7 @@ public struct Builder: Sendable {
         config.httpMaxFrameSize = 8 << 10
         config.maximumReceiveMessageLength = 512 << 20
         config.httpTargetWindowSize = 16 << 10
-
+        
         let channel = ClientConnection(configuration: config)
         self.channel = channel
         self.clientAsync = BuilderClientAsync(channel: channel)
@@ -60,17 +60,17 @@ public struct Builder: Sendable {
         self.group = group
         self.builderShimSocket = socket
     }
-
+    
     public func info() throws -> InfoResponse {
         let resp = self.client.info(InfoRequest(), callOptions: CallOptions())
         return try resp.response.wait()
     }
-
+    
     public func info() async throws -> InfoResponse {
         let opts = CallOptions(timeLimit: .timeout(.seconds(30)))
         return try await self.clientAsync.info(InfoRequest(), callOptions: opts)
     }
-
+    
     // TODO
     // - Symlinks in build context dir
     // - cache-to, cache-from
@@ -83,11 +83,11 @@ public struct Builder: Sendable {
         guard let continuation else {
             throw Error.invalidContinuation
         }
-
+        
         defer {
             continuation.finish()
         }
-
+        
         if let terminal = config.terminal {
             Task {
                 let winchHandler = AsyncSignalHandler.create(notify: [SIGWINCH])
@@ -103,7 +103,7 @@ public struct Builder: Sendable {
                 var width = size.width
                 var height = size.height
                 try setWinch(height, width)
-
+                
                 for await _ in winchHandler.signals {
                     let size = try terminal.size
                     let cols = size.width
@@ -116,7 +116,7 @@ public struct Builder: Sendable {
                 }
             }
         }
-
+        
         let respStream = self.clientAsync.performBuild(reqStream, callOptions: try CallOptions(config))
         let pipeline = try await BuildPipeline(config)
         do {
@@ -127,33 +127,33 @@ public struct Builder: Sendable {
             return
         }
     }
-
+    
     public struct BuildExport: Sendable {
         public let type: String
         public var destination: URL?
         public let additionalFields: [String: String]
         public let rawValue: String
-
+        
         public init(type: String, destination: URL?, additionalFields: [String: String], rawValue: String) {
             self.type = type
             self.destination = destination
             self.additionalFields = additionalFields
             self.rawValue = rawValue
         }
-
+        
         public init(from input: String) throws {
             var typeValue: String?
             var destinationValue: URL?
             var additionalFields: [String: String] = [:]
-
+            
             let pairs = input.components(separatedBy: ",")
             for pair in pairs {
                 let parts = pair.components(separatedBy: "=")
                 guard parts.count == 2 else { continue }
-
+                
                 let key = parts[0].trimmingCharacters(in: .whitespaces)
                 let value = parts[1].trimmingCharacters(in: .whitespaces)
-
+                
                 switch key {
                 case "type":
                     typeValue = value
@@ -163,11 +163,11 @@ public struct Builder: Sendable {
                     additionalFields[key] = value
                 }
             }
-
+            
             guard let type = typeValue else {
                 throw Builder.Error.invalidExport(input, "type field is required")
             }
-
+            
             switch type {
             case "oci":
                 break
@@ -182,40 +182,40 @@ public struct Builder: Sendable {
             default:
                 throw Builder.Error.invalidExport(input, "unsupported output type")
             }
-
+            
             self.init(type: type, destination: destinationValue, additionalFields: additionalFields, rawValue: input)
         }
-
+        
         public var stringValue: String {
             get throws {
                 var components = ["type=\(type)"]
-
+                
                 switch type {
                 case "oci", "tar", "local":
                     break  // ignore destination
                 default:
                     throw Builder.Error.invalidExport(rawValue, "unsupported output type")
                 }
-
+                
                 for (key, value) in additionalFields {
                     components.append("\(key)=\(value)")
                 }
-
+                
                 return components.joined(separator: ",")
             }
         }
-
+        
         static func resolveDestination(dest: String) throws -> URL {
             let destination = URL(fileURLWithPath: dest)
             let fileManager = FileManager.default
-
+            
             if fileManager.fileExists(atPath: destination.path) {
                 let resourceValues = try destination.resourceValues(forKeys: [.isDirectoryKey])
                 let isDir = resourceValues.isDirectory
                 if isDir != nil && isDir == false {
                     throw Builder.Error.invalidExport(dest, "dest path already exists")
                 }
-
+                
                 var finalDestination = destination.appendingPathComponent("out.tar")
                 var index = 1
                 while fileManager.fileExists(atPath: finalDestination.path) {
@@ -228,11 +228,11 @@ public struct Builder: Sendable {
                 let parentDirectory = destination.deletingLastPathComponent()
                 try? fileManager.createDirectory(at: parentDirectory, withIntermediateDirectories: true, attributes: nil)
             }
-
+            
             return destination
         }
     }
-
+    
     public struct BuildConfig: Sendable {
         public let buildID: String
         public let contentStore: ContentStore
@@ -249,7 +249,7 @@ public struct Builder: Sendable {
         public let exports: [BuildExport]
         public let cacheIn: [String]
         public let cacheOut: [String]
-
+        
         public init(
             buildID: String,
             contentStore: ContentStore,
@@ -291,7 +291,7 @@ extension Builder {
         case invalidContinuation
         case buildComplete
         case invalidExport(String, String)
-
+        
         var description: String {
             switch self {
             case .invalidContinuation:
@@ -336,7 +336,7 @@ extension CallOptions {
         for cacheOut in config.cacheOut {
             headers.append(("cache-out", cacheOut))
         }
-
+        
         self.init(
             customMetadata: HPACKHeaders(headers)
         )
@@ -352,7 +352,7 @@ extension FileHandle {
             value: bytes)
         return bytes
     }
-
+    
     @discardableResult
     func setRecvBufSize(_ bytes: Int) throws -> Int {
         try setSockOpt(
@@ -361,7 +361,7 @@ extension FileHandle {
             value: bytes)
         return bytes
     }
-
+    
     private func setSockOpt(level: Int32, name: Int32, value: Int) throws {
         var v = Int32(value)
         let res = withUnsafePointer(to: &v) { ptr -> Int32 in

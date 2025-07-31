@@ -21,28 +21,28 @@ struct TerminalCommand: Codable {
     let code: String
     let rows: UInt16
     let cols: UInt16
-
+    
     enum CodingKeys: String, CodingKey {
         case commandType = "command_type"
         case code
         case rows
         case cols
     }
-
+    
     init(rows: UInt16, cols: UInt16) {
         self.commandType = "terminal"
         self.code = "winch"
         self.rows = rows
         self.cols = cols
     }
-
+    
     init() {
         self.commandType = "terminal"
         self.code = "ack"
         self.rows = 0
         self.cols = 0
     }
-
+    
     func json() throws -> String? {
         let encoder = JSONEncoder()
         let data = try encoder.encode(self)

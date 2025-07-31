@@ -23,7 +23,7 @@ import Logging
 public actor AllocationOnlyVmnetNetwork: Network {
     private let log: Logger
     private var _state: NetworkState
-
+    
     /// Configure a bridge network that allows external system access using
     /// network address translation.
     public init(
@@ -33,29 +33,29 @@ public actor AllocationOnlyVmnetNetwork: Network {
         guard configuration.mode == .nat else {
             throw ContainerizationError(.unsupported, message: "invalid network mode \(configuration.mode)")
         }
-
+        
         guard configuration.subnet == nil else {
             throw ContainerizationError(.unsupported, message: "subnet assignment is not yet implemented")
         }
-
+        
         self.log = log
         self._state = .created(configuration)
     }
-
+    
     public var state: NetworkState {
         self._state
     }
-
+    
     public nonisolated func withAdditionalData(_ handler: (XPCMessage?) throws -> Void) throws {
         try handler(nil)
     }
-
+    
     public func start() async throws {
         guard case .created(let configuration) = _state else {
             throw ContainerizationError(.invalidState, message: "cannot start network \(_state.id) in \(_state.state) state")
         }
         var defaultSubnet = "192.168.64.1/24"
-
+        
         log.info(
             "starting allocation-only network",
             metadata: [
@@ -63,13 +63,13 @@ public actor AllocationOnlyVmnetNetwork: Network {
                 "mode": "\(NetworkMode.nat.rawValue)",
             ]
         )
-
+        
         if let suite = UserDefaults.init(suiteName: UserDefaults.appSuiteName) {
             // TODO: Make the suiteName a constant defined in ClientDefaults and use that.
             // This will need some re-working of dependencies between NetworkService and Client
             defaultSubnet = suite.string(forKey: "network.subnet") ?? defaultSubnet
         }
-
+        
         let subnet = try CIDRAddress(defaultSubnet)
         let gateway = IPv4Address(fromValue: subnet.lower.value + 1)
         self._state = .running(configuration, NetworkStatus(address: subnet.description, gateway: gateway.description))

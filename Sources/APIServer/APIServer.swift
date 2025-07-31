@@ -33,19 +33,19 @@ import Logging
 struct APIServer: AsyncParsableCommand {
     static let listenAddress = "127.0.0.1"
     static let dnsPort = 2053
-
+    
     static let configuration = CommandConfiguration(
         commandName: "container-apiserver",
         abstract: "Container management API server",
         version: releaseVersion()
     )
-
+    
     @Flag(name: .long, help: "Enable debug logging")
     var debug = false
-
+    
     @Option(name: .shortAndLong, help: "Daemon root directory")
     var root = Self.appRoot.path
-
+    
     static let appRoot: URL = {
         FileManager.default.urls(
             for: .applicationSupportDirectory,
@@ -61,7 +61,7 @@ struct APIServer: AsyncParsableCommand {
         defer {
             log.info("stopping \(commandName)")
         }
-
+        
         do {
             log.info("configuring XPC server")
             let root = URL(filePath: root)
@@ -77,7 +77,7 @@ struct APIServer: AsyncParsableCommand {
             )
             initializeHealthCheckService(log: log, routes: &routes)
             try initializeKernelService(log: log, routes: &routes)
-
+            
             let server = XPCServer(
                 identifier: "com.apple.container.apiserver",
                 routes: routes.reduce(
@@ -85,7 +85,7 @@ struct APIServer: AsyncParsableCommand {
                     {
                         $0[$1.key.rawValue] = $1.value
                     }), log: log)
-
+            
             await withThrowingTaskGroup(of: Void.self) { group in
                 group.addTask {
                     log.info("starting XPC server")
@@ -113,7 +113,7 @@ struct APIServer: AsyncParsableCommand {
             APIServer.exit(withError: error)
         }
     }
-
+    
     private func setupLogger() -> Logger {
         LoggingSystem.bootstrap { label in
             OSLogHandler(
@@ -127,7 +127,7 @@ struct APIServer: AsyncParsableCommand {
         }
         return log
     }
-
+    
     private func initializePluginLoader(log: Logger) throws -> PluginLoader {
         let installRoot = CommandLine.executablePathUrl
             .deletingLastPathComponent()
@@ -137,10 +137,10 @@ struct APIServer: AsyncParsableCommand {
         var directoryExists: ObjCBool = false
         _ = FileManager.default.fileExists(atPath: pluginsURL.path, isDirectory: &directoryExists)
         let userPluginsURL = directoryExists.boolValue ? pluginsURL : nil
-
+        
         // plugins built into the application installed as a macOS app bundle
         let appBundlePluginsURL = Bundle.main.resourceURL?.appending(path: "plugins")
-
+        
         // plugins built into the application installed as a Unix-like application
         let installRootPluginsURL =
             installRoot
@@ -148,13 +148,13 @@ struct APIServer: AsyncParsableCommand {
             .appendingPathComponent("container")
             .appendingPathComponent("plugins")
             .standardized
-
+        
         let pluginDirectories = [
             userPluginsURL,
             appBundlePluginsURL,
             installRootPluginsURL,
         ].compactMap { $0 }
-
+        
         let pluginFactories: [PluginFactory] = [
             DefaultPluginFactory(),
             AppBundlePluginFactory(),
@@ -165,7 +165,7 @@ struct APIServer: AsyncParsableCommand {
         try FileManager.default.createDirectory(at: statePath, withIntermediateDirectories: true)
         return PluginLoader(pluginDirectories: pluginDirectories, pluginFactories: pluginFactories, defaultResourcePath: statePath, log: log)
     }
-
+    
     // First load all of the plugins we can find. Then just expose
     // the handlers for clients to do whatever they want.
     private func initializePlugins(
@@ -174,10 +174,10 @@ struct APIServer: AsyncParsableCommand {
         routes: inout [XPCRoute: XPCServer.RouteHandler]
     ) async throws {
         let bootPlugins = pluginLoader.findPlugins().filter { $0.shouldBoot }
-
+        
         let service = PluginsService(pluginLoader: pluginLoader, log: log)
         try await service.loadAll(bootPlugins)
-
+        
         let harness = PluginsHarness(service: service, log: log)
         routes[XPCRoute.pluginGet] = harness.get
         routes[XPCRoute.pluginList] = harness.list
@@ -185,19 +185,19 @@ struct APIServer: AsyncParsableCommand {
         routes[XPCRoute.pluginUnload] = harness.unload
         routes[XPCRoute.pluginRestart] = harness.restart
     }
-
+    
     private func initializeHealthCheckService(log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) {
         let svc = HealthCheckHarness(log: log)
         routes[XPCRoute.ping] = svc.ping
     }
-
+    
     private func initializeKernelService(log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) throws {
         let svc = try KernelService(log: log, appRoot: Self.appRoot)
         let harness = KernelHarness(service: svc, log: log)
         routes[XPCRoute.installKernel] = harness.install
         routes[XPCRoute.getDefaultKernel] = harness.getDefaultKernel
     }
-
+    
     private func initializeContainerService(root: URL, pluginLoader: PluginLoader, log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) throws {
         let service = try ContainersService(
             root: root,
@@ -205,14 +205,14 @@ struct APIServer: AsyncParsableCommand {
             log: log
         )
         let harness = ContainersHarness(service: service, log: log)
-
+        
         routes[XPCRoute.listContainer] = harness.list
         routes[XPCRoute.createContainer] = harness.create
         routes[XPCRoute.deleteContainer] = harness.delete
         routes[XPCRoute.containerLogs] = harness.logs
         routes[XPCRoute.containerEvent] = harness.eventHandler
     }
-
+    
     private func initializeNetworkService(
         root: URL,
         pluginLoader: PluginLoader,
@@ -225,7 +225,7 @@ struct APIServer: AsyncParsableCommand {
             resourceRoot: resourceRoot,
             log: log
         )
-
+        
         let defaultNetwork = try await service.list()
             .filter { $0.id == ClientNetwork.defaultNetworkName }
             .first
@@ -233,15 +233,15 @@ struct APIServer: AsyncParsableCommand {
             let config = NetworkConfiguration(id: ClientNetwork.defaultNetworkName, mode: .nat)
             _ = try await service.create(configuration: config)
         }
-
+        
         let harness = NetworksHarness(service: service, log: log)
-
+        
         routes[XPCRoute.networkCreate] = harness.create
         routes[XPCRoute.networkDelete] = harness.delete
         routes[XPCRoute.networkList] = harness.list
         return service
     }
-
+    
     private static func releaseVersion() -> String {
         (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? get_release_version().map { String(cString: $0) } ?? "0.0.0"
     }

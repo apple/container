@@ -18,19 +18,19 @@ import NIO
 
 public struct SocketForwarderResult: Sendable {
     private let channel: any Channel
-
+    
     public init(channel: Channel) {
         self.channel = channel
     }
-
+    
     public var proxyAddress: SocketAddress? { self.channel.localAddress }
-
+    
     public func close() {
         self.channel.eventLoop.execute {
             _ = channel.close()
         }
     }
-
+    
     public func wait() async throws {
         try await self.channel.closeFuture.get()
     }

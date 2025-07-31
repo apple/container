@@ -24,7 +24,7 @@ public struct Attachment: Codable, Sendable {
     public let address: String
     /// The IPv4 gateway address.
     public let gateway: String
-
+    
     public init(network: String, hostname: String, address: String, gateway: String) {
         self.network = network
         self.hostname = hostname

@@ -23,28 +23,28 @@ struct LRUCacheTest {
     func testLRUCache() throws {
         let cache = LRUCache<String, String>(size: 3)
         #expect(cache.count == 0)
-
+        
         #expect(cache.put(key: "foo", value: "1") == nil)
         #expect(cache.count == 1)
-
+        
         #expect(cache.put(key: "bar", value: "2") == nil)
         #expect(cache.count == 2)
-
+        
         #expect(cache.put(key: "baz", value: "3") == nil)
         #expect(cache.count == 3)
-
+        
         let replaced = try #require(cache.put(key: "bar", value: "4"))
         #expect(replaced == ("bar", "2"))
         #expect(cache.count == 3)
-
+        
         let firstEvicted = try #require(cache.put(key: "qux", value: "5"))
         #expect(firstEvicted == ("foo", "1"))
         #expect(cache.count == 3)
-
+        
         let secondEvicted = try #require(cache.put(key: "quux", value: "6"))
         #expect(secondEvicted == ("baz", "3"))
         #expect(cache.count == 3)
-
+        
         #expect(cache.get("foo") == nil)
         #expect(cache.get("bar") == "4")
         #expect(cache.get("baz") == nil)

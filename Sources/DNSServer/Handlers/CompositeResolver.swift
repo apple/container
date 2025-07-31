@@ -17,18 +17,18 @@
 /// Delegates a query sequentially to handlers until one provides a response.
 public struct CompositeResolver: DNSHandler {
     private let handlers: [DNSHandler]
-
+    
     public init(handlers: [DNSHandler]) {
         self.handlers = handlers
     }
-
+    
     public func answer(query: Message) async throws -> Message? {
         for handler in self.handlers {
             if let response = try await handler.answer(query: query) {
                 return response
             }
         }
-
+        
         return nil
     }
 }

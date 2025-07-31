@@ -28,15 +28,15 @@ import TerminalProgress
 public struct ClientImage: Sendable {
     private let contentStore: ContentStore = RemoteContentStoreClient()
     public let description: ImageDescription
-
+    
     public var digest: String { description.digest }
     public var descriptor: Descriptor { description.descriptor }
     public var reference: String { description.reference }
-
+    
     public init(description: ImageDescription) {
         self.description = description
     }
-
+    
     /// Returns the underlying OCI index for the image.
     public func index() async throws -> Index {
         guard let content: Content = try await contentStore.get(digest: description.digest) else {
@@ -44,7 +44,7 @@ public struct ClientImage: Sendable {
         }
         return try content.decode()
     }
-
+    
     /// Returns the manifest for the specified platform.
     public func manifest(for platform: Platform) async throws -> Manifest {
         let index = try await self.index()
@@ -59,7 +59,7 @@ public struct ClientImage: Sendable {
         }
         return try content.decode()
     }
-
+    
     /// Returns the OCI config for the specified platform.
     public func config(for platform: Platform) async throws -> ContainerizationOCI.Image {
         let manifest = try await self.manifest(for: platform)
@@ -76,15 +76,15 @@ public struct ClientImage: Sendable {
 extension ClientImage {
     private static let serviceIdentifier = "com.apple.container.core.container-core-images"
     public static let initImageRef = ClientDefaults.get(key: .defaultInitImage)
-
+    
     private static func newXPCClient() -> XPCClient {
         XPCClient(service: Self.serviceIdentifier)
     }
-
+    
     private static func newRequest(_ route: ImagesServiceXPCRoute) -> XPCMessage {
         XPCMessage(route: route)
     }
-
+    
     private static var defaultRegistryDomain: String {
         ClientDefaults.get(key: .defaultRegistryDomain)
     }
@@ -96,7 +96,7 @@ extension ClientImage {
     private static let legacyDockerRegistryHost = "docker.io"
     private static let dockerRegistryHost = "registry-1.docker.io"
     private static let defaultDockerRegistryRepo = "library"
-
+    
     public static func normalizeReference(_ ref: String) throws -> String {
         guard ref != Self.initImageRef else {
             // Don't modify the default init image reference.
@@ -110,15 +110,15 @@ extension ClientImage {
         if r.domain == nil {
             updatedRawReference = "\(Self.defaultRegistryDomain)/\(ref)"
         }
-
+        
         let updatedReference = try Reference.parse(updatedRawReference)
-
+        
         // Handle adding the :latest tag if it isn't specified,
         // as well as adding the "library/" repository if it isn't set only if the host is docker.io
         updatedReference.normalize()
         return updatedReference.description
     }
-
+    
     public static func denormalizeReference(_ ref: String) throws -> String {
         var updatedRawReference: String = ref
         let r = try Reference.parse(ref)
@@ -136,18 +136,18 @@ extension ClientImage {
         }
         return updatedRawReference
     }
-
+    
     public static func list() async throws -> [ClientImage] {
         let client = newXPCClient()
         let request = newRequest(.imageList)
         let response = try await client.send(request)
-
+        
         let imageDescriptions = try response.imageDescriptions()
         return imageDescriptions.map { desc in
             ClientImage(description: desc)
         }
     }
-
+    
     public static func get(names: [String]) async throws -> (images: [ClientImage], error: [String]) {
         let all = try await self.list()
         var errors: [String] = []
@@ -165,7 +165,7 @@ extension ClientImage {
         }
         return (found, errors)
     }
-
+    
     public static func get(reference: String) async throws -> ClientImage {
         let all = try await self.list()
         guard let found = try self._search(reference: reference, in: all) else {
@@ -173,7 +173,7 @@ extension ClientImage {
         }
         return found
     }
-
+    
     private static func _search(reference: String, in all: [ClientImage]) throws -> ClientImage? {
         let locallyBuiltImage = try {
             // Check if we have an image whose index descriptor contains the image name
@@ -181,7 +181,7 @@ extension ClientImage {
             let r = try Reference.parse(reference)
             r.normalize()
             let withDefaultTag = r.description
-
+            
             let localImageMatches = all.filter { $0.description.nameFromAnnotation() == withDefaultTag }
             guard localImageMatches.count > 1 else {
                 return localImageMatches.first
@@ -200,35 +200,35 @@ extension ClientImage {
             image.reference == reference || image.reference == normalizedReference
         })
     }
-
+    
     public static func pull(reference: String, platform: Platform? = nil, scheme: RequestScheme = .auto, progressUpdate: ProgressUpdateHandler? = nil) async throws -> ClientImage {
         let client = newXPCClient()
         let request = newRequest(.imagePull)
-
+        
         let reference = try self.normalizeReference(reference)
         guard let host = try Reference.parse(reference).domain else {
             throw ContainerizationError(.invalidArgument, message: "Could not extract host from reference \(reference)")
         }
-
+        
         request.set(key: .imageReference, value: reference)
         try request.set(platform: platform)
-
+        
         let insecure = try scheme.schemeFor(host: host) == .http
         request.set(key: .insecureFlag, value: insecure)
-
+        
         var progressUpdateClient: ProgressUpdateClient?
         if let progressUpdate {
             progressUpdateClient = await ProgressUpdateClient(for: progressUpdate, request: request)
         }
-
+        
         let response = try await client.send(request)
         let description = try response.imageDescription()
         let image = ClientImage(description: description)
-
+        
         await progressUpdateClient?.finish()
         return image
     }
-
+    
     public static func delete(reference: String, garbageCollect: Bool = false) async throws {
         let client = newXPCClient()
         let request = newRequest(.imageDelete)
@@ -236,19 +236,19 @@ extension ClientImage {
         request.set(key: .garbageCollect, value: garbageCollect)
         let _ = try await client.send(request)
     }
-
+    
     public static func load(from tarFile: String) async throws -> [ClientImage] {
         let client = newXPCClient()
         let request = newRequest(.imageLoad)
         request.set(key: .filePath, value: tarFile)
         let reply = try await client.send(request)
-
+        
         let loaded = try reply.imageDescriptions()
         return loaded.map { desc in
             ClientImage(description: desc)
         }
     }
-
+    
     public static func pruneImages() async throws -> ([String], UInt64) {
         let client = newXPCClient()
         let request = newRequest(.imagePrune)
@@ -257,7 +257,7 @@ extension ClientImage {
         let size = response.uint64(key: .size)
         return (digests, size)
     }
-
+    
     public static func fetch(reference: String, platform: Platform? = nil, scheme: RequestScheme = .auto, progressUpdate: ProgressUpdateHandler? = nil) async throws -> ClientImage
     {
         do {
@@ -283,17 +283,17 @@ extension ClientImage {
     public func push(platform: Platform? = nil, scheme: RequestScheme, progressUpdate: ProgressUpdateHandler?) async throws {
         let client = Self.newXPCClient()
         let request = Self.newRequest(.imagePush)
-
+        
         guard let host = try Reference.parse(reference).domain else {
             throw ContainerizationError(.invalidArgument, message: "Could not extract host from reference \(reference)")
         }
         request.set(key: .imageReference, value: reference)
-
+        
         let insecure = try scheme.schemeFor(host: host) == .http
         request.set(key: .insecureFlag, value: insecure)
-
+        
         try request.set(platform: platform)
-
+        
         var progressUpdateClient: ProgressUpdateClient?
         if let progressUpdate {
             progressUpdateClient = await ProgressUpdateClient(for: progressUpdate, request: request)
@@ -301,7 +301,7 @@ extension ClientImage {
         _ = try await client.send(request)
         await progressUpdateClient?.finish()
     }
-
+    
     @discardableResult
     public func tag(new: String) async throws -> ClientImage {
         let client = Self.newXPCClient()
@@ -312,9 +312,9 @@ extension ClientImage {
         let description = try reply.imageDescription()
         return ClientImage(description: description)
     }
-
+    
     // MARK: Snapshot Methods
-
+    
     public func save(out: String, platform: Platform? = nil) async throws {
         let client = Self.newXPCClient()
         let request = Self.newRequest(.imageSave)
@@ -323,46 +323,46 @@ extension ClientImage {
         try request.set(platform: platform)
         let _ = try await client.send(request)
     }
-
+    
     public func unpack(platform: Platform?, progressUpdate: ProgressUpdateHandler? = nil) async throws {
         let client = Self.newXPCClient()
         let request = Self.newRequest(.imageUnpack)
-
+        
         try request.set(description: description)
         try request.set(platform: platform)
-
+        
         var progressUpdateClient: ProgressUpdateClient?
         if let progressUpdate {
             progressUpdateClient = await ProgressUpdateClient(for: progressUpdate, request: request)
         }
-
+        
         try await client.send(request)
-
+        
         await progressUpdateClient?.finish()
     }
-
+    
     public func deleteSnapshot(platform: Platform?) async throws {
         let client = Self.newXPCClient()
         let request = Self.newRequest(.snapshotDelete)
-
+        
         try request.set(description: description)
         try request.set(platform: platform)
-
+        
         try await client.send(request)
     }
-
+    
     public func getSnapshot(platform: Platform) async throws -> Filesystem {
         let client = Self.newXPCClient()
         let request = Self.newRequest(.snapshotGet)
-
+        
         try request.set(description: description)
         try request.set(platform: platform)
-
+        
         let response = try await client.send(request)
         let fs = try response.filesystem()
         return fs
     }
-
+    
     @discardableResult
     public func getCreateSnapshot(platform: Platform, progressUpdate: ProgressUpdateHandler? = nil) async throws -> Filesystem {
         do {
@@ -382,12 +382,12 @@ extension XPCMessage {
         let descData = try JSONEncoder().encode(description)
         self.set(key: .imageDescription, value: descData)
     }
-
+    
     fileprivate func set(descriptions: [ImageDescription]) throws {
         let descData = try JSONEncoder().encode(descriptions)
         self.set(key: .imageDescriptions, value: descData)
     }
-
+    
     fileprivate func set(platform: Platform?) throws {
         guard let platform else {
             return
@@ -395,7 +395,7 @@ extension XPCMessage {
         let platformData = try JSONEncoder().encode(platform)
         self.set(key: .ociPlatform, value: platformData)
     }
-
+    
     fileprivate func imageDescription() throws -> ImageDescription {
         let responseData = self.dataNoCopy(key: .imageDescription)
         guard let responseData else {
@@ -404,7 +404,7 @@ extension XPCMessage {
         let description = try JSONDecoder().decode(ImageDescription.self, from: responseData)
         return description
     }
-
+    
     fileprivate func imageDescriptions() throws -> [ImageDescription] {
         let responseData = self.dataNoCopy(key: .imageDescriptions)
         guard let responseData else {
@@ -413,7 +413,7 @@ extension XPCMessage {
         let descriptions = try JSONDecoder().decode([ImageDescription].self, from: responseData)
         return descriptions
     }
-
+    
     fileprivate func filesystem() throws -> Filesystem {
         let responseData = self.dataNoCopy(key: .filesystem)
         guard let responseData else {
@@ -422,7 +422,7 @@ extension XPCMessage {
         let fs = try JSONDecoder().decode(Filesystem.self, from: responseData)
         return fs
     }
-
+    
     fileprivate func digests() throws -> [String] {
         let responseData = self.dataNoCopy(key: .digests)
         guard let responseData else {

@@ -22,69 +22,69 @@ import Logging
 struct PluginsHarness {
     private let log: Logging.Logger
     private let service: PluginsService
-
+    
     init(service: PluginsService, log: Logging.Logger) {
         self.log = log
         self.service = service
     }
-
+    
     @Sendable
     func load(_ message: XPCMessage) async throws -> XPCMessage {
         let name = message.string(key: .pluginName)
         guard let name else {
             throw ContainerizationError(.invalidArgument, message: "no plugin name found")
         }
-
+        
         try await service.load(name: name)
         let reply = message.reply()
         return reply
     }
-
+    
     @Sendable
     func get(_ message: XPCMessage) async throws -> XPCMessage {
         let name = message.string(key: .pluginName)
         guard let name else {
             throw ContainerizationError(.invalidArgument, message: "no plugin name found")
         }
-
+        
         let plugin = try await service.get(name: name)
         let data = try JSONEncoder().encode(plugin)
-
+        
         let reply = message.reply()
         reply.set(key: .plugin, value: data)
         return reply
     }
-
+    
     @Sendable
     func restart(_ message: XPCMessage) async throws -> XPCMessage {
         let name = message.string(key: .pluginName)
         guard let name else {
             throw ContainerizationError(.invalidArgument, message: "no plugin name found")
         }
-
+        
         try await service.restart(name: name)
         let reply = message.reply()
         return reply
     }
-
+    
     @Sendable
     func unload(_ message: XPCMessage) async throws -> XPCMessage {
         let name = message.string(key: .pluginName)
         guard let name else {
             throw ContainerizationError(.invalidArgument, message: "no plugin name found")
         }
-
+        
         try await service.unload(name: name)
         let reply = message.reply()
         return reply
     }
-
+    
     @Sendable
     func list(_ message: XPCMessage) async throws -> XPCMessage {
         let plugins = try await service.list()
-
+        
         let data = try JSONEncoder().encode(plugins)
-
+        
         let reply = message.reply()
         reply.set(key: .plugins, value: data)
         return reply

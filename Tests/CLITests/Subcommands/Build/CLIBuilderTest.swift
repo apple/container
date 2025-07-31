@@ -24,11 +24,11 @@ extension TestCLIBuildBase {
         override init() throws {
             try super.init()
         }
-
+        
         deinit {
             try? builderDelete(force: true)
         }
-
+        
         @Test func testBuildDotFileSucceeds() throws {
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
@@ -46,7 +46,7 @@ extension TestCLIBuildBase {
             try self.build(tag: imageName, tempDir: tempDir)
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
-
+        
         @Test func testBuildFromPreviousStage() throws {
             let tempDir: URL = try createTempDir()
             let dockerfile =
@@ -57,13 +57,13 @@ extension TestCLIBuildBase {
                 FROM layer1
                 CMD ["cat", "/layer1.txt"]
                 """
-
+            
             try createContext(tempDir: tempDir, dockerfile: dockerfile)
             let imageName = "registry.local/from-previous-layer:\(UUID().uuidString)"
             try self.build(tag: imageName, tempDir: tempDir)
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully build \(imageName)")
         }
-
+        
         @Test func testBuildFromLocalImage() throws {
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
@@ -80,7 +80,7 @@ extension TestCLIBuildBase {
             let imageName = "local-only:\(UUID().uuidString)"
             try self.build(tag: imageName, tempDir: tempDir)
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
-
+            
             let newTempDir: URL = try createTempDir()
             let newDockerfile: String =
                 """
@@ -92,7 +92,7 @@ extension TestCLIBuildBase {
             try self.build(tag: newImageName, tempDir: newTempDir)
             #expect(try self.inspectImage(newImageName) == newImageName, "expected to have successfully built \(newImageName)")
         }
-
+        
         @Test func testBuildScratchAdd() throws {
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
@@ -107,7 +107,7 @@ extension TestCLIBuildBase {
             try self.build(tag: imageName, tempDir: tempDir)
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
-
+        
         @Test func testBuildAddAll() throws {
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
@@ -129,7 +129,7 @@ extension TestCLIBuildBase {
             try self.build(tag: imageName, tempDir: tempDir)
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
-
+        
         @Test func testBuildArg() throws {
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
@@ -142,7 +142,7 @@ extension TestCLIBuildBase {
             try self.build(tag: imageName, tempDir: tempDir, args: ["TAG=3.20"])
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
-
+        
         @Test func testBuildNetworkAccess() throws {
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
@@ -153,7 +153,7 @@ extension TestCLIBuildBase {
                 """
             try createContext(tempDir: tempDir, dockerfile: dockerfile)
             let imageName = "registry.local/build-network-access:\(UUID().uuidString)"
-
+            
             let proxyEnv = ProcessInfo.processInfo.environment["HTTP_PROXY"]
             var address = "8.8.8.8:53"
             if let proxyAddr = proxyEnv {
@@ -162,7 +162,7 @@ extension TestCLIBuildBase {
             try self.build(tag: imageName, tempDir: tempDir, args: ["ADDRESS=\(address)"])
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
-
+        
         @Test func testBuildDockerfileKeywords() throws {
             let tempDir: URL = try createTempDir()
             let dockerfile =
@@ -249,18 +249,18 @@ extension TestCLIBuildBase {
                 # SHELL ["/bin/sh", "-c"]
                 # RUN echo $0 > /shell.txt
                 """
-
+            
             let context: [FileSystemEntry] = [
                 .file("emptyFile", content: .zeroFilled(size: 1)),
                 .file("toCopy", content: .zeroFilled(size: 1)),
             ]
             try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
-
+            
             let imageName = "registry.local/dockerfile-keywords:\(UUID().uuidString)"
             try self.build(tag: imageName, tempDir: tempDir)
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
-
+        
         @Test func testBuildSymlink() throws {
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
@@ -295,13 +295,13 @@ extension TestCLIBuildBase {
                 .directory("Test1Source2"),
                 .file("Test1Source/test.yaml", content: .zeroFilled(size: 1)),
                 .symbolicLink("Test1Source2/test.yaml", target: "Test1Source/test.yaml"),
-
+                
                 // test 2
                 .directory("Test2Source"),
                 .directory("Test2Source2"),
                 .file("Test2Source/Test/Test/test.yaml", content: .zeroFilled(size: 1)),
                 .symbolicLink("Test2Source2/Test/test.yaml", target: "Test2Source/Test/Test/test.yaml"),
-
+                
                 // test 3
                 .directory("Test3Source/Source"),
                 .directory("Test3Source2"),
@@ -310,16 +310,16 @@ extension TestCLIBuildBase {
             ]
             try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
             let imageName = "registry.local/build-symlinks:\(UUID().uuidString)"
-
+            
             #expect(throws: Never.self) {
                 try self.build(tag: imageName, tempDir: tempDir)
             }
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
-
+        
         @Test func testBuildAndRun() throws {
             let name: String = "test-build-and-run"
-
+            
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
                 """
@@ -343,7 +343,7 @@ extension TestCLIBuildBase {
             try self.doStop(name: containerName)
             #expect(output == expected, "expected file contents to be \(expected), instead got \(output)")
         }
-
+        
         @Test func testBuildDifferentPaths() throws {
             let dockerfileCtxDir: URL = try createTempDir()
             let dockerfile: String =
@@ -360,14 +360,14 @@ extension TestCLIBuildBase {
                 .file(".git/FETCH", content: .zeroFilled(size: 1)),
             ]
             try createContext(tempDir: dockerfileCtxDir, dockerfile: dockerfile, context: dockerfileCtx)
-
+            
             let buildContextDir: URL = try createTempDir()
             let buildContext: [FileSystemEntry] = [
                 .directory("Test"),
                 .file("Test/test.txt", content: .zeroFilled(size: 1)),
             ]
             try createContext(tempDir: buildContextDir, dockerfile: "", context: buildContext)
-
+            
             let imageName = "registry.local/build-diff-context:\(UUID().uuidString)"
             #expect(throws: Never.self) {
                 try self.buildWithPaths(tag: imageName, tempContext: buildContextDir, tempDockerfileContext: dockerfileCtxDir)

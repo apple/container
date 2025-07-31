@@ -21,11 +21,11 @@ import Logging
 
 actor HealthCheckHarness {
     private let log: Logger
-
+    
     public init(log: Logger) {
         self.log = log
     }
-
+    
     @Sendable
     func ping(_ message: XPCMessage) async -> XPCMessage {
         message.reply()

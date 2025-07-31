@@ -50,10 +50,10 @@ public enum XPCKeys: String {
     case pluginName
     case plugins
     case plugin
-
+    
     /// Health check request.
     case ping
-
+    
     /// Process request keys.
     case signal
     case snapshot
@@ -64,7 +64,7 @@ public enum XPCKeys: String {
     case width
     case height
     case processConfig
-
+    
     /// Update progress
     case progressUpdateEndpoint
     case progressUpdateSetDescription
@@ -82,13 +82,13 @@ public enum XPCKeys: String {
     case progressUpdateSetSize
     case progressUpdateAddTotalSize
     case progressUpdateSetTotalSize
-
+    
     /// Network
     case networkId
     case networkConfig
     case networkState
     case networkStates
-
+    
     /// Kernel
     case kernel
     case kernelTarURL
@@ -102,19 +102,19 @@ public enum XPCRoute: String {
     case deleteContainer
     case containerLogs
     case containerEvent
-
+    
     case pluginLoad
     case pluginGet
     case pluginRestart
     case pluginUnload
     case pluginList
-
+    
     case networkCreate
     case networkDelete
     case networkList
-
+    
     case ping
-
+    
     case installKernel
     case getDefaultKernel
 }
@@ -123,79 +123,79 @@ extension XPCMessage {
     public init(route: XPCRoute) {
         self.init(route: route.rawValue)
     }
-
+    
     public func data(key: XPCKeys) -> Data? {
         data(key: key.rawValue)
     }
-
+    
     public func dataNoCopy(key: XPCKeys) -> Data? {
         dataNoCopy(key: key.rawValue)
     }
-
+    
     public func set(key: XPCKeys, value: Data) {
         set(key: key.rawValue, value: value)
     }
-
+    
     public func string(key: XPCKeys) -> String? {
         string(key: key.rawValue)
     }
-
+    
     public func set(key: XPCKeys, value: String) {
         set(key: key.rawValue, value: value)
     }
-
+    
     public func bool(key: XPCKeys) -> Bool {
         bool(key: key.rawValue)
     }
-
+    
     public func set(key: XPCKeys, value: Bool) {
         set(key: key.rawValue, value: value)
     }
-
+    
     public func uint64(key: XPCKeys) -> UInt64 {
         uint64(key: key.rawValue)
     }
-
+    
     public func set(key: XPCKeys, value: UInt64) {
         set(key: key.rawValue, value: value)
     }
-
+    
     public func int64(key: XPCKeys) -> Int64 {
         int64(key: key.rawValue)
     }
-
+    
     public func set(key: XPCKeys, value: Int64) {
         set(key: key.rawValue, value: value)
     }
-
+    
     public func int(key: XPCKeys) -> Int {
         Int(int64(key: key.rawValue))
     }
-
+    
     public func set(key: XPCKeys, value: Int) {
         set(key: key.rawValue, value: Int64(value))
     }
-
+    
     public func fileHandle(key: XPCKeys) -> FileHandle? {
         fileHandle(key: key.rawValue)
     }
-
+    
     public func set(key: XPCKeys, value: FileHandle) {
         set(key: key.rawValue, value: value)
     }
-
+    
     public func fileHandles(key: XPCKeys) -> [FileHandle]? {
         fileHandles(key: key.rawValue)
     }
-
+    
     public func set(key: XPCKeys, value: [FileHandle]) throws {
         try set(key: key.rawValue, value: value)
     }
-
+    
     public func endpoint(key: XPCKeys) -> xpc_endpoint_t? {
         endpoint(key: key.rawValue)
     }
-
+    
     public func set(key: XPCKeys, value: xpc_endpoint_t) {
         set(key: key.rawValue, value: value)
     }

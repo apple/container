@@ -25,28 +25,28 @@ extension Application {
         static let configuration = CommandConfiguration(
             commandName: "create",
             abstract: "Create a new container")
-
+        
         @Argument(help: "Image name")
         var image: String
-
+        
         @Argument(parsing: .captureForPassthrough, help: "Container init process arguments")
         var arguments: [String] = []
-
+        
         @OptionGroup
         var processFlags: Flags.Process
-
+        
         @OptionGroup
         var resourceFlags: Flags.Resource
-
+        
         @OptionGroup
         var managementFlags: Flags.Management
-
+        
         @OptionGroup
         var registryFlags: Flags.Registry
-
+        
         @OptionGroup
         var global: Flags.Global
-
+        
         func run() async throws {
             let progressConfig = try ProgressConfig(
                 showTasks: true,
@@ -59,10 +59,10 @@ extension Application {
                 progress.finish()
             }
             progress.start()
-
+            
             let id = Utility.createContainerID(name: self.managementFlags.name)
             try Utility.validEntityName(id)
-
+            
             let ck = try await Utility.containerConfigFromFlags(
                 id: id,
                 image: image,
@@ -73,10 +73,10 @@ extension Application {
                 registry: registryFlags,
                 progressUpdate: progress.handler
             )
-
+            
             let options = ContainerCreateOptions(autoRemove: managementFlags.remove)
             let container = try await ClientContainer.create(configuration: ck.0, options: options, kernel: ck.1)
-
+            
             if !self.managementFlags.cidfile.isEmpty {
                 let path = self.managementFlags.cidfile
                 let data = container.id.data(using: .utf8)
@@ -93,7 +93,7 @@ extension Application {
                 }
             }
             progress.finish()
-
+            
             print(container.id)
         }
     }

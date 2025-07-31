@@ -131,7 +131,7 @@ let testCases = [
         let found = try globber.glob(test.fileName, test.pattern)
         #expect(found == test.expectSuccess, "expected found to be \(test.expectSuccess), instead got \(found)")
     }
-
+    
     @Test("Invalid computed regex patterns throw error", arguments: errorGlobTestCases)
     func testInvalidGlob(_ test: TestCase) throws {
         let globber = Globber(URL(fileURLWithPath: "/"))
@@ -139,18 +139,18 @@ let testCases = [
             try globber.glob(test.fileName, test.pattern)
         }
     }
-
+    
     @Test("All expected patterns match", arguments: testCases)
     func testExpectedPatterns(_ test: TestCase) throws {
         let charactersToTrim = CharacterSet(charactersIn: "/")
         let components = test.fileName
             .trimmingCharacters(in: charactersToTrim)
             .components(separatedBy: "/")
-
+        
         // tempDir is the directory we're making the files or nested files in
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         var fileDir: URL = tempDir
-
+        
         // testDir is the directory before the last component that we need to create
         components.dropLast().forEach { component in
             var d = fileDir
@@ -164,7 +164,7 @@ let testCases = [
             }
             fileDir = d
         }
-
+        
         #expect(throws: Never.self) {
             try FileManager.default.createDirectory(at: fileDir, withIntermediateDirectories: true)
         }
@@ -172,11 +172,11 @@ let testCases = [
         #expect(throws: Never.self) {
             try "".write(to: testFile, atomically: true, encoding: .utf8)
         }
-
+        
         defer {
             try? FileManager.default.removeItem(at: tempDir)
         }
-
+        
         let globber = Globber(tempDir)
         #expect(throws: Never.self) {
             try globber.match(test.pattern)
@@ -184,20 +184,20 @@ let testCases = [
             #expect(found == test.expectSuccess, "expected match to be \(test.expectSuccess), instead got \(found) \(tempDir.childrenRecursive)")
         }
     }
-
+    
     @Test("Test the base directory is not include in results")
     func testBaseDirNotIncluded() throws {
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let testDir = tempDir.appendingPathComponent("abc")
-
+        
         #expect(throws: Never.self) {
             try FileManager.default.createDirectory(at: testDir, withIntermediateDirectories: true)
         }
-
+        
         defer {
             try? FileManager.default.removeItem(at: tempDir)
         }
-
+        
         let globber = Globber(testDir)
         #expect(throws: Never.self) {
             try globber.match("abc/**")

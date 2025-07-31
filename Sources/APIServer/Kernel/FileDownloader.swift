@@ -23,7 +23,7 @@ import TerminalProgress
 internal struct FileDownloader {
     public static func downloadFile(url: URL, to destination: URL, progressUpdate: ProgressUpdateHandler? = nil) async throws {
         let request = try HTTPClient.Request(url: url)
-
+        
         let delegate = try FileDownloadDelegate(
             path: destination.path(),
             reportHead: {
@@ -48,12 +48,12 @@ internal struct FileDownloader {
                     }
                 }
             })
-
+        
         let client = FileDownloader.createClient()
         _ = try await client.execute(request: request, delegate: delegate).get()
         try await client.shutdown()
     }
-
+    
     private static func createClient() -> HTTPClient {
         var httpConfiguration = HTTPClient.Configuration()
         let proxyConfig: HTTPClient.Configuration.Proxy? = {

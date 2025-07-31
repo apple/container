@@ -24,7 +24,7 @@ public actor NetworkService: Sendable {
     private let network: any Network
     private let log: Logger?
     private var allocator: AttachmentAllocator
-
+    
     /// Set up a network service for the specified network.
     public init(
         network: any Network,
@@ -34,15 +34,15 @@ public actor NetworkService: Sendable {
         guard case .running(_, let status) = state else {
             throw ContainerizationError(.invalidState, message: "invalid network state - network \(state.id) must be running")
         }
-
+        
         let subnet = try CIDRAddress(status.address)
-
+        
         let size = Int(subnet.upper.value - subnet.lower.value - 3)
         self.allocator = try AttachmentAllocator(lower: subnet.lower.value + 2, size: size)
         self.network = network
         self.log = log
     }
-
+    
     @Sendable
     public func state(_ message: XPCMessage) async throws -> XPCMessage {
         let reply = message.reply()
@@ -50,14 +50,14 @@ public actor NetworkService: Sendable {
         try reply.setState(state)
         return reply
     }
-
+    
     @Sendable
     public func allocate(_ message: XPCMessage) async throws -> XPCMessage {
         let state = await network.state
         guard case .running(_, let status) = state else {
             throw ContainerizationError(.invalidState, message: "invalid network state - network \(state.id) must be running")
         }
-
+        
         let hostname = try message.hostname()
         let index = try await allocator.allocate(hostname: hostname)
         let subnet = try CIDRAddress(status.address)
@@ -84,7 +84,7 @@ public actor NetworkService: Sendable {
         }
         return reply
     }
-
+    
     @Sendable
     public func deallocate(_ message: XPCMessage) async throws -> XPCMessage {
         let hostname = try message.hostname()
@@ -92,21 +92,21 @@ public actor NetworkService: Sendable {
         log?.info("released attachments", metadata: ["hostname": "\(hostname)"])
         return message.reply()
     }
-
+    
     @Sendable
     public func lookup(_ message: XPCMessage) async throws -> XPCMessage {
         let state = await network.state
         guard case .running(_, let status) = state else {
             throw ContainerizationError(.invalidState, message: "invalid network state - network \(state.id) must be running")
         }
-
+        
         let hostname = try message.hostname()
         let index = try await allocator.lookup(hostname: hostname)
         let reply = message.reply()
         guard let index else {
             return reply
         }
-
+        
         let address = IPv4Address(fromValue: index)
         let subnet = try CIDRAddress(status.address)
         let attachment = Attachment(
@@ -124,7 +124,7 @@ public actor NetworkService: Sendable {
         try reply.setAttachment(attachment)
         return reply
     }
-
+    
     @Sendable
     public func disableAllocator(_ message: XPCMessage) async throws -> XPCMessage {
         let success = await allocator.disableAllocator()
@@ -139,16 +139,16 @@ extension XPCMessage {
     fileprivate func setAdditionalData(_ additionalData: xpc_object_t) throws {
         xpc_dictionary_set_value(self.underlying, NetworkKeys.additionalData.rawValue, additionalData)
     }
-
+    
     fileprivate func setAllocatorDisabled(_ allocatorDisabled: Bool) {
         self.set(key: NetworkKeys.allocatorDisabled.rawValue, value: allocatorDisabled)
     }
-
+    
     fileprivate func setAttachment(_ attachment: Attachment) throws {
         let data = try JSONEncoder().encode(attachment)
         self.set(key: NetworkKeys.attachment.rawValue, value: data)
     }
-
+    
     fileprivate func setState(_ state: NetworkState) throws {
         let data = try JSONEncoder().encode(state)
         self.set(key: NetworkKeys.state.rawValue, value: data)

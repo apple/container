@@ -24,13 +24,13 @@ extension Application {
         static let configuration = CommandConfiguration(
             commandName: "inspect",
             abstract: "Display information about one or more containers")
-
+        
         @OptionGroup
         var global: Flags.Global
-
+        
         @Argument(help: "Containers to inspect")
         var containers: [String]
-
+        
         func run() async throws {
             let objects: [any Codable] = try await ClientContainer.list().filter {
                 containers.contains($0.id)

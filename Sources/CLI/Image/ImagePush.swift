@@ -26,29 +26,29 @@ extension Application {
             commandName: "push",
             abstract: "Push an image"
         )
-
+        
         @OptionGroup
         var global: Flags.Global
-
+        
         @OptionGroup
         var registry: Flags.Registry
-
+        
         @OptionGroup
         var progressFlags: Flags.Progress
-
+        
         @Option(help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'") var platform: String?
-
+        
         @Argument var reference: String
-
+        
         func run() async throws {
             var p: Platform?
             if let platform {
                 p = try Platform(from: platform)
             }
-
+            
             let scheme = try RequestScheme(registry.scheme)
             let image = try await ClientImage.get(reference: reference)
-
+            
             var progressConfig: ProgressConfig
             if progressFlags.disableProgressUpdates {
                 progressConfig = try ProgressConfig(disableProgressUpdates: progressFlags.disableProgressUpdates)

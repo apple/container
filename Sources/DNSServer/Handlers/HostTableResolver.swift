@@ -20,12 +20,12 @@ import DNS
 public struct HostTableResolver: DNSHandler {
     public let hosts4: [String: IPv4]
     private let ttl: UInt32
-
+    
     public init(hosts4: [String: IPv4], ttl: UInt32 = 300) {
         self.hosts4 = hosts4
         self.ttl = ttl
     }
-
+    
     public func answer(query: Message) async throws -> Message? {
         let question = query.questions[0]
         let record: ResourceRecord?
@@ -59,11 +59,11 @@ public struct HostTableResolver: DNSHandler {
                 answers: []
             )
         }
-
+        
         guard let record else {
             return nil
         }
-
+        
         return Message(
             id: query.id,
             type: .response,
@@ -72,12 +72,12 @@ public struct HostTableResolver: DNSHandler {
             answers: [record]
         )
     }
-
+    
     private func answerHost(question: Question) -> ResourceRecord? {
         guard let ip = hosts4[question.name] else {
             return nil
         }
-
+        
         return HostRecord<IPv4>(name: question.name, ttl: ttl, ip: ip)
     }
 }

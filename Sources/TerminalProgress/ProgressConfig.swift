@@ -126,12 +126,12 @@ public struct ProgressConfig: Sendable {
                 throw Error.invalid("totalSize must be greater than zero")
             }
         }
-
+        
         self.terminal = terminal
         self.initialDescription = description
         self.initialSubDescription = subDescription
         self.initialItemsName = itemsName
-
+        
         self.showSpinner = showSpinner
         self.showTasks = showTasks
         self.showDescription = showDescription
@@ -141,12 +141,12 @@ public struct ProgressConfig: Sendable {
         self.showSize = showSize
         self.showSpeed = showSpeed
         self.showTime = showTime
-
+        
         self.ignoreSmallSize = ignoreSmallSize
         self.initialTotalTasks = totalTasks
         self.initialTotalItems = totalItems
         self.initialTotalSize = totalSize
-
+        
         self.width = width
         self.theme = theme ?? DefaultProgressTheme()
         self.clearOnFinish = clearOnFinish
@@ -158,7 +158,7 @@ extension ProgressConfig {
     /// An enumeration of errors that can occur when creating a `ProgressConfig`.
     public enum Error: Swift.Error, CustomStringConvertible {
         case invalid(String)
-
+        
         /// The description of the error.
         public var description: String {
             switch self {

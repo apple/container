@@ -16,7 +16,7 @@
 
 public enum Arch: String {
     case arm64, amd64
-
+    
     public static func hostArchitecture() -> Arch {
         #if arch(arm64)
         return .arm64

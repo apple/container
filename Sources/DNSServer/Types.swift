@@ -33,7 +33,7 @@ public enum DNSResolverError: Swift.Error, CustomStringConvertible {
     case invalidIP(_ v: String)
     case invalidHandlerOption(_ v: String)
     case handlerConfigError(_ msg: String)
-
+    
     public var description: String {
         switch self {
         case .serverError(let msg):

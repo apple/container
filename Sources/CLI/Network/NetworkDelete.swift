@@ -26,16 +26,16 @@ extension Application {
             commandName: "delete",
             abstract: "Delete one or more networks",
             aliases: ["rm"])
-
+        
         @Flag(name: .shortAndLong, help: "Remove all networks")
         var all = false
-
+        
         @OptionGroup
         var global: Flags.Global
-
+        
         @Argument(help: "Network names")
         var networkNames: [String] = []
-
+        
         func validate() throws {
             if networkNames.count == 0 && !all {
                 throw ContainerizationError(.invalidArgument, message: "no networks specified and --all not supplied")
@@ -47,11 +47,11 @@ extension Application {
                 )
             }
         }
-
+        
         mutating func run() async throws {
             let uniqueNetworkNames = Set<String>(networkNames)
             let networks: [NetworkState]
-
+            
             if all {
                 networks = try await ClientNetwork.list()
             } else {
@@ -59,7 +59,7 @@ extension Application {
                     .filter { c in
                         uniqueNetworkNames.contains(c.id)
                     }
-
+                
                 // If one of the networks requested isn't present lets throw. We don't need to do
                 // this for --all as --all should be perfectly usable with no networks to remove,
                 // otherwise it'd be quite clunky.
@@ -75,14 +75,14 @@ extension Application {
                     )
                 }
             }
-
+            
             if uniqueNetworkNames.contains(ClientNetwork.defaultNetworkName) {
                 throw ContainerizationError(
                     .invalidArgument,
                     message: "cannot delete the default network"
                 )
             }
-
+            
             var failed = [String]()
             try await withThrowingTaskGroup(of: NetworkState?.self) { group in
                 for network in networks {
@@ -99,7 +99,7 @@ extension Application {
                         }
                     }
                 }
-
+                
                 for try await network in group {
                     guard let network else {
                         continue
@@ -107,7 +107,7 @@ extension Application {
                     failed.append(network.id)
                 }
             }
-
+            
             if failed.count > 0 {
                 throw ContainerizationError(.internalError, message: "delete failed for one or more networks: \(failed)")
             }

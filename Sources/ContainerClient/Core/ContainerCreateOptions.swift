@@ -16,11 +16,11 @@
 
 public struct ContainerCreateOptions: Codable, Sendable {
     public let autoRemove: Bool
-
+    
     public init(autoRemove: Bool) {
         self.autoRemove = autoRemove
     }
-
+    
     public static let `default` = ContainerCreateOptions(autoRemove: false)
-
+    
 }

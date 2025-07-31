@@ -24,12 +24,12 @@ import Logging
 public struct ContentServiceHarness: Sendable {
     private let log: Logging.Logger
     private let service: ContentStoreService
-
+    
     public init(service: ContentStoreService, log: Logging.Logger) {
         self.log = log
         self.service = service
     }
-
+    
     @Sendable
     public func get(_ message: XPCMessage) async throws -> XPCMessage {
         let d = message.string(key: .digest)
@@ -46,7 +46,7 @@ public struct ContentServiceHarness: Sendable {
         reply.set(key: .contentPath, value: path.path(percentEncoded: false))
         return reply
     }
-
+    
     @Sendable
     public func delete(_ message: XPCMessage) async throws -> XPCMessage {
         let data = message.dataNoCopy(key: .digests)
@@ -61,7 +61,7 @@ public struct ContentServiceHarness: Sendable {
         reply.set(key: .size, value: size)
         return reply
     }
-
+    
     @Sendable
     public func clean(_ message: XPCMessage) async throws -> XPCMessage {
         let data = message.dataNoCopy(key: .digests)
@@ -76,7 +76,7 @@ public struct ContentServiceHarness: Sendable {
         reply.set(key: .size, value: size)
         return reply
     }
-
+    
     @Sendable
     public func newIngestSession(_ message: XPCMessage) async throws -> XPCMessage {
         let session = try await self.service.newIngestSession()
@@ -87,7 +87,7 @@ public struct ContentServiceHarness: Sendable {
         reply.set(key: .ingestSessionId, value: id)
         return reply
     }
-
+    
     @Sendable
     public func cancelIngestSession(_ message: XPCMessage) async throws -> XPCMessage {
         let id = message.string(key: .ingestSessionId)
@@ -98,7 +98,7 @@ public struct ContentServiceHarness: Sendable {
         let reply = message.reply()
         return reply
     }
-
+    
     @Sendable
     public func completeIngestSession(_ message: XPCMessage) async throws -> XPCMessage {
         let id = message.string(key: .ingestSessionId)

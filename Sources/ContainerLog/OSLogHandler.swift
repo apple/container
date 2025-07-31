@@ -24,16 +24,16 @@ import struct Logging.Logger
 
 public struct OSLogHandler: LogHandler {
     private let logger: os.Logger
-
+    
     public var logLevel: Logger.Level = .info
     private var formattedMetadata: String?
-
+    
     public var metadata = Logger.Metadata() {
         didSet {
             self.formattedMetadata = self.formatMetadata(self.metadata)
         }
     }
-
+    
     public subscript(metadataKey metadataKey: String) -> Logger.Metadata.Value? {
         get {
             self.metadata[metadataKey]
@@ -42,7 +42,7 @@ public struct OSLogHandler: LogHandler {
             self.metadata[metadataKey] = newValue
         }
     }
-
+    
     public init(label: String, category: String) {
         self.logger = os.Logger(subsystem: label, category: category)
     }
@@ -66,18 +66,18 @@ extension OSLogHandler {
                 }
             )
         }
-
+        
         var finalMessage = message.description
         if let formattedMetadata {
             finalMessage += " " + formattedMetadata
         }
-
+        
         self.logger.log(
             level: level.toOSLogLevel(),
             "\(finalMessage, privacy: .public)"
         )
     }
-
+    
     private func formatMetadata(_ metadata: Logger.Metadata) -> String? {
         if metadata.isEmpty {
             return nil

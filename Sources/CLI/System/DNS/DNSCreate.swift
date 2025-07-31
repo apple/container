@@ -26,10 +26,10 @@ extension Application {
             commandName: "create",
             abstract: "Create a local DNS domain for containers (must run as an administrator)"
         )
-
+        
         @Argument(help: "the local domain name")
         var domainName: String
-
+        
         func run() async throws {
             let resolver: HostDNSResolver = HostDNSResolver()
             do {
@@ -40,7 +40,7 @@ extension Application {
             } catch {
                 throw ContainerizationError(.invalidState, message: "cannot create domain (try sudo?)")
             }
-
+            
             do {
                 try HostDNSResolver.reinitialize()
             } catch {

@@ -30,10 +30,10 @@ extension Application {
             config.helpNames = NameSpecification(arrayLiteral: .customShort("h"), .customLong("help"))
             return config
         }
-
+        
         @Flag(name: .shortAndLong, help: "Force delete builder even if it is running")
         var force = false
-
+        
         func run() async throws {
             do {
                 let container = try await ClientContainer.get(id: "buildkit")

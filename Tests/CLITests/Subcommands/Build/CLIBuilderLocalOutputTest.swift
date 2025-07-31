@@ -24,14 +24,14 @@ extension TestCLIBuildBase {
         override init() throws {
             try super.init()
         }
-
+        
         deinit {
             try? builderDelete(force: true)
         }
-
+        
         @Test func testBuildLocalOutputHappyPath() throws {
             let tempDir: URL = try createTempDir()
-
+            
             // Test comprehensive multi-stage build with context and build arguments
             let dockerfile: String =
                 """
@@ -51,27 +51,27 @@ extension TestCLIBuildBase {
                 .file("message.txt", content: .data("Hello from build args\n".data(using: .utf8)!)),
             ]
             try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
-
+            
             let outputDir = tempDir.appendingPathComponent("comprehensive-local-output")
             let imageName = "local-comprehensive-test:\(UUID().uuidString)"
-
+            
             let response = try buildWithLocalOutput(
                 tag: imageName,
                 tempDir: tempDir,
                 outputDir: outputDir,
                 args: ["MESSAGE=Hello from build args"]
             )
-
+            
             // Verify the build succeeded
             #expect(response.contains("Successfully exported to"), "Expected successful local export message")
-
+            
             // Verify the output directory was created
             #expect(FileManager.default.fileExists(atPath: outputDir.path), "Expected local output directory to exist")
-
+            
             // Verify the output contains expected structure
             let contents = try FileManager.default.contentsOfDirectory(atPath: outputDir.path)
             #expect(!contents.isEmpty, "Expected local output directory to contain files")
-
+            
             // Test basic functionality - verify basic local output works
             let basicTempDir: URL = try createTempDir()
             let basicDockerfile: String =
@@ -84,16 +84,16 @@ extension TestCLIBuildBase {
                 .file("testfile.txt", content: .data("Hello from basic build\n".data(using: .utf8)!))
             ]
             try createContext(tempDir: basicTempDir, dockerfile: basicDockerfile, context: basicContext)
-
+            
             let basicOutputDir = basicTempDir.appendingPathComponent("basic-local-output")
             let basicImageName = "local-basic-test:\(UUID().uuidString)"
-
+            
             let basicResponse = try buildWithLocalOutput(tag: basicImageName, tempDir: basicTempDir, outputDir: basicOutputDir)
-
+            
             // Verify basic build succeeded
             #expect(basicResponse.contains("Successfully exported to"), "Expected successful basic local export message")
             #expect(FileManager.default.fileExists(atPath: basicOutputDir.path), "Expected basic local output directory to exist")
-
+            
             // Test context functionality - verify COPY works with context
             let contextTempDir: URL = try createTempDir()
             let contextDockerfile: String =
@@ -106,17 +106,17 @@ extension TestCLIBuildBase {
                 .file("testfile.txt", content: .data("Test content for context build\n".data(using: .utf8)!))
             ]
             try createContext(tempDir: contextTempDir, dockerfile: contextDockerfile, context: contextContext)
-
+            
             let contextOutputDir = contextTempDir.appendingPathComponent("context-local-output")
             let contextImageName = "local-context-test:\(UUID().uuidString)"
-
+            
             let contextResponse = try buildWithLocalOutput(tag: contextImageName, tempDir: contextTempDir, outputDir: contextOutputDir)
-
+            
             // Verify context build succeeded
             #expect(contextResponse.contains("Successfully exported to"), "Expected successful context local export message")
             #expect(FileManager.default.fileExists(atPath: contextOutputDir.path), "Expected context local output directory to exist")
         }
-
+        
         @Test func testBuildLocalOutputEdgeCases() throws {
             // Test building with different context paths
             let dockerfileCtxDir: URL = try createTempDir()
@@ -130,29 +130,29 @@ extension TestCLIBuildBase {
                 .file("dockerfile-context.txt", content: .data("Dockerfile context file\n".data(using: .utf8)!))
             ]
             try createContext(tempDir: dockerfileCtxDir, dockerfile: dockerfile, context: dockerfileCtx)
-
+            
             let buildContextDir: URL = try createTempDir()
             let buildContext: [FileSystemEntry] = [
                 .file("build-context.txt", content: .data("Build context file\n".data(using: .utf8)!))
             ]
             try createContext(tempDir: buildContextDir, dockerfile: "", context: buildContext)
-
+            
             let outputDir = dockerfileCtxDir.appendingPathComponent("diffpaths-local-output")
             let imageName = "local-diffpaths-test:\(UUID().uuidString)"
-
+            
             let response = try buildWithPathsAndLocalOutput(
                 tag: imageName,
                 tempContext: buildContextDir,
                 tempDockerfileContext: dockerfileCtxDir,
                 outputDir: outputDir
             )
-
+            
             // Verify the build succeeded
             #expect(response.contains("Successfully exported to"), "Expected successful local export message")
-
+            
             // Verify the output directory exists
             #expect(FileManager.default.fileExists(atPath: outputDir.path), "Expected local output directory to exist")
-
+            
             // Test building to existing output directory
             let existingTempDir: URL = try createTempDir()
             let existingDockerfile: String =
@@ -165,32 +165,32 @@ extension TestCLIBuildBase {
                 .file("newfile.txt", content: .data("New content from build\n".data(using: .utf8)!))
             ]
             try createContext(tempDir: existingTempDir, dockerfile: existingDockerfile, context: existingContext)
-
+            
             let existingOutputDir = existingTempDir.appendingPathComponent("existing-output")
-
+            
             // Create the output directory and add some existing files
             try FileManager.default.createDirectory(at: existingOutputDir, withIntermediateDirectories: true)
             let existingFile = existingOutputDir.appendingPathComponent("existing.txt")
             try "Existing file content\n".data(using: .utf8)!.write(to: existingFile)
-
+            
             let existingImageName = "local-existing-test:\(UUID().uuidString)"
-
+            
             let existingResponse = try buildWithLocalOutput(tag: existingImageName, tempDir: existingTempDir, outputDir: existingOutputDir)
-
+            
             // Verify the build succeeded
             #expect(existingResponse.contains("Successfully exported to"), "Expected successful local export message")
-
+            
             // Verify the output directory exists
             #expect(FileManager.default.fileExists(atPath: existingOutputDir.path), "Expected local output directory to exist")
-
+            
             // Verify the existing file is still there (local output should merge/overwrite)
             let contents = try FileManager.default.contentsOfDirectory(atPath: existingOutputDir.path)
             #expect(!contents.isEmpty, "Expected local output directory to contain files")
-
+            
             // The behavior may vary - local output might overwrite the directory or merge contents
             // This test verifies that the operation completes successfully with an existing directory
         }
-
+        
         @Test func testBuildLocalOutputFailure() throws {
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
@@ -203,16 +203,16 @@ extension TestCLIBuildBase {
                 .file("test.txt", content: .data("test\n".data(using: .utf8)!))
             ]
             try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
-
+            
             // Use a path that doesn't exist and can't be created (invalid parent)
             let invalidOutputDir = URL(fileURLWithPath: "/nonexistent/invalid/path")
             let imageName = "local-invalid-test:\(UUID().uuidString)"
-
+            
             #expect(throws: CLIError.self) {
                 try buildWithLocalOutput(tag: imageName, tempDir: tempDir, outputDir: invalidOutputDir)
             }
         }
-
+        
         // Helper function to build with local output
         @discardableResult
         func buildWithLocalOutput(tag: String, tempDir: URL, outputDir: URL, args: [String]? = nil) throws -> String {
@@ -224,7 +224,7 @@ extension TestCLIBuildBase {
                 args: args
             )
         }
-
+        
         // Helper function to build with different paths and local output
         @discardableResult
         func buildWithPathsAndLocalOutput(
@@ -252,12 +252,12 @@ extension TestCLIBuildBase {
                 }
             }
             buildArgs.append(contextDirPath)
-
+            
             let response = try run(arguments: buildArgs)
             if response.status != 0 {
                 throw CLIError.executionFailed("build failed: stdout=\(response.output) stderr=\(response.error)")
             }
-
+            
             return response.output
         }
     }

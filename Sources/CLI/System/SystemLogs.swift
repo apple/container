@@ -24,35 +24,35 @@ import OSLog
 extension Application {
     struct SystemLogs: AsyncParsableCommand {
         static let subsystem = "com.apple.container"
-
+        
         static let configuration = CommandConfiguration(
             commandName: "logs",
             abstract: "Fetch system logs for `container` services"
         )
-
+        
         @OptionGroup
         var global: Flags.Global
-
+        
         @Option(
             name: .long,
             help: "Fetch logs starting from the specified time period (minus the current time); supported formats: m, h, d"
         )
         var last: String = "5m"
-
+        
         @Flag(name: .shortAndLong, help: "Follow log output")
         var follow: Bool = false
-
+        
         func run() async throws {
             let process = Process()
             let sigHandler = AsyncSignalHandler.create(notify: [SIGINT, SIGTERM])
-
+            
             Task {
                 for await _ in sigHandler.signals {
                     process.terminate()
                     Darwin.exit(0)
                 }
             }
-
+            
             do {
                 var args = ["log"]
                 args.append(self.follow ? "stream" : "show")
@@ -61,13 +61,13 @@ extension Application {
                     args.append(contentsOf: ["--last", last])
                 }
                 args.append(contentsOf: ["--predicate", "subsystem = 'com.apple.container'"])
-
+                
                 process.launchPath = "/usr/bin/env"
                 process.arguments = args
-
+                
                 process.standardOutput = FileHandle.standardOutput
                 process.standardError = FileHandle.standardError
-
+                
                 try process.run()
                 process.waitUntilExit()
             } catch {

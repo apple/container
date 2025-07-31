@@ -23,27 +23,27 @@ struct DefaultCommand: AsyncParsableCommand {
         commandName: nil,
         shouldDisplay: false
     )
-
+    
     @OptionGroup(visibility: .hidden)
     var global: Flags.Global
-
+    
     @Argument(parsing: .captureForPassthrough)
     var remaining: [String] = []
-
+    
     func run() async throws {
         // See if we have a possible plugin command.
         guard let command = remaining.first else {
             Application.printModifiedHelpText()
             return
         }
-
+        
         // Check for edge cases and unknown options to match the behavior in the absence of plugins.
         if command.isEmpty {
             throw ValidationError("Unknown argument '\(command)'")
         } else if command.starts(with: "-") {
             throw ValidationError("Unknown option '\(command)'")
         }
-
+        
         let pluginLoader = Application.pluginLoader
         guard let plugin = pluginLoader.findPlugin(name: command), plugin.config.isCLI else {
             throw ValidationError("failed to find plugin named container-\(command)")

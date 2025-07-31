@@ -22,13 +22,13 @@ import Foundation
 public struct NetworkClient: Sendable {
     // FIXME: need more flexibility than a hard-coded constant?
     static let label = "com.apple.container.network.container-network-vmnet"
-
+    
     private var machServiceLabel: String {
         "\(Self.label).\(id)"
     }
-
+    
     let id: String
-
+    
     /// Create a client for a network.
     public init(id: String) {
         self.id = id
@@ -41,57 +41,57 @@ extension NetworkClient {
         let request = XPCMessage(route: NetworkRoutes.state.rawValue)
         let client = createClient()
         defer { client.close() }
-
+        
         let response = try await client.send(request)
         let state = try response.state()
         return state
     }
-
+    
     public func allocate(hostname: String) async throws -> (attachment: Attachment, additionalData: XPCMessage?) {
         let request = XPCMessage(route: NetworkRoutes.allocate.rawValue)
         request.set(key: NetworkKeys.hostname.rawValue, value: hostname)
-
+        
         let client = createClient()
         defer { client.close() }
-
+        
         let response = try await client.send(request)
         let attachment = try response.attachment()
         let additionalData = response.additionalData()
         return (attachment, additionalData)
     }
-
+    
     public func deallocate(hostname: String) async throws {
         let request = XPCMessage(route: NetworkRoutes.deallocate.rawValue)
         request.set(key: NetworkKeys.hostname.rawValue, value: hostname)
-
+        
         let client = createClient()
         defer { client.close() }
         try await client.send(request)
     }
-
+    
     public func lookup(hostname: String) async throws -> Attachment? {
         let request = XPCMessage(route: NetworkRoutes.lookup.rawValue)
         request.set(key: NetworkKeys.hostname.rawValue, value: hostname)
-
+        
         let client = createClient()
         defer { client.close() }
-
+        
         let response = try await client.send(request)
         return try response.dataNoCopy(key: NetworkKeys.attachment.rawValue).map {
             try JSONDecoder().decode(Attachment.self, from: $0)
         }
     }
-
+    
     public func disableAllocator() async throws -> Bool {
         let request = XPCMessage(route: NetworkRoutes.disableAllocator.rawValue)
-
+        
         let client = createClient()
         defer { client.close() }
-
+        
         let response = try await client.send(request)
         return try response.allocatorDisabled()
     }
-
+    
     private func createClient() -> XPCClient {
         XPCClient(service: machServiceLabel)
     }
@@ -104,11 +104,11 @@ extension XPCMessage {
         }
         return XPCMessage(object: additionalData)
     }
-
+    
     func allocatorDisabled() throws -> Bool {
         self.bool(key: NetworkKeys.allocatorDisabled.rawValue)
     }
-
+    
     func attachment() throws -> Attachment {
         let data = self.dataNoCopy(key: NetworkKeys.attachment.rawValue)
         guard let data else {
@@ -116,7 +116,7 @@ extension XPCMessage {
         }
         return try JSONDecoder().decode(Attachment.self, from: data)
     }
-
+    
     func hostname() throws -> String {
         let hostname = self.string(key: NetworkKeys.hostname.rawValue)
         guard let hostname else {
@@ -124,7 +124,7 @@ extension XPCMessage {
         }
         return hostname
     }
-
+    
     func state() throws -> NetworkState {
         let data = self.dataNoCopy(key: NetworkKeys.state.rawValue)
         guard let data else {

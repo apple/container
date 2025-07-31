@@ -25,22 +25,22 @@ import Logging
 struct ContainersHarness {
     let log: Logging.Logger
     let service: ContainersService
-
+    
     init(service: ContainersService, log: Logging.Logger) {
         self.log = log
         self.service = service
     }
-
+    
     @Sendable
     func list(_ message: XPCMessage) async throws -> XPCMessage {
         let containers = try await service.list()
         let data = try JSONEncoder().encode(containers)
-
+        
         let reply = message.reply()
         reply.set(key: .containers, value: data)
         return reply
     }
-
+    
     @Sendable
     func create(_ message: XPCMessage) async throws -> XPCMessage {
         let data = message.dataNoCopy(key: .containerConfig)
@@ -58,11 +58,11 @@ struct ContainersHarness {
         }
         let config = try JSONDecoder().decode(ContainerConfiguration.self, from: data)
         let kernel = try JSONDecoder().decode(Kernel.self, from: kdata)
-
+        
         try await service.create(configuration: config, kernel: kernel, options: options)
         return message.reply()
     }
-
+    
     @Sendable
     func delete(_ message: XPCMessage) async throws -> XPCMessage {
         let id = message.string(key: .id)
@@ -72,7 +72,7 @@ struct ContainersHarness {
         try await service.delete(id: id)
         return message.reply()
     }
-
+    
     @Sendable
     func logs(_ message: XPCMessage) async throws -> XPCMessage {
         let id = message.string(key: .id)
@@ -87,7 +87,7 @@ struct ContainersHarness {
         try reply.set(key: .logs, value: fds)
         return reply
     }
-
+    
     @Sendable
     func eventHandler(_ message: XPCMessage) async throws -> XPCMessage {
         let event = try message.containerEvent()

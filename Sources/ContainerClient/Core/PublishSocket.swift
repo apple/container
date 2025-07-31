@@ -21,13 +21,13 @@ import SystemPackage
 public struct PublishSocket: Sendable, Codable {
     /// The path to the socket in the container.
     public var containerPath: URL
-
+    
     /// The path where the socket should appear on the host.
     public var hostPath: URL
-
+    
     /// File permissions for the socket on the host.
     public var permissions: FilePermissions?
-
+    
     public init(
         containerPath: URL,
         hostPath: URL,

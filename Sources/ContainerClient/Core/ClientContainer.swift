@@ -24,41 +24,41 @@ import TerminalProgress
 
 public struct ClientContainer: Sendable, Codable {
     static let serviceIdentifier = "com.apple.container.apiserver"
-
+    
     private var sandboxClient: SandboxClient {
         SandboxClient(id: configuration.id, runtime: configuration.runtimeHandler)
     }
-
+    
     /// Identifier of the container.
     public var id: String {
         configuration.id
     }
-
+    
     public let status: RuntimeStatus
-
+    
     /// Configured platform for the container.
     public var platform: ContainerizationOCI.Platform {
         configuration.platform
     }
-
+    
     /// Configuration for the container.
     public let configuration: ContainerConfiguration
-
+    
     /// Network allocated to the container.
     public let networks: [Attachment]
-
+    
     package init(configuration: ContainerConfiguration) {
         self.configuration = configuration
         self.status = .stopped
         self.networks = []
     }
-
+    
     init(snapshot: ContainerSnapshot) {
         self.configuration = snapshot.configuration
         self.status = snapshot.status
         self.networks = snapshot.networks
     }
-
+    
     public var initProcess: ClientProcess {
         ClientProcessImpl(containerId: self.id, client: self.sandboxClient)
     }
@@ -68,7 +68,7 @@ extension ClientContainer {
     private static func newClient() -> XPCClient {
         XPCClient(service: serviceIdentifier)
     }
-
+    
     @discardableResult
     private static func xpcSend(
         client: XPCClient,
@@ -77,7 +77,7 @@ extension ClientContainer {
     ) async throws -> XPCMessage {
         try await client.send(message, responseTimeout: timeout)
     }
-
+    
     public static func create(
         configuration: ContainerConfiguration,
         options: ContainerCreateOptions = .default,
@@ -86,14 +86,14 @@ extension ClientContainer {
         do {
             let client = Self.newClient()
             let request = XPCMessage(route: .createContainer)
-
+            
             let data = try JSONEncoder().encode(configuration)
             let kdata = try JSONEncoder().encode(kernel)
             let odata = try JSONEncoder().encode(options)
             request.set(key: .containerConfig, value: data)
             request.set(key: .kernel, value: kdata)
             request.set(key: .containerOptions, value: odata)
-
+            
             try await xpcSend(client: client, message: request)
             return ClientContainer(configuration: configuration)
         } catch {
@@ -104,12 +104,12 @@ extension ClientContainer {
             )
         }
     }
-
+    
     public static func list() async throws -> [ClientContainer] {
         do {
             let client = Self.newClient()
             let request = XPCMessage(route: .listContainer)
-
+            
             let response = try await xpcSend(
                 client: client,
                 message: request,
@@ -129,7 +129,7 @@ extension ClientContainer {
             )
         }
     }
-
+    
     /// Get the container for the provided id.
     public static func get(id: String) async throws -> ClientContainer {
         let containers = try await list()
@@ -149,7 +149,7 @@ extension ClientContainer {
         try await client.bootstrap(stdio: stdio)
         return ClientProcessImpl(containerId: self.id, client: self.sandboxClient)
     }
-
+    
     /// Stop the container and all processes currently executing inside.
     public func stop(opts: ContainerStopOptions = ContainerStopOptions.default) async throws {
         do {
@@ -163,7 +163,7 @@ extension ClientContainer {
             )
         }
     }
-
+    
     /// Delete the container along with any resources.
     public func delete() async throws {
         do {
@@ -200,7 +200,7 @@ extension ClientContainer {
             )
         }
     }
-
+    
     /// Send or "kill" a signal to the initial process of the container.
     /// Kill does not wait for the process to exit, it only delivers the signal.
     public func kill(_ signal: Int32) async throws {
@@ -215,13 +215,13 @@ extension ClientContainer {
             )
         }
     }
-
+    
     public func logs() async throws -> [FileHandle] {
         do {
             let client = XPCClient(service: Self.serviceIdentifier)
             let request = XPCMessage(route: .containerLogs)
             request.set(key: .id, value: self.id)
-
+            
             let response = try await client.send(request)
             let fds = response.fileHandles(key: .logs)
             guard let fds else {
@@ -239,7 +239,7 @@ extension ClientContainer {
             )
         }
     }
-
+    
     public func dial(_ port: UInt32) async throws -> FileHandle {
         do {
             let client = self.sandboxClient

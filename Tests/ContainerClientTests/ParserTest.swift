@@ -32,7 +32,7 @@ struct ParserTest {
         #expect(result[0].containerPort == UInt16(8000))
         #expect(result[0].proto == .tcp)
     }
-
+    
     @Test
     func testPublishPortParserUdp() throws {
         let result = try Parser.publishPorts(["192.168.32.36:8000:8080/UDP"])
@@ -42,7 +42,7 @@ struct ParserTest {
         #expect(result[0].containerPort == UInt16(8080))
         #expect(result[0].proto == .udp)
     }
-
+    
     @Test
     func testPublishPortNoHostAddress() throws {
         let result = try Parser.publishPorts(["8080:8000/tcp"])
@@ -52,7 +52,7 @@ struct ParserTest {
         #expect(result[0].containerPort == UInt16(8000))
         #expect(result[0].proto == .tcp)
     }
-
+    
     @Test
     func testPublishPortNoProtocol() throws {
         let result = try Parser.publishPorts(["8080:8000"])
@@ -62,7 +62,7 @@ struct ParserTest {
         #expect(result[0].containerPort == UInt16(8000))
         #expect(result[0].proto == .tcp)
     }
-
+    
     @Test
     func testPublishPortInvalidProtocol() throws {
         #expect {
@@ -74,7 +74,7 @@ struct ParserTest {
             return error.description.contains("invalid publish protocol")
         }
     }
-
+    
     @Test
     func testPublishPortInvalidValue() throws {
         #expect {
@@ -86,7 +86,7 @@ struct ParserTest {
             return error.description.contains("invalid publish value")
         }
     }
-
+    
     @Test
     func testPublishPortInvalidAddress() throws {
         #expect {
@@ -98,7 +98,7 @@ struct ParserTest {
             return error.description.contains("invalid publish address")
         }
     }
-
+    
     @Test
     func testPublishPortInvalidHostPort() throws {
         #expect {
@@ -110,7 +110,7 @@ struct ParserTest {
             return error.description.contains("invalid publish host port")
         }
     }
-
+    
     @Test
     func testPublishPortInvalidContainerPort() throws {
         #expect {

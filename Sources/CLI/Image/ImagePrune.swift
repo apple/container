@@ -23,10 +23,10 @@ extension Application {
         static let configuration = CommandConfiguration(
             commandName: "prune",
             abstract: "Remove unreferenced and dangling images")
-
+        
         @OptionGroup
         var global: Flags.Global
-
+        
         func run() async throws {
             let (_, size) = try await ClientImage.pruneImages()
             let formatter = ByteCountFormatter()

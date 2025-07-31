@@ -25,13 +25,13 @@ extension Application {
         static let configuration = CommandConfiguration(
             commandName: "inspect",
             abstract: "Display information about one or more networks")
-
+        
         @OptionGroup
         var global: Flags.Global
-
+        
         @Argument(help: "Networks to inspect")
         var networks: [String]
-
+        
         func run() async throws {
             let objects: [any Codable] = try await ClientNetwork.list().filter {
                 networks.contains($0.id)

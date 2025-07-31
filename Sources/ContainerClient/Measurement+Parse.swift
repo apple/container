@@ -29,7 +29,7 @@ extension Measurement {
     public enum ParseError: Swift.Error, CustomStringConvertible {
         case invalidSize
         case invalidSymbol(String)
-
+        
         public var description: String {
             switch self {
             case .invalidSize:
@@ -39,7 +39,7 @@ extension Measurement {
             }
         }
     }
-
+    
     /// parse the provided string into a measurement that is able to be converted to various byte sizes
     public static func parse(parsing: String) throws -> Measurement<UnitInformationStorage> {
         let check = "01234567890. "
@@ -54,20 +54,20 @@ extension Measurement {
         let rawUnit = parsing[after...]
             .trimmingCharacters(in: .whitespaces)
             .lowercased()
-
+        
         let value = Double(rawValue)
         guard let value else {
             throw ParseError.invalidSize
         }
         let unitSymbol = try Self.parseUnit(rawUnit)
-
+        
         let unit = units[unitSymbol]
         guard let unit else {
             throw ParseError.invalidSymbol(rawUnit)
         }
         return Measurement<UnitInformationStorage>(value: value, unit: unit)
     }
-
+    
     static func parseUnit(_ unit: String) throws -> Character {
         let s = unit.dropFirst()
         switch s {

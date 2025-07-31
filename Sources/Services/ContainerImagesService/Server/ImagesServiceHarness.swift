@@ -26,12 +26,12 @@ import Logging
 public struct ImagesServiceHarness: Sendable {
     let log: Logging.Logger
     let service: ImagesService
-
+    
     public init(service: ImagesService, log: Logging.Logger) {
         self.log = log
         self.service = service
     }
-
+    
     @Sendable
     public func pull(_ message: XPCMessage) async throws -> XPCMessage {
         let ref = message.string(key: .imageReference)
@@ -47,16 +47,16 @@ public struct ImagesServiceHarness: Sendable {
             platform = try JSONDecoder().decode(ContainerizationOCI.Platform.self, from: platformData)
         }
         let insecure = message.bool(key: .insecureFlag)
-
+        
         let progressUpdateService = ProgressUpdateService(message: message)
         let imageDescription = try await service.pull(reference: ref, platform: platform, insecure: insecure, progressUpdate: progressUpdateService?.handler)
-
+        
         let imageData = try JSONEncoder().encode(imageDescription)
         let reply = message.reply()
         reply.set(key: .imageDescription, value: imageData)
         return reply
     }
-
+    
     @Sendable
     public func push(_ message: XPCMessage) async throws -> XPCMessage {
         let ref = message.string(key: .imageReference)
@@ -72,14 +72,14 @@ public struct ImagesServiceHarness: Sendable {
             platform = try JSONDecoder().decode(ContainerizationOCI.Platform.self, from: platformData)
         }
         let insecure = message.bool(key: .insecureFlag)
-
+        
         let progressUpdateService = ProgressUpdateService(message: message)
         try await service.push(reference: ref, platform: platform, insecure: insecure, progressUpdate: progressUpdateService?.handler)
-
+        
         let reply = message.reply()
         return reply
     }
-
+    
     @Sendable
     public func tag(_ message: XPCMessage) async throws -> XPCMessage {
         let old = message.string(key: .imageReference)
@@ -102,7 +102,7 @@ public struct ImagesServiceHarness: Sendable {
         reply.set(key: .imageDescription, value: descData)
         return reply
     }
-
+    
     @Sendable
     public func list(_ message: XPCMessage) async throws -> XPCMessage {
         let images = try await service.list()
@@ -111,7 +111,7 @@ public struct ImagesServiceHarness: Sendable {
         reply.set(key: .imageDescriptions, value: imageData)
         return reply
     }
-
+    
     @Sendable
     public func delete(_ message: XPCMessage) async throws -> XPCMessage {
         let ref = message.string(key: .imageReference)
@@ -126,7 +126,7 @@ public struct ImagesServiceHarness: Sendable {
         let reply = message.reply()
         return reply
     }
-
+    
     @Sendable
     public func save(_ message: XPCMessage) async throws -> XPCMessage {
         let data = message.dataNoCopy(key: .imageDescription)
@@ -137,7 +137,7 @@ public struct ImagesServiceHarness: Sendable {
             )
         }
         let imageDescription = try JSONDecoder().decode(ImageDescription.self, from: data)
-
+        
         let platformData = message.dataNoCopy(key: .ociPlatform)
         var platform: Platform? = nil
         if let platformData {
@@ -154,7 +154,7 @@ public struct ImagesServiceHarness: Sendable {
         let reply = message.reply()
         return reply
     }
-
+    
     @Sendable
     public func load(_ message: XPCMessage) async throws -> XPCMessage {
         let input = message.string(key: .filePath)
@@ -170,7 +170,7 @@ public struct ImagesServiceHarness: Sendable {
         reply.set(key: .imageDescriptions, value: data)
         return reply
     }
-
+    
     @Sendable
     public func prune(_ message: XPCMessage) async throws -> XPCMessage {
         let (deleted, size) = try await service.prune()
@@ -199,14 +199,14 @@ extension ImagesServiceHarness {
         if let platformData = message.dataNoCopy(key: .ociPlatform) {
             platform = try JSONDecoder().decode(ContainerizationOCI.Platform.self, from: platformData)
         }
-
+        
         let progressUpdateService = ProgressUpdateService(message: message)
         try await self.service.unpack(description: description, platform: platform, progressUpdate: progressUpdateService?.handler)
-
+        
         let reply = message.reply()
         return reply
     }
-
+    
     @Sendable
     public func deleteSnapshot(_ message: XPCMessage) async throws -> XPCMessage {
         let descriptionData = message.dataNoCopy(key: .imageDescription)
@@ -226,7 +226,7 @@ extension ImagesServiceHarness {
         let reply = message.reply()
         return reply
     }
-
+    
     @Sendable
     public func getSnapshot(_ message: XPCMessage) async throws -> XPCMessage {
         let descriptionData = message.dataNoCopy(key: .imageDescription)

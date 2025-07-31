@@ -23,25 +23,25 @@ import Synchronization
 
 public struct XPCServer: Sendable {
     public typealias RouteHandler = @Sendable (XPCMessage) async throws -> XPCMessage
-
+    
     private let routes: [String: RouteHandler]
     // Access to `connection` is protected by a lock
     private nonisolated(unsafe) let connection: xpc_connection_t
     private let lock = NSLock()
-
+    
     let log: Logging.Logger
-
+    
     public init(identifier: String, routes: [String: RouteHandler], log: Logging.Logger) {
         let connection = xpc_connection_create_mach_service(
             identifier,
             nil,
             UInt64(XPC_CONNECTION_MACH_SERVICE_LISTENER))
-
+        
         self.routes = routes
         self.connection = connection
         self.log = log
     }
-
+    
     public func listen() async throws {
         let connections = AsyncStream<xpc_connection_t> { cont in
             lock.withLock {
@@ -61,13 +61,13 @@ public struct XPCServer: Sendable {
                 }
             }
         }
-
+        
         defer {
             lock.withLock {
                 xpc_connection_cancel(self.connection)
             }
         }
-
+        
         lock.withLock {
             xpc_connection_activate(self.connection)
         }
@@ -79,19 +79,19 @@ public struct XPCServer: Sendable {
                     try await self.handleClientConnection(connection: conn)
                     xpc_connection_cancel(conn)
                 }
-
+                
                 if !added {
                     break
                 }
             }
-
+            
             group.cancelAll()
         }
     }
-
+    
     func handleClientConnection(connection: xpc_connection_t) async throws {
         let replySent = Mutex(false)
-
+        
         let objects = AsyncStream<xpc_object_t> { cont in
             xpc_connection_set_event_handler(connection) { object in
                 switch xpc_get_type(object) {
@@ -116,7 +116,7 @@ public struct XPCServer: Sendable {
         defer {
             xpc_connection_cancel(connection)
         }
-
+        
         xpc_connection_activate(connection)
         try await withThrowingDiscardingTaskGroup { group in
             // `connection` isn't used concurrently.
@@ -135,13 +135,13 @@ public struct XPCServer: Sendable {
             group.cancelAll()
         }
     }
-
+    
     func handleMessage(connection: xpc_connection_t, object: xpc_object_t) async throws {
         guard let route = object.route else {
             log.error("empty route")
             return
         }
-
+        
         if let handler = routes[route] {
             let message = XPCMessage(object: object)
             do {
@@ -171,21 +171,21 @@ extension xpc_object_t {
         }
         return String(cString: croute)
     }
-
+    
     var connectionError: Bool {
         precondition(isError, "Not an error")
         return xpc_equal(self, XPC_ERROR_CONNECTION_INVALID) || xpc_equal(self, XPC_ERROR_CONNECTION_INTERRUPTED)
     }
-
+    
     var connectionClosed: Bool {
         precondition(isError, "Not an error")
         return xpc_equal(self, XPC_ERROR_CONNECTION_INVALID)
     }
-
+    
     var isError: Bool {
         xpc_get_type(self) == XPC_TYPE_ERROR
     }
-
+    
     var errorDescription: String? {
         precondition(isError, "Not an error")
         let cstring = xpc_dictionary_get_string(self, XPC_ERROR_KEY_DESCRIPTION)

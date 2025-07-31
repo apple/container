@@ -55,7 +55,7 @@ public struct PluginConfig: Sendable, Codable {
         /// Reserved for future use. Currently there is no difference between a core and auxiliary daemon plugin.
         case auxiliary
     }
-
+    
     // An XPC service that the plugin publishes.
     public struct Service: Sendable, Codable {
         /// The type of the service the daemon is exposing.
@@ -68,7 +68,7 @@ public struct PluginConfig: Sendable, Codable {
         /// Optional description of this service.
         public let description: String?
     }
-
+    
     /// Descriptor for the services that the plugin offers.
     public struct ServicesConfig: Sendable, Codable {
         /// Load the plugin into launchd when the API server starts.
@@ -82,15 +82,15 @@ public struct PluginConfig: Sendable, Codable {
         /// This parameter is used only when `servicesConfig.loadAtBoot` is `true`
         public let defaultArguments: [String]
     }
-
+    
     /// Short description of the plugin surface. This will be displayed as the
     /// help-text for CLI plugins, and will be returned in API calls to view loaded
     /// plugins from the daemon.
     public let abstract: String
-
+    
     /// Author of the plugin. This is solely metadata.
     public let author: String?
-
+    
     /// Services configuration. Specify nil for a CLI plugin, and an empty array for
     /// that does not publish any XPC services.
     public let servicesConfig: ServicesConfig?
@@ -106,11 +106,11 @@ extension PluginConfig {
         if !fm.fileExists(atPath: configURL.path) {
             return nil
         }
-
+        
         guard let data = fm.contents(atPath: configURL.path) else {
             return nil
         }
-
+        
         let decoder: JSONDecoder = JSONDecoder()
         self = try decoder.decode(PluginConfig.self, from: data)
     }

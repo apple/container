@@ -25,7 +25,7 @@ public enum ImagesServiceXPCKeys: String {
     case logs
     /// Path to a file on disk key.
     case filePath
-
+    
     /// Images
     case imageReference
     case imageNewReference
@@ -35,7 +35,7 @@ public enum ImagesServiceXPCKeys: String {
     case ociPlatform
     case insecureFlag
     case garbageCollect
-
+    
     /// ContentStore
     case digest
     case digests
@@ -49,35 +49,35 @@ extension XPCMessage {
     public func set(key: ImagesServiceXPCKeys, value: String) {
         self.set(key: key.rawValue, value: value)
     }
-
+    
     public func set(key: ImagesServiceXPCKeys, value: UInt64) {
         self.set(key: key.rawValue, value: value)
     }
-
+    
     public func set(key: ImagesServiceXPCKeys, value: Data) {
         self.set(key: key.rawValue, value: value)
     }
-
+    
     public func set(key: ImagesServiceXPCKeys, value: Bool) {
         self.set(key: key.rawValue, value: value)
     }
-
+    
     public func string(key: ImagesServiceXPCKeys) -> String? {
         self.string(key: key.rawValue)
     }
-
+    
     public func data(key: ImagesServiceXPCKeys) -> Data? {
         self.data(key: key.rawValue)
     }
-
+    
     public func dataNoCopy(key: ImagesServiceXPCKeys) -> Data? {
         self.dataNoCopy(key: key.rawValue)
     }
-
+    
     public func uint64(key: ImagesServiceXPCKeys) -> UInt64 {
         self.uint64(key: key.rawValue)
     }
-
+    
     public func bool(key: ImagesServiceXPCKeys) -> Bool {
         self.bool(key: key.rawValue)
     }

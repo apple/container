@@ -27,14 +27,14 @@ public struct Utility {
         ClientDefaults.get(key: .defaultBuilderImage),
         ClientDefaults.get(key: .defaultInitImage),
     ]
-
+    
     public static func createContainerID(name: String?) -> String {
         guard let name else {
             return UUID().uuidString.lowercased()
         }
         return name
     }
-
+    
     public static func isInfraImage(name: String) -> Bool {
         for infraImage in infraImages {
             if name == infraImage {
@@ -43,7 +43,7 @@ public struct Utility {
         }
         return false
     }
-
+    
     public static func trimDigest(digest: String) -> String {
         var digest = digest
         digest.trimPrefix("sha256:")
@@ -52,7 +52,7 @@ public struct Utility {
         }
         return digest
     }
-
+    
     public static func validEntityName(_ name: String) throws {
         let pattern = #"^[a-zA-Z0-9][a-zA-Z0-9_.-]+$"#
         let regex = try Regex(pattern)
@@ -60,7 +60,7 @@ public struct Utility {
             throw ContainerizationError(.invalidArgument, message: "invalid entity name \(name)")
         }
     }
-
+    
     public static func containerConfigFromFlags(
         id: String,
         image: String,
@@ -73,7 +73,7 @@ public struct Utility {
     ) async throws -> (ContainerConfiguration, Kernel) {
         let requestedPlatform = Parser.platform(os: management.os, arch: management.arch)
         let scheme = try RequestScheme(registry.scheme)
-
+        
         await progressUpdate([
             .setDescription("Fetching image"),
             .setItemsName("blobs"),
@@ -86,7 +86,7 @@ public struct Utility {
             scheme: scheme,
             progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progressUpdate)
         )
-
+        
         // Unpack a fetched image before use
         await progressUpdate([
             .setDescription("Unpacking image"),
@@ -96,14 +96,14 @@ public struct Utility {
         try await img.getCreateSnapshot(
             platform: requestedPlatform,
             progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: progressUpdate))
-
+        
         await progressUpdate([
             .setDescription("Fetching kernel"),
             .setItemsName("binary"),
         ])
-
+        
         let kernel = try await self.getKernel(management: management)
-
+        
         // Pull and unpack the initial filesystem
         await progressUpdate([
             .setDescription("Fetching init image"),
@@ -113,7 +113,7 @@ public struct Utility {
         let initImage = try await ClientImage.fetch(
             reference: ClientImage.initImageRef, platform: .current, scheme: scheme,
             progressUpdate: ProgressTaskCoordinator.handler(for: fetchInitTask, from: progressUpdate))
-
+        
         await progressUpdate([
             .setDescription("Unpacking init image"),
             .setItemsName("entries"),
@@ -122,9 +122,9 @@ public struct Utility {
         _ = try await initImage.getCreateSnapshot(
             platform: .current,
             progressUpdate: ProgressTaskCoordinator.handler(for: unpackInitTask, from: progressUpdate))
-
+        
         await taskManager.finish()
-
+        
         let imageConfig = try await img.config(for: requestedPlatform).config
         let description = img.description
         let pc = try Parser.process(
@@ -133,25 +133,25 @@ public struct Utility {
             managementFlags: management,
             config: imageConfig
         )
-
+        
         var config = ContainerConfiguration(id: id, image: description, process: pc)
         config.platform = requestedPlatform
         config.hostname = id
-
+        
         config.resources = try Parser.resources(
             cpus: resource.cpus,
             memory: resource.memory
         )
-
+        
         let tmpfs = try Parser.tmpfsMounts(management.tmpFs)
         let volumes = try Parser.volumes(management.volumes)
         var mounts = try Parser.mounts(management.mounts)
         mounts.append(contentsOf: tmpfs)
         mounts.append(contentsOf: volumes)
         config.mounts = mounts
-
+        
         config.virtualization = management.virtualization
-
+        
         if management.networks.isEmpty {
             config.networks = [ClientNetwork.defaultNetworkName]
         } else {
@@ -161,7 +161,7 @@ public struct Utility {
             }
             config.networks = management.networks
         }
-
+        
         var networkStatuses: [NetworkStatus] = []
         for networkName in config.networks {
             let network: NetworkState = try await ClientNetwork.get(id: networkName)
@@ -170,7 +170,7 @@ public struct Utility {
             }
             networkStatuses.append(networkStatus)
         }
-
+        
         if management.dnsDisabled {
             config.dns = nil
         } else {
@@ -182,22 +182,22 @@ public struct Utility {
                 options: management.dnsOptions
             )
         }
-
+        
         if Platform.current.architecture == "arm64" && requestedPlatform.architecture == "amd64" {
             config.rosetta = true
         }
-
+        
         config.labels = try Parser.labels(management.labels)
-
+        
         config.publishedPorts = try Parser.publishPorts(management.publishPorts)
-
+        
         // Parse --publish-socket arguments and add to container configuration
         // to enable socket forwarding from container to host.
         config.publishedSockets = try Parser.publishSockets(management.publishSockets)
-
+        
         return (config, kernel)
     }
-
+    
     private static func getKernel(management: Flags.Management) async throws -> Kernel {
         // For the image itself we'll take the user input and try with it as we can do userspace
         // emulation for x86, but for the kernel we need it to match the hosts architecture.

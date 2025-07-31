@@ -30,35 +30,35 @@ extension Application {
         static let configuration = CommandConfiguration(
             commandName: "run",
             abstract: "Run a container")
-
+        
         @OptionGroup
         var processFlags: Flags.Process
-
+        
         @OptionGroup
         var resourceFlags: Flags.Resource
-
+        
         @OptionGroup
         var managementFlags: Flags.Management
-
+        
         @OptionGroup
         var registryFlags: Flags.Registry
-
+        
         @OptionGroup
         var global: Flags.Global
-
+        
         @OptionGroup
         var progressFlags: Flags.Progress
-
+        
         @Argument(help: "Image name")
         var image: String
-
+        
         @Argument(parsing: .captureForPassthrough, help: "Container init process arguments")
         var arguments: [String] = []
-
+        
         func run() async throws {
             var exitCode: Int32 = 127
             let id = Utility.createContainerID(name: self.managementFlags.name)
-
+            
             var progressConfig: ProgressConfig
             if progressFlags.disableProgressUpdates {
                 progressConfig = try ProgressConfig(disableProgressUpdates: progressFlags.disableProgressUpdates)
@@ -70,15 +70,15 @@ extension Application {
                     totalTasks: 6
                 )
             }
-
+            
             let progress = ProgressBar(config: progressConfig)
             defer {
                 progress.finish()
             }
             progress.start()
-
+            
             try Utility.validEntityName(id)
-
+            
             // Check if container with id already exists.
             let existing = try? await ClientContainer.get(id: id)
             guard existing == nil else {
@@ -87,7 +87,7 @@ extension Application {
                     message: "container with id \(id) already exists"
                 )
             }
-
+            
             let ck = try await Utility.containerConfigFromFlags(
                 id: id,
                 image: image,
@@ -98,28 +98,28 @@ extension Application {
                 registry: registryFlags,
                 progressUpdate: progress.handler
             )
-
+            
             progress.set(description: "Starting container")
-
+            
             let options = ContainerCreateOptions(autoRemove: managementFlags.remove)
             let container = try await ClientContainer.create(
                 configuration: ck.0,
                 options: options,
                 kernel: ck.1
             )
-
+            
             let detach = self.managementFlags.detach
-
+            
             do {
                 let io = try ProcessIO.create(
                     tty: self.processFlags.tty,
                     interactive: self.processFlags.interactive,
                     detach: detach
                 )
-
+                
                 let process = try await container.bootstrap(stdio: io.stdio)
                 progress.finish()
-
+                
                 if !self.managementFlags.cidfile.isEmpty {
                     let path = self.managementFlags.cidfile
                     let data = id.data(using: .utf8)
@@ -135,7 +135,7 @@ extension Application {
                             .internalError, message: "failed to create cidfile at \(path): \(errno)")
                     }
                 }
-
+                
                 if detach {
                     try await process.start()
                     defer {
@@ -145,7 +145,7 @@ extension Application {
                     print(id)
                     return
                 }
-
+                
                 if !self.processFlags.tty {
                     var handler = SignalThreshold(threshold: 3, signals: [SIGINT, SIGTERM])
                     handler.start {
@@ -153,7 +153,7 @@ extension Application {
                         Darwin.exit(1)
                     }
                 }
-
+                
                 exitCode = try await Application.handleProcess(io: io, process: process)
             } catch {
                 if error is ContainerizationError {
@@ -171,27 +171,27 @@ struct ProcessIO {
     let stdout: Pipe?
     let stderr: Pipe?
     var ioTracker: IoTracker?
-
+    
     struct IoTracker {
         let stream: AsyncStream<Void>
         let cont: AsyncStream<Void>.Continuation
         let configuredStreams: Int
     }
-
+    
     let stdio: [FileHandle?]
-
+    
     let console: Terminal?
-
+    
     func closeAfterStart() throws {
         try stdin?.fileHandleForReading.close()
         try stdout?.fileHandleForWriting.close()
         try stderr?.fileHandleForWriting.close()
     }
-
+    
     func close() throws {
         try console?.reset()
     }
-
+    
     static func create(tty: Bool, interactive: Bool, detach: Bool) throws -> ProcessIO {
         let current: Terminal? = try {
             if !tty || !interactive {
@@ -203,7 +203,7 @@ struct ProcessIO {
         }()
 
         var stdio = [FileHandle?](repeating: nil, count: 3)
-
+        
         let stdin: Pipe? = {
             if !interactive && !tty {
                 return nil
@@ -218,7 +218,7 @@ struct ProcessIO {
                 let pipeOSFile = OSFile(fd: stdin.fileHandleForWriting.fileDescriptor)
                 try stdinOSFile.makeNonBlocking()
                 nonisolated(unsafe) let buf = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: Int(getpagesize()))
-
+                
                 pin.readabilityHandler = { _ in
                     Self.streamStdin(
                         from: stdinOSFile,
@@ -233,7 +233,7 @@ struct ProcessIO {
             }
             stdio[0] = stdin.fileHandleForReading
         }
-
+        
         let stdout: Pipe? = {
             if detach {
                 return nil
@@ -264,7 +264,7 @@ struct ProcessIO {
             }
             stdio[1] = stdout.fileHandleForWriting
         }
-
+        
         let stderr: Pipe? = {
             if detach || tty {
                 return nil
@@ -286,12 +286,12 @@ struct ProcessIO {
             }
             stdio[2] = stderr.fileHandleForWriting
         }
-
+        
         var ioTracker: IoTracker? = nil
         if configuredStreams > 0 {
             ioTracker = .init(stream: stream, cont: cc, configuredStreams: configuredStreams)
         }
-
+        
         return .init(
             stdin: stdin,
             stdout: stdout,
@@ -301,7 +301,7 @@ struct ProcessIO {
             console: current
         )
     }
-
+    
     static func streamStdin(
         from: OSFile,
         to: OSFile,
@@ -315,14 +315,14 @@ struct ProcessIO {
                     start: buffer.baseAddress,
                     count: bytesRead
                 )
-
+                
                 let (bytesWritten, _) = to.write(view)
                 if bytesWritten != bytesRead {
                     onErrorOrEOF()
                     return
                 }
             }
-
+            
             switch action {
             case .error(_), .eof, .brokenPipe:
                 onErrorOrEOF()
@@ -334,7 +334,7 @@ struct ProcessIO {
             }
         }
     }
-
+    
     public func wait() async throws {
         guard let ioTracker = self.ioTracker else {
             return
@@ -359,7 +359,7 @@ struct ProcessIO {
 
 struct OSFile: Sendable {
     private let fd: Int32
-
+    
     enum IOAction: Equatable {
         case eof
         case again
@@ -367,31 +367,31 @@ struct OSFile: Sendable {
         case brokenPipe
         case error(_ errno: Int32)
     }
-
+    
     init(fd: Int32) {
         self.fd = fd
     }
-
+    
     init(handle: FileHandle) {
         self.fd = handle.fileDescriptor
     }
-
+    
     func makeNonBlocking() throws {
         let flags = fcntl(fd, F_GETFL)
         guard flags != -1 else {
             throw POSIXError.fromErrno()
         }
-
+        
         if fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1 {
             throw POSIXError.fromErrno()
         }
     }
-
+    
     func write(_ buffer: UnsafeMutableBufferPointer<UInt8>) -> (wrote: Int, action: IOAction) {
         if buffer.count == 0 {
             return (0, .success)
         }
-
+        
         var bytesWrote: Int = 0
         while true {
             let n = Darwin.write(
@@ -405,11 +405,11 @@ struct OSFile: Sendable {
                 }
                 return (bytesWrote, .error(errno))
             }
-
+            
             if n == 0 {
                 return (bytesWrote, .brokenPipe)
             }
-
+            
             bytesWrote += n
             if bytesWrote < buffer.count {
                 continue
@@ -417,12 +417,12 @@ struct OSFile: Sendable {
             return (bytesWrote, .success)
         }
     }
-
+    
     func read(_ buffer: UnsafeMutableBufferPointer<UInt8>) -> (read: Int, action: IOAction) {
         if buffer.count == 0 {
             return (0, .success)
         }
-
+        
         var bytesRead: Int = 0
         while true {
             let n = Darwin.read(
@@ -436,11 +436,11 @@ struct OSFile: Sendable {
                 }
                 return (bytesRead, .error(errno))
             }
-
+            
             if n == 0 {
                 return (bytesRead, .eof)
             }
-
+            
             bytesRead += n
             if bytesRead < buffer.count {
                 continue

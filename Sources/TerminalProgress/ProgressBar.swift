@@ -27,12 +27,12 @@ public final class ProgressBar: Sendable {
     let term: FileHandle?
     let termQueue = DispatchQueue(label: "com.apple.container.ProgressBar")
     private let standardError = StandardError()
-
+    
     /// Returns `true` if the progress bar has finished.
     public var isFinished: Bool {
         state.withLock { $0.finished }
     }
-
+    
     /// Creates a new progress bar.
     /// - Parameter config: The configuration for the progress bar.
     public init(config: ProgressConfig) {
@@ -45,40 +45,40 @@ public final class ProgressBar: Sendable {
         self.state = Mutex(state)
         display(EscapeSequence.hideCursor)
     }
-
+    
     deinit {
         clear()
     }
-
+    
     /// Allows resetting the progress state.
     public func reset() {
         state.withLock {
             $0 = State(description: config.initialDescription)
         }
     }
-
+    
     /// Allows resetting the progress state of the current task.
     public func resetCurrentTask() {
         state.withLock {
             $0 = State(description: $0.description, itemsName: $0.itemsName, tasks: $0.tasks, totalTasks: $0.totalTasks, startTime: $0.startTime)
         }
     }
-
+    
     private func printFullDescription() {
         let (description, subDescription) = state.withLock { ($0.description, $0.subDescription) }
-
+        
         if subDescription != "" {
             standardError.write("\(description) \(subDescription)")
         } else {
             standardError.write(description)
         }
     }
-
+    
     /// Updates the description of the progress bar and increments the tasks by one.
     /// - Parameter description: The description of the action being performed.
     public func set(description: String) {
         resetCurrentTask()
-
+        
         state.withLock {
             $0.description = description
             $0.subDescription = ""
@@ -88,23 +88,23 @@ public final class ProgressBar: Sendable {
             printFullDescription()
         }
     }
-
+    
     /// Updates the additional description of the progress bar.
     /// - Parameter subDescription: The additional description of the action being performed.
     public func set(subDescription: String) {
         resetCurrentTask()
-
+        
         state.withLock { $0.subDescription = subDescription }
         if config.disableProgressUpdates {
             printFullDescription()
         }
     }
-
+    
     private func start(intervalSeconds: TimeInterval) async {
         if config.disableProgressUpdates && !state.withLock({ $0.description.isEmpty }) {
             printFullDescription()
         }
-
+        
         while !state.withLock({ $0.finished }) {
             let intervalNanoseconds = UInt64(intervalSeconds * 1_000_000_000)
             render()
@@ -114,7 +114,7 @@ public final class ProgressBar: Sendable {
             }
         }
     }
-
+    
     /// Starts an animation of the progress bar.
     /// - Parameter intervalSeconds: The time interval between updates in seconds.
     public func start(intervalSeconds: TimeInterval = 0.04) {
@@ -122,22 +122,22 @@ public final class ProgressBar: Sendable {
             await start(intervalSeconds: intervalSeconds)
         }
     }
-
+    
     /// Finishes the progress bar.
     public func finish() {
         guard !state.withLock({ $0.finished }) else {
             return
         }
-
+        
         state.withLock { $0.finished = true }
-
+        
         // The last render.
         render(force: true)
-
+        
         if !config.disableProgressUpdates && !config.clearOnFinish {
             displayText(state.withLock { $0.output }, terminating: "\n")
         }
-
+        
         if config.clearOnFinish {
             clearAndResetCursor()
         } else {
@@ -154,7 +154,7 @@ extension ProgressBar {
         let timeDifferenceSeconds = Int(floor(Double(timeDifferenceNanoseconds) / 1_000_000_000))
         return timeDifferenceSeconds
     }
-
+    
     func render(force: Bool = false) {
         guard term != nil && !config.disableProgressUpdates && (force || !state.withLock { $0.finished }) else {
             return
@@ -162,10 +162,10 @@ extension ProgressBar {
         let output = draw()
         displayText(output)
     }
-
+    
     func draw() -> String {
         let state = self.state.withLock { $0 }
-
+        
         var components = [String]()
         if config.showSpinner && !config.showProgressBar {
             if !state.finished {
@@ -175,28 +175,28 @@ extension ProgressBar {
                 components.append("\(config.theme.done)")
             }
         }
-
+        
         if config.showTasks, let totalTasks = state.totalTasks {
             let tasks = min(state.tasks, totalTasks)
             components.append("[\(tasks)/\(totalTasks)]")
         }
-
+        
         if config.showDescription && !state.description.isEmpty {
             components.append("\(state.description)")
             if !state.subDescription.isEmpty {
                 components.append("\(state.subDescription)")
             }
         }
-
+        
         let allowProgress = !config.ignoreSmallSize || state.totalSize == nil || state.totalSize! > Int64(1024 * 1024)
-
+        
         let value = state.totalSize != nil ? state.size : Int64(state.items)
         let total = state.totalSize ?? Int64(state.totalItems ?? 0)
-
+        
         if config.showPercent && total > 0 && allowProgress {
             components.append("\(state.finished ? "100%" : state.percent)")
         }
-
+        
         if config.showProgressBar, total > 0, allowProgress {
             let usedWidth = components.joined(separator: " ").count + 45 /* the maximum number of characters we may need */
             let remainingWidth = max(config.width - usedWidth, 1 /* the minimum width of a progress bar */)
@@ -205,9 +205,9 @@ extension ProgressBar {
             let bar = "\(String(repeating: config.theme.bar, count: barLength))\(String(repeating: " ", count: barPaddingLength))"
             components.append("|\(bar)|")
         }
-
+        
         var additionalComponents = [String]()
-
+        
         if config.showItems, state.items > 0 {
             var itemsName = ""
             if !state.itemsName.isEmpty {
@@ -225,7 +225,7 @@ extension ProgressBar {
                 }
             }
         }
-
+        
         if state.size > 0 && allowProgress {
             if state.finished {
                 if config.showSize {
@@ -248,13 +248,13 @@ extension ProgressBar {
                         formattedCombinedSize = formattedSize
                     }
                 }
-
+                
                 var formattedSpeed = ""
                 if config.showSpeed {
                     formattedSpeed = "\(state.sizeSpeed ?? state.averageSizeSpeed)"
                     formattedSpeed = adjustFormattedSize(formattedSpeed)
                 }
-
+                
                 if config.showSize && config.showSpeed {
                     additionalComponents.append(formattedCombinedSize)
                     additionalComponents.append(formattedSpeed)
@@ -265,21 +265,21 @@ extension ProgressBar {
                 }
             }
         }
-
+        
         if additionalComponents.count > 0 {
             let joinedAdditionalComponents = additionalComponents.joined(separator: ", ")
             components.append("(\(joinedAdditionalComponents))")
         }
-
+        
         if config.showTime {
             let timeDifferenceSeconds = secondsSinceStart()
             let formattedTime = timeDifferenceSeconds.formattedTime()
             components.append("[\(formattedTime)]")
         }
-
+        
         return components.joined(separator: " ")
     }
-
+    
     private func adjustFormattedSize(_ size: String) -> String {
         // Ensure we always have one digit after the decimal point to prevent flickering.
         let zero = Int64(0).formattedSize()
@@ -292,7 +292,7 @@ extension ProgressBar {
         }
         return size
     }
-
+    
     private func combineSize(size: String, totalSize: String) -> String {
         let sizeComponents = size.split(separator: " ", maxSplits: 1)
         let totalSizeComponents = totalSize.split(separator: " ", maxSplits: 1)

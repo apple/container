@@ -22,13 +22,13 @@ public struct XPCClient: Sendable {
     private nonisolated(unsafe) let connection: xpc_connection_t
     private let q: DispatchQueue?
     private let service: String
-
+    
     public init(service: String, queue: DispatchQueue? = nil) {
         let connection = xpc_connection_create_mach_service(service, queue, 0)
         self.connection = connection
         self.q = queue
         self.service = service
-
+        
         xpc_connection_set_event_handler(connection) { _ in }
         xpc_connection_set_target_queue(connection, self.q)
         xpc_connection_activate(connection)
@@ -40,14 +40,14 @@ extension XPCClient {
     public func close() {
         xpc_connection_cancel(connection)
     }
-
+    
     /// Returns the pid of process to which we have a connection.
     /// Note: `xpc_connection_get_pid` returns 0 if no activity
     /// has taken place on the connection prior to it being called.
     public func remotePid() -> pid_t {
         xpc_connection_get_pid(self.connection)
     }
-
+    
     /// Send the provided message to the service.
     @discardableResult
     public func send(_ message: XPCMessage, responseTimeout: Duration? = nil) async throws -> XPCMessage {
@@ -59,7 +59,7 @@ extension XPCClient {
                     throw ContainerizationError(.internalError, message: "XPC timeout for request to \(self.service)/\(route)")
                 }
             }
-
+            
             group.addTask {
                 try await withCheckedThrowingContinuation { cont in
                     xpc_connection_send_message_with_reply(self.connection, message.underlying, nil) { reply in
@@ -72,21 +72,21 @@ extension XPCClient {
                     }
                 }
             }
-
+            
             let response = try await group.next()
             // once one task has finished, cancel the rest.
             group.cancelAll()
             // we don't really care about the second error here
             // as it's most likely a `CancellationError`.
             try? await group.waitForAll()
-
+            
             guard let response else {
                 throw ContainerizationError(.invalidState, message: "failed to receive XPC response")
             }
             return response
         }
     }
-
+    
     private func parseReply(_ reply: xpc_object_t) throws -> XPCMessage {
         switch xpc_get_type(reply) {
         case XPC_TYPE_ERROR:

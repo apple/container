@@ -25,7 +25,7 @@ public struct ContainerSnapshot: Codable, Sendable {
     public let status: RuntimeStatus
     /// Network interfaces attached to the sandbox that are provided to the container.
     public let networks: [Attachment]
-
+    
     public init(
         configuration: ContainerConfiguration,
         status: RuntimeStatus,

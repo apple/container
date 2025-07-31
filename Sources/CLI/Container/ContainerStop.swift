@@ -25,22 +25,22 @@ extension Application {
         static let configuration = CommandConfiguration(
             commandName: "stop",
             abstract: "Stop one or more running containers")
-
+        
         @Flag(name: .shortAndLong, help: "Stop all running containers")
         var all = false
-
+        
         @Option(name: .shortAndLong, help: "Signal to send the container(s)")
         var signal: String = "SIGTERM"
-
+        
         @Option(name: .shortAndLong, help: "Seconds to wait before killing the container(s)")
         var time: Int32 = 5
-
+        
         @Argument
         var containerIDs: [String] = []
-
+        
         @OptionGroup
         var global: Flags.Global
-
+        
         func validate() throws {
             if containerIDs.count == 0 && !all {
                 throw ContainerizationError(.invalidArgument, message: "no containers specified and --all not supplied")
@@ -50,7 +50,7 @@ extension Application {
                     .invalidArgument, message: "explicitly supplied container IDs conflicts with the --all flag")
             }
         }
-
+        
         mutating func run() async throws {
             let set = Set<String>(containerIDs)
             var containers = [ClientContainer]()
@@ -61,7 +61,7 @@ extension Application {
                     set.contains(c.id)
                 }
             }
-
+            
             let opts = ContainerStopOptions(
                 timeoutInSeconds: self.time,
                 signal: try Signals.parseSignal(self.signal)
@@ -71,7 +71,7 @@ extension Application {
                 throw ContainerizationError(.internalError, message: "stop failed for one or more containers \(failed.joined(separator: ","))")
             }
         }
-
+        
         static func stopContainers(containers: [ClientContainer], stopOptions: ContainerStopOptions) async throws -> [String] {
             var failed: [String] = []
             try await withThrowingTaskGroup(of: ClientContainer?.self) { group in
@@ -87,7 +87,7 @@ extension Application {
                         }
                     }
                 }
-
+                
                 for try await ctr in group {
                     guard let ctr else {
                         continue
@@ -95,7 +95,7 @@ extension Application {
                     failed.append(ctr.id)
                 }
             }
-
+            
             return failed
         }
     }

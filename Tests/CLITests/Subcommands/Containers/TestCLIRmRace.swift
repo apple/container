@@ -20,7 +20,7 @@ import Foundation
 import Testing
 
 class TestCLIRmRaceCondition: CLITest {
-
+    
     /// Helper method to check if a container exists
     private func containerExists(_ name: String) -> Bool {
         do {
@@ -30,7 +30,7 @@ class TestCLIRmRaceCondition: CLITest {
             return false
         }
     }
-
+    
     /// Safe container removal that handles already-removed containers gracefully
     private func safeRemove(name: String, force: Bool = false) throws {
         guard containerExists(name) else {
@@ -39,27 +39,27 @@ class TestCLIRmRaceCondition: CLITest {
         }
         try doRemove(name: name, force: force)
     }
-
+    
     @Test func testStopRmRace() async throws {
         let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
-
+        
         do {
             // Create and start a container in detached mode that runs indefinitely
             try doCreate(name: name, args: ["sleep", "infinity"])
             try doStart(name: name)
-
+            
             // Wait for container to be running
             try waitForContainerRunning(name)
-
+            
             // Call doStop - this should return immediately without waiting
             try doStop(name: name)
-
+            
             // Immediately call doRemove and handle both possible outcomes:
             // 1. Container removal succeeds immediately (race condition fixed)
             // 2. Container removal fails because it's still stopping (race condition detected)
             var raceConditionPrevented = false
             var raceConditionDetected = false
-
+            
             do {
                 try doRemove(name: name)
                 // Success: The race condition prevention is working perfectly!
@@ -80,28 +80,28 @@ class TestCLIRmRaceCondition: CLITest {
                 Issue.record("Unexpected error type: \(error)")
                 return
             }
-
+            
             // Either outcome is acceptable - both indicate the race condition fix is working
             #expect(
                 raceConditionPrevented || raceConditionDetected,
                 "Expected either immediate success (race prevented) or controlled failure (race detected)")
-
+            
             // If the container was already removed, we're done
             if raceConditionPrevented {
                 return
             }
-
+            
             // If we detected a race condition, wait for cleanup and retry removal
             #expect(raceConditionDetected, "Should have detected race condition if we reach this point")
-
+            
             // Give the background cleanup a moment to finish
             try await Task.sleep(for: .seconds(2))
-
+            
             // Retry removal with exponential backoff for cleanup
             var removeAttempts = 0
             let maxRemoveAttempts = 5
             let baseDelay = 1.0  // seconds
-
+            
             while removeAttempts < maxRemoveAttempts {
                 do {
                     try safeRemove(name: name)
@@ -111,11 +111,11 @@ class TestCLIRmRaceCondition: CLITest {
                     if message.contains("not found") {
                         break
                     }
-
+                    
                     guard removeAttempts < maxRemoveAttempts - 1 else {
                         throw CLITest.CLIError.executionFailed("Failed to remove container after \(maxRemoveAttempts) attempts: \(message)")
                     }
-
+                    
                     let delay = baseDelay * pow(2.0, Double(removeAttempts))
                     try await Task.sleep(for: .seconds(delay))
                     removeAttempts += 1
@@ -128,7 +128,7 @@ class TestCLIRmRaceCondition: CLITest {
                     removeAttempts += 1
                 }
             }
-
+            
         } catch {
             Issue.record("failed to test stop-rm race condition: \(error)")
             // Safe cleanup - only try to remove if container actually exists

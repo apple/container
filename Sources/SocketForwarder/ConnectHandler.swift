@@ -22,7 +22,7 @@ final class ConnectHandler {
     private var pendingBytes: [NIOAny]
     private let serverAddress: SocketAddress
     private var log: Logger? = nil
-
+    
     init(serverAddress: SocketAddress, log: Logger?) {
         self.pendingBytes = []
         self.serverAddress = serverAddress
@@ -33,14 +33,14 @@ final class ConnectHandler {
 extension ConnectHandler: ChannelInboundHandler {
     typealias InboundIn = ByteBuffer
     typealias OutboundOut = ByteBuffer
-
+    
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         if self.pendingBytes.isEmpty {
             self.connectToServer(context: context)
         }
         self.pendingBytes.append(data)
     }
-
+    
     func handlerAdded(context: ChannelHandlerContext) {
         // Add logger metadata.
         self.log?[metadataKey: "proxy"] = "\(context.channel.localAddress?.description ?? "none")"
@@ -51,18 +51,18 @@ extension ConnectHandler: ChannelInboundHandler {
 extension ConnectHandler: RemovableChannelHandler {
     func removeHandler(context: ChannelHandlerContext, removalToken: ChannelHandlerContext.RemovalToken) {
         var didRead = false
-
+        
         // We are being removed, and need to deliver any pending bytes we may have if we're upgrading.
         while self.pendingBytes.count > 0 {
             let data = self.pendingBytes.removeFirst()
             context.fireChannelRead(data)
             didRead = true
         }
-
+        
         if didRead {
             context.fireChannelReadComplete()
         }
-
+        
         self.log?.trace("backend - removing connect handler from pipeline")
         context.leavePipeline(removalToken: removalToken)
     }
@@ -71,7 +71,7 @@ extension ConnectHandler: RemovableChannelHandler {
 extension ConnectHandler {
     private func connectToServer(context: ChannelHandlerContext) {
         self.log?.trace("backend - connecting")
-
+        
         ClientBootstrap(group: context.eventLoop)
             .connect(to: serverAddress)
             .assumeIsolatedUnsafeUnchecked()
@@ -87,10 +87,10 @@ extension ConnectHandler {
                 }
             }
     }
-
+    
     private func glue(_ peerChannel: Channel, context: ChannelHandlerContext) {
         self.log?.trace("backend - gluing channels")
-
+        
         // Now we need to glue our channel and the peer channel together.
         let (localGlue, peerGlue) = GlueHandler.matchedPair()
         do {

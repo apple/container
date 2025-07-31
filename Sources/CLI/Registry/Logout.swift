@@ -23,13 +23,13 @@ extension Application {
     struct Logout: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             abstract: "Log out from a registry")
-
+        
         @Argument(help: "Registry server name")
         var registry: String
-
+        
         @OptionGroup
         var global: Flags.Global
-
+        
         func run() async throws {
             let keychain = KeychainHelper(id: Constants.keychainID)
             let r = Reference.resolveDomain(domain: registry)

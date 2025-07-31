@@ -25,10 +25,10 @@ import Logging
 public actor ExitMonitor {
     /// A callback that receives the client identifier and exit code.
     public typealias ExitCallback = @Sendable (String, Int32) async throws -> Void
-
+    
     /// A function that waits for work to complete, returning an exit code.
     public typealias WaitHandler = @Sendable () async throws -> Int32
-
+    
     /// Create a new monitor.
     ///
     /// - Parameters:
@@ -36,11 +36,11 @@ public actor ExitMonitor {
     public init(log: Logger? = nil) {
         self.log = log
     }
-
+    
     private var exitCallbacks: [String: ExitCallback] = [:]
     private var runningTasks: [String: Task<Void, Never>] = [:]
     private let log: Logger?
-
+    
     /// Remove tracked work from the monitor.
     ///
     /// - Parameters:
@@ -52,7 +52,7 @@ public actor ExitMonitor {
         exitCallbacks.removeValue(forKey: id)
         runningTasks.removeValue(forKey: id)
     }
-
+    
     /// Register long running work so that the monitor invokes
     /// a callback when the work completes.
     ///
@@ -65,7 +65,7 @@ public actor ExitMonitor {
         }
         self.exitCallbacks[id] = onExit
     }
-
+    
     /// Await the completion of previously registered item of work.
     ///
     /// - Parameters:

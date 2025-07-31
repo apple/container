@@ -47,7 +47,7 @@ public actor SandboxService {
     private var state: State = .created
     private var processes: [String: ProcessInfo] = [:]
     private var socketForwarders: [SocketForwarderResult] = []
-
+    
     /// Create an instance with a bundle that describes the container.
     ///
     /// - Parameters:
@@ -62,7 +62,7 @@ public actor SandboxService {
         self.monitor = ExitMonitor(log: log)
         self.eventLoopGroup = eventLoopGroup
     }
-
+    
     /// Start the VM and the guest agent process for a container.
     ///
     /// - Parameters:
@@ -79,10 +79,10 @@ public actor SandboxService {
                     message: "container expected to be in created state, got: \(await self.state)"
                 )
             }
-
+            
             let bundle = ContainerClient.Bundle(path: self.root)
             try bundle.createLogFile()
-
+            
             let vmm = VZVirtualMachineManager(
                 kernel: try bundle.kernel,
                 initialFilesystem: bundle.initialFilesystem.asMount,
@@ -90,7 +90,7 @@ public actor SandboxService {
                 logger: self.log
             )
             var config = try bundle.configuration
-
+            
             // Dynamically configure the DNS nameserver from a network if no explicit configuration
             if let dns = config.dns, dns.nameservers.isEmpty {
                 if let nameserver = try await self.getDefaultNameserver(networks: config.networks) {
@@ -102,7 +102,7 @@ public actor SandboxService {
                     )
                 }
             }
-
+            
             let fqdn: String
             if let hostname = config.hostname {
                 if let suite = UserDefaults.init(suiteName: UserDefaults.appSuiteName),
@@ -118,7 +118,7 @@ public actor SandboxService {
             } else {
                 fqdn = config.id
             }
-
+            
             var attachments: [Attachment] = []
             var interfaces: [Interface] = []
             for index in 0..<config.networks.count {
@@ -127,7 +127,7 @@ public actor SandboxService {
                 let hostname = index == 0 ? fqdn : config.id
                 let (attachment, additionalData) = try await client.allocate(hostname: hostname)
                 attachments.append(attachment)
-
+                
                 let interface = try self.interfaceStrategy.toInterface(
                     attachment: attachment,
                     interfaceIndex: index,
@@ -135,7 +135,7 @@ public actor SandboxService {
                 )
                 interfaces.append(interface)
             }
-
+            
             let stdio = message.stdio()
             let containerLog = try FileHandle(forWritingTo: bundle.containerLog)
             let stdout = {
@@ -144,7 +144,7 @@ public actor SandboxService {
                 }
                 return MultiWriter(handles: [containerLog])
             }()
-
+            
             let stderr: MultiWriter? = {
                 if !config.initProcess.terminal {
                     if let h = stdio[2] {
@@ -158,7 +158,7 @@ public actor SandboxService {
             let stdin = {
                 stdio[0] ?? nil
             }()
-
+            
             let id = config.id
             let rootfs = try bundle.containerRootfs.asMount
             let container = try LinuxContainer(id, rootfs: rootfs, vmm: vmm, logger: self.log) { czConfig in
@@ -168,7 +168,7 @@ public actor SandboxService {
                 czConfig.process.stderr = stderr
                 czConfig.process.stdin = stdin
             }
-
+            
             await self.setContainer(
                 ContainerInfo(
                     container: container,
@@ -177,7 +177,7 @@ public actor SandboxService {
                     bundle: bundle,
                     io: (in: stdin, out: stdout, err: stderr)
                 ))
-
+            
             do {
                 try await container.create()
                 try await self.monitor.registerProcess(id: config.id, onExit: self.onContainerExit)
@@ -199,7 +199,7 @@ public actor SandboxService {
             return message.reply()
         }
     }
-
+    
     /// Start the container workload inside the virtual machine.
     ///
     /// - Parameters:
@@ -225,23 +225,23 @@ public actor SandboxService {
             return message.reply()
         }
     }
-
+    
     private func startInitProcess(lock: AsyncLock.Context) async throws {
         let info = try self.getContainer()
         let container = info.container
         let id = container.id
-
+        
         guard self.state == .booted else {
             throw ContainerizationError(
                 .invalidState,
                 message: "container expected to be in booted state, got: \(self.state)"
             )
         }
-
+        
         self.setState(.starting)
         do {
             let io = info.io
-
+            
             try await container.start()
             let waitFunc: ExitMonitor.WaitHandler = {
                 let code = try await container.wait()
@@ -261,20 +261,20 @@ public actor SandboxService {
             throw error
         }
     }
-
+    
     private func startExecProcess(processId id: String, lock: AsyncLock.Context) async throws {
         let container = try self.getContainer().container
         guard let processInfo = self.processes[id] else {
             throw ContainerizationError(.notFound, message: "Process with id \(id)")
         }
-
+        
         let czConfig = self.configureProcessConfig(config: processInfo.config, stdio: processInfo.io)
-
+        
         let process = try await container.exec(id, configuration: czConfig)
         try self.setUnderlyingProcess(id, process)
-
+        
         try await process.start()
-
+        
         let waitFunc: ExitMonitor.WaitHandler = {
             let code = try await process.wait()
             if let out = processInfo.io[1] {
@@ -287,7 +287,7 @@ public actor SandboxService {
         }
         try await self.monitor.track(id: id, waitingOn: waitFunc)
     }
-
+    
     private func startSocketForwarders(containerIpAddress: String, publishedPorts: [PublishPort]) async throws {
         var forwarders: [SocketForwarderResult] = []
         try await withThrowingTaskGroup(of: SocketForwarderResult.self) { group in
@@ -326,10 +326,10 @@ public actor SandboxService {
                 forwarders.append(result)
             }
         }
-
+        
         self.socketForwarders = forwarders
     }
-
+    
     private func stopSocketForwarders() async {
         log.info("closing forwarders")
         for forwarder in self.socketForwarders {
@@ -338,7 +338,7 @@ public actor SandboxService {
         }
         log.info("closed forwarders")
     }
-
+    
     /// Create a process inside the virtual machine for the container.
     ///
     /// Use this procedure to run ad hoc processes in the virtual
@@ -365,9 +365,9 @@ public actor SandboxService {
                 let id = try message.id()
                 let config = try message.processConfig()
                 let stdio = message.stdio()
-
+                
                 await self.addNewProcess(id, config, stdio)
-
+                
                 try await self.monitor.registerProcess(
                     id: id,
                     onExit: { id, code in
@@ -385,12 +385,12 @@ public actor SandboxService {
                         try await self.setProcessState(id: id, state: .stopped(code))
                     }
                 )
-
+                
                 return message.reply()
             }
         }
     }
-
+    
     /// Return the state for the sandbox and its containers.
     ///
     /// - Parameters:
@@ -405,7 +405,7 @@ public actor SandboxService {
         var status: RuntimeStatus = .unknown
         var networks: [Attachment] = []
         var cs: ContainerSnapshot?
-
+        
         switch state {
         case .created, .stopped(_), .starting, .booted:
             status = .stopped
@@ -413,7 +413,7 @@ public actor SandboxService {
             status = .stopping
         case .running:
             let ctr = try getContainer()
-
+            
             status = .running
             networks = ctr.attachments
             cs = ContainerSnapshot(
@@ -422,7 +422,7 @@ public actor SandboxService {
                 networks: networks
             )
         }
-
+        
         let reply = message.reply()
         try reply.setState(
             .init(
@@ -433,7 +433,7 @@ public actor SandboxService {
         )
         return reply
     }
-
+    
     /// Stop the container workload, any ad hoc processes, and the underlying
     /// virtual machine.
     ///
@@ -477,7 +477,7 @@ public actor SandboxService {
         }
         return reply
     }
-
+    
     /// Signal a process running in the virtual machine.
     ///
     /// - Parameters:
@@ -503,21 +503,21 @@ public actor SandboxService {
                     guard let processInfo = await self.processes[id] else {
                         throw ContainerizationError(.invalidState, message: "Process \(id) does not exist")
                     }
-
+                    
                     guard let proc = processInfo.process else {
                         throw ContainerizationError(.invalidState, message: "Process \(id) not started")
                     }
                     try await proc.kill(Int32(try message.signal()))
                     return message.reply()
                 }
-
+                
                 // TODO: fix underlying signal value to int64
                 try await ctr.container.kill(Int32(try message.signal()))
                 return message.reply()
             }
         }
     }
-
+    
     /// Resize the terminal for a process.
     ///
     /// - Parameters:
@@ -546,21 +546,21 @@ public actor SandboxService {
                     guard let processInfo = await self.processes[id] else {
                         throw ContainerizationError(.invalidState, message: "Process \(id) does not exist")
                     }
-
+                    
                     guard let proc = processInfo.process else {
                         throw ContainerizationError(.invalidState, message: "Process \(id) not started")
                     }
-
+                    
                     try await proc.resize(to: .init(width: UInt16(width), height: UInt16(height)))
                     return message.reply()
                 }
-
+                
                 try await ctr.container.resize(to: .init(width: UInt16(width), height: UInt16(height)))
                 return message.reply()
             }
         }
     }
-
+    
     /// Wait for a process.
     ///
     /// - Parameters:
@@ -575,7 +575,7 @@ public actor SandboxService {
         guard let id = message.string(key: .id) else {
             throw ContainerizationError(.invalidArgument, message: "Missing id in wait xpc message")
         }
-
+        
         let cachedCode: Int32? = try await self.lock.withLock { _ in
             let ctrInfo = try await self.getContainer()
             let ctr = ctrInfo.container
@@ -604,7 +604,7 @@ public actor SandboxService {
             reply.set(key: .exitCode, value: Int64(cachedCode))
             return reply
         }
-
+        
         let exitCode = await withCheckedContinuation { cc in
             // Is this safe since we are in an actor? :(
             self.addWaiter(id: id, cont: cc)
@@ -613,7 +613,7 @@ public actor SandboxService {
         reply.set(key: .exitCode, value: Int64(exitCode))
         return reply
     }
-
+    
     /// Dial a vsock port on the virtual machine.
     ///
     /// - Parameters:
@@ -639,19 +639,19 @@ public actor SandboxService {
                     message: "no vsock port supplied for dial"
                 )
             }
-
+            
             let ctr = try getContainer()
             let fh = try await ctr.container.dialVsock(port: UInt32(port))
-
+            
             let reply = message.reply()
             reply.set(key: .fd, value: fh)
             return reply
         }
     }
-
+    
     private func onContainerExit(id: String, code: Int32) async throws {
         self.log.info("init process exited with: \(code)")
-
+        
         try await self.lock.withLock { [self] _ in
             let ctrInfo = try await getContainer()
             let ctr = ctrInfo.container
@@ -663,13 +663,13 @@ public actor SandboxService {
             default:
                 break
             }
-
+            
             do {
                 try await ctr.stop()
             } catch {
                 log.notice("failed to stop sandbox gracefully: \(error)")
             }
-
+            
             do {
                 try await cleanupContainer()
             } catch {
@@ -685,7 +685,7 @@ public actor SandboxService {
             exit(code)
         }
     }
-
+    
     private static func configureContainer(
         czConfig: inout LinuxContainer.Configuration,
         config: ContainerConfiguration
@@ -698,7 +698,7 @@ public actor SandboxService {
         }
         // If the host doesn't support this, we'll throw on container creation.
         czConfig.virtualization = config.virtualization
-
+        
         for mount in config.mounts {
             if try mount.isSocket() {
                 let socket = UnixSocketConfiguration(
@@ -710,7 +710,7 @@ public actor SandboxService {
                 czConfig.mounts.append(mount.asMount)
             }
         }
-
+        
         for publishedSocket in config.publishedSockets {
             let socketConfig = UnixSocketConfiguration(
                 source: publishedSocket.containerPath,
@@ -720,18 +720,18 @@ public actor SandboxService {
             )
             czConfig.sockets.append(socketConfig)
         }
-
+        
         czConfig.hostname = config.hostname ?? config.id
-
+        
         if let dns = config.dns {
             czConfig.dns = DNS(
                 nameservers: dns.nameservers, domain: dns.domain,
                 searchDomains: dns.searchDomains, options: dns.options)
         }
-
+        
         Self.configureInitialProcess(czConfig: &czConfig, process: config.initProcess)
     }
-
+    
     private func getDefaultNameserver(networks: [String]) async throws -> String? {
         for network in networks {
             let client = NetworkClient(id: network)
@@ -741,10 +741,10 @@ public actor SandboxService {
             }
             return status.gateway
         }
-
+        
         return nil
     }
-
+    
     private static func configureInitialProcess(
         czConfig: inout LinuxContainer.Configuration,
         process: ProcessConfiguration
@@ -775,13 +775,13 @@ public actor SandboxService {
             )
         }
     }
-
+    
     private nonisolated func configureProcessConfig(config: ProcessConfiguration, stdio: [FileHandle?]) -> LinuxContainer.Configuration.Process {
         var proc = LinuxContainer.Configuration.Process()
         proc.stdin = stdio[0]
         proc.stdout = stdio[1]
         proc.stderr = stdio[2]
-
+        
         proc.arguments = [config.executable] + config.arguments
         proc.environmentVariables = config.environment
         proc.terminal = config.terminal
@@ -807,10 +807,10 @@ public actor SandboxService {
                 username: ""
             )
         }
-
+        
         return proc
     }
-
+    
     private nonisolated func closeHandle(_ handle: Int32) throws {
         guard close(handle) == 0 else {
             guard let errCode = POSIXErrorCode(rawValue: errno) else {
@@ -819,7 +819,7 @@ public actor SandboxService {
             throw POSIXError(errCode)
         }
     }
-
+    
     private func getContainer() throws -> ContainerInfo {
         guard let container else {
             throw ContainerizationError(
@@ -829,7 +829,7 @@ public actor SandboxService {
         }
         return container
     }
-
+    
     private func gracefulStopContainer(_ lc: LinuxContainer, stopOpts: ContainerStopOptions) async throws {
         // Try and gracefully shut down the process. Even if this succeeds we need to power off
         // the vm, but we should try this first always.
@@ -850,7 +850,7 @@ public actor SandboxService {
         // Now actually bring down the vm.
         try await lc.stop()
     }
-
+    
     private func cleanupContainer() async throws {
         // Give back our lovely IP(s)
         await self.stopSocketForwarders()
@@ -864,36 +864,36 @@ public actor SandboxService {
             }
         }
     }
-
+    
     private func sendContainerEvent(_ event: ContainerEvent) async throws {
         let serviceIdentifier = "com.apple.container.apiserver"
         let client = XPCClient(service: serviceIdentifier)
         let message = XPCMessage(route: .containerEvent)
-
+        
         let data = try JSONEncoder().encode(event)
         message.set(key: .containerEvent, value: data)
         try await client.send(message)
     }
-
+    
 }
 
 extension XPCMessage {
     fileprivate func signal() throws -> Int64 {
         self.int64(key: .signal)
     }
-
+    
     fileprivate func stopOptions() throws -> ContainerStopOptions {
         guard let data = self.dataNoCopy(key: .stopOptions) else {
             throw ContainerizationError(.invalidArgument, message: "empty StopOptions")
         }
         return try JSONDecoder().decode(ContainerStopOptions.self, from: data)
     }
-
+    
     fileprivate func setState(_ state: SandboxSnapshot) throws {
         let data = try JSONEncoder().encode(state)
         self.set(key: .snapshot, value: data)
     }
-
+    
     fileprivate func stdio() -> [FileHandle?] {
         var handles = [FileHandle?](repeating: nil, count: 3)
         if let stdin = self.fileHandle(key: .stdin) {
@@ -907,11 +907,11 @@ extension XPCMessage {
         }
         return handles
     }
-
+    
     fileprivate func setFileHandle(_ handle: FileHandle) {
         self.set(key: .fd, value: handle)
     }
-
+    
     fileprivate func processConfig() throws -> ProcessConfiguration {
         guard let data = self.dataNoCopy(key: .processConfig) else {
             throw ContainerizationError(.invalidArgument, message: "empty process configuration")
@@ -925,7 +925,7 @@ extension ContainerClient.Bundle {
     public var containerLog: URL {
         path.appendingPathComponent("stdio.log")
     }
-
+    
     func createLogFile() throws {
         // Create the log file we'll write stdio to.
         // O_TRUNC resolves a log delay issue on restarted containers by force-updating internal state
@@ -962,7 +962,7 @@ extension Filesystem {
             )
         }
     }
-
+    
     func isSocket() throws -> Bool {
         if !self.isVirtiofs {
             return false
@@ -974,17 +974,17 @@ extension Filesystem {
 
 struct MultiWriter: Writer {
     let handles: [FileHandle]
-
+    
     init(handles: [FileHandle]) {
         self.handles = handles
     }
-
+    
     func close() throws {
         for handle in handles {
             try handle.close()
         }
     }
-
+    
     func write(_ data: Data) throws {
         for handle in handles {
             try handle.write(contentsOf: data)
@@ -996,7 +996,7 @@ extension FileHandle: @retroactive ReaderStream, @retroactive Writer {
     public func write(_ data: Data) throws {
         try self.write(contentsOf: data)
     }
-
+    
     public func stream() -> AsyncStream<Data> {
         .init { cont in
             self.readabilityHandler = { handle in
@@ -1020,11 +1020,11 @@ extension SandboxService {
         current.append(cont)
         self.waiters[id] = current
     }
-
+    
     private func removeWaiters(for id: String) {
         self.waiters[id] = []
     }
-
+    
     private func setUnderlyingProcess(_ id: String, _ process: LinuxProcess) throws {
         guard var info = self.processes[id] else {
             throw ContainerizationError(.invalidState, message: "Process \(id) not found")
@@ -1032,7 +1032,7 @@ extension SandboxService {
         info.process = process
         self.processes[id] = info
     }
-
+    
     private func setProcessState(id: String, state: State) throws {
         guard var info = self.processes[id] else {
             throw ContainerizationError(.invalidState, message: "Process \(id) not found")
@@ -1040,22 +1040,22 @@ extension SandboxService {
         info.state = state
         self.processes[id] = info
     }
-
+    
     private func setContainer(_ info: ContainerInfo) {
         self.container = info
     }
-
+    
     private func addNewProcess(_ id: String, _ config: ProcessConfiguration, _ io: [FileHandle?]) {
         self.processes[id] = ProcessInfo(config: config, process: nil, state: .created, io: io)
     }
-
+    
     private struct ProcessInfo {
         let config: ProcessConfiguration
         var process: LinuxProcess?
         var state: State
         let io: [FileHandle?]
     }
-
+    
     private struct ContainerInfo {
         let container: LinuxContainer
         let config: ContainerConfiguration
@@ -1063,7 +1063,7 @@ extension SandboxService {
         let bundle: ContainerClient.Bundle
         let io: (in: FileHandle?, out: MultiWriter?, err: MultiWriter?)
     }
-
+    
     public enum State: Sendable, Equatable {
         case created
         case booted
@@ -1072,7 +1072,7 @@ extension SandboxService {
         case stopping
         case stopped(Int32)
     }
-
+    
     func setState(_ new: State) {
         self.state = new
     }

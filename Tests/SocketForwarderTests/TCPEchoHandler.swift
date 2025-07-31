@@ -17,14 +17,14 @@
 import NIO
 
 final class TCPEchoHandler: ChannelInboundHandler {
-
+    
     typealias InboundIn = ByteBuffer
     typealias OutboundOut = ByteBuffer
-
+    
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         context.writeAndFlush(data, promise: nil)
     }
-
+    
     func errorCaught(context: ChannelHandlerContext, error: Error) {
         context.close(promise: nil)
     }

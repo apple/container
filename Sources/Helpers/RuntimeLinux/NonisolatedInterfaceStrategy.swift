@@ -27,21 +27,21 @@ import vmnet
 @available(macOS 26, *)
 struct NonisolatedInterfaceStrategy: InterfaceStrategy {
     private let log: Logger
-
+    
     public init(log: Logger) {
         self.log = log
     }
-
+    
     public func toInterface(attachment: Attachment, interfaceIndex: Int, additionalData: XPCMessage?) throws -> Interface {
         guard let additionalData else {
             throw ContainerizationError(.invalidState, message: "network state does not contain custom network reference")
         }
-
+        
         var status: vmnet_return_t = .VMNET_SUCCESS
         guard let networkRef = vmnet_network_create_with_serialization(additionalData.underlying, &status) else {
             throw ContainerizationError(.invalidState, message: "cannot deserialize custom network reference, status \(status)")
         }
-
+        
         log.info("creating NATNetworkInterface with network reference")
         let gateway = interfaceIndex == 0 ? attachment.gateway : nil
         return NATNetworkInterface(address: attachment.address, gateway: gateway, reference: networkRef)

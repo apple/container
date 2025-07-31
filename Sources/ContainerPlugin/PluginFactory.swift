@@ -29,25 +29,25 @@ public protocol PluginFactory: Sendable {
 /// Default layout which uses a Unix-like structure.
 public struct DefaultPluginFactory: PluginFactory {
     public init() {}
-
+    
     public func create(installURL: URL) throws -> Plugin? {
         let fm = FileManager.default
-
+        
         let configURL = installURL.appending(path: configFilename)
         guard fm.fileExists(atPath: configURL.path) else {
             return nil
         }
-
+        
         guard let config = try PluginConfig(configURL: configURL) else {
             return nil
         }
-
+        
         let name = installURL.lastPathComponent
         let binaryURL = installURL.appending(path: "bin").appending(path: name)
         guard fm.fileExists(atPath: binaryURL.path) else {
             return nil
         }
-
+        
         return Plugin(binaryURL: binaryURL, config: config)
     }
 }
@@ -55,12 +55,12 @@ public struct DefaultPluginFactory: PluginFactory {
 /// Layout which uses a macOS application bundle structure.
 public struct AppBundlePluginFactory: PluginFactory {
     private static let appSuffix = ".app"
-
+    
     public init() {}
-
+    
     public func create(installURL: URL) throws -> Plugin? {
         let fm = FileManager.default
-
+        
         let configURL =
             installURL
             .appending(path: "Contents")
@@ -69,11 +69,11 @@ public struct AppBundlePluginFactory: PluginFactory {
         guard fm.fileExists(atPath: configURL.path) else {
             return nil
         }
-
+        
         guard let config = try PluginConfig(configURL: configURL) else {
             return nil
         }
-
+        
         let appName = installURL.lastPathComponent
         guard appName.hasSuffix(Self.appSuffix) else {
             return nil
@@ -87,7 +87,7 @@ public struct AppBundlePluginFactory: PluginFactory {
         guard fm.fileExists(atPath: binaryURL.path) else {
             return nil
         }
-
+        
         return Plugin(binaryURL: binaryURL, config: config)
     }
 }

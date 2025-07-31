@@ -18,14 +18,14 @@ import NIO
 
 struct TCPEchoServer: Sendable {
     private let serverAddress: SocketAddress
-
+    
     private let eventLoopGroup: MultiThreadedEventLoopGroup
-
+    
     public init(serverAddress: SocketAddress, eventLoopGroup: MultiThreadedEventLoopGroup) {
         self.serverAddress = serverAddress
         self.eventLoopGroup = eventLoopGroup
     }
-
+    
     public func run() throws -> EventLoopFuture<any Channel> {
         let bootstrap = ServerBootstrap(group: self.eventLoopGroup)
             .serverChannelOption(ChannelOptions.socket(.init(SOL_SOCKET), .init(SO_REUSEADDR)), value: 1)
@@ -40,7 +40,7 @@ struct TCPEchoServer: Sendable {
                     )
                 }
             }
-
+        
         return bootstrap.bind(to: self.serverAddress)
     }
 }
