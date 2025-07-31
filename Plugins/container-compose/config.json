@@ -1,0 +1,9 @@
+{
+  "abstract": "Manage multi-container applications with docker-compose syntax",
+  "author": {
+    "name": "Apple Container Authors",
+    "email": "noreply@apple.com"
+  },
+  "isCLI": true,
+  "servicesConfig": null
+}

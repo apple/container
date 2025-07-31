@@ -18,7 +18,7 @@ import Foundation
 import Testing
 import Logging
 
-@testable import ContainerCompose
+@testable import ComposeCore
 
 struct ProjectConverterTests {
     let log = Logger(label: "test")

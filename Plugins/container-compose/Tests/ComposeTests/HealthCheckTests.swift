@@ -14,13 +14,16 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import XCTest
-import ContainerCompose
+import Testing
+import ComposeCore
 import ContainerizationError
-@testable import ContainerCompose
+import Logging
+import Foundation
+@testable import ComposeCore
 
-final class HealthCheckTests: XCTestCase {
-    func testHealthCheckParsing() throws {
+struct HealthCheckTests {
+    let log = Logger(label: "test")
+    @Test func testHealthCheckParsing() throws {
         let yaml = """
         version: '3'
         services:
@@ -34,20 +37,20 @@ final class HealthCheckTests: XCTestCase {
               start_period: 40s
         """
         
-        let parser = ComposeParser(log: .test)
+        let parser = ComposeParser(log: log)
         let composeFile = try parser.parse(from: yaml.data(using: .utf8)!)
         
-        XCTAssertNotNil(composeFile.services["web"]?.healthcheck)
+        #expect(composeFile.services["web"]?.healthcheck != nil)
         let healthcheck = composeFile.services["web"]!.healthcheck!
         
-        XCTAssertEqual(healthcheck.test, .list(["CMD", "curl", "-f", "http://localhost"]))
-        XCTAssertEqual(healthcheck.interval, "30s")
-        XCTAssertEqual(healthcheck.timeout, "10s")
-        XCTAssertEqual(healthcheck.retries, 3)
-        XCTAssertEqual(healthcheck.startPeriod, "40s")
+        #expect(healthcheck.test == .list(["CMD", "curl", "-f", "http://localhost"]))
+        #expect(healthcheck.interval == "30s")
+        #expect(healthcheck.timeout == "10s")
+        #expect(healthcheck.retries == 3)
+        #expect(healthcheck.startPeriod == "40s")
     }
     
-    func testHealthCheckStringFormat() throws {
+    @Test func testHealthCheckStringFormat() throws {
         let yaml = """
         version: '3'
         services:
@@ -57,14 +60,14 @@ final class HealthCheckTests: XCTestCase {
               test: "curl -f http://localhost || exit 1"
         """
         
-        let parser = ComposeParser(log: .test)
+        let parser = ComposeParser(log: log)
         let composeFile = try parser.parse(from: yaml.data(using: .utf8)!)
         
         let healthcheck = composeFile.services["app"]!.healthcheck!
-        XCTAssertEqual(healthcheck.test, .string("curl -f http://localhost || exit 1"))
+        #expect(healthcheck.test == .string("curl -f http://localhost || exit 1"))
     }
     
-    func testHealthCheckDisabled() throws {
+    @Test func testHealthCheckDisabled() throws {
         let yaml = """
         version: '3'
         services:
@@ -74,14 +77,14 @@ final class HealthCheckTests: XCTestCase {
               disable: true
         """
         
-        let parser = ComposeParser(log: .test)
+        let parser = ComposeParser(log: log)
         let composeFile = try parser.parse(from: yaml.data(using: .utf8)!)
         
         let healthcheck = composeFile.services["db"]!.healthcheck!
-        XCTAssertTrue(healthcheck.disable ?? false)
+        #expect(healthcheck.disable ?? false)
     }
     
-    func testProjectConverterHealthCheck() throws {
+    @Test func testProjectConverterHealthCheck() throws {
         let yaml = """
         version: '3'
         services:
@@ -95,28 +98,27 @@ final class HealthCheckTests: XCTestCase {
               start_period: 10s
         """
         
-        let parser = ComposeParser(log: .test)
+        let parser = ComposeParser(log: log)
         let composeFile = try parser.parse(from: yaml.data(using: .utf8)!)
         
-        let converter = ProjectConverter(log: .test)
+        let converter = ProjectConverter(log: log)
         let project = try converter.convert(
             composeFile: composeFile,
-            projectName: "test",
-            workingDirectory: URL(fileURLWithPath: "/tmp")
+            projectName: "test"
         )
         
         let service = project.services["web"]!
-        XCTAssertNotNil(service.healthCheck)
+        #expect(service.healthCheck != nil)
         
         let healthCheck = service.healthCheck!
-        XCTAssertEqual(healthCheck.test, ["CMD", "wget", "-q", "--spider", "http://localhost"])
-        XCTAssertEqual(healthCheck.interval, 30)
-        XCTAssertEqual(healthCheck.timeout, 5)
-        XCTAssertEqual(healthCheck.retries, 3)
-        XCTAssertEqual(healthCheck.startPeriod, 10)
+        #expect(healthCheck.test == ["CMD", "wget", "-q", "--spider", "http://localhost"])
+        #expect(healthCheck.interval == 30)
+        #expect(healthCheck.timeout == 5)
+        #expect(healthCheck.retries == 3)
+        #expect(healthCheck.startPeriod == 10)
     }
     
-    func testHealthCheckWithShellFormat() throws {
+    @Test func testHealthCheckWithShellFormat() throws {
         let yaml = """
         version: '3'
         services:
@@ -127,22 +129,21 @@ final class HealthCheckTests: XCTestCase {
               interval: 10s
         """
         
-        let parser = ComposeParser(log: .test)
+        let parser = ComposeParser(log: log)
         let composeFile = try parser.parse(from: yaml.data(using: .utf8)!)
         
-        let converter = ProjectConverter(log: .test)
+        let converter = ProjectConverter(log: log)
         let project = try converter.convert(
             composeFile: composeFile,
-            projectName: "test",
-            workingDirectory: URL(fileURLWithPath: "/tmp")
+            projectName: "test"
         )
         
         let healthCheck = project.services["api"]!.healthCheck!
         // CMD-SHELL should be converted to shell command
-        XCTAssertEqual(healthCheck.test, ["/bin/sh", "-c", "curl -f http://localhost:3000/health || exit 1"])
+        #expect(healthCheck.test == ["/bin/sh", "-c", "curl -f http://localhost:3000/health || exit 1"])
     }
     
-    func testHealthCheckNoneDisabled() throws {
+    @Test func testHealthCheckNoneDisabled() throws {
         let yaml = """
         version: '3'
         services:
@@ -152,17 +153,16 @@ final class HealthCheckTests: XCTestCase {
               test: ["NONE"]
         """
         
-        let parser = ComposeParser(log: .test)
+        let parser = ComposeParser(log: log)
         let composeFile = try parser.parse(from: yaml.data(using: .utf8)!)
         
-        let converter = ProjectConverter(log: .test)
+        let converter = ProjectConverter(log: log)
         let project = try converter.convert(
             composeFile: composeFile,
-            projectName: "test",
-            workingDirectory: URL(fileURLWithPath: "/tmp")
+            projectName: "test"
         )
         
         // NONE should result in no health check
-        XCTAssertNil(project.services["worker"]!.healthCheck)
+        #expect(project.services["worker"]!.healthCheck == nil)
     }
 }

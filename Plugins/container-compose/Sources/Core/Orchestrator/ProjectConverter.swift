@@ -333,8 +333,23 @@ public struct ProjectConverter {
         let healthCheck: HealthCheck? = {
             guard let hc = service.healthcheck, !(hc.disable ?? false) else { return nil }
             
+            // Get the test command
+            var testCommand = hc.test?.asArray ?? []
+            
+            // Handle special cases
+            if !testCommand.isEmpty {
+                if testCommand[0] == "NONE" {
+                    // NONE means no health check
+                    return nil
+                } else if testCommand[0] == "CMD-SHELL" && testCommand.count > 1 {
+                    // Convert CMD-SHELL to shell command
+                    let shellCommand = testCommand[1...].joined(separator: " ")
+                    testCommand = ["/bin/sh", "-c", shellCommand]
+                }
+            }
+            
             return HealthCheck(
-                test: hc.test?.asArray ?? [],
+                test: testCommand,
                 interval: parseTimeInterval(hc.interval),
                 timeout: parseTimeInterval(hc.timeout),
                 retries: hc.retries,

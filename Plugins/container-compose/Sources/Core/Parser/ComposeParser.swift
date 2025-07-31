@@ -40,7 +40,7 @@ public struct ComposeParser {
         var composeFiles: [ComposeFile] = []
         
         for url in urls {
-            let file = try parse(from: url)
+            let file = try parseWithoutValidation(from: url)
             composeFiles.append(file)
             log.info("Loaded compose file: \(url.lastPathComponent)")
         }
@@ -51,6 +51,9 @@ public struct ComposeParser {
         if urls.count > 1 {
             log.info("Merged \(urls.count) compose files")
         }
+        
+        // Validate only the final merged result
+        try validate(merged)
         
         return merged
     }
@@ -66,6 +69,53 @@ public struct ComposeParser {
         
         let data = try Data(contentsOf: url)
         return try parse(from: data)
+    }
+    
+    /// Parse compose file from data without validation (for internal use)
+    private func parseWithoutValidation(from url: URL) throws -> ComposeFile {
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw ContainerizationError(
+                .notFound,
+                message: "Compose file not found at path: \(url.path)"
+            )
+        }
+        
+        let data = try Data(contentsOf: url)
+        return try parseWithoutValidation(from: data)
+    }
+    
+    /// Parse compose file from data without validation
+    private func parseWithoutValidation(from data: Data) throws -> ComposeFile {
+        guard let yamlString = String(data: data, encoding: .utf8) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "Unable to decode compose file as UTF-8"
+            )
+        }
+        
+        do {
+            // Decode directly without intermediate dump/reload
+            let decoder = YAMLDecoder()
+            
+            // First try to decode directly (no interpolation needed)
+            if !yamlString.contains("$") {
+                return try decoder.decode(ComposeFile.self, from: data)
+            }
+            
+            // If we have variables to interpolate, we need to process the YAML
+            // But let's do it more intelligently by working with the string directly
+            let interpolatedYaml = try interpolateYamlString(yamlString)
+            let interpolatedData = interpolatedYaml.data(using: .utf8)!
+            
+            return try decoder.decode(ComposeFile.self, from: interpolatedData)
+        } catch let error as DecodingError {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "Failed to parse compose file: \(describeDecodingError(error))"
+            )
+        } catch {
+            throw error
+        }
     }
     
     /// Parse compose file from data

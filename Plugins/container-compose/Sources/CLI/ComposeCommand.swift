@@ -18,26 +18,8 @@ import ArgumentParser
 import ContainerClient
 import Foundation
 
-extension Application {
-    struct ComposeCommand: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
-            commandName: "compose",
-            abstract: "Manage multi-container applications",
-            subcommands: [
-                ComposeUp.self,
-                ComposeDown.self,
-                ComposePS.self,
-                ComposeStart.self,
-                ComposeStop.self,
-                ComposeRestart.self,
-                ComposeLogs.self,
-                ComposeExec.self,
-                ComposeHealth.self,
-                ComposeValidate.self,
-            ]
-        )
-    }
-}
+// This file now contains only shared options
+// The main command is defined in main.swift
 
 // MARK: - Shared Options
 

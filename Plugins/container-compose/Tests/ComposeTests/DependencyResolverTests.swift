@@ -18,7 +18,7 @@ import Foundation
 import Testing
 import ContainerizationError
 
-@testable import ContainerCompose
+@testable import ComposeCore
 
 struct DependencyResolverTests {
     

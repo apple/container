@@ -20,7 +20,7 @@ import Containerization
 import ContainerizationError
 import ContainerizationOS
 import Logging
-import TerminalProgress
+
 #if os(macOS)
 import Darwin
 #else

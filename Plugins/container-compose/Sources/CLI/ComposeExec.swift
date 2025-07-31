@@ -16,22 +16,21 @@
 
 import ArgumentParser
 import ContainerClient
-import ContainerCompose
+import ComposeCore
 import Foundation
 import Logging
 
-extension Application {
-    struct ComposeExec: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
-            commandName: "exec",
-            abstract: "Execute a command in a running container"
-        )
-        
-        @OptionGroup
-        var composeOptions: ComposeOptions
-        
-        @OptionGroup
-        var global: Flags.Global
+struct ComposeExec: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "exec",
+        abstract: "Execute a command in a running container"
+    )
+    
+    @OptionGroup
+    var composeOptions: ComposeOptions
+    
+    @OptionGroup
+    var global: Flags.Global
         
         @Flag(name: [.customLong("detach"), .customShort("d")], help: "Run command in the background")
         var detach: Bool = false
@@ -58,42 +57,41 @@ extension Application {
         var command: [String] = []
         
         func run() async throws {
-            // Set environment variables
-            composeOptions.setEnvironmentVariables()
-            
-            // Parse compose file
-            let parser = ComposeParser(log: log)
-            let composeFile = try parser.parse(from: composeOptions.getComposeFileURLs())
-            
-            // Convert to project
-            let converter = ProjectConverter(log: log)
-            let project = try converter.convert(
-                composeFile: composeFile,
-                projectName: composeOptions.getProjectName(),
-                profiles: composeOptions.profile,
-                selectedServices: []
-            )
-            
-            // Create orchestrator
-            let orchestrator = Orchestrator(log: log)
-            
-            // Execute command
-            let exitCode = try await orchestrator.exec(
-                project: project,
-                serviceName: service,
-                command: command,
-                detach: detach,
-                interactive: interactive,
-                tty: tty,
-                user: user,
-                workdir: workdir,
-                environment: envVars
-            )
-            
-            // Exit with the same code as the executed command
-            if exitCode != 0 {
-                throw ExitCode(exitCode)
-            }
+        // Set environment variables
+        composeOptions.setEnvironmentVariables()
+        
+        // Parse compose file
+        let parser = ComposeParser(log: log)
+        let composeFile = try parser.parse(from: composeOptions.getComposeFileURLs())
+        
+        // Convert to project
+        let converter = ProjectConverter(log: log)
+        let project = try converter.convert(
+            composeFile: composeFile,
+            projectName: composeOptions.getProjectName(),
+            profiles: composeOptions.profile,
+            selectedServices: []
+        )
+        
+        // Create orchestrator
+        let orchestrator = Orchestrator(log: log)
+        
+        // Execute command
+        let exitCode = try await orchestrator.exec(
+            project: project,
+            serviceName: service,
+            command: command,
+            detach: detach,
+            interactive: interactive,
+            tty: tty,
+            user: user,
+            workdir: workdir,
+            environment: envVars
+        )
+        
+        // Exit with the same code as the executed command
+        if exitCode != 0 {
+            throw ExitCode(exitCode)
+        }
         }
     }
-}

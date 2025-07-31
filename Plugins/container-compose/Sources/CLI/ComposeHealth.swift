@@ -16,16 +16,15 @@
 
 import ArgumentParser
 import ContainerClient
-import ContainerCompose
+import ComposeCore
 import Foundation
 import Logging
 
-extension Application {
-    /// Check health status of services in a compose project.
-    ///
-    /// This command executes the health checks defined in the compose file
-    /// and reports the current health status of each service.
-    struct ComposeHealth: AsyncParsableCommand {
+/// Check health status of services in a compose project.
+///
+/// This command executes the health checks defined in the compose file
+/// and reports the current health status of each service.
+struct ComposeHealth: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "health",
         abstract: "Check health status of services"
@@ -42,7 +41,6 @@ extension Application {
     var quiet: Bool = false
     
     func run() async throws {
-        let log = Logger(label: "compose.health")
         
         // Set environment variables
         composeOptions.setEnvironmentVariables()
@@ -54,9 +52,9 @@ extension Application {
         // Convert to project
         let converter = ProjectConverter(log: log)
         let project = try converter.convert(
-            composeFile: composeFile,
-            projectName: composeOptions.getProjectName(),
-            profiles: composeOptions.profile
+        composeFile: composeFile,
+        projectName: composeOptions.getProjectName(),
+        profiles: composeOptions.profile
         )
         
         // Create orchestrator
@@ -64,32 +62,31 @@ extension Application {
         
         // Check health
         let healthStatus = try await orchestrator.checkHealth(
-            project: project,
-            services: services
+        project: project,
+        services: services
         )
         
         if quiet {
-            // In quiet mode, just exit with appropriate code
-            let allHealthy = healthStatus.values.allSatisfy { $0 }
-            throw ExitCode(allHealthy ? 0 : 1)
+        // In quiet mode, just exit with appropriate code
+        let allHealthy = healthStatus.values.allSatisfy { $0 }
+        throw ExitCode(allHealthy ? 0 : 1)
         } else {
-            // Display health status
-            if healthStatus.isEmpty {
-                print("No services with health checks found")
-            } else {
-                for (service, isHealthy) in healthStatus.sorted(by: { $0.key < $1.key }) {
-                    let status = isHealthy ? "healthy" : "unhealthy"
-                    let symbol = isHealthy ? "✓" : "✗"
-                    print("\(symbol) \(service): \(status)")
-                }
-                
-                // Exit with error if any unhealthy
-                let allHealthy = healthStatus.values.allSatisfy { $0 }
-                if !allHealthy {
-                    throw ExitCode.failure
-                }
+        // Display health status
+        if healthStatus.isEmpty {
+            print("No services with health checks found")
+        } else {
+            for (service, isHealthy) in healthStatus.sorted(by: { $0.key < $1.key }) {
+                let status = isHealthy ? "healthy" : "unhealthy"
+                let symbol = isHealthy ? "✓" : "✗"
+                print("\(symbol) \(service): \(status)")
+            }
+            
+            // Exit with error if any unhealthy
+            let allHealthy = healthStatus.values.allSatisfy { $0 }
+            if !allHealthy {
+                throw ExitCode.failure
             }
         }
-    }
+        }
     }
 }

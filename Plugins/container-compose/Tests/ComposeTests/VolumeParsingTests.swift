@@ -14,13 +14,16 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import XCTest
-import ContainerCompose
-@testable import ContainerCompose
+import Testing
+import ComposeCore
+import Logging
+import Foundation
+@testable import ComposeCore
 
-final class VolumeParsingTests: XCTestCase {
+struct VolumeParsingTests {
+    let log = Logger(label: "test")
     
-    func testEmptyVolumeDefinition() throws {
+    @Test func testEmptyVolumeDefinition() throws {
         // Test case for volumes defined with empty values (e.g., "postgres-data:")
         let yaml = """
         version: '3'
@@ -34,27 +37,27 @@ final class VolumeParsingTests: XCTestCase {
           redis-data:
         """
         
-        let parser = ComposeParser(log: .test)
+        let parser = ComposeParser(log: log)
         let composeFile = try parser.parse(from: yaml.data(using: .utf8)!)
         
-        XCTAssertNotNil(composeFile.volumes)
-        XCTAssertEqual(composeFile.volumes?.count, 2)
+        #expect(composeFile.volumes != nil)
+        #expect(composeFile.volumes?.count == 2)
         
         // Check that empty volume definitions are parsed correctly
         let postgresVolume = composeFile.volumes?["postgres-data"]
-        XCTAssertNotNil(postgresVolume)
-        XCTAssertNil(postgresVolume?.driver)
-        XCTAssertNil(postgresVolume?.external)
-        XCTAssertNil(postgresVolume?.name)
+        #expect(postgresVolume != nil)
+        #expect(postgresVolume?.driver == nil)
+        #expect(postgresVolume?.external == nil)
+        #expect(postgresVolume?.name == nil)
         
         let redisVolume = composeFile.volumes?["redis-data"]
-        XCTAssertNotNil(redisVolume)
-        XCTAssertNil(redisVolume?.driver)
-        XCTAssertNil(redisVolume?.external)
-        XCTAssertNil(redisVolume?.name)
+        #expect(redisVolume != nil)
+        #expect(redisVolume?.driver == nil)
+        #expect(redisVolume?.external == nil)
+        #expect(redisVolume?.name == nil)
     }
     
-    func testVolumeWithProperties() throws {
+    @Test func testVolumeWithProperties() throws {
         let yaml = """
         version: '3'
         services:
@@ -68,20 +71,20 @@ final class VolumeParsingTests: XCTestCase {
             name: my-data-volume
         """
         
-        let parser = ComposeParser(log: .test)
+        let parser = ComposeParser(log: log)
         let composeFile = try parser.parse(from: yaml.data(using: .utf8)!)
         
-        XCTAssertNotNil(composeFile.volumes)
-        XCTAssertEqual(composeFile.volumes?.count, 1)
+        #expect(composeFile.volumes != nil)
+        #expect(composeFile.volumes?.count == 1)
         
         let dataVolume = composeFile.volumes?["data"]
-        XCTAssertNotNil(dataVolume)
-        XCTAssertEqual(dataVolume?.driver, "local")
-        XCTAssertEqual(dataVolume?.name, "my-data-volume")
-        XCTAssertNil(dataVolume?.external)
+        #expect(dataVolume != nil)
+        #expect(dataVolume?.driver == "local")
+        #expect(dataVolume?.name == "my-data-volume")
+        #expect(dataVolume?.external == nil)
     }
     
-    func testExternalVolume() throws {
+    @Test func testExternalVolume() throws {
         let yaml = """
         version: '3'
         services:
@@ -94,11 +97,11 @@ final class VolumeParsingTests: XCTestCase {
             external: true
         """
         
-        let parser = ComposeParser(log: .test)
+        let parser = ComposeParser(log: log)
         let composeFile = try parser.parse(from: yaml.data(using: .utf8)!)
         
         let externalVolume = composeFile.volumes?["external-vol"]
-        XCTAssertNotNil(externalVolume)
-        XCTAssertNotNil(externalVolume?.external)
+        #expect(externalVolume != nil)
+        #expect(externalVolume?.external != nil)
     }
 }

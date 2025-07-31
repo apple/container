@@ -201,7 +201,7 @@ public struct ComposeVolume: Codable {
 
 // MARK: - Helper Types
 
-public enum StringOrList: Codable {
+public enum StringOrList: Codable, Equatable {
     case string(String)
     case list([String])
     

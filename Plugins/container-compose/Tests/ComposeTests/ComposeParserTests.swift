@@ -20,7 +20,7 @@ import ContainerizationError
 import Logging
 import Yams
 
-@testable import ContainerCompose
+@testable import ComposeCore
 
 struct ComposeParserTests {
     let log = Logger(label: "test")
