@@ -19,6 +19,7 @@ import CVersion
 import ContainerImagesService
 import ContainerImagesServiceClient
 import ContainerLog
+import ContainerPlugin
 import ContainerXPC
 import Containerization
 import Foundation
@@ -49,16 +50,11 @@ extension ImagesHelper {
         @Option(name: .long, help: "XPC service prefix")
         var serviceIdentifier: String = "com.apple.container.core.container-core-images"
 
-        @Option(name: .shortAndLong, help: "Daemon root directory")
-        var root = Self.appRoot.path
-
-        static let appRoot: URL = {
-            FileManager.default.urls(
-                for: .applicationSupportDirectory,
-                in: .userDomainMask
-            ).first!
-            .appendingPathComponent("com.apple.container")
-        }()
+        @Option(
+            name: .shortAndLong,
+            help: "Application data directory",
+            transform: { URL(filePath: $0) })
+        var appRoot = ApplicationRoot.defaultURL
 
         private static let unpackStrategy = SnapshotStore.defaultUnpackStrategy
 
@@ -71,10 +67,9 @@ extension ImagesHelper {
             }
             do {
                 log.info("configuring XPC server")
-                let root = URL(filePath: root)
                 var routes = [String: XPCServer.RouteHandler]()
-                try self.initializeContentService(root: root, log: log, routes: &routes)
-                try self.initializeImagesService(root: root, log: log, routes: &routes)
+                try self.initializeContentService(root: appRoot, log: log, routes: &routes)
+                try self.initializeImagesService(root: appRoot, log: log, routes: &routes)
                 let xpc = XPCServer(
                     identifier: serviceIdentifier,
                     routes: routes,
