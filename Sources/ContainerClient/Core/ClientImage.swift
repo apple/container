@@ -69,6 +69,16 @@ public struct ClientImage: Sendable {
         }
         return try content.decode()
     }
+
+    /// Returns the resolved OCI descriptor for the image.
+    package func resolved() async throws -> Descriptor {
+        let index = try await self.index()
+        if index.annotations?[AnnotationKeys.containerizationIndexIndirect] == "true" {
+            return index.manifests.first!
+        } else {
+            return self.descriptor
+        }
+    }
 }
 
 // MARK: ClientImage constants

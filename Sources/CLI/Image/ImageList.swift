@@ -51,6 +51,7 @@ extension Application {
             var rows = createVerboseHeader()
             for image in images {
                 let formatter = ByteCountFormatter()
+                let imageDigest = try await image.resolved().digest
                 for descriptor in try await image.index().manifests {
                     // Don't list attestation manifests
                     if let referenceType = descriptor.annotations?["vnd.docker.reference.type"],
@@ -85,7 +86,7 @@ extension Application {
                     let row = [
                         reference.name,
                         reference.tag ?? "<none>",
-                        Utility.trimDigest(digest: image.descriptor.digest),
+                        Utility.trimDigest(digest: imageDigest),
                         os,
                         arch,
                         variant,
@@ -130,10 +131,11 @@ extension Application {
             for image in images {
                 let processedReferenceString = try ClientImage.denormalizeReference(image.reference)
                 let reference = try ContainerizationOCI.Reference.parse(processedReferenceString)
+                let digest = try await image.resolved().digest
                 rows.append([
                     reference.name,
                     reference.tag ?? "<none>",
-                    Utility.trimDigest(digest: image.descriptor.digest),
+                    Utility.trimDigest(digest: digest),
                 ])
             }
             let formatter = TableOutput(rows: rows)
