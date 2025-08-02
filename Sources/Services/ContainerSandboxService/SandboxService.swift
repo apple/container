@@ -167,6 +167,19 @@ public actor SandboxService {
                 czConfig.process.stdout = stdout
                 czConfig.process.stderr = stderr
                 czConfig.process.stdin = stdin
+                // NOTE: We can support a user providing new entries eventually, but for now craft
+                // a default /etc/hosts.
+                var hostsEntries = [Hosts.Entry.localHostIPV4()]
+                if !interfaces.isEmpty {
+                    let primaryIfaceAddr = interfaces[0].address
+                    let ip = primaryIfaceAddr.split(separator: "/")
+                    hostsEntries.append(
+                        Hosts.Entry(
+                            ipAddress: String(ip[0]),
+                            hostnames: [czConfig.hostname],
+                        ))
+                }
+                czConfig.hosts = Hosts(entries: hostsEntries)
             }
 
             await self.setContainer(
