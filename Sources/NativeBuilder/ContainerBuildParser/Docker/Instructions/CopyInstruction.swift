@@ -23,7 +23,7 @@ enum CopyOptions: String {
     case link = "--link"
 }
 
-struct CopyInstruction: DockerInstruction, Equatable {
+struct CopyInstruction: DockerInstruction {
     let sources: [String]
     let destination: String
     let from: String?

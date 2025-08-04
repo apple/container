@@ -20,6 +20,8 @@ import Testing
 
 @testable import ContainerBuildParser
 
+/// VisitorTest covers testing that visiting instructions is successful and graphs
+/// made from those instructions are structured as expected.
 @Suite class VisitorTest {
     @Test func simpleVisitFrom() throws {
         let imageName = "alpine"
@@ -42,11 +44,10 @@ import Testing
 
     @Test func simpleVisitRun() throws {
         let from = try FromInstruction(image: "scratch")
-        let command = ["sh", "-c", "top"]
+        let command: Command = .exec(["sh", "-c", "top"])
         let network = "default"
         let run = try RunInstruction(
             command: command,
-            shell: false,
             rawMounts: [],
             network: network
         )
@@ -65,12 +66,8 @@ import Testing
 
         #expect(node.operation is ExecOperation)
 
-        guard let exec = node.operation as? ExecOperation else {
-            Issue.record("expected ExecOperation, instead got \(node.operation)")
-            return
-        }
-
-        #expect(exec.command.arguments == command)
+        let exec = node.operation as! ExecOperation
+        #expect(exec.command == command)
         #expect(exec.mounts.isEmpty)
         #expect(exec.network == .default)
     }
@@ -99,11 +96,9 @@ import Testing
         #expect(stage.nodes.count == 1)
         let node = stage.nodes[0]
 
-        guard let copyNode = node.operation as? FilesystemOperation else {
-            Issue.record("expected FilesystemOperation, instead got \(node.operation)")
-            return
-        }
+        #expect(node.operation is FilesystemOperation)
 
+        let copyNode = node.operation as! FilesystemOperation
         #expect(copyNode.action == .copy)
 
         let expectedSource = ContextSource(
@@ -118,4 +113,65 @@ import Testing
         let expectedPerms: Permissions = .mode(777)
         #expect(copyNode.fileMetadata.permissions == expectedPerms)
     }
+
+    @Test func simpleVisitLabel() throws {
+        let from = try FromInstruction(image: "scratch")
+        let labels = [
+            "label1": "value1",
+            "label2": "label2",
+        ]
+        let labelInst = LabelInstruction(labels: labels)
+
+        let visitor = DockerInstructionVisitor()
+        try visitor.visit(from)
+        try visitor.visit(labelInst)
+
+        let graph = try visitor.graphBuilder.build()
+        #expect(graph.stages.count == 1)
+
+        let stage = graph.stages[0]
+        #expect(stage.nodes.count == 1)
+
+        let node = stage.nodes[0]
+        #expect(node.operation is MetadataOperation)
+
+        let meta = node.operation as! MetadataOperation
+        switch meta.action {
+        case .setLabelBatch(let batch):
+            #expect(batch == labels)
+        default:
+            Issue.record("expected .setLabelBatch action type, instead got \(meta.action)")
+            return
+        }
+    }
+
+    @Test func simpleVisitCMD() throws {
+        let from = try FromInstruction(image: "scratch")
+        let rawCommand = Command.shell("./test.sh")
+        let cmd = CMDInstruction(command: rawCommand)
+
+        let visitor = DockerInstructionVisitor()
+        try visitor.visit(from)
+        try visitor.visit(cmd)
+
+        let graph = try visitor.graphBuilder.build()
+        #expect(graph.stages.count == 1)
+
+        let stage = graph.stages[0]
+        #expect(stage.nodes.count == 1)
+
+        let node = stage.nodes[0]
+        #expect(node.operation is MetadataOperation)
+
+        let meta = node.operation as! MetadataOperation
+
+        switch meta.action {
+        case .setCmd(let command):
+            #expect(command == rawCommand)
+        default:
+            Issue.record("expected .setCmd action type, instead got \(meta.action)")
+            return
+        }
+    }
+
 }

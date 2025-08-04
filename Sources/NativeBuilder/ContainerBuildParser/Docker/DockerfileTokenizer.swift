@@ -135,10 +135,11 @@ struct DockerfileTokenizer {
             let valueStart = position
             parseWord()
             let rawValue = input[valueStart..<position]
-            return .option(String(rawWord), String(rawValue))
+            let raw = input[wordStart..<position]
+            return .option(Option(key: String(rawWord), value: String(rawValue), raw: String(raw)))
         }
         // split by equal
         let optionComponents = rawWord.split(separator: "=", maxSplits: 1)
-        return .option(String(optionComponents[0]), String(optionComponents[1]))
+        return .option(Option(key: String(optionComponents[0]), value: String(optionComponents[1]), raw: String(rawWord)))
     }
 }

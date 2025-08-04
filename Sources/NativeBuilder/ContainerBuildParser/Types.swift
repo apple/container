@@ -41,5 +41,17 @@ public enum ParseError: Error, Equatable {
 public enum Token: Sendable, Equatable {
     case stringLiteral(String)
     case stringList([String])
-    case option(String, String)
+    case option(Option)
+}
+
+public struct Option: Sendable, Equatable {
+    let key: String
+    let value: String
+    let raw: String
+
+    init(key: String, value: String, raw: String) {
+        self.key = key
+        self.value = value
+        self.raw = raw
+    }
 }

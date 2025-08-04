@@ -19,7 +19,7 @@ import ContainerizationOCI
 
 /// DockerInstruction represents a single docker instruction with its given options
 /// and arguments. Instructions are "visited" to add to a build graph.
-protocol DockerInstruction {
+protocol DockerInstruction: Sendable, Equatable {
     func accept(_ visitor: DockerInstructionVisitor) throws
 }
 
@@ -27,7 +27,7 @@ enum FromOptions: String {
     case platform = "--platform"
 }
 
-struct FromInstruction: DockerInstruction, Equatable {
+struct FromInstruction: DockerInstruction {
     let image: ImageReference
     let platform: Platform?
     let stageName: String?
@@ -55,10 +55,28 @@ struct FromInstruction: DockerInstruction, Equatable {
 enum DockerInstructionName: String {
     case FROM = "from"
     case RUN = "run"
+    case COPY = "copy"
+    case CMD = "cmd"
+    case LABEL = "label"
 }
 
 /// DockerKeyword defines words that are used as keywords within a line of a dockerfile
 /// to provide additional instruction
 enum DockerKeyword: String {
     case AS = "as"
+}
+
+struct CMDInstruction: DockerInstruction {
+    let command: Command
+
+    func accept(_ visitor: DockerInstructionVisitor) throws {
+        try visitor.visit(self)
+    }
+}
+
+struct LabelInstruction: DockerInstruction {
+    let labels: [String: String]
+    func accept(_ visitor: DockerInstructionVisitor) throws {
+        try visitor.visit(self)
+    }
 }
