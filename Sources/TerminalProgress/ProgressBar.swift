@@ -68,9 +68,9 @@ public final class ProgressBar: Sendable {
         let (description, subDescription) = state.withLock { ($0.description, $0.subDescription) }
 
         if subDescription != "" {
-            standardError.write("\(description) \(subDescription)")
+            standardError.write("\(description) \(subDescription)\n")
         } else {
-            standardError.write(description)
+            standardError.write("\(description)\n")
         }
     }
 
