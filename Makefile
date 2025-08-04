@@ -189,7 +189,7 @@ cleancontent:
 
 .PHONY: clean
 clean:
-	@echo Cleaning the build files...
+	@echo Cleaning build files...
 	@rm -rf bin/ libexec/
 	@rm -rf _site _serve
 	@$(SWIFT) package clean

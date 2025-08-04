@@ -148,6 +148,13 @@ public struct Flags {
 
         @Option(name: [.customLong("label"), .short], help: "Add a key=value label to the container")
         public var labels: [String] = []
+
+        @Flag(
+            name: [.customLong("virtualization")],
+            help:
+                "Expose virtualization capabilities to the container. (Host must have nested virtualization support, and guest kernel must have virtualization capabilities enabled)"
+        )
+        public var virtualization: Bool = false
     }
 
     public struct Progress: ParsableArguments {
