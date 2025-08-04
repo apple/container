@@ -73,11 +73,14 @@ public struct ClientImage: Sendable {
     /// Returns the resolved OCI descriptor for the image.
     package func resolved() async throws -> Descriptor {
         let index = try await self.index()
-        if index.annotations?[AnnotationKeys.containerizationIndexIndirect] == "true" {
-            return index.manifests.first!
-        } else {
+        let indirect = index.annotations?[AnnotationKeys.containerizationIndexIndirect]
+        guard let indirect, ["1", "true"].contains(indirect.lowercased()) else {
             return self.descriptor
         }
+        guard let manifest = index.manifests.first else {
+            throw ContainerizationError(.internalError, message: "Failed to resolve indirect index: \(self.digest)")
+        }
+        return manifest
     }
 }
 
