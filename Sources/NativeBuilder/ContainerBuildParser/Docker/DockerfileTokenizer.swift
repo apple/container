@@ -54,8 +54,6 @@ struct DockerfileTokenizer {
                 results.append(listToken)
             } else if char == "#" {
                 parseComment()
-            } else if char == "-" {
-                results.append(parseOption())
             } else {
                 let start = position
                 parseWord()
@@ -119,27 +117,5 @@ struct DockerfileTokenizer {
             // continue until the end of the line
             position = input.index(after: position)
         }
-    }
-
-    mutating private func parseOption() -> Token {
-        let wordStart = position
-        parseWord()
-
-        let rawWord = input[wordStart..<position]
-        guard rawWord.contains("=") else {
-            // skip whitespace
-            while position < endPosition && input[position].isWhitespace {
-                position = input.index(after: position)
-                continue
-            }
-            let valueStart = position
-            parseWord()
-            let rawValue = input[valueStart..<position]
-            let raw = input[wordStart..<position]
-            return .option(Option(key: String(rawWord), value: String(rawValue), raw: String(raw)))
-        }
-        // split by equal
-        let optionComponents = rawWord.split(separator: "=", maxSplits: 1)
-        return .option(Option(key: String(optionComponents[0]), value: String(optionComponents[1]), raw: String(rawWord)))
     }
 }

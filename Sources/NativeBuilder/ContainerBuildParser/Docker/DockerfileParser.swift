@@ -74,6 +74,50 @@ public struct DockerfileParser: BuildParser {
         }
     }
 
+    private struct InstructionOpt {
+        let key: String
+        let value: String
+    }
+
+    private func parseInstructionOpts(start: Int, tokens: [Token]) throws -> (Int, [InstructionOpt]) {
+        var done = false
+        var opts: [InstructionOpt] = []
+        var index = start
+
+        while index < tokens.endIndex, !done {
+            guard case .stringLiteral(let raw) = tokens[index] else {
+                done = true
+                break
+            }
+
+            guard raw.hasPrefix("--") else {
+                done = true
+                break
+            }
+
+            let components = raw.split(separator: "=", maxSplits: 1)
+            if components.count == 2 {
+                opts.append(InstructionOpt(key: String(components[0]), value: String(components[1])))
+            } else {
+                // instruction options should ALWAYS have a value, so if we're at
+                // the end or the next value is a string list, that's invalid input
+                index += 1
+                guard index < tokens.endIndex else {
+                    throw ParseError.invalidOption(raw)
+                }
+
+                guard case .stringLiteral(let value) = tokens[index] else {
+                    throw ParseError.invalidOption(raw)
+                }
+
+                opts.append(InstructionOpt(key: raw, value: value))
+            }
+            index += 1
+        }
+
+        return (index, opts)
+    }
+
     internal func tokensToFromInstruction(tokens: [Token]) throws -> FromInstruction {
         var index = tokens.startIndex
         index += 1  // skip the instruction
@@ -82,16 +126,18 @@ public struct DockerfileParser: BuildParser {
         var platform: String?
         var imageName: String?
 
-        // Step 1: parse options
-        while index < tokens.endIndex {
-            guard case .option(let option) = tokens[index] else {
-                break
-            }
-            guard FromOptions(rawValue: option.key) == .platform else {
+        // Step 1: Parse instruction options
+        let (newIndex, instructionOpts) = try parseInstructionOpts(start: index, tokens: tokens)
+        index = newIndex
+
+        for option in instructionOpts {
+            guard FromOptions(rawValue: String(option.key)) == .platform else {
                 throw ParseError.unexpectedValue
             }
+            if platform != nil {
+                throw ParseError.duplicateOptionSet(FromOptions.platform.rawValue)
+            }
             platform = option.value
-            index += 1
         }
 
         // Step 2: Parse image name
@@ -137,12 +183,11 @@ public struct DockerfileParser: BuildParser {
         var rawMounts = [String]()
         var network: String? = nil
 
-        // Step 1: parse options
-        while index < tokens.endIndex {
-            guard case .option(let option) = tokens[index] else {
-                break
-            }
+        // Step 1: Parse instruction options
+        let (lastOption, instructionOpts) = try parseInstructionOpts(start: index, tokens: tokens)
+        index = lastOption
 
+        for option in instructionOpts {
             guard let runOpt = RunOptions(rawValue: option.key) else {
                 throw ParseError.unexpectedValue
             }
@@ -155,7 +200,6 @@ public struct DockerfileParser: BuildParser {
             default:
                 throw ParseError.unexpectedValue
             }
-            index += 1
         }
 
         // Step 2: parse run command
@@ -185,8 +229,6 @@ public struct DockerfileParser: BuildParser {
                 break
             } else if case .stringLiteral(let value) = tokens[index] {
                 command.append(value)
-            } else if case .option(let option) = tokens[index] {
-                command.append(option.raw)
             } else {
                 break
             }
@@ -206,12 +248,11 @@ public struct DockerfileParser: BuildParser {
         var chown: String? = nil
         var link: String? = nil
 
-        // Step 1: parse options
-        while index < tokens.endIndex {
-            guard case .option(let option) = tokens[index] else {
-                break
-            }
+        // Step 1: Parse instruction options
+        let (newIndex, instructionOpts) = try parseInstructionOpts(start: index, tokens: tokens)
+        index = newIndex
 
+        for option in instructionOpts {
             guard let copyOpt = CopyOptions(rawValue: option.key) else {
                 throw ParseError.unexpectedValue
             }
@@ -240,7 +281,6 @@ public struct DockerfileParser: BuildParser {
             default:
                 throw ParseError.unexpectedValue
             }
-            index += 1
         }
 
         // Step 2: Get all source paths and destination path

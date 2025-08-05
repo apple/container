@@ -46,7 +46,7 @@ import Testing
             input: "RUN --mount=type=cache /app",
             expectedTokens: [
                 .stringLiteral("RUN"),
-                .option(Option(key: "--mount", value: "type=cache", raw: "--mount=type=cache")),
+                .stringLiteral("--mount=type=cache"),
                 .stringLiteral("/app"),
             ]
         ),
@@ -54,7 +54,7 @@ import Testing
             input: "RUN --network=default /app",
             expectedTokens: [
                 .stringLiteral("RUN"),
-                .option(Option(key: "--network", value: "default", raw: "--network=default")),
+                .stringLiteral("--network=default"),
                 .stringLiteral("/app"),
             ]
         ),
@@ -62,8 +62,8 @@ import Testing
             input: "RUN --mount=type=bind,target=/target --network=host build.sh",
             expectedTokens: [
                 .stringLiteral("RUN"),
-                .option(Option(key: "--mount", value: "type=bind,target=/target", raw: "--mount=type=bind,target=/target")),
-                .option(Option(key: "--network", value: "host", raw: "--network=host")),
+                .stringLiteral("--mount=type=bind,target=/target"),
+                .stringLiteral("--network=host"),
                 .stringLiteral("build.sh"),
             ]
         ),
@@ -71,7 +71,8 @@ import Testing
             input: "RUN --mount type=cache /app",
             expectedTokens: [
                 .stringLiteral("RUN"),
-                .option(Option(key: "--mount", value: "type=cache", raw: "--mount type=cache")),
+                .stringLiteral("--mount"),
+                .stringLiteral("type=cache"),
                 .stringLiteral("/app"),
             ]
         ),
@@ -82,9 +83,10 @@ import Testing
                 """,
             expectedTokens: [
                 .stringLiteral("RUN"),
-                .option(Option(key: "--mount", value: "type=cache", raw: "--mount=type=cache")),
+                .stringLiteral("--mount=type=cache"),
                 .stringLiteral("build.sh"),
-                .option(Option(key: "--input", value: "hello", raw: "--input hello")),
+                .stringLiteral("--input"),
+                .stringLiteral("hello"),
             ]
         ),
         tokenizerTestInput(
@@ -94,7 +96,7 @@ import Testing
                 """#,
             expectedTokens: [
                 .stringLiteral("RUN"),
-                .option(Option(key: "--mount", value: "type=cache", raw: "--mount=type=cache")),
+                .stringLiteral("--mount=type=cache"),
                 .stringList(["build.sh", "--input", "hello"]),
             ]
         ),
@@ -105,7 +107,7 @@ import Testing
                 """#,
             expectedTokens: [
                 .stringLiteral("RUN"),
-                .option(Option(key: "--mount", value: "type=cache", raw: "--mount=type=cache")),
+                .stringLiteral("--mount=type=cache"),
                 .stringList(["build.sh", "--input", "hello"]),
             ]
         ),
@@ -116,7 +118,7 @@ import Testing
                 """#,
             expectedTokens: [
                 .stringLiteral("RUN"),
-                .option(Option(key: "--mount", value: "type=cache", raw: "--mount=type=cache")),
+                .stringLiteral("--mount=type=cache"),
                 .stringLiteral("build.sh --input hello"),
             ]
         ),
@@ -128,7 +130,7 @@ import Testing
                 """#,
             expectedTokens: [
                 .stringLiteral("RUN"),
-                .option(Option(key: "--mount", value: "type=cache", raw: "--mount=type=cache")),
+                .stringLiteral("--mount=type=cache"),
                 .stringLiteral("build.sh --input hello"),
             ]
         ),
@@ -139,7 +141,7 @@ import Testing
                 """#,
             expectedTokens: [
                 .stringLiteral("RUN"),
-                .option(Option(key: "--mount", value: "type=cache", raw: "--mount=type=cache")),
+                .stringLiteral("--mount=type=cache"),
                 .stringLiteral("build.sh --input hello"),
             ]
         ),
@@ -147,7 +149,7 @@ import Testing
             input: "COPY --from=alpine src /dest",
             expectedTokens: [
                 .stringLiteral("COPY"),
-                .option(Option(key: "--from", value: "alpine", raw: "--from=alpine")),
+                .stringLiteral("--from=alpine"),
                 .stringLiteral("src"),
                 .stringLiteral("/dest"),
             ]
@@ -157,7 +159,7 @@ import Testing
             input: "COPY --from=alpine src src1 src2 src3 /dest",
             expectedTokens: [
                 .stringLiteral("COPY"),
-                .option(Option(key: "--from", value: "alpine", raw: "--from=alpine")),
+                .stringLiteral("--from=alpine"),
                 .stringLiteral("src"),
                 .stringLiteral("src1"),
                 .stringLiteral("src2"),
@@ -169,7 +171,7 @@ import Testing
             input: "COPY --chown=10:11 src /dest",
             expectedTokens: [
                 .stringLiteral("COPY"),
-                .option(Option(key: "--chown", value: "10:11", raw: "--chown=10:11")),
+                .stringLiteral("--chown=10:11"),
                 .stringLiteral("src"),
                 .stringLiteral("/dest"),
             ]
@@ -178,7 +180,7 @@ import Testing
             input: "COPY --chown=bin stuff.txt /stuffdest/",
             expectedTokens: [
                 .stringLiteral("COPY"),
-                .option(Option(key: "--chown", value: "bin", raw: "--chown=bin")),
+                .stringLiteral("--chown=bin"),
                 .stringLiteral("stuff.txt"),
                 .stringLiteral("/stuffdest/"),
             ]
@@ -187,7 +189,7 @@ import Testing
             input: "COPY --chown=1 source /destination",
             expectedTokens: [
                 .stringLiteral("COPY"),
-                .option(Option(key: "--chown", value: "1", raw: "--chown=1")),
+                .stringLiteral("--chown=1"),
                 .stringLiteral("source"),
                 .stringLiteral("/destination"),
             ]
@@ -196,7 +198,7 @@ import Testing
             input: "COPY --chmod=440 src /dest/",
             expectedTokens: [
                 .stringLiteral("COPY"),
-                .option(Option(key: "--chmod", value: "440", raw: "--chmod=440")),
+                .stringLiteral("--chmod=440"),
                 .stringLiteral("src"),
                 .stringLiteral("/dest/"),
             ]
@@ -205,7 +207,7 @@ import Testing
             input: "COPY --link=false src /dest/",
             expectedTokens: [
                 .stringLiteral("COPY"),
-                .option(Option(key: "--link", value: "false", raw: "--link=false")),
+                .stringLiteral("--link=false"),
                 .stringLiteral("src"),
                 .stringLiteral("/dest/"),
             ]
@@ -302,7 +304,7 @@ import Testing
             TokenTest(
                 tokens: [
                     .stringLiteral("FROM"),
-                    .option(Option(key: "--platform", value: "linux/arm64", raw: "--platform=linux/arm64")),
+                    .stringLiteral("--platform=linux/arm64"),
                     .stringLiteral("alpine"),
                 ],
                 expectedInstruction: try FromInstruction(image: "alpine", platform: "linux/arm64")
@@ -323,7 +325,7 @@ import Testing
     @Test func testTokensToRunWithShellCommand() throws {
         let tokens: [Token] = [
             .stringLiteral("RUN"),
-            .option(Option(key: "--mount", value: "type=cache,target=/cache", raw: "--mount=type=cache,target=/cache")),
+            .stringLiteral("--mount=type=cache,target=/cache"),
             .stringLiteral("build.sh --input hello"),
         ]
 
@@ -337,7 +339,7 @@ import Testing
         let command = ["build.sh", "--input", "hello"]
         let tokens: [Token] = [
             .stringLiteral("RUN"),
-            .option(Option(key: "--mount", value: "type=cache,target=/mytarget", raw: "--mount=type=cache,target=/mytarget")),
+            .stringLiteral("--mount=type=cache,target=/mytarget"),
             .stringList(command),
         ]
 
@@ -350,13 +352,13 @@ import Testing
     static let extraTokensTests: [[Token]] = [
         [
             .stringLiteral("RUN"),
-            .option(Option(key: "--mount", value: "type=tmpfs,size=1000", raw: "--mount=type=tmpfs,size=1000")),
+            .stringLiteral("--mount=type=tmpfs,size=1000"),
             .stringList(["build.sh", "--input", "hello"]),
             .stringLiteral("extra"),
         ],
         [
             .stringLiteral("RUN"),
-            .option(Option(key: "--mount", value: "type=bind,target=/target", raw: "--mount=type=bind,target=/target")),
+            .stringLiteral("--mount=type=bind,target=/target"),
             .stringLiteral("build.sh"),
             .stringLiteral("--input"),
             .stringLiteral("hello"),
@@ -377,7 +379,7 @@ import Testing
             TokenTest(
                 tokens: [
                     .stringLiteral("COPY"),
-                    .option(Option(key: "--link", value: "false", raw: "--link=false")),
+                    .stringLiteral("--link=false"),
                     .stringLiteral("src"),
                     .stringLiteral("/dest/"),
                 ],
@@ -389,7 +391,7 @@ import Testing
             TokenTest(
                 tokens: [
                     .stringLiteral("COPY"),
-                    .option(Option(key: "--chmod", value: "440", raw: "--chmod=440")),
+                    .stringLiteral("--chmod=440"),
                     .stringLiteral("src"),
                     .stringLiteral("/dest"),
                 ],
@@ -402,7 +404,8 @@ import Testing
             TokenTest(
                 tokens: [
                     .stringLiteral("COPY"),
-                    .option(Option(key: "--chown", value: "11:mygroup", raw: "--chown 11:mygroup")),
+                    .stringLiteral("--chown"),
+                    .stringLiteral("11:mygroup"),
                     .stringLiteral("source"),
                     .stringLiteral("destination"),
                 ],
@@ -415,7 +418,7 @@ import Testing
             TokenTest(
                 tokens: [
                     .stringLiteral("COPY"),
-                    .option(Option(key: "--from", value: "alpine", raw: "--from=alpine")),
+                    .stringLiteral("--from=alpine"),
                     .stringLiteral("src"),
                     .stringLiteral("src1"),
                     .stringLiteral("src2"),
@@ -431,7 +434,8 @@ import Testing
             TokenTest(
                 tokens: [
                     .stringLiteral("COPY"),
-                    .option(Option(key: "--from", value: "base", raw: "--from base")),
+                    .stringLiteral("--from"),
+                    .stringLiteral("base"),
                     .stringLiteral("Source"),
                     .stringLiteral("Dest"),
                 ],
@@ -463,7 +467,7 @@ import Testing
         [
             // no sources
             .stringLiteral("COPY"),
-            .option(Option(key: "--from", value: "alpine", raw: "--from=alpine")),
+            .stringLiteral("--from=alpine"),
         ],
     ]
 
