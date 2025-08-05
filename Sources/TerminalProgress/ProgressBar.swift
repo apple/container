@@ -62,16 +62,6 @@ public final class ProgressBar: Sendable {
         }
     }
 
-    private func printFullDescription() {
-        let (description, subDescription) = state.withLock { ($0.description, $0.subDescription) }
-
-        if subDescription != "" {
-            standardError.write("\(description) \(subDescription)")
-        } else {
-            standardError.write(description)
-        }
-    }
-
     /// Updates the description of the progress bar and increments the tasks by one.
     /// - Parameter description: The description of the action being performed.
     public func set(description: String) {
@@ -82,9 +72,6 @@ public final class ProgressBar: Sendable {
             $0.subDescription = ""
             $0.tasks += 1
         }
-        if config.disableProgressUpdates {
-            printFullDescription()
-        }
     }
 
     /// Updates the additional description of the progress bar.
@@ -93,16 +80,9 @@ public final class ProgressBar: Sendable {
         resetCurrentTask()
 
         state.withLock { $0.subDescription = subDescription }
-        if config.disableProgressUpdates {
-            printFullDescription()
-        }
     }
 
     private func start(intervalSeconds: TimeInterval) async {
-        if config.disableProgressUpdates && !state.withLock({ $0.description.isEmpty }) {
-            printFullDescription()
-        }
-
         while !state.withLock({ $0.finished }) {
             let intervalNanoseconds = UInt64(intervalSeconds * 1_000_000_000)
             render()
