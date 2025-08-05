@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerXPC
+import ContainerizationError
 import Foundation
 
 public enum ClientHealthCheck {
@@ -26,9 +27,19 @@ extension ClientHealthCheck {
         XPCClient(service: serviceIdentifier)
     }
 
-    public static func ping(timeout: Duration? = .seconds(5)) async throws {
+    public static func ping(timeout: Duration? = .seconds(5)) async throws -> SystemHealth {
         let client = Self.newClient()
         let request = XPCMessage(route: .ping)
-        try await client.send(request, responseTimeout: timeout)
+        let reply = try await client.send(request, responseTimeout: timeout)
+        guard let appRootValue = reply.string(key: .appRoot), let appRoot = URL(string: appRootValue) else {
+            throw ContainerizationError(.internalError, message: "failed to decode appRoot in health check")
+        }
+        guard let apiServerVersion = reply.string(key: .apiServerVersion) else {
+            throw ContainerizationError(.internalError, message: "failed to decode apiServerVersion in health check")
+        }
+        guard let apiServerCommit = reply.string(key: .apiServerCommit) else {
+            throw ContainerizationError(.internalError, message: "failed to decode apiServerCommit in health check")
+        }
+        return .init(appRoot: appRoot, apiServerVersion: apiServerVersion, apiServerCommit: apiServerCommit)
     }
 }

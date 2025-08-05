@@ -14,28 +14,16 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import CVersion
-import ContainerClient
-import ContainerXPC
-import Containerization
 import Foundation
-import Logging
 
-actor HealthCheckHarness {
-    private let appRoot: URL
-    private let log: Logger
+/// Snapshot of the health of container services and resources
+public struct SystemHealth: Sendable, Codable {
+    /// The full pathname of the application data root.
+    public let appRoot: URL
 
-    public init(appRoot: URL, log: Logger) {
-        self.appRoot = appRoot
-        self.log = log
-    }
+    /// The release version of the container services.
+    public let apiServerVersion: String
 
-    @Sendable
-    func ping(_ message: XPCMessage) async -> XPCMessage {
-        let reply = message.reply()
-        reply.set(key: .appRoot, value: appRoot.formatted())
-        reply.set(key: .apiServerVersion, value: APIServer.releaseVersion())
-        reply.set(key: .apiServerCommit, value: get_release_version().map { String(cString: $0) } ?? "unknown")
-        return reply
-    }
+    /// The Git commit ID for the container services.
+    public let apiServerCommit: String
 }
