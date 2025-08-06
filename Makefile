@@ -138,18 +138,18 @@ integration: init-block
 	@echo Ensuring apiserver stopped before the CLI integration tests...
 	@bin/container system stop && sleep 3 && scripts/ensure-container-stopped.sh
 	@echo Running the integration tests...
-	bin/container system start $(SYSTEM_START_OPTS) ; \
-	echo "Starting CLI integration tests" ; \
-	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLINetwork ; \
-	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunLifecycle ; \
-	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIExecCommand ; \
-	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLICreateCommand ; \
-	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunCommand ; \
-	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIImagesCommand ; \
-	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunBase ; \
-	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIBuildBase ; \
-	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIVolumes ; \
-	echo Ensuring apiserver stopped after the CLI integration tests ; \
+	bin/container system start $(SYSTEM_START_OPTS) && \
+	echo "Starting CLI integration tests" && \
+	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLINetwork && \
+	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunLifecycle && \
+	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIExecCommand && \
+	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLICreateCommand && \
+	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunCommand && \
+	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIImagesCommand && \
+	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunBase && \
+	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIBuildBase && \
+	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIVolumes && \
+	echo Ensuring apiserver stopped after the CLI integration tests && \
 	scripts/ensure-container-stopped.sh
 
 .PHONY: fmt

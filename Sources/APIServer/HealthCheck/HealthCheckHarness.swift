@@ -33,7 +33,7 @@ actor HealthCheckHarness {
     @Sendable
     func ping(_ message: XPCMessage) async -> XPCMessage {
         let reply = message.reply()
-        reply.set(key: .appRoot, value: appRoot.formatted())
+        reply.set(key: .appRoot, value: appRoot.absoluteString)
         reply.set(key: .apiServerVersion, value: APIServer.releaseVersion())
         reply.set(key: .apiServerCommit, value: get_git_commit().map { String(cString: $0) } ?? "unknown")
         return reply

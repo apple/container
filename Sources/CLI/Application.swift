@@ -315,9 +315,7 @@ extension Application {
             print("PLUGINS: not available, run `container system start`")
             return
         }
-        let altered = pluginLoader.alterCLIHelpText(
-            original: Application.helpMessage(for: Application.self)
-        )
+        let altered = pluginLoader.alterCLIHelpText(original: original)
         print(altered)
     }
 
