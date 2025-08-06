@@ -176,10 +176,13 @@ extension TestCLIImagesCommand {
 
     @Test func testPullDefaultPlatform() throws {
         do {
+            // Use busybox for this test to avoid cache conflicts with other tests
+            let testImage = busybox
+            
             // Pull without specifying platform - should default to current platform
-            try doPull(imageName: alpine)
+            try doPull(imageName: testImage)
 
-            let output = try doInspectImages(image: alpine)
+            let output = try doInspectImages(image: testImage)
             #expect(output.count == 1, "expected a single image inspect output, got \(output)")
 
             // Verify only current platform was pulled
