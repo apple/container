@@ -140,17 +140,21 @@ integration: init-block
 	@echo Running the integration tests...
 	bin/container system start $(SYSTEM_START_OPTS) && \
 	echo "Starting CLI integration tests" && \
-	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLINetwork && \
-	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunLifecycle && \
-	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIExecCommand && \
-	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLICreateCommand && \
-	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunCommand && \
-	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIImagesCommand && \
-	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunBase && \
-	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIBuildBase && \
-	$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIVolumes && \
-	echo Ensuring apiserver stopped after the CLI integration tests && \
-	scripts/ensure-container-stopped.sh
+	{ \
+		exit_code=0; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLINetwork || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunLifecycle || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIExecCommand || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLICreateCommand || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunCommand || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIImagesCommand || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunBase || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIBuildBase || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIVolumes || exit_code=1 ; \
+		echo Ensuring apiserver stopped after the CLI integration tests ; \
+		scripts/ensure-container-stopped.sh ; \
+		exit $${exit_code} ; \
+	}
 
 .PHONY: fmt
 fmt: swift-fmt update-licenses
