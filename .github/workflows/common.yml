@@ -69,7 +69,7 @@ jobs:
         run: |
           launchctl setenv HTTP_PROXY $HTTP_PROXY
           APP_ROOT=$(mktemp -d -p "${RUNNER_TEMP}")
-          trap 'rm -rf "${APP_ROOT}"; echo Removing data directory ${TMP_DIR}' EXIT
+          trap 'rm -rf "${APP_ROOT}"; echo Removing data directory ${APP_ROOT}' EXIT
           echo "Created data directory ${APP_ROOT}"
           make APP_ROOT="${APP_ROOT}" test install-kernel integration
         env:
