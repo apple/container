@@ -358,10 +358,12 @@ struct OperationTests {
 
     @Test func metadataOperationExpose() throws {
         let operation = MetadataOperation(
-            action: .expose(port: PortSpec(port: 8080, protocol: .tcp))
+            action: .expose(ports: [PortSpec(port: 8080, protocol: .tcp)])
         )
 
-        if case .expose(let port) = operation.action {
+        if case .expose(let ports) = operation.action {
+            #expect(!ports.isEmpty)
+            let port = ports[0]
             #expect(port.port == 8080)
             #expect(port.protocol == .tcp)
         } else {

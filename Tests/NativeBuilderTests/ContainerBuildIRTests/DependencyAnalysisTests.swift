@@ -702,7 +702,7 @@ struct DependencyAnalysisTests {
                 .stage(from: nginxRef)
                 .copyFromStage(.named("assets"), paths: ["/app/dist"], to: "/usr/share/nginx/html")
                 .copyFromContext(paths: ["nginx.conf"], to: "/etc/nginx/nginx.conf")
-                .expose(80)
+                .expose([PortSpec(port: 80)])
         }
 
         let analyzer = DependencyAnalyzer()
