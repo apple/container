@@ -174,6 +174,29 @@ extension TestCLIImagesCommand {
         }
     }
 
+    @Test func testPullDefaultPlatform() throws {
+        do {
+            // Pull without specifying platform - should default to current platform
+            try doPull(imageName: alpine)
+
+            let output = try doInspectImages(image: alpine)
+            #expect(output.count == 1, "expected a single image inspect output, got \(output)")
+
+            // Verify only current platform was pulled
+            let variants = output[0].variants
+            #expect(variants.count == 1, "expected single platform variant, got \(variants.count)")
+            
+            // On macOS, we expect either arm64 or amd64 depending on the hardware
+            let currentArch = variants[0].platform.architecture
+            let currentOS = variants[0].platform.os
+            #expect(currentOS == "linux", "expected linux OS, got \(currentOS)")
+            #expect(["arm64", "amd64"].contains(currentArch), "expected current platform architecture (arm64 or amd64), got \(currentArch)")
+        } catch {
+            Issue.record("failed to test default platform pulling \(error)")
+            return
+        }
+    }
+
     @Test func testPullRemoveSingle() throws {
         do {
             try doPull(imageName: alpine)
