@@ -14,28 +14,19 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import CVersion
-import ContainerClient
-import ContainerXPC
-import Containerization
 import Foundation
-import Logging
 
-actor HealthCheckHarness {
-    private let appRoot: URL
-    private let log: Logger
+public struct ApplicationRoot {
+    public static let environmentName = "CONTAINER_APP_ROOT"
 
-    public init(appRoot: URL, log: Logger) {
-        self.appRoot = appRoot
-        self.log = log
-    }
+    public static let defaultURL = FileManager.default.urls(
+        for: .applicationSupportDirectory,
+        in: .userDomainMask
+    ).first!.appendingPathComponent("com.apple.container")
 
-    @Sendable
-    func ping(_ message: XPCMessage) async -> XPCMessage {
-        let reply = message.reply()
-        reply.set(key: .appRoot, value: appRoot.formatted())
-        reply.set(key: .apiServerVersion, value: APIServer.releaseVersion())
-        reply.set(key: .apiServerCommit, value: get_git_commit().map { String(cString: $0) } ?? "unknown")
-        return reply
-    }
+    private static let envPath = ProcessInfo.processInfo.environment[Self.environmentName]
+
+    public static let url = envPath.map { URL(fileURLWithPath: $0) } ?? defaultURL
+
+    public static let path = url.path(percentEncoded: false)
 }

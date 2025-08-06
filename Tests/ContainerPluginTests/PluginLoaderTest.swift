@@ -28,6 +28,7 @@ struct PluginLoaderTest {
         defer { try? FileManager.default.removeItem(at: tempURL) }
         let factory = try setupMock(tempURL: tempURL)
         let loader = PluginLoader(
+            appRoot: URL(filePath: "/foo"),
             pluginDirectories: [tempURL],
             pluginFactories: [factory], defaultResourcePath: tempURL)
         let plugins = loader.findPlugins()
@@ -41,6 +42,7 @@ struct PluginLoaderTest {
         defer { try? FileManager.default.removeItem(at: tempURL) }
         let factory = try setupMock(tempURL: tempURL)
         let loader = PluginLoader(
+            appRoot: URL(filePath: "/foo"),
             pluginDirectories: [tempURL],
             pluginFactories: [factory], defaultResourcePath: tempURL
         )

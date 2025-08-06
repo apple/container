@@ -43,16 +43,11 @@ struct APIServer: AsyncParsableCommand {
     @Flag(name: .long, help: "Enable debug logging")
     var debug = false
 
-    @Option(name: .shortAndLong, help: "Daemon root directory")
-    var root = Self.appRoot.path
+    var appRoot = ApplicationRoot.url
 
-    static let appRoot: URL = {
-        FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first!
-        .appendingPathComponent("com.apple.container")
-    }()
+    static func releaseVersion() -> String {
+        (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? get_release_version().map { String(cString: $0) } ?? "0.0.0"
+    }
 
     func run() async throws {
         let commandName = Self.configuration.commandName ?? "container-apiserver"
@@ -64,20 +59,18 @@ struct APIServer: AsyncParsableCommand {
 
         do {
             log.info("configuring XPC server")
-            let root = URL(filePath: root)
             var routes = [XPCRoute: XPCServer.RouteHandler]()
             let pluginLoader = try initializePluginLoader(log: log)
             try await initializePlugins(pluginLoader: pluginLoader, log: log, routes: &routes)
-            let containersService = try initializeContainerService(root: root, pluginLoader: pluginLoader, log: log, routes: &routes)
+            let containersService = try initializeContainerService(pluginLoader: pluginLoader, log: log, routes: &routes)
             let networkService = try await initializeNetworkService(
-                root: root,
                 pluginLoader: pluginLoader,
                 log: log,
                 routes: &routes
             )
             initializeHealthCheckService(log: log, routes: &routes)
             try initializeKernelService(log: log, routes: &routes)
-            try initializeVolumeService(root: root, containersService: containersService, log: log, routes: &routes)
+            try initializeVolumeService(containersService: containersService, log: log, routes: &routes)
 
             let server = XPCServer(
                 identifier: "com.apple.container.apiserver",
@@ -134,7 +127,10 @@ struct APIServer: AsyncParsableCommand {
             .deletingLastPathComponent()
             .appendingPathComponent("..")
             .standardized
-        let pluginsURL = PluginLoader.userPluginsDir(root: installRoot)
+        log.info("initializing plugin loader", metadata: ["installRoot": "\(installRoot.path(percentEncoded: false))"])
+
+        let pluginsURL = PluginLoader.userPluginsDir(installRoot: installRoot)
+        log.info("detecting user plugins directory", metadata: ["path": "\(pluginsURL.path(percentEncoded: false))"])
         var directoryExists: ObjCBool = false
         _ = FileManager.default.fileExists(atPath: pluginsURL.path, isDirectory: &directoryExists)
         let userPluginsURL = directoryExists.boolValue ? pluginsURL : nil
@@ -161,10 +157,19 @@ struct APIServer: AsyncParsableCommand {
             AppBundlePluginFactory(),
         ]
 
-        log.info("PLUGINS: \(pluginDirectories)")
-        let statePath = PluginLoader.defaultPluginResourcePath(root: Self.appRoot)
+        for pluginDirectory in pluginDirectories {
+            log.info("discovered plugin directory", metadata: ["path": "\(pluginDirectory.path(percentEncoded: false))"])
+        }
+
+        let statePath = PluginLoader.defaultPluginResourcePath(root: appRoot)
         try FileManager.default.createDirectory(at: statePath, withIntermediateDirectories: true)
-        return PluginLoader(pluginDirectories: pluginDirectories, pluginFactories: pluginFactories, defaultResourcePath: statePath, log: log)
+        return PluginLoader(
+            appRoot: appRoot,
+            pluginDirectories: pluginDirectories,
+            pluginFactories: pluginFactories,
+            defaultResourcePath: statePath,
+            log: log
+        )
     }
 
     // First load all of the plugins we can find. Then just expose
@@ -188,20 +193,20 @@ struct APIServer: AsyncParsableCommand {
     }
 
     private func initializeHealthCheckService(log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) {
-        let svc = HealthCheckHarness(log: log)
+        let svc = HealthCheckHarness(appRoot: appRoot, log: log)
         routes[XPCRoute.ping] = svc.ping
     }
 
     private func initializeKernelService(log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) throws {
-        let svc = try KernelService(log: log, appRoot: Self.appRoot)
+        let svc = try KernelService(log: log, appRoot: appRoot)
         let harness = KernelHarness(service: svc, log: log)
         routes[XPCRoute.installKernel] = harness.install
         routes[XPCRoute.getDefaultKernel] = harness.getDefaultKernel
     }
 
-    private func initializeContainerService(root: URL, pluginLoader: PluginLoader, log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) throws -> ContainersService {
+    private func initializeContainerService(pluginLoader: PluginLoader, log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) throws -> ContainersService {
         let service = try ContainersService(
-            root: root,
+            appRoot: appRoot,
             pluginLoader: pluginLoader,
             log: log
         )
@@ -217,12 +222,11 @@ struct APIServer: AsyncParsableCommand {
     }
 
     private func initializeNetworkService(
-        root: URL,
         pluginLoader: PluginLoader,
         log: Logger,
         routes: inout [XPCRoute: XPCServer.RouteHandler]
     ) async throws -> NetworksService {
-        let resourceRoot = root.appendingPathComponent("networks")
+        let resourceRoot = appRoot.appendingPathComponent("networks")
         let service = try await NetworksService(
             pluginLoader: pluginLoader,
             resourceRoot: resourceRoot,
@@ -245,8 +249,8 @@ struct APIServer: AsyncParsableCommand {
         return service
     }
 
-    private func initializeVolumeService(root: URL, containersService: ContainersService, log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) throws {
-        let resourceRoot = root.appendingPathComponent("volumes")
+    private func initializeVolumeService(containersService: ContainersService, log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) throws {
+        let resourceRoot = appRoot.appendingPathComponent("volumes")
         let service = try VolumesService(resourceRoot: resourceRoot, containersService: containersService, log: log)
         let harness = VolumesHarness(service: service, log: log)
 
@@ -254,9 +258,5 @@ struct APIServer: AsyncParsableCommand {
         routes[XPCRoute.volumeDelete] = harness.delete
         routes[XPCRoute.volumeList] = harness.list
         routes[XPCRoute.volumeInspect] = harness.inspect
-    }
-
-    private static func releaseVersion() -> String {
-        (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? get_release_version().map { String(cString: $0) } ?? "0.0.0"
     }
 }

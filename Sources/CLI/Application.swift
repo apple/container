@@ -91,50 +91,6 @@ struct Application: AsyncParsableCommand {
         defaultSubcommand: DefaultCommand.self
     )
 
-    static let appRoot: URL = {
-        FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first!
-        .appendingPathComponent("com.apple.container")
-    }()
-
-    static let pluginLoader: PluginLoader = {
-        let installRoot = CommandLine.executablePathUrl
-            .deletingLastPathComponent()
-            .appendingPathComponent("..")
-            .standardized
-        let pluginsURL = PluginLoader.userPluginsDir(root: installRoot)
-        var directoryExists: ObjCBool = false
-        _ = FileManager.default.fileExists(atPath: pluginsURL.path, isDirectory: &directoryExists)
-        let userPluginsURL = directoryExists.boolValue ? pluginsURL : nil
-
-        // plugins built into the application installed as a macOS app bundle
-        let appBundlePluginsURL = Bundle.main.resourceURL?.appending(path: "plugins")
-
-        // plugins built into the application installed as a Unix-like application
-        let installRootPluginsURL =
-            installRoot
-            .appendingPathComponent("libexec")
-            .appendingPathComponent("container")
-            .appendingPathComponent("plugins")
-            .standardized
-
-        let pluginDirectories = [
-            userPluginsURL,
-            appBundlePluginsURL,
-            installRootPluginsURL,
-        ].compactMap { $0 }
-
-        let pluginFactories = [
-            DefaultPluginFactory()
-        ]
-
-        let statePath = PluginLoader.defaultPluginResourcePath(root: Self.appRoot)
-        try! FileManager.default.createDirectory(at: statePath, withIntermediateDirectories: true)
-        return PluginLoader(pluginDirectories: pluginDirectories, pluginFactories: pluginFactories, defaultResourcePath: statePath, log: log)
-    }()
-
     public static func main() async throws {
         restoreCursorAtExit()
 
@@ -161,7 +117,8 @@ struct Application: AsyncParsableCommand {
             // on the root command will land here.
             let containsHelp = fullArgs.contains("-h") || fullArgs.contains("--help")
             if fullArgs.count <= 2 && containsHelp {
-                Self.printModifiedHelpText()
+                let pluginLoader = try? await createPluginLoader()
+                await Self.printModifiedHelpText(pluginLoader: pluginLoader)
                 return
             }
             let errorAsString: String = String(describing: error)
@@ -172,6 +129,53 @@ struct Application: AsyncParsableCommand {
                 Application.exit(withError: error)
             }
         }
+    }
+
+    static func createPluginLoader() async throws -> PluginLoader {
+        let installRoot = CommandLine.executablePathUrl
+            .deletingLastPathComponent()
+            .appendingPathComponent("..")
+            .standardized
+        let pluginsURL = PluginLoader.userPluginsDir(installRoot: installRoot)
+        var directoryExists: ObjCBool = false
+        _ = FileManager.default.fileExists(atPath: pluginsURL.path, isDirectory: &directoryExists)
+        let userPluginsURL = directoryExists.boolValue ? pluginsURL : nil
+
+        // plugins built into the application installed as a macOS app bundle
+        let appBundlePluginsURL = Bundle.main.resourceURL?.appending(path: "plugins")
+
+        // plugins built into the application installed as a Unix-like application
+        let installRootPluginsURL =
+            installRoot
+            .appendingPathComponent("libexec")
+            .appendingPathComponent("container")
+            .appendingPathComponent("plugins")
+            .standardized
+
+        let pluginDirectories = [
+            userPluginsURL,
+            appBundlePluginsURL,
+            installRootPluginsURL,
+        ].compactMap { $0 }
+
+        let pluginFactories = [
+            DefaultPluginFactory()
+        ]
+
+        guard let systemHealth = try? await ClientHealthCheck.ping(timeout: .seconds(10)) else {
+            throw ContainerizationError(.timeout, message: "unable to retrieve application data root from API server")
+        }
+        let statePath = PluginLoader.defaultPluginResourcePath(root: systemHealth.appRoot)
+        guard (try? FileManager.default.createDirectory(at: statePath, withIntermediateDirectories: true)) != nil else {
+            throw ContainerizationError(.invalidState, message: "unable to create plugin state directory")
+        }
+        return PluginLoader(
+            appRoot: systemHealth.appRoot,
+            pluginDirectories: pluginDirectories,
+            pluginFactories: pluginFactories,
+            defaultResourcePath: statePath,
+            log: log
+        )
     }
 
     static func handleProcess(io: ProcessIO, process: ClientProcess) async throws -> Int32 {
@@ -304,8 +308,14 @@ struct Application: AsyncParsableCommand {
 extension Application {
     // Because we support plugins, we need to modify the help text to display
     // any if we found some.
-    static func printModifiedHelpText() {
-        let altered = Self.pluginLoader.alterCLIHelpText(
+    static func printModifiedHelpText(pluginLoader: PluginLoader?) async {
+        let original = Application.helpMessage(for: Application.self)
+        guard let pluginLoader else {
+            print(original)
+            print("PLUGINS: not available, run `container system start`")
+            return
+        }
+        let altered = pluginLoader.alterCLIHelpText(
             original: Application.helpMessage(for: Application.self)
         )
         print(altered)

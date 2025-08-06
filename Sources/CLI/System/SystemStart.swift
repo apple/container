@@ -31,6 +31,12 @@ extension Application {
         @Option(name: .shortAndLong, help: "Path to the `container-apiserver` binary")
         var path: String = Bundle.main.executablePath ?? ""
 
+        @Option(
+            name: .shortAndLong,
+            help: "Application data directory",
+            transform: { URL(filePath: $0) })
+        var appRoot: URL = ApplicationRoot.defaultURL
+
         @Flag(name: .long, help: "Enable debug logging for the runtime daemon.")
         var debug = false
 
@@ -47,15 +53,17 @@ extension Application {
                 .appendingPathComponent("container-apiserver")
 
             var args = [executableUrl.absolutePath()]
+
             if debug {
                 args.append("--debug")
             }
 
             let apiServerDataUrl = appRoot.appending(path: "apiserver")
             try! FileManager.default.createDirectory(at: apiServerDataUrl, withIntermediateDirectories: true)
-            let env = ProcessInfo.processInfo.environment.filter { key, _ in
+            var env = ProcessInfo.processInfo.environment.filter { key, _ in
                 key.hasPrefix("CONTAINER_")
             }
+            env["CONTAINER_APP_ROOT"] = appRoot.path(percentEncoded: false)
 
             let logURL = apiServerDataUrl.appending(path: "apiserver.log")
             let plist = LaunchPlist(
@@ -78,7 +86,7 @@ extension Application {
             // Now ping our friendly daemon. Fail if we don't get a response.
             do {
                 print("Verifying apiserver is running...")
-                try await ClientHealthCheck.ping(timeout: .seconds(10))
+                _ = try await ClientHealthCheck.ping(timeout: .seconds(10))
             } catch {
                 throw ContainerizationError(
                     .internalError,

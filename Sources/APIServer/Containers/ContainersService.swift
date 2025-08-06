@@ -56,8 +56,8 @@ actor ContainersService {
         }
     }
 
-    public init(root: URL, pluginLoader: PluginLoader, log: Logger) throws {
-        let containerRoot = root.appendingPathComponent("containers")
+    public init(appRoot: URL, pluginLoader: PluginLoader, log: Logger) throws {
+        let containerRoot = appRoot.appendingPathComponent("containers")
         try FileManager.default.createDirectory(at: containerRoot, withIntermediateDirectories: true)
         self.containerRoot = containerRoot
         self.pluginLoader = pluginLoader
@@ -200,7 +200,7 @@ actor ContainersService {
         ]
         try loader.registerWithLaunchd(
             plugin: plugin,
-            rootURL: path,
+            pluginStateRoot: path,
             args: args,
             instanceId: configuration.id
         )

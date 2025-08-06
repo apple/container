@@ -230,7 +230,7 @@ actor NetworksService {
 
         try await pluginLoader.registerWithLaunchd(
             plugin: networkPlugin,
-            rootURL: store.entityUrl(configuration.id),
+            pluginStateRoot: store.entityUrl(configuration.id),
             args: args,
             instanceId: configuration.id
         )
