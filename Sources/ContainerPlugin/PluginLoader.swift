@@ -21,6 +21,8 @@ import Logging
 public struct PluginLoader: Sendable {
     private let appRoot: URL
 
+    private let installRoot: URL
+
     private let pluginDirectories: [URL]
 
     private let pluginFactories: [PluginFactory]
@@ -32,18 +34,23 @@ public struct PluginLoader: Sendable {
     // A path on disk managed by the PluginLoader, where it stores
     // runtime data for loaded plugins. This includes the launchd plists
     // and logs files.
-    private let defaultPluginResourcePath: URL
+    private let pluginResourceRoot: URL
 
-    public init(appRoot: URL, pluginDirectories: [URL], pluginFactories: [PluginFactory], defaultResourcePath: URL, log: Logger? = nil) {
+    public init(
+        appRoot: URL,
+        installRoot: URL,
+        pluginDirectories: [URL],
+        pluginFactories: [PluginFactory],
+        log: Logger? = nil
+    ) throws {
+        let pluginResourceRoot = appRoot.appendingPathComponent("plugin-state")
+        try FileManager.default.createDirectory(at: pluginResourceRoot, withIntermediateDirectories: true)
+        self.pluginResourceRoot = pluginResourceRoot
         self.appRoot = appRoot
+        self.installRoot = installRoot
         self.pluginDirectories = pluginDirectories
         self.pluginFactories = pluginFactories
         self.log = log
-        self.defaultPluginResourcePath = defaultResourcePath
-    }
-
-    static public func defaultPluginResourcePath(root: URL) -> URL {
-        root.appending(path: "plugin-state")
     }
 
     static public func userPluginsDir(installRoot: URL) -> URL {
@@ -75,17 +82,21 @@ extension PluginLoader {
         return lines.joined(separator: "\n")
     }
 
+    /// Scan all plugin directories and detect plugins.
     public func findPlugins() -> [Plugin] {
         let fm = FileManager.default
 
+        // Maintain a set for tracking shadowed plugins
         var pluginNames = Set<String>()
         var plugins: [Plugin] = []
 
         for pluginDir in pluginDirectories {
+            // Skip nonexistent plugin parent directories
             if !fm.fileExists(atPath: pluginDir.path) {
                 continue
             }
 
+            // Get all entries under the parent directory
             guard
                 var dirs = try? fm.contentsOfDirectory(
                     at: pluginDir,
@@ -95,12 +106,15 @@ extension PluginLoader {
             else {
                 continue
             }
+
+            // Filter out all but plugin installation directories
             dirs = dirs.filter {
-                $0.isDirectory
+                $0.resolvingSymlinksInPath().isDirectory
             }
 
             for installURL in dirs {
                 do {
+                    // Create a plugin with the first factory that can grok the layout under the install URL
                     guard
                         let plugin = try
                             (pluginFactories.compactMap {
@@ -116,6 +130,7 @@ extension PluginLoader {
                         continue
                     }
 
+                    // Warn and skip if this plugin name has been encountered already
                     guard !pluginNames.contains(plugin.name) else {
                         log?.warning(
                             "Not installing shadowed plugin",
@@ -126,6 +141,7 @@ extension PluginLoader {
                         continue
                     }
 
+                    // Add the plugin to the list
                     plugins.append(plugin)
                     pluginNames.insert(plugin.name)
                 } catch {
@@ -143,12 +159,16 @@ extension PluginLoader {
         return plugins
     }
 
+    /// Locate a plugin with a specific name.
     public func findPlugin(name: String, log: Logger? = nil) -> Plugin? {
         do {
+            // Try to load the plugin from each parent directory, using each plugin factory
             return
                 try pluginDirectories
                 .compactMap { installURL in
-                    try pluginFactories.compactMap { try $0.create(installURL: installURL.appending(path: name)) }.first
+                    try pluginFactories
+                        .compactMap { try $0.create(parentURL: installURL, name: name) }
+                        .first
                 }
                 .first
         } catch {
@@ -179,12 +199,13 @@ extension PluginLoader {
 
         let id = plugin.getLaunchdLabel(instanceId: instanceId)
         log?.info("Registering plugin", metadata: ["id": "\(id)"])
-        let rootURL = pluginStateRoot ?? self.defaultPluginResourcePath.appending(path: plugin.name)
+        let rootURL = pluginStateRoot ?? self.pluginResourceRoot.appending(path: plugin.name)
         try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
         var env = ProcessInfo.processInfo.environment.filter { key, _ in
             key.hasPrefix("CONTAINER_")
         }
         env[ApplicationRoot.environmentName] = appRoot.path(percentEncoded: false)
+        env[InstallRoot.environmentName] = installRoot.path(percentEncoded: false)
 
         let logUrl = rootURL.appendingPathComponent("service.log")
         let plist = LaunchPlist(

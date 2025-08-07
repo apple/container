@@ -16,14 +16,14 @@
 
 import Foundation
 
-/// Provides the application data root path.
-public struct ApplicationRoot {
-    public static let environmentName = "CONTAINER_APP_ROOT"
+/// Provides the application installation root path.
+public struct InstallRoot {
+    public static let environmentName = "CONTAINER_INSTALL_ROOT"
 
-    public static let defaultURL = FileManager.default.urls(
-        for: .applicationSupportDirectory,
-        in: .userDomainMask
-    ).first!.appendingPathComponent("com.apple.container")
+    public static let defaultURL = CommandLine.executablePathUrl
+        .deletingLastPathComponent()
+        .appendingPathComponent("..")
+        .standardized
 
     private static let envPath = ProcessInfo.processInfo.environment[Self.environmentName]
 

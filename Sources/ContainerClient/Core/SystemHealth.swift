@@ -21,6 +21,9 @@ public struct SystemHealth: Sendable, Codable {
     /// The full pathname of the application data root.
     public let appRoot: URL
 
+    /// The full pathname of the application install root.
+    public let installRoot: URL
+
     /// The release version of the container services.
     public let apiServerVersion: String
 

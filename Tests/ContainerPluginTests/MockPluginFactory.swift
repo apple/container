@@ -48,4 +48,13 @@ struct MockPluginFactory: PluginFactory {
         }
         return plugins[url]
     }
+
+    public func create(parentURL: URL, name: String) throws -> Plugin? {
+        let url = parentURL.appendingPathComponent(name).standardizedFileURL
+        guard url != self.throwingURL else {
+            throw MockPluginError()
+        }
+        return plugins[url]
+    }
+
 }

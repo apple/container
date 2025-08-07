@@ -158,22 +158,19 @@ struct Application: AsyncParsableCommand {
             installRootPluginsURL,
         ].compactMap { $0 }
 
-        let pluginFactories = [
-            DefaultPluginFactory()
+        let pluginFactories: [any PluginFactory] = [
+            DefaultPluginFactory(),
+            AppBundlePluginFactory(),
         ]
 
         guard let systemHealth = try? await ClientHealthCheck.ping(timeout: .seconds(10)) else {
             throw ContainerizationError(.timeout, message: "unable to retrieve application data root from API server")
         }
-        let statePath = PluginLoader.defaultPluginResourcePath(root: systemHealth.appRoot)
-        guard (try? FileManager.default.createDirectory(at: statePath, withIntermediateDirectories: true)) != nil else {
-            throw ContainerizationError(.invalidState, message: "unable to create plugin state directory")
-        }
-        return PluginLoader(
+        return try PluginLoader(
             appRoot: systemHealth.appRoot,
+            installRoot: systemHealth.installRoot,
             pluginDirectories: pluginDirectories,
             pluginFactories: pluginFactories,
-            defaultResourcePath: statePath,
             log: log
         )
     }

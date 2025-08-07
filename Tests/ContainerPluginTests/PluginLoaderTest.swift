@@ -27,10 +27,12 @@ struct PluginLoaderTest {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: tempURL) }
         let factory = try setupMock(tempURL: tempURL)
-        let loader = PluginLoader(
-            appRoot: URL(filePath: "/foo"),
+        let loader = try PluginLoader(
+            appRoot: tempURL,
+            installRoot: URL(filePath: "/usr/local/"),
             pluginDirectories: [tempURL],
-            pluginFactories: [factory], defaultResourcePath: tempURL)
+            pluginFactories: [factory]
+        )
         let plugins = loader.findPlugins()
 
         #expect(Set(plugins.map { $0.name }) == Set(["cli", "service"]))
@@ -41,10 +43,11 @@ struct PluginLoaderTest {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: tempURL) }
         let factory = try setupMock(tempURL: tempURL)
-        let loader = PluginLoader(
-            appRoot: URL(filePath: "/foo"),
+        let loader = try PluginLoader(
+            appRoot: tempURL,
+            installRoot: URL(filePath: "/usr/local/"),
             pluginDirectories: [tempURL],
-            pluginFactories: [factory], defaultResourcePath: tempURL
+            pluginFactories: [factory]
         )
 
         #expect(loader.findPlugin(name: "cli")?.name == "cli")

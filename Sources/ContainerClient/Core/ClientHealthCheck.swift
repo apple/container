@@ -34,12 +34,15 @@ extension ClientHealthCheck {
         guard let appRootValue = reply.string(key: .appRoot), let appRoot = URL(string: appRootValue) else {
             throw ContainerizationError(.internalError, message: "failed to decode appRoot in health check")
         }
+        guard let installRootValue = reply.string(key: .installRoot), let installRoot = URL(string: installRootValue) else {
+            throw ContainerizationError(.internalError, message: "failed to decode installRoot in health check")
+        }
         guard let apiServerVersion = reply.string(key: .apiServerVersion) else {
             throw ContainerizationError(.internalError, message: "failed to decode apiServerVersion in health check")
         }
         guard let apiServerCommit = reply.string(key: .apiServerCommit) else {
             throw ContainerizationError(.internalError, message: "failed to decode apiServerCommit in health check")
         }
-        return .init(appRoot: appRoot, apiServerVersion: apiServerVersion, apiServerCommit: apiServerCommit)
+        return .init(appRoot: appRoot, installRoot: installRoot, apiServerVersion: apiServerVersion, apiServerCommit: apiServerCommit)
     }
 }

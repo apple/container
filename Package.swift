@@ -223,11 +223,11 @@ let package = Package(
                 .product(name: "ContainerizationOCI", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
-                "ContainerNetworkService",
-                "ContainerPersistence",
                 "ContainerImagesServiceClient",
-                "TerminalProgress",
+                "ContainerNetworkService",
+                "ContainerPlugin",
                 "ContainerXPC",
+                "TerminalProgress",
             ]
         ),
         .testTarget(

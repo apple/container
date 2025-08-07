@@ -45,6 +45,8 @@ struct APIServer: AsyncParsableCommand {
 
     var appRoot = ApplicationRoot.url
 
+    var installRoot = InstallRoot.url
+
     static func releaseVersion() -> String {
         (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? get_release_version().map { String(cString: $0) } ?? "0.0.0"
     }
@@ -124,11 +126,11 @@ struct APIServer: AsyncParsableCommand {
     }
 
     private func initializePluginLoader(log: Logger) throws -> PluginLoader {
-        let installRoot = CommandLine.executablePathUrl
-            .deletingLastPathComponent()
-            .appendingPathComponent("..")
-            .standardized
-        log.info("initializing plugin loader", metadata: ["installRoot": "\(installRoot.path(percentEncoded: false))"])
+        log.info(
+            "initializing plugin loader",
+            metadata: [
+                "installRoot": "\(installRoot.path(percentEncoded: false))"
+            ])
 
         let pluginsURL = PluginLoader.userPluginsDir(installRoot: installRoot)
         log.info("detecting user plugins directory", metadata: ["path": "\(pluginsURL.path(percentEncoded: false))"])
@@ -162,13 +164,11 @@ struct APIServer: AsyncParsableCommand {
             log.info("discovered plugin directory", metadata: ["path": "\(pluginDirectory.path(percentEncoded: false))"])
         }
 
-        let statePath = PluginLoader.defaultPluginResourcePath(root: appRoot)
-        try FileManager.default.createDirectory(at: statePath, withIntermediateDirectories: true)
-        return PluginLoader(
+        return try PluginLoader(
             appRoot: appRoot,
+            installRoot: installRoot,
             pluginDirectories: pluginDirectories,
             pluginFactories: pluginFactories,
-            defaultResourcePath: statePath,
             log: log
         )
     }
@@ -194,7 +194,7 @@ struct APIServer: AsyncParsableCommand {
     }
 
     private func initializeHealthCheckService(log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) {
-        let svc = HealthCheckHarness(appRoot: appRoot, log: log)
+        let svc = HealthCheckHarness(appRoot: appRoot, installRoot: installRoot, log: log)
         routes[XPCRoute.ping] = svc.ping
     }
 

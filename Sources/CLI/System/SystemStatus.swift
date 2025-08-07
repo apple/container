@@ -40,10 +40,10 @@ extension Application {
 
             // Now ping our friendly daemon. Fail after 10 seconds with no response.
             do {
-                print("Verifying apiserver is running...")
                 let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
                 print("apiserver is running")
                 print("application data root: \(systemHealth.appRoot.path(percentEncoded: false))")
+                print("application install root: \(systemHealth.installRoot.path(percentEncoded: false))")
                 print("container-apiserver version: \(systemHealth.apiServerVersion)")
                 print("container-apiserver commit: \(systemHealth.apiServerCommit)")
             } catch {

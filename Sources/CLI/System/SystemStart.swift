@@ -29,14 +29,17 @@ extension Application {
             abstract: "Start `container` services"
         )
 
-        @Option(name: .shortAndLong, help: "Path to the `container-apiserver` binary")
-        var path: String = Bundle.main.executablePath ?? ""
-
         @Option(
             name: .shortAndLong,
             help: "Application data directory",
             transform: { URL(filePath: $0) })
-        var appRoot: URL = ApplicationRoot.defaultURL
+        var appRoot = ApplicationRoot.defaultURL
+
+        @Option(
+            name: .long,
+            help: "Path to the installation root directory",
+            transform: { URL(filePath: $0) })
+        public var installRoot = InstallRoot.defaultURL
 
         @Flag(name: .long, help: "Enable debug logging for the runtime daemon.")
         var debug = false
@@ -48,10 +51,11 @@ extension Application {
 
         func run() async throws {
             // Without the true path to the binary in the plist, `container-apiserver` won't launch properly.
-            let executableUrl = URL(filePath: path)
-                .resolvingSymlinksInPath()
+            // TODO: Use plugin loader for API server.
+            let executableUrl = CommandLine.executablePathUrl
                 .deletingLastPathComponent()
                 .appendingPathComponent("container-apiserver")
+                .resolvingSymlinksInPath()
 
             var args = [executableUrl.absolutePath()]
 
@@ -64,7 +68,8 @@ extension Application {
             var env = ProcessInfo.processInfo.environment.filter { key, _ in
                 key.hasPrefix("CONTAINER_")
             }
-            env["CONTAINER_APP_ROOT"] = appRoot.path(percentEncoded: false)
+            env[ApplicationRoot.environmentName] = appRoot.path(percentEncoded: false)
+            env[InstallRoot.environmentName] = installRoot.path(percentEncoded: false)
 
             let logURL = apiServerDataUrl.appending(path: "apiserver.log")
             let plist = LaunchPlist(
