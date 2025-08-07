@@ -14,31 +14,19 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerBuildIR
+import Foundation
 
-public protocol BuildParser {
-    associatedtype Input
-    func parse(_ input: Input) throws -> BuildGraph
-}
+public struct ApplicationRoot {
+    public static let environmentName = "CONTAINER_APP_ROOT"
 
-/// Error types encountered while parsing.
-/// TODO: These will be removed/enhanced
-public enum ParseError: Error, Equatable {
-    case invalidImage(String)
-    case missingInstruction
-    case invalidInstruction(String)
-    case unexpectedValue
-    case invalidOption(String)
-    case missingRequiredField(String)
-    case duplicateOptionSet(String)
-    case invalidSyntax
-    case invalidBoolOption(String)
-    case invalidUint32Option(String)
-}
+    public static let defaultURL = FileManager.default.urls(
+        for: .applicationSupportDirectory,
+        in: .userDomainMask
+    ).first!.appendingPathComponent("com.apple.container")
 
-/// Token represents a logical unit within a line of builder input, such as
-/// a dockerfile
-public enum Token: Sendable, Equatable {
-    case stringLiteral(String)
-    case stringList([String])
+    private static let envPath = ProcessInfo.processInfo.environment[Self.environmentName]
+
+    public static let url = envPath.map { URL(fileURLWithPath: $0) } ?? defaultURL
+
+    public static let path = url.path(percentEncoded: false)
 }

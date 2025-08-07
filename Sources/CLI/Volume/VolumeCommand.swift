@@ -14,31 +14,20 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerBuildIR
+import ArgumentParser
 
-public protocol BuildParser {
-    associatedtype Input
-    func parse(_ input: Input) throws -> BuildGraph
-}
-
-/// Error types encountered while parsing.
-/// TODO: These will be removed/enhanced
-public enum ParseError: Error, Equatable {
-    case invalidImage(String)
-    case missingInstruction
-    case invalidInstruction(String)
-    case unexpectedValue
-    case invalidOption(String)
-    case missingRequiredField(String)
-    case duplicateOptionSet(String)
-    case invalidSyntax
-    case invalidBoolOption(String)
-    case invalidUint32Option(String)
-}
-
-/// Token represents a logical unit within a line of builder input, such as
-/// a dockerfile
-public enum Token: Sendable, Equatable {
-    case stringLiteral(String)
-    case stringList([String])
+extension Application {
+    struct VolumeCommand: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "volume",
+            abstract: "Manage container volumes",
+            subcommands: [
+                VolumeCreate.self,
+                VolumeDelete.self,
+                VolumeList.self,
+                VolumeInspect.self,
+            ],
+            aliases: ["v"]
+        )
+    }
 }

@@ -223,17 +223,20 @@ class CLITest {
         }
     }
 
-    func doCreate(name: String, image: String? = nil, args: [String]? = nil) throws {
+    func doCreate(name: String, image: String? = nil, args: [String]? = nil, volumes: [String] = []) throws {
         let image = image ?? alpine
         let args: [String] = args ?? ["sleep", "infinity"]
-        let (_, error, status) = try run(
-            arguments: [
-                "create",
-                "--rm",
-                "--name",
-                name,
-                image,
-            ] + args)
+
+        var arguments = ["create", "--rm", "--name", name]
+
+        // Add volume mounts
+        for volume in volumes {
+            arguments += ["-v", volume]
+        }
+
+        arguments += [image] + args
+
+        let (_, error, status) = try run(arguments: arguments)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }

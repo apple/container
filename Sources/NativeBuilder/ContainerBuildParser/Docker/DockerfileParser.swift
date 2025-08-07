@@ -63,9 +63,59 @@ public struct DockerfileParser: BuildParser {
             return try tokensToFromInstruction(tokens: tokens)
         case .RUN:
             return try tokensToRunInstruction(tokens: tokens)
+        case .COPY:
+            return try tokensToCopyInstruction(tokens: tokens)
+        case .CMD:
+            return try tokensToCMDInstruction(tokens: tokens)
+        case .LABEL:
+            return try tokensToLabelInstruction(tokens: tokens)
         default:
             throw ParseError.invalidInstruction(value)
         }
+    }
+
+    private struct InstructionOpt {
+        let key: String
+        let value: String
+    }
+
+    private func parseInstructionOpts(start: Int, tokens: [Token]) throws -> (Int, [InstructionOpt]) {
+        var done = false
+        var opts: [InstructionOpt] = []
+        var index = start
+
+        while index < tokens.endIndex, !done {
+            guard case .stringLiteral(let raw) = tokens[index] else {
+                done = true
+                break
+            }
+
+            guard raw.hasPrefix("--") else {
+                done = true
+                break
+            }
+
+            let components = raw.split(separator: "=", maxSplits: 1)
+            if components.count == 2 {
+                opts.append(InstructionOpt(key: String(components[0]), value: String(components[1])))
+            } else {
+                // instruction options should ALWAYS have a value, so if we're at
+                // the end or the next value is a string list, that's invalid input
+                index += 1
+                guard index < tokens.endIndex else {
+                    throw ParseError.invalidOption(raw)
+                }
+
+                guard case .stringLiteral(let value) = tokens[index] else {
+                    throw ParseError.invalidOption(raw)
+                }
+
+                opts.append(InstructionOpt(key: raw, value: value))
+            }
+            index += 1
+        }
+
+        return (index, opts)
     }
 
     internal func tokensToFromInstruction(tokens: [Token]) throws -> FromInstruction {
@@ -76,16 +126,18 @@ public struct DockerfileParser: BuildParser {
         var platform: String?
         var imageName: String?
 
-        // Step 1: parse options
-        while index < tokens.endIndex {
-            guard case .option(let key, let value) = tokens[index] else {
-                break
-            }
-            guard FromOptions(rawValue: key) == .platform else {
+        // Step 1: Parse instruction options
+        let (newIndex, instructionOpts) = try parseInstructionOpts(start: index, tokens: tokens)
+        index = newIndex
+
+        for option in instructionOpts {
+            guard FromOptions(rawValue: String(option.key)) == .platform else {
                 throw ParseError.unexpectedValue
             }
-            platform = value
-            index += 1
+            if platform != nil {
+                throw ParseError.duplicateOptionSet(FromOptions.platform.rawValue)
+            }
+            platform = option.value
         }
 
         // Step 2: Parse image name
@@ -131,31 +183,42 @@ public struct DockerfileParser: BuildParser {
         var rawMounts = [String]()
         var network: String? = nil
 
-        // Step 1: parse options
-        while index < tokens.endIndex {
-            guard case .option(let key, let value) = tokens[index] else {
-                break
-            }
+        // Step 1: Parse instruction options
+        let (lastOption, instructionOpts) = try parseInstructionOpts(start: index, tokens: tokens)
+        index = lastOption
 
-            guard let option = RunOptions(rawValue: key) else {
+        for option in instructionOpts {
+            guard let runOpt = RunOptions(rawValue: option.key) else {
                 throw ParseError.unexpectedValue
             }
 
-            switch option {
+            switch runOpt {
             case .mount:
-                rawMounts.append(value)
+                rawMounts.append(option.value)
             case .network:
-                network = value
+                network = option.value
             default:
                 throw ParseError.unexpectedValue
             }
-            index += 1
         }
 
+        // Step 2: parse run command
+        let (newIndex, cmd) = getCommand(start: index, tokens: tokens)
+        index = newIndex
+
+        // check for extra tokens
+        if index < tokens.endIndex {
+            throw ParseError.unexpectedValue
+        }
+
+        return try RunInstruction(command: cmd, rawMounts: rawMounts, network: network)
+    }
+
+    private func getCommand(start: Int, tokens: [Token]) -> (index: Int, cmd: Command) {
         var command = [String]()
         var shell = true
 
-        // Step 2: parse run command and if we're using shell or exec form
+        var index = start
         while index < tokens.endIndex {
             if case .stringList(let value) = tokens[index], command.isEmpty {
                 // when using the exec form, there should only be a single list for the command
@@ -172,12 +235,8 @@ public struct DockerfileParser: BuildParser {
             index += 1
         }
 
-        // check for extra tokens
-        if index < tokens.endIndex {
-            throw ParseError.unexpectedValue
-        }
-
-        return try RunInstruction(command: command, shell: shell, rawMounts: rawMounts, network: network)
+        let cmd = shell ? Command.shell(command.joined(separator: " ")) : Command.exec(command)
+        return (index, cmd)
     }
 
     internal func tokensToCopyInstruction(tokens: [Token]) throws -> CopyInstruction {
@@ -189,41 +248,39 @@ public struct DockerfileParser: BuildParser {
         var chown: String? = nil
         var link: String? = nil
 
-        // Step 1: parse options
-        while index < tokens.endIndex {
-            guard case .option(let key, let value) = tokens[index] else {
-                break
-            }
+        // Step 1: Parse instruction options
+        let (newIndex, instructionOpts) = try parseInstructionOpts(start: index, tokens: tokens)
+        index = newIndex
 
-            guard let option = CopyOptions(rawValue: key) else {
+        for option in instructionOpts {
+            guard let copyOpt = CopyOptions(rawValue: option.key) else {
                 throw ParseError.unexpectedValue
             }
 
-            switch option {
+            switch copyOpt {
             case .from:
                 if from != nil {
                     throw ParseError.duplicateOptionSet(CopyOptions.from.rawValue)
                 }
-                from = value
+                from = option.value
             case .chown:
                 if chown != nil {
                     throw ParseError.duplicateOptionSet(CopyOptions.chown.rawValue)
                 }
-                chown = value
+                chown = option.value
             case .chmod:
                 if chmod != nil {
                     throw ParseError.duplicateOptionSet(CopyOptions.chmod.rawValue)
                 }
-                chmod = value
+                chmod = option.value
             case .link:
                 if link != nil {
                     throw ParseError.duplicateOptionSet(CopyOptions.link.rawValue)
                 }
-                link = value
+                link = option.value
             default:
                 throw ParseError.unexpectedValue
             }
-            index += 1
         }
 
         // Step 2: Get all source paths and destination path
@@ -250,4 +307,48 @@ public struct DockerfileParser: BuildParser {
         return try CopyInstruction(sources: sources, destination: destination, from: from, ownership: chown, permissions: chmod)
     }
 
+    internal func tokensToCMDInstruction(tokens: [Token]) throws -> CMDInstruction {
+        var index = tokens.startIndex
+        index += 1
+
+        // get the command
+        let (newIndex, cmd) = getCommand(start: index, tokens: tokens)
+        index = newIndex
+
+        // check for extra tokens
+        if index < tokens.endIndex {
+            throw ParseError.unexpectedValue
+        }
+
+        return CMDInstruction(command: cmd)
+    }
+
+    internal func tokensToLabelInstruction(tokens: [Token]) throws -> LabelInstruction {
+        var index = tokens.startIndex
+        index += 1
+
+        var labels: [String: String] = [:]
+        while index < tokens.endIndex {
+            guard case .stringLiteral(let option) = tokens[index] else {
+                break
+            }
+            let components = option.split(separator: "=", maxSplits: 1)
+            guard components.count == 2 else {
+                throw ParseError.unexpectedValue
+            }
+            let key = String(components[0])
+            guard labels[key] == nil else {
+                throw ParseError.duplicateOptionSet(key)
+            }
+            labels[key] = String(components[1])
+            index += 1
+        }
+
+        // check for extra tokens
+        if index < tokens.endIndex {
+            throw ParseError.unexpectedValue
+        }
+
+        return LabelInstruction(labels: labels)
+    }
 }

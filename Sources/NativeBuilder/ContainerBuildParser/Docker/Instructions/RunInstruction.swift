@@ -257,21 +257,18 @@ struct RunMountOptions: Equatable {
 
 /// RunInstruction represents a RUN instruction from a dockerfile
 struct RunInstruction: DockerInstruction, Equatable {
-    let command: String
-    let shell: Bool
+    let command: Command
     let mounts: [RunMount]
     let network: NetworkMode
 
     init() {
-        self.command = ""
-        self.shell = false
+        self.command = .shell("")
         self.mounts = []
         self.network = .default
     }
 
-    init(command: [String], shell: Bool, rawMounts: [String], network: String?) throws {
-        self.command = command.joined(separator: " ")
-        self.shell = shell
+    init(command: Command, rawMounts: [String], network: String?) throws {
+        self.command = command
         self.network = try RunInstruction.parseNetworkMode(mode: network)
         var parsedMounts: [RunMount] = []
         for m in rawMounts {

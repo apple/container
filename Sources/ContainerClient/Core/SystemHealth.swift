@@ -14,31 +14,16 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerBuildIR
+import Foundation
 
-public protocol BuildParser {
-    associatedtype Input
-    func parse(_ input: Input) throws -> BuildGraph
-}
+/// Snapshot of the health of container services and resources
+public struct SystemHealth: Sendable, Codable {
+    /// The full pathname of the application data root.
+    public let appRoot: URL
 
-/// Error types encountered while parsing.
-/// TODO: These will be removed/enhanced
-public enum ParseError: Error, Equatable {
-    case invalidImage(String)
-    case missingInstruction
-    case invalidInstruction(String)
-    case unexpectedValue
-    case invalidOption(String)
-    case missingRequiredField(String)
-    case duplicateOptionSet(String)
-    case invalidSyntax
-    case invalidBoolOption(String)
-    case invalidUint32Option(String)
-}
+    /// The release version of the container services.
+    public let apiServerVersion: String
 
-/// Token represents a logical unit within a line of builder input, such as
-/// a dockerfile
-public enum Token: Sendable, Equatable {
-    case stringLiteral(String)
-    case stringList([String])
+    /// The Git commit ID for the container services.
+    public let apiServerCommit: String
 }

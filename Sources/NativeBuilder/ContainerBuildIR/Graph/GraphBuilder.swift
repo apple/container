@@ -179,8 +179,20 @@ public final class GraphBuilder {
         network: NetworkMode = .default,
     ) throws -> Self {
         let cmd = shell ? Command.shell(command) : Command.exec(command.split(separator: " ").map(String.init))
-        let envVars = env.map { (key: $0.key, value: EnvironmentValue.literal($0.value)) }
+        return try runWithCmd(cmd, shell: shell, env: env, workdir: workdir, user: user, mounts: mounts, network: network)
+    }
 
+    @discardableResult
+    public func runWithCmd(
+        _ cmd: Command,
+        shell: Bool = true,
+        env: [String: String] = [:],
+        workdir: String? = nil,
+        user: User? = nil,
+        mounts: [Mount] = [],
+        network: NetworkMode = .default,
+    ) throws -> Self {
+        let envVars = env.map { (key: $0.key, value: EnvironmentValue.literal($0.value)) }
         let operation = ExecOperation(
             command: cmd,
             environment: Environment(envVars),
@@ -276,6 +288,14 @@ public final class GraphBuilder {
     public func label(_ key: String, _ value: String) throws -> Self {
         let operation = MetadataOperation(
             action: .setLabel(key: key, value: value)
+        )
+        return try add(operation)
+    }
+
+    @discardableResult
+    public func labelBatch(labels: [String: String]) throws -> Self {
+        let operation = MetadataOperation(
+            action: .setLabelBatch(labels)
         )
         return try add(operation)
     }

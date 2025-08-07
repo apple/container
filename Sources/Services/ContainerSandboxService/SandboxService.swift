@@ -973,6 +973,13 @@ extension Filesystem {
                 destination: self.destination,
                 options: self.options
             )
+        case .volume(_, let format, _, _):
+            return .block(
+                format: format,
+                source: self.source,
+                destination: self.destination,
+                options: self.options
+            )
         }
     }
 

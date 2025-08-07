@@ -32,8 +32,9 @@ struct DefaultCommand: AsyncParsableCommand {
 
     func run() async throws {
         // See if we have a possible plugin command.
+        let pluginLoader = try? await Application.createPluginLoader()
         guard let command = remaining.first else {
-            Application.printModifiedHelpText()
+            await Application.printModifiedHelpText(pluginLoader: pluginLoader)
             return
         }
 
@@ -44,8 +45,7 @@ struct DefaultCommand: AsyncParsableCommand {
             throw ValidationError("Unknown option '\(command)'")
         }
 
-        let pluginLoader = Application.pluginLoader
-        guard let plugin = pluginLoader.findPlugin(name: command), plugin.config.isCLI else {
+        guard let plugin = pluginLoader?.findPlugin(name: command), plugin.config.isCLI else {
             throw ValidationError("failed to find plugin named container-\(command)")
         }
         // Exec performs execvp (with no fork).

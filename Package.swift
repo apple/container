@@ -164,6 +164,7 @@ let package = Package(
                 .product(name: "Containerization", package: "containerization"),
                 "CVersion",
                 "ContainerLog",
+                "ContainerPlugin",
                 "ContainerXPC",
                 "ContainerImagesService",
             ],

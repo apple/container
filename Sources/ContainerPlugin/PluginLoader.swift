@@ -19,10 +19,7 @@ import Foundation
 import Logging
 
 public struct PluginLoader: Sendable {
-    // A path on disk managed by the PluginLoader, where it stores
-    // runtime data for loaded plugins. This includes the launchd plists
-    // and logs files.
-    private let defaultPluginResourcePath: URL
+    private let appRoot: URL
 
     private let pluginDirectories: [URL]
 
@@ -32,7 +29,13 @@ public struct PluginLoader: Sendable {
 
     public typealias PluginQualifier = ((Plugin) -> Bool)
 
-    public init(pluginDirectories: [URL], pluginFactories: [PluginFactory], defaultResourcePath: URL, log: Logger? = nil) {
+    // A path on disk managed by the PluginLoader, where it stores
+    // runtime data for loaded plugins. This includes the launchd plists
+    // and logs files.
+    private let defaultPluginResourcePath: URL
+
+    public init(appRoot: URL, pluginDirectories: [URL], pluginFactories: [PluginFactory], defaultResourcePath: URL, log: Logger? = nil) {
+        self.appRoot = appRoot
         self.pluginDirectories = pluginDirectories
         self.pluginFactories = pluginFactories
         self.log = log
@@ -43,8 +46,8 @@ public struct PluginLoader: Sendable {
         root.appending(path: "plugin-state")
     }
 
-    static public func userPluginsDir(root: URL) -> URL {
-        root
+    static public func userPluginsDir(installRoot: URL) -> URL {
+        installRoot
             .appending(path: "libexec")
             .appending(path: "container-plugins")
             .resolvingSymlinksInPath()
@@ -164,7 +167,7 @@ extension PluginLoader {
 extension PluginLoader {
     public func registerWithLaunchd(
         plugin: Plugin,
-        rootURL: URL? = nil,
+        pluginStateRoot: URL? = nil,
         args: [String]? = nil,
         instanceId: String? = nil
     ) throws {
@@ -176,11 +179,13 @@ extension PluginLoader {
 
         let id = plugin.getLaunchdLabel(instanceId: instanceId)
         log?.info("Registering plugin", metadata: ["id": "\(id)"])
-        let rootURL = rootURL ?? self.defaultPluginResourcePath.appending(path: plugin.name)
+        let rootURL = pluginStateRoot ?? self.defaultPluginResourcePath.appending(path: plugin.name)
         try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
-        let env = ProcessInfo.processInfo.environment.filter { key, _ in
+        var env = ProcessInfo.processInfo.environment.filter { key, _ in
             key.hasPrefix("CONTAINER_")
         }
+        env[ApplicationRoot.environmentName] = appRoot.path(percentEncoded: false)
+
         let logUrl = rootURL.appendingPathComponent("service.log")
         let plist = LaunchPlist(
             label: id,

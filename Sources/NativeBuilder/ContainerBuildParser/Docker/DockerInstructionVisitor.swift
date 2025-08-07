@@ -20,6 +20,8 @@ protocol InstructionVisitor {
     func visit(_ from: FromInstruction) throws
     func visit(_ run: RunInstruction) throws
     func visit(_ copy: CopyInstruction) throws
+    func visit(_ cmd: CMDInstruction) throws
+    func visit(_ label: LabelInstruction) throws
 }
 
 /// DockerInstructionVisitor visits each provided DockerInstruction and builds a
@@ -114,7 +116,7 @@ extension DockerInstructionVisitor {
             mounts.append(graphMount)
         }
 
-        try graphBuilder.run(run.command, shell: run.shell, mounts: mounts)
+        try graphBuilder.runWithCmd(run.command, mounts: mounts)
     }
 
     func visit(_ copy: CopyInstruction) throws {
@@ -135,5 +137,13 @@ extension DockerInstructionVisitor {
             return
         }
         try graphBuilder.copyFromContext(paths: copy.sources, to: copy.destination, chown: copy.chown, chmod: copy.chmod)
+    }
+
+    func visit(_ cmd: CMDInstruction) throws {
+        try graphBuilder.cmd(cmd.command)
+    }
+
+    func visit(_ label: LabelInstruction) throws {
+        try graphBuilder.labelBatch(labels: label.labels)
     }
 }

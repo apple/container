@@ -14,31 +14,26 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerBuildIR
+import ArgumentParser
+import ContainerClient
+import Foundation
 
-public protocol BuildParser {
-    associatedtype Input
-    func parse(_ input: Input) throws -> BuildGraph
-}
+extension Application.VolumeCommand {
+    struct VolumeDelete: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "delete",
+            abstract: "Remove one or more volumes",
+            aliases: ["rm"]
+        )
 
-/// Error types encountered while parsing.
-/// TODO: These will be removed/enhanced
-public enum ParseError: Error, Equatable {
-    case invalidImage(String)
-    case missingInstruction
-    case invalidInstruction(String)
-    case unexpectedValue
-    case invalidOption(String)
-    case missingRequiredField(String)
-    case duplicateOptionSet(String)
-    case invalidSyntax
-    case invalidBoolOption(String)
-    case invalidUint32Option(String)
-}
+        @Argument(help: "Volume name(s)")
+        var names: [String]
 
-/// Token represents a logical unit within a line of builder input, such as
-/// a dockerfile
-public enum Token: Sendable, Equatable {
-    case stringLiteral(String)
-    case stringList([String])
+        func run() async throws {
+            for name in names {
+                try await ClientVolume.delete(name: name)
+                print(name)
+            }
+        }
+    }
 }

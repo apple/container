@@ -93,9 +93,140 @@ import Testing
             try parser.parse(dockerfile)
         }
     }
+
+    @Test func testSimpleDockerfileWithCopy() throws {
+        let imageRef = ImageReference(parsing: "alpine:latest")
+        #expect(imageRef != nil, "Failed to parse image reference")
+        let dockerfile =
+            #"""
+            FROM alpine AS build-context
+
+            FROM alpine AS stage-two
+            COPY --from=build-context /test /test
+            """#
+        let parser = DockerfileParser()
+        let actualGraph = try parser.parse(dockerfile)
+
+        #expect(!actualGraph.stages.isEmpty)
+        let stages = actualGraph.stages
+
+        #expect(stages.count == 2, "expected 2 stages, instead got \(stages.count)")
+        #expect(stages[0].name == "build-context", "expected stage name build-context, got \(stages[0].name)")
+        #expect(stages[1].name == "stage-two", "expected stage name stage-two, got \(stages[1].name)")
+        #expect(stages[1].nodes.count == 1, "expected 1 node, instead got \(stages[1].nodes.count)")
+
+        let node = stages[1].nodes[0]
+        #expect(node.operation is FilesystemOperation)
+
+        let copy = node.operation as! FilesystemOperation
+        #expect(copy.action == .copy)
+    }
+
+    @Test func testSimpleDockerfileRun() throws {
+        let imageRef = ImageReference(parsing: "alpine:latest")
+        #expect(imageRef != nil, "Failed to parse image reference")
+        let dockerfile =
+            #"""
+            FROM alpine:latest AS build
+
+            RUN ["ls", "-la"]
+            """#
+        let parser = DockerfileParser()
+        let actualGraph = try parser.parse(dockerfile)
+
+        #expect(!actualGraph.stages.isEmpty)
+
+        let stages = actualGraph.stages
+        #expect(stages.count == 1, "expected 1 stage, instead got \(actualGraph.stages.count)")
+
+        let stage = stages[0]
+        #expect(stage.nodes.count == 1, "expected 1 node, instead got \(stage.nodes.count)")
+
+        let run = stage.nodes[0].operation as! ExecOperation
+        #expect(run.command.displayString == "ls -la")
+    }
+
+    @Test func testSimpleDockerfileRunShell() throws {
+        let imageRef = ImageReference(parsing: "alpine:latest")
+        #expect(imageRef != nil, "Failed to parse image reference")
+        let dockerfile =
+            #"""
+            FROM alpine:latest AS build
+
+            RUN build.sh --verbose
+            """#
+        let parser = DockerfileParser()
+        let actualGraph = try parser.parse(dockerfile)
+
+        #expect(!actualGraph.stages.isEmpty)
+
+        let stages = actualGraph.stages
+        #expect(stages.count == 1, "expected 1 stage, instead got \(actualGraph.stages.count)")
+
+        let stage = stages[0]
+        #expect(stage.nodes.count == 1, "expected 1 node, instead got \(stage.nodes.count)")
+
+        let run = stage.nodes[0].operation as! ExecOperation
+        #expect(run.command.displayString == "build.sh --verbose")
+
+    }
+
+    @Test func testSimpleDockerfileLabel() throws {
+        let imageRef = ImageReference(parsing: "alpine:latest")
+        #expect(imageRef != nil, "Failed to parse image reference")
+        let dockerfile =
+            #"""
+            FROM alpine:latest AS build
+
+            LABEL label1=value1
+            """#
+        let parser = DockerfileParser()
+        let actualGraph = try parser.parse(dockerfile)
+
+        #expect(!actualGraph.stages.isEmpty)
+
+        let stages = actualGraph.stages
+        #expect(stages.count == 1, "expected 1 stage, instead got \(actualGraph.stages.count)")
+
+        let stage = stages[0]
+        #expect(stage.nodes.count == 1, "expected 1 node, instead got \(stage.nodes.count)")
+
+        let label = stage.nodes[0].operation as! MetadataOperation
+        #expect(label.action == .setLabelBatch(["label1": "value1"]))
+    }
+
+    @Test func testSimpleDockerfileCMD() throws {
+        let imageRef = ImageReference(parsing: "alpine:latest")
+        #expect(imageRef != nil, "Failed to parse image reference")
+        let dockerfile =
+            #"""
+            FROM alpine:latest AS build
+
+            CMD ["./test.sh", "--verbose"]
+            """#
+        let parser = DockerfileParser()
+        let actualGraph = try parser.parse(dockerfile)
+
+        #expect(!actualGraph.stages.isEmpty)
+
+        let stages = actualGraph.stages
+        #expect(stages.count == 1, "expected 1 stage, instead got \(actualGraph.stages.count)")
+
+        let stage = stages[0]
+        #expect(stage.nodes.count == 1, "expected 1 node, instead got \(stage.nodes.count)")
+
+        let cmd = stage.nodes[0].operation as! MetadataOperation
+        switch cmd.action {
+        case .setCmd(let command):
+            #expect(command.displayString == "./test.sh --verbose")
+        default:
+            Issue.record("expected .setCmd action type, instead got \(cmd.action)")
+            return
+        }
+    }
 }
 
-// tests for parsing RUN mount options
+// tests for parsing options for the different instructions
 extension ParserTest {
     struct RunMountTestCase {
         let rawMount: String

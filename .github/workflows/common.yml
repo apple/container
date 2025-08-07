@@ -68,7 +68,10 @@ jobs:
       - name: Test the container project
         run: |
           launchctl setenv HTTP_PROXY $HTTP_PROXY
-          make test cleancontent install-kernel integration
+          APP_ROOT=$(mktemp -d -p "${RUNNER_TEMP}")
+          trap 'rm -rf "${APP_ROOT}"; echo Removing data directory ${APP_ROOT}' EXIT
+          echo "Created data directory ${APP_ROOT}"
+          make APP_ROOT="${APP_ROOT}" test install-kernel integration
         env:
           DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
 
