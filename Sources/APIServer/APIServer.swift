@@ -65,6 +65,7 @@ struct APIServer: AsyncParsableCommand {
             let containersService = try initializeContainerService(pluginLoader: pluginLoader, log: log, routes: &routes)
             let networkService = try await initializeNetworkService(
                 pluginLoader: pluginLoader,
+                containersService: containersService,
                 log: log,
                 routes: &routes
             )
@@ -223,6 +224,7 @@ struct APIServer: AsyncParsableCommand {
 
     private func initializeNetworkService(
         pluginLoader: PluginLoader,
+        containersService: ContainersService,
         log: Logger,
         routes: inout [XPCRoute: XPCServer.RouteHandler]
     ) async throws -> NetworksService {
@@ -230,6 +232,7 @@ struct APIServer: AsyncParsableCommand {
         let service = try await NetworksService(
             pluginLoader: pluginLoader,
             resourceRoot: resourceRoot,
+            containersService: containersService,
             log: log
         )
 

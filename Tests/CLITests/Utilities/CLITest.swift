@@ -223,7 +223,13 @@ class CLITest {
         }
     }
 
-    func doCreate(name: String, image: String? = nil, args: [String]? = nil, volumes: [String] = []) throws {
+    func doCreate(
+        name: String,
+        image: String? = nil,
+        args: [String]? = nil,
+        volumes: [String] = [],
+        networks: [String] = []
+    ) throws {
         let image = image ?? alpine
         let args: [String] = args ?? ["sleep", "infinity"]
 
@@ -232,6 +238,11 @@ class CLITest {
         // Add volume mounts
         for volume in volumes {
             arguments += ["-v", volume]
+        }
+
+        // Add networks
+        for network in networks {
+            arguments += ["--network", network]
         }
 
         arguments += [image] + args
