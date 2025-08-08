@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerClient
+import ContainerPersistence
 import ContainerPlugin
 import ContainerizationError
 import Foundation
@@ -118,7 +119,7 @@ extension Application {
         private func installDefaultKernel() async throws {
             let kernelDependency = Dependencies.kernel
             let defaultKernelURL = kernelDependency.source
-            let defaultKernelBinaryPath = ClientDefaults.get(key: .defaultKernelBinaryPath)
+            let defaultKernelBinaryPath = ApplicationDefaults.get(key: .defaultKernelBinaryPath)
 
             var shouldInstallKernel = false
             if kernelInstall == nil {
@@ -169,9 +170,9 @@ extension Application {
         var source: String {
             switch self {
             case .initFs:
-                return ClientDefaults.get(key: .defaultInitImage)
+                return ApplicationDefaults.get(key: .defaultInitImage)
             case .kernel:
-                return ClientDefaults.get(key: .defaultKernelURL)
+                return ApplicationDefaults.get(key: .defaultKernelURL)
             }
         }
     }

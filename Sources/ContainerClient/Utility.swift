@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerNetworkService
+import ContainerPersistence
 import Containerization
 import ContainerizationError
 import ContainerizationExtras
@@ -24,8 +25,8 @@ import TerminalProgress
 
 public struct Utility {
     private static let infraImages = [
-        ClientDefaults.get(key: .defaultBuilderImage),
-        ClientDefaults.get(key: .defaultInitImage),
+        ApplicationDefaults.get(key: .defaultBuilderImage),
+        ApplicationDefaults.get(key: .defaultInitImage),
     ]
 
     public static func createContainerID(name: String?) -> String {
@@ -198,7 +199,7 @@ public struct Utility {
         if management.dnsDisabled {
             config.dns = nil
         } else {
-            let domain = management.dnsDomain ?? ClientDefaults.getOptional(key: .defaultDNSDomain)
+            let domain = management.dnsDomain ?? ApplicationDefaults.getOptional(key: .defaultDNSDomain)
             config.dns = .init(
                 nameservers: management.dnsNameservers,
                 domain: domain,

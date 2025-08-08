@@ -75,6 +75,7 @@ let package = Package(
                 "TerminalProgress",
                 "ContainerBuild",
                 "ContainerClient",
+                "ContainerPersistence",
                 "ContainerPlugin",
                 "ContainerLog",
             ],
@@ -123,8 +124,9 @@ let package = Package(
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
-                "ContainerNetworkService",
                 "ContainerClient",
+                "ContainerNetworkService",
+                "ContainerPersistence",
                 "ContainerXPC",
                 "SocketForwarder",
             ],
@@ -152,6 +154,7 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
+                "ContainerPersistence",
                 "ContainerXPC",
             ],
             path: "Sources/Services/ContainerNetworkService"
@@ -221,10 +224,10 @@ let package = Package(
                 .product(name: "ContainerizationOS", package: "containerization"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 "ContainerNetworkService",
+                "ContainerPersistence",
                 "ContainerImagesServiceClient",
                 "TerminalProgress",
                 "ContainerXPC",
-                "CVersion",
             ]
         ),
         .testTarget(
@@ -232,6 +235,7 @@ let package = Package(
             dependencies: [
                 .product(name: "Containerization", package: "containerization"),
                 "ContainerClient",
+                "ContainerPersistence",
             ]
         ),
         .executableTarget(
@@ -331,6 +335,7 @@ let package = Package(
             dependencies: [
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Containerization", package: "containerization"),
+                "CVersion",
             ]
         ),
         .target(

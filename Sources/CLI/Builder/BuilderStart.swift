@@ -18,6 +18,7 @@ import ArgumentParser
 import ContainerBuild
 import ContainerClient
 import ContainerNetworkService
+import ContainerPersistence
 import Containerization
 import ContainerizationError
 import ContainerizationExtras
@@ -70,7 +71,7 @@ extension Application {
             let taskManager = ProgressTaskCoordinator()
             let fetchTask = await taskManager.startTask()
 
-            let builderImage: String = ClientDefaults.get(key: .defaultBuilderImage)
+            let builderImage: String = ApplicationDefaults.get(key: .defaultBuilderImage)
             let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
             let exportsMount: String = systemHealth.appRoot.appendingPathComponent(".build").absolutePath()
 
@@ -196,7 +197,7 @@ extension Application {
                 ),
             ]
             // Enable Rosetta only if the user didn't ask to disable it
-            config.rosetta = ClientDefaults.getBool(key: .buildRosetta) ?? true
+            config.rosetta = ApplicationDefaults.getBool(key: .buildRosetta) ?? true
 
             let network = try await ClientNetwork.get(id: ClientNetwork.defaultNetworkName)
             guard case .running(_, let networkStatus) = network else {
