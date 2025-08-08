@@ -20,7 +20,7 @@ import Foundation
 /// DockerfileParser parses a dockerfile to a BuildGraph.
 public struct DockerfileParser: BuildParser {
     public func parse(_ input: String) throws -> BuildGraph {
-        var instructions = [DockerInstruction]()
+        var instructions = [any DockerInstruction]()
         let lines = input.components(separatedBy: .newlines)
         var lineIndex = 0
         while lineIndex < lines.count {
@@ -51,7 +51,7 @@ public struct DockerfileParser: BuildParser {
         return try visitor.buildGraph(from: instructions)
     }
 
-    private func tokensToDockerInstruction(tokens: [Token]) throws -> DockerInstruction {
+    private func tokensToDockerInstruction(tokens: [Token]) throws -> any DockerInstruction {
         guard case .stringLiteral(let value) = tokens.first else {
             throw ParseError.missingInstruction
         }
@@ -69,6 +69,8 @@ public struct DockerfileParser: BuildParser {
             return try tokensToCMDInstruction(tokens: tokens)
         case .LABEL:
             return try tokensToLabelInstruction(tokens: tokens)
+        case .EXPOSE:
+            return try tokensToExposeInstruction(tokens: tokens)
         default:
             throw ParseError.invalidInstruction(value)
         }
@@ -119,8 +121,7 @@ public struct DockerfileParser: BuildParser {
     }
 
     internal func tokensToFromInstruction(tokens: [Token]) throws -> FromInstruction {
-        var index = tokens.startIndex
-        index += 1  // skip the instruction
+        var index = tokens.startIndex + 1  // skip the instruction
 
         var stageName: String?
         var platform: String?
@@ -177,8 +178,7 @@ public struct DockerfileParser: BuildParser {
     }
 
     internal func tokensToRunInstruction(tokens: [Token]) throws -> RunInstruction {
-        var index = tokens.startIndex
-        index += 1  // skip the instruction
+        var index = tokens.startIndex + 1  // skip the instruction
 
         var rawMounts = [String]()
         var network: String? = nil
@@ -240,8 +240,7 @@ public struct DockerfileParser: BuildParser {
     }
 
     internal func tokensToCopyInstruction(tokens: [Token]) throws -> CopyInstruction {
-        var index = tokens.startIndex
-        index += 1  // skip the instruction
+        var index = tokens.startIndex + 1  // skip the instruction
 
         var from: String? = nil
         var chmod: String? = nil
@@ -308,8 +307,7 @@ public struct DockerfileParser: BuildParser {
     }
 
     internal func tokensToCMDInstruction(tokens: [Token]) throws -> CMDInstruction {
-        var index = tokens.startIndex
-        index += 1
+        var index = tokens.startIndex + 1  // skip the instruction
 
         // get the command
         let (newIndex, cmd) = getCommand(start: index, tokens: tokens)
@@ -324,8 +322,7 @@ public struct DockerfileParser: BuildParser {
     }
 
     internal func tokensToLabelInstruction(tokens: [Token]) throws -> LabelInstruction {
-        var index = tokens.startIndex
-        index += 1
+        var index = tokens.startIndex + 1  // skip the instruction
 
         var labels: [String: String] = [:]
         while index < tokens.endIndex {
@@ -350,5 +347,24 @@ public struct DockerfileParser: BuildParser {
         }
 
         return LabelInstruction(labels: labels)
+    }
+
+    internal func tokensToExposeInstruction(tokens: [Token]) throws -> ExposeInstruction {
+        var index = tokens.startIndex + 1  // skip the instruction
+
+        var rawPorts: [String] = []
+        while index < tokens.endIndex {
+            guard case .stringLiteral(let port) = tokens[index] else {
+                throw ParseError.unexpectedValue
+            }
+            rawPorts.append(port)
+            index += 1
+        }
+
+        guard !rawPorts.isEmpty else {
+            throw ParseError.missingRequiredField("port")
+        }
+
+        return try ExposeInstruction(rawPorts)
     }
 }

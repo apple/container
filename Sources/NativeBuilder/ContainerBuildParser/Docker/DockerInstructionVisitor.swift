@@ -22,6 +22,7 @@ protocol InstructionVisitor {
     func visit(_ copy: CopyInstruction) throws
     func visit(_ cmd: CMDInstruction) throws
     func visit(_ label: LabelInstruction) throws
+    func visit(_ expose: ExposeInstruction) throws
 }
 
 /// DockerInstructionVisitor visits each provided DockerInstruction and builds a
@@ -145,5 +146,9 @@ extension DockerInstructionVisitor {
 
     func visit(_ label: LabelInstruction) throws {
         try graphBuilder.labelBatch(labels: label.labels)
+    }
+
+    func visit(_ expose: ExposeInstruction) throws {
+        try graphBuilder.expose(expose.ports)
     }
 }

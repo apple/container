@@ -99,9 +99,11 @@ public struct MetadataOperationExecutor: OperationExecutor {
                     }
                 }
 
-            case .expose(let port):
-                context.updateImageConfig { config in
-                    config.exposedPorts.insert(port.stringValue)
+            case .expose(let ports):
+                for p in ports {
+                    context.updateImageConfig { config in
+                        config.exposedPorts.insert(p.stringValue)
+                    }
                 }
 
             case .setHealthcheck(let healthcheck):

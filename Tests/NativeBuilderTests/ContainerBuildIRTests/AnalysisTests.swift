@@ -563,7 +563,7 @@ struct AnalysisTests {
                 .run("npm ci --only=production && npm cache clean --force")  // Good: cleanup
                 .copyFromContext(paths: ["src/"], to: "./src/")
                 .user(.uid(1000))  // Good: non-root user
-                .expose(3000)
+                .expose([PortSpec(port: 3000)])
                 .entrypoint(.exec(["dumb-init", "node", "src/index.js"]))
         }
 
@@ -598,7 +598,7 @@ struct AnalysisTests {
                 .run("apk add --no-cache ca-certificates && rm -rf /var/cache/apk/*")  // Good: cleanup
                 .copyFromStage(.named("builder"), paths: ["/app"], to: "/usr/local/bin/")
                 .user(.uid(65534))  // Good: nobody user
-                .expose(8080)
+                .expose([PortSpec(port: 8080)])
                 .entrypoint(.exec(["/usr/local/bin/app"]))
         }
 

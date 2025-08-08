@@ -22,8 +22,6 @@ import Testing
 
 @Suite class ParserTest {
     @Test func testSimpleDockerfile() throws {
-        let imageRef = ImageReference(parsing: "alpine:latest")
-        #expect(imageRef != nil, "Failed to parse image reference")
         let dockerfile =
             #"""
             FROM alpine:latest AS build
@@ -38,8 +36,6 @@ import Testing
     }
 
     @Test func testSimpleDockerfileLowercase() throws {
-        let imageRef = ImageReference(parsing: "alpine:latest")
-        #expect(imageRef != nil, "Failed to parse image reference")
         let dockerfile =
             #"""
             from alpine:latest as base
@@ -54,8 +50,6 @@ import Testing
     }
 
     @Test func testDockerfileWithContinuation() throws {
-        let imageRef = ImageReference(parsing: "alpine:latest")
-        #expect(imageRef != nil, "Failed to parse image reference")
         let dockerfile =
             #"""
             FROM alpine:latest \
@@ -95,8 +89,6 @@ import Testing
     }
 
     @Test func testSimpleDockerfileWithCopy() throws {
-        let imageRef = ImageReference(parsing: "alpine:latest")
-        #expect(imageRef != nil, "Failed to parse image reference")
         let dockerfile =
             #"""
             FROM alpine AS build-context
@@ -123,8 +115,6 @@ import Testing
     }
 
     @Test func testSimpleDockerfileRun() throws {
-        let imageRef = ImageReference(parsing: "alpine:latest")
-        #expect(imageRef != nil, "Failed to parse image reference")
         let dockerfile =
             #"""
             FROM alpine:latest AS build
@@ -147,8 +137,6 @@ import Testing
     }
 
     @Test func testSimpleDockerfileRunShell() throws {
-        let imageRef = ImageReference(parsing: "alpine:latest")
-        #expect(imageRef != nil, "Failed to parse image reference")
         let dockerfile =
             #"""
             FROM alpine:latest AS build
@@ -172,8 +160,6 @@ import Testing
     }
 
     @Test func testSimpleDockerfileLabel() throws {
-        let imageRef = ImageReference(parsing: "alpine:latest")
-        #expect(imageRef != nil, "Failed to parse image reference")
         let dockerfile =
             #"""
             FROM alpine:latest AS build
@@ -196,8 +182,6 @@ import Testing
     }
 
     @Test func testSimpleDockerfileCMD() throws {
-        let imageRef = ImageReference(parsing: "alpine:latest")
-        #expect(imageRef != nil, "Failed to parse image reference")
         let dockerfile =
             #"""
             FROM alpine:latest AS build
@@ -221,6 +205,42 @@ import Testing
             #expect(command.displayString == "./test.sh --verbose")
         default:
             Issue.record("expected .setCmd action type, instead got \(cmd.action)")
+            return
+        }
+    }
+
+    @Test func testSimpleDockerfileExpose() throws {
+        let dockerfile =
+            #"""
+            FROM alpine:latest AS build
+
+            EXPOSE 90 \ 
+                80/udp
+            """#
+        let parser = DockerfileParser()
+        let actualGraph = try parser.parse(dockerfile)
+
+        #expect(!actualGraph.stages.isEmpty)
+
+        let stages = actualGraph.stages
+        #expect(stages.count == 1, "expected 1 stage, instead got \(actualGraph.stages.count)")
+
+        let stage = stages[0]
+        #expect(stage.nodes.count == 1, "expected 1 nodes, instead got \(stage.nodes.count)")
+
+        let exposeOp = stage.nodes[0].operation as! MetadataOperation
+        switch exposeOp.action {
+        case .expose(let ports):
+            #expect(ports.count == 2)
+            let portSpec1 = ports[0]
+            let portSpec2 = ports[1]
+
+            #expect(portSpec1.port == 90)
+            #expect(portSpec1.protocol == .tcp)
+            #expect(portSpec2.port == 80)
+            #expect(portSpec2.protocol == .udp)
+        default:
+            Issue.record("unexpected action type \(exposeOp.action)")
             return
         }
     }
@@ -784,6 +804,27 @@ extension ParserTest {
         let rawPermission = "u+x"
         #expect(throws: ParseError.self) {
             let _ = try CopyInstruction.parsePermissions(input: rawPermission)
+        }
+    }
+
+    static let invalidPorts = [
+        "80//tcp",
+        "78292939273",
+        "udp",
+        "90-100-110",
+        "8080/fake",
+        "/fake2",
+        "80\\tcp",
+        "0",
+        "0/tcp",
+        "8000-0",
+        "0-6000",
+    ]
+
+    @Test("Invalid ports throw error", arguments: invalidPorts)
+    func testInvalidPortParse(_ testCase: String) throws {
+        #expect(throws: ParseError.self) {
+            try parsePort(testCase)
         }
     }
 }

@@ -253,6 +253,29 @@ import Testing
                 .stringLiteral("param2"),
             ]
         ),
+        tokenizerTestInput(
+            input: "EXPOSE 8080",
+            expectedTokens: [
+                .stringLiteral("EXPOSE"),
+                .stringLiteral("8080"),
+            ]
+        ),
+        tokenizerTestInput(
+            input: "EXPOSE 80/udp 80/tcp 80/sctp",
+            expectedTokens: [
+                .stringLiteral("EXPOSE"),
+                .stringLiteral("80/udp"),
+                .stringLiteral("80/tcp"),
+                .stringLiteral("80/sctp"),
+            ]
+        ),
+        tokenizerTestInput(
+            input: "EXPOSE 7000-8000/udp",
+            expectedTokens: [
+                .stringLiteral("EXPOSE"),
+                .stringLiteral("7000-8000/udp"),
+            ]
+        ),
     ]
 
     @Test func testTokenization() throws {
@@ -523,5 +546,48 @@ import Testing
         let expectedInstruction = LabelInstruction(labels: expectedLabels)
         let actual = try DockerfileParser().tokensToLabelInstruction(tokens: tokens)
         #expect(actual == expectedInstruction)
+    }
+
+    static let exposeTests: [TokenTest] = [
+        TokenTest(
+            tokens: [
+                .stringLiteral("EXPOSE"),
+                .stringLiteral("80"),
+            ],
+            expectedInstruction: ExposeInstruction(ports: [
+                PortSpec(port: 80, protocol: .tcp)
+            ])
+        ),
+        TokenTest(
+            tokens: [
+                .stringLiteral("EXPOSE"),
+                .stringLiteral("90/sctp"),
+                .stringLiteral("8080/udp"),
+            ],
+            expectedInstruction: ExposeInstruction(ports: [
+                PortSpec(port: 90, protocol: .sctp),
+                PortSpec(port: 8080, protocol: .udp),
+            ])
+        ),
+        TokenTest(
+            tokens: [
+                .stringLiteral("EXPOSE"),
+                .stringLiteral("7000-8000/udp"),
+            ],
+            expectedInstruction: ExposeInstruction(ports: [
+                PortSpec(port: 7000, endPort: 8000, protocol: .udp)
+            ])
+        ),
+    ]
+
+    @Test("Successful tokens to EXPOSE instruction", arguments: exposeTests)
+    func testTokensToExposeInstruction(_ testCase: TokenTest) throws {
+        let actual = try DockerfileParser().tokensToExposeInstruction(tokens: testCase.tokens)
+        guard let expected = testCase.expectedInstruction as? ExposeInstruction else {
+            Issue.record("Instruction is not the correct type, \(testCase.expectedInstruction)")
+            return
+        }
+        #expect(actual == expected)
+
     }
 }

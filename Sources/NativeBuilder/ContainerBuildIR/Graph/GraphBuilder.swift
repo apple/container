@@ -302,9 +302,9 @@ public final class GraphBuilder {
 
     /// Expose port
     @discardableResult
-    public func expose(_ port: Int, protocolType: PortSpec.NetworkProtocol = .tcp) throws -> Self {
+    public func expose(_ ports: [PortSpec]) throws -> Self {
         let operation = MetadataOperation(
-            action: .expose(port: PortSpec(port: port, protocol: protocolType))
+            action: .expose(ports: ports)
         )
         return try add(operation)
     }
