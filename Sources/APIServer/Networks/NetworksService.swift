@@ -197,7 +197,7 @@ actor NetworksService {
             // TODO: remove this from the network helper later, not necesssary now that withContainerList is here
             let client = NetworkClient(id: id)
             guard try await client.disableAllocator() else {
-                throw ContainerizationError(.invalidState, message: "cannot delete subnet \(id) with active containers")
+                throw ContainerizationError(.invalidState, message: "cannot delete subnet \(id) because the IP allocator cannot be disabled with active containers")
             }
 
             // start network deletion, this is the last place we'll want to throw
