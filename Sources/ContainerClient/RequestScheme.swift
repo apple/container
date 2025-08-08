@@ -65,7 +65,7 @@ public enum RequestScheme: String, Sendable {
         if host.range(of: regex, options: .regularExpression) != nil {
             return true
         }
-        let dnsDomain = ApplicationDefaults.get(key: .defaultDNSDomain)
+        let dnsDomain = DefaultsStore.get(key: .defaultDNSDomain)
         if host.hasSuffix(".\(dnsDomain)") {
             return true
         }

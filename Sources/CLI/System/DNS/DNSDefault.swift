@@ -40,7 +40,7 @@ extension Application {
             var domainName: String
 
             func run() async throws {
-                ApplicationDefaults.set(value: domainName, key: .defaultDNSDomain)
+                DefaultsStore.set(value: domainName, key: .defaultDNSDomain)
                 print(domainName)
             }
         }
@@ -53,7 +53,7 @@ extension Application {
             )
 
             func run() async throws {
-                ApplicationDefaults.unset(key: .defaultDNSDomain)
+                DefaultsStore.unset(key: .defaultDNSDomain)
                 print("Unset the default local DNS domain")
             }
         }
@@ -65,7 +65,7 @@ extension Application {
             )
 
             func run() async throws {
-                print(ApplicationDefaults.getOptional(key: .defaultDNSDomain) ?? "")
+                print(DefaultsStore.getOptional(key: .defaultDNSDomain) ?? "")
             }
         }
     }

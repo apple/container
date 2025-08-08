@@ -24,7 +24,7 @@ import Testing
 @testable import ContainerClient
 
 struct RequestSchemeTests {
-    static let defaultDnsDomain = ApplicationDefaults.get(key: .defaultDNSDomain)
+    static let defaultDnsDomain = DefaultsStore.get(key: .defaultDNSDomain)
 
     internal struct TestArg {
         let scheme: String

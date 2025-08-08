@@ -119,7 +119,7 @@ extension Application {
         private func installDefaultKernel() async throws {
             let kernelDependency = Dependencies.kernel
             let defaultKernelURL = kernelDependency.source
-            let defaultKernelBinaryPath = ApplicationDefaults.get(key: .defaultKernelBinaryPath)
+            let defaultKernelBinaryPath = DefaultsStore.get(key: .defaultKernelBinaryPath)
 
             var shouldInstallKernel = false
             if kernelInstall == nil {
@@ -170,9 +170,9 @@ extension Application {
         var source: String {
             switch self {
             case .initFs:
-                return ApplicationDefaults.get(key: .defaultInitImage)
+                return DefaultsStore.get(key: .defaultInitImage)
             case .kernel:
-                return ApplicationDefaults.get(key: .defaultKernelURL)
+                return DefaultsStore.get(key: .defaultKernelURL)
             }
         }
     }

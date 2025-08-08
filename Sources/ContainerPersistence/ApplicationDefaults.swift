@@ -18,7 +18,7 @@ import CVersion
 import ContainerizationError
 import Foundation
 
-public enum ApplicationDefaults {
+public enum DefaultsStore {
     private static let userDefaultDomain = "com.apple.container.defaults"
 
     public enum Keys: String {
@@ -31,28 +31,28 @@ public enum ApplicationDefaults {
         case buildRosetta = "build.rosetta"
     }
 
-    public static func set(value: String, key: ApplicationDefaults.Keys) {
+    public static func set(value: String, key: DefaultsStore.Keys) {
         udSuite.set(value, forKey: key.rawValue)
     }
 
-    public static func unset(key: ApplicationDefaults.Keys) {
+    public static func unset(key: DefaultsStore.Keys) {
         udSuite.removeObject(forKey: key.rawValue)
     }
 
-    public static func get(key: ApplicationDefaults.Keys) -> String {
+    public static func get(key: DefaultsStore.Keys) -> String {
         let current = udSuite.string(forKey: key.rawValue)
         return current ?? key.defaultValue
     }
 
-    public static func getOptional(key: ApplicationDefaults.Keys) -> String? {
+    public static func getOptional(key: DefaultsStore.Keys) -> String? {
         udSuite.string(forKey: key.rawValue)
     }
 
-    public static func setBool(value: Bool, key: ApplicationDefaults.Keys) {
+    public static func setBool(value: Bool, key: DefaultsStore.Keys) {
         udSuite.set(value, forKey: key.rawValue)
     }
 
-    public static func getBool(key: ApplicationDefaults.Keys) -> Bool? {
+    public static func getBool(key: DefaultsStore.Keys) -> Bool? {
         guard udSuite.object(forKey: key.rawValue) != nil else { return nil }
         return udSuite.bool(forKey: key.rawValue)
     }
@@ -65,7 +65,7 @@ public enum ApplicationDefaults {
     }
 }
 
-extension ApplicationDefaults.Keys {
+extension DefaultsStore.Keys {
     fileprivate var defaultValue: String {
         switch self {
         case .defaultKernelURL:

@@ -39,7 +39,7 @@ public actor SnapshotStore {
             return nil
         }
         var minBlockSize = 512.gib()
-        if image.reference == ApplicationDefaults.get(key: .defaultInitImage) {
+        if image.reference == DefaultsStore.get(key: .defaultInitImage) {
             minBlockSize = 512.mib()
         }
         return EXT4Unpacker(blockSizeInBytes: minBlockSize)

@@ -45,8 +45,8 @@ extension Application {
 
         func run() async throws {
             if recommended {
-                let url = ApplicationDefaults.get(key: .defaultKernelURL)
-                let path = ApplicationDefaults.get(key: .defaultKernelBinaryPath)
+                let url = DefaultsStore.get(key: .defaultKernelURL)
+                let path = DefaultsStore.get(key: .defaultKernelBinaryPath)
                 print("Installing the recommended kernel from \(url)...")
                 try await Self.downloadAndInstallWithProgressBar(tarRemoteURL: url, kernelFilePath: path)
                 return

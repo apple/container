@@ -68,7 +68,7 @@ extension Application {
                     throw err
                 }
             }
-            ApplicationDefaults.set(value: host, key: .defaultRegistryDomain)
+            DefaultsStore.set(value: host, key: .defaultRegistryDomain)
             print("Set default registry to \(host)")
         }
     }
@@ -81,7 +81,7 @@ extension Application {
         )
 
         func run() async throws {
-            ApplicationDefaults.unset(key: .defaultRegistryDomain)
+            DefaultsStore.unset(key: .defaultRegistryDomain)
             print("Unset the default registry domain")
         }
     }
@@ -93,7 +93,7 @@ extension Application {
         )
 
         func run() async throws {
-            print(ApplicationDefaults.get(key: .defaultRegistryDomain))
+            print(DefaultsStore.get(key: .defaultRegistryDomain))
         }
     }
 }
