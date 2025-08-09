@@ -14,31 +14,18 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ArgumentParser
-import ContainerClient
-import ContainerNetworkService
-import ContainerizationError
-import Foundation
-import TerminalProgress
+//
+//  ExternalVolume.swift
+//  container-compose-app
+//
+//  Created by Morris Richman on 6/17/25.
+//
 
-extension Application {
-    public struct NetworkCreate: AsyncParsableCommand {
-        public static let configuration = CommandConfiguration(
-            commandName: "create",
-            abstract: "Create a new network")
 
-        public init() {}
-
-        @Argument(help: "Network name")
-        public var name: String
-
-        @OptionGroup
-        public var global: Flags.Global
-
-        public func run() async throws {
-            let config = NetworkConfiguration(id: self.name, mode: .nat)
-            let state = try await ClientNetwork.create(configuration: config)
-            print(state.id)
-        }
-    }
+/// Represents an external volume reference.
+struct ExternalVolume: Codable {
+    /// True if the volume is external
+    let isExternal: Bool
+    /// Optional name of the external volume if different from key
+    let name: String?
 }
