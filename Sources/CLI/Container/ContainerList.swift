@@ -92,6 +92,7 @@ extension ClientContainer {
             self.configuration.platform.os,
             self.configuration.platform.architecture,
             self.status.rawValue,
+            self.configuration.startedAt.map { ISO8601DateFormatter().string(from: $0) } ?? "",
             self.networks.compactMap { try? CIDRAddress($0.address).address.description }.joined(separator: ","),
         ]
     }
@@ -101,10 +102,12 @@ struct PrintableContainer: Codable {
     let status: RuntimeStatus
     let configuration: ContainerConfiguration
     let networks: [Attachment]
+    let startedAt: Date?
 
     init(_ container: ClientContainer) {
         self.status = container.status
         self.configuration = container.configuration
         self.networks = container.networks
+        self.startedAt = container.startedAt
     }
 }
