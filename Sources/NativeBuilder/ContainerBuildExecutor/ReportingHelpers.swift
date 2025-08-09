@@ -182,6 +182,8 @@ extension BuildEventError {
             failureType = .cancelled
         case .invalidConfiguration:
             failureType = .invalidConfiguration
+        case .unsupportedOperation:
+            failureType = .executionFailed  // Map unsupported operations to execution failures
         }
 
         var diags: [String: String] = [:]

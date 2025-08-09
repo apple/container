@@ -149,30 +149,53 @@ public struct MetadataOperationExecutor: OperationExecutor {
                 metadataChanges["onbuild:\(UUID().uuidString)"] = instruction
             }
 
-            // Metadata operations don't change the filesystem
-            // so we reuse the parent snapshot
-            let snapshot =
-                try context.latestSnapshot()
-                ?? ContainerBuildSnapshotter.Snapshot(
-                    digest: Digest(algorithm: .sha256, bytes: Data(count: 32)),
-                    size: 0
-                )
+            // Metadata operations don't change the filesystem, so we reuse the parent snapshot
+            // without going through the prepare/commit cycle
+            let snapshot = try getOrCreateBaseSnapshot(context: context)
 
             let duration = Date().timeIntervalSince(startTime)
 
             return ExecutionResult(
-                filesystemChanges: .empty,
                 environmentChanges: environmentChanges,
                 metadataChanges: metadataChanges,
                 snapshot: snapshot,
                 duration: duration
             )
+
         } catch {
             throw ExecutorError(
                 type: .executionFailed,
                 context: ExecutorError.ErrorContext(
-                    operation: operation, underlyingError: error, diagnostics: ExecutorError.Diagnostics(environment: [:], workingDirectory: "", recentLogs: [])))
+                    operation: operation,
+                    underlyingError: error,
+                    diagnostics: ExecutorError.Diagnostics(
+                        environment: context.environment.effectiveEnvironment,
+                        workingDirectory: context.workingDirectory,
+                        recentLogs: ["Failed to execute metadata operation", "Error: \(error.localizedDescription)"]
+                    )
+                )
+            )
         }
+    }
+
+    /// Get the latest snapshot or create a base snapshot if none exists.
+    ///
+    /// Metadata operations don't modify the filesystem, so they can reuse
+    /// the parent snapshot directly without snapshotter prepare/commit.
+    ///
+    /// - Parameter context: The execution context
+    /// - Returns: The snapshot to use for this metadata operation
+    private func getOrCreateBaseSnapshot(context: ExecutionContext) throws -> Snapshot {
+        guard let latest = context.headSnapshot else {
+            // Create a minimal base snapshot if no parent exists
+            return Snapshot(
+                digest: try Digest(algorithm: .sha256, bytes: Data(count: 32)),
+                size: 0,
+                parent: nil,
+                state: .committed()
+            )
+        }
+        return latest
     }
 
     public func canExecute(_ operation: ContainerBuildIR.Operation) -> Bool {

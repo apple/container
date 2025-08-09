@@ -21,12 +21,44 @@ import ContainerBuildReporting
 import ContainerBuildSnapshotter
 import Foundation
 
+public actor DummySnapshotter: Snapshotter {
+    public init() {}
+
+    public func prepare(_ snapshot: Snapshot) async throws -> Snapshot {
+        if let mount = snapshot.state.mountpoint {
+            var isDir: ObjCBool = false
+            if !FileManager.default.fileExists(atPath: mount.path, isDirectory: &isDir) {
+                try FileManager.default.createDirectory(at: mount, withIntermediateDirectories: true)
+            }
+        }
+        return snapshot
+    }
+
+    public func commit(_ snapshot: Snapshot) async throws -> Snapshot {
+        // Produce a minimal committed snapshot; layer fields are optional
+        Snapshot(
+            id: snapshot.id,
+            digest: snapshot.digest,
+            size: snapshot.size,
+            parent: snapshot.parent,
+            createdAt: snapshot.createdAt,
+            state: .committed()
+        )
+    }
+
+    public func remove(_ snapshot: Snapshot) async throws {
+        if let mount = snapshot.state.mountpoint {
+            try? FileManager.default.removeItem(at: mount)
+        }
+    }
+}
+
 /// A simple demonstration of the build execution system.
 public struct Demo {
     public static func runDemo() async throws {
         // Set up the build environment first
-        let snapshotter = MemorySnapshotter()
-        let cache = MemoryBuildCache()
+        let snapshotter = DummySnapshotter()
+        let cache = NoOpBuildCache()
         let reporter = Reporter()
 
         // Create a build graph with parallel operations, passing the reporter

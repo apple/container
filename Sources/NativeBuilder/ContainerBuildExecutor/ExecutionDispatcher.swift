@@ -224,9 +224,15 @@ actor AsyncSemaphore {
         }
     }
 
-    func withPermit<T>(_ body: () async throws -> T) async throws -> T {
+    func withPermit<T: Sendable>(_ body: @Sendable () async throws -> T) async throws -> T {
         await acquire()
-        defer { Task { release() } }
-        return try await body()
+        do {
+            let result = try await body()
+            release()
+            return result
+        } catch {
+            release()
+            throw error
+        }
     }
 }

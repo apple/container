@@ -157,9 +157,41 @@ The Differ and Snapshotter work together to capture filesystem changes after eac
 
 The Differ computes the delta between filesystem states before and after an operation:
 
+- **Filesystem Analysis** - Compares base and target snapshots to identify changes
+- **OCI Layer Creation** - Packages changes into tar archives following OCI specifications
+- **Compression Support** - Applies gzip, zstd, or estargz compression formats
+- **Content Storage** - Stores layers in the content-addressable store with integrity verification
+- **Whiteout Handling** - Implements OCI deletion semantics using `.wh.` markers
+
+The `TarArchiveDiffer` implementation provides:
+```
+Changes Detection → Tar Archive → Compression → Content Store
+     ↓                 ↓             ↓             ↓
+  Added files      PAX format     gzip/zstd    SHA256 digest
+  Modified files   Permissions    streaming     Deduplication
+  Deleted files    Timestamps     buffered      Atomic writes
+```
+
 #### Snapshotter
 
-The Snapshotter manages filesystem snapshots and converts layers to OCI format:
+The Snapshotter manages filesystem snapshots throughout the build lifecycle:
+
+- **Snapshot Lifecycle** - Manages prepare → in-progress → commit → remove transitions
+- **Filesystem Mounting** - Provides writable mountpoints for operation execution
+- **Layer Generation** - Coordinates with Differ to create OCI-compliant layers
+- **Base Materialization** - Reconstructs filesystem state from committed layers
+- **Resource Management** - Handles cleanup and resource limits
+
+**Snapshot States:**
+- `prepared(mountpoint)` - Ready for operations, filesystem mounted and writable
+- `inProgress(operationId)` - Currently being modified by an operation
+- `committed(layerDigest, layerSize, mediaType, diffKey)` - Finalized and immutable
+
+**TarArchiveSnapshotter Features:**
+- **Copy-on-Write** - Efficient snapshot creation from parent layers
+- **Incremental Diffs** - Only captures changes since the base snapshot
+- **Layer Caching** - Reuses materialized bases for performance
+- **OCI Compliance** - Generates standard container image layers
 
 #### Layer Format
 

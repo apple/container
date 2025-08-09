@@ -20,12 +20,25 @@ import Foundation
 
 public final class Archiver: Sendable {
     public struct ArchiveEntryInfo: Sendable {
-        let pathOnHost: URL
-        let pathInArchive: URL
+        public let pathOnHost: URL
+        public let pathInArchive: URL
 
-        public init(pathOnHost: URL, pathInArchive: URL) {
+        public let owner: UInt32?
+        public let group: UInt32?
+        public let permissions: UInt16?
+
+        public init(
+            pathOnHost: URL,
+            pathInArchive: URL,
+            owner: UInt32? = nil,
+            group: UInt32? = nil,
+            permissions: UInt16? = nil
+        ) {
             self.pathOnHost = pathOnHost
             self.pathInArchive = pathInArchive
+            self.owner = owner
+            self.group = group
+            self.permissions = permissions
         }
     }
 
@@ -244,6 +257,21 @@ public final class Archiver: Sendable {
         }
         if let modificationDate = attributes[.modificationDate] as? Date {
             entry.modificationDate = modificationDate
+        }
+
+        // Apply explicit overrides from ArchiveEntryInfo when provided
+        if let overrideOwner = entryInfo.owner {
+            entry.owner = overrideOwner
+        }
+        if let overrideGroup = entryInfo.group {
+            entry.group = overrideGroup
+        }
+        if let overridePerm = entryInfo.permissions {
+            #if os(macOS)
+            entry.permissions = overridePerm
+            #else
+            entry.permissions = UInt32(overridePerm)
+            #endif
         }
 
         let pathTrimmed = Self._trimPathPrefix(entryInfo.pathInArchive.relativePath, pathPrefix: pathPrefix)

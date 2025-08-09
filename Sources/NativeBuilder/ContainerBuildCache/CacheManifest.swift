@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerBuildIR
+import ContainerBuildSnapshotter
 import ContainerizationOCI
 import Foundation
 
@@ -25,31 +26,39 @@ struct CacheManifest: Codable, Sendable {
     let schemaVersion: Int
     let mediaType: String
     let config: CacheConfig
-    let layers: [CacheLayer]
     let annotations: [String: String]
     let subject: Descriptor?
 
-    static let currentSchemaVersion = 2
-    static let manifestMediaType = "application/vnd.container-build.cache.manifest.v2+json"
+    /// Snapshot embedded directly in manifest
+    let snapshot: Snapshot?
+
+    /// Environment changes embedded directly in manifest
+    let environmentChanges: [String: EnvironmentValue]
+
+    /// Metadata changes embedded directly in manifest
+    let metadataChanges: [String: String]
+
+    static let currentSchemaVersion = 5  // Incremented for direct Snapshot storage
+    static let manifestMediaType = "application/vnd.container-build.cache.manifest.v5+json"
 
     init(
         schemaVersion: Int = CacheManifest.currentSchemaVersion,
         mediaType: String = CacheManifest.manifestMediaType,
         config: CacheConfig,
-        layers: [CacheLayer],
         annotations: [String: String] = [:],
-        subject: Descriptor? = nil
+        subject: Descriptor? = nil,
+        snapshot: Snapshot? = nil,
+        environmentChanges: [String: EnvironmentValue] = [:],
+        metadataChanges: [String: String] = [:]
     ) {
         self.schemaVersion = schemaVersion
         self.mediaType = mediaType
         self.config = config
-        self.layers = layers
         self.annotations = annotations
         self.subject = subject
-    }
-
-    func allContentDigests() -> [String] {
-        layers.map { $0.descriptor.digest }
+        self.snapshot = snapshot
+        self.environmentChanges = environmentChanges
+        self.metadataChanges = metadataChanges
     }
 }
 
@@ -73,18 +82,6 @@ struct CacheConfig: Codable, Sendable {
         self.platform = platform
         self.buildVersion = buildVersion
         self.createdAt = createdAt
-    }
-}
-
-/// Cache layer representing a component of the cached result
-struct CacheLayer: Codable, Sendable {
-    let descriptor: Descriptor
-    let type: LayerType
-
-    enum LayerType: String, Codable, Sendable {
-        case snapshot = "snapshot"
-        case environment = "environment"
-        case metadata = "metadata"
     }
 }
 
@@ -124,9 +121,11 @@ extension CacheManifest {
             schemaVersion: schemaVersion,
             mediaType: mediaType,
             config: config,
-            layers: layers,
             annotations: annotations,
-            subject: subject
+            subject: subject,
+            snapshot: snapshot,
+            environmentChanges: environmentChanges,
+            metadataChanges: metadataChanges
         )
     }
 
@@ -139,22 +138,108 @@ extension CacheManifest {
             schemaVersion: schemaVersion,
             mediaType: mediaType,
             config: config,
-            layers: layers,
             annotations: newAnnotations,
-            subject: subject
+            subject: subject,
+            snapshot: snapshot,
+            environmentChanges: environmentChanges,
+            metadataChanges: metadataChanges
         )
     }
 
-    /// Get total size of all layers
-    var totalSize: Int64 {
-        layers.reduce(0) { $0 + $1.descriptor.size }
+    /// Add or update environment changes
+    func withEnvironmentChanges(_ changes: [String: EnvironmentValue]) -> CacheManifest {
+        var newEnvironmentChanges = environmentChanges
+        for (key, value) in changes {
+            newEnvironmentChanges[key] = value
+        }
+
+        return CacheManifest(
+            schemaVersion: schemaVersion,
+            mediaType: mediaType,
+            config: config,
+            annotations: annotations,
+            subject: subject,
+            snapshot: snapshot,
+            environmentChanges: newEnvironmentChanges,
+            metadataChanges: metadataChanges
+        )
     }
 
-    /// Check if manifest is compressed
-    var isCompressed: Bool {
-        layers.contains { layer in
-            layer.descriptor.mediaType.contains("gzip") || layer.descriptor.mediaType.contains("zstd") || layer.descriptor.mediaType.contains("lz4")
+    /// Add or update metadata changes
+    func withMetadataChanges(_ changes: [String: String]) -> CacheManifest {
+        var newMetadataChanges = metadataChanges
+        for (key, value) in changes {
+            newMetadataChanges[key] = value
         }
+
+        return CacheManifest(
+            schemaVersion: schemaVersion,
+            mediaType: mediaType,
+            config: config,
+            annotations: annotations,
+            subject: subject,
+            snapshot: snapshot,
+            environmentChanges: environmentChanges,
+            metadataChanges: newMetadataChanges
+        )
+    }
+
+    /// Check if manifest has a snapshot
+    var hasSnapshot: Bool {
+        snapshot != nil
+    }
+
+    /// Check if manifest has environment changes
+    var hasEnvironmentChanges: Bool {
+        !environmentChanges.isEmpty
+    }
+
+    /// Check if manifest has metadata changes
+    var hasMetadataChanges: Bool {
+        !metadataChanges.isEmpty
+    }
+
+    /// Set or update the snapshot
+    func withSnapshot(_ snapshot: Snapshot) -> CacheManifest {
+        CacheManifest(
+            schemaVersion: schemaVersion,
+            mediaType: mediaType,
+            config: config,
+            annotations: annotations,
+            subject: subject,
+            snapshot: snapshot,
+            environmentChanges: environmentChanges,
+            metadataChanges: metadataChanges
+        )
+    }
+
+    /// Create a manifest with combined snapshot, environment and metadata changes
+    func withChanges(
+        snapshot: Snapshot? = nil,
+        environment: [String: EnvironmentValue] = [:],
+        metadata: [String: String] = [:]
+    ) -> CacheManifest {
+        var newEnvironmentChanges = environmentChanges
+        var newMetadataChanges = metadataChanges
+
+        for (key, value) in environment {
+            newEnvironmentChanges[key] = value
+        }
+
+        for (key, value) in metadata {
+            newMetadataChanges[key] = value
+        }
+
+        return CacheManifest(
+            schemaVersion: schemaVersion,
+            mediaType: mediaType,
+            config: config,
+            annotations: annotations,
+            subject: subject,
+            snapshot: snapshot ?? self.snapshot,
+            environmentChanges: newEnvironmentChanges,
+            metadataChanges: newMetadataChanges
+        )
     }
 }
 

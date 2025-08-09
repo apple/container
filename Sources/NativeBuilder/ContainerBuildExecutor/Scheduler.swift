@@ -104,23 +104,15 @@ public final class Scheduler: BuildExecutor {
     private let metricsCollector = MetricsCollector()
 
     public init(
-        executors: [any OperationExecutor]? = nil,
-        snapshotter: (any Snapshotter)? = nil,
-        cache: (any BuildCache)? = nil,
+        executors: [any OperationExecutor],
+        snapshotter: any Snapshotter,
+        cache: any BuildCache,
         reporter: Reporter? = nil,
         configuration: Configuration = Configuration()
     ) {
-        let defaultExecutors: [any OperationExecutor] = [
-            ImageOperationExecutor(),
-            ExecOperationExecutor(),
-            FilesystemOperationExecutor(),
-            MetadataOperationExecutor(),
-            UnknownOperationExecutor(),
-        ]
-
-        self.dispatcher = ExecutionDispatcher(executors: executors ?? defaultExecutors)
-        self.snapshotter = snapshotter ?? MemorySnapshotter()
-        self.cache = cache ?? MemoryBuildCache()
+        self.dispatcher = ExecutionDispatcher(executors: executors)
+        self.snapshotter = snapshotter
+        self.cache = cache
         self.configuration = configuration
         self.workQueues = WorkQueueManager(
             concurrency: configuration.maxConcurrency,
@@ -139,10 +131,36 @@ public final class Scheduler: BuildExecutor {
         }
     }
 
+    /// Convenience initializer with default executors
+    public convenience init(
+        snapshotter: any Snapshotter,
+        cache: any BuildCache,
+        reporter: Reporter? = nil,
+        configuration: Configuration = Configuration()
+    ) {
+        let defaultExecutors: [any OperationExecutor] = [
+            ImageOperationExecutor(),
+            ExecOperationExecutor(),
+            FilesystemOperationExecutor(),
+            MetadataOperationExecutor(),
+            UnknownOperationExecutor(),
+        ]
+
+        self.init(
+            executors: defaultExecutors,
+            snapshotter: snapshotter,
+            cache: cache,
+            reporter: reporter,
+            configuration: configuration
+        )
+    }
+
     /// Cancel all in-flight operations and prevent new ones from starting
     public func cancel() async {
         await executionState.cancel()
         await workQueues.cancelAll()
+        // Note: Individual ExecutionContext instances will clean up their own
+        // active snapshots when operations are cancelled and throw errors
     }
 
     public func execute(_ graph: BuildGraph) async throws -> BuildResult {
@@ -362,7 +380,8 @@ public final class Scheduler: BuildExecutor {
                         stage: stage,
                         graph: graph,
                         platform: platform,
-                        reporter: self.reporter ?? Reporter()
+                        reporter: self.reporter ?? Reporter(),
+                        snapshotter: self.snapshotter
                     )
 
                     let stageName = stage.name ?? "stage-\(stage.id.uuidString.prefix(8))"
@@ -435,7 +454,8 @@ public final class Scheduler: BuildExecutor {
                             stage: stage,
                             graph: graph,
                             platform: platform,
-                            reporter: self.reporter ?? Reporter()
+                            reporter: self.reporter ?? Reporter(),
+                            snapshotter: self.snapshotter
                         )
 
                         let stageName = stage.name ?? "stage-\(stage.id.uuidString.prefix(8))"
@@ -569,7 +589,7 @@ public final class Scheduler: BuildExecutor {
             }
         }
 
-        guard let finalSnapshot = context.latestSnapshot() else {
+        guard let finalSnapshot = context.headSnapshot else {
             throw BuildExecutorError.stageNotFound("No operations in stage")
         }
 
@@ -810,7 +830,7 @@ public final class Scheduler: BuildExecutor {
         var inputDigests: [ContainerBuildIR.Digest] = []
 
         // Add parent snapshot digest
-        if let parentSnapshot = context.latestSnapshot() {
+        if let parentSnapshot = context.headSnapshot {
             inputDigests.append(parentSnapshot.digest)
         }
 

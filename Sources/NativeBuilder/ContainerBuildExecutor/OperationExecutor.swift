@@ -109,9 +109,6 @@ public struct ResourceRequirements: Sendable {
 
 /// The result of executing an operation.
 public struct ExecutionResult: Sendable {
-    /// Filesystem changes made by the operation.
-    public let filesystemChanges: FilesystemChanges
-
     /// Environment changes made by the operation.
     public let environmentChanges: [String: EnvironmentValue]
 
@@ -128,14 +125,12 @@ public struct ExecutionResult: Sendable {
     public let output: ExecutionOutput?
 
     public init(
-        filesystemChanges: FilesystemChanges = .empty,
         environmentChanges: [String: EnvironmentValue] = [:],
         metadataChanges: [String: String] = [:],
         snapshot: Snapshot,
         duration: TimeInterval,
         output: ExecutionOutput? = nil
     ) {
-        self.filesystemChanges = filesystemChanges
         self.environmentChanges = environmentChanges
         self.metadataChanges = metadataChanges
         self.snapshot = snapshot

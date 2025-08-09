@@ -28,9 +28,6 @@ public struct CacheConfiguration: Sendable {
     /// Maximum age for cache entries
     public let maxAge: TimeInterval
 
-    /// Compression configuration
-    public let compression: CompressionConfiguration
-
     /// Index database path
     public let indexPath: URL
 
@@ -58,7 +55,6 @@ public struct CacheConfiguration: Sendable {
     public init(
         maxSize: UInt64 = 10 * 1024 * 1024 * 1024,  // 10GB default
         maxAge: TimeInterval = 7 * 24 * 60 * 60,  // 7 days default
-        compression: CompressionConfiguration = .default,
         indexPath: URL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
             .appendingPathComponent("com.apple.container-build.cache.db"),
         evictionPolicy: EvictionPolicy = .lru,
@@ -71,7 +67,6 @@ public struct CacheConfiguration: Sendable {
     ) {
         self.maxSize = maxSize
         self.maxAge = maxAge
-        self.compression = compression
         self.indexPath = indexPath
         self.evictionPolicy = evictionPolicy
         self.concurrency = concurrency
@@ -80,31 +75,6 @@ public struct CacheConfiguration: Sendable {
         self.gcInterval = gcInterval
         self.cacheKeyVersion = cacheKeyVersion
         self.defaultTTL = defaultTTL
-    }
-}
-
-public struct CompressionConfiguration: Sendable {
-    public let algorithm: CompressionAlgorithm
-    public let level: Int
-    public let minSize: Int  // Minimum size to compress
-
-    public enum CompressionAlgorithm: String, Sendable {
-        case zstd = "zstd"
-        case lz4 = "lz4"
-        case gzip = "gzip"
-        case none = "none"
-    }
-
-    public static let `default` = CompressionConfiguration(
-        algorithm: .zstd,
-        level: 3,
-        minSize: 1024  // 1KB
-    )
-
-    public init(algorithm: CompressionAlgorithm, level: Int, minSize: Int) {
-        self.algorithm = algorithm
-        self.level = level
-        self.minSize = minSize
     }
 }
 
@@ -159,7 +129,6 @@ struct CacheIndexEntry: Sendable, Codable {
     let platform: Platform
     let operationType: String
     let contentDigests: [String]
-    let compression: String
     let transaction: UUID?
 
     var age: TimeInterval {
@@ -186,7 +155,6 @@ public struct CacheStatistics: Sendable {
     public let oldestEntryAge: TimeInterval
     public let mostRecentEntryAge: TimeInterval
     public let evictionPolicy: String
-    public let compressionRatio: Double
     public let averageEntrySize: UInt64
     public let operationMetrics: OperationMetrics
     public let errorCount: Int
@@ -200,7 +168,6 @@ public struct CacheStatistics: Sendable {
         oldestEntryAge: 0,
         mostRecentEntryAge: 0,
         evictionPolicy: "none",
-        compressionRatio: 1.0,
         averageEntrySize: 0,
         operationMetrics: .empty,
         errorCount: 0,
