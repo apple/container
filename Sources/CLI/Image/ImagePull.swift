@@ -52,9 +52,11 @@ extension Application {
         }
 
         func run() async throws {
-            var p: Platform?
+            var p: Platform
             if let platform {
                 p = try Platform(from: platform)
+            } else {
+                p = Platform.current
             }
 
             let scheme = try RequestScheme(registry.scheme)
