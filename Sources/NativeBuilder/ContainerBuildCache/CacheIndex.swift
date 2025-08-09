@@ -160,7 +160,6 @@ public actor CacheIndex: Sendable {
             oldestEntryAge: oldestAge,
             mostRecentEntryAge: newestAge,
             evictionPolicy: "lru",
-            compressionRatio: 1.0,  // TODO: Calculate actual compression ratio
             averageEntrySize: avgSize,
             operationMetrics: .empty,
             errorCount: 0,
