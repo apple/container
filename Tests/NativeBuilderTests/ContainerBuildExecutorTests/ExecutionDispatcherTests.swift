@@ -65,7 +65,7 @@ struct ExecutionDispatcherTests {
         )
 
         let fsResult = try await dispatcher.dispatch(fsOp, context: context)
-        #expect(fsResult.filesystemChanges.added.contains("/app/test.txt") == true)
+        #expect(fsResult.snapshot != nil)
 
         // Test metadata operation routing
         let metadataOp = MetadataOperation(
@@ -88,10 +88,17 @@ struct ExecutionDispatcherTests {
 
             func execute(_ operation: ContainerBuildIR.Operation, context: ExecutionContext) async throws -> ExecutionResult {
                 let digest = try! Digest(algorithm: .sha256, bytes: Data(count: 32))
-                let snapshot = Snapshot(digest: digest, size: 0)
+                let mountPoint = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+                let snapshot = Snapshot(
+                    digest: digest,
+                    size: 0,
+                    state: .prepared(mountpoint: mountPoint)
+                )
                 return ExecutionResult(
+                    environmentChanges: [:],
+                    metadataChanges: [:],
                     snapshot: snapshot,
-                    duration: 0.1
+                    duration: 0.001
                 )
             }
 
@@ -170,8 +177,15 @@ struct ExecutionDispatcherTests {
                 // Simulate slow operation
                 try await Task.sleep(nanoseconds: 100_000_000)  // 100ms
                 let digest = try! Digest(algorithm: .sha256, bytes: Data(count: 32))
-                let snapshot = Snapshot(digest: digest, size: 0)
+                let mountPoint = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+                let snapshot = Snapshot(
+                    digest: digest,
+                    size: 0,
+                    state: .prepared(mountpoint: mountPoint)
+                )
                 return ExecutionResult(
+                    environmentChanges: [:],
+                    metadataChanges: [:],
                     snapshot: snapshot,
                     duration: 0.1
                 )
@@ -240,11 +254,13 @@ struct ExecutionDispatcherTests {
             metadata: BuildGraphMetadata()
         )
 
+        let mockSnapshotter = MockSnapshotter()
         return ExecutionContext(
             stage: stage,
             graph: graph,
             platform: .linuxAMD64,
-            reporter: Reporter()
+            reporter: Reporter(),
+            snapshotter: mockSnapshotter
         )
     }
 }

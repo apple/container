@@ -44,7 +44,6 @@ let package = Package(
         .library(name: "ContainerBuildExecutor", targets: ["ContainerBuildExecutor"]),
         .library(name: "ContainerBuildCache", targets: ["ContainerBuildCache"]),
         .library(name: "ContainerBuildSnapshotter", targets: ["ContainerBuildSnapshotter"]),
-        .library(name: "ContainerBuildDiffer", targets: ["ContainerBuildDiffer"]),
         .library(name: "ContainerBuildParser", targets: ["ContainerBuildParser"]),
     ],
     dependencies: [
@@ -219,6 +218,7 @@ let package = Package(
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationOCI", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
+                .product(name: "ContainerizationArchive", package: "containerization"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 "ContainerNetworkService",
                 "ContainerImagesServiceClient",
@@ -289,19 +289,14 @@ let package = Package(
         ),
         .target(
             name: "ContainerBuildSnapshotter",
-            dependencies: ["ContainerBuildIR"],
-            path: "Sources/NativeBuilder/ContainerBuildSnapshotter",
-            swiftSettings: [
-                .enableExperimentalFeature("StrictConcurrency")
-            ]
-        ),
-        .target(
-            name: "ContainerBuildDiffer",
             dependencies: [
                 "ContainerBuildIR",
-                "ContainerBuildSnapshotter",
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                .product(name: "ContainerizationArchive", package: "containerization"),
+                .product(name: "Crypto", package: "swift-crypto"),
+                "ContainerClient",
             ],
-            path: "Sources/NativeBuilder/ContainerBuildDiffer",
+            path: "Sources/NativeBuilder/ContainerBuildSnapshotter",
             swiftSettings: [
                 .enableExperimentalFeature("StrictConcurrency")
             ]
@@ -324,6 +319,8 @@ let package = Package(
                 "ContainerBuildCache",
                 "ContainerBuildReporting",
                 "ContainerBuildParser",
+                "ContainerBuildSnapshotter",
+                "ContainerClient",
             ]
         ),
         .target(

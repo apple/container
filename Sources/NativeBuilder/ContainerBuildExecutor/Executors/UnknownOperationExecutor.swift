@@ -45,16 +45,17 @@ public struct UnknownOperationExecutor: OperationExecutor {
 
             // Use the existing snapshot
             let snapshot =
-                try context.latestSnapshot()
+                context.headSnapshot
                 ?? ContainerBuildSnapshotter.Snapshot(
-                    digest: Digest(algorithm: .sha256, bytes: Data(count: 32)),
-                    size: 0
+                    digest: try Digest(algorithm: .sha256, bytes: Data(count: 32)),
+                    size: 0,
+                    parent: nil,
+                    state: .committed()
                 )
 
             let duration = Date().timeIntervalSince(startTime)
 
             return ExecutionResult(
-                filesystemChanges: .empty,
                 snapshot: snapshot,
                 duration: duration,
                 output: ExecutionOutput(
