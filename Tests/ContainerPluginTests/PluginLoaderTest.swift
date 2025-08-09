@@ -39,6 +39,38 @@ struct PluginLoaderTest {
     }
 
     @Test
+    func testFindAllSymlink() async throws {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let factory = try setupMock(tempURL: tempURL)
+
+        // move the CLI plugin elsewhere and symlink it
+        let otherTempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: otherTempURL) }
+        try FileManager.default.createDirectory(at: otherTempURL, withIntermediateDirectories: true)
+        let srcURL = tempURL.appendingPathComponent("cli")
+        let dstURL = otherTempURL.appendingPathComponent("cli")
+        try FileManager.default.moveItem(
+            at: srcURL,
+            to: dstURL
+        )
+        try FileManager.default.createSymbolicLink(
+            at: srcURL,
+            withDestinationURL: dstURL
+        )
+
+        let loader = try PluginLoader(
+            appRoot: tempURL,
+            installRoot: URL(filePath: "/usr/local/"),
+            pluginDirectories: [tempURL],
+            pluginFactories: [factory]
+        )
+        let plugins = loader.findPlugins()
+
+        #expect(Set(plugins.map { $0.name }) == Set(["cli", "service"]))
+    }
+
+    @Test
     func testFindByName() async throws {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: tempURL) }

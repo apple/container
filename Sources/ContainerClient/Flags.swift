@@ -15,7 +15,6 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerPlugin
 import ContainerizationError
 import Foundation
 

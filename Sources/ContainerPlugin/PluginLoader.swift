@@ -98,9 +98,9 @@ extension PluginLoader {
 
             // Get all entries under the parent directory
             guard
-                var dirs = try? fm.contentsOfDirectory(
+                let urls = try? fm.contentsOfDirectory(
                     at: pluginDir,
-                    includingPropertiesForKeys: [.isDirectoryKey],
+                    includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
                     options: .skipsHiddenFiles
                 )
             else {
@@ -108,11 +108,21 @@ extension PluginLoader {
             }
 
             // Filter out all but plugin installation directories
-            dirs = dirs.filter {
-                $0.resolvingSymlinksInPath().isDirectory
+            let installURLs = urls.filter { url in
+                if url.isDirectory {
+                    return true
+                }
+
+                if url.isSymlink {
+                    var isDirectory: ObjCBool = false
+                    _ = fm.fileExists(atPath: url.resolvingSymlinksInPath().path(percentEncoded: false), isDirectory: &isDirectory)
+                    return isDirectory.boolValue
+                }
+
+                return false
             }
 
-            for installURL in dirs {
+            for installURL in installURLs {
                 do {
                     // Create a plugin with the first factory that can grok the layout under the install URL
                     guard
@@ -162,15 +172,14 @@ extension PluginLoader {
     /// Locate a plugin with a specific name.
     public func findPlugin(name: String, log: Logger? = nil) -> Plugin? {
         do {
-            // Try to load the plugin from each parent directory, using each plugin factory
-            return
-                try pluginDirectories
-                .compactMap { installURL in
-                    try pluginFactories
-                        .compactMap { try $0.create(parentURL: installURL, name: name) }
-                        .first
+            for pluginDirectory in pluginDirectories {
+                for PluginFactory in pluginFactories {
+                    // throw means that the factory is correct but the plugin is broken
+                    if let plugin = try PluginFactory.create(parentURL: pluginDirectory, name: name) {
+                        return plugin
+                    }
                 }
-                .first
+            }
         } catch {
             log?.warning(
                 "Not installing plugin with invalid configuration",
@@ -179,8 +188,9 @@ extension PluginLoader {
                     "error": "\(error)",
                 ]
             )
-            return nil
         }
+
+        return nil
     }
 }
 
