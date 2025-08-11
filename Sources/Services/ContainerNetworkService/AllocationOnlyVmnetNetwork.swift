@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerPersistence
 import ContainerXPC
 import ContainerizationError
 import ContainerizationExtras
@@ -65,7 +66,7 @@ public actor AllocationOnlyVmnetNetwork: Network {
         )
 
         if let suite = UserDefaults.init(suiteName: UserDefaults.appSuiteName) {
-            // TODO: Make the suiteName a constant defined in ClientDefaults and use that.
+            // TODO: Make the suiteName a constant defined in DefaultsStore and use that.
             // This will need some re-working of dependencies between NetworkService and Client
             defaultSubnet = suite.string(forKey: "network.subnet") ?? defaultSubnet
         }

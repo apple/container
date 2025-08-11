@@ -18,6 +18,7 @@
 
 import AsyncHTTPClient
 import ContainerClient
+import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOS
 import Foundation
@@ -76,7 +77,54 @@ class TestCLINetwork: CLITest {
             #expect(success, "Request to \(url) failed after \(Self.retries - retriesRemaining) retries")
             try doStop(name: name)
         } catch {
-            Issue.record("failed to run container \(error)")
+            Issue.record("failed to create and use network \(error)")
+            return
+        }
+    }
+
+    @available(macOS 26, *)
+    @Test func testNetworkDeleteWithContainer() async throws {
+        do {
+            // prep: delete container and network, ignoring if it doesn't exist
+            let name = Test.current!.name.trimmingCharacters(in: ["(", ")"])
+            try? doRemove(name: name)
+            let networkDeleteArgs = ["network", "delete", name]
+            _ = try? run(arguments: networkDeleteArgs)
+
+            // create our network
+            let networkCreateArgs = ["network", "create", name]
+            let networkCreateResult = try run(arguments: networkCreateArgs)
+            if networkCreateResult.status != 0 {
+                throw CLIError.executionFailed("command failed: \(networkCreateResult.error)")
+            }
+
+            // ensure it's deleted
+            defer {
+                _ = try? run(arguments: networkDeleteArgs)
+            }
+
+            // create a container that refers to the network
+            try doCreate(name: name, networks: [name])
+            defer {
+                try? doRemove(name: name)
+            }
+
+            // deleting the network should fail
+            let networkDeleteResult = try run(arguments: networkDeleteArgs)
+            try #require(networkDeleteResult.status != 0)
+
+            // and should fail with a certain message
+            let msg = networkDeleteResult.error
+            #expect(msg.contains("delete failed"))
+            #expect(msg.contains("[\"\(name)\"]"))
+
+            // now get rid of the container and its network reference
+            try? doRemove(name: name)
+
+            // delete should succeed
+            _ = try run(arguments: networkDeleteArgs)
+        } catch {
+            Issue.record("failed to safely delete network \(error)")
             return
         }
     }

@@ -54,7 +54,7 @@ struct GraphBuilderTests {
                 .stage(name: "runtime", from: nginxRef)
                 .copyFromStage(.named("build"), paths: ["/app/dist"], to: "/usr/share/nginx/html")
                 .copyFromContext(paths: ["nginx.conf"], to: "/etc/nginx/nginx.conf")
-                .expose(80)
+                .expose([PortSpec(port: 80)])
                 .cmd(.exec(["nginx", "-g", "daemon off;"]))
         }
 
@@ -115,7 +115,7 @@ struct GraphBuilderTests {
                 .copyFromStage(.named("tools"), paths: ["/etc/ssl/certs/ca-certificates.crt"], to: "/etc/ssl/certs/")
                 .copyFromStage(.named("build"), paths: ["/app"], to: "/app")
                 .user(.uid(65534))  // nobody user
-                .expose(8080)
+                .expose([PortSpec(port: 8080)])
                 .entrypoint(.exec(["/app"]))
         }
 
@@ -416,7 +416,7 @@ struct GraphBuilderTests {
                 .label("description", "Sample application")
                 .workdir("/app")
                 .user(.named("appuser"))
-                .expose(8080)
+                .expose([PortSpec(port: 8080)])
         }
 
         // Verify all metadata operations were added

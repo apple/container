@@ -86,8 +86,8 @@ extension ReportContext {
                 return "LABEL \(labels.map { "\($0.key)=\($0.value)" }.joined(separator: " "))"
             case .declareArg(let name, let defaultValue):
                 return "ARG \(name)\(defaultValue.map { "=\($0)" } ?? "")"
-            case .expose(let port):
-                return "EXPOSE \(port.stringValue)"
+            case .expose(let ports):
+                return "EXPOSE \(ports.map{$0.stringValue}.joined(separator: " "))"
             case .setStopSignal(let signal):
                 return "STOPSIGNAL \(signal)"
             case .setHealthcheck(let hc):

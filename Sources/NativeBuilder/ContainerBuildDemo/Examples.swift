@@ -39,7 +39,7 @@ public enum IRExample {
                 .copyFromContext(paths: ["package.json", "src/"], to: "/app/")
                 .run("npm install")
                 .env("NODE_ENV", "production")
-                .expose(3000)
+                .expose([PortSpec(port: 3000)])
                 .cmd(Command.exec(["node", "src/index.js"]))
         }
     }
@@ -80,7 +80,7 @@ public enum IRExample {
                 .copyFromStage(.named("frontend-builder"), paths: ["/frontend/dist"], to: "/app/static")
                 .copyFromStage(.named("backend-builder"), paths: ["/backend/server"], to: "/app/server")
                 .run("chmod +x /app/server")
-                .expose(8080)
+                .expose([PortSpec(port: 8080)])
                 .cmd(.exec(["/app/server"]))
         }
     }
@@ -210,7 +210,7 @@ public enum IRExample {
                         ),
                         BuildNode(
                             operation: MetadataOperation(
-                                action: .expose(port: PortSpec(port: 8000))
+                                action: .expose(ports: [PortSpec(port: 8000)])
                             )
                         ),
                         BuildNode(

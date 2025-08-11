@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerClient
+import ContainerPersistence
 import Containerization
 import ContainerizationError
 import ContainerizationExtras
@@ -38,7 +39,7 @@ public actor SnapshotStore {
             return nil
         }
         var minBlockSize = 512.gib()
-        if image.reference == ClientDefaults.get(key: .defaultInitImage) {
+        if image.reference == DefaultsStore.get(key: .defaultInitImage) {
             minBlockSize = 512.mib()
         }
         return EXT4Unpacker(blockSizeInBytes: minBlockSize)

@@ -35,7 +35,7 @@ struct SerializationTests {
                 .workdir("/app")
                 .copyFromContext(paths: ["src/"], to: "/app/")
                 .env("NODE_ENV", "production")
-                .expose(3000)
+                .expose([PortSpec(port: 3000)])
                 .cmd(.exec(["node", "index.js"]))
         }
 
@@ -109,7 +109,7 @@ struct SerializationTests {
             try builder
                 .stage(from: nginxRef)
                 .copyFromStage(.named("build"), paths: ["/app/dist"], to: "/usr/share/nginx/html")
-                .expose(80)
+                .expose([PortSpec(port: 80)])
         }
 
         let coder = JSONIRCoder()
@@ -304,7 +304,7 @@ struct SerializationTests {
                 .run("apk add --no-cache ca-certificates")
                 .copyFromStage(.named("builder"), paths: ["/app"], to: "/usr/local/bin/")
                 .user(.uid(65534))
-                .expose(8080)
+                .expose([PortSpec(port: 8080)])
                 .entrypoint(.exec(["/usr/local/bin/app"]))
         }
 

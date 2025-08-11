@@ -26,22 +26,29 @@ import Foundation
 import Logging
 
 actor NetworksService {
-    private let resourceRoot: URL
-    // FIXME: remove qualifier once we can update Containerization dependency.
-    private let store: ContainerPersistence.FilesystemEntityStore<NetworkConfiguration>
     private let pluginLoader: PluginLoader
+    private let resourceRoot: URL
+    private let containersService: ContainersService
     private let log: Logger
-    private let networkPlugin: Plugin
 
+    private let store: FilesystemEntityStore<NetworkConfiguration>
+    private let networkPlugin: Plugin
     private var networkStates = [String: NetworkState]()
     private var busyNetworks = Set<String>()
 
-    public init(pluginLoader: PluginLoader, resourceRoot: URL, log: Logger) async throws {
-        try FileManager.default.createDirectory(at: resourceRoot, withIntermediateDirectories: true)
-        self.resourceRoot = resourceRoot
-        self.store = try FilesystemEntityStore<NetworkConfiguration>(path: resourceRoot, type: "network", log: log)
+    public init(
+        pluginLoader: PluginLoader,
+        resourceRoot: URL,
+        containersService: ContainersService,
+        log: Logger
+    ) async throws {
         self.pluginLoader = pluginLoader
+        self.resourceRoot = resourceRoot
+        self.containersService = containersService
         self.log = log
+
+        try FileManager.default.createDirectory(at: resourceRoot, withIntermediateDirectories: true)
+        self.store = try FilesystemEntityStore<NetworkConfiguration>(path: resourceRoot, type: "network", log: log)
 
         let networkPlugin =
             pluginLoader
@@ -137,10 +144,12 @@ actor NetworksService {
 
     /// Delete a network.
     public func delete(id: String) async throws {
+        // check actor busy state
         guard !busyNetworks.contains(id) else {
             throw ContainerizationError(.exists, message: "network \(id) has a pending operation")
         }
 
+        // make actor state busy for this network
         busyNetworks.insert(id)
         defer { busyNetworks.remove(id) }
 
@@ -149,6 +158,8 @@ actor NetworksService {
             metadata: [
                 "id": "\(id)"
             ])
+
+        // basic sanity checks on network itself
         if id == ClientNetwork.defaultNetworkName {
             throw ContainerizationError(.invalidArgument, message: "cannot delete system subnet \(ClientNetwork.defaultNetworkName)")
         }
@@ -161,28 +172,61 @@ actor NetworksService {
             throw ContainerizationError(.invalidState, message: "cannot delete subnet \(id) in state \(networkState.state)")
         }
 
-        let client = NetworkClient(id: id)
-        guard try await client.disableAllocator() else {
-            throw ContainerizationError(.invalidState, message: "cannot delete subnet \(id) with containers attached")
+        // prevent container operations while we atomically check and delete
+        try await containersService.withContainerList { containers in
+            // find all containers that refer to the network
+            var referringContainers = Set<String>()
+            for container in containers {
+                for containerNetworkId in container.configuration.networks {
+                    if containerNetworkId == id {
+                        referringContainers.insert(container.configuration.id)
+                        break
+                    }
+                }
+            }
+
+            // bail if any referring containers
+            guard referringContainers.isEmpty else {
+                throw ContainerizationError(
+                    .invalidState,
+                    message: "cannot delete subnet \(id) with referring containers: \(referringContainers.joined(separator: ", "))"
+                )
+            }
+
+            // disable the allocator so nothing else can attach
+            // TODO: remove this from the network helper later, not necesssary now that withContainerList is here
+            let client = NetworkClient(id: id)
+            guard try await client.disableAllocator() else {
+                throw ContainerizationError(.invalidState, message: "cannot delete subnet \(id) because the IP allocator cannot be disabled with active containers")
+            }
+
+            // start network deletion, this is the last place we'll want to throw
+            do {
+                try self.pluginLoader.deregisterWithLaunchd(plugin: self.networkPlugin, instanceId: id)
+            } catch {
+                self.log.error(
+                    "failed to deregister network service",
+                    metadata: [
+                        "id": "\(id)",
+                        "error": "\(error.localizedDescription)",
+                    ])
+            }
+
+            // deletion is underway, do not throw anything now
+            do {
+                try await self.store.delete(id)
+            } catch {
+                self.log.error(
+                    "failed to delete network from configuration store",
+                    metadata: [
+                        "id": "\(id)",
+                        "error": "\(error.localizedDescription)",
+                    ])
+            }
         }
 
-        defer { networkStates.removeValue(forKey: id) }
-        do {
-            try pluginLoader.deregisterWithLaunchd(plugin: networkPlugin, instanceId: id)
-        } catch {
-            log.error(
-                "failed to deregister network service after failed creation",
-                metadata: [
-                    "id": "\(id)",
-                    "error": "\(error.localizedDescription)",
-                ])
-        }
-
-        do {
-            try await store.delete(id)
-        } catch {
-            throw ContainerizationError(.notFound, message: error.localizedDescription)
-        }
+        // having deleted successfully, remove the runtime state
+        self.networkStates.removeValue(forKey: id)
     }
 
     /// Perform a hostname lookup on all networks.
@@ -230,7 +274,7 @@ actor NetworksService {
 
         try await pluginLoader.registerWithLaunchd(
             plugin: networkPlugin,
-            rootURL: store.entityUrl(configuration.id),
+            pluginStateRoot: store.entityUrl(configuration.id),
             args: args,
             instanceId: configuration.id
         )

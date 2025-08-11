@@ -22,8 +22,10 @@ private let configFilename: String = "config.json"
 
 /// Describes the configuration and binary file locations for a plugin.
 public protocol PluginFactory: Sendable {
-    /// Create a plugin conforming to the layout, if possible.
+    /// Create a plugin from the plugin path, if it conforms to the layout.
     func create(installURL: URL) throws -> Plugin?
+    /// Create a plugin from the plugin parent path and name, if it conforms to the layout.
+    func create(parentURL: URL, name: String) throws -> Plugin?
 }
 
 /// Default layout which uses a Unix-like structure.
@@ -49,6 +51,10 @@ public struct DefaultPluginFactory: PluginFactory {
         }
 
         return Plugin(binaryURL: binaryURL, config: config)
+    }
+
+    public func create(parentURL: URL, name: String) throws -> Plugin? {
+        try create(installURL: parentURL.appendingPathComponent(name))
     }
 }
 
@@ -89,5 +95,9 @@ public struct AppBundlePluginFactory: PluginFactory {
         }
 
         return Plugin(binaryURL: binaryURL, config: config)
+    }
+
+    public func create(parentURL: URL, name: String) throws -> Plugin? {
+        try create(installURL: parentURL.appendingPathComponent("\(name)\(Self.appSuffix)"))
     }
 }

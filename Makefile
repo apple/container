@@ -28,6 +28,13 @@ DSYM_DIR := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM
 DSYM_PATH := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM.zip
 CODESIGN_OPTS ?= --force --sign - --timestamp=none
 
+# Conditionally use a temporary data directory for integration tests
+ifeq ($(strip $(APP_ROOT)),)
+	SYSTEM_START_OPTS :=
+else
+	SYSTEM_START_OPTS := --app-root "$(strip $(APP_ROOT))"
+endif
+
 MACOS_VERSION := $(shell sw_vers -productVersion)
 MACOS_MAJOR := $(shell echo $(MACOS_VERSION) | cut -d. -f1)
 
@@ -124,28 +131,30 @@ test:
 .PHONY: install-kernel
 install-kernel:
 	@bin/container system stop || true
-	@bin/container system start --enable-kernel-install
+	@bin/container system start --enable-kernel-install $(SYSTEM_START_OPTS)
 
 .PHONY: integration
 integration: init-block
 	@echo Ensuring apiserver stopped before the CLI integration tests...
 	@bin/container system stop && sleep 3 && scripts/ensure-container-stopped.sh
 	@echo Running the integration tests...
-	@bin/container system start
-	@echo "Removing any existing containers"
-	@bin/container rm --all
-	@echo "Starting CLI integration tests"
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLINetwork
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunLifecycle
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIExecCommand
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLICreateCommand
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunCommand
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIImagesCommand
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunBase
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIBuildBase
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIVolumes
-	@echo Ensuring apiserver stopped after the CLI integration tests...
-	@scripts/ensure-container-stopped.sh
+	bin/container system start $(SYSTEM_START_OPTS) && \
+	echo "Starting CLI integration tests" && \
+	{ \
+		exit_code=0; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLINetwork || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunLifecycle || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIExecCommand || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLICreateCommand || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunCommand || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIImagesCommand || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunBase || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIBuildBase || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIVolumes || exit_code=1 ; \
+		echo Ensuring apiserver stopped after the CLI integration tests ; \
+		scripts/ensure-container-stopped.sh ; \
+		exit $${exit_code} ; \
+	}
 
 .PHONY: fmt
 fmt: swift-fmt update-licenses

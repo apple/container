@@ -18,6 +18,7 @@
 
 import ContainerClient
 import ContainerNetworkService
+import ContainerPersistence
 import ContainerXPC
 import Containerization
 import ContainerizationError
@@ -109,7 +110,7 @@ public actor SandboxService {
                     let dnsDomain = suite.string(forKey: "dns.domain"),
                     !hostname.contains(".")
                 {
-                    // TODO: Make the suiteName a constant defined in ClientDefaults and use that.
+                    // TODO: Make the suiteName a constant defined in DefaultsStore and use that.
                     // This will need some re-working of dependencies between SandboxService and Client
                     fqdn = "\(hostname).\(dnsDomain)."
                 } else {

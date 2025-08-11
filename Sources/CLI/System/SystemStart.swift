@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerClient
+import ContainerPersistence
 import ContainerPlugin
 import ContainerizationError
 import Foundation
@@ -28,8 +29,17 @@ extension Application {
             abstract: "Start `container` services"
         )
 
-        @Option(name: .shortAndLong, help: "Path to the `container-apiserver` binary")
-        var path: String = Bundle.main.executablePath ?? ""
+        @Option(
+            name: .shortAndLong,
+            help: "Application data directory",
+            transform: { URL(filePath: $0) })
+        var appRoot = ApplicationRoot.defaultURL
+
+        @Option(
+            name: .long,
+            help: "Path to the installation root directory",
+            transform: { URL(filePath: $0) })
+        public var installRoot = InstallRoot.defaultURL
 
         @Flag(name: .long, help: "Enable debug logging for the runtime daemon.")
         var debug = false
@@ -41,21 +51,25 @@ extension Application {
 
         func run() async throws {
             // Without the true path to the binary in the plist, `container-apiserver` won't launch properly.
-            let executableUrl = URL(filePath: path)
-                .resolvingSymlinksInPath()
+            // TODO: Use plugin loader for API server.
+            let executableUrl = CommandLine.executablePathUrl
                 .deletingLastPathComponent()
                 .appendingPathComponent("container-apiserver")
+                .resolvingSymlinksInPath()
 
             var args = [executableUrl.absolutePath()]
+
             if debug {
                 args.append("--debug")
             }
 
             let apiServerDataUrl = appRoot.appending(path: "apiserver")
             try! FileManager.default.createDirectory(at: apiServerDataUrl, withIntermediateDirectories: true)
-            let env = ProcessInfo.processInfo.environment.filter { key, _ in
+            var env = ProcessInfo.processInfo.environment.filter { key, _ in
                 key.hasPrefix("CONTAINER_")
             }
+            env[ApplicationRoot.environmentName] = appRoot.path(percentEncoded: false)
+            env[InstallRoot.environmentName] = installRoot.path(percentEncoded: false)
 
             let logURL = apiServerDataUrl.appending(path: "apiserver.log")
             let plist = LaunchPlist(
@@ -78,7 +92,7 @@ extension Application {
             // Now ping our friendly daemon. Fail if we don't get a response.
             do {
                 print("Verifying apiserver is running...")
-                try await ClientHealthCheck.ping(timeout: .seconds(10))
+                _ = try await ClientHealthCheck.ping(timeout: .seconds(10))
             } catch {
                 throw ContainerizationError(
                     .internalError,
@@ -110,7 +124,7 @@ extension Application {
         private func installDefaultKernel() async throws {
             let kernelDependency = Dependencies.kernel
             let defaultKernelURL = kernelDependency.source
-            let defaultKernelBinaryPath = ClientDefaults.get(key: .defaultKernelBinaryPath)
+            let defaultKernelBinaryPath = DefaultsStore.get(key: .defaultKernelBinaryPath)
 
             var shouldInstallKernel = false
             if kernelInstall == nil {
@@ -161,9 +175,9 @@ extension Application {
         var source: String {
             switch self {
             case .initFs:
-                return ClientDefaults.get(key: .defaultInitImage)
+                return DefaultsStore.get(key: .defaultInitImage)
             case .kernel:
-                return ClientDefaults.get(key: .defaultKernelURL)
+                return DefaultsStore.get(key: .defaultKernelURL)
             }
         }
     }

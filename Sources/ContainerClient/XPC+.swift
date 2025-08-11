@@ -53,6 +53,10 @@ public enum XPCKeys: String {
 
     /// Health check request.
     case ping
+    case appRoot
+    case installRoot
+    case apiServerVersion
+    case apiServerCommit
 
     /// Process request keys.
     case signal

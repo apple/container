@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerImagesServiceClient
+import ContainerPersistence
 import ContainerXPC
 import Containerization
 import ContainerizationError
@@ -93,7 +94,7 @@ public struct ClientImage: Sendable {
 
 extension ClientImage {
     private static let serviceIdentifier = "com.apple.container.core.container-core-images"
-    public static let initImageRef = ClientDefaults.get(key: .defaultInitImage)
+    public static let initImageRef = DefaultsStore.get(key: .defaultInitImage)
 
     private static func newXPCClient() -> XPCClient {
         XPCClient(service: Self.serviceIdentifier)
@@ -104,7 +105,7 @@ extension ClientImage {
     }
 
     private static var defaultRegistryDomain: String {
-        ClientDefaults.get(key: .defaultRegistryDomain)
+        DefaultsStore.get(key: .defaultRegistryDomain)
     }
 }
 

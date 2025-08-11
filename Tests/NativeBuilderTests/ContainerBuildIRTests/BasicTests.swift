@@ -181,7 +181,7 @@ struct BasicTests {
                 .copyFromContext(paths: ["package.json", "src/"], to: "/app/")
                 .run("npm install")
                 .env("NODE_ENV", "production")
-                .expose(3000)
+                .expose([PortSpec(port: 3000)])
                 .cmd(Command.exec(["node", "src/index.js"]))
         }
 

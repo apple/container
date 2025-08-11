@@ -58,6 +58,7 @@ enum DockerInstructionName: String {
     case COPY = "copy"
     case CMD = "cmd"
     case LABEL = "label"
+    case EXPOSE = "expose"
 }
 
 /// DockerKeyword defines words that are used as keywords within a line of a dockerfile

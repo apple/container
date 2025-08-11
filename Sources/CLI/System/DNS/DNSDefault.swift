@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerPersistence
 
 extension Application {
     struct DNSDefault: AsyncParsableCommand {
@@ -40,7 +40,7 @@ extension Application {
             var domainName: String
 
             func run() async throws {
-                ClientDefaults.set(value: domainName, key: .defaultDNSDomain)
+                DefaultsStore.set(value: domainName, key: .defaultDNSDomain)
                 print(domainName)
             }
         }
@@ -53,7 +53,7 @@ extension Application {
             )
 
             func run() async throws {
-                ClientDefaults.unset(key: .defaultDNSDomain)
+                DefaultsStore.unset(key: .defaultDNSDomain)
                 print("Unset the default local DNS domain")
             }
         }
@@ -65,7 +65,7 @@ extension Application {
             )
 
             func run() async throws {
-                print(ClientDefaults.getOptional(key: .defaultDNSDomain) ?? "")
+                print(DefaultsStore.getOptional(key: .defaultDNSDomain) ?? "")
             }
         }
     }

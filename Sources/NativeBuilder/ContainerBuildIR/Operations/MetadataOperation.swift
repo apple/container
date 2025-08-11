@@ -69,8 +69,8 @@ public enum MetadataAction: Sendable {
     /// Define build argument (ARG)
     case declareArg(name: String, defaultValue: String?)
 
-    /// Set exposed port (EXPOSE)
-    case expose(port: PortSpec)
+    /// Set exposed ports (EXPOSE)
+    case expose(ports: [PortSpec])
 
     /// Set working directory (WORKDIR)
     case setWorkdir(path: String)
@@ -116,10 +116,10 @@ public struct PortSpec: Hashable, Sendable {
     }
 
     /// Port number or range start
-    public let port: Int
+    public let port: UInt16
 
     /// Range end (if range)
-    public let endPort: Int?
+    public let endPort: UInt16?
 
     /// Protocol
     public let `protocol`: NetworkProtocol
@@ -128,8 +128,8 @@ public struct PortSpec: Hashable, Sendable {
     public let description: String?
 
     public init(
-        port: Int,
-        endPort: Int? = nil,
+        port: UInt16,
+        endPort: UInt16? = nil,
         protocol: NetworkProtocol = .tcp,
         description: String? = nil
     ) {
@@ -267,9 +267,9 @@ extension MetadataAction: Hashable, Equatable {
             hasher.combine(4)
             hasher.combine(name)
             hasher.combine(defaultValue)
-        case .expose(let port):
+        case .expose(let ports):
             hasher.combine(5)
-            hasher.combine(port)
+            hasher.combine(ports)
         case .setWorkdir(let path):
             hasher.combine(6)
             hasher.combine(path)
@@ -313,7 +313,7 @@ extension MetadataAction: Codable {
         case labels
         case name
         case defaultValue
-        case port
+        case ports
         case path
         case user
         case command
@@ -350,9 +350,9 @@ extension MetadataAction: Codable {
             try container.encode("declareArg", forKey: .type)
             try container.encode(name, forKey: .name)
             try container.encode(defaultValue, forKey: .defaultValue)
-        case .expose(let port):
+        case .expose(let ports):
             try container.encode("expose", forKey: .type)
-            try container.encode(port, forKey: .port)
+            try container.encode(ports, forKey: .ports)
         case .setWorkdir(let path):
             try container.encode("setWorkdir", forKey: .type)
             try container.encode(path, forKey: .path)
@@ -407,8 +407,8 @@ extension MetadataAction: Codable {
             let defaultValue = try container.decodeIfPresent(String.self, forKey: .defaultValue)
             self = .declareArg(name: name, defaultValue: defaultValue)
         case "expose":
-            let port = try container.decode(PortSpec.self, forKey: .port)
-            self = .expose(port: port)
+            let ports = try container.decode([PortSpec].self, forKey: .ports)
+            self = .expose(ports: ports)
         case "setWorkdir":
             let path = try container.decode(String.self, forKey: .path)
             self = .setWorkdir(path: path)
