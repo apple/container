@@ -190,9 +190,6 @@ struct Application: AsyncParsableCommand {
             }
 
             try await process.start()
-            defer {
-                try? io.close()
-            }
             try io.closeAfterStart()
 
             if let current = io.console {

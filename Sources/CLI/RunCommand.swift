@@ -116,6 +116,9 @@ extension Application {
                     interactive: self.processFlags.interactive,
                     detach: detach
                 )
+                defer {
+                    try? io.close()
+                }
 
                 let process = try await container.bootstrap(stdio: io.stdio)
                 progress.finish()
@@ -138,9 +141,6 @@ extension Application {
 
                 if detach {
                     try await process.start()
-                    defer {
-                        try? io.close()
-                    }
                     try io.closeAfterStart()
                     print(id)
                     return

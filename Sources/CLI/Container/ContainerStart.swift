@@ -58,15 +58,15 @@ extension Application {
                     interactive: self.interactive,
                     detach: detach
                 )
+                defer {
+                    try? io.close()
+                }
 
                 let process = try await container.bootstrap(stdio: io.stdio)
                 progress.finish()
 
                 if detach {
                     try await process.start()
-                    defer {
-                        try? io.close()
-                    }
                     try io.closeAfterStart()
                     print(self.containerID)
                     return

@@ -70,6 +70,9 @@ extension Application {
 
             do {
                 let io = try ProcessIO.create(tty: tty, interactive: stdin, detach: false)
+                defer {
+                    try? io.close()
+                }
 
                 if !self.processFlags.tty {
                     var handler = SignalThreshold(threshold: 3, signals: [SIGINT, SIGTERM])
