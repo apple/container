@@ -334,7 +334,8 @@ public enum TestDataFactory {
             id: id,
             digest: digest,
             size: size,
-            parent: parent
+            parent: nil,
+            state: .prepared(mountpoint: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
         )
     }
 

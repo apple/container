@@ -33,6 +33,7 @@ extension ExecutorError {
         case executionFailed
         case cancelled
         case invalidConfiguration
+        case unsupportedOperation
     }
 
     /// Represents the detailed context of an error that occurred during a build.
