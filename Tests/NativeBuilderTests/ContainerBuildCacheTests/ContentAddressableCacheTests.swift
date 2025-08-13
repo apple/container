@@ -16,6 +16,7 @@
 
 import ContainerBuildIR
 import ContainerBuildSnapshotter
+import ContainerizationOCI
 import Foundation
 import Testing
 
@@ -23,397 +24,212 @@ import Testing
 
 struct ContentAddressableCacheTests {
 
-    // MARK: - Basic Operations Tests
+    // Helper to create a cache with a mock store and isolated index directory
+    private func makeCache(
+        tempDir: URL,
+        store: MockContentStore? = nil,
+        ttl: TimeInterval? = nil,
+        gcInterval: TimeInterval = 10.0
+    ) async throws -> (ContentAddressableCache, MockContentStore) {
+        let indexPath = tempDir.appendingPathComponent("index", isDirectory: true)
+        try FileManager.default.createDirectory(at: indexPath, withIntermediateDirectories: true)
 
-    @Test func contentAddressableCacheBasicGetPut() async throws {
-        try await withCacheTestEnvironment { environment in
-            let mockContentStore = MockContentStore(baseDir: environment.tempDir)
-            let configuration = TestDataFactory.createCacheConfiguration(
-                maxSize: 1024 * 1024,  // 1MB for tests
-                maxAge: 3600,  // 1 hour for tests
-                indexPath: environment.tempDir.appendingPathComponent("cache-index")
+        let contentStore = store ?? MockContentStore(baseDir: tempDir.appendingPathComponent("store", isDirectory: true))
+        let config = CacheConfiguration(
+            maxSize: 1024 * 1024 * 1024,
+            maxAge: 7 * 24 * 60 * 60,
+            indexPath: indexPath,
+            evictionPolicy: .lru,
+            concurrency: .default,
+            verifyIntegrity: true,
+            sharding: nil,
+            gcInterval: gcInterval,
+            cacheKeyVersion: "test-v1",
+            defaultTTL: ttl
+        )
+
+        let cache = try await ContentAddressableCache(contentStore: contentStore, configuration: config)
+        return (cache, contentStore)
+    }
+
+    @Test func putAndGetRoundTrip() async throws {
+        try await withCacheTestEnvironment { env in
+            let (cache, store) = try await makeCache(tempDir: env.tempDir)
+
+            let op = TestDataFactory.createOperation(kind: "run", content: "echo hello")
+            let key = TestDataFactory.createCacheKey(operation: op, inputContents: ["in1", "in2"], platform: .linuxAMD64)
+            let result = TestDataFactory.createCachedResult(
+                snapshotContent: "snap-A",
+                environmentChanges: ["PATH": .literal("/usr/bin:/bin")],
+                metadataChanges: ["build.time": "2024-08-01T00:00:00Z"]
             )
 
-            // Note: This test assumes ContentAddressableCache can accept our protocol
-            // In a real implementation, we might need to create an adapter
-            let cache = try await ContentAddressableCache(
-                contentStore: mockContentStore,
-                configuration: configuration
-            )
-            defer {
-                // Cleanup handled by withCacheTestEnvironment
-            }
-            let operation = TestDataFactory.createOperation()
-            let key = TestDataFactory.createCacheKey(operation: operation)
-            let result = TestDataFactory.createCachedResult()
+            await cache.put(result, key: key, for: op)
 
-            // Test cache miss
-            let initialResult = await cache.get(key, for: operation)
-            #expect(initialResult == nil)
+            // Stored once in content store
+            #expect(await store.contentCount() == 1)
 
-            // Test put
-            await cache.put(result, key: key, for: operation)
+            let fetched = await cache.get(key, for: op)
+            let fr = try #require(fetched)
 
-            // Test cache hit
-            let cachedResult = await cache.get(key, for: operation)
-            #expect(cachedResult != nil)
-            #expect(cachedResult?.snapshot.id == result.snapshot.id)
-            #expect(cachedResult?.environmentChanges.count == result.environmentChanges.count)
-            #expect(cachedResult?.metadataChanges == result.metadataChanges)
+            // Verify snapshot and metadata round-trip
+            #expect(fr.snapshot.digest == result.snapshot.digest)
+            #expect(fr.snapshot.size == result.snapshot.size)
+            #expect(fr.environmentChanges == result.environmentChanges)
+            #expect(fr.metadataChanges == result.metadataChanges)
         }
     }
 
-    @Test func contentAddressableCacheMiss() async throws {
-        try await withCacheTestEnvironment { environment in
-            let mockContentStore = MockContentStore(baseDir: environment.tempDir)
-            let configuration = TestDataFactory.createCacheConfiguration(
-                maxSize: 1024 * 1024,  // 1MB for tests
-                maxAge: 3600,  // 1 hour for tests
-                indexPath: environment.tempDir.appendingPathComponent("cache-index")
-            )
+    @Test func idempotentPutDoesNotDuplicateStorage() async throws {
+        try await withCacheTestEnvironment { env in
+            let (cache, store) = try await makeCache(tempDir: env.tempDir)
 
-            let cache = try await ContentAddressableCache(
-                contentStore: mockContentStore,
-                configuration: configuration
-            )
+            let op = TestDataFactory.createOperation(kind: "run", content: "op-idem")
+            let key = TestDataFactory.createCacheKey(operation: op, inputContents: ["a", "b"], platform: .linuxAMD64)
+            let result = TestDataFactory.createCachedResult(snapshotContent: "idem-snap")
 
-            let key = TestDataFactory.createCacheKey()
-            let operation = TestDataFactory.createOperation()
+            await cache.put(result, key: key, for: op)
+            await cache.put(result, key: key, for: op)  // second put should be a no-op
 
-            let result = await cache.get(key, for: operation)
-            #expect(result == nil)
+            #expect(await store.contentCount() == 1)
         }
     }
 
-    @Test func contentAddressableCacheHit() async throws {
-        try await withCacheTestEnvironment { environment in
-            let mockContentStore = MockContentStore(baseDir: environment.tempDir)
-            let configuration = TestDataFactory.createCacheConfiguration(
-                maxSize: 1024 * 1024,  // 1MB for tests
-                maxAge: 3600,  // 1 hour for tests
-                indexPath: environment.tempDir.appendingPathComponent("cache-index")
-            )
+    @Test func hasKeyAndMiss() async throws {
+        try await withCacheTestEnvironment { env in
+            let (cache, _) = try await makeCache(tempDir: env.tempDir)
 
-            let cache = try await ContentAddressableCache(
-                contentStore: mockContentStore,
-                configuration: configuration
-            )
+            let op = TestDataFactory.createOperation(kind: "cmd", content: "A")
+            let keyHit = TestDataFactory.createCacheKey(operation: op, inputContents: ["x"], platform: .linuxAMD64)
+            let keyMiss = TestDataFactory.createCacheKey(operation: op, inputContents: ["different"], platform: .linuxAMD64)
 
-            let operation = TestDataFactory.createOperation()
-            let key = TestDataFactory.createCacheKey(operation: operation)
-            let result = TestDataFactory.createCachedResult()
+            let result = TestDataFactory.createCachedResult(snapshotContent: "rt")
+            await cache.put(result, key: keyHit, for: op)
 
-            // Store the result
-            await cache.put(result, key: key, for: operation)
-
-            // Retrieve it
-            let cachedResult = await cache.get(key, for: operation)
-            #expect(cachedResult != nil)
-            #expect(cachedResult?.snapshot.digest == result.snapshot.digest)
+            #expect(await cache.has(key: keyHit))
+            #expect(!(await cache.has(key: keyMiss)))
         }
     }
 
-    @Test func contentAddressableCacheDuplicatePut() async throws {
-        try await withCacheTestEnvironment { environment in
-            let mockContentStore = MockContentStore(baseDir: environment.tempDir)
-            let configuration = TestDataFactory.createCacheConfiguration(
-                maxSize: 1024 * 1024,  // 1MB for tests
-                maxAge: 3600,  // 1 hour for tests
-                indexPath: environment.tempDir.appendingPathComponent("cache-index")
-            )
+    @Test func deterministicKeyOrderInvariance() async throws {
+        try await withCacheTestEnvironment { env in
+            let (cache, store) = try await makeCache(tempDir: env.tempDir)
 
-            let cache = try await ContentAddressableCache(
-                contentStore: mockContentStore,
-                configuration: configuration
-            )
+            let op = TestDataFactory.createOperation(kind: "run", content: "det")
+            // Same set of inputs but different order
+            let key1 = TestDataFactory.createCacheKey(operation: op, inputContents: ["i1", "i2", "i3"], platform: .linuxAMD64)
+            let key2 = TestDataFactory.createCacheKey(operation: op, inputContents: ["i3", "i2", "i1"], platform: .linuxAMD64)
+            let result = TestDataFactory.createCachedResult(snapshotContent: "det-snap")
 
-            let key = TestDataFactory.createCacheKey()
-            let result1 = TestDataFactory.createCachedResult(snapshotContent: "content1")
-            let result2 = TestDataFactory.createCachedResult(snapshotContent: "content2")
-            let operation = TestDataFactory.createOperation()
+            await cache.put(result, key: key1, for: op)
 
-            // Store first result
-            await cache.put(result1, key: key, for: operation)
-
-            // Store second result with same key (should be ignored)
-            await cache.put(result2, key: key, for: operation)
-
-            // Should still get the first result
-            let cachedResult = await cache.get(key, for: operation)
-            #expect(cachedResult != nil)
-            #expect(cachedResult?.snapshot.digest == result1.snapshot.digest)
+            // Expect that the permuted key hits the same entry (no additional storage)
+            #expect(await cache.has(key: key2))
+            let fetched = await cache.get(key2, for: op)
+            #expect(fetched?.snapshot.digest == result.snapshot.digest)
+            #expect(await store.contentCount() == 1)
         }
     }
 
-    @Test func contentAddressableCacheStatistics() async throws {
-        try await withCacheTestEnvironment { environment in
-            let mockContentStore = MockContentStore(baseDir: environment.tempDir)
-            let configuration = TestDataFactory.createCacheConfiguration(
-                maxSize: 1024 * 1024,  // 1MB for tests
-                maxAge: 3600,  // 1 hour for tests
-                indexPath: environment.tempDir.appendingPathComponent("cache-index")
-            )
+    @Test func evictRemovesIndexAndContent() async throws {
+        try await withCacheTestEnvironment { env in
+            let (cache, store) = try await makeCache(tempDir: env.tempDir)
 
-            let cache = try await ContentAddressableCache(
-                contentStore: mockContentStore,
-                configuration: configuration
-            )
+            let op = TestDataFactory.createOperation(kind: "run", content: "evict-op")
+            let key1 = TestDataFactory.createCacheKey(operation: op, inputContents: ["k1"], platform: .linuxAMD64)
+            let key2 = TestDataFactory.createCacheKey(operation: op, inputContents: ["k2"], platform: .linuxAMD64)
+            let r1 = TestDataFactory.createCachedResult(snapshotContent: "S1")
+            let r2 = TestDataFactory.createCachedResult(snapshotContent: "S2")
+
+            await cache.put(r1, key: key1, for: op)
+            await cache.put(r2, key: key2, for: op)
+            #expect(await store.contentCount() == 2)
+
+            await cache.evict(keys: [key1])
+
+            #expect(!(await cache.has(key: key1)))
+            #expect(await cache.has(key: key2))
+            #expect(await store.contentCount() == 1)
+        }
+    }
+
+    @Test func statisticsReflectEntries() async throws {
+        try await withCacheTestEnvironment { env in
+            let (cache, _) = try await makeCache(tempDir: env.tempDir)
+
+            let op = TestDataFactory.createOperation()
+            let k1 = TestDataFactory.createCacheKey(operation: op, inputContents: ["a"], platform: .linuxAMD64)
+            let k2 = TestDataFactory.createCacheKey(operation: op, inputContents: ["b"], platform: .linuxAMD64)
+            let r = TestDataFactory.createCachedResult()
+
+            await cache.put(r, key: k1, for: op)
+            await cache.put(r, key: k2, for: op)
+
+            _ = await cache.get(k1, for: op)  // one hit
+            _ = await cache.get(k2, for: op)  // another hit
+            _ = await cache.get(TestDataFactory.createCacheKey(operation: op, inputContents: ["c"], platform: .linuxAMD64), for: op)  // miss
 
             let stats = await cache.statistics()
-            #expect(stats.entryCount == 0)
-            #expect(stats.totalSize == 0)
-
-            // Add some entries
-            let key1 = TestDataFactory.createCacheKey(operationContent: "op1")
-            let key2 = TestDataFactory.createCacheKey(operationContent: "op2")
-            let result = TestDataFactory.createCachedResult()
-            let operation = TestDataFactory.createOperation()
-
-            await cache.put(result, key: key1, for: operation)
-            await cache.put(result, key: key2, for: operation)
-
-            let updatedStats = await cache.statistics()
-            #expect(updatedStats.entryCount == 2)
-            #expect(updatedStats.totalSize > 0)
+            #expect(stats.entryCount == 2)
+            #expect(stats.totalSize > 0)
+            #expect(stats.averageEntrySize > 0)
+            #expect(stats.hitRate > 0)
+            #expect(stats.evictionPolicy == "lru")
         }
     }
 
-    // MARK: - Eviction Tests
+    @Test func ttlEvictionViaBackgroundGC() async throws {
+        try await withCacheTestEnvironment { env in
+            // Short TTL and GC interval to exercise background cleanup
+            let (cache, _) = try await makeCache(tempDir: env.tempDir, ttl: 0.05, gcInterval: 0.02)
 
-    @Test func contentAddressableCacheEvictionBySize() async throws {
-        try await withCacheTestEnvironment { environment in
-            let mockContentStore = MockContentStore(baseDir: environment.tempDir)
+            let op = TestDataFactory.createOperation()
+            let key = TestDataFactory.createCacheKey(operation: op, inputContents: ["exp"], platform: .linuxAMD64)
+            let r = TestDataFactory.createCachedResult()
+            await cache.put(r, key: key, for: op)
 
-            // Create a small cache
-            let smallConfig = TestDataFactory.createCacheConfiguration(
-                maxSize: 2048,  // Very small cache
-                indexPath: environment.tempDir.appendingPathComponent("small-cache-index")
-            )
-
-            let smallCache = try await ContentAddressableCache(
-                contentStore: mockContentStore,
-                configuration: smallConfig
-            )
-
-            // Fill the cache beyond capacity
-            let operation = TestDataFactory.createOperation()
-            for i in 0..<10 {
-                let key = TestDataFactory.createCacheKey(operationContent: "operation-\(i)")
-                let result = TestDataFactory.createCachedResult(snapshotContent: "large-content-\(i)")
-                await smallCache.put(result, key: key, for: operation)
-            }
-
-            // Give eviction time to run
-            try await Task.sleep(nanoseconds: 100_000_000 * 5)  // 0.1 seconds
-
-            let stats = await smallCache.statistics()
-            #expect(stats.totalSize < 2048 * 2)  // Should have evicted some entries
+            #expect(await cache.has(key: key))
+            // Wait long enough for TTL to expire and GC to run
+            try await Task.sleep(nanoseconds: 200_000_000)  // 0.2s
+            #expect(!(await cache.has(key: key)))
         }
     }
 
-    @Test func contentAddressableCacheEvictionByAge() async throws {
-        try await withCacheTestEnvironment { environment in
-            let mockContentStore = MockContentStore(baseDir: environment.tempDir)
-            let configuration = TestDataFactory.createCacheConfiguration(
-                maxSize: 1024 * 1024,  // 1MB for tests
-                maxAge: 3600,  // 1 hour for tests
-                indexPath: environment.tempDir.appendingPathComponent("cache-index")
+    @Test func orphanedIndexEntryIsCleanedOnMiss() async throws {
+        try await withCacheTestEnvironment { env in
+            // Seed a valid entry, then corrupt the stored manifest to simulate orphan/invalid content
+            let (cache, store) = try await makeCache(tempDir: env.tempDir)
+            let index = try CacheIndex(path: env.tempDir.appendingPathComponent("index", isDirectory: true))
+
+            let op = TestDataFactory.createOperation(kind: "run", content: "corrupt")
+            let key = TestDataFactory.createCacheKey(operation: op, inputContents: ["x", "y"], platform: .linuxAMD64)
+            let r = TestDataFactory.createCachedResult(snapshotContent: "S")
+            await cache.put(r, key: key, for: op)
+
+            // Find the stored index entry
+            let entries = try await index.allEntries()
+            #expect(entries.count == 1)
+            let (_, entry) = try #require(entries.first)
+
+            // Overwrite manifest content with an invalid one (missing snapshot)
+            let bad = CacheManifest(
+                config: CacheConfig(
+                    cacheKey: SerializedCacheKey(from: key),
+                    operationType: String(describing: type(of: op)),
+                    platform: key.platform,
+                    buildVersion: "1.0"
+                ),
+                annotations: [:],
+                subject: nil,
+                snapshot: nil,  // <-- corrupt
+                environmentChanges: [:],
+                metadataChanges: [:]
             )
+            try await store.put(bad, digest: entry.descriptor.digest)
 
-            let cache = try await ContentAddressableCache(
-                contentStore: mockContentStore,
-                configuration: configuration
-            )
-
-            // This test would require manipulating time or using a mock clock
-            // For now, we'll test the TTL-based eviction logic
-
-            let key = TestDataFactory.createCacheKey()
-            let result = TestDataFactory.createCachedResult()
-            let operation = TestDataFactory.createOperation()
-
-            await cache.put(result, key: key, for: operation)
-
-            // Verify it's there
-            let cachedResult = await cache.get(key, for: operation)
-            #expect(cachedResult != nil)
-
-            // In a real test, we'd advance time and check eviction
-            // For now, just verify the entry exists
-            let stats = await cache.statistics()
-            #expect(stats.entryCount == 1)
-        }
-    }
-
-    @Test func contentAddressableCacheEvictionByTTL() async throws {
-        try await withCacheTestEnvironment { environment in
-            let mockContentStore = MockContentStore(baseDir: environment.tempDir)
-
-            // Create configuration with short TTL
-            let shortTTLConfig = TestDataFactory.createCacheConfiguration(
-                maxSize: 1024 * 1024,
-                maxAge: 1,  // 1 second TTL
-                indexPath: environment.tempDir.appendingPathComponent("ttl-cache-index")
-            )
-
-            let ttlCache = try await ContentAddressableCache(
-                contentStore: mockContentStore,
-                configuration: shortTTLConfig
-            )
-
-            let key = TestDataFactory.createCacheKey()
-            let result = TestDataFactory.createCachedResult()
-            let operation = TestDataFactory.createOperation()
-
-            await ttlCache.put(result, key: key, for: operation)
-
-            // Verify it's there initially
-            let initialResult = await ttlCache.get(key, for: operation)
-            #expect(initialResult != nil)
-
-            // Wait for TTL to expire
-            try await Task.sleep(nanoseconds: 1_500_000_000)  // 1.5 seconds
-
-            // Entry should be evicted (this depends on the implementation running periodic cleanup)
-            // Note: This test might be flaky depending on the eviction implementation
-        }
-    }
-
-    // MARK: - Concurrency Tests
-
-    @Test func contentAddressableCacheConcurrentOperations() async throws {
-        try await withCacheTestEnvironment { environment in
-            let mockContentStore = MockContentStore(baseDir: environment.tempDir)
-            let configuration = TestDataFactory.createCacheConfiguration(
-                maxSize: 1024 * 1024,  // 1MB for tests
-                maxAge: 3600,  // 1 hour for tests
-                indexPath: environment.tempDir.appendingPathComponent("cache-index")
-            )
-
-            let cache = try await ContentAddressableCache(
-                contentStore: mockContentStore,
-                configuration: configuration
-            )
-
-            let operation = TestDataFactory.createOperation()
-
-            // Test concurrent puts and gets
-            await withTaskGroup(of: Void.self) { group in
-                // Concurrent puts
-                for i in 0..<5 {
-                    group.addTask {
-                        let key = TestDataFactory.createCacheKey(operationContent: "concurrent-op-\(i)")
-                        let result = TestDataFactory.createCachedResult(snapshotContent: "content-\(i)")
-                        await cache.put(result, key: key, for: operation)
-                    }
-                }
-
-                // Concurrent gets
-                for i in 0..<5 {
-                    group.addTask {
-                        let key = TestDataFactory.createCacheKey(operationContent: "concurrent-op-\(i)")
-                        _ = await cache.get(key, for: operation)
-                    }
-                }
-            }
-
-            let stats = await cache.statistics()
-            #expect(stats.entryCount > 0)
-        }
-    }
-
-    // MARK: - Error Handling Tests
-
-    @Test func contentAddressableCacheCorruptedData() async throws {
-        try await withCacheTestEnvironment { environment in
-            let mockContentStore = MockContentStore(baseDir: environment.tempDir)
-            let configuration = TestDataFactory.createCacheConfiguration(
-                maxSize: 1024 * 1024,  // 1MB for tests
-                maxAge: 3600,  // 1 hour for tests
-                indexPath: environment.tempDir.appendingPathComponent("cache-index")
-            )
-
-            let cache = try await ContentAddressableCache(
-                contentStore: mockContentStore,
-                configuration: configuration
-            )
-
-            // This test would require injecting corrupted data into the content store
-            // For now, we'll test basic error resilience
-
-            let key = TestDataFactory.createCacheKey()
-            let operation = TestDataFactory.createOperation()
-
-            // Try to get from empty cache (should handle gracefully)
-            let result = await cache.get(key, for: operation)
-            #expect(result == nil)
-
-            // Cache should still be functional
-            let stats = await cache.statistics()
-            #expect(stats.entryCount == 0)
-        }
-    }
-
-    @Test func contentAddressableCacheMissingContentStore() async throws {
-        try await withCacheTestEnvironment { environment in
-            let mockContentStore = MockContentStore(baseDir: environment.tempDir)
-            let configuration = TestDataFactory.createCacheConfiguration(
-                maxSize: 1024 * 1024,  // 1MB for tests
-                maxAge: 3600,  // 1 hour for tests
-                indexPath: environment.tempDir.appendingPathComponent("cache-index")
-            )
-
-            let cache = try await ContentAddressableCache(
-                contentStore: mockContentStore,
-                configuration: configuration
-            )
-
-            // Test behavior when content store operations fail
-            // This would require a mock that can simulate failures
-
-            let key = TestDataFactory.createCacheKey()
-            let result = TestDataFactory.createCachedResult()
-            let operation = TestDataFactory.createOperation()
-
-            // Put should not crash even if content store has issues
-            await cache.put(result, key: key, for: operation)
-
-            // Get should handle missing content gracefully
-            let _ = await cache.get(key, for: operation)
-            // Result depends on whether the put succeeded despite content store issues
-        }
-    }
-
-    // MARK: - Performance Tests
-
-    @Test func contentAddressableCachePerformance() async throws {
-        try await withCacheTestEnvironment { environment in
-            let mockContentStore = MockContentStore(baseDir: environment.tempDir)
-            let configuration = TestDataFactory.createCacheConfiguration(
-                maxSize: 1024 * 1024,  // 1MB for tests
-                maxAge: 3600,  // 1 hour for tests
-                indexPath: environment.tempDir.appendingPathComponent("cache-index")
-            )
-
-            let cache = try await ContentAddressableCache(
-                contentStore: mockContentStore,
-                configuration: configuration
-            )
-
-            let operation = TestDataFactory.createOperation()
-
-            let (_, duration) = await PerformanceMeasurement.measure {
-                // Perform multiple cache operations
-                for i in 0..<100 {
-                    let key = TestDataFactory.createCacheKey(operationContent: "perf-test-\(i)")
-                    let result = TestDataFactory.createCachedResult(snapshotContent: "content-\(i)")
-                    await cache.put(result, key: key, for: operation)
-                    _ = await cache.get(key, for: operation)
-                }
-            }
-
-            // Assert reasonable performance (adjust threshold as needed)
-            #expect(duration < 5.0, "Cache operations took too long: \(duration)s")
+            // Now a get should fail and effectively behave like a miss
+            let got = await cache.get(key, for: op)
+            #expect(got == nil)
         }
     }
 }

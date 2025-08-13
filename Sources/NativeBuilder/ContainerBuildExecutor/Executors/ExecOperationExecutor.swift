@@ -37,55 +37,30 @@ public struct ExecOperationExecutor: OperationExecutor {
                     operation: operation, underlyingError: NSError(domain: "Executor", code: 1, userInfo: [NSLocalizedDescriptionKey: "Unsupported operation"]),
                     diagnostics: ExecutorError.Diagnostics(environment: [:], workingDirectory: "", recentLogs: [])))
         }
+
+        let startTime = Date()
+
         do {
-            // Stub implementation
-            // In a real implementation, this would:
-            // 1. Prepare the container environment
-            // 2. Execute the command
-            // 3. Capture output and changes
-            // 4. Update the snapshot
-
-            let startTime = Date()
-
-            // Simulate command execution
-            let commandString = execOp.command.displayString
-            let output = ExecutionOutput(
-                stdout: "Executing: \(commandString)\nOutput from command execution...\nDone.",
-                stderr: "",
-                exitCode: 0
-            )
-
-            // Simulate filesystem changes
-            let changes = ContainerBuildSnapshotter.FilesystemChanges(
-                added: ["/tmp/exec-\(UUID().uuidString)"],
-                sizeChange: 1024
-            )
-
-            // Create a new snapshot
-            let snapshot = try ContainerBuildSnapshotter.Snapshot(
-                digest: Digest(algorithm: .sha256, bytes: Data(count: 32)),
-                size: 1024,
-                parent: context.latestSnapshot()?.id
-            )
+            let (output, finalSnapshot) = try await context.withSnapshot { snapshot in
+                try await executeCommand(execOp, in: snapshot, context: context)
+            }
 
             let duration = Date().timeIntervalSince(startTime)
 
             return ExecutionResult(
-                filesystemChanges: changes,
-                environmentChanges: [:],
+                environmentChanges: [:],  // TODO: Extract environment changes from command execution
                 metadataChanges: [:],
-                snapshot: snapshot,
+                snapshot: finalSnapshot,
                 duration: duration,
                 output: output
             )
         } catch {
             // Collect diagnostics
             let environment = context.environment.effectiveEnvironment
-
             let diagnostics = ExecutorError.Diagnostics(
                 environment: environment,
                 workingDirectory: context.workingDirectory,
-                recentLogs: ["Failed to execute: \(execOp.command.displayString)"]
+                recentLogs: ["Failed to execute: \(execOp.command.displayString)", "Error: \(error.localizedDescription)"]
             )
 
             throw ExecutorError(
@@ -97,6 +72,35 @@ public struct ExecOperationExecutor: OperationExecutor {
                 )
             )
         }
+    }
+
+    /// Execute a command in the prepared snapshot environment.
+    ///
+    /// This simulates command execution for development and testing purposes.
+    /// The snapshotter is fully functional and creates real filesystem snapshots,
+    /// but the actual command execution is simulated to avoid system dependencies.
+    ///
+    /// - Parameters:
+    ///   - operation: The exec operation to perform
+    ///   - snapshot: The prepared snapshot with working directory
+    ///   - context: The execution context
+    /// - Returns: The simulated execution output
+    private func executeCommand(
+        _ operation: ExecOperation,
+        in snapshot: Snapshot,
+        context: ExecutionContext
+    ) async throws -> ExecutionOutput {
+
+        let commandString = operation.command.displayString
+
+        // Simulate command execution
+        // The snapshotter will still properly track any filesystem changes
+        // that would result from this operation
+        return ExecutionOutput(
+            stdout: "[SIMULATED] Executing: \(commandString)\nOutput from command execution...\nDone.",
+            stderr: "",
+            exitCode: 0
+        )
     }
 
     public func canExecute(_ operation: ContainerBuildIR.Operation) -> Bool {
