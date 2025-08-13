@@ -327,14 +327,14 @@ public enum TestDataFactory {
         id: UUID = UUID(),
         content: String = "test-snapshot",
         size: Int64 = 1024,
-        parent: UUID? = nil
+        parent: Snapshot? = nil
     ) -> Snapshot {
         let digest = createDigest(from: content)
         return Snapshot(
             id: id,
             digest: digest,
             size: size,
-            parent: nil,
+            parent: parent,
             state: .prepared(mountpoint: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
         )
     }
@@ -378,27 +378,6 @@ public enum TestDataFactory {
         content: String = "test-operation"
     ) -> MockOperation {
         MockOperation(kind: kind, content: content)
-    }
-
-    public static func createCacheConfiguration(
-        maxSize: UInt64 = 1024 * 1024,  // 1MB for tests
-        maxAge: TimeInterval = 3600,  // 1 hour for tests
-        indexPath: URL? = nil
-    ) -> CacheConfiguration {
-        let testIndexPath =
-            indexPath
-            ?? FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-            .appendingPathComponent("test-cache.db")
-
-        return CacheConfiguration(
-            maxSize: maxSize,
-            maxAge: maxAge,
-            indexPath: testIndexPath,
-            evictionPolicy: .lru,
-            verifyIntegrity: false,  // Disable for faster tests
-            gcInterval: 60  // Short interval for tests
-        )
     }
 
     public static func createCacheMetadata(

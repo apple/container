@@ -110,16 +110,13 @@ public actor ContentAddressableCache: BuildCache {
                 // Create content writer for this session
                 let writer = try ContentWriter(for: ingestDir)
 
-                // Store components
-                let snapshotLayer = try await storeSnapshot(result.snapshot, using: writer)
-                let environmentLayer = try await storeEnvironment(result.environmentChanges, using: writer)
-                let metadataLayer = try await storeMetadata(result.metadataChanges, using: writer)
-
-                // Create manifest
+                // Create manifest with embedded snapshot, environment and metadata
                 let manifest = createManifest(
                     key: key,
                     operation: operation,
-                    layers: [snapshotLayer, environmentLayer, metadataLayer].compactMap { $0 }
+                    snapshot: result.snapshot,
+                    environmentChanges: result.environmentChanges,
+                    metadataChanges: result.metadataChanges
                 )
 
                 // Write manifest
@@ -128,14 +125,6 @@ public actor ContentAddressableCache: BuildCache {
                 // Complete ingest session
                 _ = try await contentStore.completeIngestSession(sessionId)
 
-                // Calculate total size
-                let _ =
-                    manifestSize
-                    + [snapshotLayer, environmentLayer, metadataLayer]
-                    .compactMap { $0 }
-                    .reduce(0) { $0 + $1.descriptor.size }
-
-                // Record in index
                 let descriptor = Descriptor(
                     mediaType: manifest.mediaType,
                     digest: manifestDigest.digestString,
@@ -191,11 +180,8 @@ public actor ContentAddressableCache: BuildCache {
             }
 
             if let entry = try? await index.get(key: digest) {
-                // Get manifest to find content digests
-                if let manifest: CacheManifest = try? await contentStore.get(digest: entry.descriptor.digest) {
-                    let digests = [entry.descriptor.digest] + manifest.allContentDigests()
-                    _ = try? await contentStore.delete(digests: digests)
-                }
+                // Only need to delete the manifest itself now (no separate layers)
+                _ = try? await contentStore.delete(digests: [entry.descriptor.digest])
 
                 // Remove from index
                 try? await index.remove(keys: [digest])
@@ -213,7 +199,6 @@ public actor ContentAddressableCache: BuildCache {
             oldestEntryAge: stats.oldestEntryAge,
             mostRecentEntryAge: stats.mostRecentEntryAge,
             evictionPolicy: "lru",
-            compressionRatio: 1.0,
             averageEntrySize: stats.entryCount > 0 ? stats.totalSize / UInt64(stats.entryCount) : 0,
             operationMetrics: .empty,
             errorCount: 0,
@@ -268,72 +253,16 @@ public actor ContentAddressableCache: BuildCache {
         return (try? encoder.encode(normalized)) ?? Data()
     }
 
-    /// Store snapshot data and return layer descriptor.
-    private func storeSnapshot(_ snapshot: Snapshot, using writer: ContentWriter) async throws -> CacheLayer? {
-        let data = try JSONEncoder().encode(snapshot)
-        let compressed = try compress(data)
-        let (size, digest) = try writer.write(compressed)
-
-        let descriptor = Descriptor.forCacheContent(
-            mediaType: "application/vnd.container-build.snapshot.v1+json",
-            digest: digest.digestString,
-            size: size,
-            compressed: true,
-            annotations: [
-                "com.apple.container-build.compression": configuration.compression.algorithm.rawValue,
-                "com.apple.container-build.uncompressed-size": String(data.count),
-            ]
-        )
-
-        return CacheLayer(descriptor: descriptor, type: .snapshot)
-    }
-
-    /// Store environment changes and return layer descriptor.
-    private func storeEnvironment(_ changes: [String: EnvironmentValue], using writer: ContentWriter) async throws -> CacheLayer? {
-        guard !changes.isEmpty else { return nil }
-
-        let data = try JSONEncoder().encode(changes)
-        let compressed = try compress(data)
-        let (size, digest) = try writer.write(compressed)
-
-        let descriptor = Descriptor.forCacheContent(
-            mediaType: "application/vnd.container-build.environment.v1+json",
-            digest: digest.digestString,
-            size: size,
-            compressed: true,
-            annotations: [
-                "com.apple.container-build.compression": configuration.compression.algorithm.rawValue
-            ]
-        )
-
-        return CacheLayer(descriptor: descriptor, type: .environment)
-    }
-
-    /// Store metadata changes and return layer descriptor.
-    private func storeMetadata(_ changes: [String: String], using writer: ContentWriter) async throws -> CacheLayer? {
-        guard !changes.isEmpty else { return nil }
-
-        let data = try JSONEncoder().encode(changes)
-        let compressed = try compress(data)
-        let (size, digest) = try writer.write(compressed)
-
-        let descriptor = Descriptor.forCacheContent(
-            mediaType: "application/vnd.container-build.metadata.v1+json",
-            digest: digest.digestString,
-            size: size,
-            compressed: true,
-            annotations: [
-                "com.apple.container-build.compression": configuration.compression.algorithm.rawValue
-            ]
-        )
-
-        return CacheLayer(descriptor: descriptor, type: .metadata)
-    }
-
-    /// Create cache manifest.
-    private func createManifest(key: CacheKey, operation: ContainerBuildIR.Operation, layers: [CacheLayer]) -> CacheManifest {
+    /// Create cache manifest with embedded snapshot, environment and metadata.
+    private func createManifest(
+        key: CacheKey,
+        operation: ContainerBuildIR.Operation,
+        snapshot: Snapshot? = nil,
+        environmentChanges: [String: EnvironmentValue] = [:],
+        metadataChanges: [String: String] = [:]
+    ) -> CacheManifest {
         CacheManifest(
-            schemaVersion: 2,
+            schemaVersion: CacheManifest.currentSchemaVersion,
             mediaType: CacheManifest.manifestMediaType,
             config: CacheConfig(
                 cacheKey: SerializedCacheKey(from: key),
@@ -341,80 +270,31 @@ public actor ContentAddressableCache: BuildCache {
                 platform: key.platform,
                 buildVersion: "1.0.0"
             ),
-            layers: layers,
             annotations: [
                 "com.apple.container-build.created": ISO8601DateFormatter().string(from: Date()),
                 "com.apple.container-build.cache-version": configuration.cacheKeyVersion,
             ],
-            subject: nil
-        )
-    }
-
-    /// Reconstruct cached result from manifest.
-    private func reconstructResult(from manifest: CacheManifest) async throws -> CachedResult {
-        var snapshot: Snapshot?
-        var environmentChanges: [String: EnvironmentValue] = [:]
-        var metadataChanges: [String: String] = [:]
-
-        for layer in manifest.layers {
-            guard let content = try await contentStore.get(digest: layer.descriptor.digest) else {
-                throw CacheError.storageFailed(
-                    path: layer.descriptor.digest, underlyingError: NSError(domain: "Cache", code: 404, userInfo: [NSLocalizedDescriptionKey: "Missing content"]))
-            }
-
-            let data = try content.data()
-            let decompressed = try decompress(data)
-
-            switch layer.type {
-            case .snapshot:
-                snapshot = try JSONDecoder().decode(Snapshot.self, from: decompressed)
-            case .environment:
-                environmentChanges = try JSONDecoder().decode([String: EnvironmentValue].self, from: decompressed)
-            case .metadata:
-                metadataChanges = try JSONDecoder().decode([String: String].self, from: decompressed)
-            }
-        }
-
-        guard let snapshot = snapshot else {
-            throw CacheError.storageFailed(
-                path: "Missing snapshot layer", underlyingError: NSError(domain: "Cache", code: 500, userInfo: [NSLocalizedDescriptionKey: "Invalid Manifest"]))
-        }
-
-        return CachedResult(
+            subject: nil,
             snapshot: snapshot,
             environmentChanges: environmentChanges,
             metadataChanges: metadataChanges
         )
     }
 
-    /// Compress data based on configuration.
-    private func compress(_ data: Data) throws -> Data {
-        guard data.count >= configuration.compression.minSize else {
-            return data
+    /// Reconstruct cached result from manifest.
+    private func reconstructResult(from manifest: CacheManifest) async throws -> CachedResult {
+        // Snapshot is embedded directly in the manifest
+        guard let snapshot = manifest.snapshot else {
+            throw CacheError.storageFailed(
+                path: "Missing snapshot", underlyingError: NSError(domain: "Cache", code: 500, userInfo: [NSLocalizedDescriptionKey: "No snapshot found in manifest"]))
         }
 
-        switch configuration.compression.algorithm {
-        case .none:
-            return data
-        case .zstd:
-            // Use zstd compression (would need actual implementation)
-            return data  // Placeholder
-        case .lz4:
-            // Use lz4 compression (would need actual implementation)
-            return data  // Placeholder
-        case .gzip:
-            // Use gzip compression
-            return try (data as NSData).compressed(using: .zlib) as Data
-        }
-    }
-
-    /// Decompress data based on manifest metadata.
-    private func decompress(_ data: Data) throws -> Data {
-        // Check if data is compressed by trying to decompress
-        if let decompressed = try? (data as NSData).decompressed(using: .zlib) as Data {
-            return decompressed
-        }
-        return data
+        // Environment and metadata are also embedded directly in the manifest
+        return CachedResult(
+            snapshot: snapshot,
+            environmentChanges: manifest.environmentChanges,
+            metadataChanges: manifest.metadataChanges
+        )
     }
 
     /// Check if eviction is needed and trigger it.
@@ -445,11 +325,8 @@ public actor ContentAddressableCache: BuildCache {
         var digestsToDelete: [String] = []
 
         for (key, entry) in sortedEntries {
-            // Get manifest to find all content digests
-            if let manifest: CacheManifest = try? await contentStore.get(digest: entry.descriptor.digest) {
-                digestsToDelete.append(entry.descriptor.digest)
-                digestsToDelete.append(contentsOf: manifest.allContentDigests())
-            }
+            // Only need to delete the manifest itself (no separate layers)
+            digestsToDelete.append(entry.descriptor.digest)
 
             keysToEvict.append(key)
             evictedSize += UInt64(entry.descriptor.size)
@@ -484,11 +361,8 @@ public actor ContentAddressableCache: BuildCache {
                     if Date() > expirationDate {
                         keysToEvict.append(key)
 
-                        // Get manifest to find all content digests
-                        if let manifest: CacheManifest = try? await contentStore.get(digest: entry.descriptor.digest) {
-                            digestsToDelete.append(entry.descriptor.digest)
-                            digestsToDelete.append(contentsOf: manifest.allContentDigests())
-                        }
+                        // Only need to delete the manifest itself (no separate layers)
+                        digestsToDelete.append(entry.descriptor.digest)
                     }
                 }
             }

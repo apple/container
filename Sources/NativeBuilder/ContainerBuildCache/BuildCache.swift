@@ -118,45 +118,6 @@ public struct CachedResult: Sendable {
     }
 }
 
-/// A memory-based cache implementation for development/testing.
-public actor MemoryBuildCache: BuildCache {
-    private var storage: [CacheKey: CachedResult] = [:]
-    private var hits: Int = 0
-    private var misses: Int = 0
-
-    public init() {}
-
-    public func get(_ key: CacheKey, for operation: ContainerBuildIR.Operation) async -> CachedResult? {
-        guard let result = storage[key] else {
-            misses += 1
-            return nil
-        }
-        hits += 1
-        return result
-    }
-
-    public func put(_ result: CachedResult, key: CacheKey, for operation: ContainerBuildIR.Operation) async {
-        storage[key] = result
-    }
-
-    public func statistics() async -> CacheStatistics {
-        CacheStatistics(
-            entryCount: storage.count,
-            totalSize: UInt64(storage.count * 1024),  // Rough estimate
-            hitRate: hits + misses > 0 ? Double(hits) / Double(hits + misses) : 0,
-            oldestEntryAge: 0,
-            mostRecentEntryAge: 0,
-            evictionPolicy: "none",
-            compressionRatio: 1.0,
-            averageEntrySize: 1024,
-            operationMetrics: .empty,
-            errorCount: 0,
-            lastGCTime: nil,
-            shardInfo: nil
-        )
-    }
-}
-
 /// A no-op cache implementation that never caches.
 public struct NoOpBuildCache: BuildCache {
     public init() {}
@@ -177,7 +138,6 @@ public struct NoOpBuildCache: BuildCache {
             oldestEntryAge: 0,
             mostRecentEntryAge: 0,
             evictionPolicy: "none",
-            compressionRatio: 1.0,
             averageEntrySize: 0,
             operationMetrics: .empty,
             errorCount: 0,
