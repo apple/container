@@ -35,7 +35,7 @@ public class DockerInstructionVisitor: InstructionVisitor {
         self.graphBuilder = GraphBuilder()
     }
 
-    func buildGraph(from: [DockerInstruction]) throws -> BuildGraph {
+    func buildGraph(from: [any DockerInstruction]) throws -> BuildGraph {
         for instruction in from {
             try instruction.accept(self)
         }

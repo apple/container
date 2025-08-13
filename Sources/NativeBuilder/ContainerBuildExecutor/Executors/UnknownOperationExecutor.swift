@@ -45,7 +45,7 @@ public struct UnknownOperationExecutor: OperationExecutor {
 
             // Use the existing snapshot
             let snapshot =
-                context.headSnapshot
+                try context.headSnapshot
                 ?? ContainerBuildSnapshotter.Snapshot(
                     digest: try Digest(algorithm: .sha256, bytes: Data(count: 32)),
                     size: 0,

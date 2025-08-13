@@ -197,8 +197,6 @@ public struct DockerfileParser: BuildParser {
                 rawMounts.append(option.value)
             case .network:
                 network = option.value
-            default:
-                throw ParseError.unexpectedValue
             }
         }
 
@@ -277,8 +275,6 @@ public struct DockerfileParser: BuildParser {
                     throw ParseError.duplicateOptionSet(CopyOptions.link.rawValue)
                 }
                 link = option.value
-            default:
-                throw ParseError.unexpectedValue
             }
         }
 
