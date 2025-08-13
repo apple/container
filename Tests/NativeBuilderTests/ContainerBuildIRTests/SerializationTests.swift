@@ -267,8 +267,10 @@ struct SerializationTests {
 
         // Check for COPY operation with metadata
         let copyOps = stage.nodes.compactMap { $0.operation as? FilesystemOperation }
-        let copyWithMetadata = copyOps.first { $0.fileMetadata != nil }
-        #expect(copyWithMetadata != nil, "COPY operation with metadata should be preserved")
+        let copyWithMetadata = copyOps.first {
+            $0.fileMetadata.permissions != nil
+        }
+        #expect(copyWithMetadata != nil, "COPY operation should preserve file permissions by default")
 
         // Check for metadata operations
         let metaOps = stage.nodes.compactMap { $0.operation as? MetadataOperation }

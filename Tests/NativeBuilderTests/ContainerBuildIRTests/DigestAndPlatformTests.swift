@@ -263,7 +263,7 @@ struct DigestAndPlatformTests {
 
     @Test func digestErrorMessages() throws {
         do {
-            try Digest(algorithm: .sha256, bytes: Data(count: 16))
+            _ = try Digest(algorithm: .sha256, bytes: Data(count: 16))
             Issue.record("Should have thrown an error")
         } catch let error as DigestError {
             switch error {
@@ -278,7 +278,7 @@ struct DigestAndPlatformTests {
         }
 
         do {
-            try Digest(parsing: "invalid:format")
+            _ = try Digest(parsing: "invalid:format")
             Issue.record("Should have thrown an error")
         } catch let error as DigestError {
             switch error {
@@ -291,7 +291,7 @@ struct DigestAndPlatformTests {
         }
 
         do {
-            try Digest(parsing: "sha256:invalid-hex")
+            _ = try Digest(parsing: "sha256:invalid-hex")
             Issue.record("Should have thrown an error")
         } catch let error as DigestError {
             switch error {

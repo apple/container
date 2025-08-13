@@ -219,7 +219,7 @@ public final class GraphBuilder {
             destination: destination,
             fileMetadata: FileMetadata(
                 ownership: chown,
-                permissions: chmod
+                permissions: chmod ?? .preserve
             )
         )
 
