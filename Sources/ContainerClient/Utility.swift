@@ -137,7 +137,6 @@ public struct Utility {
 
         var config = ContainerConfiguration(id: id, image: description, process: pc)
         config.platform = requestedPlatform
-        config.hostname = id
 
         config.resources = try Parser.resources(
             cpus: resource.cpus,
@@ -177,23 +176,12 @@ public struct Utility {
 
         config.virtualization = management.virtualization
 
-        if management.networks.isEmpty {
-            config.networks = [ClientNetwork.defaultNetworkName]
-        } else {
-            // networks may only be specified for macOS 26+
-            guard #available(macOS 26, *) else {
-                throw ContainerizationError(.invalidArgument, message: "non-default network configuration requires macOS 26 or newer")
+        config.networks = try getAttachmentConfigurations(containerId: config.id, networkIds: management.networks)
+        for attachmentConfiguration in config.networks {
+            let network: NetworkState = try await ClientNetwork.get(id: attachmentConfiguration.network)
+            guard case .running(_, _) = network else {
+                throw ContainerizationError(.invalidState, message: "network \(attachmentConfiguration.network) is not running")
             }
-            config.networks = management.networks
-        }
-
-        var networkStatuses: [NetworkStatus] = []
-        for networkName in config.networks {
-            let network: NetworkState = try await ClientNetwork.get(id: networkName)
-            guard case .running(_, let networkStatus) = network else {
-                throw ContainerizationError(.invalidState, message: "network \(networkName) is not running")
-            }
-            networkStatuses.append(networkStatus)
         }
 
         if management.dnsDisabled {
@@ -221,6 +209,39 @@ public struct Utility {
         config.publishedSockets = try Parser.publishSockets(management.publishSockets)
 
         return (config, kernel)
+    }
+
+    static func getAttachmentConfigurations(containerId: String, networkIds: [String]) throws -> [AttachmentConfiguration] {
+        // make an FQDN for the first interface
+        let fqdn: String?
+        if !containerId.contains(".") {
+            // add default domain if it exists, and container ID is unqualified
+            if let dnsDomain = DefaultsStore.getOptional(key: .defaultDNSDomain) {
+                fqdn = "\(containerId).\(dnsDomain)."
+            } else {
+                fqdn = nil
+            }
+        } else {
+            // use container ID directly if fully qualified
+            fqdn = "\(containerId)."
+        }
+
+        guard networkIds.isEmpty else {
+            // networks may only be specified for macOS 26+
+            guard #available(macOS 26, *) else {
+                throw ContainerizationError(.invalidArgument, message: "non-default network configuration requires macOS 26 or newer")
+            }
+
+            // attach the first network using the fqdn, and the rest using just the container ID
+            return networkIds.enumerated().map { item in
+                guard item.offset == 0 else {
+                    return AttachmentConfiguration(network: item.element, options: AttachmentOptions(hostname: containerId))
+                }
+                return AttachmentConfiguration(network: item.element, options: AttachmentOptions(hostname: fqdn ?? containerId))
+            }
+        }
+        // if no networks specified, attach to the default network
+        return [AttachmentConfiguration(network: ClientNetwork.defaultNetworkName, options: AttachmentOptions(hostname: fqdn ?? containerId))]
     }
 
     private static func getKernel(management: Flags.Management) async throws -> Kernel {

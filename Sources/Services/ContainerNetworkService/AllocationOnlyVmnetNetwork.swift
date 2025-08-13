@@ -55,7 +55,6 @@ public actor AllocationOnlyVmnetNetwork: Network {
         guard case .created(let configuration) = _state else {
             throw ContainerizationError(.invalidState, message: "cannot start network \(_state.id) in \(_state.state) state")
         }
-        var defaultSubnet = "192.168.64.1/24"
 
         log.info(
             "starting allocation-only network",
@@ -65,21 +64,16 @@ public actor AllocationOnlyVmnetNetwork: Network {
             ]
         )
 
-        if let suite = UserDefaults.init(suiteName: UserDefaults.appSuiteName) {
-            // TODO: Make the suiteName a constant defined in DefaultsStore and use that.
-            // This will need some re-working of dependencies between NetworkService and Client
-            defaultSubnet = suite.string(forKey: "network.subnet") ?? defaultSubnet
-        }
-
-        let subnet = try CIDRAddress(defaultSubnet)
-        let gateway = IPv4Address(fromValue: subnet.lower.value + 1)
-        self._state = .running(configuration, NetworkStatus(address: subnet.description, gateway: gateway.description))
+        let subnet = DefaultsStore.get(key: .defaultSubnet)
+        let subnetCIDR = try CIDRAddress(subnet)
+        let gateway = IPv4Address(fromValue: subnetCIDR.lower.value + 1)
+        self._state = .running(configuration, NetworkStatus(address: subnetCIDR.description, gateway: gateway.description))
         log.info(
             "started allocation-only network",
             metadata: [
                 "id": "\(configuration.id)",
                 "mode": "\(configuration.mode)",
-                "cidr": "\(defaultSubnet)",
+                "cidr": "\(subnet)",
             ]
         )
     }

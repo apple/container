@@ -94,7 +94,7 @@ public actor SandboxService {
 
             // Dynamically configure the DNS nameserver from a network if no explicit configuration
             if let dns = config.dns, dns.nameservers.isEmpty {
-                if let nameserver = try await self.getDefaultNameserver(networks: config.networks) {
+                if let nameserver = try await self.getDefaultNameserver(attachmentConfigurations: config.networks) {
                     config.dns = ContainerConfiguration.DNSConfiguration(
                         nameservers: [nameserver],
                         domain: dns.domain,
@@ -104,29 +104,12 @@ public actor SandboxService {
                 }
             }
 
-            let fqdn: String
-            if let hostname = config.hostname {
-                if let suite = UserDefaults.init(suiteName: UserDefaults.appSuiteName),
-                    let dnsDomain = suite.string(forKey: "dns.domain"),
-                    !hostname.contains(".")
-                {
-                    // TODO: Make the suiteName a constant defined in DefaultsStore and use that.
-                    // This will need some re-working of dependencies between SandboxService and Client
-                    fqdn = "\(hostname).\(dnsDomain)."
-                } else {
-                    fqdn = "\(hostname)."
-                }
-            } else {
-                fqdn = config.id
-            }
-
             var attachments: [Attachment] = []
             var interfaces: [Interface] = []
             for index in 0..<config.networks.count {
                 let network = config.networks[index]
-                let client = NetworkClient(id: network)
-                let hostname = index == 0 ? fqdn : config.id
-                let (attachment, additionalData) = try await client.allocate(hostname: hostname)
+                let client = NetworkClient(id: network.network)
+                let (attachment, additionalData) = try await client.allocate(hostname: network.options.hostname)
                 attachments.append(attachment)
 
                 let interface = try self.interfaceStrategy.toInterface(
@@ -735,7 +718,7 @@ public actor SandboxService {
             czConfig.sockets.append(socketConfig)
         }
 
-        czConfig.hostname = config.hostname ?? config.id
+        czConfig.hostname = config.id
 
         if let dns = config.dns {
             czConfig.dns = DNS(
@@ -746,9 +729,9 @@ public actor SandboxService {
         Self.configureInitialProcess(czConfig: &czConfig, process: config.initProcess)
     }
 
-    private func getDefaultNameserver(networks: [String]) async throws -> String? {
-        for network in networks {
-            let client = NetworkClient(id: network)
+    private func getDefaultNameserver(attachmentConfigurations: [AttachmentConfiguration]) async throws -> String? {
+        for attachmentConfiguration in attachmentConfigurations {
+            let client = NetworkClient(id: attachmentConfiguration.network)
             let state = try await client.state()
             guard case .running(_, let status) = state else {
                 continue

@@ -30,9 +30,11 @@ actor AttachmentAllocator {
 
     /// Allocate a network address for a host.
     func allocate(hostname: String) async throws -> UInt32 {
-        guard hostnames[hostname] == nil else {
-            throw ContainerizationError(.exists, message: "Hostname \(hostname) already exists on the network")
+        // Client is responsible for ensuring two containers don't use same hostname, so provide existing IP if hostname exists
+        if let index = hostnames[hostname] {
+            return index
         }
+
         let index = try allocator.allocate()
         hostnames[hostname] = index
 
