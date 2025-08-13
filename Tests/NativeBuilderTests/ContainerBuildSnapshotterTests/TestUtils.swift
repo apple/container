@@ -15,6 +15,8 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import ContainerBuildIR
+@testable import ContainerBuildSnapshotter
 
 // Simple temp-directory helper for tests
 enum TestUtils {
@@ -78,5 +80,29 @@ enum TestUtils {
             out.append(rel)
         }
         return out.sorted()
+    }
+
+    // Compute a DiffKey by first diffing filesystem trees with DirectoryDiffer.
+    static func computeDiffKey(
+        baseDigest: ContainerBuildIR.Digest? = nil,
+        baseMount: URL? = nil,
+        targetMount: URL,
+        hasher: any ContentHasher = SHA256ContentHasher(),
+        inspectorOptions: InspectorOptions = InspectorOptions(),
+        coupleToBase: Bool = true
+    ) async throws -> DiffKey {
+        let directoryDiffer = DirectoryDiffer.makeDefault(
+            hasher: hasher,
+            options: inspectorOptions
+        )
+        let changes = try await directoryDiffer.diff(base: baseMount, target: targetMount)
+        return try await DiffKey.computeFromDiffs(
+            changes,
+            baseDigest: baseDigest,
+            baseMount: baseMount,
+            targetMount: targetMount,
+            hasher: hasher,
+            coupleToBase: coupleToBase
+        )
     }
 }
