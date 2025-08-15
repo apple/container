@@ -183,6 +183,7 @@ public final actor TarArchiveSnapshotter: Snapshotter {
                 layerDigest: descriptor.digest,
                 layerSize: descriptor.size,
                 layerMediaType: descriptor.mediaType,
+                diffID: descriptor.annotations?["com.apple.container-build.layer.diff_id"],
                 diffKey: key
             )
         )
@@ -260,6 +261,7 @@ public final actor TarArchiveSnapshotter: Snapshotter {
                 layerDigest: descriptor.digest,
                 layerSize: descriptor.size,
                 layerMediaType: descriptor.mediaType,
+                diffID: descriptor.annotations?["com.apple.container-build.layer.diff_id"],
                 diffKey: key
             )
         )

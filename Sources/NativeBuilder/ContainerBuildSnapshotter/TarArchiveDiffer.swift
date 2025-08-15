@@ -14,7 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import Compression
+import Crypto
 import ContainerBuildIR
 import ContainerClient
 import ContainerizationArchive
@@ -156,10 +156,30 @@ public final class TarArchiveDiffer: Differ {
         let (sessionId, ingestDir) = try await contentStore.newIngestSession()
         let destination = ingestDir.appendingPathComponent("layer\(format.fileExtension)")
 
+        // Also generate an uncompressed tar to compute diff_id (uncompressed digest)
+        let tmpUncompressed = FileManager.default.temporaryDirectory
+            .appendingPathComponent("diff-uncompressed-\(UUID().uuidString).tar")
+
         var fileSize: Int64 = 0
         var ingestedDigests: [String] = []
+        var diffID: String = ""
         do {
-            // Write tar stream directly with compression filter enabled
+            // First write uncompressed tar to compute diff_id
+            try writeTarArchive(
+                stagingRoot,
+                placeholderMap: placeholderMap,
+                format: .uncompressed,
+                destination: tmpUncompressed
+            )
+
+        defer {
+            try? FileManager.default.removeItem(at: tmpUncompressed)
+        }
+
+                    // Compute sha256 of the uncompressed tar
+            diffID = try SHA256.hashFile(url: tmpUncompressed)
+
+            // Now write the actual desired format into the content store ingest dir
             try writeTarArchive(
                 stagingRoot,
                 placeholderMap: placeholderMap,
@@ -189,6 +209,7 @@ public final class TarArchiveDiffer: Differ {
         var annotations = metadata
         annotations["com.apple.container-build.diff.format"] = format.rawValue
         annotations["com.apple.container-build.diff.created"] = ISO8601DateFormatter().string(from: Date())
+        annotations["com.apple.container-build.layer.diff_id"] = "sha256:\(diffID)"
 
         if let base = base {
             annotations["com.apple.container-build.diff.base"] = base.digest.stringValue
@@ -624,6 +645,26 @@ extension TarArchiveDiffer {
         }
     }
 
+}
+
+// MARK: - Utilities
+
+private extension SHA256 {
+    static func hashFile(url: URL) throws -> String {
+        let fh = try FileHandle(forReadingFrom: url)
+        defer { try? fh.close() }
+        var hasher = SHA256()
+        let bufSize = 1 << 20
+        while autoreleasepool(invoking: {
+            if let data = try? fh.read(upToCount: bufSize), !data.isEmpty {
+                hasher.update(data: data)
+                return true
+            }
+            return false
+        }) {}
+        let digest = hasher.finalize()
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
 }
 
 // MARK: - Error Types
