@@ -25,7 +25,6 @@ protocol InstructionVisitor {
     func visit(_ expose: ExposeInstruction) throws
     func visit(_ arg: ArgInstruction) throws
     // TODO: These instructions have to perform the ARG substitution checked in `testSimpleDockerfileArgInInstructions()`:
-    // - ADD
     // - ENV
     // - STOPSIGNAL
     // - USER
@@ -33,6 +32,7 @@ protocol InstructionVisitor {
     // - WORKDIR
     // - ONBUILD
     // - ENTRYPOINT
+    func visit(_ add: AddInstruction) throws
 }
 
 /// DockerInstructionVisitor visits each provided DockerInstruction and builds a
@@ -170,6 +170,16 @@ extension DockerInstructionVisitor {
             return
         }
         try graphBuilder.copyFromContext(paths: substitutedSources, to: substitutedDestination, chown: copy.chown, chmod: copy.chmod)
+    }
+
+    func visit(_ add: AddInstruction) throws {
+        // TODO katiewasnothere: plumb through "--link" option
+        let substitutedSources = add.sources.map {
+            graphBuilder.substituteArgs($0, inFromContext: false)
+        }
+        let destination = graphBuilder.substituteArgs(add.destination, inFromContext: false)
+        let source = try AddInstruction.resolveSources(sources: substitutedSources, checksum: add.checksum, keepGitDir: add.keepGitDir)
+        try graphBuilder.addFiles(from: source, to: destination, chown: add.chown, chmod: add.chmod)
     }
 
     func visit(_ cmd: CMDInstruction) throws {

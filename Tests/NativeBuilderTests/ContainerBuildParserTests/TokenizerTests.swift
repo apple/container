@@ -297,6 +297,25 @@ import Testing
                 .stringLiteral("API_URL"),
             ]
         ),
+        tokenizerTestInput(
+            input: "ADD src1 src2 src3 dest",
+            expectedTokens: [
+                .stringLiteral("ADD"),
+                .stringLiteral("src1"),
+                .stringLiteral("src2"),
+                .stringLiteral("src3"),
+                .stringLiteral("dest"),
+            ]
+        ),
+        tokenizerTestInput(
+            input: "ADD --keep-git-dir src1.git dest",
+            expectedTokens: [
+                .stringLiteral("ADD"),
+                .stringLiteral("--keep-git-dir"),
+                .stringLiteral("src1.git"),
+                .stringLiteral("dest"),
+            ]
+        ),
     ]
 
     @Test func testTokenization() throws {

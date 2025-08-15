@@ -113,16 +113,26 @@ public enum FilesystemSource: Hashable, Sendable {
     case image(ImageReference, paths: [String])
 
     /// URL to download
-    case url(URL)
+    case remote([RemoteSource])
 
     /// Git repository
-    case git(GitSource)
+    case git([GitSource])
 
     /// Inline content
     case inline(Data)
 
     /// Empty/scratch
     case scratch
+}
+
+public struct RemoteSource: Hashable, Sendable, Codable {
+    public let url: URL
+    public let checksum: String?
+
+    public init(url: URL, checksum: String? = nil) {
+        self.url = url
+        self.checksum = checksum
+    }
 }
 
 /// Build context source.
@@ -152,11 +162,21 @@ public struct GitSource: Hashable, Sendable {
     public let repository: String
     public let reference: String?  // branch, tag, commit
     public let submodules: Bool
+    public let keepGitDir: Bool?
+    public let checksum: String?
 
-    public init(repository: String, reference: String? = nil, submodules: Bool = false) {
+    public init(
+        repository: String,
+        reference: String? = nil,
+        submodules: Bool = false,
+        keepGitDir: Bool? = nil,
+        checksum: String? = nil
+    ) {
         self.repository = repository
         self.reference = reference
         self.submodules = submodules
+        self.keepGitDir = keepGitDir
+        self.checksum = checksum
     }
 }
 

@@ -205,6 +205,22 @@ public final class GraphBuilder {
         return try add(operation)
     }
 
+    @discardableResult
+    public func addFiles(
+        from source: FilesystemSource,
+        to destination: String,
+        chown: Ownership? = nil,
+        chmod: Permissions? = nil
+    ) throws -> Self {
+        try filesystemOp(
+            from: source,
+            to: destination,
+            action: .add,
+            chown: chown,
+            chmod: chmod
+        )
+    }
+
     /// Add a COPY operation
     @discardableResult
     public func copy(
@@ -213,8 +229,25 @@ public final class GraphBuilder {
         chown: Ownership? = nil,
         chmod: Permissions? = nil
     ) throws -> Self {
-        let operation = FilesystemOperation(
+        try filesystemOp(
+            from: source,
+            to: destination,
             action: .copy,
+            chown: chown,
+            chmod: chmod
+        )
+    }
+
+    @discardableResult
+    public func filesystemOp(
+        from source: FilesystemSource,
+        to destination: String,
+        action: FilesystemAction = .copy,
+        chown: Ownership? = nil,
+        chmod: Permissions? = nil
+    ) throws -> Self {
+        let operation = FilesystemOperation(
+            action: action,
             source: source,
             destination: destination,
             fileMetadata: FileMetadata(
@@ -235,9 +268,10 @@ public final class GraphBuilder {
         chown: Ownership? = nil,
         chmod: Permissions? = nil
     ) throws -> Self {
-        try copy(
+        try filesystemOp(
             from: .context(ContextSource(name: name, paths: paths)),
             to: destination,
+            action: .copy,
             chown: chown,
             chmod: chmod
         )
@@ -252,9 +286,10 @@ public final class GraphBuilder {
         chown: Ownership? = nil,
         chmod: Permissions? = nil
     ) throws -> Self {
-        try copy(
+        try filesystemOp(
             from: .stage(stage, paths: paths),
             to: destination,
+            action: .copy,
             chown: chown,
             chmod: chmod
         )
