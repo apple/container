@@ -40,14 +40,16 @@ public struct ContainerConfiguration: Sendable, Codable {
     public var rosetta: Bool = false
     /// Initial or main process of the container.
     public var initProcess: ProcessConfiguration
-    /// Platform for the container
+    /// Platform for the container.
     public var platform: ContainerizationOCI.Platform = .current
     /// Resource values for the container.
     public var resources: Resources = .init()
-    /// Name of the runtime that supports the container
+    /// Name of the runtime that supports the container.
     public var runtimeHandler: String = "container-runtime-linux"
     /// Configure exposing virtualization support in the container.
     public var virtualization: Bool = false
+    /// Enable SSH agent socket forwarding from host to container.
+    public var ssh: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -65,6 +67,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         case resources
         case runtimeHandler
         case virtualization
+        case ssh
     }
 
     /// Create a configuration from the supplied Decoder, initializing missing
@@ -99,6 +102,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         resources = try container.decodeIfPresent(Resources.self, forKey: .resources) ?? .init()
         runtimeHandler = try container.decodeIfPresent(String.self, forKey: .runtimeHandler) ?? "container-runtime-linux"
         virtualization = try container.decodeIfPresent(Bool.self, forKey: .virtualization) ?? false
+        ssh = try container.decodeIfPresent(Bool.self, forKey: .ssh) ?? false
     }
 
     public struct DNSConfiguration: Sendable, Codable {

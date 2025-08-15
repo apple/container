@@ -208,6 +208,8 @@ public struct Utility {
         // to enable socket forwarding from container to host.
         config.publishedSockets = try Parser.publishSockets(management.publishSockets)
 
+        config.ssh = management.ssh
+
         return (config, kernel)
     }
 

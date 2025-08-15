@@ -49,6 +49,9 @@ public actor SandboxService {
     private var processes: [String: ProcessInfo] = [:]
     private var socketForwarders: [SocketForwarderResult] = []
 
+    private static let sshAuthSocketGuestPath = "/run/host-services/ssh-auth.sock"
+    private static let sshAuthSocketEnvVar = "SSH_AUTH_SOCK"
+
     /// Create an instance with a bundle that describes the container.
     ///
     /// - Parameters:
@@ -718,6 +721,17 @@ public actor SandboxService {
             czConfig.sockets.append(socketConfig)
         }
 
+        if config.ssh {
+            if let sshSocket = Foundation.ProcessInfo.processInfo.environment[Self.sshAuthSocketEnvVar] {
+                let socketConfig = UnixSocketConfiguration(
+                    source: URL(fileURLWithPath: sshSocket),
+                    destination: URL(fileURLWithPath: Self.sshAuthSocketGuestPath),
+                    direction: .into
+                )
+                czConfig.sockets.append(socketConfig)
+            }
+        }
+
         czConfig.hostname = config.id
 
         if let dns = config.dns {
@@ -748,6 +762,15 @@ public actor SandboxService {
     ) {
         czConfig.process.arguments = [process.executable] + process.arguments
         czConfig.process.environmentVariables = process.environment
+
+        if czConfig.sockets.contains(where: {
+            $0.destination == URL(fileURLWithPath: Self.sshAuthSocketGuestPath)
+        }) {
+            if !czConfig.process.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
+                czConfig.process.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
+            }
+        }
+
         czConfig.process.terminal = process.terminal
         czConfig.process.workingDirectory = process.workingDirectory
         czConfig.process.rlimits = process.rlimits.map {
