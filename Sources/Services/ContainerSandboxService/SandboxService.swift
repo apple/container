@@ -770,7 +770,7 @@ public actor SandboxService {
             if czConfig.sockets.contains(where: {
                 $0.destination == URL(fileURLWithPath: Self.sshAuthSocketGuestPath)
             }) {
-                if config.ssh && !czConfig.process.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
+                if !czConfig.process.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
                     czConfig.process.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
                 }
             }
