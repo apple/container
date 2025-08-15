@@ -765,11 +765,14 @@ public actor SandboxService {
         czConfig.process.arguments = [process.executable] + process.arguments
         czConfig.process.environmentVariables = process.environment
 
-        if czConfig.sockets.contains(where: {
-            $0.destination == URL(fileURLWithPath: Self.sshAuthSocketGuestPath)
-        }) {
-            if config.ssh && !czConfig.process.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
-                czConfig.process.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
+        // Add SSH_AUTH_SOCK if ssh forwarding is enabled
+        if config.ssh {
+            if czConfig.sockets.contains(where: {
+                $0.destination == URL(fileURLWithPath: Self.sshAuthSocketGuestPath)
+            }) {
+                if config.ssh && !czConfig.process.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
+                    czConfig.process.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
+                }
             }
         }
 
