@@ -740,7 +740,7 @@ public actor SandboxService {
                 searchDomains: dns.searchDomains, options: dns.options)
         }
 
-        Self.configureInitialProcess(czConfig: &czConfig, process: config.initProcess)
+        Self.configureInitialProcess(czConfig: &czConfig, config: config)
     }
 
     private func getDefaultNameserver(attachmentConfigurations: [AttachmentConfiguration]) async throws -> String? {
@@ -758,15 +758,17 @@ public actor SandboxService {
 
     private static func configureInitialProcess(
         czConfig: inout LinuxContainer.Configuration,
-        process: ProcessConfiguration
+        config: ContainerConfiguration
     ) {
+        let process = config.initProcess
+
         czConfig.process.arguments = [process.executable] + process.arguments
         czConfig.process.environmentVariables = process.environment
 
         if czConfig.sockets.contains(where: {
             $0.destination == URL(fileURLWithPath: Self.sshAuthSocketGuestPath)
         }) {
-            if !czConfig.process.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
+            if config.ssh && !czConfig.process.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
                 czConfig.process.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
             }
         }
