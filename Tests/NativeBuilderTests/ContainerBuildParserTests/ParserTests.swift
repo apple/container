@@ -299,7 +299,7 @@ import Testing
             ARG DST=destination
             COPY ${SRC} ${DST}
 
-            ARG ECHO=Hello
+            ARG ECHO=Hello, World!
             CMD ["echo", "${ECHO}"]
 
             ARG LABEL=whatever
@@ -347,7 +347,7 @@ import Testing
         if let cmd = stage.nodes[6].operation as? MetadataOperation {
             switch cmd.action {
             case .setCmd(let command):
-                #expect(command.displayString == "echo Hello")
+                #expect(command.displayString == "echo Hello, World!")
             default:
                 #expect(Bool(false), "Expected .setCmd action")
             }
@@ -989,5 +989,24 @@ extension ParserTest {
             let tokens: [Token] = [.stringLiteral("ARG"), .stringLiteral(testCase)]
             let _ = try DockerfileParser().tokensToArgInstruction(tokens: tokens)
         }
+    }
+
+    @Test func testArgWithSpacesAndQuotes() throws {
+        let dockerfile =
+            #"""
+            FROM alpine:latest AS build
+            ARG MESSAGE=Hello, World!
+            ARG QUOTED="Hello, World!"
+            ARG SINGLE='Hello, World!'
+            """#
+        let parser = DockerfileParser()
+        let graph = try parser.parse(dockerfile)
+
+        #expect(graph.stages.count == 1)
+        let stage = graph.stages[0]
+
+        #expect(getStageArg(stage, name: "MESSAGE") == "Hello, World!")
+        #expect(getStageArg(stage, name: "QUOTED") == "\"Hello, World!\"")
+        #expect(getStageArg(stage, name: "SINGLE") == "'Hello, World!'")
     }
 }

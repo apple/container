@@ -372,14 +372,18 @@ public struct DockerfileParser: BuildParser {
             throw ParseError.missingRequiredField("name")
         }
 
-        guard case .stringLiteral(let argSpec) = tokens[index] else {
-            throw ParseError.unexpectedValue
+        // Collect all remaining tokens to handle ARG values with spaces.
+        var argTokens: [String] = []
+        while index < tokens.endIndex {
+            guard case .stringLiteral(let tokenValue) = tokens[index] else {
+                throw ParseError.unexpectedValue
+            }
+            argTokens.append(tokenValue)
+            index += 1
         }
 
-        index += 1
-        guard index == tokens.endIndex else {
-            throw ParseError.unexpectedValue
-        }
+        // Join all tokens with spaces to reconstruct the full ARG.
+        let argSpec = argTokens.joined(separator: " ")
 
         let components = argSpec.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
         guard !components.isEmpty else {
