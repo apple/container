@@ -286,7 +286,7 @@ import Testing
         #expect(getStageArg(stage2, name: "API_URL") == "https://api.example.com")
     }
 
-    @Test func testSimpleDockerfileArgInOtherInstructions() throws {
+    @Test func testSimpleDockerfileArgInInstructions() throws {
         // TODO: Add all instructions when they are supported.
         let dockerfile =
             #"""
