@@ -65,6 +65,15 @@ final class StageBuilder {
         return node.id
     }
 
+    func getDeclaredArg(_ name: String) -> (found: Bool, defaultValue: String?) {
+        for node in nodes {
+            if let metadataOp = node.operation as? MetadataOperation, case .declareArg(let argName, let defaultValue) = metadataOp.action, argName == name {
+                return (found: true, defaultValue: defaultValue)
+            }
+        }
+        return (found: false, defaultValue: nil)
+    }
+
     func build() throws -> BuildStage {
         var stage = BuildStage(
             name: name,

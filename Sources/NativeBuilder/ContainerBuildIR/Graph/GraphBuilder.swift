@@ -45,8 +45,8 @@ public enum GraphBuilderError: Error, LocalizedError {
 /// - Supports incremental construction
 public final class GraphBuilder {
     private var stages: [BuildStage] = []
-    private var currentStage: StageBuilder?
-    private var buildArgs: [String: String] = [:]
+    var currentStage: StageBuilder?
+    var buildArgs: [String: String] = [:]
     private var targetPlatforms: Set<Platform> = []
     private var metadata = BuildGraphMetadata()
     private let graphAnalyzers: [any GraphAnalyzer]
@@ -343,16 +343,6 @@ public final class GraphBuilder {
         return try add(operation)
     }
 
-    /// Add build argument
-    @discardableResult
-    public func arg(_ name: String, defaultValue: String? = nil) throws -> Self {
-        buildArgs[name] = defaultValue
-        let operation = MetadataOperation(
-            action: .declareArg(name: name, defaultValue: defaultValue)
-        )
-        return try add(operation)
-    }
-
     /// Set target platforms
     @discardableResult
     public func platforms(_ platforms: Platform...) -> Self {
@@ -489,9 +479,5 @@ extension GraphBuilder {
             }
         }
         return nil
-    }
-
-    public func getBuildArg(key: String) -> String? {
-        self.buildArgs[key]
     }
 }
