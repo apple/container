@@ -46,10 +46,16 @@ public class DockerInstructionVisitor: InstructionVisitor {
 
 extension DockerInstructionVisitor {
     func visit(_ from: FromInstruction) throws {
+        let imageString = graphBuilder.substituteArgs(from.image, inFromContext: true)
+
+        guard let imageRef = ImageReference(parsing: imageString) else {
+            throw ParseError.invalidImage(imageString)
+        }
+
         if let stageName = from.stageName {
-            try graphBuilder.stage(name: stageName, from: from.image, platform: from.platform)
+            try graphBuilder.stage(name: stageName, from: imageRef, platform: from.platform)
         } else {
-            try graphBuilder.stage(from: from.image, platform: from.platform)
+            try graphBuilder.stage(from: imageRef, platform: from.platform)
         }
     }
 
@@ -69,7 +75,7 @@ extension DockerInstructionVisitor {
                 if let from = m.from, from != "" {
                     if let _ = graphBuilder.getStage(stageName: from) {
                         mountSource = .stage(.named(from), path: source)
-                    } else if let context = graphBuilder.getBuildArg(key: from) {
+                    } else if let context = graphBuilder.resolveArg(key: from, inFromContext: false) {
                         mountSource = .context(context, path: source)
                     } else {
                         // mount source is an image name
@@ -127,7 +133,7 @@ extension DockerInstructionVisitor {
             var source: FilesystemSource
             if let _ = graphBuilder.getStage(stageName: from) {
                 source = .stage(.named(from), paths: copy.sources)
-            } else if let context = graphBuilder.getBuildArg(key: from) {
+            } else if let context = graphBuilder.resolveArg(key: from, inFromContext: false) {
                 source = .context(ContextSource(name: context, paths: copy.sources))
             } else {
                 guard let imageRef = ImageReference(parsing: from) else {

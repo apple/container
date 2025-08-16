@@ -28,20 +28,17 @@ enum FromOptions: String {
 }
 
 struct FromInstruction: DockerInstruction {
-    let image: ImageReference
+    let image: String
     let platform: Platform?
     let stageName: String?
 
     init(image: String, platform: String? = nil, stageName: String? = nil) throws {
-        guard let imageRef = ImageReference(parsing: image) else {
-            throw ParseError.invalidImage(image)
-        }
+        self.image = image
 
         var platformSpec = Platform.current
         if let platform = platform {
             platformSpec = try Platform(from: platform)
         }
-        self.image = imageRef
         self.platform = platformSpec
         self.stageName = stageName
     }
