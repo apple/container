@@ -122,7 +122,7 @@ public struct DockerfileParser: BuildParser {
         return (index, opts)
     }
 
-    internal func tokensToFromInstruction(tokens: [Token]) throws -> FromInstruction {
+    func tokensToFromInstruction(tokens: [Token]) throws -> FromInstruction {
         var index = tokens.startIndex + 1  // skip the instruction
 
         var stageName: String?
@@ -179,7 +179,7 @@ public struct DockerfileParser: BuildParser {
         return try FromInstruction(image: imageName, platform: platform, stageName: stageName)
     }
 
-    internal func tokensToRunInstruction(tokens: [Token]) throws -> RunInstruction {
+    func tokensToRunInstruction(tokens: [Token]) throws -> RunInstruction {
         var index = tokens.startIndex + 1  // skip the instruction
 
         var rawMounts = [String]()
@@ -239,7 +239,7 @@ public struct DockerfileParser: BuildParser {
         return (index, cmd)
     }
 
-    internal func tokensToCopyInstruction(tokens: [Token]) throws -> CopyInstruction {
+    func tokensToCopyInstruction(tokens: [Token]) throws -> CopyInstruction {
         var index = tokens.startIndex + 1  // skip the instruction
 
         var from: String? = nil
@@ -304,7 +304,7 @@ public struct DockerfileParser: BuildParser {
         return try CopyInstruction(sources: sources, destination: destination, from: from, ownership: chown, permissions: chmod)
     }
 
-    internal func tokensToCMDInstruction(tokens: [Token]) throws -> CMDInstruction {
+    func tokensToCMDInstruction(tokens: [Token]) throws -> CMDInstruction {
         var index = tokens.startIndex + 1  // skip the instruction
 
         // get the command
@@ -319,7 +319,7 @@ public struct DockerfileParser: BuildParser {
         return CMDInstruction(command: cmd)
     }
 
-    internal func tokensToLabelInstruction(tokens: [Token]) throws -> LabelInstruction {
+    func tokensToLabelInstruction(tokens: [Token]) throws -> LabelInstruction {
         var index = tokens.startIndex + 1  // skip the instruction
 
         var labels: [String: String] = [:]
@@ -347,7 +347,7 @@ public struct DockerfileParser: BuildParser {
         return LabelInstruction(labels: labels)
     }
 
-    internal func tokensToExposeInstruction(tokens: [Token]) throws -> ExposeInstruction {
+    func tokensToExposeInstruction(tokens: [Token]) throws -> ExposeInstruction {
         var index = tokens.startIndex + 1  // skip the instruction
 
         var rawPorts: [String] = []
