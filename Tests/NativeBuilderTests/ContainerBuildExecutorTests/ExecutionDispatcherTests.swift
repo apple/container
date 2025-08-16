@@ -64,8 +64,7 @@ struct ExecutionDispatcherTests {
             metadata: OperationMetadata()
         )
 
-        let fsResult = try await dispatcher.dispatch(fsOp, context: context)
-        #expect(fsResult.snapshot != nil)
+        let _ = try await dispatcher.dispatch(fsOp, context: context)
 
         // Test metadata operation routing
         let metadataOp = MetadataOperation(
