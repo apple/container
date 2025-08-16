@@ -244,6 +244,52 @@ import Testing
             return
         }
     }
+
+    @Test func testSimpleDockerfileArg() throws {
+        let dockerfile =
+            #"""
+            ARG BASE_IMAGE=alpine:latest
+            ARG BUILD_VERSION=1.0.0
+            FROM ${BASE_IMAGE} AS stage1
+            ARG NODE_ENV=development
+            ARG BUILD_VERSION
+            ARG API_URL
+            FROM ${BASE_IMAGE} AS stage2
+            ARG BUILD_VERSION=2.0.0
+            ARG API_URL=https://api.example.com
+            """#
+        let parser = DockerfileParser()
+        let graph = try parser.parse(dockerfile)
+
+        // Verify global FROM-only ARG values
+        #expect(graph.buildArgs.count == 2)
+        #expect(graph.buildArgs["BASE_IMAGE"] == "alpine:latest")
+        #expect(graph.buildArgs["BUILD_VERSION"] == "1.0.0")
+
+        // Verify stage-local ARG values
+        #expect(graph.stages.count == 2)
+
+        let stage1 = graph.stages[0]
+        #expect(stage1.nodes.count == 3)
+        #expect(getStageArg(stage1, name: "BASE_IMAGE") == nil)
+        #expect(getStageArg(stage1, name: "NODE_ENV") == "development")
+        #expect(getStageArg(stage1, name: "BUILD_VERSION") == nil)
+        #expect(getStageArg(stage1, name: "API_URL") == nil)
+
+        let stage2 = graph.stages[1]
+        #expect(stage2.nodes.count == 2)
+        #expect(getStageArg(stage2, name: "BASE_IMAGE") == nil)
+        #expect(getStageArg(stage2, name: "NODE_ENV") == nil)
+        #expect(getStageArg(stage2, name: "BUILD_VERSION") == "2.0.0")
+        #expect(getStageArg(stage2, name: "API_URL") == "https://api.example.com")
+
+        // Verify ARG substitution
+        if case .registry(let imageRef) = stage2.base.source {
+            #expect(imageRef.stringValue == "alpine:latest")
+        } else {
+            #expect(Bool(false), "Expected registry image source")
+        }
+    }
 }
 
 // tests for parsing options for the different instructions
@@ -825,6 +871,32 @@ extension ParserTest {
     func testInvalidPortParse(_ testCase: String) throws {
         #expect(throws: ParseError.self) {
             try parsePort(testCase)
+        }
+    }
+
+    @Test func testArgSubstitution() throws {
+        let graphBuilder = GraphBuilder()
+        graphBuilder.fromOnlyArg("DEFINED", defaultValue: "value")
+        graphBuilder.fromOnlyArg("EMPTY", defaultValue: "")
+
+        #expect(graphBuilder.substituteArgs("test-${DEFINED}-end", inFromContext: true) == "test-value-end")
+        #expect(graphBuilder.substituteArgs("test-${EMPTY}-end", inFromContext: true) == "test--end")
+        #expect(graphBuilder.substituteArgs("test-${UNDEFINED}-end", inFromContext: true) == "test--end")
+        #expect(graphBuilder.substituteArgs("no-variables", inFromContext: true) == "no-variables")
+        #expect(graphBuilder.substituteArgs("multiple-variables-${DEFINED}-${DEFINED}", inFromContext: true) == "multiple-variables-value-value")
+    }
+
+    static let invalidArgs = [
+        "",
+        "=",
+        "=value",
+    ]
+
+    @Test("Invalid ARG throw error", arguments: invalidArgs)
+    func testInvalidArgParse(_ testCase: String) throws {
+        #expect(throws: ParseError.self) {
+            let tokens: [Token] = [.stringLiteral("ARG"), .stringLiteral(testCase)]
+            let _ = try DockerfileParser().tokensToArgInstruction(tokens: tokens)
         }
     }
 }
