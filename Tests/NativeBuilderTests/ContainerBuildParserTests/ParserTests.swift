@@ -250,10 +250,12 @@ import Testing
             #"""
             ARG BASE_IMAGE=alpine:latest
             ARG BUILD_VERSION=1.0.0
+
             FROM ${BASE_IMAGE} AS stage1
             ARG NODE_ENV=development
             ARG BUILD_VERSION
             ARG API_URL
+
             FROM ${BASE_IMAGE} AS stage2
             ARG BUILD_VERSION=2.0.0
             ARG API_URL=https://api.example.com
@@ -282,13 +284,102 @@ import Testing
         #expect(getStageArg(stage2, name: "NODE_ENV") == nil)
         #expect(getStageArg(stage2, name: "BUILD_VERSION") == "2.0.0")
         #expect(getStageArg(stage2, name: "API_URL") == "https://api.example.com")
+    }
+
+    @Test func testSimpleDockerfileArgInOtherInstructions() throws {
+        // TODO: Add all instructions when they are supported.
+        let dockerfile =
+            #"""
+            FROM alpine:latest AS build
+
+            ARG RUN=/bin/sh
+            RUN ${RUN}
+
+            ARG SRC=source
+            ARG DST=destination
+            COPY ${SRC} ${DST}
+
+            ARG ECHO=Hello
+            CMD ["echo", "${ECHO}"]
+
+            ARG LABEL=whatever
+            LABEL label=${LABEL}
+
+            ARG PORT=80
+            EXPOSE ${PORT}
+
+            ARG VAR1=world
+            ARG VAR2=hello-${VAR1}
+            """#
+        let parser = DockerfileParser()
+        let graph = try parser.parse(dockerfile)
+
+        #expect(graph.stages.count == 1)
 
         // Verify ARG substitution
-        if case .registry(let imageRef) = stage2.base.source {
+        let stage = graph.stages[0]
+        if case .registry(let imageRef) = stage.base.source {
             #expect(imageRef.stringValue == "alpine:latest")
         } else {
             #expect(Bool(false), "Expected registry image source")
         }
+
+        if let run = stage.nodes[1].operation as? ExecOperation {
+            #expect(run.command.displayString == "/bin/sh")
+        } else {
+            #expect(Bool(false), "Expected RUN instruction")
+        }
+
+        if let copy = stage.nodes[4].operation as? FilesystemOperation {
+            #expect(copy.action == .copy)
+            switch copy.source {
+            case .context(let contextSource):
+                #expect(contextSource.paths.count == 1)
+                #expect(contextSource.paths[0] == "source")
+            default:
+                #expect(Bool(false), "Expected context source")
+            }
+            #expect(copy.destination == "destination")
+        } else {
+            #expect(Bool(false), "Expected COPY instruction")
+        }
+
+        if let cmd = stage.nodes[6].operation as? MetadataOperation {
+            switch cmd.action {
+            case .setCmd(let command):
+                #expect(command.displayString == "echo Hello")
+            default:
+                #expect(Bool(false), "Expected .setCmd action")
+            }
+        } else {
+            #expect(Bool(false), "Expected CMD instruction")
+        }
+
+        if let label = stage.nodes[8].operation as? MetadataOperation {
+            switch label.action {
+            case .setLabelBatch(let labels):
+                #expect(labels["label"] == "whatever")
+            default:
+                #expect(Bool(false), "Expected setLabelBatch action")
+            }
+        } else {
+            #expect(Bool(false), "Expected LABEL instruction")
+        }
+
+        if let expose = stage.nodes[10].operation as? MetadataOperation {
+            switch expose.action {
+            case .expose(let ports):
+                #expect(ports.count == 1)
+                #expect(ports[0].port == 80)
+            default:
+                #expect(Bool(false), "Expected expose action")
+            }
+        } else {
+            #expect(Bool(false), "Expected EXPOSE instruction")
+        }
+
+        #expect(getStageArg(stage, name: "VAR1") == "world")
+        #expect(getStageArg(stage, name: "VAR2") == "hello-world")
     }
 }
 

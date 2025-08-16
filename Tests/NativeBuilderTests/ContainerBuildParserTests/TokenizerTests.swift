@@ -575,9 +575,7 @@ import Testing
                 .stringLiteral("EXPOSE"),
                 .stringLiteral("80"),
             ],
-            expectedInstruction: ExposeInstruction(ports: [
-                PortSpec(port: 80, protocol: .tcp)
-            ])
+            expectedInstruction: try! ExposeInstruction(["80"])
         ),
         TokenTest(
             tokens: [
