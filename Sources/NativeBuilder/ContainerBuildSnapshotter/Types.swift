@@ -59,8 +59,15 @@ public final class Snapshot: Sendable, Codable {
         ///   - layerDigest: Optional digest of the tar layer produced (for tar-based snapshotters)
         ///   - layerSize: Optional size of the tar layer in bytes
         ///   - layerMediaType: Optional media type of the layer (e.g., "application/vnd.oci.image.layer.v1.tar+gzip")
+        ///   - diffID: Optional uncompressed tar digest (diff_id) for this layer
         ///   - diffKey: Optional key for layer deduplication in cache
-        case committed(layerDigest: String? = nil, layerSize: Int64? = nil, layerMediaType: String? = nil, diffKey: DiffKey? = nil)
+        case committed(
+            layerDigest: String? = nil,
+            layerSize: Int64? = nil,
+            layerMediaType: String? = nil,
+            diffID: String? = nil,
+            diffKey: DiffKey? = nil
+        )
 
         // MARK: - Helper Properties
 
@@ -98,7 +105,7 @@ public final class Snapshot: Sendable, Codable {
 
         /// Returns the layer digest if the snapshot is committed with layer info, nil otherwise.
         public var layerDigest: String? {
-            if case .committed(let digest, _, _, _) = self {
+            if case .committed(let digest, _, _, _, _) = self {
                 return digest
             }
             return nil
@@ -106,7 +113,7 @@ public final class Snapshot: Sendable, Codable {
 
         /// Returns the layer size if the snapshot is committed with layer info, nil otherwise.
         public var layerSize: Int64? {
-            if case .committed(_, let size, _, _) = self {
+            if case .committed(_, let size, _, _, _) = self {
                 return size
             }
             return nil
@@ -114,15 +121,23 @@ public final class Snapshot: Sendable, Codable {
 
         /// Returns the layer media type if the snapshot is committed with layer info, nil otherwise.
         public var layerMediaType: String? {
-            if case .committed(_, _, let mediaType, _) = self {
+            if case .committed(_, _, let mediaType, _, _) = self {
                 return mediaType
+            }
+            return nil
+        }
+
+        /// Returns the uncompressed layer digest (diff_id) if the snapshot is committed with layer info, nil otherwise.
+        public var diffID: String? {
+            if case .committed(_, _, _, let diffID, _) = self {
+                return diffID
             }
             return nil
         }
 
         /// Returns the diff key if the snapshot is committed with layer info, nil otherwise.
         public var diffKey: DiffKey? {
-            if case .committed(_, _, _, let key) = self {
+            if case .committed(_, _, _, _, let key) = self {
                 return key
             }
             return nil
