@@ -71,6 +71,8 @@ public struct DockerfileParser: BuildParser {
             return try tokensToLabelInstruction(tokens: tokens)
         case .EXPOSE:
             return try tokensToExposeInstruction(tokens: tokens)
+        case .ARG:
+            return try tokensToArgInstruction(tokens: tokens)
         default:
             throw ParseError.invalidInstruction(value)
         }
@@ -362,5 +364,35 @@ public struct DockerfileParser: BuildParser {
         }
 
         return try ExposeInstruction(rawPorts)
+    }
+
+    func tokensToArgInstruction(tokens: [Token]) throws -> ArgInstruction {
+        var index = tokens.startIndex + 1  // skip the instruction
+        guard index < tokens.endIndex else {
+            throw ParseError.missingRequiredField("name")
+        }
+
+        guard case .stringLiteral(let argSpec) = tokens[index] else {
+            throw ParseError.unexpectedValue
+        }
+
+        index += 1
+        guard index == tokens.endIndex else {
+            throw ParseError.unexpectedValue
+        }
+
+        let components = argSpec.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+        guard !components.isEmpty else {
+            throw ParseError.missingRequiredField("name")
+        }
+
+        let name = components[0]
+        guard !name.isEmpty else {
+            throw ParseError.missingRequiredField("name")
+        }
+
+        let defaultValue = components.count == 2 ? components[1] : nil
+
+        return try ArgInstruction(name: name, defaultValue: defaultValue)
     }
 }

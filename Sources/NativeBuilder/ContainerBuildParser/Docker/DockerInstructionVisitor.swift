@@ -23,6 +23,7 @@ protocol InstructionVisitor {
     func visit(_ cmd: CMDInstruction) throws
     func visit(_ label: LabelInstruction) throws
     func visit(_ expose: ExposeInstruction) throws
+    func visit(_ arg: ArgInstruction) throws
 }
 
 /// DockerInstructionVisitor visits each provided DockerInstruction and builds a
@@ -150,5 +151,13 @@ extension DockerInstructionVisitor {
 
     func visit(_ expose: ExposeInstruction) throws {
         try graphBuilder.expose(expose.ports)
+    }
+
+    func visit(_ arg: ArgInstruction) throws {
+        if graphBuilder.hasActiveStage {
+            try graphBuilder.arg(arg.name, defaultValue: arg.defaultValue)
+        } else {
+            graphBuilder.fromOnlyArg(arg.name, defaultValue: arg.defaultValue)
+        }
     }
 }
