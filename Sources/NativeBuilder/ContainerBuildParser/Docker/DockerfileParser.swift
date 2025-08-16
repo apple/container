@@ -23,29 +23,33 @@ public struct DockerfileParser: BuildParser {
         var instructions = [any DockerInstruction]()
         let lines = input.components(separatedBy: .newlines)
         var lineIndex = 0
+
         while lineIndex < lines.count {
-            var line = lines[lineIndex].trimmingCharacters(in: .whitespacesAndNewlines)
-            if line.isEmpty {
-                lineIndex += 1
-                continue
-            }
+            var tokens: [Token] = []
+            var checkForContinuation = true
 
-            while lineIndex < lines.count && line.hasSuffix("\\") {
-                line = String(line.dropLast("\\".count))
-                let next = lineIndex + 1
-                if next < lines.count {
-                    let nextLine = String(lines[next].trimmingCharacters(in: .whitespacesAndNewlines))
-                    line.append(nextLine)
-                    lineIndex += 1
+            while lineIndex < lines.count && checkForContinuation {
+                var line = lines[lineIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+                if line.hasSuffix("\\") {
+                    line = String(line.dropLast("\\".count))
+
+                    // if this is the last line AND there's a continuation character, that's invalid input
+                    guard lineIndex + 1 < lines.count else {
+                        throw ParseError.invalidSyntax
+                    }
+                } else {
+                    checkForContinuation = false
                 }
+                if !line.isEmpty {
+                    var tokenizer = DockerfileTokenizer(line)
+                    try tokens.append(contentsOf: tokenizer.getTokens())
+                }
+                lineIndex += 1
             }
 
-            var tokenizer = DockerfileTokenizer(line)
-            let tokens = try tokenizer.getTokens()
-
-            try instructions.append(tokensToDockerInstruction(tokens: tokens))
-
-            lineIndex += 1
+            if !tokens.isEmpty {
+                try instructions.append(tokensToDockerInstruction(tokens: tokens))
+            }
         }
         let visitor = DockerInstructionVisitor()
         return try visitor.buildGraph(from: instructions)
