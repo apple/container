@@ -46,11 +46,20 @@ include Protobuf.Makefile
 .PHONY: all
 all: container
 all: init-block
+all: plugins
 
 .PHONY: build
 build:
 	@echo Building container binaries...
 	@$(SWIFT) build -c $(BUILD_CONFIGURATION)
+
+.PHONY: plugins
+plugins: plugin-compose
+
+.PHONY: plugin-compose
+plugin-compose:
+	@echo Building container-compose plugin...
+	@cd Plugins/container-compose && $(SWIFT) build -c $(BUILD_CONFIGURATION)
 
 .PHONY: container
 # Install binaries under project directory
@@ -84,6 +93,7 @@ $(STAGING_DIR):
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/bin)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin)"
+	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/compose/bin)"
 
 	@install "$(BUILD_BIN_DIR)/container" "$(join $(STAGING_DIR), bin/container)"
 	@install "$(BUILD_BIN_DIR)/container-apiserver" "$(join $(STAGING_DIR), bin/container-apiserver)"
@@ -93,6 +103,10 @@ $(STAGING_DIR):
 	@install config/container-network-vmnet-config.json "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/config.json)"
 	@install "$(BUILD_BIN_DIR)/container-core-images" "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin/container-core-images)"
 	@install config/container-core-images-config.json "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/config.json)"
+	@if [ -f "Plugins/container-compose/.build/$(BUILD_CONFIGURATION)/container-compose" ]; then \
+		install "Plugins/container-compose/.build/$(BUILD_CONFIGURATION)/container-compose" "$(join $(STAGING_DIR), libexec/container/plugins/compose/bin/compose)"; \
+		install "Plugins/container-compose/config.json" "$(join $(STAGING_DIR), libexec/container/plugins/compose/config.json)"; \
+	fi
 
 	@echo Install uninstaller script
 	@install scripts/uninstall-container.sh "$(join $(STAGING_DIR), bin/uninstall-container.sh)"
@@ -105,8 +119,10 @@ installer-pkg: $(STAGING_DIR)
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin/container-core-images)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. --entitlements=signing/container-runtime-linux.entitlements "$(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/bin/container-runtime-linux)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. --entitlements=signing/container-network-vmnet.entitlements "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin/container-network-vmnet)"
+	@if [ -f "$(join $(STAGING_DIR), libexec/container/plugins/compose/bin/compose)" ]; then \
+		codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/compose/bin/compose)"; \
+	fi
 
-	@echo Creating application installer
 	@pkgbuild --root "$(STAGING_DIR)" --identifier com.apple.container-installer --install-location /usr/local --version ${RELEASE_VERSION} $(PKG_PATH)
 	@rm -rf "$(STAGING_DIR)"
 
@@ -203,3 +219,4 @@ clean:
 	@rm -rf bin/ libexec/
 	@rm -rf _site _serve
 	@$(SWIFT) package clean
+	@cd Plugins/container-compose && $(SWIFT) package clean 2>/dev/null || true

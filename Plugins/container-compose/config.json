@@ -1,0 +1,5 @@
+{
+  "abstract": "Manage multi-container applications with docker-compose syntax",
+  "author": "Apple Container Authors",
+  "servicesConfig": null
+}
