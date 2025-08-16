@@ -52,6 +52,13 @@ public actor SandboxService {
     private static let sshAuthSocketGuestPath = "/run/host-services/ssh-auth.sock"
     private static let sshAuthSocketEnvVar = "SSH_AUTH_SOCK"
 
+    private static func hostSocketUrl(config: ContainerConfiguration) -> URL? {
+        if config.ssh, let sshSocket = Foundation.ProcessInfo.processInfo.environment[Self.sshAuthSocketEnvVar] {
+            return URL(fileURLWithPath: sshSocket)
+        }
+        return nil
+    }
+
     /// Create an instance with a bundle that describes the container.
     ///
     /// - Parameters:
@@ -268,7 +275,9 @@ public actor SandboxService {
             throw ContainerizationError(.notFound, message: "Process with id \(id)")
         }
 
-        let czConfig = self.configureProcessConfig(config: processInfo.config, stdio: processInfo.io)
+        let containerInfo = try self.getContainer()
+
+        let czConfig = self.configureProcessConfig(config: processInfo.config, stdio: processInfo.io, containerConfig: containerInfo.config)
 
         let process = try await container.exec(id, configuration: czConfig)
         try self.setUnderlyingProcess(id, process)
@@ -721,15 +730,13 @@ public actor SandboxService {
             czConfig.sockets.append(socketConfig)
         }
 
-        if config.ssh {
-            if let sshSocket = Foundation.ProcessInfo.processInfo.environment[Self.sshAuthSocketEnvVar] {
-                let socketConfig = UnixSocketConfiguration(
-                    source: URL(fileURLWithPath: sshSocket),
-                    destination: URL(fileURLWithPath: Self.sshAuthSocketGuestPath),
-                    direction: .into
-                )
-                czConfig.sockets.append(socketConfig)
-            }
+        if let socketUrl = Self.hostSocketUrl(config: config) {
+            let socketConfig = UnixSocketConfiguration(
+                source: socketUrl,
+                destination: URL(fileURLWithPath: Self.sshAuthSocketGuestPath),
+                direction: .into
+            )
+            czConfig.sockets.append(socketConfig)
         }
 
         czConfig.hostname = config.id
@@ -765,14 +772,9 @@ public actor SandboxService {
         czConfig.process.arguments = [process.executable] + process.arguments
         czConfig.process.environmentVariables = process.environment
 
-        // Add SSH_AUTH_SOCK if ssh forwarding is enabled
-        if config.ssh {
-            if czConfig.sockets.contains(where: {
-                $0.destination == URL(fileURLWithPath: Self.sshAuthSocketGuestPath)
-            }) {
-                if !czConfig.process.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
-                    czConfig.process.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
-                }
+        if Self.hostSocketUrl(config: config) != nil {
+            if !czConfig.process.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
+                czConfig.process.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
             }
         }
 
@@ -801,7 +803,9 @@ public actor SandboxService {
         }
     }
 
-    private nonisolated func configureProcessConfig(config: ProcessConfiguration, stdio: [FileHandle?]) -> LinuxContainer.Configuration.Process {
+    private nonisolated func configureProcessConfig(config: ProcessConfiguration, stdio: [FileHandle?], containerConfig: ContainerConfiguration)
+        -> LinuxContainer.Configuration.Process
+    {
         var proc = LinuxContainer.Configuration.Process()
         proc.stdin = stdio[0]
         proc.stdout = stdio[1]
@@ -809,6 +813,13 @@ public actor SandboxService {
 
         proc.arguments = [config.executable] + config.arguments
         proc.environmentVariables = config.environment
+
+        if Self.hostSocketUrl(config: containerConfig) != nil {
+            if !proc.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
+                proc.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
+            }
+        }
+
         proc.terminal = config.terminal
         proc.workingDirectory = config.workingDirectory
         proc.rlimits = config.rlimits.map {
