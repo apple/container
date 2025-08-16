@@ -1,0 +1,4 @@
+{
+    "abstract" : "Orchestrate container resources using Docker Compose files",
+    "author": "http://github.com/mcrich23/container"
+}

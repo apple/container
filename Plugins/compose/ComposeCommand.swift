@@ -14,31 +14,42 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+//
+//  File.swift
+//  Container-Compose
+//
+//  Created by Morris Richman on 6/18/25.
+//
+
 import ArgumentParser
-import ContainerClient
-import ContainerNetworkService
-import ContainerizationError
+import ContainerCLI
 import Foundation
-import TerminalProgress
+import Rainbow
+import Yams
 
-extension Application {
-    public struct NetworkCreate: AsyncParsableCommand {
-        public static let configuration = CommandConfiguration(
-            commandName: "create",
-            abstract: "Create a new network")
+@main
+struct ComposeCommand: AsyncParsableCommand {
+    static let configuration: CommandConfiguration = .init(
+        commandName: "compose",
+        abstract: "Manage containers with Docker Compose files",
+        subcommands: [
+            ComposeUp.self,
+            ComposeDown.self,
+        ])
+}
 
-        public init() {}
+/// A structure representing the result of a command-line process execution.
+struct CommandResult {
+    /// The standard output captured from the process.
+    let stdout: String
 
-        @Argument(help: "Network name")
-        public var name: String
+    /// The standard error output captured from the process.
+    let stderr: String
 
-        @OptionGroup
-        public var global: Flags.Global
+    /// The exit code returned by the process upon termination.
+    let exitCode: Int32
+}
 
-        public func run() async throws {
-            let config = NetworkConfiguration(id: self.name, mode: .nat)
-            let state = try await ClientNetwork.create(configuration: config)
-            print(state.id)
-        }
-    }
+extension NamedColor: Codable {
+
 }

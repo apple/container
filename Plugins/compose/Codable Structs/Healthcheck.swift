@@ -14,31 +14,24 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ArgumentParser
-import ContainerClient
-import ContainerNetworkService
-import ContainerizationError
-import Foundation
-import TerminalProgress
+//
+//  Healthcheck.swift
+//  container-compose-app
+//
+//  Created by Morris Richman on 6/17/25.
+//
 
-extension Application {
-    public struct NetworkCreate: AsyncParsableCommand {
-        public static let configuration = CommandConfiguration(
-            commandName: "create",
-            abstract: "Create a new network")
 
-        public init() {}
-
-        @Argument(help: "Network name")
-        public var name: String
-
-        @OptionGroup
-        public var global: Flags.Global
-
-        public func run() async throws {
-            let config = NetworkConfiguration(id: self.name, mode: .nat)
-            let state = try await ClientNetwork.create(configuration: config)
-            print(state.id)
-        }
-    }
+/// Healthcheck configuration for a service.
+struct Healthcheck: Codable, Hashable {
+    /// Command to run to check health
+    let test: [String]?
+    /// Grace period for the container to start
+    let start_period: String?
+    /// How often to run the check
+    let interval: String?
+    /// Number of consecutive failures to consider unhealthy
+    let retries: Int?
+    /// Timeout for each check
+    let timeout: String?
 }
