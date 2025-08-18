@@ -90,7 +90,7 @@ extension GraphBuilder {
 
             if let replacementRange = Range(adjustedMatchRange, in: result) {
                 result.replaceSubrange(replacementRange, with: replacement)
-                offset += replacement.count - matchRange.length
+                offset += replacement.utf16.count - matchRange.length
             }
         }
 

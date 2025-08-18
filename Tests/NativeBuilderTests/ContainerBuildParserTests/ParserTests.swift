@@ -969,12 +969,14 @@ extension ParserTest {
         let graphBuilder = GraphBuilder()
         graphBuilder.fromOnlyArg("DEFINED", defaultValue: "value")
         graphBuilder.fromOnlyArg("EMPTY", defaultValue: "")
+        let unicode = "e\u{0301}"
+        graphBuilder.fromOnlyArg("UNICODE", defaultValue: unicode)
 
-        #expect(graphBuilder.substituteArgs("test-${DEFINED}-end", inFromContext: true) == "test-value-end")
-        #expect(graphBuilder.substituteArgs("test-${EMPTY}-end", inFromContext: true) == "test--end")
-        #expect(graphBuilder.substituteArgs("test-${UNDEFINED}-end", inFromContext: true) == "test--end")
+        #expect(graphBuilder.substituteArgs("prefix-${DEFINED}-${DEFINED}-${DEFINED}-suffix", inFromContext: true) == "prefix-value-value-value-suffix")
+        #expect(graphBuilder.substituteArgs("prefix-${EMPTY}-${EMPTY}-${EMPTY}-suffix", inFromContext: true) == "prefix----suffix")
+        #expect(graphBuilder.substituteArgs("prefix-${UNDEFINED}-${UNDEFINED}-${UNDEFINED}-suffix", inFromContext: true) == "prefix----suffix")
+        #expect(graphBuilder.substituteArgs("prefix-${UNICODE}-${UNICODE}-${UNICODE}-suffix", inFromContext: true) == "prefix-\(unicode)-\(unicode)-\(unicode)-suffix")
         #expect(graphBuilder.substituteArgs("no-variables", inFromContext: true) == "no-variables")
-        #expect(graphBuilder.substituteArgs("multiple-variables-${DEFINED}-${DEFINED}", inFromContext: true) == "multiple-variables-value-value")
     }
 
     static let invalidArgs = [
