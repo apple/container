@@ -15,11 +15,11 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import CVersion
 import ContainerImagesService
 import ContainerImagesServiceClient
 import ContainerLog
 import ContainerPlugin
+import ContainerVersion
 import ContainerXPC
 import Containerization
 import Foundation
@@ -30,7 +30,7 @@ struct ImagesHelper: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "container-core-images",
         abstract: "XPC service for managing OCI images",
-        version: releaseVersion(),
+        version: ReleaseVersion.singleLine(appName: "container-core-images"),
         subcommands: [
             Start.self
         ]
@@ -128,9 +128,5 @@ extension ImagesHelper {
             }
             return log
         }
-    }
-
-    private static func releaseVersion() -> String {
-        (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? get_release_version().map { String(cString: $0) } ?? "0.0.0"
     }
 }

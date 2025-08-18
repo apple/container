@@ -22,8 +22,8 @@ import PackageDescription
 
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
-let scVersion = "0.5.0"
 let builderShimVersion = "0.6.0"
+let scVersion = "0.5.0"
 
 let package = Package(
     name: "container",
@@ -37,6 +37,7 @@ let package = Package(
         .library(name: "ContainerLog", targets: ["ContainerLog"]),
         .library(name: "ContainerPersistence", targets: ["ContainerPersistence"]),
         .library(name: "ContainerPlugin", targets: ["ContainerPlugin"]),
+        .library(name: "ContainerVersion", targets: ["ContainerVersion"]),
         .library(name: "ContainerXPC", targets: ["ContainerXPC"]),
         .library(name: "SocketForwarder", targets: ["SocketForwarder"]),
         .library(name: "ContainerBuildReporting", targets: ["ContainerBuildReporting"]),
@@ -70,13 +71,13 @@ let package = Package(
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationOCI", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
-                "CVersion",
-                "TerminalProgress",
                 "ContainerBuild",
                 "ContainerClient",
+                "ContainerLog",
                 "ContainerPersistence",
                 "ContainerPlugin",
-                "ContainerLog",
+                "ContainerVersion",
+                "TerminalProgress",
             ],
             path: "Sources/CLI"
         ),
@@ -90,14 +91,14 @@ let package = Package(
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
-                "CVersion",
-                "DNSServer",
-                "ContainerNetworkService",
-                "ContainerSandboxService",
                 "ContainerClient",
                 "ContainerLog",
+                "ContainerNetworkService",
                 "ContainerPersistence",
                 "ContainerPlugin",
+                "ContainerSandboxService",
+                "ContainerVersion",
+                "DNSServer",
             ],
             path: "Sources/APIServer"
         ),
@@ -108,10 +109,10 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "GRPC", package: "grpc-swift"),
                 .product(name: "Containerization", package: "containerization"),
-                "CVersion",
+                "ContainerLog",
                 "ContainerNetworkService",
                 "ContainerSandboxService",
-                "ContainerLog",
+                "ContainerVersion",
                 "ContainerXPC",
             ],
             path: "Sources/Helpers/RuntimeLinux"
@@ -140,9 +141,9 @@ let package = Package(
                 .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "ContainerizationIO", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
-                "CVersion",
-                "ContainerNetworkService",
                 "ContainerLog",
+                "ContainerNetworkService",
+                "ContainerVersion",
                 "ContainerXPC",
             ],
             path: "Sources/Helpers/NetworkVmnet"
@@ -164,11 +165,11 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Containerization", package: "containerization"),
-                "CVersion",
+                "ContainerImagesService",
                 "ContainerLog",
                 "ContainerPlugin",
+                "ContainerVersion",
                 "ContainerXPC",
-                "ContainerImagesService",
             ],
             path: "Sources/Helpers/Images"
         ),
@@ -413,6 +414,12 @@ let package = Package(
                 "ContainerNetworkService",
             ],
             path: "Tests/CLITests"
+        ),
+        .target(
+            name: "ContainerVersion",
+            dependencies: [
+                "CVersion"
+            ],
         ),
         .target(
             name: "CVersion",

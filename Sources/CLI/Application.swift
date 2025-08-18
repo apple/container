@@ -17,10 +17,10 @@
 //
 
 import ArgumentParser
-import CVersion
 import ContainerClient
 import ContainerLog
 import ContainerPlugin
+import ContainerVersion
 import ContainerizationError
 import ContainerizationOS
 import Foundation
@@ -48,7 +48,7 @@ struct Application: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "container",
         abstract: "A container platform for macOS",
-        version: releaseVersion(),
+        version: ReleaseVersion.singleLine(appName: "container CLI"),
         subcommands: [
             DefaultCommand.self
         ],
@@ -335,26 +335,5 @@ extension Application {
             }
             throw posixErr
         }
-    }
-
-    private static func releaseVersion() -> String {
-        var versionDetails: [String: String] = ["build": "release"]
-        #if DEBUG
-        versionDetails["build"] = "debug"
-        #endif
-        let gitCommit = {
-            let sha = get_git_commit().map { String(cString: $0) }
-            guard let sha else {
-                return "unspecified"
-            }
-            return String(sha.prefix(7))
-        }()
-        versionDetails["commit"] = gitCommit
-        let extras: String = versionDetails.map { "\($0): \($1)" }.sorted().joined(separator: ", ")
-
-        let bundleVersion = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String)
-        let releaseVersion = bundleVersion ?? get_release_version().map { String(cString: $0) } ?? "0.0.0"
-
-        return "container CLI version \(releaseVersion) (\(extras))"
     }
 }

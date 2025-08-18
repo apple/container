@@ -15,11 +15,11 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import CVersion
 import ContainerClient
 import ContainerLog
 import ContainerNetworkService
 import ContainerPlugin
+import ContainerVersion
 import ContainerXPC
 import ContainerizationError
 import ContainerizationExtras
@@ -37,7 +37,7 @@ struct APIServer: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "container-apiserver",
         abstract: "Container management API server",
-        version: releaseVersion()
+        version: ReleaseVersion.singleLine(appName: "container-apiserver")
     )
 
     @Flag(name: .long, help: "Enable debug logging")
@@ -46,10 +46,6 @@ struct APIServer: AsyncParsableCommand {
     var appRoot = ApplicationRoot.url
 
     var installRoot = InstallRoot.url
-
-    static func releaseVersion() -> String {
-        (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? get_release_version().map { String(cString: $0) } ?? "0.0.0"
-    }
 
     func run() async throws {
         let commandName = Self.configuration.commandName ?? "container-apiserver"
