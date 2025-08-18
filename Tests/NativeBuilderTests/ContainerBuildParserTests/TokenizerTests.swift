@@ -575,7 +575,7 @@ import Testing
                 .stringLiteral("EXPOSE"),
                 .stringLiteral("80"),
             ],
-            expectedInstruction: try! ExposeInstruction(["80"])
+            expectedInstruction: ExposeInstruction(["80"])
         ),
         TokenTest(
             tokens: [

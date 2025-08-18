@@ -363,7 +363,7 @@ public struct DockerfileParser: BuildParser {
             throw ParseError.missingRequiredField("port")
         }
 
-        return try ExposeInstruction(rawPorts)
+        return ExposeInstruction(rawPorts)
     }
 
     func tokensToArgInstruction(tokens: [Token]) throws -> ArgInstruction {
