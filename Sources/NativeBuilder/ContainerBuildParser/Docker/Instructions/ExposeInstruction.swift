@@ -19,7 +19,7 @@ import ContainerBuildIR
 struct ExposeInstruction: DockerInstruction {
     let ports: [String]
 
-    init(_ ports: [String]) throws {
+    init(_ ports: [String]) {
         self.ports = ports
     }
 
