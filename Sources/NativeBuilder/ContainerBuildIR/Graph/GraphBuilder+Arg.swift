@@ -64,20 +64,22 @@ extension GraphBuilder {
         return nil
     }
 
+    private static let argRegex: NSRegularExpression = {
+        try! NSRegularExpression(pattern: #"\$\{([A-Za-z_][A-Za-z0-9_]*)\}"#)  // `${ARG}`
+    }()
+
     /// Substitute ARG variables in a string.
     /// - Parameters:
     ///   - input: The string that may contain `${ARG}` references.
     ///   - inFromContext: Whether this substitution is happening in a FROM instruction context.
     /// - Returns: The string with ARG variables substituted.
     public func substituteArgs(_ input: String, inFromContext: Bool) -> String {
-        let pattern = #"\$\{([A-Za-z_][A-Za-z0-9_]*)\}"#  // `${ARG}`
-        let regex = try! NSRegularExpression(pattern: pattern)
         let range = NSRange(location: 0, length: input.count)
 
         var result = input
         var offset = 0
 
-        regex.enumerateMatches(in: input, range: range) { match, _, _ in
+        GraphBuilder.argRegex.enumerateMatches(in: input, range: range) { match, _, _ in
             guard let match, let varRange = Range(match.range(at: 1), in: input) else {
                 return
             }
