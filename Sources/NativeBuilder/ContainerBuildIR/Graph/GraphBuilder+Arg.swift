@@ -74,7 +74,7 @@ extension GraphBuilder {
     ///   - inFromContext: Whether this substitution is happening in a FROM instruction context.
     /// - Returns: The string with ARG variables substituted.
     public func substituteArgs(_ input: String, inFromContext: Bool) -> String {
-        let range = NSRange(location: 0, length: input.count)
+        let range = NSRange(location: 0, length: input.utf16.count)
 
         var result = input
         var offset = 0

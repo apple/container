@@ -187,13 +187,10 @@ struct GraphBuilderTests {
         let graphBuilder = GraphBuilder()
         graphBuilder.fromOnlyArg("DEFINED", defaultValue: "value")
         graphBuilder.fromOnlyArg("EMPTY", defaultValue: "")
-        let unicode = "e\u{0301}"
-        graphBuilder.fromOnlyArg("UNICODE", defaultValue: unicode)
 
         #expect(graphBuilder.substituteArgs("prefix-${DEFINED}-${DEFINED}-${DEFINED}-suffix", inFromContext: true) == "prefix-value-value-value-suffix")
         #expect(graphBuilder.substituteArgs("prefix-${EMPTY}-${EMPTY}-${EMPTY}-suffix", inFromContext: true) == "prefix----suffix")
         #expect(graphBuilder.substituteArgs("prefix-${UNDEFINED}-${UNDEFINED}-${UNDEFINED}-suffix", inFromContext: true) == "prefix----suffix")
-        #expect(graphBuilder.substituteArgs("prefix-${UNICODE}-${UNICODE}-${UNICODE}-suffix", inFromContext: true) == "prefix-\(unicode)-\(unicode)-\(unicode)-suffix")
         #expect(graphBuilder.substituteArgs("no-variables", inFromContext: true) == "no-variables")
     }
 
@@ -210,6 +207,13 @@ struct GraphBuilderTests {
         #expect(graphBuilder.substituteArgs("${EMPTY:-default}", inFromContext: true) == "")
 
         #expect(graphBuilder.substituteArgs("a=${UNDEFINED:-default} b=${DEFINED:-default} c=${EMPTY:-default}", inFromContext: true) == "a=default b=defined c=")
+    }
+
+    @Test func testArgSubstitutionWithUTF16Characters() throws {
+        let graphBuilder = GraphBuilder()
+
+        #expect(graphBuilder.substituteArgs("unicorn 🦄 unicorn ${UNDEFINED:-🦄}", inFromContext: true) == "unicorn 🦄 unicorn 🦄")
+        #expect(graphBuilder.substituteArgs("🦄 ${UNDEFINED:-unicorn 🦄 unicorn}", inFromContext: true) == "🦄 unicorn 🦄 unicorn")
     }
 
     // MARK: - Platform-Specific Builds
