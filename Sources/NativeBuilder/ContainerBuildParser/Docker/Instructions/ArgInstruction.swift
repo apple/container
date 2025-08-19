@@ -16,16 +16,22 @@
 
 import ContainerBuildIR
 
-struct ArgInstruction: DockerInstruction {
+struct ArgDefinition: Equatable {
     let name: String
     let defaultValue: String?
+}
 
-    init(name: String, defaultValue: String? = nil) throws {
-        guard !name.isEmpty else {
+struct ArgInstruction: DockerInstruction {
+    let args: [ArgDefinition]
+
+    init(args: [ArgDefinition]) throws {
+        guard !args.isEmpty else {
             throw ParseError.missingRequiredField("name")
         }
-        self.name = name
-        self.defaultValue = defaultValue
+        guard args.allSatisfy({ !$0.name.isEmpty }) else {
+            throw ParseError.missingRequiredField("name")
+        }
+        self.args = args
     }
 
     func accept(_ visitor: DockerInstructionVisitor) throws {

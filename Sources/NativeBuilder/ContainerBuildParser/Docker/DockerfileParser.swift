@@ -372,7 +372,7 @@ public struct DockerfileParser: BuildParser {
             throw ParseError.missingRequiredField("name")
         }
 
-        // Collect all remaining tokens to handle ARG values with spaces.
+        // Collect all remaining tokens.
         var argTokens: [String] = []
         while index < tokens.endIndex {
             guard case .stringLiteral(let tokenValue) = tokens[index] else {
@@ -382,21 +382,114 @@ public struct DockerfileParser: BuildParser {
             index += 1
         }
 
-        // Join all tokens with spaces to reconstruct the full ARG.
         let argSpec = argTokens.joined(separator: " ")
+        let argDefinitions = try parseMultipleArgs(from: argSpec)
+        return try ArgInstruction(args: argDefinitions)
+    }
 
-        let components = argSpec.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
-        guard !components.isEmpty else {
+    private func parseMultipleArgs(from argSpec: String) throws -> [ArgDefinition] {
+        var definitions: [ArgDefinition] = []
+        var remaining = argSpec
+
+        while !remaining.isEmpty {
+            let (name, defaultValue, rest) = try parseNextArg(from: remaining)
+            let definition = ArgDefinition(name: name, defaultValue: defaultValue)
+            definitions.append(definition)
+            remaining = rest
+        }
+
+        guard !definitions.isEmpty else {
             throw ParseError.missingRequiredField("name")
         }
 
-        let name = components[0]
+        return definitions
+    }
+
+    private func parseNextArg(from input: String) throws -> (name: String, defaultValue: String?, remaining: String) {
+        let trimmed = input.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else {
+            throw ParseError.missingRequiredField("name")
+        }
+
+        // Find the name.
+        guard let nameEnd = trimmed.firstIndex(where: { $0.isWhitespace || $0 == "=" }) else {
+            return (name: trimmed, defaultValue: nil, remaining: "")
+        }
+
+        let name = String(trimmed[..<nameEnd])
         guard !name.isEmpty else {
             throw ParseError.missingRequiredField("name")
         }
 
-        let defaultValue = components.count == 2 ? components[1] : nil
+        // Find the value.
+        let afterName = String(trimmed[nameEnd...]).trimmingCharacters(in: .whitespaces)
 
-        return try ArgInstruction(name: name, defaultValue: defaultValue)
+        guard afterName.hasPrefix("=") else {
+            return (name: name, defaultValue: nil, remaining: afterName)
+        }
+
+        let afterEquals = String(afterName.dropFirst()).trimmingCharacters(in: .whitespaces)
+        guard !afterEquals.isEmpty else {
+            return (name: name, defaultValue: "", remaining: "")
+        }
+
+        let (value, remaining) = try parseArgValue(from: afterEquals)
+        let trimmedRemaining = remaining.trimmingCharacters(in: .whitespaces)
+        return (name: name, defaultValue: value, remaining: trimmedRemaining)
+    }
+
+    private func parseArgValue(from input: String) throws -> (value: String, remaining: String) {
+        if input.hasPrefix("\"") {
+            return try parseQuotedValue(from: input, quote: "\"")
+        } else if input.hasPrefix("'") {
+            return try parseQuotedValue(from: input, quote: "'")
+        } else {
+            return parseUnquotedValue(from: input)
+        }
+    }
+
+    private func parseUnquotedValue(from input: String) -> (value: String, remaining: String) {
+        guard let spaceIndex = input.firstIndex(where: { $0.isWhitespace }) else {
+            return (value: input, remaining: "")
+        }
+
+        let value = String(input[..<spaceIndex])
+        let remaining = String(input[spaceIndex...])
+        return (value: value, remaining: remaining)
+    }
+
+    private func parseQuotedValue(from input: String, quote: Character) throws -> (value: String, remaining: String) {
+        var pos = input.index(after: input.startIndex)
+        var value = ""
+        var escaped = false
+
+        while pos < input.endIndex {
+            let char = input[pos]
+
+            if !escaped && char == quote {
+                pos = input.index(after: pos)
+                let remaining = String(input[pos...])
+                return (value: value, remaining: remaining)
+            }
+
+            if escaped {
+                switch char {
+                case "\"", "'", "\\":
+                    value.append(char)
+                default:
+                    value.append("\\")
+                    value.append(char)
+                }
+                escaped = false
+            } else if char == "\\" {
+                escaped = true
+            } else {
+                value.append(char)
+            }
+
+            pos = input.index(after: pos)
+        }
+
+        throw ParseError.invalidSyntax
     }
 }

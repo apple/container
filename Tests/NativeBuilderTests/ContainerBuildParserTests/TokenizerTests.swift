@@ -618,21 +618,21 @@ import Testing
                         .stringLiteral("ARG"),
                         .stringLiteral("NODE_ENV=development"),
                     ],
-                    expectedInstruction: try ArgInstruction(name: "NODE_ENV", defaultValue: "development")
+                    expectedInstruction: try ArgInstruction(args: [ArgDefinition(name: "NODE_ENV", defaultValue: "development")])
                 ),
                 TokenTest(
                     tokens: [
                         .stringLiteral("ARG"),
                         .stringLiteral("BUILD_VERSION="),
                     ],
-                    expectedInstruction: try ArgInstruction(name: "BUILD_VERSION", defaultValue: "")
+                    expectedInstruction: try ArgInstruction(args: [ArgDefinition(name: "BUILD_VERSION", defaultValue: "")])
                 ),
                 TokenTest(
                     tokens: [
                         .stringLiteral("ARG"),
                         .stringLiteral("API_URL"),
                     ],
-                    expectedInstruction: try ArgInstruction(name: "API_URL")
+                    expectedInstruction: try ArgInstruction(args: [ArgDefinition(name: "API_URL", defaultValue: nil)])
                 ),
             ]
         }

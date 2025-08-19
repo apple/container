@@ -182,17 +182,19 @@ extension DockerInstructionVisitor {
     }
 
     func visit(_ arg: ArgInstruction) throws {
-        let substitutedDefaultValue: String?
-        if let defaultValue = arg.defaultValue {
-            substitutedDefaultValue = graphBuilder.substituteArgs(defaultValue, inFromContext: !graphBuilder.hasActiveStage)
-        } else {
-            substitutedDefaultValue = nil
-        }
+        for argDef in arg.args {
+            let substitutedDefaultValue: String?
+            if let defaultValue = argDef.defaultValue {
+                substitutedDefaultValue = graphBuilder.substituteArgs(defaultValue, inFromContext: !graphBuilder.hasActiveStage)
+            } else {
+                substitutedDefaultValue = nil
+            }
 
-        if graphBuilder.hasActiveStage {
-            try graphBuilder.arg(arg.name, defaultValue: substitutedDefaultValue)
-        } else {
-            graphBuilder.fromOnlyArg(arg.name, defaultValue: substitutedDefaultValue)
+            if graphBuilder.hasActiveStage {
+                try graphBuilder.arg(argDef.name, defaultValue: substitutedDefaultValue)
+            } else {
+                graphBuilder.fromOnlyArg(argDef.name, defaultValue: substitutedDefaultValue)
+            }
         }
     }
 }
