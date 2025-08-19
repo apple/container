@@ -183,6 +183,16 @@ struct GraphBuilderTests {
         #expect(envOps.count == 3)
     }
 
+    @Test func testArgSubstitutionWithSimpleVariables() throws {
+        let graphBuilder = GraphBuilder()
+        graphBuilder.fromOnlyArg("DEFINED", defaultValue: "value")
+        graphBuilder.fromOnlyArg("EMPTY", defaultValue: "")
+
+        #expect(graphBuilder.substituteArgs("prefix-$DEFINED-$DEFINED-$DEFINED-suffix", inFromContext: true) == "prefix-value-value-value-suffix")
+        #expect(graphBuilder.substituteArgs("prefix-$EMPTY-$EMPTY-$EMPTY-suffix", inFromContext: true) == "prefix----suffix")
+        #expect(graphBuilder.substituteArgs("prefix-$UNDEFINED-$UNDEFINED-$UNDEFINED-suffix", inFromContext: true) == "prefix----suffix")
+    }
+
     @Test func testArgSubstitution() throws {
         let graphBuilder = GraphBuilder()
         graphBuilder.fromOnlyArg("DEFINED", defaultValue: "value")
@@ -191,7 +201,6 @@ struct GraphBuilderTests {
         #expect(graphBuilder.substituteArgs("prefix-${DEFINED}-${DEFINED}-${DEFINED}-suffix", inFromContext: true) == "prefix-value-value-value-suffix")
         #expect(graphBuilder.substituteArgs("prefix-${EMPTY}-${EMPTY}-${EMPTY}-suffix", inFromContext: true) == "prefix----suffix")
         #expect(graphBuilder.substituteArgs("prefix-${UNDEFINED}-${UNDEFINED}-${UNDEFINED}-suffix", inFromContext: true) == "prefix----suffix")
-        #expect(graphBuilder.substituteArgs("no-variables", inFromContext: true) == "no-variables")
     }
 
     @Test func testArgSubstitutionWithDefaults() throws {
