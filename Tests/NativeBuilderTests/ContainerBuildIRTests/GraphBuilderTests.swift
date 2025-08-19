@@ -197,6 +197,21 @@ struct GraphBuilderTests {
         #expect(graphBuilder.substituteArgs("no-variables", inFromContext: true) == "no-variables")
     }
 
+    @Test func testArgSubstitutionWithDefaults() throws {
+        let graphBuilder = GraphBuilder()
+        graphBuilder.fromOnlyArg("DEFINED", defaultValue: "defined")
+        graphBuilder.fromOnlyArg("EMPTY", defaultValue: "")
+
+        #expect(graphBuilder.substituteArgs("${UNDEFINED:-default}", inFromContext: true) == "default")
+        #expect(graphBuilder.substituteArgs("${UNDEFINED:-default with spaces}", inFromContext: true) == "default with spaces")
+        #expect(graphBuilder.substituteArgs("${UNDEFINED:-}", inFromContext: true) == "")
+
+        #expect(graphBuilder.substituteArgs("${DEFINED:-default}", inFromContext: true) == "defined")
+        #expect(graphBuilder.substituteArgs("${EMPTY:-default}", inFromContext: true) == "")
+
+        #expect(graphBuilder.substituteArgs("a=${UNDEFINED:-default} b=${DEFINED:-default} c=${EMPTY:-default}", inFromContext: true) == "a=default b=defined c=")
+    }
+
     // MARK: - Platform-Specific Builds
 
     @Test func multiPlatformBuild() throws {

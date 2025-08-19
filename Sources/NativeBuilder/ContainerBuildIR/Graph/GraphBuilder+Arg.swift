@@ -65,12 +65,12 @@ extension GraphBuilder {
     }
 
     private static let argRegex: NSRegularExpression = {
-        try! NSRegularExpression(pattern: #"\$\{([A-Za-z_][A-Za-z0-9_]*)\}"#)  // `${ARG}`
+        try! NSRegularExpression(pattern: #"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}"#)  // `${ARG}` or `${ARG:-default}`
     }()
 
     /// Substitute ARG variables in a string.
     /// - Parameters:
-    ///   - input: The string that may contain `${ARG}` references.
+    ///   - input: The string that may contain `${ARG}` or `${ARG:-default}` references.
     ///   - inFromContext: Whether this substitution is happening in a FROM instruction context.
     /// - Returns: The string with ARG variables substituted.
     public func substituteArgs(_ input: String, inFromContext: Bool) -> String {
@@ -80,12 +80,26 @@ extension GraphBuilder {
         var offset = 0
 
         GraphBuilder.argRegex.enumerateMatches(in: input, range: range) { match, _, _ in
-            guard let match, let varRange = Range(match.range(at: 1), in: input) else {
+            guard let match else {
                 return
             }
 
+            // The variable name (capture group 1).
+            guard let varRange = Range(match.range(at: 1), in: input) else {
+                return
+            }
             let varName = String(input[varRange])
-            let replacement = resolveArg(key: varName, inFromContext: inFromContext) ?? ""
+
+            // The default value (capture group 2).
+            var defaultValue: String? = nil
+            if match.numberOfRanges > 2 && match.range(at: 2).location != NSNotFound {
+                if let defaultRange = Range(match.range(at: 2), in: input) {
+                    defaultValue = String(input[defaultRange])
+                }
+            }
+
+            let resolvedValue = resolveArg(key: varName, inFromContext: inFromContext)
+            let replacement = resolvedValue ?? defaultValue ?? ""
 
             let matchRange = match.range
             let adjustedMatchRange = NSRange(location: matchRange.location + offset, length: matchRange.length)
