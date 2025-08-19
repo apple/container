@@ -65,12 +65,12 @@ extension GraphBuilder {
     }
 
     private static let argRegex: NSRegularExpression = {
-        try! NSRegularExpression(pattern: #"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}"#)  // `${ARG}` or `${ARG:-default}`
+        try! NSRegularExpression(pattern: #"\$\{([A-Za-z_][A-Za-z0-9_]*)(?:(:-|:\+)([^}]*))?\}"#)  // `${ARG}`, `${ARG:-default}`, or `${ARG:+value}`
     }()
 
     /// Substitute ARG variables in a string.
     /// - Parameters:
-    ///   - input: The string that may contain `${ARG}` or `${ARG:-default}` references.
+    ///   - input: The string that may contain `${ARG}`, `${ARG:-default}`, or `${ARG:+value}`.
     ///   - inFromContext: Whether this substitution is happening in a FROM instruction context.
     /// - Returns: The string with ARG variables substituted.
     public func substituteArgs(_ input: String, inFromContext: Bool) -> String {
@@ -90,16 +90,31 @@ extension GraphBuilder {
             }
             let varName = String(input[varRange])
 
-            // The default value (capture group 2).
-            var defaultValue: String? = nil
+            // The operator (capture group 2) and value (capture group 3).
+            var operatorType: String? = nil
+            var operatorValue: String? = nil
             if match.numberOfRanges > 2 && match.range(at: 2).location != NSNotFound {
-                if let defaultRange = Range(match.range(at: 2), in: input) {
-                    defaultValue = String(input[defaultRange])
+                if let operatorRange = Range(match.range(at: 2), in: input) {
+                    operatorType = String(input[operatorRange])
+                }
+            }
+            if match.numberOfRanges > 3 && match.range(at: 3).location != NSNotFound {
+                if let valueRange = Range(match.range(at: 3), in: input) {
+                    operatorValue = String(input[valueRange])
                 }
             }
 
             let resolvedValue = resolveArg(key: varName, inFromContext: inFromContext)
-            let replacement = resolvedValue ?? defaultValue ?? ""
+
+            let replacement: String
+            switch operatorType {
+            case ":-":
+                replacement = resolvedValue ?? operatorValue ?? ""
+            case ":+":
+                replacement = (resolvedValue != nil && !resolvedValue!.isEmpty) ? (operatorValue ?? "") : ""
+            default:
+                replacement = resolvedValue ?? ""
+            }
 
             let matchRange = match.range
             let adjustedMatchRange = NSRange(location: matchRange.location + offset, length: matchRange.length)

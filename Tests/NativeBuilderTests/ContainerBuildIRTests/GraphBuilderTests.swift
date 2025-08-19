@@ -216,6 +216,20 @@ struct GraphBuilderTests {
         #expect(graphBuilder.substituteArgs("🦄 ${UNDEFINED:-unicorn 🦄 unicorn}", inFromContext: true) == "🦄 unicorn 🦄 unicorn")
     }
 
+    @Test func testArgSubstitutionWithSubstituteValues() throws {
+        let graphBuilder = GraphBuilder()
+        graphBuilder.fromOnlyArg("DEFINED", defaultValue: "defined")
+        graphBuilder.fromOnlyArg("EMPTY", defaultValue: "")
+
+        #expect(graphBuilder.substituteArgs("${DEFINED:+value}", inFromContext: true) == "value")
+        #expect(graphBuilder.substituteArgs("${DEFINED:+value with spaces}", inFromContext: true) == "value with spaces")
+        #expect(graphBuilder.substituteArgs("${DEFINED:+}", inFromContext: true) == "")
+        #expect(graphBuilder.substituteArgs("${UNDEFINED:+value}", inFromContext: true) == "")
+        #expect(graphBuilder.substituteArgs("${EMPTY:+value}", inFromContext: true) == "")
+
+        #expect(graphBuilder.substituteArgs("a=${UNDEFINED:+value} b=${DEFINED:+value} c=${EMPTY:+value}", inFromContext: true) == "a= b=value c=")
+    }
+
     // MARK: - Platform-Specific Builds
 
     @Test func multiPlatformBuild() throws {
