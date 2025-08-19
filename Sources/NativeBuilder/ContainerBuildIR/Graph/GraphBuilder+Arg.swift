@@ -46,23 +46,56 @@ extension GraphBuilder {
     ///   - inFromContext: Whether this is being called from a FROM instruction context.
     /// - Returns: The resolved ARG value, or nil if not found.
     public func resolveArg(key: String, inFromContext: Bool = false) -> String? {
-        // A global FROM-only ARG
+        // A global FROM-only ARG.
         guard let currentStage, !inFromContext else {
-            return buildArgs[key]
+            return resolveBuildArgWithFallback(key: key)
         }
 
         let (found, defaultValue) = currentStage.getDeclaredArg(key)
         if found {
-            // A stage-local ARG with a default value
+            // A stage-local ARG with a default value.
             if let defaultValue {
                 return defaultValue
             }
-            // A stage-local ARG without a default value - a redeclared global FROM-only ARG
-            return buildArgs[key]
+            // A stage-local ARG without a default value - a redeclared global FROM-only ARG.
+            return resolveBuildArgWithFallback(key: key)
         }
 
-        return nil
+        // Check the predefined ARGs only.
+        return resolvePredefinedArg(key: key)
     }
+
+    private func resolvePredefinedArg(key: String) -> String? {
+        guard GraphBuilder.predefinedArgs.contains(key) else {
+            return nil
+        }
+        return ProcessInfo.processInfo.environment[key]
+    }
+
+    private func resolveBuildArgWithFallback(key: String) -> String? {
+        let value = buildArgs[key]
+        if value != nil {
+            return value
+        }
+        return resolvePredefinedArg(key: key)
+    }
+
+    static let predefinedArgs: Set<String> = {
+        let baseArgs = [
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "FTP_PROXY",
+            "NO_PROXY",
+            "ALL_PROXY",
+        ]
+
+        var allArgs = Set<String>()
+        for arg in baseArgs {
+            allArgs.insert(arg)
+            allArgs.insert(arg.lowercased())
+        }
+        return allArgs
+    }()
 
     private static let argRegex: NSRegularExpression = {
         // `${ARG}`, `${ARG:-default}`, `${ARG:+value}`, or `$ARG`

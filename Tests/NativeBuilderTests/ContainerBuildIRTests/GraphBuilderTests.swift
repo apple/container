@@ -239,6 +239,31 @@ struct GraphBuilderTests {
         #expect(graphBuilder.substituteArgs("a=${UNDEFINED:+value} b=${DEFINED:+value} c=${EMPTY:+value}", inFromContext: true) == "a= b=value c=")
     }
 
+    @Test(.serialized) func testPredefinedArgVariables() throws {
+        let graphBuilder = GraphBuilder()
+
+        var originalValues: [String: String?] = [:]
+        for varName in GraphBuilder.predefinedArgs {
+            originalValues[varName] = ProcessInfo.processInfo.environment[varName]
+            setenv(varName, "test-value-\(varName.lowercased())", 1)
+        }
+
+        defer {
+            for (varName, originalValue) in originalValues {
+                if let originalValue {
+                    setenv(varName, originalValue, 1)
+                } else {
+                    unsetenv(varName)
+                }
+            }
+        }
+
+        for varName in GraphBuilder.predefinedArgs {
+            let expectedValue = "test-value-\(varName.lowercased())"
+            #expect(graphBuilder.substituteArgs("${\(varName)}", inFromContext: true) == expectedValue)
+        }
+    }
+
     // MARK: - Platform-Specific Builds
 
     @Test func multiPlatformBuild() throws {
