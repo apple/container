@@ -290,7 +290,15 @@ import Testing
     }
 
     @Test func testSimpleDockerfileArgInInstructions() throws {
-        // TODO: Add all instructions when they are supported.
+        // TODO: Add these instructions when they are supported:
+        // - ADD
+        // - ENV
+        // - STOPSIGNAL
+        // - USER
+        // - VOLUME
+        // - WORKDIR
+        // - ONBUILD
+        // - ENTRYPOINT
         let dockerfile =
             #"""
             FROM alpine:latest AS build
