@@ -71,6 +71,8 @@ public struct DockerfileParser: BuildParser {
             return try tokensToLabelInstruction(tokens: tokens)
         case .EXPOSE:
             return try tokensToExposeInstruction(tokens: tokens)
+        case .ENTRYPOINT:
+            return try tokensToEntrypointInstruction(tokens: tokens)
         default:
             throw ParseError.invalidInstruction(value)
         }
@@ -362,5 +364,18 @@ public struct DockerfileParser: BuildParser {
         }
 
         return try ExposeInstruction(rawPorts)
+    }
+
+    internal func tokensToEntrypointInstruction(tokens: [Token]) throws -> EntrypointInstruction {
+        var index = tokens.startIndex + 1  // skip the instruction
+
+        let (newIndex, cmd) = getCommand(start: index, tokens: tokens)
+        index = newIndex
+
+        if index < tokens.endIndex {
+            throw ParseError.unexpectedValue
+        }
+
+        return EntrypointInstruction(command: cmd)
     }
 }

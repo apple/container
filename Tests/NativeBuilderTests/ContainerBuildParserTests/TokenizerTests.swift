@@ -276,6 +276,29 @@ import Testing
                 .stringLiteral("7000-8000/udp"),
             ]
         ),
+        tokenizerTestInput(
+            input: "ENTRYPOINT ./entrypoint.sh",
+            expectedTokens: [
+                .stringLiteral("ENTRYPOINT"),
+                .stringLiteral("./entrypoint.sh"),
+            ]
+        ),
+        tokenizerTestInput(
+            input: "ENTRYPOINT ./entrypoint.sh --verbose --config=/app/config.json",
+            expectedTokens: [
+                .stringLiteral("ENTRYPOINT"),
+                .stringLiteral("./entrypoint.sh"),
+                .stringLiteral("--verbose"),
+                .stringLiteral("--config=/app/config.json"),
+            ]
+        ),
+        tokenizerTestInput(
+            input: #"ENTRYPOINT ["./entrypoint.sh", "--verbose"]"#,
+            expectedTokens: [
+                .stringLiteral("ENTRYPOINT"),
+                .stringList(["./entrypoint.sh", "--verbose"]),
+            ]
+        ),
     ]
 
     @Test func testTokenization() throws {
@@ -589,5 +612,33 @@ import Testing
         }
         #expect(actual == expected)
 
+    }
+
+    static let entrypointTests: [TokenTest] = [
+        TokenTest(
+            tokens: [
+                .stringLiteral("ENTRYPOINT"),
+                .stringList(["./entrypoint.sh", "--verbose"]),
+            ],
+            expectedInstruction: EntrypointInstruction(command: .exec(["./entrypoint.sh", "--verbose"]))
+        ),
+        TokenTest(
+            tokens: [
+                .stringLiteral("ENTRYPOINT"),
+                .stringLiteral("./entrypoint.sh"),
+                .stringLiteral("--verbose"),
+            ],
+            expectedInstruction: EntrypointInstruction(command: .shell("./entrypoint.sh --verbose"))
+        ),
+    ]
+
+    @Test("Successful tokens to ENTRYPOINT instruction", arguments: entrypointTests)
+    func testTokensToEntrypointInstruction(_ testCase: TokenTest) throws {
+        let actual = try DockerfileParser().tokensToEntrypointInstruction(tokens: testCase.tokens)
+        guard let expected = testCase.expectedInstruction as? EntrypointInstruction else {
+            Issue.record("Instruction is not the correct type, \(testCase.expectedInstruction)")
+            return
+        }
+        #expect(actual == expected)
     }
 }

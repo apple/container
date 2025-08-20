@@ -244,6 +244,62 @@ import Testing
             return
         }
     }
+
+    @Test func testSimpleDockerfileEntrypointShell() throws {
+        let dockerfile =
+            #"""
+            FROM alpine:latest AS build
+
+            ENTRYPOINT ./entrypoint.sh --verbose
+            """#
+        let parser = DockerfileParser()
+        let actualGraph = try parser.parse(dockerfile)
+
+        #expect(!actualGraph.stages.isEmpty)
+
+        let stages = actualGraph.stages
+        #expect(stages.count == 1, "expected 1 stage, instead got \(actualGraph.stages.count)")
+
+        let stage = stages[0]
+        #expect(stage.nodes.count == 1, "expected 1 node, instead got \(stage.nodes.count)")
+
+        let entrypoint = stage.nodes[0].operation as! MetadataOperation
+        switch entrypoint.action {
+        case .setEntrypoint(let command):
+            #expect(command.displayString == "./entrypoint.sh --verbose")
+        default:
+            Issue.record("expected .setEntrypoint action type, instead got \(entrypoint.action)")
+            return
+        }
+    }
+
+    @Test func testSimpleDockerfileEntrypointExec() throws {
+        let dockerfile =
+            #"""
+            FROM alpine:latest AS build
+
+            ENTRYPOINT ["./entrypoint.sh", "--verbose"]
+            """#
+        let parser = DockerfileParser()
+        let actualGraph = try parser.parse(dockerfile)
+
+        #expect(!actualGraph.stages.isEmpty)
+
+        let stages = actualGraph.stages
+        #expect(stages.count == 1, "expected 1 stage, instead got \(actualGraph.stages.count)")
+
+        let stage = stages[0]
+        #expect(stage.nodes.count == 1, "expected 1 node, instead got \(stage.nodes.count)")
+
+        let entrypoint = stage.nodes[0].operation as! MetadataOperation
+        switch entrypoint.action {
+        case .setEntrypoint(let command):
+            #expect(command.displayString == "./entrypoint.sh --verbose")
+        default:
+            Issue.record("expected .setEntrypoint action type, instead got \(entrypoint.action)")
+            return
+        }
+    }
 }
 
 // tests for parsing options for the different instructions

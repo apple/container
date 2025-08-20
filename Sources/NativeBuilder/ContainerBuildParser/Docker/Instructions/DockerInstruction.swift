@@ -59,6 +59,7 @@ enum DockerInstructionName: String {
     case CMD = "cmd"
     case LABEL = "label"
     case EXPOSE = "expose"
+    case ENTRYPOINT = "entrypoint"
 }
 
 /// DockerKeyword defines words that are used as keywords within a line of a dockerfile
@@ -77,6 +78,14 @@ struct CMDInstruction: DockerInstruction {
 
 struct LabelInstruction: DockerInstruction {
     let labels: [String: String]
+    func accept(_ visitor: DockerInstructionVisitor) throws {
+        try visitor.visit(self)
+    }
+}
+
+struct EntrypointInstruction: DockerInstruction {
+    let command: Command
+
     func accept(_ visitor: DockerInstructionVisitor) throws {
         try visitor.visit(self)
     }
