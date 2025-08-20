@@ -24,7 +24,7 @@ protocol InstructionVisitor {
     func visit(_ label: LabelInstruction) throws
     func visit(_ expose: ExposeInstruction) throws
     func visit(_ arg: ArgInstruction) throws
-    // These instructions have to perform the ARG substitution checked in `testSimpleDockerfileArgInInstructions()`:
+    // TODO: These instructions have to perform the ARG substitution checked in `testSimpleDockerfileArgInInstructions()`:
     // - ADD
     // - ENV
     // - STOPSIGNAL
