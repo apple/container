@@ -239,7 +239,7 @@ struct GraphBuilderTests {
         #expect(graphBuilder.substituteArgs("a=${UNDEFINED:+value} b=${DEFINED:+value} c=${EMPTY:+value}", inFromContext: true) == "a= b=value c=")
     }
 
-    @Test(.serialized) func testPredefinedArgVariables() throws {
+    @Test func testPredefinedArgVariables() throws {
         let graphBuilder = GraphBuilder()
 
         var originalValues: [String: String?] = [:]
