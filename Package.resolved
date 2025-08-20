@@ -1,5 +1,5 @@
 {
-  "originHash" : "388853c84ed313a0d621ec8c76e4334a5035d092adbe906e7a48dd3c8bf54439",
+  "originHash" : "fbda395f591cc8b30792f91f1a1ab7f08c6dec742cc97861ef0a03caf7e6ddb4",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/containerization.git",
       "state" : {
-        "revision" : "0a4ff1b737c37563196754f62a3218873a49c6a7",
-        "version" : "0.5.0"
+        "revision" : "53021bec3606d4ca28e45c5f1d57461b652bb23a",
+        "version" : "0.6.0"
       }
     },
     {
@@ -233,15 +233,6 @@
       "state" : {
         "revision" : "e7187309187695115033536e8fc9b2eb87fd956d",
         "version" : "2.8.0"
-      }
-    },
-    {
-      "identity" : "swift-syntax",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/swiftlang/swift-syntax.git",
-      "state" : {
-        "revision" : "21b3b45635decd1a0b89968f81b6d9a93128f773",
-        "version" : "602.0.0-prerelease-2025-08-11"
       }
     },
     {
