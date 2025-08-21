@@ -155,8 +155,17 @@ public struct XPCServer: Sendable {
             } catch {
                 let reply = message.reply()
                 log.error("handler for \(route) threw error \(error)")
-                let err = ContainerizationError(.unknown, message: String(describing: error))
-                reply.set(error: err)
+
+                // Check if this is a VolumeError by looking at the error description
+                let errorMessage = error.localizedDescription
+                let errorTypeString = String(describing: type(of: error))
+                if errorTypeString.contains("VolumeError") || errorMessage.contains("Volume") {
+                    let err = ContainerizationError(.invalidArgument, message: errorMessage)
+                    reply.set(error: err)
+                } else {
+                    let err = ContainerizationError(.unknown, message: String(describing: error))
+                    reply.set(error: err)
+                }
                 xpc_connection_send_message(connection, reply.underlying)
             }
         }

@@ -24,6 +24,7 @@ extension Application {
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
             config.commandName = "delete"
+            config.aliases = ["rm"]
             config._superCommandName = "builder"
             config.abstract = "Delete builder"
             config.usage = "\n\t builder delete [command options]"

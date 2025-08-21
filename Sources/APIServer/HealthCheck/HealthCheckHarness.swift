@@ -14,20 +14,32 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import CVersion
 import ContainerClient
+import ContainerVersion
 import ContainerXPC
 import Containerization
+import Foundation
 import Logging
 
 actor HealthCheckHarness {
+    private let appRoot: URL
+    private let installRoot: URL
     private let log: Logger
 
-    public init(log: Logger) {
+    public init(appRoot: URL, installRoot: URL, log: Logger) {
+        self.appRoot = appRoot
+        self.installRoot = installRoot
         self.log = log
     }
 
     @Sendable
     func ping(_ message: XPCMessage) async -> XPCMessage {
-        message.reply()
+        let reply = message.reply()
+        reply.set(key: .appRoot, value: appRoot.absoluteString)
+        reply.set(key: .installRoot, value: installRoot.absoluteString)
+        reply.set(key: .apiServerVersion, value: ReleaseVersion.singleLine(appName: "container-apiserver"))
+        reply.set(key: .apiServerCommit, value: get_git_commit().map { String(cString: $0) } ?? "unspecified")
+        return reply
     }
 }

@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerPersistence
 import ContainerizationError
 
 /// The URL scheme to be used for a HTTP request.
@@ -64,7 +65,7 @@ public enum RequestScheme: String, Sendable {
         if host.range(of: regex, options: .regularExpression) != nil {
             return true
         }
-        let dnsDomain = ClientDefaults.get(key: .defaultDNSDomain)
+        let dnsDomain = DefaultsStore.get(key: .defaultDNSDomain)
         if host.hasSuffix(".\(dnsDomain)") {
             return true
         }

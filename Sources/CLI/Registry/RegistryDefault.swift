@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerClient
+import ContainerPersistence
 import ContainerizationError
 import ContainerizationOCI
 import Foundation
@@ -67,7 +68,7 @@ extension Application {
                     throw err
                 }
             }
-            ClientDefaults.set(value: host, key: .defaultRegistryDomain)
+            DefaultsStore.set(value: host, key: .defaultRegistryDomain)
             print("Set default registry to \(host)")
         }
     }
@@ -80,7 +81,7 @@ extension Application {
         )
 
         func run() async throws {
-            ClientDefaults.unset(key: .defaultRegistryDomain)
+            DefaultsStore.unset(key: .defaultRegistryDomain)
             print("Unset the default registry domain")
         }
     }
@@ -92,7 +93,7 @@ extension Application {
         )
 
         func run() async throws {
-            print(ClientDefaults.get(key: .defaultRegistryDomain))
+            print(DefaultsStore.get(key: .defaultRegistryDomain))
         }
     }
 }

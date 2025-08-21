@@ -18,6 +18,7 @@ import ArgumentParser
 import ContainerBuild
 import ContainerClient
 import ContainerNetworkService
+import ContainerPersistence
 import Containerization
 import ContainerizationError
 import ContainerizationExtras
@@ -70,8 +71,9 @@ extension Application {
             let taskManager = ProgressTaskCoordinator()
             let fetchTask = await taskManager.startTask()
 
-            let builderImage: String = ClientDefaults.get(key: .defaultBuilderImage)
-            let exportsMount: String = Application.appRoot.appendingPathComponent(".build").absolutePath()
+            let builderImage: String = DefaultsStore.get(key: .defaultBuilderImage)
+            let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
+            let exportsMount: String = systemHealth.appRoot.appendingPathComponent(".build").absolutePath()
 
             if !FileManager.default.fileExists(atPath: exportsMount) {
                 try FileManager.default.createDirectory(
@@ -195,13 +197,13 @@ extension Application {
                 ),
             ]
             // Enable Rosetta only if the user didn't ask to disable it
-            config.rosetta = ClientDefaults.getBool(key: .buildRosetta) ?? true
+            config.rosetta = DefaultsStore.getBool(key: .buildRosetta) ?? true
 
             let network = try await ClientNetwork.get(id: ClientNetwork.defaultNetworkName)
             guard case .running(_, let networkStatus) = network else {
                 throw ContainerizationError(.invalidState, message: "default network is not running")
             }
-            config.networks = [network.id]
+            config.networks = [AttachmentConfiguration(network: network.id, options: AttachmentOptions(hostname: id))]
             let subnet = try CIDRAddress(networkStatus.address)
             let nameserver = IPv4Address(fromValue: subnet.lower.value + 1).description
             let nameservers = [nameserver]
@@ -245,10 +247,12 @@ extension ClientContainer {
                 detach: true
             )
             defer { try? io.close() }
-            let process = try await bootstrap()
-            _ = try await process.start(io.stdio)
+
+            let process = try await bootstrap(stdio: io.stdio)
+            _ = try await process.start()
             await taskManager?.finish()
             try io.closeAfterStart()
+
             log.debug("starting BuildKit and BuildKit-shim")
         } catch {
             try? await stop()

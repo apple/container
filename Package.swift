@@ -22,8 +22,8 @@ import PackageDescription
 
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
-let scVersion = "0.4.1"
 let builderShimVersion = "0.6.0"
+let scVersion = "0.6.0"
 
 let package = Package(
     name: "container",
@@ -38,13 +38,21 @@ let package = Package(
         .library(name: "ContainerLog", targets: ["ContainerLog"]),
         .library(name: "ContainerPersistence", targets: ["ContainerPersistence"]),
         .library(name: "ContainerPlugin", targets: ["ContainerPlugin"]),
+        .library(name: "ContainerVersion", targets: ["ContainerVersion"]),
         .library(name: "ContainerXPC", targets: ["ContainerXPC"]),
         .library(name: "SocketForwarder", targets: ["SocketForwarder"]),
+        .library(name: "ContainerBuildReporting", targets: ["ContainerBuildReporting"]),
+        .library(name: "ContainerBuildIR", targets: ["ContainerBuildIR"]),
+        .library(name: "ContainerBuildExecutor", targets: ["ContainerBuildExecutor"]),
+        .library(name: "ContainerBuildCache", targets: ["ContainerBuildCache"]),
+        .library(name: "ContainerBuildSnapshotter", targets: ["ContainerBuildSnapshotter"]),
+        .library(name: "ContainerBuildParser", targets: ["ContainerBuildParser"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
         .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
+        .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
         .package(url: "https://github.com/grpc/grpc-swift.git", from: "1.26.0"),
         .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.29.0"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.80.0"),
@@ -75,12 +83,13 @@ let package = Package(
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationOCI", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
-                "CVersion",
-                "TerminalProgress",
                 "ContainerBuild",
                 "ContainerClient",
-                "ContainerPlugin",
                 "ContainerLog",
+                "ContainerPersistence",
+                "ContainerPlugin",
+                "ContainerVersion",
+                "TerminalProgress",
             ],
             path: "Sources/CLI"
         ),
@@ -94,14 +103,14 @@ let package = Package(
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
-                "CVersion",
-                "DNSServer",
-                "ContainerNetworkService",
-                "ContainerSandboxService",
                 "ContainerClient",
                 "ContainerLog",
+                "ContainerNetworkService",
                 "ContainerPersistence",
                 "ContainerPlugin",
+                "ContainerSandboxService",
+                "ContainerVersion",
+                "DNSServer",
             ],
             path: "Sources/APIServer"
         ),
@@ -112,10 +121,10 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "GRPC", package: "grpc-swift"),
                 .product(name: "Containerization", package: "containerization"),
-                "CVersion",
+                "ContainerLog",
                 "ContainerNetworkService",
                 "ContainerSandboxService",
-                "ContainerLog",
+                "ContainerVersion",
                 "ContainerXPC",
             ],
             path: "Sources/Helpers/RuntimeLinux"
@@ -127,8 +136,9 @@ let package = Package(
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
-                "ContainerNetworkService",
                 "ContainerClient",
+                "ContainerNetworkService",
+                "ContainerPersistence",
                 "ContainerXPC",
                 "SocketForwarder",
             ],
@@ -143,9 +153,9 @@ let package = Package(
                 .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "ContainerizationIO", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
-                "CVersion",
-                "ContainerNetworkService",
                 "ContainerLog",
+                "ContainerNetworkService",
+                "ContainerVersion",
                 "ContainerXPC",
             ],
             path: "Sources/Helpers/NetworkVmnet"
@@ -156,6 +166,7 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
+                "ContainerPersistence",
                 "ContainerXPC",
             ],
             path: "Sources/Services/ContainerNetworkService"
@@ -166,10 +177,11 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Containerization", package: "containerization"),
-                "CVersion",
-                "ContainerLog",
-                "ContainerXPC",
                 "ContainerImagesService",
+                "ContainerLog",
+                "ContainerPlugin",
+                "ContainerVersion",
+                "ContainerXPC",
             ],
             path: "Sources/Helpers/Images"
         ),
@@ -222,18 +234,109 @@ let package = Package(
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationOCI", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
+                .product(name: "ContainerizationArchive", package: "containerization"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
-                "ContainerNetworkService",
                 "ContainerImagesServiceClient",
-                "TerminalProgress",
+                "ContainerNetworkService",
+                "ContainerPlugin",
                 "ContainerXPC",
-                "CVersion",
+                "TerminalProgress",
             ]
         ),
         .testTarget(
             name: "ContainerClientTests",
             dependencies: [
                 .product(name: "Containerization", package: "containerization"),
+                "ContainerClient",
+                "ContainerPersistence",
+            ]
+        ),
+        .executableTarget(
+            name: "native-builder-demo",
+            dependencies: ["ContainerBuildIR", "ContainerBuildExecutor", "ContainerBuildCache"],
+            path: "Sources/NativeBuilder/ContainerBuildDemo"
+        ),
+        .target(
+            name: "ContainerBuildReporting",
+            dependencies: [],
+            path: "Sources/NativeBuilder/ContainerBuildReporting",
+            swiftSettings: [
+                .enableExperimentalFeature("StrictConcurrency")
+            ]
+        ),
+        .target(
+            name: "ContainerBuildIR",
+            dependencies: [
+                "ContainerBuildReporting",
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                .product(name: "Crypto", package: "swift-crypto"),
+            ],
+            path: "Sources/NativeBuilder/ContainerBuildIR",
+            swiftSettings: [
+                .enableExperimentalFeature("StrictConcurrency")
+            ],
+        ),
+        .target(
+            name: "ContainerBuildExecutor",
+            dependencies: [
+                "ContainerBuildReporting",
+                "ContainerBuildIR",
+                "ContainerBuildSnapshotter",
+                "ContainerBuildCache",
+                .product(name: "ContainerizationOCI", package: "containerization"),
+            ],
+            path: "Sources/NativeBuilder/ContainerBuildExecutor",
+            swiftSettings: [
+                .enableExperimentalFeature("StrictConcurrency")
+            ]
+        ),
+        .target(
+            name: "ContainerBuildCache",
+            dependencies: [
+                "ContainerBuildIR",
+                "ContainerBuildSnapshotter",
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                .product(name: "Crypto", package: "swift-crypto"),
+            ],
+            path: "Sources/NativeBuilder/ContainerBuildCache",
+            swiftSettings: [
+                .enableExperimentalFeature("StrictConcurrency")
+            ]
+        ),
+        .target(
+            name: "ContainerBuildSnapshotter",
+            dependencies: [
+                "ContainerBuildIR",
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                .product(name: "ContainerizationArchive", package: "containerization"),
+                .product(name: "Crypto", package: "swift-crypto"),
+                "ContainerClient",
+            ],
+            path: "Sources/NativeBuilder/ContainerBuildSnapshotter",
+            swiftSettings: [
+                .enableExperimentalFeature("StrictConcurrency")
+            ]
+        ),
+        .target(
+            name: "ContainerBuildParser",
+            dependencies: [
+                "ContainerBuildIR"
+            ],
+            path: "Sources/NativeBuilder/ContainerBuildParser",
+            swiftSettings: [
+                .enableExperimentalFeature("StrictConcurrency")
+            ]
+        ),
+        .testTarget(
+            name: "NativeBuilderTests",
+            dependencies: [
+                "ContainerBuildIR",
+                "ContainerBuildExecutor",
+                "ContainerBuildCache",
+                "ContainerBuildReporting",
+                "ContainerBuildParser",
+                "ContainerBuildSnapshotter",
                 "ContainerClient",
             ]
         ),
@@ -242,6 +345,7 @@ let package = Package(
             dependencies: [
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Containerization", package: "containerization"),
+                "CVersion",
             ]
         ),
         .target(
@@ -273,8 +377,7 @@ let package = Package(
         .target(
             name: "TerminalProgress",
             dependencies: [
-                .product(name: "ContainerizationOS", package: "containerization"),
-                .product(name: "SendableProperty", package: "containerization"),
+                .product(name: "ContainerizationOS", package: "containerization")
             ]
         ),
         .testTarget(
@@ -323,6 +426,12 @@ let package = Package(
                 "ContainerNetworkService",
             ],
             path: "Tests/CLITests"
+        ),
+        .target(
+            name: "ContainerVersion",
+            dependencies: [
+                "CVersion"
+            ],
         ),
         .target(
             name: "CVersion",

@@ -14,8 +14,31 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import Foundation
+import ContainerBuildIR
 
-extension UserDefaults {
-    public static let appSuiteName = "com.apple.container.defaults"
+public protocol BuildParser {
+    associatedtype Input
+    func parse(_ input: Input) throws -> BuildGraph
+}
+
+/// Error types encountered while parsing.
+/// TODO: These will be removed/enhanced
+public enum ParseError: Error, Equatable {
+    case invalidImage(String)
+    case missingInstruction
+    case invalidInstruction(String)
+    case unexpectedValue
+    case invalidOption(String)
+    case missingRequiredField(String)
+    case duplicateOptionSet(String)
+    case invalidSyntax
+    case invalidBoolOption(String)
+    case invalidUint32Option(String)
+}
+
+/// Token represents a logical unit within a line of builder input, such as
+/// a dockerfile
+public enum Token: Sendable, Equatable {
+    case stringLiteral(String)
+    case stringList([String])
 }

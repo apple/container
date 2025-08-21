@@ -51,22 +51,22 @@ extension Application {
             progress.start()
 
             let container = try await ClientContainer.get(id: containerID)
-            let process = try await container.bootstrap()
-
-            progress.set(description: "Starting init process")
-            let detach = !self.attach && !self.interactive
             do {
+                let detach = !self.attach && !self.interactive
                 let io = try ProcessIO.create(
                     tty: container.configuration.initProcess.terminal,
                     interactive: self.interactive,
                     detach: detach
                 )
+                defer {
+                    try? io.close()
+                }
+
+                let process = try await container.bootstrap(stdio: io.stdio)
                 progress.finish()
+
                 if detach {
-                    try await process.start(io.stdio)
-                    defer {
-                        try? io.close()
-                    }
+                    try await process.start()
                     try io.closeAfterStart()
                     print(self.containerID)
                     return

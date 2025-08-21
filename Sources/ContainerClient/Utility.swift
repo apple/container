@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerNetworkService
+import ContainerPersistence
 import Containerization
 import ContainerizationError
 import ContainerizationExtras
@@ -24,8 +25,8 @@ import TerminalProgress
 
 public struct Utility {
     private static let infraImages = [
-        ClientDefaults.get(key: .defaultBuilderImage),
-        ClientDefaults.get(key: .defaultInitImage),
+        DefaultsStore.get(key: .defaultBuilderImage),
+        DefaultsStore.get(key: .defaultInitImage),
     ]
 
     public static func createContainerID(name: String?) -> String {
@@ -136,7 +137,6 @@ public struct Utility {
 
         var config = ContainerConfiguration(id: id, image: description, process: pc)
         config.platform = requestedPlatform
-        config.hostname = id
 
         config.resources = try Parser.resources(
             cpus: resource.cpus,
@@ -144,35 +144,50 @@ public struct Utility {
         )
 
         let tmpfs = try Parser.tmpfsMounts(management.tmpFs)
-        let volumes = try Parser.volumes(management.volumes)
-        var mounts = try Parser.mounts(management.mounts)
-        mounts.append(contentsOf: tmpfs)
-        mounts.append(contentsOf: volumes)
-        config.mounts = mounts
+        let volumesOrFs = try Parser.volumes(management.volumes)
+        let mountsOrFs = try Parser.mounts(management.mounts)
 
-        if management.networks.isEmpty {
-            config.networks = [ClientNetwork.defaultNetworkName]
-        } else {
-            // networks may only be specified for macOS 26+
-            guard #available(macOS 26, *) else {
-                throw ContainerizationError(.invalidArgument, message: "non-default network configuration requires macOS 26 or newer")
+        var resolvedMounts: [Filesystem] = []
+        resolvedMounts.append(contentsOf: tmpfs)
+
+        // Resolve volumes and filesystems
+        for item in (volumesOrFs + mountsOrFs) {
+            switch item {
+            case .filesystem(let fs):
+                resolvedMounts.append(fs)
+            case .volume(let parsed):
+                do {
+                    let volume = try await ClientVolume.inspect(parsed.name)
+                    let volumeMount = Filesystem.volume(
+                        name: parsed.name,
+                        format: volume.format,
+                        source: volume.source,
+                        destination: parsed.destination,
+                        options: parsed.options
+                    )
+                    resolvedMounts.append(volumeMount)
+                } catch {
+                    throw ContainerizationError(.invalidArgument, message: "volume '\(parsed.name)' not found")
+                }
             }
-            config.networks = management.networks
         }
 
-        var networkStatuses: [NetworkStatus] = []
-        for networkName in config.networks {
-            let network: NetworkState = try await ClientNetwork.get(id: networkName)
-            guard case .running(_, let networkStatus) = network else {
-                throw ContainerizationError(.invalidState, message: "network \(networkName) is not running")
+        config.mounts = resolvedMounts
+
+        config.virtualization = management.virtualization
+
+        config.networks = try getAttachmentConfigurations(containerId: config.id, networkIds: management.networks)
+        for attachmentConfiguration in config.networks {
+            let network: NetworkState = try await ClientNetwork.get(id: attachmentConfiguration.network)
+            guard case .running(_, _) = network else {
+                throw ContainerizationError(.invalidState, message: "network \(attachmentConfiguration.network) is not running")
             }
-            networkStatuses.append(networkStatus)
         }
 
         if management.dnsDisabled {
             config.dns = nil
         } else {
-            let domain = management.dnsDomain ?? ClientDefaults.getOptional(key: .defaultDNSDomain)
+            let domain = management.dnsDomain ?? DefaultsStore.getOptional(key: .defaultDNSDomain)
             config.dns = .init(
                 nameservers: management.dnsNameservers,
                 domain: domain,
@@ -193,7 +208,42 @@ public struct Utility {
         // to enable socket forwarding from container to host.
         config.publishedSockets = try Parser.publishSockets(management.publishSockets)
 
+        config.ssh = management.ssh
+
         return (config, kernel)
+    }
+
+    static func getAttachmentConfigurations(containerId: String, networkIds: [String]) throws -> [AttachmentConfiguration] {
+        // make an FQDN for the first interface
+        let fqdn: String?
+        if !containerId.contains(".") {
+            // add default domain if it exists, and container ID is unqualified
+            if let dnsDomain = DefaultsStore.getOptional(key: .defaultDNSDomain) {
+                fqdn = "\(containerId).\(dnsDomain)."
+            } else {
+                fqdn = nil
+            }
+        } else {
+            // use container ID directly if fully qualified
+            fqdn = "\(containerId)."
+        }
+
+        guard networkIds.isEmpty else {
+            // networks may only be specified for macOS 26+
+            guard #available(macOS 26, *) else {
+                throw ContainerizationError(.invalidArgument, message: "non-default network configuration requires macOS 26 or newer")
+            }
+
+            // attach the first network using the fqdn, and the rest using just the container ID
+            return networkIds.enumerated().map { item in
+                guard item.offset == 0 else {
+                    return AttachmentConfiguration(network: item.element, options: AttachmentOptions(hostname: containerId))
+                }
+                return AttachmentConfiguration(network: item.element, options: AttachmentOptions(hostname: fqdn ?? containerId))
+            }
+        }
+        // if no networks specified, attach to the default network
+        return [AttachmentConfiguration(network: ClientNetwork.defaultNetworkName, options: AttachmentOptions(hostname: fqdn ?? containerId))]
     }
 
     private static func getKernel(management: Flags.Management) async throws -> Kernel {
@@ -208,5 +258,23 @@ public struct Utility {
             return .init(path: p, platform: s)
         }
         return try await ClientKernel.getDefaultKernel(for: s)
+    }
+
+    /// Parses key-value pairs from command line arguments.
+    ///
+    /// Supports formats like "key=value" and standalone keys (treated as "key=").
+    /// - Parameter pairs: Array of strings in "key=value" format
+    /// - Returns: Dictionary mapping keys to values
+    public static func parseKeyValuePairs(_ pairs: [String]) -> [String: String] {
+        var result: [String: String] = [:]
+        for pair in pairs {
+            let components = pair.split(separator: "=", maxSplits: 1)
+            if components.count == 2 {
+                result[String(components[0])] = String(components[1])
+            } else {
+                result[pair] = ""
+            }
+        }
+        return result
     }
 }

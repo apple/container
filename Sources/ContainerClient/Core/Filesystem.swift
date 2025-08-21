@@ -56,6 +56,7 @@ public struct Filesystem: Sendable, Codable {
         }
 
         case block(format: String, cache: CacheMode, sync: SyncMode)
+        case volume(name: String, format: String, cache: CacheMode, sync: SyncMode)
         case virtiofs
         case tmpfs
     }
@@ -96,6 +97,19 @@ public struct Filesystem: Sendable, Codable {
         )
     }
 
+    /// A named volume filesystem.
+    public static func volume(
+        name: String, format: String, source: String, destination: String, options: MountOptions,
+        cache: CacheMode = .auto, sync: SyncMode = .full
+    ) -> Filesystem {
+        .init(
+            type: .volume(name: name, format: format, cache: cache, sync: sync),
+            source: URL(fileURLWithPath: source).absolutePath(),
+            destination: destination,
+            options: options
+        )
+    }
+
     /// A vritiofs backed filesystem providing a directory.
     public static func virtiofs(source: String, destination: String, options: MountOptions) -> Filesystem {
         .init(
@@ -119,7 +133,24 @@ public struct Filesystem: Sendable, Codable {
     public var isBlock: Bool {
         switch type {
         case .block(_, _, _): true
+        case .volume(_, _, _, _): true
         default: false
+        }
+    }
+
+    /// Returns true if the Filesystem is a named volume.
+    public var isVolume: Bool {
+        switch type {
+        case .volume(_, _, _, _): true
+        default: false
+        }
+    }
+
+    /// Returns the volume name if this is a volume filesystem, nil otherwise.
+    public var volumeName: String? {
+        switch type {
+        case .volume(let name, _, _, _): name
+        default: nil
         }
     }
 

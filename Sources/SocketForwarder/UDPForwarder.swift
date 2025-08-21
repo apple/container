@@ -42,8 +42,8 @@ private final class UDPProxyBackend: ChannelInboundHandler, Sendable {
         self.serverAddress = serverAddress
         self.frontendChannel = frontendChannel
         self.log = log
-        let state = State(queuedPayloads: Deque(), channel: nil)
-        self.state = Mutex(state)
+        let initialState = State(queuedPayloads: Deque(), channel: nil)
+        self.state = Mutex(initialState)
     }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {

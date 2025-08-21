@@ -20,6 +20,25 @@ import ContainerizationOCI
 import ContainerizationOS
 import Foundation
 
+/// A parsed volume specification from user input
+public struct ParsedVolume {
+    public let name: String
+    public let destination: String
+    public let options: [String]
+
+    public init(name: String, destination: String, options: [String] = []) {
+        self.name = name
+        self.destination = destination
+        self.options = options
+    }
+}
+
+/// Union type for parsed mount specifications
+public enum VolumeOrFilesystem {
+    case filesystem(Filesystem)
+    case volume(ParsedVolume)
+}
+
 public struct Parser {
     public static func memoryString(_ memory: String) throws -> Int64 {
         let ram = try Measurement.parse(parsing: memory)
@@ -82,7 +101,7 @@ public struct Parser {
         return output
     }
 
-    static func envFile(path: String) throws -> [String] {
+    public static func envFile(path: String) throws -> [String] {
         guard FileManager.default.fileExists(atPath: path) else {
             throw ContainerizationError(.notFound, message: "envfile at \(path) not found")
         }
@@ -111,7 +130,7 @@ public struct Parser {
         return envVars
     }
 
-    static func env(envList: [String]) -> [String] {
+    public static func env(envList: [String]) -> [String] {
         var envVar: [String] = []
         for env in envList {
             var env = env
@@ -127,7 +146,7 @@ public struct Parser {
         return envVar
     }
 
-    static func labels(_ rawLabels: [String]) throws -> [String: String] {
+    public static func labels(_ rawLabels: [String]) throws -> [String: String] {
         var result: [String: String] = [:]
         for label in rawLabels {
             if label.isEmpty {
@@ -146,7 +165,7 @@ public struct Parser {
         return result
     }
 
-    static func process(
+    public static func process(
         arguments: [String],
         processFlags: Flags.Process,
         managementFlags: Flags.Management,
@@ -214,27 +233,27 @@ public struct Parser {
 
     // MARK: Mounts
 
-    static let mountTypes = [
+    public static let mountTypes = [
         "virtiofs",
         "bind",
         "tmpfs",
     ]
 
-    static let defaultDirectives = ["type": "virtiofs"]
+    public static let defaultDirectives = ["type": "virtiofs"]
 
-    static func tmpfsMounts(_ mounts: [String]) throws -> [Filesystem] {
+    public static func tmpfsMounts(_ mounts: [String]) throws -> [Filesystem] {
         var result: [Filesystem] = []
         let mounts = mounts.dedupe()
         for tmpfs in mounts {
             let fs = Filesystem.tmpfs(destination: tmpfs, options: [])
-            try validateMount(fs)
+            try validateMount(.filesystem(fs))
             result.append(fs)
         }
         return result
     }
 
-    static func mounts(_ rawMounts: [String]) throws -> [Filesystem] {
-        var mounts: [Filesystem] = []
+    public static func mounts(_ rawMounts: [String]) throws -> [VolumeOrFilesystem] {
+        var mounts: [VolumeOrFilesystem] = []
         let rawMounts = rawMounts.dedupe()
         for mount in rawMounts {
             let m = try Parser.mount(mount)
@@ -244,7 +263,7 @@ public struct Parser {
         return mounts
     }
 
-    static func mount(_ mount: String) throws -> Filesystem {
+    public static func mount(_ mount: String) throws -> VolumeOrFilesystem {
         let parts = mount.split(separator: ",")
         if parts.count == 0 {
             throw ContainerizationError(.invalidArgument, message: "invalid mount format: \(mount)")
@@ -278,6 +297,8 @@ public struct Parser {
         }
 
         var fs = Filesystem()
+        var isVolume = false
+        var volumeName = ""
         for (key, val) in directives {
             var val = val
             let type = directives["type"] ?? ""
@@ -317,10 +338,31 @@ public struct Parser {
                 let s = "mode=\(val)"
                 fs.options.append(s)
             case "source":
-                let absPath = URL(filePath: val).absoluteURL.path
                 switch type {
                 case "virtiofs", "bind":
-                    fs.source = absPath
+                    // Check if it's an absolute directory path first
+                    if val.hasPrefix("/") {
+                        let url = URL(filePath: val)
+                        let absolutePath = url.absoluteURL.path
+
+                        var isDirectory: ObjCBool = false
+                        guard FileManager.default.fileExists(atPath: absolutePath, isDirectory: &isDirectory) else {
+                            throw ContainerizationError(.invalidArgument, message: "path '\(val)' does not exist")
+                        }
+                        guard isDirectory.boolValue else {
+                            throw ContainerizationError(.invalidArgument, message: "path '\(val)' is not a directory")
+                        }
+                        fs.source = absolutePath
+                    } else {
+                        guard VolumeStorage.isValidVolumeName(val) else {
+                            throw ContainerizationError(.invalidArgument, message: "Invalid volume name '\(val)': must match \(VolumeStorage.volumeNamePattern)")
+                        }
+
+                        // This is a named volume
+                        isVolume = true
+                        volumeName = val
+                        fs.source = val
+                    }
                 case "tmpfs":
                     throw ContainerizationError(.invalidArgument, message: "cannot specify source for tmpfs mount")
                 default:
@@ -332,11 +374,20 @@ public struct Parser {
                 throw ContainerizationError(.invalidArgument, message: "unknown mount directive \(key)")
             }
         }
-        return fs
+
+        guard isVolume else {
+            return .filesystem(fs)
+        }
+        return .volume(
+            ParsedVolume(
+                name: volumeName,
+                destination: fs.destination,
+                options: fs.options
+            ))
     }
 
-    static func volumes(_ rawVolumes: [String]) throws -> [Filesystem] {
-        var mounts: [Filesystem] = []
+    public static func volumes(_ rawVolumes: [String]) throws -> [VolumeOrFilesystem] {
+        var mounts: [VolumeOrFilesystem] = []
         for volume in rawVolumes {
             let m = try Parser.volume(volume)
             try Parser.validateMount(m)
@@ -345,7 +396,7 @@ public struct Parser {
         return mounts
     }
 
-    private static func volume(_ volume: String) throws -> Filesystem {
+    public static func volume(_ volume: String) throws -> VolumeOrFilesystem {
         var vol = volume
         vol.trimLeft(char: ":")
 
@@ -354,46 +405,73 @@ public struct Parser {
         case 1:
             throw ContainerizationError(.invalidArgument, message: "anonymous volumes are not supported")
         case 2, 3:
-            // Bind / volume mounts.
             let src = String(parts[0])
             let dst = String(parts[1])
 
-            let abs = URL(filePath: src).absoluteURL.path
-            if !FileManager.default.fileExists(atPath: abs) {
-                throw ContainerizationError(.invalidArgument, message: "named volumes are not supported")
+            // Check if it's an absolute directory path first
+            guard src.hasPrefix("/") else {
+                // Named volume - validate name syntax only
+                guard VolumeStorage.isValidVolumeName(src) else {
+                    throw ContainerizationError(.invalidArgument, message: "Invalid volume name '\(src)': must match \(VolumeStorage.volumeNamePattern)")
+                }
+
+                // This is a named volume
+                let options = parts.count == 3 ? parts[2].split(separator: ",").map { String($0) } : []
+                return .volume(
+                    ParsedVolume(
+                        name: src,
+                        destination: dst,
+                        options: options
+                    ))
+            }
+            let url = URL(filePath: src)
+            let absolutePath = url.absoluteURL.path
+
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: absolutePath, isDirectory: &isDirectory) else {
+                throw ContainerizationError(.invalidArgument, message: "path '\(src)' does not exist")
             }
 
+            // This is a filesystem mount
             var fs = Filesystem.virtiofs(
-                source: URL(fileURLWithPath: src).absolutePath(),
+                source: URL(fileURLWithPath: absolutePath).absolutePath(),
                 destination: dst,
                 options: []
             )
             if parts.count == 3 {
                 fs.options = parts[2].split(separator: ",").map { String($0) }
             }
-            return fs
+            return .filesystem(fs)
         default:
             throw ContainerizationError(.invalidArgument, message: "invalid volume format \(volume)")
         }
     }
 
-    static func validMountType(_ type: String) -> Bool {
+    public static func validMountType(_ type: String) -> Bool {
         mountTypes.contains(type)
     }
 
-    static func validateMount(_ mount: Filesystem) throws {
-        if !mount.isTmpfs {
-            if !mount.source.isAbsolutePath() {
-                throw ContainerizationError(
-                    .invalidArgument, message: "\(mount.source) is not an absolute path on the host")
+    public static func validateMount(_ mount: VolumeOrFilesystem) throws {
+        switch mount {
+        case .filesystem(let fs):
+            if !fs.isTmpfs {
+                if !fs.source.isAbsolutePath() {
+                    throw ContainerizationError(
+                        .invalidArgument, message: "\(fs.source) is not an absolute path on the host")
+                }
+                if !FileManager.default.fileExists(atPath: fs.source) {
+                    throw ContainerizationError(.invalidArgument, message: "file path '\(fs.source)' does not exist")
+                }
             }
-            if !FileManager.default.fileExists(atPath: mount.source) {
-                throw ContainerizationError(.invalidArgument, message: "file path '\(mount.source)' does not exist")
-            }
-        }
 
-        if mount.destination.isEmpty {
-            throw ContainerizationError(.invalidArgument, message: "mount destination cannot be empty")
+            if fs.destination.isEmpty {
+                throw ContainerizationError(.invalidArgument, message: "mount destination cannot be empty")
+            }
+        case .volume(let vol):
+            if vol.destination.isEmpty {
+                throw ContainerizationError(.invalidArgument, message: "volume destination cannot be empty")
+            }
+        // Volume name validation already done during parsing
         }
     }
 
@@ -404,7 +482,7 @@ public struct Parser {
     /// - Parameter rawPublishPorts: Array of port arguments
     /// - Returns: Array of PublishPort objects
     /// - Throws: ContainerizationError if parsing fails
-    static func publishPorts(_ rawPublishPorts: [String]) throws -> [PublishPort] {
+    public static func publishPorts(_ rawPublishPorts: [String]) throws -> [PublishPort] {
         var sockets: [PublishPort] = []
 
         // Process each raw port string
@@ -416,7 +494,7 @@ public struct Parser {
     }
 
     // Parse a single `--publish-port` argument into a `PublishPort`.
-    private static func publishPort(_ portText: String) throws -> PublishPort {
+    public static func publishPort(_ portText: String) throws -> PublishPort {
         let protoSplit = portText.split(separator: "/")
         let proto: PublishProtocol
         let addressAndPortText: String
@@ -475,7 +553,7 @@ public struct Parser {
     /// - Parameter rawPublishSockets: Array of socket arguments
     /// - Returns: Array of PublishSocket objects
     /// - Throws: ContainerizationError if parsing fails or a path is invalid
-    static func publishSockets(_ rawPublishSockets: [String]) throws -> [PublishSocket] {
+    public static func publishSockets(_ rawPublishSockets: [String]) throws -> [PublishSocket] {
         var sockets: [PublishSocket] = []
 
         // Process each raw socket string
@@ -487,7 +565,7 @@ public struct Parser {
     }
 
     // Parse a single `--publish-socket`` argument into a `PublishSocket`.
-    private static func publishSocket(_ socketText: String) throws -> PublishSocket {
+    public static func publishSocket(_ socketText: String) throws -> PublishSocket {
         // Split by colon to two parts: [host_path, container_path]
         let parts = socketText.split(separator: ":")
 

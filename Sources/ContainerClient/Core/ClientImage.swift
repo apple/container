@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerImagesServiceClient
+import ContainerPersistence
 import ContainerXPC
 import Containerization
 import ContainerizationError
@@ -69,13 +70,31 @@ public struct ClientImage: Sendable {
         }
         return try content.decode()
     }
+
+    /// Returns the resolved OCI descriptor for the image.
+    package func resolved() async throws -> Descriptor {
+        let index = try await self.index()
+        let indirect = index.annotations?[AnnotationKeys.containerizationIndexIndirect]
+        // If this is not an indirect index, return its own descriptor
+        guard let indirect, ["1", "true"].contains(indirect.lowercased()) else {
+            return self.descriptor
+        }
+        // For indirect indices, return the first (and only) manifest
+        guard let manifest = index.manifests.first else {
+            throw ContainerizationError(
+                .internalError,
+                message: "Failed to resolve indirect index \(self.digest): no manifests found"
+            )
+        }
+        return manifest
+    }
 }
 
 // MARK: ClientImage constants
 
 extension ClientImage {
     private static let serviceIdentifier = "com.apple.container.core.container-core-images"
-    public static let initImageRef = ClientDefaults.get(key: .defaultInitImage)
+    public static let initImageRef = DefaultsStore.get(key: .defaultInitImage)
 
     private static func newXPCClient() -> XPCClient {
         XPCClient(service: Self.serviceIdentifier)
@@ -86,7 +105,7 @@ extension ClientImage {
     }
 
     private static var defaultRegistryDomain: String {
-        ClientDefaults.get(key: .defaultRegistryDomain)
+        DefaultsStore.get(key: .defaultRegistryDomain)
     }
 }
 

@@ -408,6 +408,35 @@ class TestCLIRunCommand: CLITest {
         }
     }
 
+    @Test func testRunDefaultHostsEntries() throws {
+        do {
+            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+            try doLongRun(name: name)
+            defer {
+                try? doStop(name: name)
+            }
+
+            let inspectOutput = try inspectContainer(name)
+            let ip = String(inspectOutput.networks[0].address.split(separator: "/")[0])
+
+            let output = try doExec(name: name, cmd: ["cat", "/etc/hosts"])
+            let lines = output.split(separator: "\n")
+
+            let expectedEntries = [("127.0.0.1", "localhost"), (ip, name)]
+
+            for (i, line) in lines.enumerated() {
+                let words = line.split(separator: " ").map { String($0) }
+                #expect(words.count >= 2, "expected /etc/hosts entry to have 2 or more entries")
+                let expected = expectedEntries[i]
+                #expect(expected.0 == words[0], "expected /etc/hosts entries IP to be \(expected.0), instead got \(words[0])")
+                #expect(expected.1 == words[1], "expected /etc/hosts entries host to be \(expected.1), instead got \(words[1])")
+            }
+        } catch {
+            Issue.record("failed to run container \(error)")
+            return
+        }
+    }
+
     @Test func testRunCommandDNSOption() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])

@@ -15,11 +15,11 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import CVersion
 import ContainerClient
 import ContainerLog
 import ContainerNetworkService
 import ContainerSandboxService
+import ContainerVersion
 import ContainerXPC
 import Containerization
 import ContainerizationError
@@ -34,7 +34,7 @@ struct RuntimeLinuxHelper: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "container-runtime-linux",
         abstract: "XPC Service for managing a Linux sandbox",
-        version: releaseVersion()
+        version: ReleaseVersion.singleLine(appName: "container-runtime-linux")
     )
 
     @Flag(name: .long, help: "Enable debug logging")
@@ -121,9 +121,5 @@ struct RuntimeLinuxHelper: AsyncParsableCommand {
         guard setrlimit(RLIMIT_NOFILE, &limits) == 0 else {
             throw POSIXError(.init(rawValue: errno)!)
         }
-    }
-
-    private static func releaseVersion() -> String {
-        (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? get_release_version().map { String(cString: $0) } ?? "0.0.0"
     }
 }

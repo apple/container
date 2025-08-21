@@ -2,7 +2,7 @@
 
 `container` is a tool that you can use to create and run Linux containers as lightweight virtual machines on your Mac. It's written in Swift, and optimized for Apple silicon.
 
-The tool consumes and produces OCI-compliant container images, so you can pull and run images from any standard container registry. You can push images that you build to those registries as well, and run the images in any other OCI-compliant application.
+The tool consumes and produces [OCI-compatible container images](https://github.com/opencontainers/image-spec), so you can pull and run images from any standard container registry. You can push images that you build to those registries as well, and run the images in any other OCI-compatible application.
 
 `container` uses the [Containerization](https://github.com/apple/containerization) Swift package for low level container, image, and process management.
 
@@ -12,11 +12,9 @@ The tool consumes and produces OCI-compliant container images, so you can pull a
 
 ### Requirements
 
-You need an Apple silicon Mac to run `container`. To build it, see the [BUILDING](./BUILDING.md) document.
+You need a Mac with Apple silicon to run `container`. To build it, see the [BUILDING](./BUILDING.md) document.
 
-`container` relies on the new features and enhancements present in the macOS 26 beta. You can run the tool on macOS 15, but the `container` maintainers typically will not address issues discovered on macOS 15 that cannot be reproduced on the macOS 26 beta.
-
-There are [significant networking limitations](/docs/technical-overview.md#macos-15-limitations) that impact the usability of `container` on macOS 15.
+`container` is supported on macOS 26, since it takes advantage of new features and enhancements to virtualization and networking in this release. We do not support older versions of macOS and the `container` maintainers typically will not address issues that cannot be reproduced on the latest macOS 26 beta.
 
 ### Install or upgrade
 
@@ -28,11 +26,11 @@ uninstall-container.sh -k
 
 Download the latest signed installer package for `container` from the [GitHub release page](https://github.com/apple/container/releases).
 
-To install the tool, double click the package file and follow the instructions. Enter your administrator password when prompted, to give the installer permission to place the installed files under `/usr/local`.
+To install the tool, double-click the package file and follow the instructions. Enter your administrator password when prompted, to give the installer permission to place the installed files under `/usr/local`.
 
 Start the system service with:
 
-```
+```bash
 container system start
 ```
 
@@ -64,4 +62,4 @@ Contributions to `container` are welcomed and encouraged. Please see our [main c
 
 ## Project Status
 
-The container project is currently under active development. Its stability, both for consuming the project as a Swift package and the `container` tool, is only guaranteed within minor versions, such as between 0.1.1 and 0.1.2. Minor version number releases may include breaking changes until we achieve a 1.0.0 release.
+The container project is currently under active development. Its stability, both for consuming the project as a Swift package and the `container` tool, is only guaranteed within patch versions, such as between 0.1.1 and 0.1.2. Minor version number releases may include breaking changes until we achieve a 1.0.0 release.

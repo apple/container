@@ -110,15 +110,18 @@ extension Application {
 
             let detach = self.managementFlags.detach
 
-            let process = try await container.bootstrap()
-            progress.finish()
-
             do {
                 let io = try ProcessIO.create(
                     tty: self.processFlags.tty,
                     interactive: self.processFlags.interactive,
                     detach: detach
                 )
+                defer {
+                    try? io.close()
+                }
+
+                let process = try await container.bootstrap(stdio: io.stdio)
+                progress.finish()
 
                 if !self.managementFlags.cidfile.isEmpty {
                     let path = self.managementFlags.cidfile
@@ -137,10 +140,7 @@ extension Application {
                 }
 
                 if detach {
-                    try await process.start(io.stdio)
-                    defer {
-                        try? io.close()
-                    }
+                    try await process.start()
                     try io.closeAfterStart()
                     print(id)
                     return
@@ -205,30 +205,28 @@ struct ProcessIO {
         var stdio = [FileHandle?](repeating: nil, count: 3)
 
         let stdin: Pipe? = {
-            if !interactive && !tty {
+            if !interactive {
                 return nil
             }
             return Pipe()
         }()
 
         if let stdin {
-            if interactive {
-                let pin = FileHandle.standardInput
-                let stdinOSFile = OSFile(fd: pin.fileDescriptor)
-                let pipeOSFile = OSFile(fd: stdin.fileHandleForWriting.fileDescriptor)
-                try stdinOSFile.makeNonBlocking()
-                nonisolated(unsafe) let buf = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: Int(getpagesize()))
+            let pin = FileHandle.standardInput
+            let stdinOSFile = OSFile(fd: pin.fileDescriptor)
+            let pipeOSFile = OSFile(fd: stdin.fileHandleForWriting.fileDescriptor)
+            try stdinOSFile.makeNonBlocking()
+            nonisolated(unsafe) let buf = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: Int(getpagesize()))
 
-                pin.readabilityHandler = { _ in
-                    Self.streamStdin(
-                        from: stdinOSFile,
-                        to: pipeOSFile,
-                        buffer: buf,
-                    ) {
-                        pin.readabilityHandler = nil
-                        buf.deallocate()
-                        try? stdin.fileHandleForWriting.close()
-                    }
+            pin.readabilityHandler = { _ in
+                Self.streamStdin(
+                    from: stdinOSFile,
+                    to: pipeOSFile,
+                    buffer: buf,
+                ) {
+                    pin.readabilityHandler = nil
+                    buf.deallocate()
+                    try? stdin.fileHandleForWriting.close()
                 }
             }
             stdio[0] = stdin.fileHandleForReading

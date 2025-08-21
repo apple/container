@@ -15,9 +15,9 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import CVersion
 import ContainerLog
 import ContainerNetworkService
+import ContainerVersion
 import ContainerXPC
 import ContainerizationExtras
 import Foundation
@@ -28,7 +28,7 @@ struct NetworkVmnetHelper: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "container-network-vmnet",
         abstract: "XPC service for managing a vmnet network",
-        version: releaseVersion(),
+        version: ReleaseVersion.singleLine(appName: "container-network-vmnet"),
         subcommands: [
             Start.self
         ]
@@ -111,9 +111,5 @@ extension NetworkVmnetHelper {
 
             return try ReservedVmnetNetwork(configuration: configuration, log: log)
         }
-    }
-
-    private static func releaseVersion() -> String {
-        (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? get_release_version().map { String(cString: $0) } ?? "0.0.0"
     }
 }

@@ -144,9 +144,9 @@ extension ClientContainer {
 }
 
 extension ClientContainer {
-    public func bootstrap() async throws -> ClientProcess {
+    public func bootstrap(stdio: [FileHandle?]) async throws -> ClientProcess {
         let client = self.sandboxClient
-        try await client.bootstrap()
+        try await client.bootstrap(stdio: stdio)
         return ClientProcessImpl(containerId: self.id, client: self.sandboxClient)
     }
 
@@ -183,10 +183,14 @@ extension ClientContainer {
 
 extension ClientContainer {
     /// Execute a new process inside a running container.
-    public func createProcess(id: String, configuration: ProcessConfiguration) async throws -> ClientProcess {
+    public func createProcess(
+        id: String,
+        configuration: ProcessConfiguration,
+        stdio: [FileHandle?]
+    ) async throws -> ClientProcess {
         do {
             let client = self.sandboxClient
-            try await client.createProcess(id, config: configuration)
+            try await client.createProcess(id, config: configuration, stdio: stdio)
             return ClientProcessImpl(containerId: self.id, processId: id, client: client)
         } catch {
             throw ContainerizationError(

@@ -70,6 +70,9 @@ extension Application {
 
             do {
                 let io = try ProcessIO.create(tty: tty, interactive: stdin, detach: false)
+                defer {
+                    try? io.close()
+                }
 
                 if !self.processFlags.tty {
                     var handler = SignalThreshold(threshold: 3, signals: [SIGINT, SIGTERM])
@@ -81,7 +84,9 @@ extension Application {
 
                 let process = try await container.createProcess(
                     id: UUID().uuidString.lowercased(),
-                    configuration: config)
+                    configuration: config,
+                    stdio: io.stdio
+                )
 
                 exitCode = try await Application.handleProcess(io: io, process: process)
             } catch {

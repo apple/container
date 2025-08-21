@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerClient
+import ContainerPersistence
 import Containerization
 import ContainerizationError
 import ContainerizationExtras
@@ -44,8 +45,8 @@ extension Application {
 
         func run() async throws {
             if recommended {
-                let url = ClientDefaults.get(key: .defaultKernelURL)
-                let path = ClientDefaults.get(key: .defaultKernelBinaryPath)
+                let url = DefaultsStore.get(key: .defaultKernelURL)
+                let path = DefaultsStore.get(key: .defaultKernelBinaryPath)
                 print("Installing the recommended kernel from \(url)...")
                 try await Self.downloadAndInstallWithProgressBar(tarRemoteURL: url, kernelFilePath: path)
                 return
