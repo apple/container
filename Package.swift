@@ -47,6 +47,7 @@ let package = Package(
         .library(name: "ContainerBuildCache", targets: ["ContainerBuildCache"]),
         .library(name: "ContainerBuildSnapshotter", targets: ["ContainerBuildSnapshotter"]),
         .library(name: "ContainerBuildParser", targets: ["ContainerBuildParser"]),
+        .library(name: "ComposeCLI", targets: ["ComposeCLI"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
@@ -446,15 +447,23 @@ let package = Package(
         ),
 
         // MARK: Plugins
-        .executableTarget(
-            name: "compose",
+        .target(
+            name: "ComposeCLI",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 "container",
                 "Yams",
                 "Rainbow",
             ],
-            path: "Plugins/compose"
+            path: "Plugins/Compose/ComposeCLI"
+        ),
+        
+        .executableTarget(
+            name: "compose",
+            dependencies: [
+                "ComposeCLI"
+            ],
+            path: "Plugins/Compose/compose"
         ),
     ]
 )

@@ -27,7 +27,7 @@ import ContainerClient
 import Foundation
 import Yams
 
-struct ComposeDown: AsyncParsableCommand {
+public struct ComposeDown: AsyncParsableCommand {
     public init() {}
 
     public static let configuration: CommandConfiguration = .init(

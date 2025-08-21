@@ -23,6 +23,7 @@
 
 import Foundation
 import Yams
+import Rainbow
 import ContainerCLI
 
 //extension Application {
@@ -95,3 +96,19 @@ import ContainerCLI
 //}
 
 extension String: @retroactive Error {}
+
+/// A structure representing the result of a command-line process execution.
+struct CommandResult {
+    /// The standard output captured from the process.
+    let stdout: String
+
+    /// The standard error output captured from the process.
+    let stderr: String
+
+    /// The exit code returned by the process upon termination.
+    let exitCode: Int32
+}
+
+extension NamedColor: Codable {
+
+}
