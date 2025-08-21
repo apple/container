@@ -54,7 +54,6 @@ extension Application {
                 if !failed.isEmpty {
                     log.warning("some containers could not be stopped gracefully", metadata: ["ids": "\(failed)"])
                 }
-
             } catch {
                 log.warning("failed to stop all containers", metadata: ["error": "\(error)"])
             }

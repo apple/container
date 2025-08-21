@@ -17,6 +17,7 @@
 import ArgumentParser
 import ContainerClient
 import ContainerizationError
+import ContainerizationExtras
 import ContainerizationOS
 import Foundation
 
@@ -78,9 +79,18 @@ extension Application {
                 for container in containers {
                     group.addTask {
                         do {
-                            try await container.stop(opts: stopOptions)
-                            print(container.id)
-                            return nil
+                            return try await Timeout.run(seconds: UInt32(stopOptions.timeoutInSeconds + 2)) {
+                                do {
+                                    try await container.stop(opts: stopOptions)
+                                } catch {
+                                    throw ContainerizationError(
+                                        .timeout,
+                                        message: "failed to return from stopping container"
+                                    )
+                                }
+                                print(container.id)
+                                return nil
+                            }
                         } catch {
                             log.error("failed to stop container \(container.id): \(error)")
                             return container
