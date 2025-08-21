@@ -21,7 +21,7 @@ export GIT_COMMIT := $(shell git rev-parse HEAD)
 SWIFT := "/usr/bin/swift"
 DESTDIR ?= /usr/local/
 ROOT_DIR := $(shell git rev-parse --show-toplevel)
-BUILD_BIN_DIR = $(shell $(SWIFT) build -c $(BUILD_CONFIGURATION) --show-bin-path)
+BUILD_BIN_DIR := .build/$(BUILD_CONFIGURATION)
 STAGING_DIR := bin/$(BUILD_CONFIGURATION)/staging/
 PKG_PATH := bin/$(BUILD_CONFIGURATION)/container-installer-unsigned.pkg
 DSYM_DIR := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM
@@ -44,7 +44,7 @@ SUDO ?= sudo
 include Protobuf.Makefile
 
 .PHONY: all
-all: container
+all: container compose
 all: init-block
 
 .PHONY: build
@@ -56,6 +56,10 @@ build:
 # Install binaries under project directory
 container: build
 	@"$(MAKE)" BUILD_CONFIGURATION=$(BUILD_CONFIGURATION) DESTDIR="$(ROOT_DIR)/" SUDO= install
+
+.PHONY: compose
+compose: build
+	@"$(MAKE)" BUILD_CONFIGURATION=$(BUILD_CONFIGURATION) DESTDIR=$(ROOT_DIR)/ SUDO= install-compose
 
 .PHONY: release
 release: BUILD_CONFIGURATION = release
@@ -109,6 +113,31 @@ installer-pkg: $(STAGING_DIR)
 	@echo Creating application installer
 	@pkgbuild --root "$(STAGING_DIR)" --identifier com.apple.container-installer --install-location /usr/local --version ${RELEASE_VERSION} $(PKG_PATH)
 	@rm -rf "$(STAGING_DIR)"
+
+################################################################################
+# Compose plugin install targets
+################################################################################
+
+COMPOSE_STAGING_DIR := bin/$(BUILD_CONFIGURATION)/compose-staging/
+
+.PHONY: install-compose
+install-compose: compose-staging
+	@echo Installing compose plugin to $(DESTDIR)...
+	@$(SUDO) mkdir -p $(DESTDIR)/libexec/container/plugins/compose/bin
+	@$(SUDO) install $(BUILD_BIN_DIR)/compose $(DESTDIR)/libexec/container/plugins/compose/bin/compose
+	@$(SUDO) install config/compose-config.json $(DESTDIR)/libexec/container/plugins/compose/config.json
+	@$(SUDO) install scripts/uninstall-compose.sh $(DESTDIR)/libexec/container/plugins/compose/bin/uninstall-compose.sh
+	@$(SUDO) codesign $(CODESIGN_OPTS) $(DESTDIR)/libexec/container/plugins/compose/bin/compose
+
+compose-staging:
+	@echo Staging compose plugin binaries to $(COMPOSE_STAGING_DIR)...
+	@rm -rf $(COMPOSE_STAGING_DIR)
+	@mkdir -p $(COMPOSE_STAGING_DIR)/libexec/container/plugins/compose/bin
+	@install $(BUILD_BIN_DIR)/container $(COMPOSE_STAGING_DIR)/libexec/container/plugins/compose/bin/compose
+	@install config/compose-config.json $(COMPOSE_STAGING_DIR)/libexec/container/plugins/compose/config.json
+	@install scripts/uninstall-compose.sh $(COMPOSE_STAGING_DIR)/libexec/container/plugins/compose/bin/uninstall-compose.sh
+
+################################################################################
 
 .PHONY: dsym
 dsym:
