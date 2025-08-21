@@ -461,6 +461,7 @@ let package = Package(
         .executableTarget(
             name: "compose",
             dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 "ComposeCLI"
             ],
             path: "Plugins/Compose/compose"
