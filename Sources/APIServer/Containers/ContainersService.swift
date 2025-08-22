@@ -207,14 +207,35 @@ actor ContainersService {
     }
 
     /// Delete a container and its resources.
-    public func delete(id: String) async throws {
+    public func delete(id: String, force: Bool) async throws {
         self.log.debug("\(#function)")
         let item = try self._get(id: id)
         switch item.status {
-        case .running, .stopping:
+        case .running:
+            if !force {
+                throw ContainerizationError(
+                    .invalidState,
+                    message: "container \(id) is \(item.status) and can not be deleted"
+                )
+            }
+            let autoRemove = try getContainerCreationOptions(id: id).autoRemove
+            let opts = ContainerStopOptions(
+                timeoutInSeconds: 5,
+                signal: SIGKILL
+            )
+            try await self._stop(
+                id: id,
+                runtimeHandler: item.configuration.runtimeHandler,
+                options: opts
+            )
+            if autoRemove {
+                return
+            }
+            try self._cleanup(id: id, item: item)
+        case .stopping:
             throw ContainerizationError(
                 .invalidState,
-                message: "container \(id) is not yet stopped and can not be deleted"
+                message: "container \(id) is \(item.status) and can not be deleted"
             )
         default:
             try self._cleanup(id: id, item: item)
@@ -251,6 +272,13 @@ actor ContainersService {
         try self._cleanup(id: id, item: item)
     }
 
+    private func getContainerCreationOptions(id: String) throws -> ContainerCreateOptions {
+        let path = self.containerRoot.appendingPathComponent(id)
+        let bundle = ContainerClient.Bundle(path: path)
+        let options: ContainerCreateOptions = try bundle.load(filename: "options.json")
+        return options
+    }
+
     private func containerProcessExitHandler(_ id: String, _ exitCode: Int32, context: AsyncLock.Context) async {
         self.log.info("Handling container \(id) exit. Code \(exitCode)")
         do {
@@ -258,9 +286,7 @@ actor ContainersService {
             let snapshot = ContainerSnapshot(configuration: item.configuration, status: .stopped, networks: [])
             await self.setContainer(id, snapshot, context: context)
 
-            let path = self.containerRoot.appendingPathComponent(id)
-            let bundle = ContainerClient.Bundle(path: path)
-            let options: ContainerCreateOptions = try bundle.load(filename: "options.json")
+            let options = try getContainerCreationOptions(id: id)
             if options.autoRemove {
                 try self.cleanup(id: id, item: item, context: context)
             }
@@ -315,12 +341,23 @@ extension ContainersService {
             let item = try await self.get(id: id, context: context)
             switch item.status {
             case .running:
-                let client = SandboxClient(id: item.configuration.id, runtime: item.configuration.runtimeHandler)
-                try await client.stop(options: options)
+                try await self._stop(
+                    id: id,
+                    runtimeHandler: item.configuration.runtimeHandler,
+                    options: options
+                )
             default:
                 return
             }
         }
+    }
+
+    private func _stop(id: String, runtimeHandler: String, options: ContainerStopOptions) async throws {
+        let client = SandboxClient(
+            id: id,
+            runtime: runtimeHandler
+        )
+        try await client.stop(options: options)
     }
 
     public func logs(id: String) async throws -> [FileHandle] {

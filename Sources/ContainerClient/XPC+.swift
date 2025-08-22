@@ -46,6 +46,8 @@ public enum XPCKeys: String {
     case logs
     /// Options for stopping a container key.
     case stopOptions
+    /// Whether to force stop a container when deleting.
+    case forceDelete
     /// Plugins
     case pluginName
     case plugins
