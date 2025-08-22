@@ -14,6 +14,8 @@
 
 # Version and build configuration variables
 BUILD_CONFIGURATION ?= debug
+WARNINGS_AS_ERRORS ?= true
+SWIFT_CONFIGURATION = $(if $(filter-out false,$(WARNINGS_AS_ERRORS)),-Xswiftc -warnings-as-errors)
 export RELEASE_VERSION ?= $(shell git describe --tags --always)
 export GIT_COMMIT := $(shell git rev-parse HEAD)
 
@@ -50,7 +52,7 @@ all: init-block
 .PHONY: build
 build:
 	@echo Building container binaries...
-	@$(SWIFT) build -c $(BUILD_CONFIGURATION)
+	@$(SWIFT) build -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION)
 
 .PHONY: container
 # Install binaries under project directory
@@ -126,7 +128,7 @@ dsym:
 
 .PHONY: test
 test:
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) --skip TestCLI
+	@$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI
 
 .PHONY: install-kernel
 install-kernel:
@@ -142,15 +144,15 @@ integration: init-block
 	echo "Starting CLI integration tests" && \
 	{ \
 		exit_code=0; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLINetwork || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunLifecycle || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIExecCommand || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLICreateCommand || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunCommand || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIImagesCommand || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunBase || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIBuildBase || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIVolumes || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLINetwork || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunLifecycle || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIExecCommand || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLICreateCommand || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunCommand || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIImagesCommand || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunBase || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIBuildBase || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIVolumes || exit_code=1 ; \
 		echo Ensuring apiserver stopped after the CLI integration tests ; \
 		scripts/ensure-container-stopped.sh ; \
 		exit $${exit_code} ; \
