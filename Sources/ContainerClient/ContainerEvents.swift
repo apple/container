@@ -14,8 +14,6 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-//
-
 public enum ContainerEvent: Sendable, Codable {
     case containerStart(id: String)
     case containerExit(id: String, exitCode: Int64)
