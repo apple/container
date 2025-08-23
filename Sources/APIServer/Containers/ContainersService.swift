@@ -84,9 +84,7 @@ actor ContainersService {
     /// List all containers registered with the service.
     public func list() async throws -> [ContainerSnapshot] {
         self.log.debug("\(#function)")
-        return await lock.withLock { context in
-            Array(await self.containers.values)
-        }
+        return Array(self.containers.values)
     }
 
     /// Execute an operation with the current container list while maintaining atomicity
