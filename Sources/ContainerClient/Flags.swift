@@ -115,6 +115,9 @@ public struct Flags {
             name: [.customLong("arch"), .short], help: "Set arch if image can target multiple architectures")
         public var arch: String = Arch.hostArchitecture().rawValue
 
+        @Option(name: .customLong("platform"), help: "Platform for the image if it's multi-platform. This takes precedence over --os and --arch")
+        public var platform: String?
+
         @Option(name: [.customLong("volume"), .short], help: "Bind mount a volume into the container")
         public var volumes: [String] = []
 

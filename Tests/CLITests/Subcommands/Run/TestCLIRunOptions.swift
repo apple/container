@@ -282,6 +282,26 @@ class TestCLIRunCommand: CLITest {
         }
     }
 
+    @Test func testRunCommandPlatform() throws {
+        do {
+            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+            let os = "linux"
+            let platform = "linux/amd64"
+            let expectedArch = "x86_64"
+            try doLongRun(name: name, args: ["--platform", platform])
+            defer {
+                try? doStop(name: name)
+            }
+            var output = try doExec(name: name, cmd: ["uname", "-sm"])
+            output = output.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            #expect(output == "\(os) \(expectedArch)", "expected container to use '\(os) \(expectedArch)', instead got '\(output)'")
+            try doStop(name: name)
+        } catch {
+            Issue.record("failed to run container \(error)")
+            return
+        }
+    }
+
     @Test func testRunCommandVolume() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
