@@ -37,15 +37,21 @@ extension Application {
         @OptionGroup
         var progressFlags: Flags.Progress
 
-        @Option(help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'. This takes precedence over --os and --arch")
+        @Option(
+            help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'. This takes precedence over --os and --arch"
+        )
         var platform: String?
 
-        @Option(name: .customLong("os"), help: "Set OS if image can target multiple operating systems")
-        public var os: String?
+        @Option(
+            help: "Set OS if image can target multiple operating systems"
+        )
+        var os: String = "linux"
 
         @Option(
-            name: [.customLong("arch"), .customShort("a")], help: "Set arch if image can target multiple architectures")
-        public var arch: String?
+            name: [.customLong("arch"), .customShort("a")],
+            help: "Set arch if image can target multiple architectures"
+        )
+        var arch: String = Arch.hostArchitecture().rawValue
 
         @Argument var reference: String
 
@@ -63,10 +69,8 @@ extension Application {
             var p: Platform?
             if let platform {
                 p = try Platform(from: platform)
-            } else if os != nil || arch != nil {
-                let o = os ?? ""
-                let a = arch ?? ""
-                p = try Platform(from: "\(o)/\(a)")
+            } else {
+                p = try Platform(from: "\(os)/\(arch)")
             }
 
             let scheme = try RequestScheme(registry.scheme)

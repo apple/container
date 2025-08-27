@@ -25,6 +25,22 @@ import Foundation
 import Testing
 
 class CLITest {
+    struct Image: Codable {
+        let reference: String
+    }
+
+    struct ImageInspectOutput: Codable {
+        let name: String
+        let variants: [variant]
+        struct variant: Codable {
+            let platform: imagePlatform
+            struct imagePlatform: Codable {
+                let os: String
+                let architecture: String
+            }
+        }
+    }
+
     init() throws {}
 
     let testUUID = UUID().uuidString
@@ -359,6 +375,25 @@ class CLITest {
             throw CLIError.executionFailed("command failed: \(error)")
         }
         return out.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: .newlines)
+    }
+
+    func doInspectImages(image: String) throws -> [ImageInspectOutput] {
+        let (output, error, status) = try run(arguments: [
+            "images",
+            "inspect",
+            image,
+        ])
+
+        if status != 0 {
+            throw CLIError.executionFailed("command failed: \(error)")
+        }
+
+        guard let jsonData = output.data(using: .utf8) else {
+            throw CLIError.invalidOutput("image inspect output invalid \(output)")
+        }
+
+        let decoder = JSONDecoder()
+        return try decoder.decode([ImageInspectOutput].self, from: jsonData)
     }
 
     func doDefaultRegistrySet(domain: String) throws {

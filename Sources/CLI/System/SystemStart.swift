@@ -112,7 +112,8 @@ extension Application {
 
         private func installInitialFilesystem() async throws {
             let dep = Dependencies.initFs
-            let pullCommand = ImagePull(reference: dep.source)
+            var pullCommand = try ImagePull.parse()
+            pullCommand.reference = dep.source
             print("Installing base container filesystem...")
             do {
                 try await pullCommand.run()

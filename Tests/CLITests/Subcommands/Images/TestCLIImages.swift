@@ -18,22 +18,6 @@ import Foundation
 import Testing
 
 class TestCLIImagesCommand: CLITest {
-    struct Image: Codable {
-        let reference: String
-    }
-
-    struct InspectOutput: Codable {
-        let name: String
-        let variants: [variant]
-        struct variant: Codable {
-            let platform: imagePlatform
-            struct imagePlatform: Codable {
-                let os: String
-                let architecture: String
-            }
-        }
-    }
-
     func doRemoveImages(images: [String]? = nil) throws {
         var args = [
             "images",
@@ -79,25 +63,6 @@ class TestCLIImagesCommand: CLITest {
 
         let decoder = JSONDecoder()
         return try decoder.decode([Image].self, from: jsonData)
-    }
-
-    func doInspectImages(image: String) throws -> [InspectOutput] {
-        let (output, error, status) = try run(arguments: [
-            "images",
-            "inspect",
-            image,
-        ])
-
-        if status != 0 {
-            throw CLIError.executionFailed("command failed: \(error)")
-        }
-
-        guard let jsonData = output.data(using: .utf8) else {
-            throw CLIError.invalidOutput("image inspect output invalid \(output)")
-        }
-
-        let decoder = JSONDecoder()
-        return try decoder.decode([InspectOutput].self, from: jsonData)
     }
 
     func doImageTag(image: String, newName: String) throws {

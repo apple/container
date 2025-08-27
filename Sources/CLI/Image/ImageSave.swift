@@ -31,7 +31,21 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
 
-        @Option(help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'") var platform: String?
+        @Option(
+            help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'. This takes precedence over --os and --arch"
+        )
+        var platform: String?
+
+        @Option(
+            help: "Set OS if image can target multiple operating systems"
+        )
+        var os: String = "linux"
+
+        @Option(
+            name: [.customLong("arch"), .customShort("a")],
+            help: "Set arch if image can target multiple architectures"
+        )
+        var arch: String = Arch.hostArchitecture().rawValue
 
         @Option(
             name: .shortAndLong, help: "Path to save the image tar archive", completion: .file(),
@@ -46,6 +60,8 @@ extension Application {
             var p: Platform?
             if let platform {
                 p = try Platform(from: platform)
+            } else {
+                p = try Platform(from: "\(os)/\(arch)")
             }
 
             let progressConfig = try ProgressConfig(
