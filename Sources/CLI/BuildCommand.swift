@@ -27,7 +27,7 @@ import NIO
 import TerminalProgress
 
 extension Application {
-    struct BuildCommand: AsyncParsableCommand {
+    public struct BuildCommand: AsyncParsableCommand {
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
             config.commandName = "build"
@@ -37,6 +37,8 @@ extension Application {
             return config
         }
 
+        public init() {}
+
         @Option(name: [.customLong("cpus"), .customShort("c")], help: "Number of CPUs to allocate to the container")
         public var cpus: Int64 = 2
 
@@ -45,64 +47,64 @@ extension Application {
             help:
                 "Amount of memory in bytes, kilobytes (K), megabytes (M), or gigabytes (G) for the container, with MB granularity (for example, 1024K will result in 1MB being allocated for the container)"
         )
-        var memory: String = "2048MB"
+        public var memory: String = "2048MB"
 
         @Option(name: .long, help: ArgumentHelp("Set build-time variables", valueName: "key=val"))
-        var buildArg: [String] = []
+        public var buildArg: [String] = []
 
         @Argument(help: "Build directory")
-        var contextDir: String = "."
+        public var contextDir: String = "."
 
         @Option(name: .shortAndLong, help: ArgumentHelp("Path to Dockerfile", valueName: "path"))
-        var file: String = "Dockerfile"
+        public var file: String = "Dockerfile"
 
         @Option(name: .shortAndLong, help: ArgumentHelp("Set a label", valueName: "key=val"))
-        var label: [String] = []
+        public var label: [String] = []
 
         @Flag(name: .long, help: "Do not use cache")
-        var noCache: Bool = false
+        public var noCache: Bool = false
 
         @Option(name: .shortAndLong, help: ArgumentHelp("Output configuration for the build", valueName: "value"))
-        var output: [String] = {
+        public var output: [String] = {
             ["type=oci"]
         }()
 
         @Option(name: .long, help: ArgumentHelp("Cache imports for the build", valueName: "value", visibility: .hidden))
-        var cacheIn: [String] = {
+        public var cacheIn: [String] = {
             []
         }()
 
         @Option(name: .long, help: ArgumentHelp("Cache exports for the build", valueName: "value", visibility: .hidden))
-        var cacheOut: [String] = {
+        public var cacheOut: [String] = {
             []
         }()
 
         @Option(name: .long, help: ArgumentHelp("set the build architecture", valueName: "value"))
-        var arch: [String] = {
+        public var arch: [String] = {
             ["arm64"]
         }()
 
         @Option(name: .long, help: ArgumentHelp("set the build os", valueName: "value"))
-        var os: [String] = {
+        public var os: [String] = {
             ["linux"]
         }()
 
         @Option(name: .long, help: ArgumentHelp("Progress type - one of [auto|plain|tty]", valueName: "type"))
-        var progress: String = "auto"
+        public var progress: String = "auto"
 
         @Option(name: .long, help: ArgumentHelp("Builder-shim vsock port", valueName: "port"))
-        var vsockPort: UInt32 = 8088
+        public var vsockPort: UInt32 = 8088
 
         @Option(name: [.customShort("t"), .customLong("tag")], help: ArgumentHelp("Name for the built image", valueName: "name"))
-        var targetImageName: String = UUID().uuidString.lowercased()
+        public var targetImageName: String = UUID().uuidString.lowercased()
 
         @Option(name: .long, help: ArgumentHelp("Set the target build stage", valueName: "stage"))
-        var target: String = ""
+        public var target: String = ""
 
         @Flag(name: .shortAndLong, help: "Suppress build output")
-        var quiet: Bool = false
+        public var quiet: Bool = false
 
-        func run() async throws {
+        public func run() async throws {
             do {
                 let timeout: Duration = .seconds(300)
                 let progressConfig = try ProgressConfig(
@@ -122,17 +124,18 @@ extension Application {
                         group.cancelAll()
                     }
 
-                    group.addTask {
+                    group.addTask { [vsockPort, cpus, memory] in
                         while true {
                             do {
                                 let container = try await ClientContainer.get(id: "buildkit")
-                                let fh = try await container.dial(self.vsockPort)
+                                let fh = try await container.dial(vsockPort)
 
                                 let threadGroup: MultiThreadedEventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
                                 let b = try Builder(socket: fh, group: threadGroup)
 
                                 // If this call succeeds, then BuildKit is running.
                                 let _ = try await b.info()
+
                                 return b
                             } catch {
                                 // If we get here, "Dialing builder" is shown for such a short period
@@ -141,8 +144,8 @@ extension Application {
                                 progress.set(totalTasks: 3)
 
                                 try await BuilderStart.start(
-                                    cpus: self.cpus,
-                                    memory: self.memory,
+                                    cpus: cpus,
+                                    memory: memory,
                                     progressUpdate: progress.handler
                                 )
 
@@ -229,7 +232,7 @@ extension Application {
                         }
                         return results
                     }()
-                    group.addTask { [terminal] in
+                    group.addTask { [buildArg, contextDir, label, noCache, terminal, target, quiet, cacheIn, cacheOut] in
                         let config = ContainerBuild.Builder.BuildConfig(
                             buildID: buildID,
                             contentStore: RemoteContentStoreClient(),
@@ -315,7 +318,7 @@ extension Application {
             }
         }
 
-        func validate() throws {
+        public func validate() throws {
             guard FileManager.default.fileExists(atPath: file) else {
                 throw ValidationError("Dockerfile does not exist at path: \(file)")
             }

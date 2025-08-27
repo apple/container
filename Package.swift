@@ -33,6 +33,7 @@ let package = Package(
         .library(name: "ContainerNetworkService", targets: ["ContainerNetworkService"]),
         .library(name: "ContainerImagesService", targets: ["ContainerImagesService", "ContainerImagesServiceClient"]),
         .library(name: "ContainerClient", targets: ["ContainerClient"]),
+        .library(name: "ContainerCLI", targets: ["ContainerCLI"]),
         .library(name: "ContainerBuild", targets: ["ContainerBuild"]),
         .library(name: "ContainerLog", targets: ["ContainerLog"]),
         .library(name: "ContainerPersistence", targets: ["ContainerPersistence"]),
@@ -46,6 +47,7 @@ let package = Package(
         .library(name: "ContainerBuildCache", targets: ["ContainerBuildCache"]),
         .library(name: "ContainerBuildSnapshotter", targets: ["ContainerBuildSnapshotter"]),
         .library(name: "ContainerBuildParser", targets: ["ContainerBuildParser"]),
+        .library(name: "ComposeCLI", targets: ["ComposeCLI"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
@@ -59,11 +61,22 @@ let package = Package(
         .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.20.1"),
         .package(url: "https://github.com/orlandos-nl/DNSClient.git", from: "2.4.1"),
         .package(url: "https://github.com/Bouke/DNS.git", from: "1.2.0"),
+        .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.6"),
+        .package(url: "https://github.com/onevcat/Rainbow", .upToNextMajor(from: "4.0.0")),
         .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion)),
     ],
     targets: [
         .executableTarget(
             name: "container",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                "ContainerClient",
+                "ContainerCLI",
+            ],
+            path: "Sources/ExecutableCLI"
+        ),
+        .target(
+            name: "ContainerCLI",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Logging", package: "swift-log"),
@@ -431,6 +444,28 @@ let package = Package(
                 .define("RELEASE_VERSION", to: "\"\(releaseVersion)\""),
                 .define("BUILDER_SHIM_VERSION", to: "\"\(builderShimVersion)\""),
             ]
+        ),
+
+        // MARK: Plugins
+        .target(
+            name: "ComposeCLI",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                "container",
+                "ContainerCLI",
+                "Yams",
+                "Rainbow",
+            ],
+            path: "Plugins/Compose/ComposeCLI"
+        ),
+        
+        .executableTarget(
+            name: "compose",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                "ComposeCLI"
+            ],
+            path: "Plugins/Compose/compose"
         ),
     ]
 )
