@@ -400,8 +400,14 @@ extension TestCLIBuildBase {
             let output = try doInspectImages(image: imageName)
             #expect(output.count == 1, "expected a single image inspect output, got \(output)")
 
-            let expected = Set([try Platform(from: "linux/amd64"), try Platform(from: "linux/arm64")])
-            let actual = Set(output[0].variants.map { v in Platform(arch: v.platform.architecture, os: v.platform.os) })
+            let expected = Set([
+                Platform(arch: "amd64", os: "linux", variant: nil),
+                Platform(arch: "arm64", os: "linux", variant: nil),
+            ])
+            let actual = Set(
+                output[0].variants.map { v in
+                    Platform(arch: v.platform.architecture, os: v.platform.os, variant: nil)
+                })
             #expect(
                 actual == expected,
                 "expected platforms \(expected), got \(actual)"
