@@ -333,7 +333,7 @@ extension TestCLIBuildBase {
             try self.build(tag: imageName, tempDir: tempDir)
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
             // Check if the image we built is actually in the image store, and can be used.
-            try self.doLongRun(name: containerName, image: imageName, autoRemove: true)
+            try self.doLongRun(name: containerName, image: imageName)
             defer {
                 try? self.doStop(name: containerName)
             }

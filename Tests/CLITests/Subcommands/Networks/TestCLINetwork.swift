@@ -48,9 +48,7 @@ class TestCLINetwork: CLITest {
                 name: name,
                 image: "docker.io/library/python:alpine",
                 args: ["--network", name],
-                containerArgs: ["python3", "-m", "http.server", "--bind", "0.0.0.0", "\(port)"],
-                autoRemove: true,
-            )
+                containerArgs: ["python3", "-m", "http.server", "--bind", "0.0.0.0", "\(port)"])
             defer {
                 try? doStop(name: name)
             }

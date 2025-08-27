@@ -27,12 +27,12 @@ class TestCLIRunLifecycle: CLITest {
             name,
         ]
         #expect(throws: CLIError.self, "expect container to fail with invalid user") {
-            try self.doLongRun(name: name, args: badArgs, autoRemove: true)
+            try self.doLongRun(name: name, args: badArgs)
         }
 
         // try to create a container with the same name but no user that should succeed
         #expect(throws: Never.self, "expected container run to succeed") {
-            try self.doLongRun(name: name, args: [], autoRemove: true)
+            try self.doLongRun(name: name, args: [])
             defer {
                 try? self.doStop(name: name)
             }
