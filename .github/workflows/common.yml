@@ -43,7 +43,7 @@ jobs:
             false
           fi
         env:
-          DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
+          DEVELOPER_DIR: "/Applications/Xcode_26.b6.app/Contents/Developer"
 
       - name: Set build configuration
         run: |
@@ -57,7 +57,7 @@ jobs:
           make container dsym docs
           tar cfz _site.tgz _site
         env:
-          DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
+          DEVELOPER_DIR: "/Applications/Xcode_26.b6.app/Contents/Developer"
 
       - name: Create package
         run: |
@@ -73,7 +73,7 @@ jobs:
           echo "Created data directory ${APP_ROOT}"
           make APP_ROOT="${APP_ROOT}" test install-kernel integration
         env:
-          DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
+          DEVELOPER_DIR: "/Applications/Xcode_26.b6.app/Contents/Developer"
 
       - name: Save documentation artifact
         uses: actions/upload-artifact@v4
