@@ -29,14 +29,9 @@ import TerminalProgress
 
 // `log` is updated only once in the `validate()` method.
 nonisolated(unsafe) var log = {
-    LoggingSystem.bootstrap { label in
-        OSLogHandler(
-            label: label,
-            category: "CLI"
-        )
-    }
+    LoggingSystem.bootstrap(StreamLogHandler.standardError)
     var log = Logger(label: "com.apple.container")
-    log.logLevel = .debug
+    log.logLevel = .info
     return log
 }()
 

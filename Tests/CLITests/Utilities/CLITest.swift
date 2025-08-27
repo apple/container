@@ -167,15 +167,18 @@ class CLITest {
         name: String,
         image: String? = nil,
         args: [String]? = nil,
-        containerArgs: [String]? = nil
+        containerArgs: [String]? = nil,
+        autoRemove: Bool = false
     ) throws {
         var runArgs = [
             "run",
-            "--rm",
             "--name",
             name,
             "-d",
         ]
+        if autoRemove {
+            runArgs.append("--rm")
+        }
         if let args {
             runArgs.append(contentsOf: args)
         }
@@ -251,6 +254,19 @@ class CLITest {
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
+    }
+
+    func doLogs(name: String, boot: Bool) throws -> String {
+        var args = ["logs"]
+        if boot {
+            args.append("--boot")
+        }
+        args.append(name)
+        let (stdout, stderr, status) = try run(arguments: args)
+        if status != 0 {
+            throw CLIError.executionFailed("command failed: \(stderr)")
+        }
+        return stdout
     }
 
     func doStart(name: String) throws {
