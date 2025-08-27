@@ -101,7 +101,7 @@ public struct Parser {
         return output
     }
 
-    static func envFile(path: String) throws -> [String] {
+    public static func envFile(path: String) throws -> [String] {
         guard FileManager.default.fileExists(atPath: path) else {
             throw ContainerizationError(.notFound, message: "envfile at \(path) not found")
         }
@@ -130,7 +130,7 @@ public struct Parser {
         return envVars
     }
 
-    static func env(envList: [String]) -> [String] {
+    public static func env(envList: [String]) -> [String] {
         var envVar: [String] = []
         for env in envList {
             var env = env
@@ -146,7 +146,7 @@ public struct Parser {
         return envVar
     }
 
-    static func labels(_ rawLabels: [String]) throws -> [String: String] {
+    public static func labels(_ rawLabels: [String]) throws -> [String: String] {
         var result: [String: String] = [:]
         for label in rawLabels {
             if label.isEmpty {
@@ -165,7 +165,7 @@ public struct Parser {
         return result
     }
 
-    static func process(
+    public static func process(
         arguments: [String],
         processFlags: Flags.Process,
         managementFlags: Flags.Management,
@@ -233,15 +233,15 @@ public struct Parser {
 
     // MARK: Mounts
 
-    static let mountTypes = [
+    public static let mountTypes = [
         "virtiofs",
         "bind",
         "tmpfs",
     ]
 
-    static let defaultDirectives = ["type": "virtiofs"]
+    public static let defaultDirectives = ["type": "virtiofs"]
 
-    static func tmpfsMounts(_ mounts: [String]) throws -> [Filesystem] {
+    public static func tmpfsMounts(_ mounts: [String]) throws -> [Filesystem] {
         var result: [Filesystem] = []
         let mounts = mounts.dedupe()
         for tmpfs in mounts {
@@ -252,7 +252,7 @@ public struct Parser {
         return result
     }
 
-    static func mounts(_ rawMounts: [String]) throws -> [VolumeOrFilesystem] {
+    public static func mounts(_ rawMounts: [String]) throws -> [VolumeOrFilesystem] {
         var mounts: [VolumeOrFilesystem] = []
         let rawMounts = rawMounts.dedupe()
         for mount in rawMounts {
@@ -263,7 +263,7 @@ public struct Parser {
         return mounts
     }
 
-    static func mount(_ mount: String) throws -> VolumeOrFilesystem {
+    public static func mount(_ mount: String) throws -> VolumeOrFilesystem {
         let parts = mount.split(separator: ",")
         if parts.count == 0 {
             throw ContainerizationError(.invalidArgument, message: "invalid mount format: \(mount)")
@@ -386,7 +386,7 @@ public struct Parser {
             ))
     }
 
-    static func volumes(_ rawVolumes: [String]) throws -> [VolumeOrFilesystem] {
+    public static func volumes(_ rawVolumes: [String]) throws -> [VolumeOrFilesystem] {
         var mounts: [VolumeOrFilesystem] = []
         for volume in rawVolumes {
             let m = try Parser.volume(volume)
@@ -396,7 +396,7 @@ public struct Parser {
         return mounts
     }
 
-    private static func volume(_ volume: String) throws -> VolumeOrFilesystem {
+    public static func volume(_ volume: String) throws -> VolumeOrFilesystem {
         var vol = volume
         vol.trimLeft(char: ":")
 
@@ -447,11 +447,11 @@ public struct Parser {
         }
     }
 
-    static func validMountType(_ type: String) -> Bool {
+    public static func validMountType(_ type: String) -> Bool {
         mountTypes.contains(type)
     }
 
-    static func validateMount(_ mount: VolumeOrFilesystem) throws {
+    public static func validateMount(_ mount: VolumeOrFilesystem) throws {
         switch mount {
         case .filesystem(let fs):
             if !fs.isTmpfs {
@@ -482,7 +482,7 @@ public struct Parser {
     /// - Parameter rawPublishPorts: Array of port arguments
     /// - Returns: Array of PublishPort objects
     /// - Throws: ContainerizationError if parsing fails
-    static func publishPorts(_ rawPublishPorts: [String]) throws -> [PublishPort] {
+    public static func publishPorts(_ rawPublishPorts: [String]) throws -> [PublishPort] {
         var sockets: [PublishPort] = []
 
         // Process each raw port string
@@ -494,7 +494,7 @@ public struct Parser {
     }
 
     // Parse a single `--publish-port` argument into a `PublishPort`.
-    private static func publishPort(_ portText: String) throws -> PublishPort {
+    public static func publishPort(_ portText: String) throws -> PublishPort {
         let protoSplit = portText.split(separator: "/")
         let proto: PublishProtocol
         let addressAndPortText: String
@@ -553,7 +553,7 @@ public struct Parser {
     /// - Parameter rawPublishSockets: Array of socket arguments
     /// - Returns: Array of PublishSocket objects
     /// - Throws: ContainerizationError if parsing fails or a path is invalid
-    static func publishSockets(_ rawPublishSockets: [String]) throws -> [PublishSocket] {
+    public static func publishSockets(_ rawPublishSockets: [String]) throws -> [PublishSocket] {
         var sockets: [PublishSocket] = []
 
         // Process each raw socket string
@@ -565,7 +565,7 @@ public struct Parser {
     }
 
     // Parse a single `--publish-socket`` argument into a `PublishSocket`.
-    private static func publishSocket(_ socketText: String) throws -> PublishSocket {
+    public static func publishSocket(_ socketText: String) throws -> PublishSocket {
         // Split by colon to two parts: [host_path, container_path]
         let parts = socketText.split(separator: ":")
 

@@ -155,6 +155,9 @@ public struct Flags {
                 "Expose virtualization capabilities to the container. (Host must have nested virtualization support, and guest kernel must have virtualization capabilities enabled)"
         )
         public var virtualization: Bool = false
+
+        @Flag(name: .customLong("ssh"), help: "Forward SSH agent socket to container")
+        public var ssh = false
     }
 
     public struct Progress: ParsableArguments {

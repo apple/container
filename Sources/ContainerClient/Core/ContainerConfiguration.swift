@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerNetworkService
 import ContainerizationOCI
 
 public struct ContainerConfiguration: Sendable, Codable {
@@ -32,23 +33,23 @@ public struct ContainerConfiguration: Sendable, Codable {
     /// System controls for the container.
     public var sysctls: [String: String] = [:]
     /// The networks the container will be added to.
-    public var networks: [String] = []
+    public var networks: [AttachmentConfiguration] = []
     /// The DNS configuration for the container.
     public var dns: DNSConfiguration? = nil
     /// Whether to enable rosetta x86-64 translation for the container.
     public var rosetta: Bool = false
-    /// The hostname for the container.
-    public var hostname: String? = nil
     /// Initial or main process of the container.
     public var initProcess: ProcessConfiguration
-    /// Platform for the container
+    /// Platform for the container.
     public var platform: ContainerizationOCI.Platform = .current
     /// Resource values for the container.
     public var resources: Resources = .init()
-    /// Name of the runtime that supports the container
+    /// Name of the runtime that supports the container.
     public var runtimeHandler: String = "container-runtime-linux"
     /// Configure exposing virtualization support in the container.
     public var virtualization: Bool = false
+    /// Enable SSH agent socket forwarding from host to container.
+    public var ssh: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -61,12 +62,12 @@ public struct ContainerConfiguration: Sendable, Codable {
         case networks
         case dns
         case rosetta
-        case hostname
         case initProcess
         case platform
         case resources
         case runtimeHandler
         case virtualization
+        case ssh
     }
 
     /// Create a configuration from the supplied Decoder, initializing missing
@@ -81,15 +82,27 @@ public struct ContainerConfiguration: Sendable, Codable {
         publishedSockets = try container.decodeIfPresent([PublishSocket].self, forKey: .publishedSockets) ?? []
         labels = try container.decodeIfPresent([String: String].self, forKey: .labels) ?? [:]
         sysctls = try container.decodeIfPresent([String: String].self, forKey: .sysctls) ?? [:]
-        networks = try container.decodeIfPresent([String].self, forKey: .networks) ?? []
+
+        // NOTE: migrates [String] to [AttachmentConfiguration]; remove [String] support in a later release
+        if container.contains(.networks) {
+            do {
+                networks = try container.decode([AttachmentConfiguration].self, forKey: .networks)
+            } catch {
+                let networkIds = try container.decode([String].self, forKey: .networks)
+                networks = try Utility.getAttachmentConfigurations(containerId: id, networkIds: networkIds)
+            }
+        } else {
+            networks = []
+        }
+
         dns = try container.decodeIfPresent(DNSConfiguration.self, forKey: .dns)
         rosetta = try container.decodeIfPresent(Bool.self, forKey: .rosetta) ?? false
-        hostname = try container.decodeIfPresent(String.self, forKey: .hostname)
         initProcess = try container.decode(ProcessConfiguration.self, forKey: .initProcess)
         platform = try container.decodeIfPresent(ContainerizationOCI.Platform.self, forKey: .platform) ?? .current
         resources = try container.decodeIfPresent(Resources.self, forKey: .resources) ?? .init()
         runtimeHandler = try container.decodeIfPresent(String.self, forKey: .runtimeHandler) ?? "container-runtime-linux"
         virtualization = try container.decodeIfPresent(Bool.self, forKey: .virtualization) ?? false
+        ssh = try container.decodeIfPresent(Bool.self, forKey: .ssh) ?? false
     }
 
     public struct DNSConfiguration: Sendable, Codable {

@@ -28,6 +28,7 @@ public enum DefaultsStore {
         case defaultInitImage = "image.init"
         case defaultKernelURL = "kernel.url"
         case defaultKernelBinaryPath = "kernel.binaryPath"
+        case defaultSubnet = "network.subnet"
         case buildRosetta = "build.rosetta"
     }
 
@@ -85,6 +86,8 @@ extension DefaultsStore.Keys {
                 return "vminit:latest"
             }
             return "ghcr.io/apple/containerization/vminit:\(tag)"
+        case .defaultSubnet:
+            return "192.168.64.1/24"
         case .buildRosetta:
             // This is a boolean key, not used with the string get() method
             return "true"

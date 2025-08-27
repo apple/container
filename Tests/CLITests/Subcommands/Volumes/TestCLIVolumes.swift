@@ -78,7 +78,7 @@ class TestCLIVolumes: CLITest {
         try doVolumeCreate(name: volumeName)
 
         // Run first container with volume, write data, then stop
-        try doLongRun(name: container1Name, args: ["-v", "\(volumeName):/data"])
+        try doLongRun(name: container1Name, args: ["-v", "\(volumeName):/data"], autoRemove: true)
         try waitForContainerRunning(container1Name)
 
         // Write test data to the volume
@@ -88,7 +88,7 @@ class TestCLIVolumes: CLITest {
         try doStop(name: container1Name)
 
         // Run second container with same volume
-        try doLongRun(name: container2Name, args: ["-v", "\(volumeName):/data"])
+        try doLongRun(name: container2Name, args: ["-v", "\(volumeName):/data"], autoRemove: true)
         try waitForContainerRunning(container2Name)
 
         // Verify data persisted
@@ -125,7 +125,7 @@ class TestCLIVolumes: CLITest {
         try doVolumeCreate(name: volumeName)
 
         // Run first container with volume
-        try doLongRun(name: container1Name, args: ["-v", "\(volumeName):/data"])
+        try doLongRun(name: container1Name, args: ["-v", "\(volumeName):/data"], autoRemove: true)
         try waitForContainerRunning(container1Name)
 
         // Try to run second container with same volume - should fail
@@ -159,7 +159,7 @@ class TestCLIVolumes: CLITest {
         try doVolumeCreate(name: volumeName)
 
         // Run container with volume
-        try doLongRun(name: containerName, args: ["-v", "\(volumeName):/data"])
+        try doLongRun(name: containerName, args: ["-v", "\(volumeName):/data"], autoRemove: true)
         try waitForContainerRunning(containerName)
 
         // Try to delete volume while container is running - should fail

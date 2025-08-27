@@ -177,8 +177,8 @@ actor NetworksService {
             // find all containers that refer to the network
             var referringContainers = Set<String>()
             for container in containers {
-                for containerNetworkId in container.configuration.networks {
-                    if containerNetworkId == id {
+                for attachmentConfiguration in container.configuration.networks {
+                    if attachmentConfiguration.network == id {
                         referringContainers.insert(container.configuration.id)
                         break
                     }

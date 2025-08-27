@@ -1,5 +1,5 @@
 {
-  "originHash" : "304f2eb9aa5781102011b6bc2d4ed9b8741ed72129eedb288eb820d3cc37821b",
+  "originHash" : "29003ad0ff703439089a8e3a9d41bfe1a1d447679a40bffe701c492de6d099db",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -15,14 +15,14 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/containerization.git",
       "state" : {
-        "revision" : "0a4ff1b737c37563196754f62a3218873a49c6a7",
-        "version" : "0.5.0"
+        "revision" : "4099bdccd615bca49a2ea9cdb5b20dc5c5bd0fea",
+        "version" : "0.6.2"
       }
     },
     {
       "identity" : "dns",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Bouke/DNS.git",
+      "location" : "https://github.com/Bouke/DNS",
       "state" : {
         "revision" : "78bbd1589890a90b202d11d5f9e1297050cf0eb2",
         "version" : "1.2.0"
@@ -31,7 +31,7 @@
     {
       "identity" : "dnsclient",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/orlandos-nl/DNSClient.git",
+      "location" : "https://github.com/orlandos-nl/DNSClient",
       "state" : {
         "revision" : "551fbddbf4fa728d4cd86f6a5208fe4f925f0549",
         "version" : "2.4.4"
@@ -233,15 +233,6 @@
       "state" : {
         "revision" : "e7187309187695115033536e8fc9b2eb87fd956d",
         "version" : "2.8.0"
-      }
-    },
-    {
-      "identity" : "swift-syntax",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/swiftlang/swift-syntax.git",
-      "state" : {
-        "revision" : "21b3b45635decd1a0b89968f81b6d9a93128f773",
-        "version" : "602.0.0-prerelease-2025-08-11"
       }
     },
     {

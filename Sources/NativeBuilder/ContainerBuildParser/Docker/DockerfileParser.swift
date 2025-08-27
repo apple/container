@@ -71,6 +71,8 @@ public struct DockerfileParser: BuildParser {
             return try tokensToLabelInstruction(tokens: tokens)
         case .EXPOSE:
             return try tokensToExposeInstruction(tokens: tokens)
+        case .ARG:
+            return try tokensToArgInstruction(tokens: tokens)
         default:
             throw ParseError.invalidInstruction(value)
         }
@@ -120,7 +122,7 @@ public struct DockerfileParser: BuildParser {
         return (index, opts)
     }
 
-    internal func tokensToFromInstruction(tokens: [Token]) throws -> FromInstruction {
+    func tokensToFromInstruction(tokens: [Token]) throws -> FromInstruction {
         var index = tokens.startIndex + 1  // skip the instruction
 
         var stageName: String?
@@ -177,7 +179,7 @@ public struct DockerfileParser: BuildParser {
         return try FromInstruction(image: imageName, platform: platform, stageName: stageName)
     }
 
-    internal func tokensToRunInstruction(tokens: [Token]) throws -> RunInstruction {
+    func tokensToRunInstruction(tokens: [Token]) throws -> RunInstruction {
         var index = tokens.startIndex + 1  // skip the instruction
 
         var rawMounts = [String]()
@@ -197,8 +199,6 @@ public struct DockerfileParser: BuildParser {
                 rawMounts.append(option.value)
             case .network:
                 network = option.value
-            default:
-                throw ParseError.unexpectedValue
             }
         }
 
@@ -239,7 +239,7 @@ public struct DockerfileParser: BuildParser {
         return (index, cmd)
     }
 
-    internal func tokensToCopyInstruction(tokens: [Token]) throws -> CopyInstruction {
+    func tokensToCopyInstruction(tokens: [Token]) throws -> CopyInstruction {
         var index = tokens.startIndex + 1  // skip the instruction
 
         var from: String? = nil
@@ -277,8 +277,6 @@ public struct DockerfileParser: BuildParser {
                     throw ParseError.duplicateOptionSet(CopyOptions.link.rawValue)
                 }
                 link = option.value
-            default:
-                throw ParseError.unexpectedValue
             }
         }
 
@@ -306,7 +304,7 @@ public struct DockerfileParser: BuildParser {
         return try CopyInstruction(sources: sources, destination: destination, from: from, ownership: chown, permissions: chmod)
     }
 
-    internal func tokensToCMDInstruction(tokens: [Token]) throws -> CMDInstruction {
+    func tokensToCMDInstruction(tokens: [Token]) throws -> CMDInstruction {
         var index = tokens.startIndex + 1  // skip the instruction
 
         // get the command
@@ -321,7 +319,7 @@ public struct DockerfileParser: BuildParser {
         return CMDInstruction(command: cmd)
     }
 
-    internal func tokensToLabelInstruction(tokens: [Token]) throws -> LabelInstruction {
+    func tokensToLabelInstruction(tokens: [Token]) throws -> LabelInstruction {
         var index = tokens.startIndex + 1  // skip the instruction
 
         var labels: [String: String] = [:]
@@ -349,7 +347,7 @@ public struct DockerfileParser: BuildParser {
         return LabelInstruction(labels: labels)
     }
 
-    internal func tokensToExposeInstruction(tokens: [Token]) throws -> ExposeInstruction {
+    func tokensToExposeInstruction(tokens: [Token]) throws -> ExposeInstruction {
         var index = tokens.startIndex + 1  // skip the instruction
 
         var rawPorts: [String] = []
@@ -365,6 +363,133 @@ public struct DockerfileParser: BuildParser {
             throw ParseError.missingRequiredField("port")
         }
 
-        return try ExposeInstruction(rawPorts)
+        return ExposeInstruction(rawPorts)
+    }
+
+    func tokensToArgInstruction(tokens: [Token]) throws -> ArgInstruction {
+        var index = tokens.startIndex + 1  // skip the instruction
+        guard index < tokens.endIndex else {
+            throw ParseError.missingRequiredField("name")
+        }
+
+        // Collect all remaining tokens.
+        var argTokens: [String] = []
+        while index < tokens.endIndex {
+            guard case .stringLiteral(let tokenValue) = tokens[index] else {
+                throw ParseError.unexpectedValue
+            }
+            argTokens.append(tokenValue)
+            index += 1
+        }
+
+        let argSpec = argTokens.joined(separator: " ")
+        let argDefinitions = try parseMultipleArgs(from: argSpec)
+        return try ArgInstruction(args: argDefinitions)
+    }
+
+    private func parseMultipleArgs(from argSpec: String) throws -> [ArgDefinition] {
+        var definitions: [ArgDefinition] = []
+        var remaining = argSpec
+
+        while !remaining.isEmpty {
+            let (name, defaultValue, rest) = try parseNextArg(from: remaining)
+            let definition = ArgDefinition(name: name, defaultValue: defaultValue)
+            definitions.append(definition)
+            remaining = rest
+        }
+
+        guard !definitions.isEmpty else {
+            throw ParseError.missingRequiredField("name")
+        }
+
+        return definitions
+    }
+
+    private func parseNextArg(from input: String) throws -> (name: String, defaultValue: String?, remaining: String) {
+        let trimmed = input.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else {
+            throw ParseError.missingRequiredField("name")
+        }
+
+        // Find the name.
+        guard let nameEnd = trimmed.firstIndex(where: { $0.isWhitespace || $0 == "=" }) else {
+            return (name: trimmed, defaultValue: nil, remaining: "")
+        }
+
+        let name = String(trimmed[..<nameEnd])
+        guard !name.isEmpty else {
+            throw ParseError.missingRequiredField("name")
+        }
+
+        // Find the value.
+        let afterName = String(trimmed[nameEnd...]).trimmingCharacters(in: .whitespaces)
+
+        guard afterName.hasPrefix("=") else {
+            return (name: name, defaultValue: nil, remaining: afterName)
+        }
+
+        let afterEquals = String(afterName.dropFirst()).trimmingCharacters(in: .whitespaces)
+        guard !afterEquals.isEmpty else {
+            return (name: name, defaultValue: "", remaining: "")
+        }
+
+        let (value, remaining) = try parseArgValue(from: afterEquals)
+        let trimmedRemaining = remaining.trimmingCharacters(in: .whitespaces)
+        return (name: name, defaultValue: value, remaining: trimmedRemaining)
+    }
+
+    private func parseArgValue(from input: String) throws -> (value: String, remaining: String) {
+        if input.hasPrefix("\"") {
+            return try parseQuotedValue(from: input, quote: "\"")
+        } else if input.hasPrefix("'") {
+            return try parseQuotedValue(from: input, quote: "'")
+        } else {
+            return parseUnquotedValue(from: input)
+        }
+    }
+
+    private func parseUnquotedValue(from input: String) -> (value: String, remaining: String) {
+        guard let spaceIndex = input.firstIndex(where: { $0.isWhitespace }) else {
+            return (value: input, remaining: "")
+        }
+
+        let value = String(input[..<spaceIndex])
+        let remaining = String(input[spaceIndex...])
+        return (value: value, remaining: remaining)
+    }
+
+    private func parseQuotedValue(from input: String, quote: Character) throws -> (value: String, remaining: String) {
+        var pos = input.index(after: input.startIndex)
+        var value = ""
+        var escaped = false
+
+        while pos < input.endIndex {
+            let char = input[pos]
+
+            if !escaped && char == quote {
+                pos = input.index(after: pos)
+                let remaining = String(input[pos...])
+                return (value: value, remaining: remaining)
+            }
+
+            if escaped {
+                switch char {
+                case "\"", "'", "\\":
+                    value.append(char)
+                default:
+                    value.append("\\")
+                    value.append(char)
+                }
+                escaped = false
+            } else if char == "\\" {
+                escaped = true
+            } else {
+                value.append(char)
+            }
+
+            pos = input.index(after: pos)
+        }
+
+        throw ParseError.invalidSyntax
     }
 }

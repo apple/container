@@ -244,6 +244,154 @@ import Testing
             return
         }
     }
+
+    @Test func testSimpleDockerfileArg() throws {
+        let dockerfile =
+            #"""
+            ARG BASE_IMAGE=alpine:latest
+            ARG BUILD_VERSION=1.0.0
+
+            FROM ${BASE_IMAGE} AS stage1
+            ARG NODE_ENV=development
+            ARG BUILD_VERSION
+            ARG API_URL
+
+            FROM ${BASE_IMAGE} AS stage2
+            ARG BUILD_VERSION=2.0.0
+            ARG API_URL=https://api.example.com
+            ARG EMPTY=
+            """#
+        let parser = DockerfileParser()
+        let graph = try parser.parse(dockerfile)
+
+        // Verify global FROM-only ARG values
+        #expect(graph.buildArgs.count == 2)
+        #expect(graph.buildArgs["BASE_IMAGE"] == "alpine:latest")
+        #expect(graph.buildArgs["BUILD_VERSION"] == "1.0.0")
+
+        // Verify stage-local ARG values
+        #expect(graph.stages.count == 2)
+
+        let stage1 = graph.stages[0]
+        #expect(stage1.nodes.count == 3)
+        #expect(getStageArg(stage1, name: "BASE_IMAGE") == nil)
+        #expect(getStageArg(stage1, name: "NODE_ENV") == "development")
+        #expect(getStageArg(stage1, name: "BUILD_VERSION") == nil)
+        #expect(getStageArg(stage1, name: "API_URL") == nil)
+        #expect(getStageArg(stage1, name: "EMPTY") == nil)
+
+        let stage2 = graph.stages[1]
+        #expect(stage2.nodes.count == 3)
+        #expect(getStageArg(stage2, name: "BASE_IMAGE") == nil)
+        #expect(getStageArg(stage2, name: "NODE_ENV") == nil)
+        #expect(getStageArg(stage2, name: "BUILD_VERSION") == "2.0.0")
+        #expect(getStageArg(stage2, name: "API_URL") == "https://api.example.com")
+        #expect(getStageArg(stage2, name: "EMPTY") == "")
+    }
+
+    @Test func testSimpleDockerfileArgInInstructions() throws {
+        // TODO: Add these instructions when they are supported:
+        // - ADD
+        // - ENV
+        // - STOPSIGNAL
+        // - USER
+        // - VOLUME
+        // - WORKDIR
+        // - ONBUILD
+        // - ENTRYPOINT
+        let dockerfile =
+            #"""
+            FROM alpine:latest AS build
+
+            ARG RUN=/bin/sh
+            RUN ${RUN}
+
+            ARG SRC=source
+            ARG DST=destination
+            COPY ${SRC} ${DST}
+
+            ARG ECHO="Hello, World!"
+            CMD ["echo", "${ECHO}"]
+
+            ARG LABEL=whatever
+            LABEL label=${LABEL}
+
+            ARG PORT=80
+            EXPOSE ${PORT}
+
+            ARG VAR1=world
+            ARG VAR2=hello-${VAR1}
+            """#
+        let parser = DockerfileParser()
+        let graph = try parser.parse(dockerfile)
+
+        #expect(graph.stages.count == 1)
+
+        // Verify ARG substitution
+        let stage = graph.stages[0]
+        if case .registry(let imageRef) = stage.base.source {
+            #expect(imageRef.stringValue == "alpine:latest")
+        } else {
+            #expect(Bool(false), "Expected registry image source")
+        }
+
+        if let run = stage.nodes[1].operation as? ExecOperation {
+            #expect(run.command.displayString == "/bin/sh")
+        } else {
+            #expect(Bool(false), "Expected RUN instruction")
+        }
+
+        if let copy = stage.nodes[4].operation as? FilesystemOperation {
+            #expect(copy.action == .copy)
+            switch copy.source {
+            case .context(let contextSource):
+                #expect(contextSource.paths.count == 1)
+                #expect(contextSource.paths[0] == "source")
+            default:
+                #expect(Bool(false), "Expected context source")
+            }
+            #expect(copy.destination == "destination")
+        } else {
+            #expect(Bool(false), "Expected COPY instruction")
+        }
+
+        if let cmd = stage.nodes[6].operation as? MetadataOperation {
+            switch cmd.action {
+            case .setCmd(let command):
+                #expect(command.displayString == "echo Hello, World!")
+            default:
+                #expect(Bool(false), "Expected .setCmd action")
+            }
+        } else {
+            #expect(Bool(false), "Expected CMD instruction")
+        }
+
+        if let label = stage.nodes[8].operation as? MetadataOperation {
+            switch label.action {
+            case .setLabelBatch(let labels):
+                #expect(labels["label"] == "whatever")
+            default:
+                #expect(Bool(false), "Expected setLabelBatch action")
+            }
+        } else {
+            #expect(Bool(false), "Expected LABEL instruction")
+        }
+
+        if let expose = stage.nodes[10].operation as? MetadataOperation {
+            switch expose.action {
+            case .expose(let ports):
+                #expect(ports.count == 1)
+                #expect(ports[0].port == 80)
+            default:
+                #expect(Bool(false), "Expected expose action")
+            }
+        } else {
+            #expect(Bool(false), "Expected EXPOSE instruction")
+        }
+
+        #expect(getStageArg(stage, name: "VAR1") == "world")
+        #expect(getStageArg(stage, name: "VAR2") == "hello-world")
+    }
 }
 
 // tests for parsing options for the different instructions
@@ -825,6 +973,159 @@ extension ParserTest {
     func testInvalidPortParse(_ testCase: String) throws {
         #expect(throws: ParseError.self) {
             try parsePort(testCase)
+        }
+    }
+
+    static let invalidArgs = [
+        "",
+        "=",
+        "=value",
+        " ",
+        "MISSING_QUOTE=\"value",
+        "MISSING_SINGLE_QUOTE='value",
+    ]
+
+    @Test("Invalid ARG throw error", arguments: invalidArgs)
+    func testInvalidArgParse(_ testCase: String) throws {
+        #expect(throws: ParseError.self) {
+            let tokens: [Token] = [.stringLiteral("ARG"), .stringLiteral(testCase)]
+            let _ = try DockerfileParser().tokensToArgInstruction(tokens: tokens)
+        }
+    }
+
+    @Test func testArgWithSpacesAndQuotes() throws {
+        let dockerfile =
+            #"""
+            FROM alpine:latest AS build
+            ARG MESSAGE=Hello!
+            ARG QUOTED="Hello, World!"
+            ARG SINGLE='Hello, World!'
+            """#
+        let parser = DockerfileParser()
+        let graph = try parser.parse(dockerfile)
+
+        #expect(graph.stages.count == 1)
+        let stage = graph.stages[0]
+
+        #expect(getStageArg(stage, name: "MESSAGE") == "Hello!")
+        #expect(getStageArg(stage, name: "QUOTED") == "Hello, World!")
+        #expect(getStageArg(stage, name: "SINGLE") == "Hello, World!")
+    }
+
+    @Test func testMultipleArgsInSingleInstruction() throws {
+        let dockerfile =
+            #"""
+            FROM alpine:latest AS build
+            ARG TEST1A TEST1B TEST1C
+            ARG TEST2A TEST2B=unquoted TEST2C="quoted"
+            ARG TEST3A=unquoted TEST3B TEST3C="quoted"
+            ARG TEST4A=unquoted TEST4B="quoted" TEST4C
+            ARG TEST5A=value TEST5B="value" TEST5C='value'
+            """#
+        let parser = DockerfileParser()
+        let graph = try parser.parse(dockerfile)
+
+        #expect(graph.stages.count == 1)
+        let stage = graph.stages[0]
+
+        #expect(getStageArg(stage, name: "TEST1A") == nil)
+        #expect(getStageArg(stage, name: "TEST1B") == nil)
+        #expect(getStageArg(stage, name: "TEST1C") == nil)
+
+        #expect(getStageArg(stage, name: "TEST2A") == nil)
+        #expect(getStageArg(stage, name: "TEST2B") == "unquoted")
+        #expect(getStageArg(stage, name: "TEST2C") == "quoted")
+
+        #expect(getStageArg(stage, name: "TEST3A") == "unquoted")
+        #expect(getStageArg(stage, name: "TEST3B") == nil)
+        #expect(getStageArg(stage, name: "TEST3C") == "quoted")
+
+        #expect(getStageArg(stage, name: "TEST4A") == "unquoted")
+        #expect(getStageArg(stage, name: "TEST4B") == "quoted")
+        #expect(getStageArg(stage, name: "TEST4C") == nil)
+
+        #expect(getStageArg(stage, name: "TEST5A") == "value")
+        #expect(getStageArg(stage, name: "TEST5B") == "value")
+        #expect(getStageArg(stage, name: "TEST5C") == "value")
+    }
+
+    @Test func testArgWhitespaceHandling() throws {
+        let dockerfile =
+            #"""
+            FROM alpine:latest AS build
+            ARG BEFORE_EQ =value
+            ARG AFTER_EQ= value
+            ARG BOTH_EQ = value
+            ARG TRAILING_SPACE=value 
+            ARG BEFORE_QUOTE= "value"
+            ARG AFTER_QUOTE="value" 
+            ARG BOTH_QUOTE= "value" 
+            """#
+        let parser = DockerfileParser()
+        let graph = try parser.parse(dockerfile)
+
+        #expect(graph.stages.count == 1)
+        let stage = graph.stages[0]
+
+        #expect(getStageArg(stage, name: "BEFORE_EQ") == "value")
+        #expect(getStageArg(stage, name: "AFTER_EQ") == "value")
+        #expect(getStageArg(stage, name: "BOTH_EQ") == "value")
+
+        #expect(getStageArg(stage, name: "TRAILING_SPACE") == "value")
+
+        #expect(getStageArg(stage, name: "BEFORE_QUOTE") == "value")
+        #expect(getStageArg(stage, name: "AFTER_QUOTE") == "value")
+        #expect(getStageArg(stage, name: "BOTH_QUOTE") == "value")
+    }
+
+    @Test func testArgEscaping() throws {
+        let dockerfile =
+            #"""
+            FROM alpine:latest AS build
+            ARG BACKSLASH="back\\slash"
+            ARG QUOTE="say \"hello\""
+            ARG SINGLE_IN_DOUBLE="single'quote"
+            ARG DOUBLE_IN_SINGLE ='double"quote'
+            ARG SINGLE_IN_VALUE=single'quote
+            ARG QUOTE_IN_VALUE=double"quote
+            """#
+        let parser = DockerfileParser()
+        let graph = try parser.parse(dockerfile)
+
+        #expect(graph.stages.count == 1)
+        let stage = graph.stages[0]
+
+        #expect(getStageArg(stage, name: "BACKSLASH") == "back\\slash")
+        #expect(getStageArg(stage, name: "QUOTE") == "say \"hello\"")
+        #expect(getStageArg(stage, name: "SINGLE_IN_DOUBLE") == "single'quote")
+        #expect(getStageArg(stage, name: "DOUBLE_IN_SINGLE") == "double\"quote")
+        #expect(getStageArg(stage, name: "SINGLE_IN_VALUE") == "single'quote")
+        #expect(getStageArg(stage, name: "QUOTE_IN_VALUE") == "double\"quote")
+    }
+
+    @Test func testArgWithMissingClosingQuote() throws {
+        let dockerfile =
+            #"""
+            FROM alpine:latest AS build
+            ARG MISSING_QUOTE="unterminated value
+            """#
+        let parser = DockerfileParser()
+
+        #expect(throws: ParseError.self) {
+            try parser.parse(dockerfile)
+        }
+    }
+
+    @Test func testArgWithMissingClosingSingleQuote() throws {
+        let dockerfile =
+            #"""
+            FROM alpine:latest AS build
+            ARG SINGLE_MISSING='unterminated value
+            """#
+        let parser = DockerfileParser()
+
+        #expect(throws: ParseError.self) {
+            try parser.parse(dockerfile)
         }
     }
 }

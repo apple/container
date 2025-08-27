@@ -276,6 +276,27 @@ import Testing
                 .stringLiteral("7000-8000/udp"),
             ]
         ),
+        tokenizerTestInput(
+            input: "ARG NODE_ENV=development",
+            expectedTokens: [
+                .stringLiteral("ARG"),
+                .stringLiteral("NODE_ENV=development"),
+            ]
+        ),
+        tokenizerTestInput(
+            input: "ARG BUILD_VERSION=",
+            expectedTokens: [
+                .stringLiteral("ARG"),
+                .stringLiteral("BUILD_VERSION="),
+            ]
+        ),
+        tokenizerTestInput(
+            input: "ARG API_URL",
+            expectedTokens: [
+                .stringLiteral("ARG"),
+                .stringLiteral("API_URL"),
+            ]
+        ),
     ]
 
     @Test func testTokenization() throws {
@@ -554,9 +575,7 @@ import Testing
                 .stringLiteral("EXPOSE"),
                 .stringLiteral("80"),
             ],
-            expectedInstruction: ExposeInstruction(ports: [
-                PortSpec(port: 80, protocol: .tcp)
-            ])
+            expectedInstruction: ExposeInstruction(["80"])
         ),
         TokenTest(
             tokens: [
@@ -589,5 +608,45 @@ import Testing
         }
         #expect(actual == expected)
 
+    }
+
+    static var argTests: [TokenTest] {
+        get throws {
+            [
+                TokenTest(
+                    tokens: [
+                        .stringLiteral("ARG"),
+                        .stringLiteral("NODE_ENV=development"),
+                    ],
+                    expectedInstruction: try ArgInstruction(args: [ArgDefinition(name: "NODE_ENV", defaultValue: "development")])
+                ),
+                TokenTest(
+                    tokens: [
+                        .stringLiteral("ARG"),
+                        .stringLiteral("BUILD_VERSION="),
+                    ],
+                    expectedInstruction: try ArgInstruction(args: [ArgDefinition(name: "BUILD_VERSION", defaultValue: "")])
+                ),
+                TokenTest(
+                    tokens: [
+                        .stringLiteral("ARG"),
+                        .stringLiteral("API_URL"),
+                    ],
+                    expectedInstruction: try ArgInstruction(args: [ArgDefinition(name: "API_URL", defaultValue: nil)])
+                ),
+            ]
+        }
+    }
+
+    @Test func testTokensToArgInstruction() throws {
+        let testCases = try Self.argTests
+        for testCase in testCases {
+            let actual = try DockerfileParser().tokensToArgInstruction(tokens: testCase.tokens)
+            guard let expected = testCase.expectedInstruction as? ArgInstruction else {
+                Issue.record("Instruction is not the correct type, \(String(describing: testCase.expectedInstruction))")
+                return
+            }
+            #expect(actual == expected)
+        }
     }
 }

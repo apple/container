@@ -203,7 +203,7 @@ extension Application {
             guard case .running(_, let networkStatus) = network else {
                 throw ContainerizationError(.invalidState, message: "default network is not running")
             }
-            config.networks = [network.id]
+            config.networks = [AttachmentConfiguration(network: network.id, options: AttachmentOptions(hostname: id))]
             let subnet = try CIDRAddress(networkStatus.address)
             let nameserver = IPv4Address(fromValue: subnet.lower.value + 1).description
             let nameservers = [nameserver]

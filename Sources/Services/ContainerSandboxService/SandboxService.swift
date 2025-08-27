@@ -49,6 +49,16 @@ public actor SandboxService {
     private var processes: [String: ProcessInfo] = [:]
     private var socketForwarders: [SocketForwarderResult] = []
 
+    private static let sshAuthSocketGuestPath = "/run/host-services/ssh-auth.sock"
+    private static let sshAuthSocketEnvVar = "SSH_AUTH_SOCK"
+
+    private static func hostSocketUrl(config: ContainerConfiguration) -> URL? {
+        if config.ssh, let sshSocket = Foundation.ProcessInfo.processInfo.environment[Self.sshAuthSocketEnvVar] {
+            return URL(fileURLWithPath: sshSocket)
+        }
+        return nil
+    }
+
     /// Create an instance with a bundle that describes the container.
     ///
     /// - Parameters:
@@ -94,7 +104,7 @@ public actor SandboxService {
 
             // Dynamically configure the DNS nameserver from a network if no explicit configuration
             if let dns = config.dns, dns.nameservers.isEmpty {
-                if let nameserver = try await self.getDefaultNameserver(networks: config.networks) {
+                if let nameserver = try await self.getDefaultNameserver(attachmentConfigurations: config.networks) {
                     config.dns = ContainerConfiguration.DNSConfiguration(
                         nameservers: [nameserver],
                         domain: dns.domain,
@@ -104,29 +114,12 @@ public actor SandboxService {
                 }
             }
 
-            let fqdn: String
-            if let hostname = config.hostname {
-                if let suite = UserDefaults.init(suiteName: UserDefaults.appSuiteName),
-                    let dnsDomain = suite.string(forKey: "dns.domain"),
-                    !hostname.contains(".")
-                {
-                    // TODO: Make the suiteName a constant defined in DefaultsStore and use that.
-                    // This will need some re-working of dependencies between SandboxService and Client
-                    fqdn = "\(hostname).\(dnsDomain)."
-                } else {
-                    fqdn = "\(hostname)."
-                }
-            } else {
-                fqdn = config.id
-            }
-
             var attachments: [Attachment] = []
             var interfaces: [Interface] = []
             for index in 0..<config.networks.count {
                 let network = config.networks[index]
-                let client = NetworkClient(id: network)
-                let hostname = index == 0 ? fqdn : config.id
-                let (attachment, additionalData) = try await client.allocate(hostname: hostname)
+                let client = NetworkClient(id: network.network)
+                let (attachment, additionalData) = try await client.allocate(hostname: network.options.hostname)
                 attachments.append(attachment)
 
                 let interface = try self.interfaceStrategy.toInterface(
@@ -282,7 +275,9 @@ public actor SandboxService {
             throw ContainerizationError(.notFound, message: "Process with id \(id)")
         }
 
-        let czConfig = self.configureProcessConfig(config: processInfo.config, stdio: processInfo.io)
+        let containerInfo = try self.getContainer()
+
+        let czConfig = self.configureProcessConfig(config: processInfo.config, stdio: processInfo.io, containerConfig: containerInfo.config)
 
         let process = try await container.exec(id, configuration: czConfig)
         try self.setUnderlyingProcess(id, process)
@@ -735,7 +730,16 @@ public actor SandboxService {
             czConfig.sockets.append(socketConfig)
         }
 
-        czConfig.hostname = config.hostname ?? config.id
+        if let socketUrl = Self.hostSocketUrl(config: config) {
+            let socketConfig = UnixSocketConfiguration(
+                source: socketUrl,
+                destination: URL(fileURLWithPath: Self.sshAuthSocketGuestPath),
+                direction: .into
+            )
+            czConfig.sockets.append(socketConfig)
+        }
+
+        czConfig.hostname = config.id
 
         if let dns = config.dns {
             czConfig.dns = DNS(
@@ -743,12 +747,12 @@ public actor SandboxService {
                 searchDomains: dns.searchDomains, options: dns.options)
         }
 
-        Self.configureInitialProcess(czConfig: &czConfig, process: config.initProcess)
+        Self.configureInitialProcess(czConfig: &czConfig, config: config)
     }
 
-    private func getDefaultNameserver(networks: [String]) async throws -> String? {
-        for network in networks {
-            let client = NetworkClient(id: network)
+    private func getDefaultNameserver(attachmentConfigurations: [AttachmentConfiguration]) async throws -> String? {
+        for attachmentConfiguration in attachmentConfigurations {
+            let client = NetworkClient(id: attachmentConfiguration.network)
             let state = try await client.state()
             guard case .running(_, let status) = state else {
                 continue
@@ -761,10 +765,19 @@ public actor SandboxService {
 
     private static func configureInitialProcess(
         czConfig: inout LinuxContainer.Configuration,
-        process: ProcessConfiguration
+        config: ContainerConfiguration
     ) {
+        let process = config.initProcess
+
         czConfig.process.arguments = [process.executable] + process.arguments
         czConfig.process.environmentVariables = process.environment
+
+        if Self.hostSocketUrl(config: config) != nil {
+            if !czConfig.process.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
+                czConfig.process.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
+            }
+        }
+
         czConfig.process.terminal = process.terminal
         czConfig.process.workingDirectory = process.workingDirectory
         czConfig.process.rlimits = process.rlimits.map {
@@ -790,7 +803,9 @@ public actor SandboxService {
         }
     }
 
-    private nonisolated func configureProcessConfig(config: ProcessConfiguration, stdio: [FileHandle?]) -> LinuxContainer.Configuration.Process {
+    private nonisolated func configureProcessConfig(config: ProcessConfiguration, stdio: [FileHandle?], containerConfig: ContainerConfiguration)
+        -> LinuxContainer.Configuration.Process
+    {
         var proc = LinuxContainer.Configuration.Process()
         proc.stdin = stdio[0]
         proc.stdout = stdio[1]
@@ -798,6 +813,13 @@ public actor SandboxService {
 
         proc.arguments = [config.executable] + config.arguments
         proc.environmentVariables = config.environment
+
+        if Self.hostSocketUrl(config: containerConfig) != nil {
+            if !proc.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
+                proc.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
+            }
+        }
+
         proc.terminal = config.terminal
         proc.workingDirectory = config.workingDirectory
         proc.rlimits = config.rlimits.map {

@@ -45,8 +45,8 @@ public enum GraphBuilderError: Error, LocalizedError {
 /// - Supports incremental construction
 public final class GraphBuilder {
     private var stages: [BuildStage] = []
-    private var currentStage: StageBuilder?
-    private var buildArgs: [String: String] = [:]
+    var currentStage: StageBuilder?
+    var buildArgs: [String: String] = [:]
     private var targetPlatforms: Set<Platform> = []
     private var metadata = BuildGraphMetadata()
     private let graphAnalyzers: [any GraphAnalyzer]
@@ -219,7 +219,7 @@ public final class GraphBuilder {
             destination: destination,
             fileMetadata: FileMetadata(
                 ownership: chown,
-                permissions: chmod
+                permissions: chmod ?? .preserve
             )
         )
 
@@ -343,16 +343,6 @@ public final class GraphBuilder {
         return try add(operation)
     }
 
-    /// Add build argument
-    @discardableResult
-    public func arg(_ name: String, defaultValue: String? = nil) throws -> Self {
-        buildArgs[name] = defaultValue
-        let operation = MetadataOperation(
-            action: .declareArg(name: name, defaultValue: defaultValue)
-        )
-        return try add(operation)
-    }
-
     /// Set target platforms
     @discardableResult
     public func platforms(_ platforms: Platform...) -> Self {
@@ -452,73 +442,6 @@ public final class GraphBuilder {
     }
 }
 
-/// Builder for individual stages.
-private final class StageBuilder {
-    let name: String?
-    let base: ImageOperation
-    let platform: Platform?
-    private var nodes: [BuildNode] = []
-    private var lastNodeId: UUID?
-    private let analyzers: [any StageAnalyzer]
-    private let reporter: Reporter?
-
-    init(name: String?, base: ImageOperation, platform: Platform? = nil, analyzers: [any StageAnalyzer] = [], reporter: Reporter? = nil) {
-        self.name = name
-        self.base = base
-        self.platform = platform
-        self.analyzers = analyzers
-        self.reporter = reporter
-    }
-
-    @discardableResult
-    func add(_ operation: any Operation, dependsOn: Set<UUID> = []) -> UUID {
-        let node = BuildNode(
-            operation: operation,
-            dependencies: dependsOn
-        )
-
-        // Report node addition
-        if let reporter = reporter {
-            let stageId = name ?? "stage-\(node.id.uuidString.prefix(8))"
-            Task {
-                await reporter.report(
-                    .irEvent(
-                        context: ReportContext(
-                            nodeId: node.id,
-                            stageId: stageId,
-                            description: "Added \(type(of: operation))",
-                            sourceMap: nil
-                        ),
-                        type: .nodeAdded
-                    ))
-            }
-        }
-
-        nodes.append(node)
-        lastNodeId = node.id
-        return node.id
-    }
-
-    func build() throws -> BuildStage {
-        var stage = BuildStage(
-            name: name,
-            base: base,
-            nodes: nodes,
-            platform: platform
-        )
-
-        // Create analysis context
-        let analysisContext = AnalysisContext(reporter: reporter)
-
-        // Run stage analyzers
-        for analyzer in analyzers {
-            stage = try analyzer.analyze(stage, context: analysisContext)
-        }
-
-        return stage
-    }
-}
-
 // MARK: - Convenience Extensions
 
 extension GraphBuilder {
@@ -556,9 +479,5 @@ extension GraphBuilder {
             }
         }
         return nil
-    }
-
-    public func getBuildArg(key: String) -> String? {
-        self.buildArgs[key]
     }
 }

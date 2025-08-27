@@ -97,9 +97,10 @@ extension PluginLoader {
             }
 
             // Get all entries under the parent directory
+            let resolvedPluginDir = pluginDir.resolvingSymlinksInPath()
             guard
                 let urls = try? fm.contentsOfDirectory(
-                    at: pluginDir,
+                    at: resolvedPluginDir,
                     includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
                     options: .skipsHiddenFiles
                 )

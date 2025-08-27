@@ -23,6 +23,16 @@ protocol InstructionVisitor {
     func visit(_ cmd: CMDInstruction) throws
     func visit(_ label: LabelInstruction) throws
     func visit(_ expose: ExposeInstruction) throws
+    func visit(_ arg: ArgInstruction) throws
+    // TODO: These instructions have to perform the ARG substitution checked in `testSimpleDockerfileArgInInstructions()`:
+    // - ADD
+    // - ENV
+    // - STOPSIGNAL
+    // - USER
+    // - VOLUME
+    // - WORKDIR
+    // - ONBUILD
+    // - ENTRYPOINT
 }
 
 /// DockerInstructionVisitor visits each provided DockerInstruction and builds a
@@ -35,7 +45,7 @@ public class DockerInstructionVisitor: InstructionVisitor {
         self.graphBuilder = GraphBuilder()
     }
 
-    func buildGraph(from: [DockerInstruction]) throws -> BuildGraph {
+    func buildGraph(from: [any DockerInstruction]) throws -> BuildGraph {
         for instruction in from {
             try instruction.accept(self)
         }
@@ -44,11 +54,28 @@ public class DockerInstructionVisitor: InstructionVisitor {
 }
 
 extension DockerInstructionVisitor {
+    private func substituteArgsInCommand(_ command: Command) -> Command {
+        switch command {
+        case .shell(let cmd):
+            let substitutedCmd = graphBuilder.substituteArgs(cmd, inFromContext: false)
+            return .shell(substitutedCmd)
+        case .exec(let args):
+            let substitutedArgs = args.map { graphBuilder.substituteArgs($0, inFromContext: false) }
+            return .exec(substitutedArgs)
+        }
+    }
+
     func visit(_ from: FromInstruction) throws {
+        let imageString = graphBuilder.substituteArgs(from.image, inFromContext: true)
+
+        guard let imageRef = ImageReference(parsing: imageString) else {
+            throw ParseError.invalidImage(imageString)
+        }
+
         if let stageName = from.stageName {
-            try graphBuilder.stage(name: stageName, from: from.image, platform: from.platform)
+            try graphBuilder.stage(name: stageName, from: imageRef, platform: from.platform)
         } else {
-            try graphBuilder.stage(from: from.image, platform: from.platform)
+            try graphBuilder.stage(from: imageRef, platform: from.platform)
         }
     }
 
@@ -68,7 +95,7 @@ extension DockerInstructionVisitor {
                 if let from = m.from, from != "" {
                     if let _ = graphBuilder.getStage(stageName: from) {
                         mountSource = .stage(.named(from), path: source)
-                    } else if let context = graphBuilder.getBuildArg(key: from) {
+                    } else if let context = graphBuilder.resolveArg(key: from, inFromContext: false) {
                         mountSource = .context(context, path: source)
                     } else {
                         // mount source is an image name
@@ -117,38 +144,64 @@ extension DockerInstructionVisitor {
             mounts.append(graphMount)
         }
 
-        try graphBuilder.runWithCmd(run.command, mounts: mounts)
+        let substitutedCommand = substituteArgsInCommand(run.command)
+        try graphBuilder.runWithCmd(substitutedCommand, mounts: mounts)
     }
 
     func visit(_ copy: CopyInstruction) throws {
         // TODO katiewasnothere: plumb through "--link" option
+
+        let substitutedSources = copy.sources.map { graphBuilder.substituteArgs($0, inFromContext: false) }
+        let substitutedDestination = graphBuilder.substituteArgs(copy.destination, inFromContext: false)
+
         if let from = copy.from {
             var source: FilesystemSource
             if let _ = graphBuilder.getStage(stageName: from) {
-                source = .stage(.named(from), paths: copy.sources)
-            } else if let context = graphBuilder.getBuildArg(key: from) {
-                source = .context(ContextSource(name: context, paths: copy.sources))
+                source = .stage(.named(from), paths: substitutedSources)
+            } else if let context = graphBuilder.resolveArg(key: from, inFromContext: false) {
+                source = .context(ContextSource(name: context, paths: substitutedSources))
             } else {
                 guard let imageRef = ImageReference(parsing: from) else {
                     throw ParseError.invalidImage(from)
                 }
-                source = .image(imageRef, paths: copy.sources)
+                source = .image(imageRef, paths: substitutedSources)
             }
-            try graphBuilder.copy(from: source, to: copy.destination, chown: copy.chown, chmod: copy.chmod)
+            try graphBuilder.copy(from: source, to: substitutedDestination, chown: copy.chown, chmod: copy.chmod)
             return
         }
-        try graphBuilder.copyFromContext(paths: copy.sources, to: copy.destination, chown: copy.chown, chmod: copy.chmod)
+        try graphBuilder.copyFromContext(paths: substitutedSources, to: substitutedDestination, chown: copy.chown, chmod: copy.chmod)
     }
 
     func visit(_ cmd: CMDInstruction) throws {
-        try graphBuilder.cmd(cmd.command)
+        let substitutedCommand = substituteArgsInCommand(cmd.command)
+        try graphBuilder.cmd(substitutedCommand)
     }
 
     func visit(_ label: LabelInstruction) throws {
-        try graphBuilder.labelBatch(labels: label.labels)
+        let substitutedLabels = label.labels.mapValues { graphBuilder.substituteArgs($0, inFromContext: false) }
+        try graphBuilder.labelBatch(labels: substitutedLabels)
     }
 
     func visit(_ expose: ExposeInstruction) throws {
-        try graphBuilder.expose(expose.ports)
+        let substitutedPortStrings = expose.ports.map { graphBuilder.substituteArgs($0, inFromContext: false) }
+        let substitutedPorts = try substitutedPortStrings.map(parsePort)
+        try graphBuilder.expose(substitutedPorts)
+    }
+
+    func visit(_ arg: ArgInstruction) throws {
+        for argDef in arg.args {
+            let substitutedDefaultValue: String?
+            if let defaultValue = argDef.defaultValue {
+                substitutedDefaultValue = graphBuilder.substituteArgs(defaultValue, inFromContext: !graphBuilder.hasActiveStage)
+            } else {
+                substitutedDefaultValue = nil
+            }
+
+            if graphBuilder.hasActiveStage {
+                try graphBuilder.arg(argDef.name, defaultValue: substitutedDefaultValue)
+            } else {
+                graphBuilder.fromOnlyArg(argDef.name, defaultValue: substitutedDefaultValue)
+            }
+        }
     }
 }

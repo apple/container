@@ -14,8 +14,26 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import Foundation
+/// Configuration information for attaching a container network interface to a network.
+public struct AttachmentConfiguration: Codable, Sendable {
+    /// The network ID associated with the attachment.
+    public let network: String
 
-extension UserDefaults {
-    public static let appSuiteName = "com.apple.container.defaults"
+    /// The option information for the attachment
+    public let options: AttachmentOptions
+
+    public init(network: String, options: AttachmentOptions) {
+        self.network = network
+        self.options = options
+    }
+}
+
+// Option information for a network attachment.
+public struct AttachmentOptions: Codable, Sendable {
+    /// The hostname associated with the attachment.
+    public let hostname: String
+
+    public init(hostname: String) {
+        self.hostname = hostname
+    }
 }

@@ -14,7 +14,27 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-public enum ContainerEvent: Sendable, Codable {
-    case containerStart(id: String)
-    case containerExit(id: String, exitCode: Int64)
+import ContainerBuildIR
+
+struct ArgDefinition: Equatable {
+    let name: String
+    let defaultValue: String?
+}
+
+struct ArgInstruction: DockerInstruction {
+    let args: [ArgDefinition]
+
+    init(args: [ArgDefinition]) throws {
+        guard !args.isEmpty else {
+            throw ParseError.missingRequiredField("name")
+        }
+        guard args.allSatisfy({ !$0.name.isEmpty }) else {
+            throw ParseError.missingRequiredField("name")
+        }
+        self.args = args
+    }
+
+    func accept(_ visitor: DockerInstructionVisitor) throws {
+        try visitor.visit(self)
+    }
 }

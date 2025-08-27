@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerPersistence
 import ContainerXPC
 import Containerization
 import ContainerizationError
@@ -100,8 +101,7 @@ public final class ReservedVmnetNetwork: Network {
                 "mode": "\(configuration.mode)",
             ]
         )
-        let suite = UserDefaults.init(suiteName: UserDefaults.appSuiteName)
-        let subnetText = configuration.subnet ?? suite?.string(forKey: "network.subnet")
+        let subnetText = configuration.subnet ?? DefaultsStore.getOptional(key: .defaultSubnet)
 
         // with the reservation API, subnet priority is CLI argument, UserDefault, auto
         let subnet = try subnetText.map { try CIDRAddress($0) }

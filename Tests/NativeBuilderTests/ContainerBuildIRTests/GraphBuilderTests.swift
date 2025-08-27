@@ -136,16 +136,18 @@ struct GraphBuilderTests {
     // MARK: - Build Arguments and Environment
 
     @Test func buildArgumentPropagation() throws {
-        guard let nodeRef = ImageReference(parsing: "node:18") else {
+        guard let nodeRef = ImageReference(parsing: "alpine:latest") else {
             Issue.record("Failed to parse image reference")
             return
         }
 
         let graph = try GraphBuilder.multiStage { builder in
             try builder
+                .fromOnlyArg("BASE_IMAGE", defaultValue: "alpine:latest")
+                .fromOnlyArg("BUILD_VERSION", defaultValue: "1.0.0")
                 .stage(name: "build", from: nodeRef)
                 .arg("NODE_ENV", defaultValue: "development")
-                .arg("BUILD_VERSION", defaultValue: "dev")
+                .arg("BUILD_VERSION")
                 .arg("API_URL")
                 .workdir("/app")
                 .copyFromContext(paths: ["package.json"], to: "./")
@@ -157,20 +159,19 @@ struct GraphBuilderTests {
                 .run("npm run build")
         }
 
+        // Verify global FROM-only ARG values
         #expect(graph.buildArgs.count == 2)
-        #expect(graph.buildArgs["NODE_ENV"] == "development")
-        #expect(graph.buildArgs["BUILD_VERSION"] == "dev")
-        // API_URL has no default value so it's not included in buildArgs
+        #expect(graph.buildArgs["BASE_IMAGE"] == "alpine:latest")
+        #expect(graph.buildArgs["BUILD_VERSION"] == "1.0.0")
 
-        // Verify ARG instructions in stage
+        // Verify stage-local ARG values
+        #expect(graph.stages.count == 1)
+
         let stage = graph.stages[0]
-        let argOps = stage.nodes.compactMap { node in
-            node.operation as? MetadataOperation
-        }.filter { meta in
-            if case .declareArg = meta.action { return true }
-            return false
-        }
-        #expect(argOps.count == 3)
+        #expect(getStageArg(stage, name: "BASE_IMAGE") == nil)
+        #expect(getStageArg(stage, name: "NODE_ENV") == "development")
+        #expect(getStageArg(stage, name: "BUILD_VERSION") == nil)
+        #expect(getStageArg(stage, name: "API_URL") == nil)
 
         // Verify ENV instructions reference build args
         let envOps = stage.nodes.compactMap { node in
@@ -180,6 +181,87 @@ struct GraphBuilderTests {
             return false
         }
         #expect(envOps.count == 3)
+    }
+
+    @Test func testArgSubstitutionWithSimpleVariables() throws {
+        let graphBuilder = GraphBuilder()
+        graphBuilder.fromOnlyArg("DEFINED", defaultValue: "value")
+        graphBuilder.fromOnlyArg("EMPTY", defaultValue: "")
+
+        #expect(graphBuilder.substituteArgs("prefix-$DEFINED-$DEFINED-$DEFINED-suffix", inFromContext: true) == "prefix-value-value-value-suffix")
+        #expect(graphBuilder.substituteArgs("prefix-$EMPTY-$EMPTY-$EMPTY-suffix", inFromContext: true) == "prefix----suffix")
+        #expect(graphBuilder.substituteArgs("prefix-$UNDEFINED-$UNDEFINED-$UNDEFINED-suffix", inFromContext: true) == "prefix----suffix")
+    }
+
+    @Test func testArgSubstitution() throws {
+        let graphBuilder = GraphBuilder()
+        graphBuilder.fromOnlyArg("DEFINED", defaultValue: "value")
+        graphBuilder.fromOnlyArg("EMPTY", defaultValue: "")
+
+        #expect(graphBuilder.substituteArgs("prefix-${DEFINED}-${DEFINED}-${DEFINED}-suffix", inFromContext: true) == "prefix-value-value-value-suffix")
+        #expect(graphBuilder.substituteArgs("prefix-${EMPTY}-${EMPTY}-${EMPTY}-suffix", inFromContext: true) == "prefix----suffix")
+        #expect(graphBuilder.substituteArgs("prefix-${UNDEFINED}-${UNDEFINED}-${UNDEFINED}-suffix", inFromContext: true) == "prefix----suffix")
+    }
+
+    @Test func testArgSubstitutionWithDefaults() throws {
+        let graphBuilder = GraphBuilder()
+        graphBuilder.fromOnlyArg("DEFINED", defaultValue: "defined")
+        graphBuilder.fromOnlyArg("EMPTY", defaultValue: "")
+
+        #expect(graphBuilder.substituteArgs("${UNDEFINED:-default}", inFromContext: true) == "default")
+        #expect(graphBuilder.substituteArgs("${UNDEFINED:-default with spaces}", inFromContext: true) == "default with spaces")
+        #expect(graphBuilder.substituteArgs("${UNDEFINED:-}", inFromContext: true) == "")
+
+        #expect(graphBuilder.substituteArgs("${DEFINED:-default}", inFromContext: true) == "defined")
+        #expect(graphBuilder.substituteArgs("${EMPTY:-default}", inFromContext: true) == "")
+
+        #expect(graphBuilder.substituteArgs("a=${UNDEFINED:-default} b=${DEFINED:-default} c=${EMPTY:-default}", inFromContext: true) == "a=default b=defined c=")
+    }
+
+    @Test func testArgSubstitutionWithUTF16Characters() throws {
+        let graphBuilder = GraphBuilder()
+
+        #expect(graphBuilder.substituteArgs("unicorn 🦄 unicorn ${UNDEFINED:-🦄}", inFromContext: true) == "unicorn 🦄 unicorn 🦄")
+        #expect(graphBuilder.substituteArgs("🦄 ${UNDEFINED:-unicorn 🦄 unicorn}", inFromContext: true) == "🦄 unicorn 🦄 unicorn")
+    }
+
+    @Test func testArgSubstitutionWithSubstituteValues() throws {
+        let graphBuilder = GraphBuilder()
+        graphBuilder.fromOnlyArg("DEFINED", defaultValue: "defined")
+        graphBuilder.fromOnlyArg("EMPTY", defaultValue: "")
+
+        #expect(graphBuilder.substituteArgs("${DEFINED:+value}", inFromContext: true) == "value")
+        #expect(graphBuilder.substituteArgs("${DEFINED:+value with spaces}", inFromContext: true) == "value with spaces")
+        #expect(graphBuilder.substituteArgs("${DEFINED:+}", inFromContext: true) == "")
+        #expect(graphBuilder.substituteArgs("${UNDEFINED:+value}", inFromContext: true) == "")
+        #expect(graphBuilder.substituteArgs("${EMPTY:+value}", inFromContext: true) == "")
+
+        #expect(graphBuilder.substituteArgs("a=${UNDEFINED:+value} b=${DEFINED:+value} c=${EMPTY:+value}", inFromContext: true) == "a= b=value c=")
+    }
+
+    @Test func testPredefinedArgVariables() throws {
+        let graphBuilder = GraphBuilder()
+
+        var originalValues: [String: String?] = [:]
+        for varName in GraphBuilder.predefinedArgs {
+            originalValues[varName] = ProcessInfo.processInfo.environment[varName]
+            setenv(varName, "test-value-\(varName.lowercased())", 1)
+        }
+
+        defer {
+            for (varName, originalValue) in originalValues {
+                if let originalValue {
+                    setenv(varName, originalValue, 1)
+                } else {
+                    unsetenv(varName)
+                }
+            }
+        }
+
+        for varName in GraphBuilder.predefinedArgs {
+            let expectedValue = "test-value-\(varName.lowercased())"
+            #expect(graphBuilder.substituteArgs("${\(varName)}", inFromContext: true) == expectedValue)
+        }
     }
 
     // MARK: - Platform-Specific Builds
@@ -498,8 +580,9 @@ struct GraphBuilderTests {
         }
 
         // Verify first graph has our settings
-        #expect(graph1.buildArgs["VERSION"] == "1.0.0")
         #expect(graph1.targetPlatforms == [Platform.linuxAMD64])
+        #expect(graph1.stages.count == 1)
+        #expect(getStageArg(graph1.stages[0], name: "VERSION") == "1.0.0")
 
         // Create second graph with different settings
         let graph2 = try GraphBuilder.singleStage(from: alpineRef) { stageBuilder in
@@ -510,12 +593,14 @@ struct GraphBuilderTests {
         }
 
         // Verify second graph has updated settings
-        #expect(graph2.buildArgs["VERSION"] == "2.0.0")
         #expect(graph2.targetPlatforms == [Platform.linuxARM64])
+        #expect(graph2.stages.count == 1)
+        #expect(getStageArg(graph2.stages[0], name: "VERSION") == "2.0.0")
 
         // Verify first graph unchanged
-        #expect(graph1.buildArgs["VERSION"] == "1.0.0")
         #expect(graph1.targetPlatforms == [Platform.linuxAMD64])
+        #expect(graph1.stages.count == 1)
+        #expect(getStageArg(graph1.stages[0], name: "VERSION") == "1.0.0")
     }
 
     @Test func incrementalGraphBuilding() throws {
@@ -555,4 +640,16 @@ struct GraphBuilderTests {
         #expect(finalStageDeps.contains(.named("base")))
         #expect(finalStageDeps.contains(.named("deps")))
     }
+}
+
+func getStageArg(_ stage: BuildStage, name: String, globalBuildArgs: [String: String] = [:]) -> String? {
+    for node in stage.nodes {
+        if let metadataOp = node.operation as? MetadataOperation,
+            case .declareArg(let argName, let defaultValue) = metadataOp.action,
+            argName == name
+        {
+            return defaultValue ?? globalBuildArgs[name]
+        }
+    }
+    return nil
 }

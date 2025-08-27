@@ -17,14 +17,14 @@
 import ContainerBuildIR
 
 struct ExposeInstruction: DockerInstruction {
-    let ports: [PortSpec]
+    let ports: [String]
 
-    init(_ rawPorts: [String]) throws {
-        self.ports = try rawPorts.map(parsePort)
+    init(_ ports: [String]) {
+        self.ports = ports
     }
 
     internal init(ports: [PortSpec]) {
-        self.ports = ports
+        self.ports = ports.map { $0.stringValue }
     }
 
     func accept(_ visitor: DockerInstructionVisitor) throws {
