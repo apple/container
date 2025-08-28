@@ -14,28 +14,10 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-//
-
 import Foundation
 import Testing
 
 class TestCLIImagesCommand: CLITest {
-    struct Image: Codable {
-        let reference: String
-    }
-
-    struct InspectOutput: Codable {
-        let name: String
-        let variants: [variant]
-        struct variant: Codable {
-            let platform: imagePlatform
-            struct imagePlatform: Codable {
-                let os: String
-                let architecture: String
-            }
-        }
-    }
-
     func doRemoveImages(images: [String]? = nil) throws {
         var args = [
             "images",
@@ -81,25 +63,6 @@ class TestCLIImagesCommand: CLITest {
 
         let decoder = JSONDecoder()
         return try decoder.decode([Image].self, from: jsonData)
-    }
-
-    func doInspectImages(image: String) throws -> [InspectOutput] {
-        let (output, error, status) = try run(arguments: [
-            "images",
-            "inspect",
-            image,
-        ])
-
-        if status != 0 {
-            throw CLIError.executionFailed("command failed: \(error)")
-        }
-
-        guard let jsonData = output.data(using: .utf8) else {
-            throw CLIError.invalidOutput("image inspect output invalid \(output)")
-        }
-
-        let decoder = JSONDecoder()
-        return try decoder.decode([InspectOutput].self, from: jsonData)
     }
 
     func doImageTag(image: String, newName: String) throws {
@@ -159,6 +122,35 @@ extension TestCLIImagesCommand {
             try doPull(imageName: alpine, args: pullArgs)
 
             let output = try doInspectImages(image: alpine)
+            #expect(output.count == 1, "expected a single image inspect output, got \(output)")
+
+            var found = false
+            for v in output[0].variants {
+                if v.platform.os == os && v.platform.architecture == arch {
+                    found = true
+                }
+            }
+            #expect(found, "expected to find image with os \(os) and architecture \(arch), instead got \(output[0])")
+        } catch {
+            Issue.record("failed to pull and inspect image \(error)")
+            return
+        }
+    }
+
+    @Test func testPullOsArch() throws {
+        do {
+            let os = "linux"
+            let arch = "amd64"
+            let pullArgs = [
+                "--os",
+                os,
+                "--arch",
+                arch,
+            ]
+
+            try doPull(imageName: alpine318, args: pullArgs)
+
+            let output = try doInspectImages(image: alpine318)
             #expect(output.count == 1, "expected a single image inspect output, got \(output)")
 
             var found = false

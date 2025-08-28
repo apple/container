@@ -50,6 +50,7 @@ all: init-block
 .PHONY: build
 build:
 	@echo Building container binaries...
+	@$(SWIFT) --version
 	@$(SWIFT) build -c $(BUILD_CONFIGURATION)
 
 .PHONY: container

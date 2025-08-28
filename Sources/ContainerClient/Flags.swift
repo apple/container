@@ -108,11 +108,14 @@ public struct Flags {
         @Flag(name: [.customLong("remove"), .customLong("rm")], help: "Remove the container after it stops")
         public var remove = false
 
+        @Option(name: .customLong("platform"), help: "Platform for the image if it's multi-platform. This takes precedence over --os and --arch")
+        public var platform: String?
+
         @Option(name: .customLong("os"), help: "Set OS if image can target multiple operating systems")
         public var os = "linux"
 
         @Option(
-            name: [.customLong("arch"), .short], help: "Set arch if image can target multiple architectures")
+            name: [.long, .short], help: "Set arch if image can target multiple architectures")
         public var arch: String = Arch.hostArchitecture().rawValue
 
         @Option(name: [.customLong("volume"), .short], help: "Bind mount a volume into the container")

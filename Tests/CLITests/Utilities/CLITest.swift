@@ -25,6 +25,22 @@ import Foundation
 import Testing
 
 class CLITest {
+    struct Image: Codable {
+        let reference: String
+    }
+
+    struct ImageInspectOutput: Codable {
+        let name: String
+        let variants: [variant]
+        struct variant: Codable {
+            let platform: imagePlatform
+            struct imagePlatform: Codable {
+                let os: String
+                let architecture: String
+            }
+        }
+    }
+
     init() throws {}
 
     let testUUID = UUID().uuidString
@@ -38,6 +54,7 @@ class CLITest {
     }
 
     let alpine = "ghcr.io/linuxcontainers/alpine:3.20"
+    let alpine318 = "ghcr.io/linuxcontainers/alpine:3.18"
     let busybox = "ghcr.io/containerd/busybox:1.36"
 
     let defaultContainerArgs = ["sleep", "infinity"]
@@ -167,18 +184,15 @@ class CLITest {
         name: String,
         image: String? = nil,
         args: [String]? = nil,
-        containerArgs: [String]? = nil,
-        autoRemove: Bool = false
+        containerArgs: [String]? = nil
     ) throws {
         var runArgs = [
             "run",
+            "--rm",
             "--name",
             name,
             "-d",
         ]
-        if autoRemove {
-            runArgs.append("--rm")
-        }
         if let args {
             runArgs.append(contentsOf: args)
         }
@@ -254,19 +268,6 @@ class CLITest {
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
-    }
-
-    func doLogs(name: String, boot: Bool) throws -> String {
-        var args = ["logs"]
-        if boot {
-            args.append("--boot")
-        }
-        args.append(name)
-        let (stdout, stderr, status) = try run(arguments: args)
-        if status != 0 {
-            throw CLIError.executionFailed("command failed: \(stderr)")
-        }
-        return stdout
     }
 
     func doStart(name: String) throws {
@@ -374,6 +375,25 @@ class CLITest {
             throw CLIError.executionFailed("command failed: \(error)")
         }
         return out.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: .newlines)
+    }
+
+    func doInspectImages(image: String) throws -> [ImageInspectOutput] {
+        let (output, error, status) = try run(arguments: [
+            "images",
+            "inspect",
+            image,
+        ])
+
+        if status != 0 {
+            throw CLIError.executionFailed("command failed: \(error)")
+        }
+
+        guard let jsonData = output.data(using: .utf8) else {
+            throw CLIError.invalidOutput("image inspect output invalid \(output)")
+        }
+
+        let decoder = JSONDecoder()
+        return try decoder.decode([ImageInspectOutput].self, from: jsonData)
     }
 
     func doDefaultRegistrySet(domain: String) throws {

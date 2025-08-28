@@ -78,32 +78,49 @@ class TestCLIBuildBase: CLITest {
     }
 
     @discardableResult
-    func build(tag: String, tempDir: URL, args: [String]? = nil) throws -> String {
-        try buildWithPaths(tag: tag, tempContext: tempDir, tempDockerfileContext: tempDir, args: args)
+    func build(
+        tag: String,
+        tempDir: URL,
+        buildArgs: [String] = [],
+        otherArgs: [String] = []
+    ) throws -> String {
+        try buildWithPaths(
+            tag: tag,
+            tempContext: tempDir,
+            tempDockerfileContext: tempDir,
+            buildArgs: buildArgs,
+            otherArgs: otherArgs
+        )
     }
 
     // buildWithPaths is a helper function for calling build with different paths for the build context and
     // the dockerfile path. If both paths are the same, use `build` func above.
     @discardableResult
-    func buildWithPaths(tag: String, tempContext: URL, tempDockerfileContext: URL, args: [String]? = nil) throws -> String {
+    func buildWithPaths(
+        tag: String,
+        tempContext: URL,
+        tempDockerfileContext: URL,
+        buildArgs: [String] = [],
+        otherArgs: [String] = []
+    ) throws -> String {
         let contextDir: URL = tempContext.appendingPathComponent("context")
         let contextDirPath = contextDir.absoluteURL.path
-        var buildArgs = [
+        var args = [
             "build",
             "-f",
             tempDockerfileContext.appendingPathComponent("Dockerfile").path,
             "-t",
             tag,
         ]
-        if let args = args {
-            for arg in args {
-                buildArgs.append("--build-arg")
-                buildArgs.append(arg)
-            }
+        for arg in buildArgs {
+            args.append("--build-arg")
+            args.append(arg)
         }
-        buildArgs.append(contextDirPath)
+        args.append(contextDirPath)
 
-        let response = try run(arguments: buildArgs)
+        args.append(contentsOf: otherArgs)
+
+        let response = try run(arguments: args)
         if response.status != 0 {
             throw CLIError.executionFailed("build failed: stdout=\(response.output) stderr=\(response.error)")
         }

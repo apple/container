@@ -16,6 +16,7 @@
 
 //
 
+import ContainerizationOCI
 import Foundation
 import Testing
 
@@ -139,7 +140,7 @@ extension TestCLIBuildBase {
                 """
             try createContext(tempDir: tempDir, dockerfile: dockerfile)
             let imageName: String = "registry.local/build-arg:\(UUID().uuidString)"
-            try self.build(tag: imageName, tempDir: tempDir, args: ["TAG=3.20"])
+            try self.build(tag: imageName, tempDir: tempDir, buildArgs: ["TAG=3.20"])
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
@@ -159,7 +160,7 @@ extension TestCLIBuildBase {
             if let proxyAddr = proxyEnv {
                 address = String(proxyAddr.trimmingPrefix("http://"))
             }
-            try self.build(tag: imageName, tempDir: tempDir, args: ["ADDRESS=\(address)"])
+            try self.build(tag: imageName, tempDir: tempDir, buildArgs: ["ADDRESS=\(address)"])
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
@@ -333,7 +334,7 @@ extension TestCLIBuildBase {
             try self.build(tag: imageName, tempDir: tempDir)
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
             // Check if the image we built is actually in the image store, and can be used.
-            try self.doLongRun(name: containerName, image: imageName, autoRemove: true)
+            try self.doLongRun(name: containerName, image: imageName)
             defer {
                 try? self.doStop(name: containerName)
             }
@@ -373,6 +374,44 @@ extension TestCLIBuildBase {
                 try self.buildWithPaths(tag: imageName, tempContext: buildContextDir, tempDockerfileContext: dockerfileCtxDir)
             }
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
+        }
+
+        @Test func testBuildMultiArch() throws {
+            let tempDir: URL = try createTempDir()
+            let dockerfile: String =
+                """
+                FROM ghcr.io/linuxcontainers/alpine:3.20
+
+                ADD . .
+
+                RUN cat emptyFile 
+                RUN cat Test/testempty
+                """
+            let context: [FileSystemEntry] = [
+                .directory("Test"),
+                .file("Test/testempty", content: .zeroFilled(size: 1)),
+                .file("emptyFile", content: .zeroFilled(size: 1)),
+            ]
+            try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
+            let imageName: String = "registry.local/multi-arch:\(UUID().uuidString)"
+            try self.build(tag: imageName, tempDir: tempDir, otherArgs: ["--arch", "amd64,arm64"])
+            #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
+
+            let output = try doInspectImages(image: imageName)
+            #expect(output.count == 1, "expected a single image inspect output, got \(output)")
+
+            let expected = Set([
+                Platform(arch: "amd64", os: "linux", variant: nil),
+                Platform(arch: "arm64", os: "linux", variant: nil),
+            ])
+            let actual = Set(
+                output[0].variants.map { v in
+                    Platform(arch: v.platform.architecture, os: v.platform.os, variant: nil)
+                })
+            #expect(
+                actual == expected,
+                "expected platforms \(expected), got \(actual)"
+            )
         }
     }
 }

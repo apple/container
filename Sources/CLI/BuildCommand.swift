@@ -77,14 +77,29 @@ extension Application {
             []
         }()
 
-        @Option(name: .long, help: ArgumentHelp("set the build architecture", valueName: "value"))
-        var arch: [String] = {
-            ["arm64"]
+        @Option(
+            name: .long,
+            help: "add the platform to the build",
+            transform: { val in val.split(separator: ",").map { String($0) } }
+        )
+        var platform: [[String]] = [[]]
+
+        @Option(
+            name: .long,
+            help: ArgumentHelp("add the OS type to the build", valueName: "value"),
+            transform: { val in val.split(separator: ",").map { String($0) } }
+        )
+        var os: [[String]] = {
+            [["linux"]]
         }()
 
-        @Option(name: .long, help: ArgumentHelp("set the build os", valueName: "value"))
-        var os: [String] = {
-            ["linux"]
+        @Option(
+            name: [.long, .short],
+            help: ArgumentHelp("add the architecture type to the build", valueName: "value"),
+            transform: { val in val.split(separator: ",").map { String($0) } }
+        )
+        var arch: [[String]] = {
+            [[Arch.hostArchitecture().rawValue]]
         }()
 
         @Option(name: .long, help: ArgumentHelp("Progress type - one of [auto|plain|tty]", valueName: "type"))
@@ -217,14 +232,25 @@ extension Application {
                             throw ContainerizationError(.interrupted, message: "exiting on signal \(sig)")
                         }
                     }
-                    let platforms: [Platform] = try {
-                        var results: [Platform] = []
-                        for o in self.os {
-                            for a in self.arch {
+                    let platforms: Set<Platform> = try {
+                        var results: Set<Platform> = []
+                        for platform in (self.platform.flatMap { $0 }) {
+                            guard let p = try? Platform(from: platform) else {
+                                throw ValidationError("invalid platform specified \(platform)")
+                            }
+                            results.insert(p)
+                        }
+
+                        if !results.isEmpty {
+                            return results
+                        }
+
+                        for o in (self.os.flatMap { $0 }) {
+                            for a in (self.arch.flatMap { $0 }) {
                                 guard let platform = try? Platform(from: "\(o)/\(a)") else {
                                     throw ValidationError("invalid os/architecture combination \(o)/\(a)")
                                 }
-                                results.append(platform)
+                                results.insert(platform)
                             }
                         }
                         return results
@@ -238,7 +264,7 @@ extension Application {
                             dockerfile: dockerfile,
                             labels: label,
                             noCache: noCache,
-                            platforms: platforms,
+                            platforms: [Platform](platforms),
                             terminal: terminal,
                             tag: imageName,
                             target: target,

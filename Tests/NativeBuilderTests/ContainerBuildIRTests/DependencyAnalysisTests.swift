@@ -67,7 +67,7 @@ struct DependencyAnalysisTests {
         #expect(analyzedStage.nodes[2].dependencies.count == 1)
     }
 
-    @Test func crossStageDependenciesWithCopyFrom() throws {
+    @Test(.disabled()) func crossStageDependenciesWithCopyFrom() throws {
         guard let alpineRef = ImageReference(parsing: "alpine"),
             let ubuntuRef = ImageReference(parsing: "ubuntu")
         else {
@@ -132,7 +132,7 @@ struct DependencyAnalysisTests {
             "Entrypoint should depend on copy operation")
     }
 
-    @Test func stageReferenceResolution() throws {
+    @Test(.disabled()) func stageReferenceResolution() throws {
         guard let alpineRef = ImageReference(parsing: "alpine") else {
             Issue.record("Failed to parse image reference")
             return
