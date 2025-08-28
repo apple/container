@@ -1,0 +1,17 @@
+name: container project - PR build
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  build:
+    name: Invoke build
+    uses: ./.github/workflows/common.yml
+    with:
+      release: false
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: read
+      pages: write
