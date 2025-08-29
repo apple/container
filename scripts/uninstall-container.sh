@@ -49,6 +49,7 @@ done
 
 if [ $OPTS != 1 ]; then 
     echo "Invalid number of options. Must provide either -d OR -k"
+    usage
     exit 1
 fi
 
