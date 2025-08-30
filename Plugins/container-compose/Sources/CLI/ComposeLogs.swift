@@ -1,0 +1,98 @@
+//===----------------------------------------------------------------------===//
+// Copyright © 2025 Apple Inc. and the container project authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//===----------------------------------------------------------------------===//
+
+import ArgumentParser
+import ContainerClient
+import ComposeCore
+import Foundation
+import Logging
+
+struct ComposeLogs: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "logs",
+        abstract: "View output from containers"
+    )
+    
+    @OptionGroup
+    var composeOptions: ComposeOptions
+    
+    @OptionGroup
+    var global: Flags.Global
+        
+        @Flag(name: .long, help: "Follow log output")
+        var follow: Bool = false
+        
+        @Option(name: .long, help: "Number of lines to show from the end of the logs")
+        var tail: Int?
+        
+        @Flag(name: [.customLong("timestamps"), .customShort("t")], help: "Show timestamps")
+        var timestamps: Bool = false
+        
+        @Argument(help: "Services to display logs for")
+        var services: [String] = []
+        
+        func run() async throws {
+        // Load .env and set environment variables
+        composeOptions.loadDotEnvIfPresent()
+        composeOptions.setEnvironmentVariables()
+        
+        // Parse compose file
+        let parser = ComposeParser(log: log, allowAnchors: global.allowAnchors)
+        let composeFile = try parser.parse(from: composeOptions.getComposeFileURLs())
+        
+        // Convert to project
+        let converter = ProjectConverter(log: log)
+        let project = try converter.convert(
+            composeFile: composeFile,
+            projectName: composeOptions.getProjectName(),
+            profiles: composeOptions.profile,
+            selectedServices: services
+        )
+        
+        // Create orchestrator
+        let orchestrator = Orchestrator(log: log)
+        
+        // Get logs stream
+        let logStream = try await orchestrator.logs(
+            project: project,
+            services: services,
+            follow: follow,
+            tail: tail,
+            timestamps: timestamps
+        )
+        
+        // Print logs with service names and optional timestamps
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
+        
+        for try await entry in logStream {
+            var output = "[\(entry.serviceName)]"
+            
+            if timestamps {
+                output += " \(dateFormatter.string(from: entry.timestamp))"
+            }
+            
+            output += " \(entry.message)"
+            
+            switch entry.stream {
+            case .stdout:
+                print(output)
+            case .stderr:
+                FileHandle.standardError.write(Data((output + "\n").utf8))
+            }
+        }
+        }
+    }
