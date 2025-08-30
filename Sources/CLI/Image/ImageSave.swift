@@ -17,6 +17,7 @@
 import ArgumentParser
 import ContainerClient
 import Containerization
+import ContainerizationError
 import ContainerizationOCI
 import Foundation
 import TerminalProgress
@@ -54,7 +55,7 @@ extension Application {
             })
         var output: String
 
-        @Argument var reference: String
+        @Argument var references: [String]
 
         func run() async throws {
             var p: Platform?
@@ -65,7 +66,7 @@ extension Application {
             }
 
             let progressConfig = try ProgressConfig(
-                description: "Saving image"
+                description: "Saving image(s)"
             )
             let progress = ProgressBar(config: progressConfig)
             defer {
@@ -73,11 +74,23 @@ extension Application {
             }
             progress.start()
 
-            let image = try await ClientImage.get(reference: reference)
-            try await image.save(out: output, platform: p)
+            var images: [ImageDescription] = []
+            for reference in references {
+                do {
+                    images.append(try await ClientImage.get(reference: reference).description)
+                } catch {
+                    print("failed to get image for reference \(reference): \(error)")
+                }
+            }
+
+            guard images.count == references.count else {
+                throw ContainerizationError(.invalidArgument, message: "failed to save image(s)")
+
+            }
+            try await ClientImage.save(references: references, out: output, platform: p)
 
             progress.finish()
-            print("Image saved")
+            print("Image(s) saved")
         }
     }
 }

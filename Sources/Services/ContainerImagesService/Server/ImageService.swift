@@ -92,13 +92,13 @@ public actor ImagesService {
         try await self.imageStore.delete(reference: reference, performCleanup: garbageCollect)
     }
 
-    public func save(reference: String, out: URL, platform: Platform?) async throws {
-        self.log.info("ImagesService: \(#function) - reference: \(reference) , platform: \(String(describing: platform))")
+    public func save(references: [String], out: URL, platform: Platform?) async throws {
+        self.log.info("ImagesService: \(#function) - references: \(references) , platform: \(String(describing: platform))")
         let tempDir = FileManager.default.uniqueTemporaryDirectory()
         defer {
             try? FileManager.default.removeItem(at: tempDir)
         }
-        try await self.imageStore.save(references: [reference], out: tempDir, platform: platform)
+        try await self.imageStore.save(references: references, out: tempDir, platform: platform)
         let writer = try ArchiveWriter(format: .pax, filter: .none, file: out)
         try writer.archiveDirectory(tempDir)
         try writer.finishEncoding()

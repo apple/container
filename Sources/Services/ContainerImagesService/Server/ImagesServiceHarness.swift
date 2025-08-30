@@ -129,14 +129,15 @@ public struct ImagesServiceHarness: Sendable {
 
     @Sendable
     public func save(_ message: XPCMessage) async throws -> XPCMessage {
-        let data = message.dataNoCopy(key: .imageDescription)
+        let data = message.dataNoCopy(key: .imageDescriptions)
         guard let data else {
             throw ContainerizationError(
                 .invalidArgument,
                 message: "missing image description"
             )
         }
-        let imageDescription = try JSONDecoder().decode(ImageDescription.self, from: data)
+        let imageDescriptions = try JSONDecoder().decode([ImageDescription].self, from: data)
+        let references = imageDescriptions.map { $0.reference }
 
         let platformData = message.dataNoCopy(key: .ociPlatform)
         var platform: Platform? = nil
@@ -150,7 +151,7 @@ public struct ImagesServiceHarness: Sendable {
                 message: "missing output file path"
             )
         }
-        try await service.save(reference: imageDescription.reference, out: URL(filePath: out), platform: platform)
+        try await service.save(references: references, out: URL(filePath: out), platform: platform)
         let reply = message.reply()
         return reply
     }
