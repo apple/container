@@ -224,7 +224,6 @@ public actor SandboxService {
             let containerId = containerInfo.container.id
             if id == containerId {
                 try await self.startInitProcess(lock: lock)
-                await self.setState(.running)
                 try await self.sendContainerEvent(.containerStart(id: id))
             } else {
                 try await self.startExecProcess(processId: id, lock: lock)
@@ -234,16 +233,16 @@ public actor SandboxService {
     }
 
     private func startInitProcess(lock: AsyncLock.Context) async throws {
-        let info = try self.getContainer()
-        let container = info.container
-        let id = container.id
-
         guard self.state == .booted else {
             throw ContainerizationError(
                 .invalidState,
                 message: "container expected to be in booted state, got: \(self.state)"
             )
         }
+
+        let info = try self.getContainer()
+        let container = info.container
+        let id = container.id
 
         self.setState(.starting)
         do {
@@ -267,6 +266,7 @@ public actor SandboxService {
             try await self.sendContainerEvent(.containerExit(id: id, exitCode: -1))
             throw error
         }
+        self.setState(.running)
     }
 
     private func startExecProcess(processId id: String, lock: AsyncLock.Context) async throws {
@@ -364,39 +364,38 @@ public actor SandboxService {
     public func createProcess(_ message: XPCMessage) async throws -> XPCMessage {
         log.info("`createProcess` xpc handler")
         return try await self.lock.withLock { [self] _ in
-            switch await self.state {
-            case .created, .stopped(_), .starting, .stopping:
+            let state = await self.state
+            guard state == .running || state == .booted else {
                 throw ContainerizationError(
                     .invalidState,
                     message: "cannot exec: container is not running"
                 )
-            case .running, .booted:
-                let id = try message.id()
-                let config = try message.processConfig()
-                let stdio = message.stdio()
-
-                await self.addNewProcess(id, config, stdio)
-
-                try await self.monitor.registerProcess(
-                    id: id,
-                    onExit: { id, code in
-                        guard let process = await self.processes[id]?.process else {
-                            throw ContainerizationError(
-                                .invalidState,
-                                message: "ProcessInfo missing for process \(id)"
-                            )
-                        }
-                        for cc in await self.waiters[id] ?? [] {
-                            cc.resume(returning: code)
-                        }
-                        await self.removeWaiters(for: id)
-                        try await process.delete()
-                        try await self.setProcessState(id: id, state: .stopped(code))
-                    }
-                )
-
-                return message.reply()
             }
+
+            let id = try message.id()
+            let config = try message.processConfig()
+            let stdio = message.stdio()
+            await self.addNewProcess(id, config, stdio)
+
+            try await self.monitor.registerProcess(
+                id: id,
+                onExit: { id, code in
+                    guard let process = await self.processes[id]?.process else {
+                        throw ContainerizationError(
+                            .invalidState,
+                            message: "ProcessInfo missing for process \(id)"
+                        )
+                    }
+                    for cc in await self.waiters[id] ?? [] {
+                        cc.resume(returning: code)
+                    }
+                    await self.removeWaiters(for: id)
+                    try await process.delete()
+                    try await self.setProcessState(id: id, state: .stopped(code))
+                }
+            )
+
+            return message.reply()
         }
     }
 
@@ -416,7 +415,7 @@ public actor SandboxService {
         var cs: ContainerSnapshot?
 
         switch state {
-        case .created, .stopped(_), .starting, .booted:
+        case .created, .stopped(_), .starting, .booted, .shuttingDown:
             status = .stopped
         case .stopping:
             status = .stopping
@@ -457,7 +456,7 @@ public actor SandboxService {
         self.log.info("`stop` xpc handler")
         let reply = try await self.lock.withLock { [self] _ in
             switch await self.state {
-            case .stopped(_), .created, .stopping:
+            case .stopped(_), .created, .stopping, .shuttingDown:
                 return message.reply()
             case .starting:
                 throw ContainerizationError(
@@ -499,31 +498,31 @@ public actor SandboxService {
     public func kill(_ message: XPCMessage) async throws -> XPCMessage {
         self.log.info("`kill` xpc handler")
         return try await self.lock.withLock { [self] _ in
-            switch await self.state {
-            case .created, .stopped, .starting, .booted, .stopping:
+            let state = await self.state
+            guard state == .running else {
                 throw ContainerizationError(
                     .invalidState,
                     message: "cannot kill: container is not running"
                 )
-            case .running:
-                let ctr = try await getContainer()
-                let id = try message.id()
-                if id != ctr.container.id {
-                    guard let processInfo = await self.processes[id] else {
-                        throw ContainerizationError(.invalidState, message: "Process \(id) does not exist")
-                    }
+            }
 
-                    guard let proc = processInfo.process else {
-                        throw ContainerizationError(.invalidState, message: "Process \(id) not started")
-                    }
-                    try await proc.kill(Int32(try message.signal()))
-                    return message.reply()
+            let ctr = try await getContainer()
+            let id = try message.id()
+            if id != ctr.container.id {
+                guard let processInfo = await self.processes[id] else {
+                    throw ContainerizationError(.invalidState, message: "Process \(id) does not exist")
                 }
 
-                // TODO: fix underlying signal value to int64
-                try await ctr.container.kill(Int32(try message.signal()))
+                guard let proc = processInfo.process else {
+                    throw ContainerizationError(.invalidState, message: "Process \(id) not started")
+                }
+                try await proc.kill(Int32(try message.signal()))
                 return message.reply()
             }
+
+            // TODO: fix underlying signal value to int64
+            try await ctr.container.kill(Int32(try message.signal()))
+            return message.reply()
         }
     }
 
@@ -540,33 +539,33 @@ public actor SandboxService {
     public func resize(_ message: XPCMessage) async throws -> XPCMessage {
         self.log.info("`resize` xpc handler")
         return try await self.lock.withLock { [self] _ in
-            switch await self.state {
-            case .created, .stopped, .starting, .booted, .stopping:
+            let state = await self.state
+            guard state == .running else {
                 throw ContainerizationError(
                     .invalidState,
                     message: "cannot resize: container is not running"
                 )
-            case .running:
-                let id = try message.id()
-                let ctr = try await getContainer()
-                let width = message.uint64(key: .width)
-                let height = message.uint64(key: .height)
-                if id != ctr.container.id {
-                    guard let processInfo = await self.processes[id] else {
-                        throw ContainerizationError(.invalidState, message: "Process \(id) does not exist")
-                    }
+            }
 
-                    guard let proc = processInfo.process else {
-                        throw ContainerizationError(.invalidState, message: "Process \(id) not started")
-                    }
-
-                    try await proc.resize(to: .init(width: UInt16(width), height: UInt16(height)))
-                    return message.reply()
+            let id = try message.id()
+            let ctr = try await getContainer()
+            let width = message.uint64(key: .width)
+            let height = message.uint64(key: .height)
+            if id != ctr.container.id {
+                guard let processInfo = await self.processes[id] else {
+                    throw ContainerizationError(.invalidState, message: "Process \(id) does not exist")
                 }
 
-                try await ctr.container.resize(to: .init(width: UInt16(width), height: UInt16(height)))
+                guard let proc = processInfo.process else {
+                    throw ContainerizationError(.invalidState, message: "Process \(id) not started")
+                }
+
+                try await proc.resize(to: .init(width: UInt16(width), height: UInt16(height)))
                 return message.reply()
             }
+
+            try await ctr.container.resize(to: .init(width: UInt16(width), height: UInt16(height)))
+            return message.reply()
         }
     }
 
@@ -634,28 +633,44 @@ public actor SandboxService {
     @Sendable
     public func dial(_ message: XPCMessage) async throws -> XPCMessage {
         self.log.info("`dial` xpc handler")
-        switch self.state {
-        case .starting, .created, .stopped, .stopping:
+        let state = self.state
+        guard state == .running || state == .booted else {
             throw ContainerizationError(
                 .invalidState,
                 message: "cannot dial: container is not running"
             )
-        case .running, .booted:
-            let port = message.uint64(key: .port)
-            guard port > 0 else {
-                throw ContainerizationError(
-                    .invalidArgument,
-                    message: "no vsock port supplied for dial"
-                )
-            }
-
-            let ctr = try getContainer()
-            let fh = try await ctr.container.dialVsock(port: UInt32(port))
-
-            let reply = message.reply()
-            reply.set(key: .fd, value: fh)
-            return reply
         }
+
+        let port = message.uint64(key: .port)
+        guard port > 0 else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "no vsock port supplied for dial"
+            )
+        }
+
+        let ctr = try getContainer()
+        let fh = try await ctr.container.dialVsock(port: UInt32(port))
+
+        let reply = message.reply()
+        reply.set(key: .fd, value: fh)
+        return reply
+    }
+
+    public func shutdown(_ message: XPCMessage) async throws -> XPCMessage {
+        self.setState(.shuttingDown)
+
+        Task {
+            do {
+                try await Task.sleep(for: .seconds(3))
+            } catch {
+                self.log.error("failed to sleep before shutting down SandboxService: \(error)")
+            }
+            self.log.info("Shutting down SandboxService")
+            exit(0)
+        }
+
+        return message.reply()
     }
 
     private func onContainerExit(id: String, code: Int32) async throws {
@@ -691,7 +706,6 @@ public actor SandboxService {
             }
             await self.removeWaiters(for: id)
             try await self.sendContainerEvent(.containerExit(id: id, exitCode: Int64(code)))
-            exit(code)
         }
     }
 
@@ -1114,6 +1128,7 @@ extension SandboxService {
         case running
         case stopping
         case stopped(Int32)
+        case shuttingDown
     }
 
     func setState(_ new: State) {
