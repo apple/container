@@ -122,4 +122,107 @@ struct ParserTest {
             return error.description.contains("invalid publish container port")
         }
     }
+
+    @Test
+    func testMountBindRelativePath() throws {
+
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("test-bind-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        let originalDir = FileManager.default.currentDirectoryPath
+        FileManager.default.changeCurrentDirectoryPath(tempDir.path)
+        defer {
+            FileManager.default.changeCurrentDirectoryPath(originalDir)
+        }
+
+        let result = try Parser.mount("type=bind,src=.,dst=/foo")
+
+        switch result {
+        case .filesystem(let fs):
+            let expectedPath = URL(filePath: ".").absoluteURL.path
+            #expect(fs.source == expectedPath)
+            #expect(fs.destination == "/foo")
+            #expect(!fs.isVolume)
+        case .volume:
+            #expect(Bool(false), "Expected filesystem mount, got volume")
+        }
+    }
+
+    @Test
+    func testMountBindAbsolutePath() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("test-bind-abs-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        let result = try Parser.mount("type=bind,src=\(tempDir.path),dst=/foo")
+
+        switch result {
+        case .filesystem(let fs):
+            #expect(fs.source == tempDir.path)
+            #expect(fs.destination == "/foo")
+            #expect(!fs.isVolume)
+        case .volume:
+            #expect(Bool(false), "Expected filesystem mount, got volume")
+        }
+    }
+
+    @Test
+    func testMountVolumeValidName() throws {
+        let result = try Parser.mount("type=volume,src=myvolume,dst=/data")
+
+        switch result {
+        case .filesystem:
+            #expect(Bool(false), "Expected volume mount, got filesystem")
+        case .volume(let vol):
+            #expect(vol.name == "myvolume")
+            #expect(vol.destination == "/data")
+        }
+    }
+
+    @Test
+    func testMountVolumeInvalidName() throws {
+        #expect {
+            _ = try Parser.mount("type=volume,src=.,dst=/data")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("Invalid volume name")
+        }
+    }
+
+    @Test
+    func testMountBindNonExistentPath() throws {
+        #expect {
+            _ = try Parser.mount("type=bind,src=/nonexistent/path,dst=/foo")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("path") && error.description.contains("does not exist")
+        }
+    }
+
+    @Test
+    func testMountBindFileInsteadOfDirectory() throws {
+        let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("test-file-\(UUID().uuidString)")
+        try "test content".write(to: tempFile, atomically: true, encoding: .utf8)
+        defer {
+            try? FileManager.default.removeItem(at: tempFile)
+        }
+
+        #expect {
+            _ = try Parser.mount("type=bind,src=\(tempFile.path),dst=/foo")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("path") && error.description.contains("is not a directory")
+        }
+    }
 }
