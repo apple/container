@@ -82,8 +82,7 @@ actor KernelService {
         await progressUpdate?([
             .setDescription("Unpacking kernel")
         ])
-        let archiveReader = try ArchiveReader(file: tarFile)
-        let kernelFile = try archiveReader.extractFile(from: kernelFilePath, to: tempDir)
+        let kernelFile = try self.extractFile(tarFile: tarFile, at: kernelFilePath, to: tempDir)
         try self.installKernel(kernelFile: kernelFile, platform: platform)
 
         if !FileManager.default.fileExists(atPath: tar.absoluteString) {
@@ -112,13 +111,27 @@ actor KernelService {
         }
         return Kernel(path: defaultKernelPath, platform: platform)
     }
-}
 
-extension ArchiveReader {
-    fileprivate func extractFile(from: String, to directory: URL) throws -> URL {
-        let (_, data) = try self.extractFile(path: from)
+    private func extractFile(tarFile: URL, at: String, to directory: URL) throws -> URL {
+        var target = at
+        var archiveReader = try ArchiveReader(file: tarFile)
+        var (entry, data) = try archiveReader.extractFile(path: target)
+
+        // if the target file is a symlink, get the data for the actual file
+        if entry.fileType == .symbolicLink, let symlinkRelative = entry.symlinkTarget {
+            // the previous extractFile changes the underlying file pointer, so we need to reopen the file
+            // to ensure we traverse all the files in the archive
+            archiveReader = try ArchiveReader(file: tarFile)
+            let symlinkTarget = URL(filePath: target).deletingLastPathComponent().appending(path: symlinkRelative)
+
+            // standardize so that we remove any and all ../ and ./ in the path since symlink targets
+            // are relative paths to the target file from the symlink's parent dir itself
+            target = symlinkTarget.standardized.relativePath
+            let (_, targetData) = try archiveReader.extractFile(path: target)
+            data = targetData
+        }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
-        let fileName = URL(filePath: from).lastPathComponent
+        let fileName = URL(filePath: target).lastPathComponent
         let fileURL = directory.appendingPathComponent(fileName)
         try data.write(to: fileURL, options: .atomic)
         return fileURL
