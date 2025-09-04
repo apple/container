@@ -449,4 +449,15 @@ class CLITest {
         httpConfiguration.proxy = proxyConfig
         return HTTPClient(eventLoopGroupProvider: .singleton, configuration: httpConfiguration)
     }
+
+    func withTempDir<T>(_ body: (URL) async throws -> T) async throws -> T {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        return try await body(tempDir)
+    }
 }

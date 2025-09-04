@@ -146,7 +146,7 @@ extension Application {
                 return
             }
             print("Installing kernel...")
-            try await KernelSet.downloadAndInstallWithProgressBar(tarRemoteURL: defaultKernelURL, kernelFilePath: defaultKernelBinaryPath)
+            try await KernelSet.downloadAndInstallWithProgressBar(tarRemoteURL: defaultKernelURL, kernelFilePath: defaultKernelBinaryPath, force: true)
         }
 
         private func initImageExists() async -> Bool {

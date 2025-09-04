@@ -152,6 +152,7 @@ integration: init-block
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIRunBase || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIBuildBase || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIVolumes || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) --filter TestCLIKernelSet || exit_code=1 ; \
 		echo Ensuring apiserver stopped after the CLI integration tests ; \
 		scripts/ensure-container-stopped.sh ; \
 		exit $${exit_code} ; \

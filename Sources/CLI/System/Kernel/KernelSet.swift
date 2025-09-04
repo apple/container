@@ -43,12 +43,15 @@ extension Application {
         @Flag(name: .customLong("recommended"), help: "Download and install the recommended kernel as the default. This flag ignores any other arguments")
         var recommended: Bool = false
 
+        @Flag(name: .long, help: "Force install of kernel. If a kernel exists with the same name, it will be overwritten.")
+        var force: Bool = false
+
         func run() async throws {
             if recommended {
                 let url = DefaultsStore.get(key: .defaultKernelURL)
                 let path = DefaultsStore.get(key: .defaultKernelBinaryPath)
                 print("Installing the recommended kernel from \(url)...")
-                try await Self.downloadAndInstallWithProgressBar(tarRemoteURL: url, kernelFilePath: path)
+                try await Self.downloadAndInstallWithProgressBar(tarRemoteURL: url, kernelFilePath: path, force: force)
                 return
             }
             guard tarPath != nil else {
@@ -63,7 +66,7 @@ extension Application {
             }
             let absolutePath = URL(fileURLWithPath: binaryPath, relativeTo: .currentDirectory()).absoluteURL.absoluteString
             let platform = try getSystemPlatform()
-            try await ClientKernel.installKernel(kernelFilePath: absolutePath, platform: platform)
+            try await ClientKernel.installKernel(kernelFilePath: absolutePath, platform: platform, force: force)
         }
 
         private func setKernelFromTar() async throws {
@@ -77,13 +80,13 @@ extension Application {
             let localTarPath = URL(fileURLWithPath: tarPath, relativeTo: .currentDirectory()).absoluteString
             let fm = FileManager.default
             if fm.fileExists(atPath: localTarPath) {
-                try await ClientKernel.installKernelFromTar(tarFile: localTarPath, kernelFilePath: binaryPath, platform: platform)
+                try await ClientKernel.installKernelFromTar(tarFile: localTarPath, kernelFilePath: binaryPath, platform: platform, force: force)
                 return
             }
             guard let remoteURL = URL(string: tarPath) else {
                 throw ContainerizationError(.invalidArgument, message: "Invalid remote URL '\(tarPath)' for argument '--tar'. Missing protocol?")
             }
-            try await Self.downloadAndInstallWithProgressBar(tarRemoteURL: remoteURL.absoluteString, kernelFilePath: binaryPath, platform: platform)
+            try await Self.downloadAndInstallWithProgressBar(tarRemoteURL: remoteURL.absoluteString, kernelFilePath: binaryPath, platform: platform, force: force)
         }
 
         private func getSystemPlatform() throws -> SystemPlatform {
@@ -97,7 +100,7 @@ extension Application {
             }
         }
 
-        public static func downloadAndInstallWithProgressBar(tarRemoteURL: String, kernelFilePath: String, platform: SystemPlatform = .current) async throws {
+        public static func downloadAndInstallWithProgressBar(tarRemoteURL: String, kernelFilePath: String, platform: SystemPlatform = .current, force: Bool) async throws {
             let progressConfig = try ProgressConfig(
                 showTasks: true,
                 totalTasks: 2
@@ -107,7 +110,7 @@ extension Application {
                 progress.finish()
             }
             progress.start()
-            try await ClientKernel.installKernelFromTar(tarFile: tarRemoteURL, kernelFilePath: kernelFilePath, platform: platform, progressUpdate: progress.handler)
+            try await ClientKernel.installKernelFromTar(tarFile: tarRemoteURL, kernelFilePath: kernelFilePath, platform: platform, progressUpdate: progress.handler, force: force)
             progress.finish()
         }
 

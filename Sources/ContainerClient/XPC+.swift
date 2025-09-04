@@ -100,6 +100,7 @@ public enum XPCKeys: String {
     case kernelTarURL
     case kernelFilePath
     case systemPlatform
+    case kernelForce
 
     /// Volume
     case volume

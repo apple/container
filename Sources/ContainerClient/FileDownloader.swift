@@ -20,7 +20,7 @@ import ContainerizationExtras
 import Foundation
 import TerminalProgress
 
-internal struct FileDownloader {
+public struct FileDownloader {
     public static func downloadFile(url: URL, to destination: URL, progressUpdate: ProgressUpdateHandler? = nil) async throws {
         let request = try HTTPClient.Request(url: url)
 

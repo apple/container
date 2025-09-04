@@ -37,10 +37,19 @@ actor KernelService {
 
     /// Copies a kernel binary from a local path on disk into the managed kernels directory
     /// as the default kernel for the provided platform.
-    public func installKernel(kernelFile url: URL, platform: SystemPlatform = .linuxArm) throws {
+    public func installKernel(kernelFile url: URL, platform: SystemPlatform = .linuxArm, force: Bool) throws {
         self.log.info("KernelService: \(#function) - kernelFile: \(url), platform: \(String(describing: platform))")
         let kFile = url.resolvingSymlinksInPath()
         let destPath = self.kernelDirectory.appendingPathComponent(kFile.lastPathComponent)
+        if force {
+            do {
+                try FileManager.default.removeItem(at: destPath)
+            } catch let error as NSError {
+                guard error.code == NSFileNoSuchFileError else {
+                    throw error
+                }
+            }
+        }
         try FileManager.default.copyItem(at: kFile, to: destPath)
         try Task.checkCancellation()
         do {
@@ -54,7 +63,7 @@ actor KernelService {
     /// Copies a kernel binary from inside of tar file into the managed kernels directory
     /// as the default kernel for the provided platform.
     /// The parameter `tar` maybe a location to a local file on disk, or a remote URL.
-    public func installKernelFrom(tar: URL, kernelFilePath: String, platform: SystemPlatform, progressUpdate: ProgressUpdateHandler?) async throws {
+    public func installKernelFrom(tar: URL, kernelFilePath: String, platform: SystemPlatform, progressUpdate: ProgressUpdateHandler?, force: Bool) async throws {
         self.log.info("KernelService: \(#function) - tar: \(tar), kernelFilePath: \(kernelFilePath), platform: \(String(describing: platform))")
 
         let tempDir = FileManager.default.uniqueTemporaryDirectory()
@@ -75,7 +84,7 @@ actor KernelService {
             if let progressUpdate {
                 downloadProgressUpdate = ProgressTaskCoordinator.handler(for: downloadTask, from: progressUpdate)
             }
-            try await FileDownloader.downloadFile(url: tar, to: tarFile, progressUpdate: downloadProgressUpdate)
+            try await ContainerClient.FileDownloader.downloadFile(url: tar, to: tarFile, progressUpdate: downloadProgressUpdate)
         }
         await taskManager.finish()
 
@@ -83,7 +92,7 @@ actor KernelService {
             .setDescription("Unpacking kernel")
         ])
         let kernelFile = try self.extractFile(tarFile: tarFile, at: kernelFilePath, to: tempDir)
-        try self.installKernel(kernelFile: kernelFile, platform: platform)
+        try self.installKernel(kernelFile: kernelFile, platform: platform, force: force)
 
         if !FileManager.default.fileExists(atPath: tar.absoluteString) {
             try FileManager.default.removeItem(at: tarFile)
