@@ -49,24 +49,22 @@ internal struct FileDownloader {
                 }
             })
 
-        let client = FileDownloader.createClient()
+        let client = FileDownloader.createClient(for: url)
         _ = try await client.execute(request: request, delegate: delegate).get()
         try await client.shutdown()
     }
 
-    private static func createClient() -> HTTPClient {
+    /// Creates an HTTPClient that automatically uses the appropriate proxy for the target URL.
+    private static func createClient(for url: URL) -> HTTPClient {
         var httpConfiguration = HTTPClient.Configuration()
-        let proxyConfig: HTTPClient.Configuration.Proxy? = {
-            let proxyEnv = ProcessInfo.processInfo.environment["HTTP_PROXY"]
-            guard let proxyEnv else {
-                return nil
+
+        if let host = url.host,
+           let proxyURL = ProxyUtils.proxy(for: host) {
+            if let proxyHost = proxyURL.host, let proxyPort = proxyURL.port {
+                httpConfiguration.proxy = .server(host: proxyHost, port: proxyPort)
             }
-            guard let url = URL(string: proxyEnv), let host = url.host(), let port = url.port else {
-                return nil
-            }
-            return .server(host: host, port: port)
-        }()
-        httpConfiguration.proxy = proxyConfig
+        }
+
         return HTTPClient(eventLoopGroupProvider: .singleton, configuration: httpConfiguration)
     }
 }
