@@ -74,7 +74,7 @@ extension Application {
                 throw ArgumentParser.ValidationError("Missing argument '--tar")
             }
             let platform = try getSystemPlatform()
-            let localTarPath = URL(fileURLWithPath: tarPath, relativeTo: .currentDirectory()).absoluteString
+            let localTarPath = URL(fileURLWithPath: tarPath, relativeTo: .currentDirectory()).path
             let fm = FileManager.default
             if fm.fileExists(atPath: localTarPath) {
                 try await ClientKernel.installKernelFromTar(tarFile: localTarPath, kernelFilePath: binaryPath, platform: platform)
