@@ -39,7 +39,10 @@ struct ComposeLogs: AsyncParsableCommand {
         var tail: Int?
         
         @Flag(name: [.customLong("timestamps"), .customShort("t")], help: "Show timestamps")
-        var timestamps: Bool = false
+    var timestamps: Bool = false
+
+        @Flag(name: .long, help: "Include boot/system logs (vminitd) in output")
+        var boot: Bool = false
 
         @Flag(name: .long, help: "Disable log prefixes (container-name |)")
         var noLogPrefix: Bool = false
@@ -79,7 +82,8 @@ struct ComposeLogs: AsyncParsableCommand {
             services: services,
             follow: follow,
             tail: tail,
-            timestamps: timestamps
+            timestamps: timestamps,
+            includeBoot: boot
         )
 
         // Compute padding width for aligned prefixes

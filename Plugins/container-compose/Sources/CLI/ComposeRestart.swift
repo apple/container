@@ -32,11 +32,14 @@ struct ComposeRestart: AsyncParsableCommand {
     @OptionGroup
     var global: Flags.Global
         
-        @Option(name: [.customLong("timeout"), .customShort("t")], help: "Specify a shutdown timeout in seconds (default: 10)")
-        var timeout: Int = 10
-        
-        @Argument(help: "Services to restart (omit to restart all)")
-        var services: [String] = []
+    @Option(name: [.customLong("timeout"), .customShort("t")], help: "Specify a shutdown timeout in seconds (default: 10)")
+    var timeout: Int = 10
+
+    @Argument(help: "Services to restart (omit to restart all)")
+    var services: [String] = []
+
+    @Flag(name: .long, help: "Disable healthchecks during orchestration")
+    var noHealthcheck: Bool = false
         
         func run() async throws {
         // Set environment variables
@@ -96,6 +99,7 @@ struct ComposeRestart: AsyncParsableCommand {
             project: project,
             services: services,
             timeout: timeout,
+            disableHealthcheck: noHealthcheck,
             progressHandler: progress.handler
         )
         

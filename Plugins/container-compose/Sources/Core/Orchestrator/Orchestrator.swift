@@ -534,7 +534,8 @@ public actor Orchestrator {
         progressHandler: ProgressUpdateHandler? = nil,
         pullPolicy: PullPolicy = .missing,
         wait: Bool = false,
-        waitTimeoutSeconds: Int? = nil
+        waitTimeoutSeconds: Int? = nil,
+        disableHealthcheck: Bool = false
     ) async throws {
         log.info("Starting project '\(project.name)'")
 
@@ -595,14 +596,15 @@ public actor Orchestrator {
             noRecreate: noRecreate,
             removeOnExit: removeOnExit,
             progressHandler: progressHandler,
-            pullPolicy: pullPolicy
+            pullPolicy: pullPolicy,
+            disableHealthcheck: disableHealthcheck
         )
 
         // If --wait is set, wait for selected services to be healthy/running
         if wait {
             let timeout = waitTimeoutSeconds ?? 300
             for (name, svc) in targetServices {
-                if svc.healthCheck != nil {
+                if !disableHealthcheck, svc.healthCheck != nil {
                     try await waitUntilHealthy(project: project, serviceName: name, service: svc)
                 } else {
                     let cid = svc.containerName ?? "\(project.name)_\(name)"
@@ -667,7 +669,8 @@ public actor Orchestrator {
         noRecreate: Bool,
         removeOnExit: Bool,
         progressHandler: ProgressUpdateHandler?,
-        pullPolicy: PullPolicy
+        pullPolicy: PullPolicy,
+        disableHealthcheck: Bool
     ) async throws {
         // Sort services by dependencies
         let resolution = try DependencyResolver.resolve(services: services)
@@ -678,7 +681,7 @@ public actor Orchestrator {
 
             do {
                 // Wait for dependency conditions before starting this service
-                try await waitForDependencyConditions(project: project, serviceName: serviceName, services: services)
+                try await waitForDependencyConditions(project: project, serviceName: serviceName, services: services, disableHealthcheck: disableHealthcheck)
 
                 try await createAndStartContainer(
                     project: project,
@@ -692,12 +695,8 @@ public actor Orchestrator {
                     pullPolicy: pullPolicy
                 )
 
-                // Optionally kick health monitor for the service
-                if service.healthCheck != nil {
-                    Task { [weak self] in
-                        _ = try? await self?.runHealthCheckOnce(project: project, serviceName: serviceName, service: service)
-                    }
-                }
+                // Do not run background health probes by default.
+                // Health checks are evaluated only when --wait is explicitly requested.
             } catch {
                 log.error("Failed to start service '\(serviceName)': \(error)")
                 throw error
@@ -706,7 +705,7 @@ public actor Orchestrator {
     }
 
     /// Wait for dependencies according to compose depends_on conditions
-    private func waitForDependencyConditions(project: Project, serviceName: String, services: [String: Service]) async throws {
+    private func waitForDependencyConditions(project: Project, serviceName: String, services: [String: Service], disableHealthcheck: Bool) async throws {
         guard let svc = services[serviceName] else { return }
 
         // Wait for service_started
@@ -715,7 +714,7 @@ public actor Orchestrator {
             try await waitUntilContainerRunning(containerId: depId, timeoutSeconds: 120)
         }
         // Wait for service_healthy
-        for dep in svc.dependsOnHealthy {
+        for dep in svc.dependsOnHealthy where !disableHealthcheck {
             if let depSvc = services[dep] {
                 try await waitUntilHealthy(project: project, serviceName: dep, service: depSvc)
             }
@@ -903,16 +902,24 @@ public actor Orchestrator {
 
         // Recreate the container
         log.info("Recreating existing container '\(existing.id)' for service '\(serviceName)'")
-        // Stop with a longer timeout and wait until it's fully stopped before deleting
+        // 1) Ask it to stop gracefully (SIGTERM) with longer timeout
         do { try await existing.stop(opts: ContainerStopOptions(timeoutInSeconds: 15, signal: SIGTERM)) }
         catch { log.warning("failed to stop \(existing.id): \(error)") }
-        do { try await waitUntilContainerStopped(containerId: existing.id, timeoutSeconds: 20) }
-        catch { log.warning("timeout waiting for \(existing.id) to stop: \(error)") }
+        // 2) Wait until it is actually stopped; if not, escalate to SIGKILL and wait briefly
+        do {
+            try await waitUntilContainerStopped(containerId: existing.id, timeoutSeconds: 20)
+        } catch {
+            log.warning("timeout waiting for \(existing.id) to stop: \(error); sending SIGKILL")
+            do { try await existing.kill(SIGKILL) } catch { log.warning("failed to SIGKILL \(existing.id): \(error)") }
+            // small wait after SIGKILL
+            try? await Task.sleep(nanoseconds: 700_000_000)
+        }
+        // 3) Try to delete (force on retry)
         do { try await existing.delete() }
         catch {
-            log.warning("failed to delete \(existing.id): \(error); retrying once after short delay")
+            log.warning("failed to delete \(existing.id): \(error); retrying forced delete after short delay")
             try? await Task.sleep(nanoseconds: 700_000_000)
-            do { try await existing.delete() } catch { log.warning("second delete attempt failed for \(existing.id): \(error)") }
+            do { try await existing.delete(force: true) } catch { log.warning("forced delete attempt failed for \(existing.id): \(error)") }
         }
         projectState[project.name]?.containers.removeValue(forKey: serviceName)
     }
@@ -1128,12 +1135,25 @@ public actor Orchestrator {
         // Add volume mounts (ensure named/anonymous volumes exist and use their host paths)
         config.mounts = try await resolveComposeMounts(project: project, serviceName: serviceName, mounts: service.volumes)
 
-        // Add resource limits
+        // Add resource limits (compose-style parsing for memory like "2g", "2048MB").
         if let cpus = service.cpus {
             config.resources.cpus = Int(cpus) ?? 4
         }
-        if let memory = service.memory {
-            config.resources.memoryInBytes = UInt64(memory) ?? 1024.mib()
+        if let memStr = service.memory, !memStr.isEmpty {
+            do {
+                if memStr.lowercased() == "max" {
+                    // Treat "max" as no override: keep the runtime/default value (set below if needed).
+                    // Intentionally do nothing here.
+                } else {
+                    let res = try Parser.resources(cpus: nil, memory: memStr)
+                    if let bytes = res.memoryInBytes as UInt64? { config.resources.memoryInBytes = bytes }
+                }
+            } catch {
+                log.warning("Invalid memory value '\\(memStr)'; using default. Error: \\(error)")
+            }
+        } else {
+            // Safer default for dev servers (was 1 GiB)
+            config.resources.memoryInBytes = 2048.mib()
         }
 
         // TTY support from compose service
@@ -1670,7 +1690,8 @@ public actor Orchestrator {
         services: [String] = [],
         follow: Bool = false,
         tail: Int? = nil,
-        timestamps: Bool = false
+        timestamps: Bool = false,
+        includeBoot: Bool = false
     ) async throws -> AsyncThrowingStream<LogEntry, Error> {
         // Resolve target services
         let selected = services.isEmpty ? Set(project.services.keys) : Set(services)
@@ -1702,6 +1723,8 @@ public actor Orchestrator {
 
             final class Emitter: @unchecked Sendable {
                 let cont: AsyncThrowingStream<LogEntry, Error>.Continuation
+                // Strongly retain file handles so readabilityHandler keeps firing.
+                private var retained: [FileHandle] = []
                 init(_ c: AsyncThrowingStream<LogEntry, Error>.Continuation) { self.cont = c }
                 func emit(_ svc: String, _ containerName: String, _ stream: LogEntry.LogStream, data: Data) {
                     guard !data.isEmpty else { return }
@@ -1711,13 +1734,11 @@ public actor Orchestrator {
                         }
                     }
                 }
+                func retain(_ fh: FileHandle) { retained.append(fh) }
                 func finish() { cont.finish() }
                 func fail(_ error: Error) { cont.yield(with: .failure(error)) }
             }
             let emitter = Emitter(continuation)
-            // Retain FileHandles so readabilityHandler continues firing while the stream is active
-            actor HandleRetainer { var fhs: [FileHandle] = []; func add(_ fh: FileHandle){ fhs.append(fh) } }
-            let retainer = HandleRetainer()
             actor Counter { var value: Int; init(_ v: Int){ value = v } ; func dec() -> Int { value -= 1; return value } }
             let counter = Counter(targets.count)
 
@@ -1732,20 +1753,20 @@ public actor Orchestrator {
                                 fh.readabilityHandler = { handle in
                                     emitter.emit(svc, container.id, .stdout, data: handle.availableData)
                                 }
-                                await retainer.add(fh)
+                                emitter.retain(fh)
                             }
-                            if fds.indices.contains(1) {
+                            if includeBoot, fds.indices.contains(1) {
                                 let fh = fds[1]
                                 fh.readabilityHandler = { handle in
                                     emitter.emit(svc, container.id, .stderr, data: handle.availableData)
                                 }
-                                await retainer.add(fh)
+                                emitter.retain(fh)
                             }
                         } else {
                             if fds.indices.contains(0) {
                                 emitter.emit(svc, container.id, .stdout, data: fds[0].readDataToEndOfFile())
                             }
-                            if fds.indices.contains(1) {
+                            if includeBoot, fds.indices.contains(1) {
                                 emitter.emit(svc, container.id, .stderr, data: fds[1].readDataToEndOfFile())
                             }
                             let left = await counter.dec()
@@ -1765,10 +1786,11 @@ public actor Orchestrator {
     public func start(
         project: Project,
         services: [String] = [],
+        disableHealthcheck: Bool = false,
         progressHandler: ProgressUpdateHandler? = nil
     ) async throws {
-        // For build functionality, we just call up
-        try await up(project: project, services: services, progressHandler: progressHandler)
+        // Reuse up() path with defaults
+        try await up(project: project, services: services, progressHandler: progressHandler, disableHealthcheck: disableHealthcheck)
     }
 
 
@@ -1789,10 +1811,11 @@ public actor Orchestrator {
         project: Project,
         services: [String] = [],
         timeout: Int = 10,
+        disableHealthcheck: Bool = false,
         progressHandler: ProgressUpdateHandler? = nil
     ) async throws {
         _ = try await down(project: project, progressHandler: progressHandler)
-        try await up(project: project, services: services, progressHandler: progressHandler)
+        try await up(project: project, services: services, progressHandler: progressHandler, disableHealthcheck: disableHealthcheck)
     }
 
     /// Execute command in a service

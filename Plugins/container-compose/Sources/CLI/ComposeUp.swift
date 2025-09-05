@@ -72,6 +72,9 @@ struct ComposeUp: AsyncParsableCommand {
     @Flag(name: .long, help: "Disable colored output")
     var noColor: Bool = false
 
+    @Flag(name: .long, help: "Disable healthchecks during orchestration")
+    var noHealthcheck: Bool = false
+
     @Argument(help: "Services to start")
     var services: [String] = []
     
@@ -148,7 +151,8 @@ struct ComposeUp: AsyncParsableCommand {
                 }
             }(),
             wait: wait,
-            waitTimeoutSeconds: waitTimeout
+            waitTimeoutSeconds: waitTimeout,
+            disableHealthcheck: noHealthcheck
         )
         
         progress.finish()

@@ -32,9 +32,12 @@ struct ComposeStart: AsyncParsableCommand {
     
     @OptionGroup
     var global: Flags.Global
-        
-        @Argument(help: "Services to start")
-        var services: [String] = []
+
+    @Argument(help: "Services to start")
+    var services: [String] = []
+
+    @Flag(name: .long, help: "Disable healthchecks during orchestration")
+    var noHealthcheck: Bool = false
         
         func run() async throws {
         // Load .env and set environment variables
@@ -95,6 +98,7 @@ struct ComposeStart: AsyncParsableCommand {
         try await orchestrator.start(
             project: project,
             services: services,
+            disableHealthcheck: noHealthcheck,
             progressHandler: progress.handler
         )
         
