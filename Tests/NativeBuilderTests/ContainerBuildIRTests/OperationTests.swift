@@ -256,7 +256,7 @@ struct OperationTests {
             ImageReference(parsing: "alpine:latest")!,
             paths: ["/etc/ssl/certs/"]
         )
-        let urlSource = FilesystemSource.url(URL(string: "https://releases.example.com/v1.0.0/app.tar.gz")!)
+        let urlSource = FilesystemSource.remote([RemoteSource(url: URL(string: "https://releases.example.com/v1.0.0/app.tar.gz")!)])
 
         // Verify each source type can be created
         let sources = [contextSource, stageSource, imageSource, urlSource]

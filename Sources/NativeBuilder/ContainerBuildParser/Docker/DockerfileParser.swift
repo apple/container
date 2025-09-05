@@ -73,6 +73,8 @@ public struct DockerfileParser: BuildParser {
             return try tokensToExposeInstruction(tokens: tokens)
         case .ARG:
             return try tokensToArgInstruction(tokens: tokens)
+        case .ADD:
+            return try tokensToAddInstruction(tokens: tokens)
         default:
             throw ParseError.invalidInstruction(value)
         }
@@ -245,7 +247,7 @@ public struct DockerfileParser: BuildParser {
         var from: String? = nil
         var chmod: String? = nil
         var chown: String? = nil
-        var link: String? = nil
+        var link: Bool? = nil
 
         // Step 1: Parse instruction options
         let (newIndex, instructionOpts) = try parseInstructionOpts(start: index, tokens: tokens)
@@ -276,7 +278,7 @@ public struct DockerfileParser: BuildParser {
                 if link != nil {
                     throw ParseError.duplicateOptionSet(CopyOptions.link.rawValue)
                 }
-                link = option.value
+                link = Bool(option.value)
             }
         }
 
@@ -491,5 +493,76 @@ public struct DockerfileParser: BuildParser {
         }
 
         throw ParseError.invalidSyntax
+    }
+
+    internal func tokensToAddInstruction(tokens: [Token]) throws -> AddInstruction {
+        var index = tokens.startIndex + 1  // skip the instruction
+
+        var chmod: String? = nil
+        var chown: String? = nil
+        var link: Bool? = nil
+        var keepGitDir: Bool? = nil
+        var checksum: String? = nil
+
+        // Step 1: Parse instruction options
+        let (newIndex, instructionOpts) = try parseInstructionOpts(start: index, tokens: tokens)
+        index = newIndex
+
+        for option in instructionOpts {
+            guard let addOpt = AddOptions(rawValue: option.key) else {
+                throw ParseError.unexpectedValue
+            }
+
+            switch addOpt {
+            case .chown:
+                if chown != nil {
+                    throw ParseError.duplicateOptionSet(AddOptions.chown.rawValue)
+                }
+                chown = option.value
+            case .chmod:
+                if chmod != nil {
+                    throw ParseError.duplicateOptionSet(AddOptions.chmod.rawValue)
+                }
+                chmod = option.value
+            case .link:
+                if link != nil {
+                    throw ParseError.duplicateOptionSet(AddOptions.link.rawValue)
+                }
+                link = Bool(option.value)
+            case .keepGitDir:
+                if keepGitDir != nil {
+                    throw ParseError.duplicateOptionSet(AddOptions.keepGitDir.rawValue)
+                }
+                keepGitDir = Bool(option.value)
+            case .checksum:
+                if checksum != nil {
+                    throw ParseError.duplicateOptionSet(AddOptions.checksum.rawValue)
+                }
+                checksum = option.value
+            }
+        }
+
+        // Step 2: Get all source paths and destination path
+        var sources: [String] = []
+        var destination: String?
+        while index < tokens.endIndex {
+            guard case .stringLiteral(let value) = tokens[index] else {
+                break
+            }
+            if index + 1 == tokens.endIndex {
+                // this is the last path provided, it must be the destination
+                destination = value
+            } else {
+                sources.append(value)
+            }
+            index += 1
+        }
+
+        // check for extra tokens
+        if index < tokens.endIndex {
+            throw ParseError.unexpectedValue
+        }
+
+        return try AddInstruction(sources: sources, destination: destination, chown: chown, chmod: chmod, checksum: checksum, keepGitDir: keepGitDir, link: link)
     }
 }
