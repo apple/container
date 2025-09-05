@@ -175,6 +175,15 @@ extension SandboxClient {
         return fh
     }
 
+    package func shutdown() async throws {
+        let request = XPCMessage(route: SandboxRoutes.shutdown.rawValue)
+
+        let client = createClient()
+        defer { client.close() }
+
+        _ = try await client.send(request)
+    }
+
     private func createClient() -> XPCClient {
         XPCClient(service: machServiceLabel)
     }
