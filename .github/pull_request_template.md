@@ -4,9 +4,6 @@
 - [ ] Breaking change
 - [ ] Documentation update
 
-## Description
-[Brief description]
-
 ## Motivation and Context
 [Why is this change needed?]
 
@@ -14,4 +11,3 @@
 - [ ] Tested locally
 - [ ] Added/updated tests
 - [ ] Added/updated docs
-
