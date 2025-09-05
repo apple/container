@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors. All rights reserved.
+// Copyright © 2025 Mazdak Rezvani and contributors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,39 @@
 //===----------------------------------------------------------------------===//
 
 import Logging
+import Dispatch
 
 // Global logger instance
 let log = Logger(label: "com.apple.containercompose")
+
+// MARK: - Signal Handling Helpers
+
+#if os(macOS)
+import Darwin
+#else
+import Glibc
+#endif
+
+@MainActor
+final class GlobalSignalKeeper {
+    static let shared = GlobalSignalKeeper()
+    private var sources: [DispatchSourceSignal] = []
+    func retain(_ s: DispatchSourceSignal) { sources.append(s) }
+}
+
+/// Install SIGINT/SIGTERM handlers for a command. If `onSignal` is provided, it is invoked on signal; otherwise the process exits 130.
+func installDefaultTerminationHandlers(onSignal: (@Sendable () -> Void)? = nil) {
+    func install(_ signo: Int32) {
+        signal(signo, SIG_IGN)
+        DispatchQueue.main.async {
+            let src = DispatchSource.makeSignalSource(signal: signo, queue: .main)
+            src.setEventHandler {
+                if let onSignal { onSignal() } else { Darwin.exit(130) }
+            }
+            src.resume()
+            Task { @MainActor in GlobalSignalKeeper.shared.retain(src) }
+        }
+    }
+    install(SIGINT)
+    install(SIGTERM)
+}

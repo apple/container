@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors. All rights reserved.
+// Copyright © 2025 Mazdak Rezvani and contributors. All rights reserved.
 //===----------------------------------------------------------------------===//
 
 import Testing
@@ -112,4 +112,3 @@ struct HealthGatingTests {
         try await orch.awaitServiceHealthy(project: project, serviceName: "db", deadlineSeconds: 2)
     }
 }
-

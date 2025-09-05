@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors. All rights reserved.
+// Copyright © 2025 Mazdak Rezvani and contributors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -66,6 +66,12 @@ struct ComposeUp: AsyncParsableCommand {
     @Option(name: .long, help: "Wait timeout in seconds")
     var waitTimeout: Int?
 
+    @Flag(name: .long, help: "Disable log prefixes (container-name |)")
+    var noLogPrefix: Bool = false
+
+    @Flag(name: .long, help: "Disable colored output")
+    var noColor: Bool = false
+
     @Argument(help: "Services to start")
     var services: [String] = []
     
@@ -86,6 +92,29 @@ struct ComposeUp: AsyncParsableCommand {
             profiles: composeOptions.profile,
             selectedServices: services
         )
+        
+        // Warn about requested services excluded by profiles or not present
+        if !services.isEmpty {
+            let requested = Set(services)
+            let resolved = Set(project.services.keys)
+            let missing = requested.subtracting(resolved)
+            if !missing.isEmpty {
+                let prof = composeOptions.profile
+                let profStr = prof.isEmpty ? "(none)" : prof.joined(separator: ",")
+                FileHandle.standardError.write(Data("compose: warning: skipping services not enabled by active profiles or not found: \(missing.sorted().joined(separator: ",")) (profiles=\(profStr))\n".utf8))
+            }
+        }
+        
+        // If no services match selection/profiles, exit early with a clear message
+        if project.services.isEmpty {
+            let prof = composeOptions.profile
+            let profStr = prof.isEmpty ? "(none)" : prof.joined(separator: ",")
+            print("No services matched the provided filters. Nothing to start.")
+            print("- Project: \(project.name)")
+            if !services.isEmpty { print("- Services filter: \(services.joined(separator: ","))") }
+            print("- Profiles: \(profStr)")
+            return
+        }
         
         // Create progress handler
         let progressConfig = try ProgressConfig(
@@ -181,6 +210,8 @@ struct ComposeUp: AsyncParsableCommand {
 
             // Stream logs for selected services (or all if none selected), similar to docker-compose up
             let orchestratorForLogs = Orchestrator(log: log)
+            // Pre-compute padding width so prefixes align like docker-compose (cap at 40)
+            let nameWidth = noLogPrefix ? nil : try await TargetsUtil.computePrefixWidth(project: project, services: services)
             let logStream = try await orchestratorForLogs.logs(
                 project: project,
                 services: services,
@@ -189,12 +220,18 @@ struct ComposeUp: AsyncParsableCommand {
                 timestamps: false
             )
             for try await entry in logStream {
-                let output = "[\(entry.serviceName)] \(entry.message)"
+                let line: String
+                if noLogPrefix {
+                    line = entry.message
+                } else {
+                    let prefix = LogPrefixFormatter.coloredPrefix(for: entry.containerName, width: nameWidth, colorEnabled: !noColor)
+                    line = "\(prefix)\(entry.message)"
+                }
                 switch entry.stream {
                 case .stdout:
-                    print(output)
+                    print(line)
                 case .stderr:
-                    FileHandle.standardError.write(Data((output + "\n").utf8))
+                    FileHandle.standardError.write(Data((line + "\n").utf8))
                 }
             }
         }

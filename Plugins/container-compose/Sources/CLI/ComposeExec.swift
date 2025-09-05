@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors. All rights reserved.
+// Copyright © 2025 Mazdak Rezvani and contributors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -71,8 +71,13 @@ struct ComposeExec: AsyncParsableCommand {
             composeFile: composeFile,
             projectName: composeOptions.getProjectName(),
             profiles: composeOptions.profile,
-            selectedServices: []
+            selectedServices: [service]
         )
+        
+        // Early validation and helpful messaging
+        guard project.services.keys.contains(service) else {
+            throw ValidationError("Service '\(service)' not found or not enabled by active profiles")
+        }
         
         // Create orchestrator
         let orchestrator = Orchestrator(log: log)

@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors. All rights reserved.
+// Copyright © 2025 Mazdak Rezvani and contributors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -59,6 +59,7 @@ struct ComposeHealth: AsyncParsableCommand {
         
         // Create orchestrator
         let orchestrator = Orchestrator(log: log)
+        installDefaultTerminationHandlers()
         
         // Check health
         let healthStatus = try await orchestrator.checkHealth(

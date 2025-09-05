@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors. All rights reserved.
+// Copyright © 2025 Mazdak Rezvani and contributors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -56,6 +56,29 @@ struct ComposeStop: AsyncParsableCommand {
             selectedServices: services
         )
         
+        // Warn about requested services excluded by profiles or not present
+        if !services.isEmpty {
+            let requested = Set(services)
+            let resolved = Set(project.services.keys)
+            let missing = requested.subtracting(resolved)
+            if !missing.isEmpty {
+                let prof = composeOptions.profile
+                let profStr = prof.isEmpty ? "(none)" : prof.joined(separator: ",")
+                FileHandle.standardError.write(Data("compose: warning: skipping services not enabled by active profiles or not found: \(missing.sorted().joined(separator: ",")) (profiles=\(profStr))\n".utf8))
+            }
+        }
+
+        // Early exit if nothing to stop
+        if project.services.isEmpty {
+            let prof = composeOptions.profile
+            let profStr = prof.isEmpty ? "(none)" : prof.joined(separator: ",")
+            print("No services matched the provided filters. Nothing to stop.")
+            print("- Project: \(project.name)")
+            if !services.isEmpty { print("- Services filter: \(services.joined(separator: ","))") }
+            print("- Profiles: \(profStr)")
+            return
+        }
+        
         // Create progress handler
         let progressConfig = try ProgressConfig(
             description: "Stopping services",
@@ -68,6 +91,7 @@ struct ComposeStop: AsyncParsableCommand {
         
         // Create orchestrator
         let orchestrator = Orchestrator(log: log)
+        installDefaultTerminationHandlers()
         
         // Stop services
         try await orchestrator.stop(

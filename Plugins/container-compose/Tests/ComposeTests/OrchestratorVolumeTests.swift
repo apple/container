@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025 Mazdak Rezvani and contributors.
 //===----------------------------------------------------------------------===//
 
 import Foundation

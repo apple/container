@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors. All rights reserved.
+// Copyright © 2025 Mazdak Rezvani and contributors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,6 +29,13 @@ import Darwin
 #else
 import Glibc
 #endif
+
+// Keep strong references to DispatchSourceSignal for exec signal forwarding
+@MainActor
+fileprivate final class ExecSignalRetainer {
+    private static var sources: [DispatchSourceSignal] = []
+    static func retain(_ src: DispatchSourceSignal) { sources.append(src) }
+}
 
 // MARK: - HealthCheckRunner
 
@@ -469,6 +476,7 @@ public actor Orchestrator {
     /// Log entry information
     public struct LogEntry: Sendable {
         public let serviceName: String
+        public let containerName: String
         public let message: String
         public let stream: LogStream
         public let timestamp: Date
@@ -478,8 +486,9 @@ public actor Orchestrator {
             case stderr
         }
 
-        public init(serviceName: String, message: String, stream: LogStream, timestamp: Date = Date()) {
+        public init(serviceName: String, containerName: String, message: String, stream: LogStream, timestamp: Date = Date()) {
             self.serviceName = serviceName
+            self.containerName = containerName
             self.message = message
             self.stream = stream
             self.timestamp = timestamp
@@ -748,6 +757,22 @@ public actor Orchestrator {
         throw ContainerizationError(.timeout, message: "Timed out waiting for container \(containerId) to complete successfully")
     }
 
+    private func waitUntilContainerStopped(containerId: String, timeoutSeconds: Int) async throws {
+        let deadline = Date().addingTimeInterval(TimeInterval(timeoutSeconds))
+        while Date() < deadline {
+            do {
+                let all = try await ClientContainer.list()
+                if let c = all.first(where: { $0.id == containerId }) {
+                    if c.status != .running { return }
+                } else {
+                    return
+                }
+            } catch { /* ignore */ }
+            try await Task.sleep(nanoseconds: 300_000_000)
+        }
+        throw ContainerizationError(.timeout, message: "Timed out waiting for container \(containerId) to stop")
+    }
+
     private func runHealthCheckOnce(project: Project, serviceName: String, service: Service) async throws -> Bool {
         guard let hc = service.healthCheck else { return true }
         let containerId = service.containerName ?? "\(project.name)_\(serviceName)"
@@ -878,8 +903,17 @@ public actor Orchestrator {
 
         // Recreate the container
         log.info("Recreating existing container '\(existing.id)' for service '\(serviceName)'")
-        do { try await existing.stop() } catch { log.warning("failed to stop \(existing.id): \(error)") }
-        do { try await existing.delete() } catch { log.warning("failed to delete \(existing.id): \(error)") }
+        // Stop with a longer timeout and wait until it's fully stopped before deleting
+        do { try await existing.stop(opts: ContainerStopOptions(timeoutInSeconds: 15, signal: SIGTERM)) }
+        catch { log.warning("failed to stop \(existing.id): \(error)") }
+        do { try await waitUntilContainerStopped(containerId: existing.id, timeoutSeconds: 20) }
+        catch { log.warning("timeout waiting for \(existing.id) to stop: \(error)") }
+        do { try await existing.delete() }
+        catch {
+            log.warning("failed to delete \(existing.id): \(error); retrying once after short delay")
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            do { try await existing.delete() } catch { log.warning("second delete attempt failed for \(existing.id): \(error)") }
+        }
         projectState[project.name]?.containers.removeValue(forKey: serviceName)
     }
 
@@ -1669,11 +1703,11 @@ public actor Orchestrator {
             final class Emitter: @unchecked Sendable {
                 let cont: AsyncThrowingStream<LogEntry, Error>.Continuation
                 init(_ c: AsyncThrowingStream<LogEntry, Error>.Continuation) { self.cont = c }
-                func emit(_ svc: String, _ stream: LogEntry.LogStream, data: Data) {
+                func emit(_ svc: String, _ containerName: String, _ stream: LogEntry.LogStream, data: Data) {
                     guard !data.isEmpty else { return }
                     if let text = String(data: data, encoding: .utf8) {
                         for line in text.split(whereSeparator: { $0.isNewline }) {
-                            cont.yield(LogEntry(serviceName: svc, message: String(line), stream: stream))
+                            cont.yield(LogEntry(serviceName: svc, containerName: containerName, message: String(line), stream: stream))
                         }
                     }
                 }
@@ -1681,6 +1715,9 @@ public actor Orchestrator {
                 func fail(_ error: Error) { cont.yield(with: .failure(error)) }
             }
             let emitter = Emitter(continuation)
+            // Retain FileHandles so readabilityHandler continues firing while the stream is active
+            actor HandleRetainer { var fhs: [FileHandle] = []; func add(_ fh: FileHandle){ fhs.append(fh) } }
+            let retainer = HandleRetainer()
             actor Counter { var value: Int; init(_ v: Int){ value = v } ; func dec() -> Int { value -= 1; return value } }
             let counter = Counter(targets.count)
 
@@ -1693,21 +1730,23 @@ public actor Orchestrator {
                             if fds.indices.contains(0) {
                                 let fh = fds[0]
                                 fh.readabilityHandler = { handle in
-                                    emitter.emit(svc, .stdout, data: handle.availableData)
+                                    emitter.emit(svc, container.id, .stdout, data: handle.availableData)
                                 }
+                                await retainer.add(fh)
                             }
                             if fds.indices.contains(1) {
                                 let fh = fds[1]
                                 fh.readabilityHandler = { handle in
-                                    emitter.emit(svc, .stderr, data: handle.availableData)
+                                    emitter.emit(svc, container.id, .stderr, data: handle.availableData)
                                 }
+                                await retainer.add(fh)
                             }
                         } else {
                             if fds.indices.contains(0) {
-                                emitter.emit(svc, .stdout, data: fds[0].readDataToEndOfFile())
+                                emitter.emit(svc, container.id, .stdout, data: fds[0].readDataToEndOfFile())
                             }
                             if fds.indices.contains(1) {
-                                emitter.emit(svc, .stderr, data: fds[1].readDataToEndOfFile())
+                                emitter.emit(svc, container.id, .stderr, data: fds[1].readDataToEndOfFile())
                             }
                             let left = await counter.dec()
                             if left == 0 { emitter.finish() }
@@ -1793,7 +1832,26 @@ public actor Orchestrator {
         let pid = "exec-\(UUID().uuidString)"
         let process = try await container.createProcess(id: pid, configuration: proc, stdio: stdio)
         try await process.start()
+
         if detach { return 0 }
+
+        // Forward SIGINT/SIGTERM from the plugin to the exec process (first signal)
+        func installSignal(_ signo: Int32) {
+            signal(signo, SIG_IGN)
+            DispatchQueue.main.async {
+                let src = DispatchSource.makeSignalSource(signal: signo, queue: .main)
+                src.setEventHandler {
+                    Task {
+                        do { try await process.kill(signo) } catch { /* ignore */ }
+                    }
+                }
+                src.resume()
+                ExecSignalRetainer.retain(src)
+            }
+        }
+        installSignal(SIGINT)
+        installSignal(SIGTERM)
+
         return try await process.wait()
     }
 

@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors. All rights reserved.
+// Copyright © 2025 Mazdak Rezvani and contributors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ struct ComposeValidate: AsyncParsableCommand {
         // Parse compose file
         let parser = ComposeParser(log: log, allowAnchors: global.allowAnchors)
         let composeFile = try parser.parse(from: composeOptions.getComposeFileURLs())
+        installDefaultTerminationHandlers()
         
         if !quiet {
             print("✓ Compose file is valid")

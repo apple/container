@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors. All rights reserved.
+// Copyright © 2025 Mazdak Rezvani and contributors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,6 +40,12 @@ struct ComposeLogs: AsyncParsableCommand {
         
         @Flag(name: [.customLong("timestamps"), .customShort("t")], help: "Show timestamps")
         var timestamps: Bool = false
+
+        @Flag(name: .long, help: "Disable log prefixes (container-name |)")
+        var noLogPrefix: Bool = false
+
+        @Flag(name: .long, help: "Disable colored output")
+        var noColor: Bool = false
         
         @Argument(help: "Services to display logs for")
         var services: [String] = []
@@ -64,6 +70,8 @@ struct ComposeLogs: AsyncParsableCommand {
         
         // Create orchestrator
         let orchestrator = Orchestrator(log: log)
+        // Install Ctrl-C handler to exit gracefully while following logs
+        installDefaultTerminationHandlers()
         
         // Get logs stream
         let logStream = try await orchestrator.logs(
@@ -73,19 +81,26 @@ struct ComposeLogs: AsyncParsableCommand {
             tail: tail,
             timestamps: timestamps
         )
-        
-        // Print logs with service names and optional timestamps
+
+        // Compute padding width for aligned prefixes
+        let nameWidth = noLogPrefix ? nil : try await TargetsUtil.computePrefixWidth(project: project, services: services)
+
+        // Print logs with container-name prefixes and optional timestamps
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
         
         for try await entry in logStream {
-            var output = "[\(entry.serviceName)]"
-            
-            if timestamps {
-                output += " \(dateFormatter.string(from: entry.timestamp))"
+            var output = ""
+            if !noLogPrefix {
+                output += LogPrefixFormatter.coloredPrefix(for: entry.containerName, width: nameWidth, colorEnabled: !noColor)
             }
-            
-            output += " \(entry.message)"
+            if timestamps {
+                // If no prefix, don't double space
+                if !output.isEmpty { output += " " }
+                output += dateFormatter.string(from: entry.timestamp)
+            }
+            if !output.isEmpty { output += " " }
+            output += entry.message
             
             switch entry.stream {
             case .stdout:

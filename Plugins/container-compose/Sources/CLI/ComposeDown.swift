@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors. All rights reserved.
+// Copyright © 2025 Mazdak Rezvani and contributors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -69,6 +69,8 @@ struct ComposeDown: AsyncParsableCommand {
         
         // Create orchestrator
         let orchestrator = Orchestrator(log: log)
+        // Allow Ctrl-C to stop the command cleanly
+        installDefaultTerminationHandlers()
         
         // Stop services
         let result = try await orchestrator.down(

@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors. All rights reserved.
+// Copyright © 2025 Mazdak Rezvani and contributors. All rights reserved.
 //===----------------------------------------------------------------------===//
 
 import Foundation
@@ -85,4 +85,3 @@ final class TestCLIComposeBuild: CLITest {
         #expect(downStatus == 0)
     }
 }
-
