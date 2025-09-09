@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationOCI
 import Foundation
 import Testing
 
@@ -173,7 +174,8 @@ extension TestCLIImagesCommand {
             #expect(imagePulled, "expected to see image \(alpine) pulled")
 
             // tag image so we can safely remove later
-            let alpineTagged = "\(alpine.dropLast("3.21".count))testPullRemoveSingle"
+            let alpineRef: Reference = try Reference.parse(alpine)
+            let alpineTagged = "\(alpineRef.name):testPullRemoveSingle"
             try doImageTag(image: alpine, newName: alpineTagged)
             let taggedImagePresent = try isImagePresent(targetImage: alpineTagged)
             #expect(taggedImagePresent, "expected to see image \(alpineTagged) tagged")
@@ -190,7 +192,8 @@ extension TestCLIImagesCommand {
     @Test func testImageTag() throws {
         do {
             try doPull(imageName: alpine)
-            let alpineTagged = "\(alpine.dropLast("3.21".count))testImageTag"
+            let alpineRef: Reference = try Reference.parse(alpine)
+            let alpineTagged = "\(alpineRef.name):testImageTag"
             try doImageTag(image: alpine, newName: alpineTagged)
             let imagePresent = try isImagePresent(targetImage: alpineTagged)
             #expect(imagePresent, "expected to see image \(alpineTagged) tagged")
@@ -235,12 +238,20 @@ extension TestCLIImagesCommand {
         do {
             // 1. pull image
             try doPull(imageName: alpine)
+            try doPull(imageName: busybox)
 
             // 2. Tag image so we can safely remove later
-            let alpineTagged = "\(alpine.dropLast("3.21".count))testImageSaveAndLoad"
+            let alpineRef: Reference = try Reference.parse(alpine)
+            let alpineTagged = "\(alpineRef.name):testImageSaveAndLoad"
             try doImageTag(image: alpine, newName: alpineTagged)
-            let taggedImagePresent = try isImagePresent(targetImage: alpineTagged)
-            #expect(taggedImagePresent, "expected to see image \(alpineTagged) tagged")
+            let alpineTaggedImagePresent = try isImagePresent(targetImage: alpineTagged)
+            #expect(alpineTaggedImagePresent, "expected to see image \(alpineTagged) tagged")
+
+            let busyboxRef: Reference = try Reference.parse(busybox)
+            let busyboxTagged = "\(busyboxRef.name):testImageSaveAndLoad"
+            try doImageTag(image: busybox, newName: busyboxTagged)
+            let busyboxTaggedImagePresent = try isImagePresent(targetImage: busyboxTagged)
+            #expect(busyboxTaggedImagePresent, "expected to see image \(busyboxTagged) tagged")
 
             // 3. save the image as a tarball
             let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -253,6 +264,7 @@ extension TestCLIImagesCommand {
                 "images",
                 "save",
                 alpineTagged,
+                busyboxTagged,
                 "--output",
                 tempFile.path(),
             ]
@@ -262,11 +274,13 @@ extension TestCLIImagesCommand {
             }
 
             // 4. remove the image through container
-            try doRemoveImages(images: [alpineTagged])
+            try doRemoveImages(images: [alpineTagged, busyboxTagged])
 
             // 5. verify image is no longer present
-            let imageRemoved = try !isImagePresent(targetImage: alpineTagged)
-            #expect(imageRemoved, "expected image \(alpineTagged) to be removed")
+            let alpineImageRemoved = try !isImagePresent(targetImage: alpineTagged)
+            #expect(alpineImageRemoved, "expected image \(alpineTagged) to be removed")
+            let busyboxImageRemoved = try !isImagePresent(targetImage: busyboxTagged)
+            #expect(busyboxImageRemoved, "expected image \(busyboxTagged) to be removed")
 
             // 6. load the tarball
             let loadArgs = [
@@ -281,8 +295,10 @@ extension TestCLIImagesCommand {
             }
 
             // 7. verify image is in the list again
-            let imagePresent = try isImagePresent(targetImage: alpineTagged)
-            #expect(imagePresent, "expected \(alpineTagged) to be present")
+            let alpineImagePresent = try isImagePresent(targetImage: alpineTagged)
+            #expect(alpineImagePresent, "expected \(alpineTagged) to be present")
+            let busyboxImagePresent = try isImagePresent(targetImage: busyboxTagged)
+            #expect(busyboxImagePresent, "expected \(busyboxTagged) to be present")
         } catch {
             Issue.record("failed to save and load image \(error)")
             return

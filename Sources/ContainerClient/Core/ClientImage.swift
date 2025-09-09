@@ -257,26 +257,13 @@ extension ClientImage {
     }
 
     public static func save(references: [String], out: String, platform: Platform? = nil) async throws {
-        let images: [ClientImage] = try await self.list()
-        var errors: [String] = []
-        var descriptions: [ImageDescription] = []
-        for reference in references {
-            do {
-                guard let image = try Self._search(reference: reference, in: images) else {
-                    errors.append(reference)
-                    continue
-                }
-                descriptions.append(image.description)
-            } catch {
-                errors.append(reference)
-            }
-        }
-
+        let (clientImages, errors) = try await get(names: references)
         guard errors.isEmpty else {
             // TODO: Improve error handling here
             throw ContainerizationError(.invalidArgument, message: "one or more image references are invalid: \(errors.joined(separator: ", "))")
         }
 
+        let descriptions = clientImages.map { $0.description }
         let client = Self.newXPCClient()
         let request = Self.newRequest(.imageSave)
         try request.set(descriptions: descriptions)

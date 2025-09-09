@@ -90,7 +90,9 @@ extension Application {
             try await ClientImage.save(references: references, out: output, platform: p)
 
             progress.finish()
-            print("Image(s) saved")
+            for reference in references {
+                print(reference)
+            }
         }
     }
 }
