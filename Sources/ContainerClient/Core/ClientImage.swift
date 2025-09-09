@@ -274,7 +274,7 @@ extension ClientImage {
 
         guard errors.isEmpty else {
             // TODO: Improve error handling here
-            throw ContainerizationError(.invalidArgument, message: "one or more image references are invalid")
+            throw ContainerizationError(.invalidArgument, message: "one or more image references are invalid: \(errors.joined(separator: ", "))")
         }
 
         let client = Self.newXPCClient()
