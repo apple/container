@@ -379,7 +379,7 @@ class TestCLIRunCommand: CLITest {
             let actualLines = output.components(separatedBy: .newlines)
                 .filter { !$0.isEmpty }
                 .map { $0.components(separatedBy: .whitespaces) }
-                .map { $0.joined(separator: " ")}
+                .map { $0.joined(separator: " ") }
 
             let inspectOutput = try inspectContainer(name)
             let ip = String(inspectOutput.networks[0].address.split(separator: "/")[0])
@@ -392,7 +392,7 @@ class TestCLIRunCommand: CLITest {
             ].compactMap { $0 }
 
             #expect(expectedLines == actualLines)
-       } catch {
+        } catch {
             Issue.record("failed to run container \(error)")
             return
         }
@@ -405,12 +405,14 @@ class TestCLIRunCommand: CLITest {
             let expectedSearch = "test.com"
             let expectedOption = "debug"
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
-            try doLongRun(name: name, args: [
-                "--dns", expectedDns,
-                "--dns-domain", expectedDomain,
-                "--dns-search", expectedSearch,
-                "--dns-option", expectedOption,
-            ])
+            try doLongRun(
+                name: name,
+                args: [
+                    "--dns", expectedDns,
+                    "--dns-domain", expectedDomain,
+                    "--dns-search", expectedSearch,
+                    "--dns-option", expectedOption,
+                ])
             defer {
                 try? doStop(name: name)
             }
@@ -419,7 +421,7 @@ class TestCLIRunCommand: CLITest {
             let actualLines = output.components(separatedBy: .newlines)
                 .filter { !$0.isEmpty }
                 .map { $0.components(separatedBy: .whitespaces) }
-                .map { $0.joined(separator: " ")}
+                .map { $0.joined(separator: " ") }
 
             let expectedLines: [String] = [
                 "nameserver \(expectedDns)",
