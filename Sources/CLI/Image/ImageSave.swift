@@ -40,13 +40,13 @@ extension Application {
         @Option(
             help: "Set OS if image can target multiple operating systems"
         )
-        var os: String = "linux"
+        var os: String?
 
         @Option(
             name: [.customLong("arch"), .customShort("a")],
             help: "Set arch if image can target multiple architectures"
         )
-        var arch: String = Arch.hostArchitecture().rawValue
+        var arch: String?
 
         @Option(
             name: .shortAndLong, help: "Path to save the image tar archive", completion: .file(),
@@ -61,8 +61,10 @@ extension Application {
             var p: Platform?
             if let platform {
                 p = try Platform(from: platform)
-            } else {
-                p = try Platform(from: "\(os)/\(arch)")
+            } else if let arch {
+                p = try Platform(from: "\(os ?? "linux")/\(arch)")
+            } else if let os {
+                p = try Platform(from: "\(os)/\(arch ?? Arch.hostArchitecture().rawValue)")
             }
 
             let progressConfig = try ProgressConfig(
