@@ -367,61 +367,67 @@ class TestCLIRunCommand: CLITest {
         }
     }
 
-    @Test func testRunCommandDNS() throws {
+    @Test func testRunCommandDefaultResolvConf() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
-            let dns = "8.8.8.8"
-            try doLongRun(name: name, args: ["--dns", dns])
+            try doLongRun(name: name, args: [])
             defer {
                 try? doStop(name: name)
             }
-            var output = try doExec(name: name, cmd: ["cat", "/etc/resolv.conf"])
-            output = output.trimmingCharacters(in: .whitespacesAndNewlines)
-            let words = output.split(separator: " ")
-            #expect(words.count == 2, "expected 'nameserver \(dns)', instead got '\(output)'")
-            #expect(words[1].lowercased() == dns, "expected 'nameserver \(dns)', instead got '\(output)'")
-        } catch {
+
+            let output = try doExec(name: name, cmd: ["cat", "/etc/resolv.conf"])
+            let actualLines = output.components(separatedBy: .newlines)
+                .filter { !$0.isEmpty }
+                .map { $0.components(separatedBy: .whitespaces) }
+                .map { $0.joined(separator: " ")}
+
+            let inspectOutput = try inspectContainer(name)
+            let ip = String(inspectOutput.networks[0].address.split(separator: "/")[0])
+            let ipv4Address = try IPv4Address(ip)
+            let expectedNameserver = IPv4Address(fromValue: ipv4Address.prefix(prefixLength: 24).value + 1).description
+            let defaultDomain = try getDefaultDomain()
+            let expectedLines: [String] = [
+                "nameserver \(expectedNameserver)",
+                defaultDomain.map { "domain \($0)" },
+            ].compactMap { $0 }
+
+            #expect(expectedLines == actualLines)
+       } catch {
             Issue.record("failed to run container \(error)")
             return
         }
     }
 
-    @Test func testRunCommandDNSDomain() throws {
+    @Test func testRunCommandNonDefaultResolvConf() throws {
         do {
+            let expectedDns: String = "8.8.8.8"
+            let expectedDomain = "example.com"
+            let expectedSearch = "test.com"
+            let expectedOption = "debug"
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
-            let dnsDomain = "example.com"
-            try doLongRun(name: name, args: ["--dns-domain", dnsDomain])
+            try doLongRun(name: name, args: [
+                "--dns", expectedDns,
+                "--dns-domain", expectedDomain,
+                "--dns-search", expectedSearch,
+                "--dns-option", expectedOption,
+            ])
             defer {
                 try? doStop(name: name)
             }
-            let output = try doExec(name: name, cmd: ["cat", "/etc/resolv.conf"])
-            let lines = output.split(separator: "\n")
-            #expect(lines.count == 2, "expected two lines of info in /etc/resolv.conf, got \(output)")
-            let words = lines[1].split(separator: " ")
-            #expect(words.count == 2, "expected 'domain \(dnsDomain)', instead got '\(lines[1])'")
-            #expect(words[0].lowercased() == "domain", "expected entry to list domain, instead got '\(words[0])'")
-            #expect(words[1].lowercased() == dnsDomain, "expected '\(dnsDomain)' search domain, instead got '\(words[1])'")
-        } catch {
-            Issue.record("failed to run container \(error)")
-            return
-        }
-    }
 
-    @Test func testRunCommandDNSSearch() throws {
-        do {
-            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
-            let dnsSearch = "test.com"
-            try doLongRun(name: name, args: ["--dns-search", dnsSearch])
-            defer {
-                try? doStop(name: name)
-            }
             let output = try doExec(name: name, cmd: ["cat", "/etc/resolv.conf"])
-            let lines = output.split(separator: "\n")
-            #expect(lines.count == 2, "expected two lines of info in /etc/resolv.conf, got \(output)")
-            let words = lines[1].split(separator: " ")
-            #expect(words.count == 2, "expected 'search \(dnsSearch)', instead got '\(lines[1])'")
-            #expect(words[0].lowercased() == "search", "expected entry to list search domains, instead got '\(words[0])'")
-            #expect(words[1].lowercased() == dnsSearch, "expected '\(dnsSearch)' search domain, instead got '\(words[1])'")
+            let actualLines = output.components(separatedBy: .newlines)
+                .filter { !$0.isEmpty }
+                .map { $0.components(separatedBy: .whitespaces) }
+                .map { $0.joined(separator: " ")}
+
+            let expectedLines: [String] = [
+                "nameserver \(expectedDns)",
+                "domain \(expectedDomain)",
+                "search \(expectedSearch)",
+                "opts \(expectedOption)",
+            ]
+            #expect(expectedLines == actualLines)
         } catch {
             Issue.record("failed to run container \(error)")
             return
@@ -451,27 +457,6 @@ class TestCLIRunCommand: CLITest {
                 #expect(expected.0 == words[0], "expected /etc/hosts entries IP to be \(expected.0), instead got \(words[0])")
                 #expect(expected.1 == words[1], "expected /etc/hosts entries host to be \(expected.1), instead got \(words[1])")
             }
-        } catch {
-            Issue.record("failed to run container \(error)")
-            return
-        }
-    }
-
-    @Test func testRunCommandDNSOption() throws {
-        do {
-            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
-            let dnsOption = "debug"
-            try doLongRun(name: name, args: ["--dns-option", dnsOption])
-            defer {
-                try? doStop(name: name)
-            }
-            let output = try doExec(name: name, cmd: ["cat", "/etc/resolv.conf"])
-            let lines = output.split(separator: "\n")
-            #expect(lines.count == 2, "expected two lines of info in /etc/resolv.conf, got \(output)")
-            let words = lines[1].split(separator: " ")
-            #expect(words.count == 2, "expected 'opts \(dnsOption)', instead got '\(lines[1])'")
-            #expect(words[0].lowercased() == "opts", "expected entry to list dns options, instead got '\(words[0])'")
-            #expect(words[1].lowercased() == dnsOption, "expected option '\(dnsOption)', instead got '\(words[1])'")
         } catch {
             Issue.record("failed to run container \(error)")
             return
@@ -520,5 +505,16 @@ class TestCLIRunCommand: CLITest {
             Issue.record("failed to run container \(error)")
             return
         }
+    }
+
+    func getDefaultDomain() throws -> String? {
+        let (output, err, status) = try run(arguments: ["system", "dns", "default", "inspect"])
+        try #require(status == 0, "default DNS domain retrieval returned status \(status): \(err)")
+        let trimmedOutput = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedOutput == "" {
+            return nil
+        }
+
+        return trimmedOutput
     }
 }
