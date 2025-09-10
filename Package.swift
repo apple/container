@@ -248,9 +248,6 @@ let package = Package(
             name: "ContainerBuildReporting",
             dependencies: [],
             path: "Sources/NativeBuilder/ContainerBuildReporting",
-            swiftSettings: [
-                .enableExperimentalFeature("StrictConcurrency")
-            ]
         ),
         .target(
             name: "ContainerBuildIR",
@@ -260,9 +257,6 @@ let package = Package(
                 .product(name: "Crypto", package: "swift-crypto"),
             ],
             path: "Sources/NativeBuilder/ContainerBuildIR",
-            swiftSettings: [
-                .enableExperimentalFeature("StrictConcurrency")
-            ],
         ),
         .target(
             name: "ContainerBuildExecutor",
@@ -274,9 +268,6 @@ let package = Package(
                 .product(name: "ContainerizationOCI", package: "containerization"),
             ],
             path: "Sources/NativeBuilder/ContainerBuildExecutor",
-            swiftSettings: [
-                .enableExperimentalFeature("StrictConcurrency")
-            ]
         ),
         .target(
             name: "ContainerBuildCache",
@@ -288,9 +279,6 @@ let package = Package(
                 .product(name: "Crypto", package: "swift-crypto"),
             ],
             path: "Sources/NativeBuilder/ContainerBuildCache",
-            swiftSettings: [
-                .enableExperimentalFeature("StrictConcurrency")
-            ]
         ),
         .target(
             name: "ContainerBuildSnapshotter",
@@ -302,9 +290,6 @@ let package = Package(
                 "ContainerClient",
             ],
             path: "Sources/NativeBuilder/ContainerBuildSnapshotter",
-            swiftSettings: [
-                .enableExperimentalFeature("StrictConcurrency")
-            ]
         ),
         .target(
             name: "ContainerBuildParser",
@@ -312,9 +297,6 @@ let package = Package(
                 "ContainerBuildIR"
             ],
             path: "Sources/NativeBuilder/ContainerBuildParser",
-            swiftSettings: [
-                .enableExperimentalFeature("StrictConcurrency")
-            ]
         ),
         .testTarget(
             name: "NativeBuilderTests",
