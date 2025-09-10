@@ -70,7 +70,7 @@ CONTAINER SUBCOMMANDS:
 
 IMAGE SUBCOMMANDS:
   build                   Build an image from a Dockerfile
-  images, image, i        Manage images
+  image, i                Manage images
   registry, r             Manage registry configurations
 
 SYSTEM SUBCOMMANDS:
@@ -151,7 +151,7 @@ The last argument `.` tells the builder to use the current directory (`web-test`
 After the build completes, list the images. You should see both the base image and the image that you built in the results:
 
 <pre>
-% container images list
+% container image list
 NAME      TAG     DIGEST
 python    alpine  b4d299311845147e7e47c970...
 web-test  latest  25b99501f174803e21c58f9c...
@@ -269,13 +269,13 @@ container registry login {registry.example.com}
 Create another name for your image that includes the registry name, your repository name, and the image name, with the tag `latest`:
 
 ```bash
-container images tag web-test {registry.example.com/fido}/web-test:latest
+container image tag web-test {registry.example.com/fido}/web-test:latest
 ```
 
 Then, push the image:
 
 ```bash
-container images push {registry.example.com/fido}/web-test:latest
+container image push {registry.example.com/fido}/web-test:latest
 ```
 
 ### Pull and run your image
@@ -284,7 +284,7 @@ To validate your published image, stop your current web server container, remove
 
 ```bash
 container stop my-web-server
-container images delete web-test {registry.example.com/fido}/web-test:latest
+container image delete web-test {registry.example.com/fido}/web-test:latest
 container run --name my-web-server --detach --rm {registry.example.com/fido}/web-test:latest
 ```
 

@@ -84,17 +84,17 @@ Linux c0376e0a-0bfd-4eea-9e9e-9f9a2c327051 6.1.68 #1 SMP Mon Mar 31 18:27:51 UTC
 The command to push your multiplatform image to a registry is no different than that for a single-platform image:
 
 ```bash
-container images push registry.example.com/fido/web-test:latest
+container image push registry.example.com/fido/web-test:latest
 ```
 
 ## Get container or image details
 
-`container images list` and `container list` provide basic information for all of your images and containers. You can also use `list` and `inspect` commands to print detailed JSON output for one or more resources.
+`container image list` and `container list` provide basic information for all of your images and containers. You can also use `list` and `inspect` commands to print detailed JSON output for one or more resources.
 
 Use the `inspect` command and send the result to the `jq` command to get pretty-printed JSON for the images or containers that you specify:
 
 <pre>
-% container images inspect web-test | jq
+% container image inspect web-test | jq
 [
   {
     "name": "web-test:latest",

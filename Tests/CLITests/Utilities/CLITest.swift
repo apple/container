@@ -318,7 +318,7 @@ class CLITest {
 
     func inspectImage(_ name: String) throws -> String {
         let response = try run(arguments: [
-            "images",
+            "image",
             "inspect",
             name,
         ])
@@ -349,7 +349,7 @@ class CLITest {
 
     func doPull(imageName: String, args: [String]? = nil) throws {
         var pullArgs = [
-            "images",
+            "image",
             "pull",
         ]
         if let args {
@@ -365,7 +365,7 @@ class CLITest {
 
     func doImageListQuite() throws -> [String] {
         let args = [
-            "images",
+            "image",
             "list",
             "-q",
         ]
@@ -379,7 +379,7 @@ class CLITest {
 
     func doInspectImages(image: String) throws -> [ImageInspectOutput] {
         let (output, error, status) = try run(arguments: [
-            "images",
+            "image",
             "inspect",
             image,
         ])

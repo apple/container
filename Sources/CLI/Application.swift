@@ -67,7 +67,7 @@ struct Application: AsyncParsableCommand {
                 name: "Image",
                 subcommands: [
                     BuildCommand.self,
-                    ImagesCommand.self,
+                    ImageCommand.self,
                     RegistryCommand.self,
                 ]
             ),

@@ -21,7 +21,7 @@ import Testing
 class TestCLIImagesCommand: CLITest {
     func doRemoveImages(images: [String]? = nil) throws {
         var args = [
-            "images",
+            "image",
             "rm",
         ]
 
@@ -49,7 +49,7 @@ class TestCLIImagesCommand: CLITest {
 
     func doListImages() throws -> [Image] {
         let (output, error, status) = try run(arguments: [
-            "images",
+            "image",
             "list",
             "--format",
             "json",
@@ -68,7 +68,7 @@ class TestCLIImagesCommand: CLITest {
 
     func doImageTag(image: String, newName: String) throws {
         let tagArgs = [
-            "images",
+            "image",
             "tag",
             image,
             newName,
@@ -261,7 +261,7 @@ extension TestCLIImagesCommand {
             }
             let tempFile = tempDir.appendingPathComponent(UUID().uuidString)
             let saveArgs = [
-                "images",
+                "image",
                 "save",
                 alpineTagged,
                 busyboxTagged,
@@ -284,7 +284,7 @@ extension TestCLIImagesCommand {
 
             // 6. load the tarball
             let loadArgs = [
-                "images",
+                "image",
                 "load",
                 "-i",
                 tempFile.path(),
