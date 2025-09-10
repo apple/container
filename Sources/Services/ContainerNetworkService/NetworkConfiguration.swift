@@ -25,14 +25,30 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     /// The preferred CIDR address for the subnet, if specified
     public let subnet: String?
 
+    /// Key-value labels for the network.
+    public var labels: [String: String] = [:]
+
     /// Creates a network configuration
     public init(
         id: String,
         mode: NetworkMode,
-        subnet: String? = nil
+        subnet: String? = nil,
+        labels: [String: String] = [:]
     ) {
         self.id = id
         self.mode = mode
         self.subnet = subnet
+        self.labels = labels
+    }
+
+    /// Create a configuration from the supplied Decoder, initializing missing
+    /// values where possible to reasonable defaults.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        id = try container.decode(String.self, forKey: .id)
+        mode = try container.decode(NetworkMode.self, forKey: .mode)
+        subnet = try container.decodeIfPresent(String.self, forKey: .subnet)
+        labels = try container.decodeIfPresent([String: String].self, forKey: .labels) ?? [:]
     }
 }

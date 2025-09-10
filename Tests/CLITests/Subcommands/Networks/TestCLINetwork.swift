@@ -128,4 +128,60 @@ class TestCLINetwork: CLITest {
             return
         }
     }
+
+    @available(macOS 26, *)
+    @Test func testNetworkLabels() async throws {
+        do {
+            // prep: delete container and network, ignoring if it doesn't exist
+            let name = Test.current!.name.trimmingCharacters(in: ["(", ")"])
+            try? doRemove(name: name)
+            let networkDeleteArgs = ["network", "delete", name]
+            _ = try? run(arguments: networkDeleteArgs)
+
+            // create our network
+            let networkCreateArgs = ["network", "create", "--label", "foo=bar", "--label", "baz=qux", name]
+            let networkCreateResult = try run(arguments: networkCreateArgs)
+            guard networkCreateResult.status == 0 else {
+                throw CLIError.executionFailed("command failed: \(networkCreateResult.error)")
+            }
+
+            // ensure it's deleted
+            defer {
+                _ = try? run(arguments: networkDeleteArgs)
+            }
+
+            // inspect the network
+            let networkInspectArgs = ["network", "inspect", name]
+            let networkInspectResult = try run(arguments: networkInspectArgs)
+            guard networkInspectResult.status == 0 else {
+                throw CLIError.executionFailed("command failed: \(networkInspectResult.error)")
+            }
+
+            // decode the JSON result
+            let networkInspectOutput = networkInspectResult.output
+            guard let jsonData = networkInspectOutput.data(using: .utf8) else {
+                throw CLIError.invalidOutput("network inspect output invalid")
+            }
+
+            let decoder = JSONDecoder()
+            let networks = try decoder.decode([NetworkInspectOutput].self, from: jsonData)
+            guard networks.count == 1 else {
+                throw CLIError.invalidOutput("expected exactly one network from inspect, got \(networks.count)")
+            }
+
+            // validate labels
+
+            let expectedLabels = [
+                "foo": "bar",
+                "baz": "qux",
+            ]
+            #expect(expectedLabels == networks[0].config.labels)
+
+            // delete should succeed
+            _ = try run(arguments: networkDeleteArgs)
+        } catch {
+            Issue.record("failed to safely delete network \(error)")
+            return
+        }
+    }
 }
