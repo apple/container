@@ -18,9 +18,10 @@ You need a Mac with Apple silicon to run `container`. To build it, see the [BUIL
 
 ### Install or upgrade
 
-If you're upgrading, first uninstall your existing `container` while preserving your user data:
+If you're upgrading, first stop and uninstall your existing `container` (the `-k` flag keeps your user data, while `-d` removes it):
 
 ```bash
+container system stop
 uninstall-container.sh -k
 ```
 
