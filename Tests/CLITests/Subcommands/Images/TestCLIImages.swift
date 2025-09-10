@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerClient
 import ContainerizationOCI
 import Foundation
 import Testing
@@ -145,6 +146,60 @@ extension TestCLIImagesCommand {
             let pullArgs = [
                 "--os",
                 os,
+                "--arch",
+                arch,
+            ]
+
+            try doPull(imageName: alpine318, args: pullArgs)
+
+            let output = try doInspectImages(image: alpine318)
+            #expect(output.count == 1, "expected a single image inspect output, got \(output)")
+
+            var found = false
+            for v in output[0].variants {
+                if v.platform.os == os && v.platform.architecture == arch {
+                    found = true
+                }
+            }
+            #expect(found, "expected to find image with os \(os) and architecture \(arch), instead got \(output[0])")
+        } catch {
+            Issue.record("failed to pull and inspect image \(error)")
+            return
+        }
+    }
+
+    @Test func testPullOs() throws {
+        do {
+            let os = "linux"
+            let arch = Arch.hostArchitecture().rawValue
+            let pullArgs = [
+                "--os",
+                os,
+            ]
+
+            try doPull(imageName: alpine318, args: pullArgs)
+
+            let output = try doInspectImages(image: alpine318)
+            #expect(output.count == 1, "expected a single image inspect output, got \(output)")
+
+            var found = false
+            for v in output[0].variants {
+                if v.platform.os == os && v.platform.architecture == arch {
+                    found = true
+                }
+            }
+            #expect(found, "expected to find image with os \(os) and architecture \(arch), instead got \(output[0])")
+        } catch {
+            Issue.record("failed to pull and inspect image \(error)")
+            return
+        }
+    }
+
+    @Test func testPullArch() throws {
+        do {
+            let os = "linux"
+            let arch = "amd64"
+            let pullArgs = [
                 "--arch",
                 arch,
             ]
