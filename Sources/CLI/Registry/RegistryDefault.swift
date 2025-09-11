@@ -22,8 +22,9 @@ import ContainerizationOCI
 import Foundation
 
 extension Application {
-    struct RegistryDefault: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct RegistryDefault: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "default",
             abstract: "Manage the default image registry",
             subcommands: [
@@ -34,22 +35,23 @@ extension Application {
         )
     }
 
-    struct DefaultSetCommand: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct DefaultSetCommand: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "set",
             abstract: "Set the default registry"
         )
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
         @OptionGroup
-        var registry: Flags.Registry
+        public var registry: Flags.Registry
 
         @Argument
-        var host: String
+        public var host: String
 
-        func run() async throws {
+        public func run() async throws {
             let scheme = try RequestScheme(registry.scheme).schemeFor(host: host)
 
             let _url = "\(scheme)://\(host)"
@@ -73,26 +75,28 @@ extension Application {
         }
     }
 
-    struct DefaultUnsetCommand: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct DefaultUnsetCommand: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "unset",
             abstract: "Unset the default registry",
             aliases: ["clear"]
         )
 
-        func run() async throws {
+        public func run() async throws {
             DefaultsStore.unset(key: .defaultRegistryDomain)
             print("Unset the default registry domain")
         }
     }
 
-    struct DefaultInspectCommand: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct DefaultInspectCommand: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "inspect",
             abstract: "Display the default registry domain"
         )
 
-        func run() async throws {
+        public func run() async throws {
             print(DefaultsStore.get(key: .defaultRegistryDomain))
         }
     }
