@@ -127,7 +127,7 @@ public struct Application: AsyncParsableCommand {
         }
     }
 
-    static func createPluginLoader() async throws -> PluginLoader {
+    public static func createPluginLoader() async throws -> PluginLoader {
         let installRoot = CommandLine.executablePathUrl
             .deletingLastPathComponent()
             .appendingPathComponent("..")
@@ -171,7 +171,7 @@ public struct Application: AsyncParsableCommand {
         )
     }
 
-    static func handleProcess(io: ProcessIO, process: ClientProcess) async throws -> Int32 {
+    public static func handleProcess(io: ProcessIO, process: ClientProcess) async throws -> Int32 {
         let signals = AsyncSignalHandler.create(notify: Application.signalSet)
         return try await withThrowingTaskGroup(of: Int32?.self, returning: Int32.self) { group in
             let waitAdded = group.addTaskUnlessCancelled {
