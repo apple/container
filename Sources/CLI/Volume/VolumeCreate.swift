@@ -19,25 +19,26 @@ import ContainerClient
 import Foundation
 
 extension Application.VolumeCommand {
-    struct VolumeCreate: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct VolumeCreate: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "create",
             abstract: "Create a volume"
         )
 
         @Argument(help: "Volume name")
-        var name: String
+        public var name: String
 
         @Option(name: .customShort("s"), help: "Size of the volume (default: 512GB). Examples: 1G, 512MB, 2T")
-        var size: String?
+        public var size: String?
 
         @Option(name: .customLong("opt"), parsing: .upToNextOption, help: "Set driver specific options")
-        var driverOpts: [String] = []
+        public var driverOpts: [String] = []
 
         @Option(name: .customLong("label"), parsing: .upToNextOption, help: "Set metadata on a volume")
-        var labels: [String] = []
+        public var labels: [String] = []
 
-        func run() async throws {
+        public func run() async throws {
             var parsedDriverOpts = Utility.parseKeyValuePairs(driverOpts)
             let parsedLabels = Utility.parseKeyValuePairs(labels)
 

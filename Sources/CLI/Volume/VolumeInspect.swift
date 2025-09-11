@@ -19,16 +19,17 @@ import ContainerClient
 import Foundation
 
 extension Application.VolumeCommand {
-    struct VolumeInspect: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct VolumeInspect: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "inspect",
             abstract: "Display detailed information on one or more volumes"
         )
 
         @Argument(help: "Volume name(s)")
-        var names: [String]
+        public var names: [String]
 
-        func run() async throws {
+        public func run() async throws {
             var volumes: [Volume] = []
 
             for name in names {
