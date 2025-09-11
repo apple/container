@@ -21,26 +21,27 @@ import ContainerizationOCI
 import TerminalProgress
 
 extension Application {
-    struct ImagePush: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct ImagePush: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "push",
             abstract: "Push an image"
         )
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
         @OptionGroup
-        var registry: Flags.Registry
+        public var registry: Flags.Registry
 
         @OptionGroup
-        var progressFlags: Flags.Progress
+        public var progressFlags: Flags.Progress
 
-        @Option(help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'") var platform: String?
+        @Option(help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'") public var platform: String?
 
-        @Argument var reference: String
+        @Argument public var reference: String
 
-        func run() async throws {
+        public func run() async throws {
             var p: Platform?
             if let platform {
                 p = try Platform(from: platform)

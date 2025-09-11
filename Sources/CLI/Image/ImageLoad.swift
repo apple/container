@@ -22,23 +22,24 @@ import Foundation
 import TerminalProgress
 
 extension Application {
-    struct ImageLoad: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct ImageLoad: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "load",
             abstract: "Load images from an OCI compatible tar archive"
         )
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
         @Option(
             name: .shortAndLong, help: "Path to the tar archive to load images from", completion: .file(),
             transform: { str in
                 URL(fileURLWithPath: str, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false)
             })
-        var input: String
+        public var input: String
 
-        func run() async throws {
+        public func run() async throws {
             guard FileManager.default.fileExists(atPath: input) else {
                 print("File does not exist \(input)")
                 Application.exit(withError: ArgumentParser.ExitCode(1))
