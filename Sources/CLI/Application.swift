@@ -35,12 +35,13 @@ nonisolated(unsafe) var log = {
     return log
 }()
 
-@main
-struct Application: AsyncParsableCommand {
+public struct Application: AsyncParsableCommand {
     @OptionGroup
-    var global: Flags.Global
+    public var global: Flags.Global
+    
+    public init() {}
 
-    static let configuration = CommandConfiguration(
+    public static let configuration = CommandConfiguration(
         commandName: "container",
         abstract: "A container platform for macOS",
         version: ReleaseVersion.singleLine(appName: "container CLI"),
@@ -242,7 +243,7 @@ struct Application: AsyncParsableCommand {
         }
     }
 
-    func validate() throws {
+    public func validate() throws {
         // Not really a "validation", but a cheat to run this before
         // any of the commands do their business.
         let debugEnvVar = ProcessInfo.processInfo.environment["CONTAINER_DEBUG"]

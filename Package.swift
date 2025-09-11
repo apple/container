@@ -66,6 +66,15 @@ let package = Package(
             name: "container",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                "ContainerClient",
+                "ContainerCLI",
+            ],
+            path: "Sources/ExecutableCLI"
+        ),
+        .target(
+            name: "ContainerCLI",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "SwiftProtobuf", package: "swift-protobuf"),
                 .product(name: "Containerization", package: "containerization"),
