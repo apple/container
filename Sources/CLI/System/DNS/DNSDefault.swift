@@ -18,8 +18,9 @@ import ArgumentParser
 import ContainerPersistence
 
 extension Application {
-    struct DNSDefault: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct DNSDefault: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "default",
             abstract: "Set or unset the default local DNS domain",
             subcommands: [
@@ -29,42 +30,45 @@ extension Application {
             ]
         )
 
-        struct DefaultSetCommand: AsyncParsableCommand {
-            static let configuration = CommandConfiguration(
+        public struct DefaultSetCommand: AsyncParsableCommand {
+            public init() {}
+            public static let configuration = CommandConfiguration(
                 commandName: "set",
                 abstract: "Set the default local DNS domain"
 
             )
 
             @Argument(help: "the default `--domain-name` to use for the `create` or `run` command")
-            var domainName: String
+            public var domainName: String
 
-            func run() async throws {
+            public func run() async throws {
                 DefaultsStore.set(value: domainName, key: .defaultDNSDomain)
                 print(domainName)
             }
         }
 
-        struct DefaultUnsetCommand: AsyncParsableCommand {
-            static let configuration = CommandConfiguration(
+        public struct DefaultUnsetCommand: AsyncParsableCommand {
+            public init() {}
+            public static let configuration = CommandConfiguration(
                 commandName: "unset",
                 abstract: "Unset the default local DNS domain",
                 aliases: ["clear"]
             )
 
-            func run() async throws {
+            public func run() async throws {
                 DefaultsStore.unset(key: .defaultDNSDomain)
                 print("Unset the default local DNS domain")
             }
         }
 
-        struct DefaultInspectCommand: AsyncParsableCommand {
-            static let configuration = CommandConfiguration(
+        public struct DefaultInspectCommand: AsyncParsableCommand {
+            public init() {}
+            public static let configuration = CommandConfiguration(
                 commandName: "inspect",
                 abstract: "Display the default local DNS domain"
             )
 
-            func run() async throws {
+            public func run() async throws {
                 print(DefaultsStore.getOptional(key: .defaultDNSDomain) ?? "")
             }
         }

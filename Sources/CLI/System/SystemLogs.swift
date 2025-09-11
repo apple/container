@@ -22,27 +22,27 @@ import Foundation
 import OSLog
 
 extension Application {
-    struct SystemLogs: AsyncParsableCommand {
-        static let subsystem = "com.apple.container"
+    public struct SystemLogs: AsyncParsableCommand {
+        public static let subsystem = "com.apple.container"
 
-        static let configuration = CommandConfiguration(
+        public static let configuration = CommandConfiguration(
             commandName: "logs",
             abstract: "Fetch system logs for `container` services"
         )
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
         @Option(
             name: .long,
             help: "Fetch logs starting from the specified time period (minus the current time); supported formats: m, h, d"
         )
-        var last: String = "5m"
+        public var last: String = "5m"
 
         @Flag(name: .shortAndLong, help: "Follow log output")
-        var follow: Bool = false
+        public var follow: Bool = false
 
-        func run() async throws {
+        public func run() async throws {
             let process = Process()
             let sigHandler = AsyncSignalHandler.create(notify: [SIGINT, SIGTERM])
 

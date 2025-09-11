@@ -25,28 +25,29 @@ import Foundation
 import TerminalProgress
 
 extension Application {
-    struct KernelSet: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct KernelSet: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "set",
             abstract: "Set the default kernel"
         )
 
         @Option(name: .customLong("binary"), help: "Path to the binary to set as the default kernel. If used with --tar, this points to a location inside the tar")
-        var binaryPath: String? = nil
+        public var binaryPath: String? = nil
 
         @Option(name: .customLong("tar"), help: "Filesystem path or remote URL to a tar ball that contains the kernel to use")
-        var tarPath: String? = nil
+        public var tarPath: String? = nil
 
         @Option(name: .customLong("arch"), help: "The architecture of the kernel binary. One of (amd64, arm64)")
-        var architecture: String = ContainerizationOCI.Platform.current.architecture.description
+        public var architecture: String = ContainerizationOCI.Platform.current.architecture.description
 
         @Flag(name: .customLong("recommended"), help: "Download and install the recommended kernel as the default. This flag ignores any other arguments")
-        var recommended: Bool = false
+        public var recommended: Bool = false
 
         @Flag(name: .long, help: "Force install of kernel. If a kernel exists with the same name, it will be overwritten.")
-        var force: Bool = false
+        public var force: Bool = false
 
-        func run() async throws {
+        public func run() async throws {
             if recommended {
                 let url = DefaultsStore.get(key: .defaultKernelURL)
                 let path = DefaultsStore.get(key: .defaultKernelBinaryPath)
@@ -89,7 +90,7 @@ extension Application {
             try await Self.downloadAndInstallWithProgressBar(tarRemoteURL: remoteURL.absoluteString, kernelFilePath: binaryPath, platform: platform, force: force)
         }
 
-        private func getSystemPlatform() throws -> SystemPlatform {
+        public func getSystemPlatform() throws -> SystemPlatform {
             switch architecture {
             case "arm64":
                 return .linuxArm

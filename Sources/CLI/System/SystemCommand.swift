@@ -17,8 +17,9 @@
 import ArgumentParser
 
 extension Application {
-    struct SystemCommand: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct SystemCommand: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "system",
             abstract: "Manage system components",
             subcommands: [

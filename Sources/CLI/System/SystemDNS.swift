@@ -19,8 +19,9 @@ import ContainerizationError
 import Foundation
 
 extension Application {
-    struct SystemDNS: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct SystemDNS: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "dns",
             abstract: "Manage local DNS domains",
             subcommands: [

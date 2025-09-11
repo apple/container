@@ -20,17 +20,18 @@ import ContainerizationError
 import Foundation
 
 extension Application {
-    struct DNSDelete: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct DNSDelete: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "delete",
             abstract: "Delete a local DNS domain (must run as an administrator)",
             aliases: ["rm"]
         )
 
         @Argument(help: "the local domain name")
-        var domainName: String
+        public var domainName: String
 
-        func run() async throws {
+        public func run() async throws {
             let resolver = HostDNSResolver()
             do {
                 try resolver.deleteDomain(name: domainName)
