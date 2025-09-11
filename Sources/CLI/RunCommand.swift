@@ -26,36 +26,37 @@ import NIOPosix
 import TerminalProgress
 
 extension Application {
-    struct ContainerRunCommand: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct ContainerRunCommand: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "run",
             abstract: "Run a container")
 
         @OptionGroup
-        var processFlags: Flags.Process
+        public var processFlags: Flags.Process
 
         @OptionGroup
-        var resourceFlags: Flags.Resource
+        public var resourceFlags: Flags.Resource
 
         @OptionGroup
-        var managementFlags: Flags.Management
+        public var managementFlags: Flags.Management
 
         @OptionGroup
-        var registryFlags: Flags.Registry
+        public var registryFlags: Flags.Registry
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
         @OptionGroup
-        var progressFlags: Flags.Progress
+        public var progressFlags: Flags.Progress
 
         @Argument(help: "Image name")
-        var image: String
+        public var image: String
 
         @Argument(parsing: .captureForPassthrough, help: "Container init process arguments")
-        var arguments: [String] = []
+        public var arguments: [String] = []
 
-        func run() async throws {
+        public func run() async throws {
             var exitCode: Int32 = 127
             let id = Utility.createContainerID(name: self.managementFlags.name)
 
@@ -166,7 +167,7 @@ extension Application {
     }
 }
 
-struct ProcessIO {
+public struct ProcessIO {
     let stdin: Pipe?
     let stdout: Pipe?
     let stderr: Pipe?
@@ -182,17 +183,17 @@ struct ProcessIO {
 
     let console: Terminal?
 
-    func closeAfterStart() throws {
+    public func closeAfterStart() throws {
         try stdin?.fileHandleForReading.close()
         try stdout?.fileHandleForWriting.close()
         try stderr?.fileHandleForWriting.close()
     }
 
-    func close() throws {
+    public func close() throws {
         try console?.reset()
     }
 
-    static func create(tty: Bool, interactive: Bool, detach: Bool) throws -> ProcessIO {
+    public static func create(tty: Bool, interactive: Bool, detach: Bool) throws -> ProcessIO {
         let current: Terminal? = try {
             if !tty || !interactive {
                 return nil
@@ -300,7 +301,7 @@ struct ProcessIO {
         )
     }
 
-    static func streamStdin(
+    public static func streamStdin(
         from: OSFile,
         to: OSFile,
         buffer: UnsafeMutableBufferPointer<UInt8>,
@@ -355,10 +356,10 @@ struct ProcessIO {
     }
 }
 
-struct OSFile: Sendable {
+public struct OSFile: Sendable {
     private let fd: Int32
 
-    enum IOAction: Equatable {
+    public enum IOAction: Equatable {
         case eof
         case again
         case success
@@ -366,15 +367,15 @@ struct OSFile: Sendable {
         case error(_ errno: Int32)
     }
 
-    init(fd: Int32) {
+    public init(fd: Int32) {
         self.fd = fd
     }
 
-    init(handle: FileHandle) {
+    public init(handle: FileHandle) {
         self.fd = handle.fileDescriptor
     }
 
-    func makeNonBlocking() throws {
+    public func makeNonBlocking() throws {
         let flags = fcntl(fd, F_GETFL)
         guard flags != -1 else {
             throw POSIXError.fromErrno()
@@ -385,7 +386,7 @@ struct OSFile: Sendable {
         }
     }
 
-    func write(_ buffer: UnsafeMutableBufferPointer<UInt8>) -> (wrote: Int, action: IOAction) {
+    public func write(_ buffer: UnsafeMutableBufferPointer<UInt8>) -> (wrote: Int, action: IOAction) {
         if buffer.count == 0 {
             return (0, .success)
         }
@@ -416,7 +417,7 @@ struct OSFile: Sendable {
         }
     }
 
-    func read(_ buffer: UnsafeMutableBufferPointer<UInt8>) -> (read: Int, action: IOAction) {
+    public func read(_ buffer: UnsafeMutableBufferPointer<UInt8>) -> (read: Int, action: IOAction) {
         if buffer.count == 0 {
             return (0, .success)
         }
