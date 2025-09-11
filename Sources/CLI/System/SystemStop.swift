@@ -23,6 +23,8 @@ import Logging
 
 extension Application {
     public struct SystemStop: AsyncParsableCommand {
+        public init() {}
+        
         private static let stopTimeoutSeconds: Int32 = 5
         private static let shutdownTimeoutSeconds: Int32 = 20
 
