@@ -20,25 +20,27 @@ import ContainerizationError
 import Foundation
 
 extension Application {
-    struct ContainerDelete: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct ContainerDelete: AsyncParsableCommand {
+        public init() {}
+        
+        public static let configuration = CommandConfiguration(
             commandName: "delete",
             abstract: "Delete one or more containers",
             aliases: ["rm"])
 
         @Flag(name: .shortAndLong, help: "Force the removal of one or more running containers")
-        var force = false
+        public var force = false
 
         @Flag(name: .shortAndLong, help: "Remove all containers")
-        var all = false
+        public var all = false
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
         @Argument(help: "Container IDs/names")
-        var containerIDs: [String] = []
+        public var containerIDs: [String] = []
 
-        func validate() throws {
+        public func validate() throws {
             if containerIDs.count == 0 && !all {
                 throw ContainerizationError(.invalidArgument, message: "no containers specified and --all not supplied")
             }
@@ -50,7 +52,7 @@ extension Application {
             }
         }
 
-        mutating func run() async throws {
+        public mutating func run() async throws {
             let set = Set<String>(containerIDs)
             var containers = [ClientContainer]()
 

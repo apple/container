@@ -309,7 +309,7 @@ extension Application {
         print(altered)
     }
 
-    enum ListFormat: String, CaseIterable, ExpressibleByArgument {
+    public enum ListFormat: String, CaseIterable, ExpressibleByArgument {
         case json
         case table
     }

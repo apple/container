@@ -21,31 +21,33 @@ import Foundation
 import TerminalProgress
 
 extension Application {
-    struct ContainerCreate: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct ContainerCreate: AsyncParsableCommand {
+        public init() {}
+        
+        public static let configuration = CommandConfiguration(
             commandName: "create",
             abstract: "Create a new container")
 
         @Argument(help: "Image name")
-        var image: String
+        public var image: String
 
         @Argument(parsing: .captureForPassthrough, help: "Container init process arguments")
-        var arguments: [String] = []
+        public var arguments: [String] = []
 
         @OptionGroup
-        var processFlags: Flags.Process
+        public var processFlags: Flags.Process
 
         @OptionGroup
-        var resourceFlags: Flags.Resource
+        public var resourceFlags: Flags.Resource
 
         @OptionGroup
-        var managementFlags: Flags.Management
+        public var managementFlags: Flags.Management
 
         @OptionGroup
-        var registryFlags: Flags.Registry
+        public var registryFlags: Flags.Registry
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
         public func run() async throws {
             let progressConfig = try ProgressConfig(
