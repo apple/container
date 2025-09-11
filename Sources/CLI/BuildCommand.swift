@@ -133,16 +133,16 @@ extension Application {
 
                 progress.set(description: "Dialing builder")
 
-                let builder: Builder? = try await withThrowingTaskGroup(of: Builder.self) { group in
+                let builder: Builder? = try await withThrowingTaskGroup(of: Builder.self) { [vsockPort, cpus, memory] group in
                     defer {
                         group.cancelAll()
                     }
 
-                    group.addTask {
+                    group.addTask { [vsockPort, cpus, memory] in
                         while true {
                             do {
                                 let container = try await ClientContainer.get(id: "buildkit")
-                                let fh = try await container.dial(self.vsockPort)
+                                let fh = try await container.dial(vsockPort)
 
                                 let threadGroup: MultiThreadedEventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
                                 let b = try Builder(socket: fh, group: threadGroup)
@@ -157,8 +157,8 @@ extension Application {
                                 progress.set(totalTasks: 3)
 
                                 try await BuilderStart.start(
-                                    cpus: self.cpus,
-                                    memory: self.memory,
+                                    cpus: cpus,
+                                    memory: memory,
                                     progressUpdate: progress.handler
                                 )
 
@@ -256,7 +256,7 @@ extension Application {
                         }
                         return results
                     }()
-                    group.addTask { [terminal] in
+                    group.addTask { [terminal, buildArg, contextDir, label, noCache, target, quiet, cacheIn, cacheOut] in
                         let config = ContainerBuild.Builder.BuildConfig(
                             buildID: buildID,
                             contentStore: RemoteContentStoreClient(),

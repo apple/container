@@ -167,13 +167,13 @@ extension Application {
     }
 }
 
-public struct ProcessIO {
+public struct ProcessIO: Sendable {
     let stdin: Pipe?
     let stdout: Pipe?
     let stderr: Pipe?
     var ioTracker: IoTracker?
 
-    struct IoTracker {
+    public struct IoTracker: Sendable{
         let stream: AsyncStream<Void>
         let cont: AsyncStream<Void>.Continuation
         let configuredStreams: Int
