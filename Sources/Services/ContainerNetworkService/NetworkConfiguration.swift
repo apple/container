@@ -45,6 +45,13 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         try validate()
     }
 
+    enum CodingKeys: String, CodingKey {
+        case id
+        case mode
+        case subnet
+        case labels
+    }
+
     /// Create a configuration from the supplied Decoder, initializing missing
     /// values where possible to reasonable defaults.
     public init(from decoder: Decoder) throws {
