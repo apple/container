@@ -38,7 +38,7 @@ extension Application {
 
         func run() async throws {
             let parsedLabels = Utility.parseKeyValuePairs(labels)
-            let config = NetworkConfiguration(id: self.name, mode: .nat, labels: parsedLabels)
+            let config = try NetworkConfiguration(id: self.name, mode: .nat, labels: parsedLabels)
             let state = try await ClientNetwork.create(configuration: config)
             print(state.id)
         }
