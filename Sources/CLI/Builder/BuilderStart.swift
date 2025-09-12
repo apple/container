@@ -27,7 +27,9 @@ import Foundation
 import TerminalProgress
 
 extension Application {
-    struct BuilderStart: AsyncParsableCommand {
+    public struct BuilderStart: AsyncParsableCommand {
+        public init() {}
+        
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
             config.commandName = "start"
@@ -48,7 +50,7 @@ extension Application {
         )
         public var memory: String = "2048MB"
 
-        func run() async throws {
+        public func run() async throws {
             let progressConfig = try ProgressConfig(
                 showTasks: true,
                 showItems: true,

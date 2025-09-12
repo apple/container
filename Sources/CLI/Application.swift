@@ -35,12 +35,13 @@ nonisolated(unsafe) var log = {
     return log
 }()
 
-@main
-struct Application: AsyncParsableCommand {
+public struct Application: AsyncParsableCommand {
     @OptionGroup
-    var global: Flags.Global
+    public var global: Flags.Global
+    
+    public init() {}
 
-    static let configuration = CommandConfiguration(
+    public static let configuration = CommandConfiguration(
         commandName: "container",
         abstract: "A container platform for macOS",
         version: ReleaseVersion.singleLine(appName: "container CLI"),
@@ -126,7 +127,7 @@ struct Application: AsyncParsableCommand {
         }
     }
 
-    static func createPluginLoader() async throws -> PluginLoader {
+    public static func createPluginLoader() async throws -> PluginLoader {
         let installRoot = CommandLine.executablePathUrl
             .deletingLastPathComponent()
             .appendingPathComponent("..")
@@ -170,7 +171,7 @@ struct Application: AsyncParsableCommand {
         )
     }
 
-    static func handleProcess(io: ProcessIO, process: ClientProcess) async throws -> Int32 {
+    public static func handleProcess(io: ProcessIO, process: ClientProcess) async throws -> Int32 {
         let signals = AsyncSignalHandler.create(notify: Application.signalSet)
         return try await withThrowingTaskGroup(of: Int32?.self, returning: Int32.self) { group in
             let waitAdded = group.addTaskUnlessCancelled {
@@ -242,7 +243,7 @@ struct Application: AsyncParsableCommand {
         }
     }
 
-    func validate() throws {
+    public func validate() throws {
         // Not really a "validation", but a cheat to run this before
         // any of the commands do their business.
         let debugEnvVar = ProcessInfo.processInfo.environment["CONTAINER_DEBUG"]
@@ -308,7 +309,7 @@ extension Application {
         print(altered)
     }
 
-    enum ListFormat: String, CaseIterable, ExpressibleByArgument {
+    public enum ListFormat: String, CaseIterable, ExpressibleByArgument {
         case json
         case table
     }

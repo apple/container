@@ -22,25 +22,27 @@ import Foundation
 import SwiftProtobuf
 
 extension Application {
-    struct ContainerList: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct ContainerList: AsyncParsableCommand {
+        public init() {}
+        
+        public static let configuration = CommandConfiguration(
             commandName: "list",
             abstract: "List containers",
             aliases: ["ls"])
 
         @Flag(name: .shortAndLong, help: "Show stopped containers as well")
-        var all = false
+        public var all = false
 
         @Flag(name: .shortAndLong, help: "Only output the container ID")
-        var quiet = false
+        public var quiet = false
 
         @Option(name: .long, help: "Format of the output")
-        var format: ListFormat = .table
+        public var format: ListFormat = .table
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
-        func run() async throws {
+        public func run() async throws {
             let containers = try await ClientContainer.list()
             try printContainers(containers: containers, format: format)
         }

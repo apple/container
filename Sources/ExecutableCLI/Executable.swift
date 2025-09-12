@@ -14,32 +14,29 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+//
+
 import ArgumentParser
+import ContainerCLI
 import ContainerClient
-import Foundation
-import SwiftProtobuf
 
-extension Application {
-    public struct ContainerInspect: AsyncParsableCommand {
-        public init() {}
-        
-        public static let configuration = CommandConfiguration(
-            commandName: "inspect",
-            abstract: "Display information about one or more containers")
+@main
+public struct Executable: AsyncParsableCommand {
+    public init() {}
 
-        @OptionGroup
-        public var global: Flags.Global
+    @OptionGroup
+    var global: Flags.Global
 
-        @Argument(help: "Containers to inspect")
-        public var containers: [String]
+    public static let configuration = Application.configuration
 
-        public func run() async throws {
-            let objects: [any Codable] = try await ClientContainer.list().filter {
-                containers.contains($0.id)
-            }.map {
-                PrintableContainer($0)
-            }
-            print(try objects.jsonArray())
-        }
+    public static func main() async throws {
+        try await Application.main()
+    }
+
+    public func run() async throws {
+        var application = Application()
+        application.global = global
+        try application.validate()
+        try application.run()
     }
 }

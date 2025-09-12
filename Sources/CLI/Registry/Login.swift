@@ -22,24 +22,25 @@ import ContainerizationOCI
 import Foundation
 
 extension Application {
-    struct Login: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct Login: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             abstract: "Login to a registry"
         )
 
         @Option(name: .shortAndLong, help: "Username")
-        var username: String = ""
+        public var username: String = ""
 
         @Flag(help: "Take the password from stdin")
-        var passwordStdin: Bool = false
+        public var passwordStdin: Bool = false
 
         @Argument(help: "Registry server name")
-        var server: String
+        public var server: String
 
         @OptionGroup
-        var registry: Flags.Registry
+        public var registry: Flags.Registry
 
-        func run() async throws {
+        public func run() async throws {
             var username = self.username
             var password = ""
             if passwordStdin {

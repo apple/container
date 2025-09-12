@@ -22,28 +22,30 @@ import Dispatch
 import Foundation
 
 extension Application {
-    struct ContainerLogs: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct ContainerLogs: AsyncParsableCommand {
+        public init() {}
+        
+        public static let configuration = CommandConfiguration(
             commandName: "logs",
             abstract: "Fetch container stdio or boot logs"
         )
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
         @Flag(name: .shortAndLong, help: "Follow log output")
-        var follow: Bool = false
+        public var follow: Bool = false
 
         @Flag(name: .long, help: "Display the boot log for the container instead of stdio")
-        var boot: Bool = false
+        public var boot: Bool = false
 
         @Option(name: [.customShort("n")], help: "Number of lines to show from the end of the logs. If not provided this will print all of the logs")
-        var numLines: Int?
+        public var numLines: Int?
 
         @Argument(help: "Container to fetch logs for")
-        var container: String
+        public var container: String
 
-        func run() async throws {
+        public func run() async throws {
             do {
                 let container = try await ClientContainer.get(id: container)
                 let fhs = try await container.logs()

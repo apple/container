@@ -17,8 +17,10 @@
 import ArgumentParser
 
 extension Application {
-    struct ImageCommand: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct ImageCommand: AsyncParsableCommand {
+        public init() {}
+
+        public static let configuration = CommandConfiguration(
             commandName: "image",
             abstract: "Manage images",
             subcommands: [

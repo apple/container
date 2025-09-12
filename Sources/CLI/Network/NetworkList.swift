@@ -22,31 +22,32 @@ import Foundation
 import SwiftProtobuf
 
 extension Application {
-    struct NetworkList: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct NetworkList: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "list",
             abstract: "List networks",
             aliases: ["ls"])
 
         @Flag(name: .shortAndLong, help: "Only output the network name")
-        var quiet = false
+        public var quiet = false
 
         @Option(name: .long, help: "Format of the output")
-        var format: ListFormat = .table
+        public var format: ListFormat = .table
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
-        func run() async throws {
+        public func run() async throws {
             let networks = try await ClientNetwork.list()
             try printNetworks(networks: networks, format: format)
         }
 
-        private func createHeader() -> [[String]] {
+        public func createHeader() -> [[String]] {
             [["NETWORK", "STATE", "SUBNET"]]
         }
 
-        private func printNetworks(networks: [NetworkState], format: ListFormat) throws {
+        public func printNetworks(networks: [NetworkState], format: ListFormat) throws {
             if format == .json {
                 let printables = networks.map {
                     PrintableNetwork($0)
@@ -76,7 +77,7 @@ extension Application {
 }
 
 extension NetworkState {
-    var asRow: [String] {
+    public var asRow: [String] {
         switch self {
         case .created(_):
             return [self.id, self.state, "none"]
@@ -86,13 +87,13 @@ extension NetworkState {
     }
 }
 
-struct PrintableNetwork: Codable {
-    let id: String
-    let state: String
-    let config: NetworkConfiguration
-    let status: NetworkStatus?
+public struct PrintableNetwork: Codable {
+    public let id: String
+    public let state: String
+    public let config: NetworkConfiguration
+    public let status: NetworkStatus?
 
-    init(_ network: NetworkState) {
+    public init(_ network: NetworkState) {
         self.id = network.id
         self.state = network.state
         switch network {

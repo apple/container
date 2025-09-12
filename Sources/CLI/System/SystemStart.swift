@@ -23,8 +23,9 @@ import Foundation
 import TerminalProgress
 
 extension Application {
-    struct SystemStart: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct SystemStart: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "start",
             abstract: "Start `container` services"
         )
@@ -33,7 +34,7 @@ extension Application {
             name: .shortAndLong,
             help: "Application data directory",
             transform: { URL(filePath: $0) })
-        var appRoot = ApplicationRoot.defaultURL
+        public var appRoot = ApplicationRoot.defaultURL
 
         @Option(
             name: .long,
@@ -42,14 +43,14 @@ extension Application {
         public var installRoot = InstallRoot.defaultURL
 
         @Flag(name: .long, help: "Enable debug logging for the runtime daemon.")
-        var debug = false
+        public var debug = false
 
         @Flag(
             name: .long, inversion: .prefixedEnableDisable,
             help: "Specify whether the default kernel should be installed or not. The default behavior is to prompt the user for a response.")
-        var kernelInstall: Bool?
+        public var kernelInstall: Bool?
 
-        func run() async throws {
+        public func run() async throws {
             // Without the true path to the binary in the plist, `container-apiserver` won't launch properly.
             // TODO: Use plugin loader for API server.
             let executableUrl = CommandLine.executablePathUrl

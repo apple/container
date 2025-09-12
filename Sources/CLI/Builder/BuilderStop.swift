@@ -20,7 +20,9 @@ import ContainerizationError
 import Foundation
 
 extension Application {
-    struct BuilderStop: AsyncParsableCommand {
+    public struct BuilderStop: AsyncParsableCommand {
+        public init() {}
+        
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
             config.commandName = "stop"
@@ -31,7 +33,7 @@ extension Application {
             return config
         }
 
-        func run() async throws {
+        public func run() async throws {
             do {
                 let container = try await ClientContainer.get(id: "buildkit")
                 try await container.stop()
