@@ -97,18 +97,19 @@ actor NetworksService {
 
     /// Create a new network from the provided configuration.
     public func create(configuration: NetworkConfiguration) async throws -> NetworkState {
+        log.info(
+            "network service: create",
+            metadata: [
+                "id": "\(configuration.id)"
+            ])
+
+        // Ensure nobody is manipulating the network already.
         guard !busyNetworks.contains(configuration.id) else {
             throw ContainerizationError(.exists, message: "network \(configuration.id) has a pending operation")
         }
 
         busyNetworks.insert(configuration.id)
         defer { busyNetworks.remove(configuration.id) }
-
-        log.info(
-            "network service: create",
-            metadata: [
-                "id": "\(configuration.id)"
-            ])
 
         // Ensure the network doesn't already exist.
         guard networkStates[configuration.id] == nil else {
@@ -118,7 +119,14 @@ actor NetworksService {
         // Create and start the network.
         try await registerService(configuration: configuration)
         let client = NetworkClient(id: configuration.id)
-        let networkState = try await client.state()
+
+        // Ensure the network is running, and set up the persistent network state
+        // using our configuration data, as the one from the helper doesn't include
+        // metadata.
+        guard case .running(_, let status) = try await client.state() else {
+            throw ContainerizationError(.invalidState, message: "network \(configuration.id) failed to start")
+        }
+        let networkState: NetworkState = .running(configuration, status)
         networkStates[configuration.id] = networkState
 
         // Persist the configuration data.

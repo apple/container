@@ -29,6 +29,7 @@ class CLITest {
         let reference: String
     }
 
+    // These structs need to track their counterpart presentation structs in CLI.
     struct ImageInspectOutput: Codable {
         let name: String
         let variants: [variant]
@@ -39,6 +40,13 @@ class CLITest {
                 let architecture: String
             }
         }
+    }
+
+    struct NetworkInspectOutput: Codable {
+        let id: String
+        let state: String
+        let config: NetworkConfiguration
+        let status: NetworkStatus?
     }
 
     init() throws {}

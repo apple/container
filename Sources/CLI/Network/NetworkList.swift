@@ -28,14 +28,14 @@ extension Application {
             abstract: "List networks",
             aliases: ["ls"])
 
+        @OptionGroup
+        var global: Flags.Global
+
         @Flag(name: .shortAndLong, help: "Only output the network name")
         var quiet = false
 
         @Option(name: .long, help: "Format of the output")
         var format: ListFormat = .table
-
-        @OptionGroup
-        var global: Flags.Global
 
         func run() async throws {
             let networks = try await ClientNetwork.list()

@@ -27,11 +27,11 @@ extension Application {
             abstract: "Delete one or more networks",
             aliases: ["rm"])
 
-        @Flag(name: .shortAndLong, help: "Remove all networks")
-        var all = false
-
         @OptionGroup
         var global: Flags.Global
+
+        @Flag(name: .shortAndLong, help: "Remove all networks")
+        var all = false
 
         @Argument(help: "Network names")
         var networkNames: [String] = []

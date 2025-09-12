@@ -465,10 +465,13 @@ Creates a new network with the given name.
 **Usage**
 
 ```bash
-container network create NAME
+container network create NAME [OPTIONS]
 ```
 
-No additional flags; uses global options for debugging, version, and help.
+**Options**
+
+*   `--label <key=value>`: set metadata labels on the network
+*   **Global**: `--version`, `-h`/`--help`
 
 ### `container network delete (rm)`
 
@@ -530,8 +533,8 @@ container volume create [OPTIONS] NAME
 **Options**
 
 *   `-s <size>`: size of the volume (default: 512GB). Examples: `1G`, `512MB`, `2T`
-*   `--opt <key=value>`: set driver-specific options (repeatable)
-*   `--label <key=value>`: set metadata labels on the volume (repeatable)
+*   `--opt <key=value>`: set driver-specific options
+*   `--label <key=value>`: set metadata labels on the volume
 *   **Global**: `--version`, `-h`/`--help`
 
 ### `container volume delete (rm)`

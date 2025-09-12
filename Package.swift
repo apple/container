@@ -159,6 +159,12 @@ let package = Package(
             ],
             path: "Sources/Services/ContainerNetworkService"
         ),
+        .testTarget(
+            name: "ContainerNetworkServiceTests",
+            dependencies: [
+                "ContainerNetworkService"
+            ]
+        ),
         .executableTarget(
             name: "container-core-images",
             dependencies: [
