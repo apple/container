@@ -35,4 +35,6 @@ public enum SandboxRoutes: String {
     case exec = "com.apple.container.sandbox/exec"
     /// Dial a vsock port in the sandbox.
     case dial = "com.apple.container.sandbox/dial"
+    /// Shutdown the sandbox service process.
+    case shutdown = "com.apple.container.sandbox/shutdown"
 }

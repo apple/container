@@ -83,6 +83,7 @@ struct RuntimeLinuxHelper: AsyncParsableCommand {
                     SandboxRoutes.wait.rawValue: server.wait,
                     SandboxRoutes.start.rawValue: server.startProcess,
                     SandboxRoutes.dial.rawValue: server.dial,
+                    SandboxRoutes.shutdown.rawValue: server.shutdown,
                 ],
                 log: log
             )

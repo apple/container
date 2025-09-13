@@ -122,7 +122,11 @@ actor ContainersService {
             throw ContainerizationError(.exists, message: "hostname(s) already exist: \(conflictingHostnames)")
         }
 
-        self.containers[configuration.id] = ContainerSnapshot(configuration: configuration, status: .stopped, networks: [])
+        self.containers[configuration.id] = ContainerSnapshot(
+            configuration: configuration,
+            status: .stopped,
+            networks: []
+        )
 
         let runtimePlugin = self.runtimePlugins.filter {
             $0.name == configuration.runtimeHandler
@@ -207,36 +211,63 @@ actor ContainersService {
     /// Delete a container and its resources.
     public func delete(id: String, force: Bool) async throws {
         self.log.debug("\(#function)")
-        let item = try self._get(id: id)
-        switch item.status {
-        case .running:
-            if !force {
+
+        try await lock.withLock { context in
+            let item = try await self.get(id: id, context: context)
+            switch item.status {
+            case .running:
+                let autoRemove = try await self.getContainerCreationOptions(id: id).autoRemove
+                // Check the state from the sb services point of view.
+                let client = SandboxClient(
+                    id: item.configuration.id,
+                    runtime: item.configuration.runtimeHandler
+                )
+                let ctrState = try await client.state()
+                // Someone asked to delete a container before the process exited XPC event
+                // came through. The sandbox process says the container is dead, but our
+                // state here isn't updated yet. We are perfectly fine to delete the container,
+                // so let's update our state and do just that.
+                if ctrState.status == .stopped {
+                    let snapshot = ContainerSnapshot(
+                        configuration: item.configuration,
+                        status: .stopped,
+                        networks: []
+                    )
+                    await self.setContainer(id, snapshot, context: context)
+                    if !autoRemove {
+                        try await self.cleanup(id: id, item: item, context: context)
+                    }
+                    return
+                }
+
+                if !force {
+                    throw ContainerizationError(
+                        .invalidState,
+                        message: "container \(id) is running and can not be deleted"
+                    )
+                }
+
+                let opts = ContainerStopOptions(
+                    timeoutInSeconds: 5,
+                    signal: SIGKILL
+                )
+                try await self._stop(
+                    id: id,
+                    runtimeHandler: item.configuration.runtimeHandler,
+                    options: opts
+                )
+                if autoRemove {
+                    return
+                }
+                try await self.cleanup(id: id, item: item, context: context)
+            case .stopped:
+                try await self.cleanup(id: id, item: item, context: context)
+            default:
                 throw ContainerizationError(
                     .invalidState,
-                    message: "container \(id) is \(item.status) and can not be deleted"
+                    message: "container \(id) is in state \(item.status) and can not be deleted"
                 )
             }
-            let autoRemove = try getContainerCreationOptions(id: id).autoRemove
-            let opts = ContainerStopOptions(
-                timeoutInSeconds: 5,
-                signal: SIGKILL
-            )
-            try await self._stop(
-                id: id,
-                runtimeHandler: item.configuration.runtimeHandler,
-                options: opts
-            )
-            if autoRemove {
-                return
-            }
-            try self._cleanup(id: id, item: item)
-        case .stopping:
-            throw ContainerizationError(
-                .invalidState,
-                message: "container \(id) is \(item.status) and can not be deleted"
-            )
-        default:
-            try self._cleanup(id: id, item: item)
         }
     }
 
@@ -284,6 +315,21 @@ actor ContainersService {
             let snapshot = ContainerSnapshot(configuration: item.configuration, status: .stopped, networks: [])
             await self.setContainer(id, snapshot, context: context)
 
+            do {
+                let client = SandboxClient(
+                    id: item.configuration.id,
+                    runtime: item.configuration.runtimeHandler
+                )
+                try await client.shutdown()
+            } catch {
+                self.log.error(
+                    "Failed to shut down SandboxService after process exit",
+                    metadata: [
+                        "id": .string(id),
+                        "error": .string(String(describing: error)),
+                    ])
+            }
+
             let options = try getContainerCreationOptions(id: id)
             if options.autoRemove {
                 try self.cleanup(id: id, item: item, context: context)
@@ -303,7 +349,10 @@ actor ContainersService {
         self.log.info("Handling container \(id) Start.")
         do {
             let currentSnapshot = try self.get(id: id, context: context)
-            let client = SandboxClient(id: currentSnapshot.configuration.id, runtime: currentSnapshot.configuration.runtimeHandler)
+            let client = SandboxClient(
+                id: currentSnapshot.configuration.id,
+                runtime: currentSnapshot.configuration.runtimeHandler
+            )
             let sandboxSnapshot = try await client.state()
             let snapshot = ContainerSnapshot(configuration: currentSnapshot.configuration, status: .running, networks: sandboxSnapshot.networks)
             await self.setContainer(id, snapshot, context: context)

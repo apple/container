@@ -56,7 +56,10 @@ extension XPCClient {
                 group.addTask {
                     try await Task.sleep(for: responseTimeout)
                     let route = message.string(key: XPCMessage.routeKey) ?? "nil"
-                    throw ContainerizationError(.internalError, message: "XPC timeout for request to \(self.service)/\(route)")
+                    throw ContainerizationError(
+                        .internalError,
+                        message: "XPC timeout for request to \(self.service)/\(route)"
+                    )
                 }
             }
 
