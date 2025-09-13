@@ -156,7 +156,6 @@ import Testing
 
         let run = stage.nodes[0].operation as! ExecOperation
         #expect(run.command.displayString == "build.sh --verbose")
-
     }
 
     @Test func testSimpleDockerfileLabel() throws {
@@ -321,6 +320,10 @@ import Testing
 
             ARG VAR1=world
             ARG VAR2=hello-${VAR1}
+
+            ARG ADDSRC="source1"
+            ARG ADDDEST="dest2"
+            ADD $ADDSRC $ADDDEST
             """#
         let parser = DockerfileParser()
         let graph = try parser.parse(dockerfile)
@@ -391,6 +394,49 @@ import Testing
 
         #expect(getStageArg(stage, name: "VAR1") == "world")
         #expect(getStageArg(stage, name: "VAR2") == "hello-world")
+
+        if let add = stage.nodes[15].operation as? FilesystemOperation {
+            #expect(add.action == .add)
+            switch add.source {
+            case .context(let contextSource):
+                #expect(contextSource.paths.count == 1)
+                #expect(contextSource.paths[0] == "source1")
+            default:
+                #expect(Bool(false), "Expected context source")
+            }
+            #expect(add.destination == "dest2")
+        } else {
+            #expect(Bool(false), "Expected ADD instruction")
+        }
+    }
+
+    @Test func testSimpleDockerfileAdd() throws {
+        let dockerfile =
+            """
+            FROM alpine AS build
+
+            ADD --checksum=sha256:123456789123456789123456789 https://github.com/apple/containerization/archive/refs/tags/0.5.0.tar.gz containerizationFromRemoteTar
+
+            ADD --keep-git-dir=true https://github.com/apple/containerization.git#0.5.0 containerization
+            """
+
+        let parser = DockerfileParser()
+        let actualGraph = try parser.parse(dockerfile)
+
+        #expect(!actualGraph.stages.isEmpty)
+        let stage = actualGraph.stages[0]
+
+        let fileOp1 = stage.nodes[0].operation as! FilesystemOperation
+        #expect(fileOp1.action == FilesystemAction.add)
+        #expect(
+            fileOp1.source
+                == FilesystemSource.remote([
+                    RemoteSource(url: URL(string: "https://github.com/apple/containerization/archive/refs/tags/0.5.0.tar.gz")!, checksum: "sha256:123456789123456789123456789")
+                ]))
+
+        let fileOp2 = stage.nodes[1].operation as! FilesystemOperation
+        #expect(fileOp2.action == FilesystemAction.add)
+        #expect(fileOp2.source == FilesystemSource.git([GitSource(repository: "https://github.com/apple/containerization.git", reference: "0.5.0", keepGitDir: true)]))
     }
 }
 
@@ -931,27 +977,27 @@ extension ParserTest {
 
     @Test("Expected parsing of chown options", arguments: copyOwnershipTests)
     func testCopyParseOwnership(_ testcase: CopyOwnershipTest) throws {
-        let actual = try CopyInstruction.parseOwnership(input: testcase.rawOwnership)
+        let actual = try parseOwnership(input: testcase.rawOwnership)
         #expect(actual == testcase.expectedOwnership)
     }
 
     @Test func testCopyParseOwnershipInvalid() throws {
         let rawInput = "myuser:mygroup:extra"
         #expect(throws: ParseError.self) {
-            let _ = try CopyInstruction.parseOwnership(input: rawInput)
+            let _ = try parseOwnership(input: rawInput)
         }
     }
 
     @Test func testCopyParsePermissions() throws {
         let rawPermission = "777"
-        let actual = try CopyInstruction.parsePermissions(input: rawPermission)
+        let actual = try parsePermissions(input: rawPermission)
         #expect(actual == .mode(777))
     }
 
     @Test func testCopyParsePermissionsInvalid() throws {
         let rawPermission = "u+x"
         #expect(throws: ParseError.self) {
-            let _ = try CopyInstruction.parsePermissions(input: rawPermission)
+            let _ = try parsePermissions(input: rawPermission)
         }
     }
 
@@ -1126,6 +1172,81 @@ extension ParserTest {
 
         #expect(throws: ParseError.self) {
             try parser.parse(dockerfile)
+        }
+    }
+
+    struct ResolveSourcesAddTest {
+        let sources: [String]
+        let expected: FilesystemSource
+    }
+
+    static let resolveSourcesAddTests = [
+        ResolveSourcesAddTest(
+            sources: ["src1", "src2"],  // local
+            expected: FilesystemSource.context(ContextSource(paths: ["src1", "src2"]))
+        ),
+        ResolveSourcesAddTest(
+            sources: ["https://github.com"],  // single remote
+            expected: FilesystemSource.remote([RemoteSource(url: URL(string: "https://github.com")!)])
+        ),
+        ResolveSourcesAddTest(
+            sources: ["https://github.com", "http://google.com"],  // multi remote
+            expected: FilesystemSource.remote([
+                RemoteSource(url: URL(string: "https://github.com")!),
+                RemoteSource(url: URL(string: "http://google.com")!),
+            ])
+        ),
+        ResolveSourcesAddTest(
+            sources: ["https://github.com/apple/containerization.git#0.5.0"],  // single https git
+            expected: FilesystemSource.git([
+                GitSource(repository: "https://github.com/apple/containerization.git", reference: "0.5.0", keepGitDir: false)
+            ])
+        ),
+        ResolveSourcesAddTest(
+            sources: ["https://github.com/apple/container.git", "https://github.com/apple/containerization.git"],  // multi https git
+            expected: FilesystemSource.git([
+                GitSource(repository: "https://github.com/apple/container.git", keepGitDir: false),
+                GitSource(repository: "https://github.com/apple/containerization.git", keepGitDir: false),
+            ])
+        ),
+        ResolveSourcesAddTest(
+            sources: ["git@github.com:apple/containerization.git"],  // ssh git
+            expected: FilesystemSource.git([
+                GitSource(repository: "git@github.com:apple/containerization.git", keepGitDir: false)
+            ])
+        ),
+        ResolveSourcesAddTest(
+            sources: ["git@github.com:apple/containerization.git", "git@github.com:apple/container-builder-shim.git#0.4.0"],  // multiple ssh git
+            expected: FilesystemSource.git([
+                GitSource(repository: "git@github.com:apple/containerization.git", keepGitDir: false),
+                GitSource(repository: "git@github.com:apple/container-builder-shim.git", reference: "0.4.0", keepGitDir: false),
+            ])
+        ),
+    ]
+
+    @Test("Add instruction parses correct type of source", arguments: resolveSourcesAddTests)
+    func testResolveSourcesAdd(_ testCase: ResolveSourcesAddTest) throws {
+        let actual = try AddInstruction.resolveSources(sources: testCase.sources, checksum: nil)
+        #expect(actual == testCase.expected)
+    }
+
+    @Test func testResolveSourcesAddInvalid() throws {
+        let invalidAdds: [AddInstruction] = [
+            // invalid when checksum with ssh git source
+            try AddInstruction(sources: ["git@github.com:apple/containerization.git"], destination: "dummy", checksum: "sha256:123456789123456789123456789"),
+
+            // invalid when checksum with local context source
+            try AddInstruction(sources: ["Tests/NativeBuilderTests"], destination: "dummy", checksum: "sha256:12378102370123710823701273"),
+
+            // invalid when not a git source but keepGitDir is set
+            try AddInstruction(sources: ["Tests/NativeBuilderTests"], destination: "dummy", keepGitDir: true),
+            try AddInstruction(sources: ["https://github.com"], destination: "dummy", keepGitDir: false),
+        ]
+
+        for add in invalidAdds {
+            #expect(throws: ParseError.self) {
+                let _ = try AddInstruction.resolveSources(sources: add.sources, checksum: add.checksum, keepGitDir: add.keepGitDir)
+            }
         }
     }
 }

@@ -132,10 +132,15 @@ extension ReportContext {
             return "\(prefix):\(paths.joined(separator: " "))"
         case .image(let ref, let paths):
             return "\(ref.stringValue):\(paths.joined(separator: " "))"
-        case .url(let url):
-            return url.absoluteString
-        case .git(let src):
-            return src.repository
+        case .remote(let remotes):
+            return remotes.map(\.url.absoluteString).joined(separator: " ")
+        case .git(let git):
+            return git.map { source in
+                guard let reference = source.reference else {
+                    return source.repository
+                }
+                return source.repository + "#\(reference)"
+            }.joined(separator: " ")
         case .inline(_):
             return "<inline>"
         case .scratch:

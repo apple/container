@@ -36,7 +36,7 @@ struct CopyInstruction: DockerInstruction {
         from: String? = nil,
         ownership: Ownership = Ownership(user: .numeric(id: 0), group: .numeric(id: 0)),
         permissions: Permissions? = nil
-    ) throws {
+    ) {
         self.sources = sources
         self.destination = destination
         self.from = from
@@ -61,52 +61,52 @@ struct CopyInstruction: DockerInstruction {
         self.sources = sources
         self.destination = destination
         self.from = from
-        self.chown = try CopyInstruction.parseOwnership(input: ownership)
-        self.chmod = try CopyInstruction.parsePermissions(input: permissions)
-    }
-
-    static internal func parseOwnership(input: String?) throws -> Ownership? {
-        guard let input = input, !input.isEmpty else {
-            return Ownership(user: .numeric(id: 0), group: .numeric(id: 0))
-        }
-        var user: OwnershipID? = nil
-        var group: OwnershipID? = nil
-
-        let components = input.components(separatedBy: ":")
-        guard components.count <= 2 else {
-            throw ParseError.invalidOption(input)
-        }
-        user = parseID(id: components[0])
-        if components.count == 2 {
-            group = parseID(id: components[1])
-        }
-        if user == nil && group == nil {
-            throw ParseError.invalidOption(input)
-        }
-        return Ownership(user: user, group: group)
-    }
-
-    static private func parseID(id: String) -> OwnershipID? {
-        if id == "" {
-            return nil
-        }
-        if let numberID = UInt32(id) {
-            return .numeric(id: numberID)
-        }
-        return .named(id: id)
-    }
-
-    static internal func parsePermissions(input: String?) throws -> Permissions? {
-        guard let input = input else {
-            return nil
-        }
-        guard let mode = UInt32(input) else {
-            throw ParseError.invalidUint32Option(input)
-        }
-        return Permissions.mode(mode)
+        self.chown = try parseOwnership(input: ownership)
+        self.chmod = try parsePermissions(input: permissions)
     }
 
     func accept(_ visitor: DockerInstructionVisitor) throws {
         try visitor.visit(self)
     }
+}
+
+internal func parseOwnership(input: String?) throws -> Ownership? {
+    guard let input = input, !input.isEmpty else {
+        return Ownership(user: .numeric(id: 0), group: .numeric(id: 0))
+    }
+    var user: OwnershipID? = nil
+    var group: OwnershipID? = nil
+
+    let components = input.components(separatedBy: ":")
+    guard components.count <= 2 else {
+        throw ParseError.invalidOption(input)
+    }
+    user = parseID(id: components[0])
+    if components.count == 2 {
+        group = parseID(id: components[1])
+    }
+    if user == nil && group == nil {
+        throw ParseError.invalidOption(input)
+    }
+    return Ownership(user: user, group: group)
+}
+
+private func parseID(id: String) -> OwnershipID? {
+    if id == "" {
+        return nil
+    }
+    if let numberID = UInt32(id) {
+        return .numeric(id: numberID)
+    }
+    return .named(id: id)
+}
+
+internal func parsePermissions(input: String?) throws -> Permissions? {
+    guard let input = input else {
+        return nil
+    }
+    guard let mode = UInt32(input) else {
+        throw ParseError.invalidUint32Option(input)
+    }
+    return Permissions.mode(mode)
 }
