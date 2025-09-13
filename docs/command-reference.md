@@ -607,16 +607,6 @@ container registry logout SERVER
 
 Only `--version` and `-h`/`--help` are available.
 
-### `container registry default` commands
-
-The `registry default` group allows setting, unsetting, and inspecting the default registry used when no registry is specified on image references.
-
-*   `container registry default set [OPTIONS] HOST`: Set the default registry.
-    *   `--scheme <scheme>`: registry scheme. One of (`http`, `https`, `auto`) (default: `auto`)
-    *   **Global**: `--debug`, `--version`, `-h`/`--help`
-*   `container registry default unset (clear)`: Clears the default registry configuration.
-*   `container registry default inspect`: Displays the current default registry, if any.
-
 ## System Management
 
 System commands manage the container apiserver, logs, DNS settings and kernel. These are only available on macOS hosts.
@@ -722,14 +712,6 @@ container system dns list
 
 No options.
 
-### `container system dns default` commands
-
-Manage the default local DNS domain used by other commands.
-
-*   `container system dns default set NAME`: Set the default DNS domain used by `create`/`run`.
-*   `container system dns default unset (clear)`: Unset the default DNS domain.
-*   `container system dns default inspect`: Display the current default DNS domain.
-
 ### `container system kernel set`
 
 Installs or updates the Linux kernel used by the container runtime on macOS hosts.
@@ -748,4 +730,124 @@ container system kernel set [OPTIONS]
 *   `--recommended`: Download and install the recommended default kernel for your host
 *   **Global**: `--debug`, `--version`, `-h`/`--help`
 
-***
+### `container system property list (ls)`
+
+Lists all available system properties with their current values, types, and descriptions. Output can be formatted as a table or JSON.
+
+**Usage**
+
+```bash
+container system property list [OPTIONS]
+```
+
+**Options**
+
+*   `-q, --quiet`: Only output the property IDs
+*   `--format <format>`: Format of the output (values: `json`, `table`; default: `table`)
+*   **Global**: `--debug`, `--version`, `-h`/`--help`
+
+**Examples**
+
+```bash
+# list all properties in table format
+container system property list
+
+# get only property IDs
+container system property list --quiet
+
+# output as JSON for scripting
+container system property list --format json
+```
+
+### `container system property get`
+
+Retrieves the current value of a specific system property by its ID.
+
+**Usage**
+
+```bash
+container system property get PROPERTY_ID
+```
+
+**Arguments**
+
+*   `PROPERTY_ID`: The ID of the property to retrieve (use `property list` to see available IDs)
+
+**Global flags**: `--debug`, `--version`, `-h`/`--help`
+
+**Examples**
+
+```bash
+# get the default registry domain
+container system property get registry.domain
+
+# get the current DNS domain setting
+container system property get dns.domain
+```
+
+### `container system property set`
+
+Sets the value of a system property. The command validates the value based on the property type (boolean, domain name, image reference, URL, or CIDR address).
+
+**Usage**
+
+```bash
+container system property set PROPERTY_ID VALUE
+```
+
+**Arguments**
+
+*   `PROPERTY_ID`: The ID of the property to set
+*   `VALUE`: The new value for the property
+
+**Property Types and Validation**
+
+*   **Boolean properties** (`build.rosetta`): Accepts `true`, `t`, `false`, `f` (case-insensitive)
+*   **Domain properties** (`dns.domain`, `registry.domain`): Must be valid domain names
+*   **Image properties** (`image.builder`, `image.init`): Must be valid OCI image references
+*   **URL properties** (`kernel.url`): Must be valid URLs
+*   **Network properties** (`network.subnet`): Must be valid CIDR addresses
+*   **Path properties** (`kernel.binaryPath`): Accept any string value
+
+**Global flags**: `--debug`, `--version`, `-h`/`--help`
+
+**Examples**
+
+```bash
+# enable Rosetta for AMD64 builds on ARM64
+container system property set build.rosetta true
+
+# set a custom DNS domain
+container system property set dns.domain mycompany.local
+
+# configure a custom registry
+container system property set registry.domain registry.example.com
+
+# set a custom builder image
+container system property set image.builder myregistry.com/custom-builder:latest
+```
+
+### `container system property clear`
+
+Clears (unsets) a system property, reverting it to its default value.
+
+**Usage**
+
+```bash
+container system property clear PROPERTY_ID
+```
+
+**Arguments**
+
+*   `PROPERTY_ID`: The ID of the property to clear
+
+**Global flags**: `--debug`, `--version`, `-h`/`--help`
+
+**Examples**
+
+```bash
+# clear custom DNS domain (revert to default)
+container system property clear dns.domain
+
+# clear custom registry setting
+container system property clear registry.domain
