@@ -15,22 +15,30 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerClient
+import ContainerPersistence
+import ContainerizationError
+import Foundation
 
 extension Application {
-    struct SystemCommand: AsyncParsableCommand {
+    struct PropertyClear: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
-            commandName: "system",
-            abstract: "Manage system components",
-            subcommands: [
-                SystemDNS.self,
-                SystemKernel.self,
-                SystemLogs.self,
-                SystemProperty.self,
-                SystemStart.self,
-                SystemStatus.self,
-                SystemStop.self,
-            ],
-            aliases: ["s"]
+            commandName: "clear",
+            abstract: "Clear a property value"
         )
+
+        @OptionGroup
+        var global: Flags.Global
+
+        @Argument(help: "the property ID")
+        var id: String
+
+        func run() async throws {
+            guard let key = DefaultsStore.Keys(rawValue: id) else {
+                throw ContainerizationError(.invalidArgument, message: "invalid property ID: \(id)")
+            }
+
+            DefaultsStore.unset(key: key)
+        }
     }
 }

@@ -24,7 +24,6 @@ extension Application {
             subcommands: [
                 Login.self,
                 Logout.self,
-                RegistryDefault.self,
             ],
             aliases: ["r"]
         )

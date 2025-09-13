@@ -15,22 +15,21 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerPersistence
+import ContainerizationError
+import Foundation
 
 extension Application {
-    struct SystemCommand: AsyncParsableCommand {
+    struct SystemProperty: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
-            commandName: "system",
-            abstract: "Manage system components",
+            commandName: "property",
+            abstract: "Manage system property values",
             subcommands: [
-                SystemDNS.self,
-                SystemKernel.self,
-                SystemLogs.self,
-                SystemProperty.self,
-                SystemStart.self,
-                SystemStatus.self,
-                SystemStop.self,
-            ],
-            aliases: ["s"]
+                PropertyClear.self,
+                PropertyGet.self,
+                PropertyList.self,
+                PropertySet.self,
+            ]
         )
     }
 }

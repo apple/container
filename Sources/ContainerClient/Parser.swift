@@ -640,4 +640,32 @@ public struct Parser {
                     "invalid publish-socket format \(socketText). Expected: host_path:container_path")
         }
     }
+
+    // MARK: DNS
+
+    public static func isValidDomainName(_ name: String) -> Bool {
+        guard !name.isEmpty && name.count <= 255 else {
+            return false
+        }
+        return name.components(separatedBy: ".").allSatisfy { Self.isValidDomainNameLabel($0) }
+    }
+
+    public static func isValidDomainNameLabel(_ label: String) -> Bool {
+        guard !label.isEmpty && label.count <= 63 else {
+            return false
+        }
+        let pattern = #/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/#
+        return !label.ranges(of: pattern).isEmpty
+    }
+
+    // MARK: Miscellaneous
+
+    public static func parseBool(string: String) -> Bool? {
+        let lower = string.lowercased()
+        switch lower {
+        case "true", "t": return true
+        case "false", "f": return false
+        default: return nil
+        }
+    }
 }
