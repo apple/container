@@ -358,18 +358,30 @@ container run --name nested-virtualization --virtualization --kernel /path/to/a/
 [    0.017893] kvm [1]: Hyp mode initialized successfully
 ```
 
-## Configure container defaults
+## Configure system properties
 
-`container` uses macOS user defaults to store configuration settings that persist between sessions. You can customize various aspects of container behavior, including build settings, default images, and network configuration.
+The `container system property` subcommand manages the configuration settings for the `container` CLI and services. You can customize various aspects of container behavior, including build settings, default images, and network configuration.
 
-For a complete list of available configuration options and detailed usage instructions, see the [user defaults documentation](user-defaults.md).
+Use `container system property list` to show information for all available properties:
+
+```console
+% bin/container system property ls
+ID                 TYPE    VALUE                                     DESCRIPTION
+build.rosetta      Bool    true                                      Build amd64 images on arm64 using Rosetta, instead of QEMU.
+dns.domain         String  *undefined*                               If defined, the local DNS domain to use for containers with unqualified names.
+image.builder      String  ghcr.io/apple/container-builder-shim/...  The image reference for the utility container that `container build` uses.
+image.init         String  ghcr.io/apple/containerization/vminit...  The image reference for the default initial filesystem image.
+kernel.binaryPath  String  opt/kata/share/kata-containers/vmlinu...  If the kernel URL is for an archive, the archive member pathname for the kernel file.
+kernel.url         String  https://github.com/kata-containers/ka...  The URL for the kernel file to install, or the URL for an archive containing the kernel file.
+network.subnet     String  *undefined*                               Default subnet for IP allocation (used on macOS 15 only).
+```
 
 ### Example: Disable Rosetta for builds
 
 If you want to prevent the use of Rosetta translation during container builds on Apple Silicon Macs:
 
 ```bash
-defaults write com.apple.container.defaults build.rosetta -bool false
+container system property set build.rosetta false
 ```
 
 This is useful when you want to ensure builds only produce native arm64 images and avoid any x86_64 emulation.

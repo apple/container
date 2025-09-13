@@ -225,4 +225,45 @@ struct ParserTest {
             return error.description.contains("path") && error.description.contains("is not a directory")
         }
     }
+
+    @Test
+    func testIsValidDomainNameOk() throws {
+        let names = [
+            "a",
+            "a.b",
+            "foo.bar",
+            "F-O.B-R",
+            [
+                String(repeating: "0", count: 63),
+                String(repeating: "1", count: 63),
+                String(repeating: "2", count: 63),
+                String(repeating: "3", count: 63),
+            ].joined(separator: "."),
+        ]
+        for name in names {
+            #expect(Parser.isValidDomainName(name))
+        }
+    }
+
+    @Test
+    func testIsValidDomainNameBad() throws {
+        let names = [
+            ".foo",
+            "foo.",
+            ".foo.bar",
+            "foo.bar.",
+            "-foo.bar",
+            "foo.bar-",
+            [
+                String(repeating: "0", count: 63),
+                String(repeating: "1", count: 63),
+                String(repeating: "2", count: 63),
+                String(repeating: "3", count: 62),
+                "4",
+            ].joined(separator: "."),
+        ]
+        for name in names {
+            #expect(!Parser.isValidDomainName(name))
+        }
+    }
 }
