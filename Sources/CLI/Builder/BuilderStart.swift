@@ -41,16 +41,16 @@ extension Application {
         }
 
         @Option(name: [.customLong("cpus"), .customShort("c")], help: "Number of CPUs to allocate to the container")
-        public var cpus: Int64 = 2
+        var cpus: Int64 = 2
 
         @Option(
             name: [.customLong("memory"), .customShort("m")],
             help:
                 "Amount of memory in bytes, kilobytes (K), megabytes (M), or gigabytes (G) for the container, with MB granularity (for example, 1024K will result in 1MB being allocated for the container)"
         )
-        public var memory: String = "2048MB"
+        var memory: String = "2048MB"
 
-        public func run() async throws {
+        func run() async throws {
             let progressConfig = try ProgressConfig(
                 showTasks: true,
                 showItems: true,

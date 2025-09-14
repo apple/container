@@ -29,15 +29,15 @@ extension Application {
             aliases: ["rm"])
 
         @Flag(name: .shortAndLong, help: "Remove all networks")
-        public var all = false
+        var all = false
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
         @Argument(help: "Network names")
-        public var networkNames: [String] = []
+        var networkNames: [String] = []
 
-        public func validate() throws {
+        func validate() throws {
             if networkNames.count == 0 && !all {
                 throw ContainerizationError(.invalidArgument, message: "no networks specified and --all not supplied")
             }
@@ -49,7 +49,7 @@ extension Application {
             }
         }
 
-        public mutating func run() async throws {
+        mutating func run() async throws {
             let uniqueNetworkNames = Set<String>(networkNames)
             let networks: [NetworkState]
 

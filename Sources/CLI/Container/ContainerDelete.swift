@@ -29,18 +29,18 @@ extension Application {
             aliases: ["rm"])
 
         @Flag(name: .shortAndLong, help: "Force the removal of one or more running containers")
-        public var force = false
+        var force = false
 
         @Flag(name: .shortAndLong, help: "Remove all containers")
-        public var all = false
+        var all = false
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
         @Argument(help: "Container IDs/names")
-        public var containerIDs: [String] = []
+        var containerIDs: [String] = []
 
-        public func validate() throws {
+        func validate() throws {
             if containerIDs.count == 0 && !all {
                 throw ContainerizationError(.invalidArgument, message: "no containers specified and --all not supplied")
             }
@@ -52,7 +52,7 @@ extension Application {
             }
         }
 
-        public mutating func run() async throws {
+        mutating func run() async throws {
             let set = Set<String>(containerIDs)
             var containers = [ClientContainer]()
 

@@ -29,21 +29,21 @@ extension Application {
             abstract: "Stop one or more running containers")
 
         @Flag(name: .shortAndLong, help: "Stop all running containers")
-        public var all = false
+        var all = false
 
         @Option(name: .shortAndLong, help: "Signal to send the container(s)")
-        public var signal: String = "SIGTERM"
+        var signal: String = "SIGTERM"
 
         @Option(name: .shortAndLong, help: "Seconds to wait before killing the container(s)")
-        public var time: Int32 = 5
+        var time: Int32 = 5
 
         @Argument
-        public var containerIDs: [String] = []
+        var containerIDs: [String] = []
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
-        public func validate() throws {
+        func validate() throws {
             if containerIDs.count == 0 && !all {
                 throw ContainerizationError(.invalidArgument, message: "no containers specified and --all not supplied")
             }
@@ -53,7 +53,7 @@ extension Application {
             }
         }
 
-        public mutating func run() async throws {
+        mutating func run() async throws {
             let set = Set<String>(containerIDs)
             var containers = [ClientContainer]()
             if self.all {
@@ -74,7 +74,7 @@ extension Application {
             }
         }
 
-        public static func stopContainers(containers: [ClientContainer], stopOptions: ContainerStopOptions) async throws -> [String] {
+        static func stopContainers(containers: [ClientContainer], stopOptions: ContainerStopOptions) async throws -> [String] {
             var failed: [String] = []
             try await withThrowingTaskGroup(of: ClientContainer?.self) { group in
                 for container in containers {

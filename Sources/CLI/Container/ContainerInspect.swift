@@ -28,12 +28,12 @@ extension Application {
             abstract: "Display information about one or more containers")
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
         @Argument(help: "Containers to inspect")
-        public var containers: [String]
+        var containers: [String]
 
-        public func run() async throws {
+        func run() async throws {
             let objects: [any Codable] = try await ClientContainer.list().filter {
                 containers.contains($0.id)
             }.map {

@@ -27,18 +27,18 @@ extension Application.VolumeCommand {
         )
 
         @Argument(help: "Volume name")
-        public var name: String
+        var name: String
 
         @Option(name: .customShort("s"), help: "Size of the volume (default: 512GB). Examples: 1G, 512MB, 2T")
-        public var size: String?
+        var size: String?
 
         @Option(name: .customLong("opt"), parsing: .upToNextOption, help: "Set driver specific options")
-        public var driverOpts: [String] = []
+        var driverOpts: [String] = []
 
         @Option(name: .customLong("label"), parsing: .upToNextOption, help: "Set metadata on a volume")
-        public var labels: [String] = []
+        var labels: [String] = []
 
-        public func run() async throws {
+        func run() async throws {
             var parsedDriverOpts = Utility.parseKeyValuePairs(driverOpts)
             let parsedLabels = Utility.parseKeyValuePairs(labels)
 

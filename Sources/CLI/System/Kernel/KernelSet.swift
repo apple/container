@@ -33,21 +33,21 @@ extension Application {
         )
 
         @Option(name: .customLong("binary"), help: "Path to the binary to set as the default kernel. If used with --tar, this points to a location inside the tar")
-        public var binaryPath: String? = nil
+        var binaryPath: String? = nil
 
         @Option(name: .customLong("tar"), help: "Filesystem path or remote URL to a tar ball that contains the kernel to use")
-        public var tarPath: String? = nil
+        var tarPath: String? = nil
 
         @Option(name: .customLong("arch"), help: "The architecture of the kernel binary. One of (amd64, arm64)")
-        public var architecture: String = ContainerizationOCI.Platform.current.architecture.description
+        var architecture: String = ContainerizationOCI.Platform.current.architecture.description
 
         @Flag(name: .customLong("recommended"), help: "Download and install the recommended kernel as the default. This flag ignores any other arguments")
-        public var recommended: Bool = false
+        var recommended: Bool = false
 
         @Flag(name: .long, help: "Force install of kernel. If a kernel exists with the same name, it will be overwritten.")
-        public var force: Bool = false
+        var force: Bool = false
 
-        public func run() async throws {
+        func run() async throws {
             if recommended {
                 let url = DefaultsStore.get(key: .defaultKernelURL)
                 let path = DefaultsStore.get(key: .defaultKernelBinaryPath)
@@ -90,7 +90,7 @@ extension Application {
             try await Self.downloadAndInstallWithProgressBar(tarRemoteURL: remoteURL.absoluteString, kernelFilePath: binaryPath, platform: platform, force: force)
         }
 
-        public func getSystemPlatform() throws -> SystemPlatform {
+        func getSystemPlatform() throws -> SystemPlatform {
             switch architecture {
             case "arm64":
                 return .linuxArm
@@ -101,7 +101,7 @@ extension Application {
             }
         }
 
-        public static func downloadAndInstallWithProgressBar(tarRemoteURL: String, kernelFilePath: String, platform: SystemPlatform = .current, force: Bool) async throws {
+        static func downloadAndInstallWithProgressBar(tarRemoteURL: String, kernelFilePath: String, platform: SystemPlatform = .current, force: Bool) async throws {
             let progressConfig = try ProgressConfig(
                 showTasks: true,
                 totalTasks: 2

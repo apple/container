@@ -33,7 +33,7 @@ extension Application {
             return config
         }
 
-        public func run() async throws {
+        func run() async throws {
             do {
                 let container = try await ClientContainer.get(id: "buildkit")
                 try await container.stop()

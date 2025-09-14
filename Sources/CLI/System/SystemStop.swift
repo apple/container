@@ -34,9 +34,9 @@ extension Application {
         )
 
         @Option(name: .shortAndLong, help: "Launchd prefix for `container` services")
-        public var prefix: String = "com.apple.container."
+        var prefix: String = "com.apple.container."
 
-        public func run() async throws {
+        func run() async throws {
             let log = Logger(
                 label: "com.apple.container.cli",
                 factory: { label in

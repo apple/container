@@ -33,30 +33,30 @@ extension Application {
             abstract: "Run a container")
 
         @OptionGroup
-        public var processFlags: Flags.Process
+        var processFlags: Flags.Process
 
         @OptionGroup
-        public var resourceFlags: Flags.Resource
+        var resourceFlags: Flags.Resource
 
         @OptionGroup
-        public var managementFlags: Flags.Management
+        var managementFlags: Flags.Management
 
         @OptionGroup
-        public var registryFlags: Flags.Registry
+        var registryFlags: Flags.Registry
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
         @OptionGroup
-        public var progressFlags: Flags.Progress
+        var progressFlags: Flags.Progress
 
         @Argument(help: "Image name")
-        public var image: String
+        var image: String
 
         @Argument(parsing: .captureForPassthrough, help: "Container init process arguments")
-        public var arguments: [String] = []
+        var arguments: [String] = []
 
-        public func run() async throws {
+        func run() async throws {
             var exitCode: Int32 = 127
             let id = Utility.createContainerID(name: self.managementFlags.name)
 
@@ -183,17 +183,17 @@ public struct ProcessIO: Sendable {
 
     let console: Terminal?
 
-    public func closeAfterStart() throws {
+    func closeAfterStart() throws {
         try stdin?.fileHandleForReading.close()
         try stdout?.fileHandleForWriting.close()
         try stderr?.fileHandleForWriting.close()
     }
 
-    public func close() throws {
+    func close() throws {
         try console?.reset()
     }
 
-    public static func create(tty: Bool, interactive: Bool, detach: Bool) throws -> ProcessIO {
+    static func create(tty: Bool, interactive: Bool, detach: Bool) throws -> ProcessIO {
         let current: Terminal? = try {
             if !tty || !interactive {
                 return nil
@@ -301,7 +301,7 @@ public struct ProcessIO: Sendable {
         )
     }
 
-    public static func streamStdin(
+    static func streamStdin(
         from: OSFile,
         to: OSFile,
         buffer: UnsafeMutableBufferPointer<UInt8>,
@@ -334,7 +334,7 @@ public struct ProcessIO: Sendable {
         }
     }
 
-    public func wait() async throws {
+    func wait() async throws {
         guard let ioTracker = self.ioTracker else {
             return
         }
@@ -375,7 +375,7 @@ public struct OSFile: Sendable {
         self.fd = handle.fileDescriptor
     }
 
-    public func makeNonBlocking() throws {
+    func makeNonBlocking() throws {
         let flags = fcntl(fd, F_GETFL)
         guard flags != -1 else {
             throw POSIXError.fromErrno()
@@ -386,7 +386,7 @@ public struct OSFile: Sendable {
         }
     }
 
-    public func write(_ buffer: UnsafeMutableBufferPointer<UInt8>) -> (wrote: Int, action: IOAction) {
+    func write(_ buffer: UnsafeMutableBufferPointer<UInt8>) -> (wrote: Int, action: IOAction) {
         if buffer.count == 0 {
             return (0, .success)
         }
@@ -417,7 +417,7 @@ public struct OSFile: Sendable {
         }
     }
 
-    public func read(_ buffer: UnsafeMutableBufferPointer<UInt8>) -> (read: Int, action: IOAction) {
+    func read(_ buffer: UnsafeMutableBufferPointer<UInt8>) -> (read: Int, action: IOAction) {
         if buffer.count == 0 {
             return (0, .success)
         }

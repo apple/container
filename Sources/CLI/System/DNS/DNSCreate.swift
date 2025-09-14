@@ -29,9 +29,9 @@ extension Application {
         )
 
         @Argument(help: "the local domain name")
-        public var domainName: String
+        var domainName: String
 
-        public func run() async throws {
+        func run() async throws {
             let resolver: HostDNSResolver = HostDNSResolver()
             do {
                 try resolver.createDomain(name: domainName)

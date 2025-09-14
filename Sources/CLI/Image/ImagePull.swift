@@ -29,31 +29,31 @@ extension Application {
         )
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
         @OptionGroup
-        public var registry: Flags.Registry
+        var registry: Flags.Registry
 
         @OptionGroup
-        public var progressFlags: Flags.Progress
+        var progressFlags: Flags.Progress
 
         @Option(
             help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'. This takes precedence over --os and --arch"
         )
-        public var platform: String?
+        var platform: String?
 
         @Option(
             help: "Set OS if image can target multiple operating systems"
         )
-        public var os: String?
+        var os: String?
 
         @Option(
             name: [.customLong("arch"), .customShort("a")],
             help: "Set arch if image can target multiple architectures"
         )
-        public var arch: String?
+        var arch: String?
 
-        @Argument public var reference: String
+        @Argument var reference: String
 
         public init() {}
 
@@ -65,7 +65,7 @@ extension Application {
             self.reference = reference
         }
 
-        public func run() async throws {
+        func run() async throws {
             var p: Platform?
             if let platform {
                 p = try Platform(from: platform)

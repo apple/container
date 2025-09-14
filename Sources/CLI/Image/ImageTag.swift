@@ -25,15 +25,15 @@ extension Application {
             abstract: "Tag an image")
 
         @Argument(help: "SOURCE_IMAGE[:TAG]")
-        public var source: String
+        var source: String
 
         @Argument(help: "TARGET_IMAGE[:TAG]")
-        public var target: String
+        var target: String
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
-        public func run() async throws {
+        func run() async throws {
             let existing = try await ClientImage.get(reference: source)
             let targetReference = try ClientImage.normalizeReference(target)
             try await existing.tag(new: targetReference)

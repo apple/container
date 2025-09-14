@@ -26,12 +26,12 @@ extension Application {
             abstract: "Log out from a registry")
 
         @Argument(help: "Registry server name")
-        public var registry: String
+        var registry: String
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
-        public func run() async throws {
+        func run() async throws {
             let keychain = KeychainHelper(id: Constants.keychainID)
             let r = Reference.resolveDomain(domain: registry)
             try keychain.delete(domain: r)

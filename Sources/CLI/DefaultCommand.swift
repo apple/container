@@ -21,7 +21,7 @@ import Darwin
 import Foundation
 
 struct DefaultCommand: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
+    public static let configuration = CommandConfiguration(
         commandName: nil,
         shouldDisplay: false
     )

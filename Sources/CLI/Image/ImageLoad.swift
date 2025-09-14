@@ -30,16 +30,16 @@ extension Application {
         )
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
         @Option(
             name: .shortAndLong, help: "Path to the tar archive to load images from", completion: .file(),
             transform: { str in
                 URL(fileURLWithPath: str, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false)
             })
-        public var input: String
+        var input: String
 
-        public func run() async throws {
+        func run() async throws {
             guard FileManager.default.fileExists(atPath: input) else {
                 print("File does not exist \(input)")
                 Application.exit(withError: ArgumentParser.ExitCode(1))

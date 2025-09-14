@@ -29,21 +29,21 @@ extension Application.VolumeCommand {
         )
 
         @Flag(name: .shortAndLong, help: "Only display volume names")
-        public var quiet: Bool = false
+        var quiet: Bool = false
 
         @Option(name: .long, help: "Format of the output")
-        public var format: Application.ListFormat = .table
+        var format: Application.ListFormat = .table
 
-        public func run() async throws {
+        func run() async throws {
             let volumes = try await ClientVolume.list()
             try printVolumes(volumes: volumes, format: format)
         }
 
-        public func createHeader() -> [[String]] {
+        func createHeader() -> [[String]] {
             [["NAME", "DRIVER", "OPTIONS"]]
         }
 
-        public func printVolumes(volumes: [Volume], format: Application.ListFormat) throws {
+        func printVolumes(volumes: [Volume], format: Application.ListFormat) throws {
             if format == .json {
                 let data = try JSONEncoder().encode(volumes)
                 print(String(data: data, encoding: .utf8)!)
@@ -69,7 +69,7 @@ extension Application.VolumeCommand {
 }
 
 extension Volume {
-    public var asRow: [String] {
+    var asRow: [String] {
         let optionsString = options.isEmpty ? "" : options.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
         return [
             self.name,

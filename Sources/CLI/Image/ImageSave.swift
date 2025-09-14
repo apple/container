@@ -31,34 +31,34 @@ extension Application {
         )
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
         @Option(
             help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'. This takes precedence over --os and --arch"
         )
-        public var platform: String?
+        var platform: String?
 
         @Option(
             help: "Set OS if image can target multiple operating systems"
         )
-        public var os: String?
+        var os: String?
 
         @Option(
             name: [.customLong("arch"), .customShort("a")],
             help: "Set arch if image can target multiple architectures"
         )
-        public var arch: String?
+        var arch: String?
 
         @Option(
             name: .shortAndLong, help: "Path to save the image tar archive", completion: .file(),
             transform: { str in
                 URL(fileURLWithPath: str, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false)
             })
-        public var output: String
+        var output: String
 
-        @Argument public var references: [String]
+        @Argument var references: [String]
 
-        public func run() async throws {
+        func run() async throws {
             var p: Platform?
             if let platform {
                 p = try Platform(from: platform)

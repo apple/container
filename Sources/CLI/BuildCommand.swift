@@ -39,42 +39,42 @@ extension Application {
         }
 
         @Option(name: [.customLong("cpus"), .customShort("c")], help: "Number of CPUs to allocate to the container")
-        public var cpus: Int64 = 2
+        var cpus: Int64 = 2
 
         @Option(
             name: [.customLong("memory"), .customShort("m")],
             help:
                 "Amount of memory in bytes, kilobytes (K), megabytes (M), or gigabytes (G) for the container, with MB granularity (for example, 1024K will result in 1MB being allocated for the container)"
         )
-        public var memory: String = "2048MB"
+        var memory: String = "2048MB"
 
         @Option(name: .long, help: ArgumentHelp("Set build-time variables", valueName: "key=val"))
-        public var buildArg: [String] = []
+        var buildArg: [String] = []
 
         @Argument(help: "Build directory")
-        public var contextDir: String = "."
+        var contextDir: String = "."
 
         @Option(name: .shortAndLong, help: ArgumentHelp("Path to Dockerfile", valueName: "path"))
-        public var file: String = "Dockerfile"
+        var file: String = "Dockerfile"
 
         @Option(name: .shortAndLong, help: ArgumentHelp("Set a label", valueName: "key=val"))
-        public var label: [String] = []
+        var label: [String] = []
 
         @Flag(name: .long, help: "Do not use cache")
-        public var noCache: Bool = false
+        var noCache: Bool = false
 
         @Option(name: .shortAndLong, help: ArgumentHelp("Output configuration for the build", valueName: "value"))
-        public var output: [String] = {
+        var output: [String] = {
             ["type=oci"]
         }()
 
         @Option(name: .long, help: ArgumentHelp("Cache imports for the build", valueName: "value", visibility: .hidden))
-        public var cacheIn: [String] = {
+        var cacheIn: [String] = {
             []
         }()
 
         @Option(name: .long, help: ArgumentHelp("Cache exports for the build", valueName: "value", visibility: .hidden))
-        public var cacheOut: [String] = {
+        var cacheOut: [String] = {
             []
         }()
 
@@ -83,14 +83,14 @@ extension Application {
             help: "add the platform to the build",
             transform: { val in val.split(separator: ",").map { String($0) } }
         )
-        public var platform: [[String]] = [[]]
+        var platform: [[String]] = [[]]
 
         @Option(
             name: .long,
             help: ArgumentHelp("add the OS type to the build", valueName: "value"),
             transform: { val in val.split(separator: ",").map { String($0) } }
         )
-        public var os: [[String]] = {
+        var os: [[String]] = {
             [["linux"]]
         }()
 
@@ -99,26 +99,26 @@ extension Application {
             help: ArgumentHelp("add the architecture type to the build", valueName: "value"),
             transform: { val in val.split(separator: ",").map { String($0) } }
         )
-        public var arch: [[String]] = {
+        var arch: [[String]] = {
             [[Arch.hostArchitecture().rawValue]]
         }()
 
         @Option(name: .long, help: ArgumentHelp("Progress type - one of [auto|plain|tty]", valueName: "type"))
-        public var progress: String = "auto"
+        var progress: String = "auto"
 
         @Option(name: .long, help: ArgumentHelp("Builder-shim vsock port", valueName: "port"))
-        public var vsockPort: UInt32 = 8088
+        var vsockPort: UInt32 = 8088
 
         @Option(name: [.customShort("t"), .customLong("tag")], help: ArgumentHelp("Name for the built image", valueName: "name"))
-        public var targetImageName: String = UUID().uuidString.lowercased()
+        var targetImageName: String = UUID().uuidString.lowercased()
 
         @Option(name: .long, help: ArgumentHelp("Set the target build stage", valueName: "stage"))
-        public var target: String = ""
+        var target: String = ""
 
         @Flag(name: .shortAndLong, help: "Suppress build output")
-        public var quiet: Bool = false
+        var quiet: Bool = false
 
-        public func run() async throws {
+        func run() async throws {
             do {
                 let timeout: Duration = .seconds(300)
                 let progressConfig = try ProgressConfig(
@@ -342,7 +342,7 @@ extension Application {
             }
         }
 
-        public func validate() throws {
+        func validate() throws {
             guard FileManager.default.fileExists(atPath: file) else {
                 throw ValidationError("Dockerfile does not exist at path: \(file)")
             }

@@ -29,18 +29,18 @@ extension Application {
             abstract: "Run a new command in a running container")
 
         @OptionGroup
-        public var processFlags: Flags.Process
+        var processFlags: Flags.Process
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
         @Argument(help: "Running containers ID")
-        public var containerID: String
+        var containerID: String
 
         @Argument(parsing: .captureForPassthrough, help: "New process arguments")
-        public var arguments: [String]
+        var arguments: [String]
 
-        public func run() async throws {
+        func run() async throws {
             var exitCode: Int32 = 127
             let container = try await ClientContainer.get(id: containerID)
             try ensureRunning(container: container)

@@ -29,18 +29,18 @@ extension Application {
         )
 
         @Option(name: .shortAndLong, help: "Username")
-        public var username: String = ""
+        var username: String = ""
 
         @Flag(help: "Take the password from stdin")
-        public var passwordStdin: Bool = false
+        var passwordStdin: Bool = false
 
         @Argument(help: "Registry server name")
-        public var server: String
+        var server: String
 
         @OptionGroup
-        public var registry: Flags.Registry
+        var registry: Flags.Registry
 
-        public func run() async throws {
+        func run() async throws {
             var username = self.username
             var password = ""
             if passwordStdin {

@@ -30,24 +30,24 @@ extension Application {
             aliases: ["ls"])
 
         @Flag(name: .shortAndLong, help: "Only output the network name")
-        public var quiet = false
+        var quiet = false
 
         @Option(name: .long, help: "Format of the output")
-        public var format: ListFormat = .table
+        var format: ListFormat = .table
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
-        public func run() async throws {
+        func run() async throws {
             let networks = try await ClientNetwork.list()
             try printNetworks(networks: networks, format: format)
         }
 
-        public func createHeader() -> [[String]] {
+        func createHeader() -> [[String]] {
             [["NETWORK", "STATE", "SUBNET"]]
         }
 
-        public func printNetworks(networks: [NetworkState], format: ListFormat) throws {
+        func printNetworks(networks: [NetworkState], format: ListFormat) throws {
             if format == .json {
                 let printables = networks.map {
                     PrintableNetwork($0)
@@ -77,7 +77,7 @@ extension Application {
 }
 
 extension NetworkState {
-    public var asRow: [String] {
+    var asRow: [String] {
         switch self {
         case .created(_):
             return [self.id, self.state, "none"]
@@ -88,10 +88,10 @@ extension NetworkState {
 }
 
 public struct PrintableNetwork: Codable {
-    public let id: String
-    public let state: String
-    public let config: NetworkConfiguration
-    public let status: NetworkStatus?
+    let id: String
+    let state: String
+    let config: NetworkConfiguration
+    let status: NetworkStatus?
 
     public init(_ network: NetworkState) {
         self.id = network.id

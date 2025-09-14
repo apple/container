@@ -29,18 +29,18 @@ extension Application {
             abstract: "Start a container")
 
         @Flag(name: .shortAndLong, help: "Attach STDOUT/STDERR")
-        public var attach = false
+        var attach = false
 
         @Flag(name: .shortAndLong, help: "Attach container's STDIN")
-        public var interactive = false
+        var interactive = false
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
         @Argument(help: "Container's ID")
-        public var containerID: String
+        var containerID: String
 
-        public func run() async throws {
+        func run() async throws {
             var exitCode: Int32 = 127
 
             let progressConfig = try ProgressConfig(

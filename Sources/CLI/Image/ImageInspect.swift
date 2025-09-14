@@ -28,12 +28,12 @@ extension Application {
             abstract: "Display information about one or more images")
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
         @Argument(help: "Images to inspect")
-        public var images: [String]
+        var images: [String]
 
-        public func run() async throws {
+        func run() async throws {
             var printable = [any Codable]()
             let result = try await ClientImage.get(names: images)
             let notFound = result.error

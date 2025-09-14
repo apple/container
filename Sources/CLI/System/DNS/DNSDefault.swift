@@ -39,9 +39,9 @@ extension Application {
             )
 
             @Argument(help: "the default `--domain-name` to use for the `create` or `run` command")
-            public var domainName: String
+            var domainName: String
 
-            public func run() async throws {
+            func run() async throws {
                 DefaultsStore.set(value: domainName, key: .defaultDNSDomain)
                 print(domainName)
             }
@@ -55,7 +55,7 @@ extension Application {
                 aliases: ["clear"]
             )
 
-            public func run() async throws {
+            func run() async throws {
                 DefaultsStore.unset(key: .defaultDNSDomain)
                 print("Unset the default local DNS domain")
             }
@@ -68,7 +68,7 @@ extension Application {
                 abstract: "Display the default local DNS domain"
             )
 
-            public func run() async throws {
+            func run() async throws {
                 print(DefaultsStore.getOptional(key: .defaultDNSDomain) ?? "")
             }
         }

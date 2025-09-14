@@ -29,19 +29,19 @@ extension Application {
         )
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
         @OptionGroup
-        public var registry: Flags.Registry
+        var registry: Flags.Registry
 
         @OptionGroup
-        public var progressFlags: Flags.Progress
+        var progressFlags: Flags.Progress
 
-        @Option(help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'") public var platform: String?
+        @Option(help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'") var platform: String?
 
-        @Argument public var reference: String
+        @Argument var reference: String
 
-        public func run() async throws {
+        func run() async throws {
             var p: Platform?
             if let platform {
                 p = try Platform(from: platform)

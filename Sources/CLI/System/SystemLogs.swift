@@ -33,18 +33,18 @@ extension Application {
         )
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
         @Option(
             name: .long,
             help: "Fetch logs starting from the specified time period (minus the current time); supported formats: m, h, d"
         )
-        public var last: String = "5m"
+        var last: String = "5m"
 
         @Flag(name: .shortAndLong, help: "Follow log output")
-        public var follow: Bool = false
+        var follow: Bool = false
 
-        public func run() async throws {
+        func run() async throws {
             let process = Process()
             let sigHandler = AsyncSignalHandler.create(notify: [SIGINT, SIGTERM])
 

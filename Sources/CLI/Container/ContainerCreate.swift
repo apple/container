@@ -29,27 +29,27 @@ extension Application {
             abstract: "Create a new container")
 
         @Argument(help: "Image name")
-        public var image: String
+        var image: String
 
         @Argument(parsing: .captureForPassthrough, help: "Container init process arguments")
-        public var arguments: [String] = []
+        var arguments: [String] = []
 
         @OptionGroup
-        public var processFlags: Flags.Process
+        var processFlags: Flags.Process
 
         @OptionGroup
-        public var resourceFlags: Flags.Resource
+        var resourceFlags: Flags.Resource
 
         @OptionGroup
-        public var managementFlags: Flags.Management
+        var managementFlags: Flags.Management
 
         @OptionGroup
-        public var registryFlags: Flags.Registry
+        var registryFlags: Flags.Registry
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
-        public func run() async throws {
+        func run() async throws {
             let progressConfig = try ProgressConfig(
                 showTasks: true,
                 showItems: true,

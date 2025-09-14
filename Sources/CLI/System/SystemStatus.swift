@@ -30,9 +30,9 @@ extension Application {
         )
 
         @Option(name: .shortAndLong, help: "Launchd prefix for `container` services")
-        public var prefix: String = "com.apple.container."
+        var prefix: String = "com.apple.container."
 
-        public func run() async throws {
+        func run() async throws {
             let isRegistered = try ServiceManager.isRegistered(fullServiceLabel: "\(prefix)apiserver")
             if !isRegistered {
                 print("apiserver is not running and not registered with launchd")

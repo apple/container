@@ -28,12 +28,12 @@ extension Application {
             abstract: "Display information about one or more networks")
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
         @Argument(help: "Networks to inspect")
-        public var networks: [String]
+        var networks: [String]
 
-        public func run() async throws {
+        func run() async throws {
             let objects: [any Codable] = try await ClientNetwork.list().filter {
                 networks.contains($0.id)
             }.map {

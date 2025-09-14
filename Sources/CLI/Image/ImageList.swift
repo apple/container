@@ -26,29 +26,29 @@ extension Application {
     public struct ListImageOptions: ParsableArguments {
         public init() {}
         @Flag(name: .shortAndLong, help: "Only output the image name")
-        public var quiet = false
+        var quiet = false
 
         @Flag(name: .shortAndLong, help: "Verbose output")
-        public var verbose = false
+        var verbose = false
 
         @Option(name: .long, help: "Format of the output")
-        public var format: ListFormat = .table
+        var format: ListFormat = .table
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
     }
 
     public struct ListImageImplementation {
         public init() {}
-        public static func createHeader() -> [[String]] {
+        static func createHeader() -> [[String]] {
             [["NAME", "TAG", "DIGEST"]]
         }
 
-        public static func createVerboseHeader() -> [[String]] {
+        static func createVerboseHeader() -> [[String]] {
             [["NAME", "TAG", "INDEX DIGEST", "OS", "ARCH", "VARIANT", "SIZE", "CREATED", "MANIFEST DIGEST"]]
         }
 
-        public static func printImagesVerbose(images: [ClientImage]) async throws {
+        static func printImagesVerbose(images: [ClientImage]) async throws {
 
             var rows = createVerboseHeader()
             for image in images {
@@ -104,7 +104,7 @@ extension Application {
             print(formatter.format())
         }
 
-        public static func printImages(images: [ClientImage], format: ListFormat, options: ListImageOptions) async throws {
+        static func printImages(images: [ClientImage], format: ListFormat, options: ListImageOptions) async throws {
             var images = images
             images.sort {
                 $0.reference < $1.reference
@@ -144,7 +144,7 @@ extension Application {
             print(formatter.format())
         }
 
-        public static func validate(options: ListImageOptions) throws {
+        static func validate(options: ListImageOptions) throws {
             if options.quiet && options.verbose {
                 throw ContainerizationError(.invalidArgument, message: "Cannot use flag --quite and --verbose together")
             }
@@ -154,7 +154,7 @@ extension Application {
             }
         }
 
-        public static func listImages(options: ListImageOptions) async throws {
+        static func listImages(options: ListImageOptions) async throws {
             let images = try await ClientImage.list().filter { img in
                 !Utility.isInfraImage(name: img.reference)
             }
@@ -170,9 +170,9 @@ extension Application {
             aliases: ["ls"])
 
         @OptionGroup
-        public var options: ListImageOptions
+        var options: ListImageOptions
 
-        public mutating func run() async throws {
+        mutating func run() async throws {
             try ListImageImplementation.validate(options: options)
             try await ListImageImplementation.listImages(options: options)
         }

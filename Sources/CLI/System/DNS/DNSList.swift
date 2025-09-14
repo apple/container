@@ -27,7 +27,7 @@ extension Application {
             aliases: ["ls"]
         )
 
-        public func run() async throws {
+        func run() async throws {
             let resolver: HostDNSResolver = HostDNSResolver()
             let domains = resolver.listDomains()
             print(domains.joined(separator: "\n"))

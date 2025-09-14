@@ -23,7 +23,7 @@ import ContainerizationOS
 import Foundation
 
 extension Application {
-    public static func ensureRunning(container: ClientContainer) throws {
+    static func ensureRunning(container: ClientContainer) throws {
         if container.status != .running {
             throw ContainerizationError(.invalidState, message: "container \(container.id) is not running")
         }

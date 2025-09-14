@@ -34,23 +34,23 @@ extension Application {
             name: .shortAndLong,
             help: "Application data directory",
             transform: { URL(filePath: $0) })
-        public var appRoot = ApplicationRoot.defaultURL
+        var appRoot = ApplicationRoot.defaultURL
 
         @Option(
             name: .long,
             help: "Path to the installation root directory",
             transform: { URL(filePath: $0) })
-        public var installRoot = InstallRoot.defaultURL
+        var installRoot = InstallRoot.defaultURL
 
         @Flag(name: .long, help: "Enable debug logging for the runtime daemon.")
-        public var debug = false
+        var debug = false
 
         @Flag(
             name: .long, inversion: .prefixedEnableDisable,
             help: "Specify whether the default kernel should be installed or not. The default behavior is to prompt the user for a response.")
-        public var kernelInstall: Bool?
+        var kernelInstall: Bool?
 
-        public func run() async throws {
+        func run() async throws {
             // Without the true path to the binary in the plist, `container-apiserver` won't launch properly.
             // TODO: Use plugin loader for API server.
             let executableUrl = CommandLine.executablePathUrl

@@ -31,21 +31,21 @@ extension Application {
         )
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
         @Flag(name: .shortAndLong, help: "Follow log output")
-        public var follow: Bool = false
+        var follow: Bool = false
 
         @Flag(name: .long, help: "Display the boot log for the container instead of stdio")
-        public var boot: Bool = false
+        var boot: Bool = false
 
         @Option(name: [.customShort("n")], help: "Number of lines to show from the end of the logs. If not provided this will print all of the logs")
-        public var numLines: Int?
+        var numLines: Int?
 
         @Argument(help: "Container to fetch logs for")
-        public var container: String
+        var container: String
 
-        public func run() async throws {
+        func run() async throws {
             do {
                 let container = try await ClientContainer.get(id: container)
                 let fhs = try await container.logs()

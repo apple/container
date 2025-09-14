@@ -29,18 +29,18 @@ extension Application {
             abstract: "Kill one or more running containers")
 
         @Option(name: .shortAndLong, help: "Signal to send the container(s)")
-        public var signal: String = "KILL"
+        var signal: String = "KILL"
 
         @Flag(name: .shortAndLong, help: "Kill all running containers")
-        public var all = false
+        var all = false
 
         @Argument(help: "Container IDs")
-        public var containerIDs: [String] = []
+        var containerIDs: [String] = []
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
-        public func validate() throws {
+        func validate() throws {
             if containerIDs.count == 0 && !all {
                 throw ContainerizationError(.invalidArgument, message: "no containers specified and --all not supplied")
             }
@@ -49,7 +49,7 @@ extension Application {
             }
         }
 
-        public mutating func run() async throws {
+        mutating func run() async throws {
             let set = Set<String>(containerIDs)
 
             var containers = try await ClientContainer.list().filter { c in

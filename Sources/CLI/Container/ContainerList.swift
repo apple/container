@@ -31,18 +31,18 @@ extension Application {
             aliases: ["ls"])
 
         @Flag(name: .shortAndLong, help: "Show stopped containers as well")
-        public var all = false
+        var all = false
 
         @Flag(name: .shortAndLong, help: "Only output the container ID")
-        public var quiet = false
+        var quiet = false
 
         @Option(name: .long, help: "Format of the output")
-        public var format: ListFormat = .table
+        var format: ListFormat = .table
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
-        public func run() async throws {
+        func run() async throws {
             let containers = try await ClientContainer.list()
             try printContainers(containers: containers, format: format)
         }

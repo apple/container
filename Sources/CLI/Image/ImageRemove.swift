@@ -25,17 +25,17 @@ extension Application {
         public init() {}
         
         @Flag(name: .shortAndLong, help: "Remove all images")
-        public var all: Bool = false
+        var all: Bool = false
 
         @Argument
-        public var images: [String] = []
+        var images: [String] = []
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
     }
 
     public struct RemoveImageImplementation {
-        public static func validate(options: RemoveImageOptions) throws {
+        static func validate(options: RemoveImageOptions) throws {
             if options.images.count == 0 && !options.all {
                 throw ContainerizationError(.invalidArgument, message: "no image specified and --all not supplied")
             }
@@ -44,7 +44,7 @@ extension Application {
             }
         }
 
-        public static func removeImage(options: RemoveImageOptions) async throws {
+        static func removeImage(options: RemoveImageOptions) async throws {
             let (found, notFound) = try await {
                 if options.all {
                     let found = try await ClientImage.list()
@@ -85,18 +85,18 @@ extension Application {
         public init() {}
         
         @OptionGroup
-        public var options: RemoveImageOptions
+        var options: RemoveImageOptions
 
         public static let configuration = CommandConfiguration(
             commandName: "delete",
             abstract: "Remove one or more images",
             aliases: ["rm"])
 
-        public func validate() throws {
+        func validate() throws {
             try RemoveImageImplementation.validate(options: options)
         }
 
-        public mutating func run() async throws {
+        mutating func run() async throws {
             try await RemoveImageImplementation.removeImage(options: options)
         }
     }
