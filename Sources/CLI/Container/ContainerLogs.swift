@@ -31,7 +31,7 @@ extension Application {
         )
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
         @Flag(name: .shortAndLong, help: "Follow log output")
         var follow: Bool = false

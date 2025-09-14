@@ -35,7 +35,7 @@ extension Application {
         var all = false
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
         @Argument(help: "Container IDs/names")
         var containerIDs: [String] = []

@@ -27,7 +27,7 @@ struct DefaultCommand: AsyncParsableCommand {
     )
 
     @OptionGroup(visibility: .hidden)
-    var global: Flags.Global
+    public var global: Flags.Global
 
     @Argument(parsing: .captureForPassthrough)
     var remaining: [String] = []

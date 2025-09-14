@@ -30,7 +30,7 @@ extension Application {
         )
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
         @Option(
             name: .shortAndLong, help: "Path to the tar archive to load images from", completion: .file(),

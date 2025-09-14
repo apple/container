@@ -31,7 +31,7 @@ extension Application {
         var images: [String] = []
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
     }
 
     public struct RemoveImageImplementation {
@@ -85,7 +85,7 @@ extension Application {
         public init() {}
         
         @OptionGroup
-        var options: RemoveImageOptions
+        public var options: RemoveImageOptions
 
         public static let configuration = CommandConfiguration(
             commandName: "delete",

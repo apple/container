@@ -35,7 +35,7 @@ extension Application {
         var format: ListFormat = .table
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
     }
 
     public struct ListImageImplementation {
@@ -170,7 +170,7 @@ extension Application {
             aliases: ["ls"])
 
         @OptionGroup
-        var options: ListImageOptions
+        public var options: ListImageOptions
 
         public mutating func run() async throws {
             try ListImageImplementation.validate(options: options)

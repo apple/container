@@ -40,7 +40,7 @@ extension Application {
         var format: ListFormat = .table
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
         public func run() async throws {
             let containers = try await ClientContainer.list()

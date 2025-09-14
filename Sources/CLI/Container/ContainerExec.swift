@@ -29,10 +29,10 @@ extension Application {
             abstract: "Run a new command in a running container")
 
         @OptionGroup
-        var processFlags: Flags.Process
+        public var processFlags: Flags.Process
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
         @Argument(help: "Running containers ID")
         var containerID: String
