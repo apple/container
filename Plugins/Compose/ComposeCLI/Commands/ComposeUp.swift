@@ -46,7 +46,8 @@ public struct ComposeUp: AsyncParsableCommand, @unchecked Sendable {
     var detatch: Bool = false
 
     @Option(name: [.customShort("f"), .customLong("file")], help: "The path to your Docker Compose file")
-    var composeFile: String = "docker-compose.yml"
+    var composeFilename: String = "compose.yml"
+    private var composePath: String { "\(cwd)/\(composeFilename)" }  // Path to compose.yml
 
     @Flag(name: [.customShort("b"), .customLong("build")])
     var rebuild: Bool = false
@@ -61,7 +62,6 @@ public struct ComposeUp: AsyncParsableCommand, @unchecked Sendable {
     var global: Flags.Global
 
     private var cwd: String { process.cwd ?? FileManager.default.currentDirectoryPath }
-    var dockerComposePath: String { "\(cwd)/\(composeFile)" }  // Path to docker-compose.yml
     var envFilePath: String { "\(cwd)/\(process.envFile.first ?? ".env")" }  // Path to optional .env file
 
     private var fileManager: FileManager { FileManager.default }
@@ -75,18 +75,26 @@ public struct ComposeUp: AsyncParsableCommand, @unchecked Sendable {
     ]
 
     public mutating func run() async throws {
-        // Check for .yml vs .yaml file extension
-        if !fileManager.fileExists(atPath: dockerComposePath) {
-            let url = URL(filePath: dockerComposePath)
-
-            let fileNameNoExtension = url.deletingPathExtension().lastPathComponent
-            let newExtension = url.pathExtension == "yaml" ? "yml" : "yaml"
-            composeFile = "\(fileNameNoExtension).\(newExtension)"
+        // Check for supported filenames and extensions
+        let filenames = [
+            "compose.yml",
+            "compose.yaml",
+            "docker-compose.yml",
+            "docker-compose.yaml",
+        ]
+        for filename in filenames {
+            if fileManager.fileExists(atPath: filename) {
+                composeFilename = filename
+                break
+            }
         }
 
-        // Read docker-compose.yml content
-        guard let yamlData = fileManager.contents(atPath: dockerComposePath) else {
-            throw YamlError.dockerfileNotFound(dockerComposePath)
+        // Read compose.yml content
+        guard let yamlData = fileManager.contents(atPath: composePath) else {
+            let path = URL(fileURLWithPath: composePath)
+                .deletingLastPathComponent()
+                .path
+            throw YamlError.composeFileNotFound(path)
         }
 
         // Decode the YAML file into the DockerCompose struct

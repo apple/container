@@ -43,15 +43,35 @@ public struct ComposeDown: AsyncParsableCommand {
 
     private var cwd: String { process.cwd ?? FileManager.default.currentDirectoryPath }
 
-    var dockerComposePath: String { "\(cwd)/docker-compose.yml" }  // Path to docker-compose.yml
+    @Option(name: [.customShort("f"), .customLong("file")], help: "The path to your Docker Compose file")
+    var composeFilename: String = "compose.yml"
+    private var composePath: String { "\(cwd)/\(composeFilename)" }  // Path to compose.yml
 
     private var fileManager: FileManager { FileManager.default }
     private var projectName: String?
 
     public mutating func run() async throws {
+
+        // Check for supported filenames and extensions
+        let filenames = [
+            "compose.yml",
+            "compose.yaml",
+            "docker-compose.yml",
+            "docker-compose.yaml",
+        ]
+        for filename in filenames {
+            if fileManager.fileExists(atPath: filename) {
+                composeFilename = filename
+                break
+            }
+        }
+
         // Read docker-compose.yml content
-        guard let yamlData = fileManager.contents(atPath: dockerComposePath) else {
-            throw YamlError.dockerfileNotFound(dockerComposePath)
+        guard let yamlData = fileManager.contents(atPath: composePath) else {
+            let path = URL(fileURLWithPath: composePath)
+                .deletingLastPathComponent()
+                .path
+            throw YamlError.composeFileNotFound(path)
         }
 
         // Decode the YAML file into the DockerCompose struct

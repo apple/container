@@ -26,12 +26,12 @@ import Foundation
 
 //extension Application {
 enum YamlError: Error, LocalizedError {
-    case dockerfileNotFound(String)
+    case composeFileNotFound(String)
 
     var errorDescription: String? {
         switch self {
-        case .dockerfileNotFound(let path):
-            return "docker-compose.yml not found at \(path)"
+        case .composeFileNotFound(let path):
+            return "compose.yml not found at \(path)"
         }
     }
 }
