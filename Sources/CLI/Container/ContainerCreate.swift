@@ -35,19 +35,19 @@ extension Application {
         var arguments: [String] = []
 
         @OptionGroup
-        var processFlags: Flags.Process
+        public var processFlags: Flags.Process
 
         @OptionGroup
-        var resourceFlags: Flags.Resource
+        public var resourceFlags: Flags.Resource
 
         @OptionGroup
-        var managementFlags: Flags.Management
+        public var managementFlags: Flags.Management
 
         @OptionGroup
-        var registryFlags: Flags.Registry
+        public var registryFlags: Flags.Registry
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
         public func run() async throws {
             let progressConfig = try ProgressConfig(

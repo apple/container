@@ -43,10 +43,10 @@ extension Application {
         )
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
         @OptionGroup
-        var registry: Flags.Registry
+        public var registry: Flags.Registry
 
         @Argument
         var host: String

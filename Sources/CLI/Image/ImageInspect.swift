@@ -28,7 +28,7 @@ extension Application {
             abstract: "Display information about one or more images")
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
         @Argument(help: "Images to inspect")
         var images: [String]

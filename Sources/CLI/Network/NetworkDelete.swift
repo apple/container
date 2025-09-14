@@ -32,7 +32,7 @@ extension Application {
         var all = false
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
         @Argument(help: "Network names")
         var networkNames: [String] = []

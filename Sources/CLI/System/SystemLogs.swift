@@ -33,7 +33,7 @@ extension Application {
         )
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
         @Option(
             name: .long,

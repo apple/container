@@ -29,13 +29,13 @@ extension Application {
         )
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
         @OptionGroup
-        var registry: Flags.Registry
+        public var registry: Flags.Registry
 
         @OptionGroup
-        var progressFlags: Flags.Progress
+        public var progressFlags: Flags.Progress
 
         @Option(help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'") var platform: String?
 

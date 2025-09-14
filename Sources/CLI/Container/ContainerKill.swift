@@ -38,7 +38,7 @@ extension Application {
         var containerIDs: [String] = []
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
         public func validate() throws {
             if containerIDs.count == 0 && !all {

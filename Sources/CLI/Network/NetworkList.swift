@@ -36,7 +36,7 @@ extension Application {
         var format: ListFormat = .table
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
         public func run() async throws {
             let networks = try await ClientNetwork.list()

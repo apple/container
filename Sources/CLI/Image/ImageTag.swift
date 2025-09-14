@@ -31,7 +31,7 @@ extension Application {
         var target: String
 
         @OptionGroup
-        var global: Flags.Global
+        public var global: Flags.Global
 
         public func run() async throws {
             let existing = try await ClientImage.get(reference: source)
