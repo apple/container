@@ -17,8 +17,9 @@
 import ArgumentParser
 
 extension Application {
-    struct NetworkCommand: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct NetworkCommand: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "network",
             abstract: "Manage container networks",
             subcommands: [

@@ -50,7 +50,6 @@ public struct Parser {
         user: String?, uid: UInt32?, gid: UInt32?,
         defaultUser: ProcessConfiguration.User = .id(uid: 0, gid: 0)
     ) -> (user: ProcessConfiguration.User, groups: [UInt32]) {
-
         var supplementalGroups: [UInt32] = []
         let user: ProcessConfiguration.User = {
             if let user = user, !user.isEmpty {
@@ -77,6 +76,10 @@ public struct Parser {
 
     public static func platform(os: String, arch: String) -> ContainerizationOCI.Platform {
         .init(arch: arch, os: os)
+    }
+
+    public static func platform(from platform: String) throws -> ContainerizationOCI.Platform {
+        try .init(from: platform)
     }
 
     public static func resources(cpus: Int64?, memory: String?) throws -> ContainerConfiguration.Resources {
@@ -313,6 +316,9 @@ public struct Parser {
                     fs.type = Filesystem.FSType.virtiofs
                 case "tmpfs":
                     fs.type = Filesystem.FSType.tmpfs
+                case "volume":
+                    // Volume type will be set later in source parsing when we create the actual volume filesystem
+                    break
                 default:
                     throw ContainerizationError(.invalidArgument, message: "unsupported mount type \(val)")
                 }
@@ -340,29 +346,28 @@ public struct Parser {
             case "source":
                 switch type {
                 case "virtiofs", "bind":
-                    // Check if it's an absolute directory path first
-                    if val.hasPrefix("/") {
-                        let url = URL(filePath: val)
-                        let absolutePath = url.absoluteURL.path
+                    // For bind mounts, resolve both absolute and relative paths
+                    let url = URL(filePath: val)
+                    let absolutePath = url.absoluteURL.path
 
-                        var isDirectory: ObjCBool = false
-                        guard FileManager.default.fileExists(atPath: absolutePath, isDirectory: &isDirectory) else {
-                            throw ContainerizationError(.invalidArgument, message: "path '\(val)' does not exist")
-                        }
-                        guard isDirectory.boolValue else {
-                            throw ContainerizationError(.invalidArgument, message: "path '\(val)' is not a directory")
-                        }
-                        fs.source = absolutePath
-                    } else {
-                        guard VolumeStorage.isValidVolumeName(val) else {
-                            throw ContainerizationError(.invalidArgument, message: "Invalid volume name '\(val)': must match \(VolumeStorage.volumeNamePattern)")
-                        }
-
-                        // This is a named volume
-                        isVolume = true
-                        volumeName = val
-                        fs.source = val
+                    var isDirectory: ObjCBool = false
+                    guard FileManager.default.fileExists(atPath: absolutePath, isDirectory: &isDirectory) else {
+                        throw ContainerizationError(.invalidArgument, message: "path '\(val)' does not exist")
                     }
+                    guard isDirectory.boolValue else {
+                        throw ContainerizationError(.invalidArgument, message: "path '\(val)' is not a directory")
+                    }
+                    fs.source = absolutePath
+                case "volume":
+                    // For volume mounts, validate as volume name
+                    guard VolumeStorage.isValidVolumeName(val) else {
+                        throw ContainerizationError(.invalidArgument, message: "Invalid volume name '\(val)': must match \(VolumeStorage.volumeNamePattern)")
+                    }
+
+                    // This is a named volume
+                    isVolume = true
+                    volumeName = val
+                    fs.source = val
                 case "tmpfs":
                     throw ContainerizationError(.invalidArgument, message: "cannot specify source for tmpfs mount")
                 default:

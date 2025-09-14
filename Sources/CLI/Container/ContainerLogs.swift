@@ -22,8 +22,10 @@ import Dispatch
 import Foundation
 
 extension Application {
-    struct ContainerLogs: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct ContainerLogs: AsyncParsableCommand {
+        public init() {}
+        
+        public static let configuration = CommandConfiguration(
             commandName: "logs",
             abstract: "Fetch container stdio or boot logs"
         )
@@ -43,7 +45,7 @@ extension Application {
         @Argument(help: "Container to fetch logs for")
         var container: String
 
-        func run() async throws {
+        public func run() async throws {
             do {
                 let container = try await ClientContainer.get(id: container)
                 let fhs = try await container.logs()

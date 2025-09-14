@@ -20,8 +20,10 @@ import Foundation
 import SwiftProtobuf
 
 extension Application {
-    struct ContainerInspect: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct ContainerInspect: AsyncParsableCommand {
+        public init() {}
+        
+        public static let configuration = CommandConfiguration(
             commandName: "inspect",
             abstract: "Display information about one or more containers")
 
@@ -31,7 +33,7 @@ extension Application {
         @Argument(help: "Containers to inspect")
         var containers: [String]
 
-        func run() async throws {
+        public func run() async throws {
             let objects: [any Codable] = try await ClientContainer.list().filter {
                 containers.contains($0.id)
             }.map {

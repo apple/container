@@ -256,6 +256,22 @@ extension ClientImage {
         let _ = try await client.send(request)
     }
 
+    public static func save(references: [String], out: String, platform: Platform? = nil) async throws {
+        let (clientImages, errors) = try await get(names: references)
+        guard errors.isEmpty else {
+            // TODO: Improve error handling here
+            throw ContainerizationError(.invalidArgument, message: "one or more image references are invalid: \(errors.joined(separator: ", "))")
+        }
+
+        let descriptions = clientImages.map { $0.description }
+        let client = Self.newXPCClient()
+        let request = Self.newRequest(.imageSave)
+        try request.set(descriptions: descriptions)
+        request.set(key: .filePath, value: out)
+        try request.set(platform: platform)
+        let _ = try await client.send(request)
+    }
+
     public static func load(from tarFile: String) async throws -> [ClientImage] {
         let client = newXPCClient()
         let request = newRequest(.imageLoad)
@@ -333,15 +349,6 @@ extension ClientImage {
     }
 
     // MARK: Snapshot Methods
-
-    public func save(out: String, platform: Platform? = nil) async throws {
-        let client = Self.newXPCClient()
-        let request = Self.newRequest(.imageSave)
-        try request.set(description: self.description)
-        request.set(key: .filePath, value: out)
-        try request.set(platform: platform)
-        let _ = try await client.send(request)
-    }
 
     public func unpack(platform: Platform?, progressUpdate: ProgressUpdateHandler? = nil) async throws {
         let client = Self.newXPCClient()

@@ -22,8 +22,10 @@ import Foundation
 import SwiftProtobuf
 
 extension Application {
-    struct ContainerList: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct ContainerList: AsyncParsableCommand {
+        public init() {}
+        
+        public static let configuration = CommandConfiguration(
             commandName: "list",
             abstract: "List containers",
             aliases: ["ls"])
@@ -40,7 +42,7 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
 
-        func run() async throws {
+        public func run() async throws {
             let containers = try await ClientContainer.list()
             try printContainers(containers: containers, format: format)
         }

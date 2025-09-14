@@ -23,17 +23,16 @@ import TerminalProgress
 
 extension Application {
     public struct NetworkCreate: AsyncParsableCommand {
+        public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "create",
             abstract: "Create a new network")
 
-        public init() {}
-
         @Argument(help: "Network name")
-        public var name: String
+        var name: String
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
         public func run() async throws {
             let config = NetworkConfiguration(id: self.name, mode: .nat)

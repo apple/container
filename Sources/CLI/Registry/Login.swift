@@ -22,8 +22,9 @@ import ContainerizationOCI
 import Foundation
 
 extension Application {
-    struct Login: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct Login: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             abstract: "Login to a registry"
         )
 
@@ -39,7 +40,7 @@ extension Application {
         @OptionGroup
         var registry: Flags.Registry
 
-        func run() async throws {
+        public func run() async throws {
             var username = self.username
             var password = ""
             if passwordStdin {

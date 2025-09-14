@@ -21,7 +21,9 @@ import ContainerizationError
 import Foundation
 
 extension Application {
-    struct RemoveImageOptions: ParsableArguments {
+    public struct RemoveImageOptions: ParsableArguments {
+        public init() {}
+        
         @Flag(name: .shortAndLong, help: "Remove all images")
         var all: Bool = false
 
@@ -32,7 +34,7 @@ extension Application {
         var global: Flags.Global
     }
 
-    struct RemoveImageImplementation {
+    public struct RemoveImageImplementation {
         static func validate(options: RemoveImageOptions) throws {
             if options.images.count == 0 && !options.all {
                 throw ContainerizationError(.invalidArgument, message: "no image specified and --all not supplied")
@@ -79,20 +81,22 @@ extension Application {
         }
     }
 
-    struct ImageRemove: AsyncParsableCommand {
+    public struct ImageRemove: AsyncParsableCommand {
+        public init() {}
+        
         @OptionGroup
         var options: RemoveImageOptions
 
-        static let configuration = CommandConfiguration(
+        public static let configuration = CommandConfiguration(
             commandName: "delete",
             abstract: "Remove one or more images",
             aliases: ["rm"])
 
-        func validate() throws {
+        public func validate() throws {
             try RemoveImageImplementation.validate(options: options)
         }
 
-        mutating func run() async throws {
+        public mutating func run() async throws {
             try await RemoveImageImplementation.removeImage(options: options)
         }
     }

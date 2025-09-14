@@ -19,8 +19,9 @@ import ContainerClient
 import Foundation
 
 extension Application.VolumeCommand {
-    struct VolumeCreate: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct VolumeCreate: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "create",
             abstract: "Create a volume"
         )
@@ -37,7 +38,7 @@ extension Application.VolumeCommand {
         @Option(name: .customLong("label"), parsing: .upToNextOption, help: "Set metadata on a volume")
         var labels: [String] = []
 
-        func run() async throws {
+        public func run() async throws {
             var parsedDriverOpts = Utility.parseKeyValuePairs(driverOpts)
             let parsedLabels = Utility.parseKeyValuePairs(labels)
 

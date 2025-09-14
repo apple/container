@@ -30,23 +30,27 @@ extension ClientKernel {
         XPCClient(service: serviceIdentifier)
     }
 
-    public static func installKernel(kernelFilePath: String, platform: SystemPlatform) async throws {
+    public static func installKernel(kernelFilePath: String, platform: SystemPlatform, force: Bool) async throws {
         let client = newClient()
         let message = XPCMessage(route: .installKernel)
 
         message.set(key: .kernelFilePath, value: kernelFilePath)
+        message.set(key: .kernelForce, value: force)
 
         let platformData = try JSONEncoder().encode(platform)
         message.set(key: .systemPlatform, value: platformData)
         try await client.send(message)
     }
 
-    public static func installKernelFromTar(tarFile: String, kernelFilePath: String, platform: SystemPlatform, progressUpdate: ProgressUpdateHandler? = nil) async throws {
+    public static func installKernelFromTar(tarFile: String, kernelFilePath: String, platform: SystemPlatform, progressUpdate: ProgressUpdateHandler? = nil, force: Bool)
+        async throws
+    {
         let client = newClient()
         let message = XPCMessage(route: .installKernel)
 
         message.set(key: .kernelTarURL, value: tarFile)
         message.set(key: .kernelFilePath, value: kernelFilePath)
+        message.set(key: .kernelForce, value: force)
 
         let platformData = try JSONEncoder().encode(platform)
         message.set(key: .systemPlatform, value: platformData)

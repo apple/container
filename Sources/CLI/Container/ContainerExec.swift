@@ -21,8 +21,10 @@ import ContainerizationOS
 import Foundation
 
 extension Application {
-    struct ContainerExec: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct ContainerExec: AsyncParsableCommand {
+        public init() {}
+        
+        public static let configuration = CommandConfiguration(
             commandName: "exec",
             abstract: "Run a new command in a running container")
 
@@ -38,7 +40,7 @@ extension Application {
         @Argument(parsing: .captureForPassthrough, help: "New process arguments")
         var arguments: [String]
 
-        func run() async throws {
+        public func run() async throws {
             var exitCode: Int32 = 127
             let container = try await ClientContainer.get(id: containerID)
             try ensureRunning(container: container)

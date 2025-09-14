@@ -69,7 +69,8 @@ struct ContainersHarness {
         guard let id else {
             throw ContainerizationError(.invalidArgument, message: "id cannot be empty")
         }
-        try await service.delete(id: id)
+        let forceDelete = message.bool(key: .forceDelete)
+        try await service.delete(id: id, force: forceDelete)
         return message.reply()
     }
 

@@ -21,8 +21,10 @@ import ContainerizationOS
 import TerminalProgress
 
 extension Application {
-    struct ContainerStart: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct ContainerStart: AsyncParsableCommand {
+        public init() {}
+        
+        public static let configuration = CommandConfiguration(
             commandName: "start",
             abstract: "Start a container")
 
@@ -38,7 +40,7 @@ extension Application {
         @Argument(help: "Container's ID")
         var containerID: String
 
-        func run() async throws {
+        public func run() async throws {
             var exitCode: Int32 = 127
 
             let progressConfig = try ProgressConfig(

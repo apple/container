@@ -165,11 +165,12 @@ extension ClientContainer {
     }
 
     /// Delete the container along with any resources.
-    public func delete() async throws {
+    public func delete(force: Bool = false) async throws {
         do {
             let client = XPCClient(service: Self.serviceIdentifier)
             let request = XPCMessage(route: .deleteContainer)
             request.set(key: .id, value: self.id)
+            request.set(key: .forceDelete, value: force)
             try await client.send(request)
         } catch {
             throw ContainerizationError(

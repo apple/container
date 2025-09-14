@@ -19,15 +19,16 @@ import ContainerClient
 import Foundation
 
 extension Application {
-    struct ImagePrune: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct ImagePrune: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "prune",
             abstract: "Remove unreferenced and dangling images")
 
         @OptionGroup
         var global: Flags.Global
 
-        func run() async throws {
+        public func run() async throws {
             let (_, size) = try await ClientImage.pruneImages()
             let formatter = ByteCountFormatter()
             let freed = formatter.string(fromByteCount: Int64(size))

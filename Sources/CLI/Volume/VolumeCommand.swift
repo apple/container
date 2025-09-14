@@ -17,8 +17,9 @@
 import ArgumentParser
 
 extension Application {
-    struct VolumeCommand: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct VolumeCommand: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "volume",
             abstract: "Manage container volumes",
             subcommands: [

@@ -21,8 +21,10 @@ import Foundation
 import TerminalProgress
 
 extension Application {
-    struct ContainerCreate: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct ContainerCreate: AsyncParsableCommand {
+        public init() {}
+        
+        public static let configuration = CommandConfiguration(
             commandName: "create",
             abstract: "Create a new container")
 
@@ -47,7 +49,7 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
 
-        func run() async throws {
+        public func run() async throws {
             let progressConfig = try ProgressConfig(
                 showTasks: true,
                 showItems: true,

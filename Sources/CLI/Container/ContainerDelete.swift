@@ -20,8 +20,10 @@ import ContainerizationError
 import Foundation
 
 extension Application {
-    struct ContainerDelete: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct ContainerDelete: AsyncParsableCommand {
+        public init() {}
+        
+        public static let configuration = CommandConfiguration(
             commandName: "delete",
             abstract: "Delete one or more containers",
             aliases: ["rm"])
@@ -38,7 +40,7 @@ extension Application {
         @Argument(help: "Container IDs/names")
         var containerIDs: [String] = []
 
-        func validate() throws {
+        public func validate() throws {
             if containerIDs.count == 0 && !all {
                 throw ContainerizationError(.invalidArgument, message: "no containers specified and --all not supplied")
             }
@@ -50,7 +52,7 @@ extension Application {
             }
         }
 
-        mutating func run() async throws {
+        public mutating func run() async throws {
             let set = Set<String>(containerIDs)
             var containers = [ClientContainer]()
 
@@ -80,33 +82,23 @@ extension Application {
             var failed = [String]()
             let force = self.force
             let all = self.all
-            try await withThrowingTaskGroup(of: ClientContainer?.self) { group in
+            try await withThrowingTaskGroup(of: String?.self) { group in
                 for container in containers {
                     group.addTask {
                         do {
-                            // First we need to find if the container supports auto-remove
-                            // and if so we need to skip deletion.
-                            if container.status == .running {
-                                if !force {
-                                    // We don't want to error if the user just wants all containers deleted.
-                                    // It's implied we'll skip containers we can't actually delete.
-                                    if all {
-                                        return nil
-                                    }
+                            if container.status == .running && !force {
+                                guard all else {
                                     throw ContainerizationError(.invalidState, message: "container is running")
                                 }
-                                let stopOpts = ContainerStopOptions(
-                                    timeoutInSeconds: 5,
-                                    signal: SIGKILL
-                                )
-                                try await container.stop(opts: stopOpts)
+                                return nil  // Skip running container when using --all
                             }
-                            try await container.delete()
+
+                            try await container.delete(force: force)
                             print(container.id)
                             return nil
                         } catch {
                             log.error("failed to delete container \(container.id): \(error)")
-                            return container
+                            return container.id
                         }
                     }
                 }
@@ -115,12 +107,15 @@ extension Application {
                     guard let ctr else {
                         continue
                     }
-                    failed.append(ctr.id)
+                    failed.append(ctr)
                 }
             }
 
             if failed.count > 0 {
-                throw ContainerizationError(.internalError, message: "delete failed for one or more containers: \(failed)")
+                throw ContainerizationError(
+                    .internalError,
+                    message: "delete failed for one or more containers: \(failed)"
+                )
             }
         }
     }

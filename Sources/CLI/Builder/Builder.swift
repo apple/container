@@ -17,8 +17,10 @@
 import ArgumentParser
 
 extension Application {
-    struct BuilderCommand: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct BuilderCommand: AsyncParsableCommand {
+        public init() {}
+        
+        public static let configuration = CommandConfiguration(
             commandName: "builder",
             abstract: "Manage an image builder instance",
             subcommands: [

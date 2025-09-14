@@ -23,8 +23,9 @@ import Foundation
 import TerminalProgress
 
 extension Application {
-    struct SystemStart: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct SystemStart: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "start",
             abstract: "Start `container` services"
         )
@@ -39,7 +40,7 @@ extension Application {
             name: .long,
             help: "Path to the installation root directory",
             transform: { URL(filePath: $0) })
-        public var installRoot = InstallRoot.defaultURL
+        var installRoot = InstallRoot.defaultURL
 
         @Flag(name: .long, help: "Enable debug logging for the runtime daemon.")
         var debug = false
@@ -49,7 +50,7 @@ extension Application {
             help: "Specify whether the default kernel should be installed or not. The default behavior is to prompt the user for a response.")
         var kernelInstall: Bool?
 
-        func run() async throws {
+        public func run() async throws {
             // Without the true path to the binary in the plist, `container-apiserver` won't launch properly.
             // TODO: Use plugin loader for API server.
             let executableUrl = CommandLine.executablePathUrl
@@ -112,7 +113,8 @@ extension Application {
 
         private func installInitialFilesystem() async throws {
             let dep = Dependencies.initFs
-            let pullCommand = ImagePull(reference: dep.source)
+            var pullCommand = try ImagePull.parse()
+            pullCommand.reference = dep.source
             print("Installing base container filesystem...")
             do {
                 try await pullCommand.run()
@@ -145,7 +147,7 @@ extension Application {
                 return
             }
             print("Installing kernel...")
-            try await KernelSet.downloadAndInstallWithProgressBar(tarRemoteURL: defaultKernelURL, kernelFilePath: defaultKernelBinaryPath)
+            try await KernelSet.downloadAndInstallWithProgressBar(tarRemoteURL: defaultKernelURL, kernelFilePath: defaultKernelBinaryPath, force: true)
         }
 
         private func initImageExists() async -> Bool {

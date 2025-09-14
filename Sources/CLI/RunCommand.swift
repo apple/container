@@ -26,8 +26,9 @@ import NIOPosix
 import TerminalProgress
 
 extension Application {
-    struct ContainerRunCommand: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct ContainerRunCommand: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "run",
             abstract: "Run a container")
 
@@ -55,7 +56,7 @@ extension Application {
         @Argument(parsing: .captureForPassthrough, help: "Container init process arguments")
         var arguments: [String] = []
 
-        func run() async throws {
+        public func run() async throws {
             var exitCode: Int32 = 127
             let id = Utility.createContainerID(name: self.managementFlags.name)
 
@@ -166,13 +167,13 @@ extension Application {
     }
 }
 
-struct ProcessIO {
+public struct ProcessIO: Sendable {
     let stdin: Pipe?
     let stdout: Pipe?
     let stderr: Pipe?
     var ioTracker: IoTracker?
 
-    struct IoTracker {
+    public struct IoTracker: Sendable{
         let stream: AsyncStream<Void>
         let cont: AsyncStream<Void>.Continuation
         let configuredStreams: Int
@@ -333,7 +334,7 @@ struct ProcessIO {
         }
     }
 
-    public func wait() async throws {
+    func wait() async throws {
         guard let ioTracker = self.ioTracker else {
             return
         }
@@ -355,10 +356,10 @@ struct ProcessIO {
     }
 }
 
-struct OSFile: Sendable {
+public struct OSFile: Sendable {
     private let fd: Int32
 
-    enum IOAction: Equatable {
+    public enum IOAction: Equatable {
         case eof
         case again
         case success
@@ -366,11 +367,11 @@ struct OSFile: Sendable {
         case error(_ errno: Int32)
     }
 
-    init(fd: Int32) {
+    public init(fd: Int32) {
         self.fd = fd
     }
 
-    init(handle: FileHandle) {
+    public init(handle: FileHandle) {
         self.fd = handle.fileDescriptor
     }
 

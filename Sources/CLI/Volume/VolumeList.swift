@@ -20,8 +20,9 @@ import ContainerizationExtras
 import Foundation
 
 extension Application.VolumeCommand {
-    struct VolumeList: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct VolumeList: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "list",
             abstract: "List volumes",
             aliases: ["ls"]
@@ -33,16 +34,16 @@ extension Application.VolumeCommand {
         @Option(name: .long, help: "Format of the output")
         var format: Application.ListFormat = .table
 
-        func run() async throws {
+        public func run() async throws {
             let volumes = try await ClientVolume.list()
             try printVolumes(volumes: volumes, format: format)
         }
 
-        private func createHeader() -> [[String]] {
+        func createHeader() -> [[String]] {
             [["NAME", "DRIVER", "OPTIONS"]]
         }
 
-        private func printVolumes(volumes: [Volume], format: Application.ListFormat) throws {
+        func printVolumes(volumes: [Volume], format: Application.ListFormat) throws {
             if format == .json {
                 let data = try JSONEncoder().encode(volumes)
                 print(String(data: data, encoding: .utf8)!)

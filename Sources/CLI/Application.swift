@@ -29,22 +29,17 @@ import TerminalProgress
 
 // `log` is updated only once in the `validate()` method.
 nonisolated(unsafe) var log = {
-    LoggingSystem.bootstrap { label in
-        OSLogHandler(
-            label: label,
-            category: "CLI"
-        )
-    }
+    LoggingSystem.bootstrap(StreamLogHandler.standardError)
     var log = Logger(label: "com.apple.container")
-    log.logLevel = .debug
+    log.logLevel = .info
     return log
 }()
 
 public struct Application: AsyncParsableCommand {
-    public init() {}
-
     @OptionGroup
     public var global: Flags.Global
+    
+    public init() {}
 
     public static let configuration = CommandConfiguration(
         commandName: "container",
@@ -73,7 +68,7 @@ public struct Application: AsyncParsableCommand {
                 name: "Image",
                 subcommands: [
                     BuildCommand.self,
-                    ImagesCommand.self,
+                    ImageCommand.self,
                     RegistryCommand.self,
                 ]
             ),
@@ -132,7 +127,7 @@ public struct Application: AsyncParsableCommand {
         }
     }
 
-    static func createPluginLoader() async throws -> PluginLoader {
+    public static func createPluginLoader() async throws -> PluginLoader {
         let installRoot = CommandLine.executablePathUrl
             .deletingLastPathComponent()
             .appendingPathComponent("..")
@@ -176,7 +171,7 @@ public struct Application: AsyncParsableCommand {
         )
     }
 
-    static func handleProcess(io: ProcessIO, process: ClientProcess) async throws -> Int32 {
+    public static func handleProcess(io: ProcessIO, process: ClientProcess) async throws -> Int32 {
         let signals = AsyncSignalHandler.create(notify: Application.signalSet)
         return try await withThrowingTaskGroup(of: Int32?.self, returning: Int32.self) { group in
             let waitAdded = group.addTaskUnlessCancelled {
@@ -314,7 +309,7 @@ extension Application {
         print(altered)
     }
 
-    enum ListFormat: String, CaseIterable, ExpressibleByArgument {
+    public enum ListFormat: String, CaseIterable, ExpressibleByArgument {
         case json
         case table
     }

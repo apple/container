@@ -21,8 +21,9 @@ import ContainerizationOCI
 import TerminalProgress
 
 extension Application {
-    struct ImagePush: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct ImagePush: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "push",
             abstract: "Push an image"
         )
@@ -40,7 +41,7 @@ extension Application {
 
         @Argument var reference: String
 
-        func run() async throws {
+        public func run() async throws {
             var p: Platform?
             if let platform {
                 p = try Platform(from: platform)

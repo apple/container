@@ -37,10 +37,19 @@ actor KernelService {
 
     /// Copies a kernel binary from a local path on disk into the managed kernels directory
     /// as the default kernel for the provided platform.
-    public func installKernel(kernelFile url: URL, platform: SystemPlatform = .linuxArm) throws {
+    public func installKernel(kernelFile url: URL, platform: SystemPlatform = .linuxArm, force: Bool) throws {
         self.log.info("KernelService: \(#function) - kernelFile: \(url), platform: \(String(describing: platform))")
         let kFile = url.resolvingSymlinksInPath()
         let destPath = self.kernelDirectory.appendingPathComponent(kFile.lastPathComponent)
+        if force {
+            do {
+                try FileManager.default.removeItem(at: destPath)
+            } catch let error as NSError {
+                guard error.code == NSFileNoSuchFileError else {
+                    throw error
+                }
+            }
+        }
         try FileManager.default.copyItem(at: kFile, to: destPath)
         try Task.checkCancellation()
         do {
@@ -54,7 +63,7 @@ actor KernelService {
     /// Copies a kernel binary from inside of tar file into the managed kernels directory
     /// as the default kernel for the provided platform.
     /// The parameter `tar` maybe a location to a local file on disk, or a remote URL.
-    public func installKernelFrom(tar: URL, kernelFilePath: String, platform: SystemPlatform, progressUpdate: ProgressUpdateHandler?) async throws {
+    public func installKernelFrom(tar: URL, kernelFilePath: String, platform: SystemPlatform, progressUpdate: ProgressUpdateHandler?, force: Bool) async throws {
         self.log.info("KernelService: \(#function) - tar: \(tar), kernelFilePath: \(kernelFilePath), platform: \(String(describing: platform))")
 
         let tempDir = FileManager.default.uniqueTemporaryDirectory()
@@ -75,16 +84,15 @@ actor KernelService {
             if let progressUpdate {
                 downloadProgressUpdate = ProgressTaskCoordinator.handler(for: downloadTask, from: progressUpdate)
             }
-            try await FileDownloader.downloadFile(url: tar, to: tarFile, progressUpdate: downloadProgressUpdate)
+            try await ContainerClient.FileDownloader.downloadFile(url: tar, to: tarFile, progressUpdate: downloadProgressUpdate)
         }
         await taskManager.finish()
 
         await progressUpdate?([
             .setDescription("Unpacking kernel")
         ])
-        let archiveReader = try ArchiveReader(file: tarFile)
-        let kernelFile = try archiveReader.extractFile(from: kernelFilePath, to: tempDir)
-        try self.installKernel(kernelFile: kernelFile, platform: platform)
+        let kernelFile = try self.extractFile(tarFile: tarFile, at: kernelFilePath, to: tempDir)
+        try self.installKernel(kernelFile: kernelFile, platform: platform, force: force)
 
         if !FileManager.default.fileExists(atPath: tar.absoluteString) {
             try FileManager.default.removeItem(at: tarFile)
@@ -112,13 +120,27 @@ actor KernelService {
         }
         return Kernel(path: defaultKernelPath, platform: platform)
     }
-}
 
-extension ArchiveReader {
-    fileprivate func extractFile(from: String, to directory: URL) throws -> URL {
-        let (_, data) = try self.extractFile(path: from)
+    private func extractFile(tarFile: URL, at: String, to directory: URL) throws -> URL {
+        var target = at
+        var archiveReader = try ArchiveReader(file: tarFile)
+        var (entry, data) = try archiveReader.extractFile(path: target)
+
+        // if the target file is a symlink, get the data for the actual file
+        if entry.fileType == .symbolicLink, let symlinkRelative = entry.symlinkTarget {
+            // the previous extractFile changes the underlying file pointer, so we need to reopen the file
+            // to ensure we traverse all the files in the archive
+            archiveReader = try ArchiveReader(file: tarFile)
+            let symlinkTarget = URL(filePath: target).deletingLastPathComponent().appending(path: symlinkRelative)
+
+            // standardize so that we remove any and all ../ and ./ in the path since symlink targets
+            // are relative paths to the target file from the symlink's parent dir itself
+            target = symlinkTarget.standardized.relativePath
+            let (_, targetData) = try archiveReader.extractFile(path: target)
+            data = targetData
+        }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
-        let fileName = URL(filePath: from).lastPathComponent
+        let fileName = URL(filePath: target).lastPathComponent
         let fileURL = directory.appendingPathComponent(fileName)
         try data.write(to: fileURL, options: .atomic)
         return fileURL

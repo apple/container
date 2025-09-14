@@ -22,11 +22,13 @@ import Foundation
 import Logging
 
 extension Application {
-    struct SystemStop: AsyncParsableCommand {
+    public struct SystemStop: AsyncParsableCommand {
+        public init() {}
+        
         private static let stopTimeoutSeconds: Int32 = 5
         private static let shutdownTimeoutSeconds: Int32 = 20
 
-        static let configuration = CommandConfiguration(
+        public static let configuration = CommandConfiguration(
             commandName: "stop",
             abstract: "Stop all `container` services"
         )
@@ -34,7 +36,7 @@ extension Application {
         @Option(name: .shortAndLong, help: "Launchd prefix for `container` services")
         var prefix: String = "com.apple.container."
 
-        func run() async throws {
+        public func run() async throws {
             let log = Logger(
                 label: "com.apple.container.cli",
                 factory: { label in

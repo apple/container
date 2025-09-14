@@ -19,8 +19,9 @@ import ContainerClient
 import Foundation
 
 extension Application.VolumeCommand {
-    struct VolumeDelete: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct VolumeDelete: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "delete",
             abstract: "Remove one or more volumes",
             aliases: ["rm"]
@@ -29,7 +30,7 @@ extension Application.VolumeCommand {
         @Argument(help: "Volume name(s)")
         var names: [String]
 
-        func run() async throws {
+        public func run() async throws {
             for name in names {
                 try await ClientVolume.delete(name: name)
                 print(name)

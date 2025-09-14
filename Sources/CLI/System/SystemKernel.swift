@@ -17,8 +17,9 @@
 import ArgumentParser
 
 extension Application {
-    struct SystemKernel: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct SystemKernel: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "kernel",
             abstract: "Manage the default kernel configuration",
             subcommands: [

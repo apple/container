@@ -19,14 +19,15 @@ import ContainerClient
 import Foundation
 
 extension Application {
-    struct DNSList: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct DNSList: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "list",
             abstract: "List local DNS domains",
             aliases: ["ls"]
         )
 
-        func run() async throws {
+        public func run() async throws {
             let resolver: HostDNSResolver = HostDNSResolver()
             let domains = resolver.listDomains()
             print(domains.joined(separator: "\n"))

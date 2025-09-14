@@ -21,8 +21,9 @@ import ContainerizationExtras
 import Foundation
 
 extension Application {
-    struct DNSCreate: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct DNSCreate: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "create",
             abstract: "Create a local DNS domain for containers (must run as an administrator)"
         )
@@ -30,7 +31,7 @@ extension Application {
         @Argument(help: "the local domain name")
         var domainName: String
 
-        func run() async throws {
+        public func run() async throws {
             let resolver: HostDNSResolver = HostDNSResolver()
             do {
                 try resolver.createDomain(name: domainName)

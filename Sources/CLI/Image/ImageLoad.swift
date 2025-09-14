@@ -22,8 +22,9 @@ import Foundation
 import TerminalProgress
 
 extension Application {
-    struct ImageLoad: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct ImageLoad: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "load",
             abstract: "Load images from an OCI compatible tar archive"
         )
@@ -38,7 +39,7 @@ extension Application {
             })
         var input: String
 
-        func run() async throws {
+        public func run() async throws {
             guard FileManager.default.fileExists(atPath: input) else {
                 print("File does not exist \(input)")
                 Application.exit(withError: ArgumentParser.ExitCode(1))

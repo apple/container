@@ -18,8 +18,9 @@ import ArgumentParser
 import ContainerClient
 
 extension Application {
-    struct ImageTag: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct ImageTag: AsyncParsableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
             commandName: "tag",
             abstract: "Tag an image")
 
@@ -32,7 +33,7 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
 
-        func run() async throws {
+        public func run() async throws {
             let existing = try await ClientImage.get(reference: source)
             let targetReference = try ClientImage.normalizeReference(target)
             try await existing.tag(new: targetReference)

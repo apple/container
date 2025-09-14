@@ -20,7 +20,9 @@ import ContainerizationError
 import Foundation
 
 extension Application {
-    struct BuilderStatus: AsyncParsableCommand {
+    public struct BuilderStatus: AsyncParsableCommand {
+        public init() {}
+        
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
             config.commandName = "status"
@@ -34,7 +36,7 @@ extension Application {
         @Flag(name: .long, help: ArgumentHelp("Display detailed status in json format"))
         var json: Bool = false
 
-        func run() async throws {
+        public func run() async throws {
             do {
                 let container = try await ClientContainer.get(id: "buildkit")
                 if json {
