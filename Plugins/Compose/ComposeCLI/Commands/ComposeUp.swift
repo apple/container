@@ -303,9 +303,10 @@ public struct ComposeUp: AsyncParsableCommand, @unchecked Sendable {
                 print("Network '\(networkName)' already exists")
                 return
             }
-            var networkCreate = Application.NetworkCreate()
+            let commands = [actualNetworkName]
+            
+            var networkCreate = try Application.NetworkCreate.parse(commands)
             networkCreate.global = global
-            networkCreate.name = actualNetworkName
 
             try await networkCreate.run()
             print("Network '\(networkName)' created")
@@ -551,18 +552,17 @@ public struct ComposeUp: AsyncParsableCommand, @unchecked Sendable {
         }
 
         print("Pulling Image \(imageName)...")
-        var registry = Flags.Registry()
-        registry.scheme = "auto"  // Set or SwiftArgumentParser gets mad
+        
+        var commands = [
+            imageName
+        ]
+        
+        if let platform {
+            commands.append(contentsOf: ["--platform", platform])
+        }
 
-        var progress = Flags.Progress()
-        progress.disableProgressUpdates = false
-
-        var imagePull = Application.ImagePull()
-        imagePull.progressFlags = progress
-        imagePull.registry = registry
+        var imagePull = try Application.ImagePull.parse(commands)
         imagePull.global = global
-        imagePull.reference = imageName
-        imagePull.platform = platform
         try await imagePull.run()
     }
 
@@ -582,39 +582,39 @@ public struct ComposeUp: AsyncParsableCommand, @unchecked Sendable {
             return imageToRun
         }
 
-        var buildCommand = Application.BuildCommand()
-
-        // Set Build Commands
-        buildCommand.buildArg = (buildConfig.args ?? [:]).map({ "\($0.key)=\(resolveVariable($0.value, with: environmentVariables))" })
-
-        // Locate Dockerfile and context
-        buildCommand.contextDir = "\(self.cwd)/\(buildConfig.context)"
-        buildCommand.file = "\(self.cwd)/\(buildConfig.dockerfile ?? "Dockerfile")"
-
-        // Handle Caching
-        buildCommand.noCache = noCache
-        buildCommand.cacheIn = []
-        buildCommand.cacheOut = []
-
-        // Handle OS/Arch
+        // Build command arguments
+        var commands = ["\(self.cwd)/\(buildConfig.context)"]
+        
+        // Add build arguments
+        for (key, value) in buildConfig.args ?? [:] {
+            commands.append(contentsOf: ["--build-arg", "\(key)=\(resolveVariable(value, with: environmentVariables))"])
+        }
+        
+        // Add Dockerfile path
+        commands.append(contentsOf: ["--file", "\(self.cwd)/\(buildConfig.dockerfile ?? "Dockerfile")"])
+        
+        // Add caching options
+        if noCache {
+            commands.append("--no-cache")
+        }
+        
+        // Add OS/Arch
         let split = service.platform?.split(separator: "/")
-        buildCommand.os = [String(split?.first ?? "linux")]
-        buildCommand.arch = [String(((split ?? []).count >= 1 ? split?.last : nil) ?? "arm64")]
+        let os = String(split?.first ?? "linux")
+        let arch = String(((split ?? []).count >= 1 ? split?.last : nil) ?? "arm64")
+        commands.append(contentsOf: ["--os", os])
+        commands.append(contentsOf: ["--arch", arch])
+        
+        // Add image name
+        commands.append(contentsOf: ["--tag", imageToRun])
+        
+        // Add CPU & Memory
+        let cpuCount = Int64(service.deploy?.resources?.limits?.cpus ?? "2") ?? 2
+        let memoryLimit = service.deploy?.resources?.limits?.memory ?? "2048MB"
+        commands.append(contentsOf: ["--cpus", "\(cpuCount)"])
+        commands.append(contentsOf: ["--memory", memoryLimit])
 
-        // Set Image Name
-        buildCommand.targetImageName = imageToRun
-
-        // Set CPU & Memory
-        buildCommand.cpus = Int64(service.deploy?.resources?.limits?.cpus ?? "2") ?? 2
-        buildCommand.memory = service.deploy?.resources?.limits?.memory ?? "2048MB"
-
-        // Set Miscelaneous
-        buildCommand.label = []  // No Label Equivalent?
-        buildCommand.progress = "auto"
-        buildCommand.vsockPort = 8088
-        buildCommand.quiet = false
-        buildCommand.target = ""
-        buildCommand.output = ["type=oci"]
+        let buildCommand = try Application.BuildCommand.parse(commands)
         print("\n----------------------------------------")
         print("Building image for service: \(serviceName) (Tag: \(imageToRun))")
         try buildCommand.validate()
