@@ -38,7 +38,7 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
 
-        func run() async throws {
+        public func run() async throws {
             let networks = try await ClientNetwork.list()
             try printNetworks(networks: networks, format: format)
         }

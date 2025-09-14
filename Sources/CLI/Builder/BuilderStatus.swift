@@ -36,7 +36,7 @@ extension Application {
         @Flag(name: .long, help: ArgumentHelp("Display detailed status in json format"))
         var json: Bool = false
 
-        func run() async throws {
+        public func run() async throws {
             do {
                 let container = try await ClientContainer.get(id: "buildkit")
                 if json {

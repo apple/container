@@ -33,7 +33,7 @@ extension Application {
         @Argument(help: "Networks to inspect")
         var networks: [String]
 
-        func run() async throws {
+        public func run() async throws {
             let objects: [any Codable] = try await ClientNetwork.list().filter {
                 networks.contains($0.id)
             }.map {

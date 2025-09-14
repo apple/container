@@ -31,7 +31,7 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
 
-        func run() async throws {
+        public func run() async throws {
             let keychain = KeychainHelper(id: Constants.keychainID)
             let r = Reference.resolveDomain(domain: registry)
             try keychain.delete(domain: r)

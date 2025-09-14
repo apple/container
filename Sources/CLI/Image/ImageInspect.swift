@@ -33,7 +33,7 @@ extension Application {
         @Argument(help: "Images to inspect")
         var images: [String]
 
-        func run() async throws {
+        public func run() async throws {
             var printable = [any Codable]()
             let result = try await ClientImage.get(names: images)
             let notFound = result.error

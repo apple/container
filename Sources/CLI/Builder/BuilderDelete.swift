@@ -37,7 +37,7 @@ extension Application {
         @Flag(name: .shortAndLong, help: "Force delete builder even if it is running")
         var force = false
 
-        func run() async throws {
+        public func run() async throws {
             do {
                 let container = try await ClientContainer.get(id: "buildkit")
                 if container.status != .stopped {

@@ -33,7 +33,7 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
 
-        func run() async throws {
+        public func run() async throws {
             let existing = try await ClientImage.get(reference: source)
             let targetReference = try ClientImage.normalizeReference(target)
             try await existing.tag(new: targetReference)

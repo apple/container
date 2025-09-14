@@ -38,7 +38,7 @@ extension Application.VolumeCommand {
         @Option(name: .customLong("label"), parsing: .upToNextOption, help: "Set metadata on a volume")
         var labels: [String] = []
 
-        func run() async throws {
+        public func run() async throws {
             var parsedDriverOpts = Utility.parseKeyValuePairs(driverOpts)
             let parsedLabels = Utility.parseKeyValuePairs(labels)
 

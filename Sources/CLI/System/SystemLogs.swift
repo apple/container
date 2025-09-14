@@ -44,7 +44,7 @@ extension Application {
         @Flag(name: .shortAndLong, help: "Follow log output")
         var follow: Bool = false
 
-        func run() async throws {
+        public func run() async throws {
             let process = Process()
             let sigHandler = AsyncSignalHandler.create(notify: [SIGINT, SIGTERM])
 

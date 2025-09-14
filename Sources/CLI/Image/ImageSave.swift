@@ -58,7 +58,7 @@ extension Application {
 
         @Argument var references: [String]
 
-        func run() async throws {
+        public func run() async throws {
             var p: Platform?
             if let platform {
                 p = try Platform(from: platform)

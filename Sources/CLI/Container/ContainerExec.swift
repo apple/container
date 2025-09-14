@@ -40,7 +40,7 @@ extension Application {
         @Argument(parsing: .captureForPassthrough, help: "New process arguments")
         var arguments: [String]
 
-        func run() async throws {
+        public func run() async throws {
             var exitCode: Int32 = 127
             let container = try await ClientContainer.get(id: containerID)
             try ensureRunning(container: container)

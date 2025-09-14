@@ -29,7 +29,7 @@ extension Application.VolumeCommand {
         @Argument(help: "Volume name(s)")
         var names: [String]
 
-        func run() async throws {
+        public func run() async throws {
             var volumes: [Volume] = []
 
             for name in names {

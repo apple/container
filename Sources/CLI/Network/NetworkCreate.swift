@@ -34,7 +34,7 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
 
-        func run() async throws {
+        public func run() async throws {
             let config = NetworkConfiguration(id: self.name, mode: .nat)
             let state = try await ClientNetwork.create(configuration: config)
             print(state.id)

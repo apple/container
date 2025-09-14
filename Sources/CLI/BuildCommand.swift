@@ -118,7 +118,7 @@ extension Application {
         @Flag(name: .shortAndLong, help: "Suppress build output")
         var quiet: Bool = false
 
-        func run() async throws {
+        public func run() async throws {
             do {
                 let timeout: Duration = .seconds(300)
                 let progressConfig = try ProgressConfig(
@@ -342,7 +342,7 @@ extension Application {
             }
         }
 
-        func validate() throws {
+        public func validate() throws {
             guard FileManager.default.fileExists(atPath: file) else {
                 throw ValidationError("Dockerfile does not exist at path: \(file)")
             }

@@ -37,7 +37,7 @@ extension Application {
         @Argument(help: "Network names")
         var networkNames: [String] = []
 
-        func validate() throws {
+        public func validate() throws {
             if networkNames.count == 0 && !all {
                 throw ContainerizationError(.invalidArgument, message: "no networks specified and --all not supplied")
             }
@@ -49,7 +49,7 @@ extension Application {
             }
         }
 
-        mutating func run() async throws {
+        public mutating func run() async throws {
             let uniqueNetworkNames = Set<String>(networkNames)
             let networks: [NetworkState]
 

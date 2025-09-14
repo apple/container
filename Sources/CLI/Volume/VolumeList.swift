@@ -34,7 +34,7 @@ extension Application.VolumeCommand {
         @Option(name: .long, help: "Format of the output")
         var format: Application.ListFormat = .table
 
-        func run() async throws {
+        public func run() async throws {
             let volumes = try await ClientVolume.list()
             try printVolumes(volumes: volumes, format: format)
         }

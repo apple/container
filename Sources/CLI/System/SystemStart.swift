@@ -50,7 +50,7 @@ extension Application {
             help: "Specify whether the default kernel should be installed or not. The default behavior is to prompt the user for a response.")
         var kernelInstall: Bool?
 
-        func run() async throws {
+        public func run() async throws {
             // Without the true path to the binary in the plist, `container-apiserver` won't launch properly.
             // TODO: Use plugin loader for API server.
             let executableUrl = CommandLine.executablePathUrl

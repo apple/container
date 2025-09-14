@@ -51,7 +51,7 @@ extension Application {
         @Argument
         var host: String
 
-        func run() async throws {
+        public func run() async throws {
             let scheme = try RequestScheme(registry.scheme).schemeFor(host: host)
 
             let _url = "\(scheme)://\(host)"
@@ -83,7 +83,7 @@ extension Application {
             aliases: ["clear"]
         )
 
-        func run() async throws {
+        public func run() async throws {
             DefaultsStore.unset(key: .defaultRegistryDomain)
             print("Unset the default registry domain")
         }
@@ -96,7 +96,7 @@ extension Application {
             abstract: "Display the default registry domain"
         )
 
-        func run() async throws {
+        public func run() async throws {
             print(DefaultsStore.get(key: .defaultRegistryDomain))
         }
     }

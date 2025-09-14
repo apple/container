@@ -43,7 +43,7 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
 
-        func validate() throws {
+        public func validate() throws {
             if containerIDs.count == 0 && !all {
                 throw ContainerizationError(.invalidArgument, message: "no containers specified and --all not supplied")
             }
@@ -53,7 +53,7 @@ extension Application {
             }
         }
 
-        mutating func run() async throws {
+        public mutating func run() async throws {
             let set = Set<String>(containerIDs)
             var containers = [ClientContainer]()
             if self.all {

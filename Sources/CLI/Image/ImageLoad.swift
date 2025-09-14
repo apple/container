@@ -39,7 +39,7 @@ extension Application {
             })
         var input: String
 
-        func run() async throws {
+        public func run() async throws {
             guard FileManager.default.fileExists(atPath: input) else {
                 print("File does not exist \(input)")
                 Application.exit(withError: ArgumentParser.ExitCode(1))

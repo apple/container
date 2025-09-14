@@ -92,11 +92,11 @@ extension Application {
             abstract: "Remove one or more images",
             aliases: ["rm"])
 
-        func validate() throws {
+        public func validate() throws {
             try RemoveImageImplementation.validate(options: options)
         }
 
-        mutating func run() async throws {
+        public mutating func run() async throws {
             try await RemoveImageImplementation.removeImage(options: options)
         }
     }

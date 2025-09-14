@@ -40,7 +40,7 @@ extension Application {
         @OptionGroup
         var registry: Flags.Registry
 
-        func run() async throws {
+        public func run() async throws {
             var username = self.username
             var password = ""
             if passwordStdin {

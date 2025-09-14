@@ -56,7 +56,7 @@ extension Application {
         @Argument(parsing: .captureForPassthrough, help: "Container init process arguments")
         var arguments: [String] = []
 
-        func run() async throws {
+        public func run() async throws {
             var exitCode: Int32 = 127
             let id = Utility.createContainerID(name: self.managementFlags.name)
 

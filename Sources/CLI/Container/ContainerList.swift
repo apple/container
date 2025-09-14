@@ -42,7 +42,7 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
 
-        func run() async throws {
+        public func run() async throws {
             let containers = try await ClientContainer.list()
             try printContainers(containers: containers, format: format)
         }

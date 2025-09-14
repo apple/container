@@ -45,7 +45,7 @@ extension Application {
         @Argument(help: "Container to fetch logs for")
         var container: String
 
-        func run() async throws {
+        public func run() async throws {
             do {
                 let container = try await ClientContainer.get(id: container)
                 let fhs = try await container.logs()

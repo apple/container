@@ -172,7 +172,7 @@ extension Application {
         @OptionGroup
         var options: ListImageOptions
 
-        mutating func run() async throws {
+        public mutating func run() async throws {
             try ListImageImplementation.validate(options: options)
             try await ListImageImplementation.listImages(options: options)
         }

@@ -31,7 +31,7 @@ extension Application {
         @Argument(help: "the local domain name")
         var domainName: String
 
-        func run() async throws {
+        public func run() async throws {
             let resolver = HostDNSResolver()
             do {
                 try resolver.deleteDomain(name: domainName)

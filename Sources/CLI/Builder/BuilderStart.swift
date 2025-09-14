@@ -50,7 +50,7 @@ extension Application {
         )
         var memory: String = "2048MB"
 
-        func run() async throws {
+        public func run() async throws {
             let progressConfig = try ProgressConfig(
                 showTasks: true,
                 showItems: true,

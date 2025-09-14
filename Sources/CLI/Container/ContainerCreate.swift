@@ -49,7 +49,7 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
 
-        func run() async throws {
+        public func run() async throws {
             let progressConfig = try ProgressConfig(
                 showTasks: true,
                 showItems: true,
