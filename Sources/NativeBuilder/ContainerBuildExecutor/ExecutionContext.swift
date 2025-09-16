@@ -175,17 +175,19 @@ public final class ExecutionContext: @unchecked Sendable {
 
     /// Create a child context for a nested execution.
     public func childContext(for stage: BuildStage) -> ExecutionContext {
-        lock.withLock {
-            ExecutionContext(
-                stage: stage,
-                graph: graph,
-                platform: platform,
-                reporter: reporter,
-                snapshotter: snapshotter,
-                baseEnvironment: Environment(_environment.variables),
-                baseConfig: _imageConfig
-            )
+        let (environmentVars, imageConfig) = lock.withLock {
+            (_environment.variables, _imageConfig)
         }
+
+        return ExecutionContext(
+            stage: stage,
+            graph: graph,
+            platform: platform,
+            reporter: reporter,
+            snapshotter: snapshotter,
+            baseEnvironment: Environment(environmentVars),
+            baseConfig: imageConfig
+        )
     }
 
     // MARK: - Snapshotter Integration
@@ -201,7 +203,7 @@ public final class ExecutionContext: @unchecked Sendable {
     /// - Returns: A prepared snapshot ready for modification
     /// - Throws: Any errors from the snapshotter
     public func prepareSnapshot(for operationId: UUID) async throws -> Snapshot {
-        let parentCommitted = headSnapshot
+        let parentCommitted = lock.withLock { _headSnapshot }
 
         // Always create a new child snapshot that points to the latest committed snapshot (if any).
         // Prepare is responsible for ensuring both the child mountpoint and parent materialization (if needed).
