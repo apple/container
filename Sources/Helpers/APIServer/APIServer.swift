@@ -61,7 +61,11 @@ struct APIServer: AsyncParsableCommand {
             var routes = [XPCRoute: XPCServer.RouteHandler]()
             let pluginLoader = try initializePluginLoader(log: log)
             try await initializePlugins(pluginLoader: pluginLoader, log: log, routes: &routes)
-            let containersService = try initializeContainerService(pluginLoader: pluginLoader, log: log, routes: &routes)
+            let containersService = try initializeContainerService(
+                pluginLoader: pluginLoader,
+                log: log,
+                routes: &routes
+            )
             let networkService = try await initializeNetworkService(
                 pluginLoader: pluginLoader,
                 containersService: containersService,
@@ -177,6 +181,8 @@ struct APIServer: AsyncParsableCommand {
         log: Logger,
         routes: inout [XPCRoute: XPCServer.RouteHandler]
     ) async throws {
+        log.info("initializing plugins")
+
         let bootPlugins = pluginLoader.findPlugins().filter { $0.shouldBoot }
 
         let service = PluginsService(pluginLoader: pluginLoader, log: log)
@@ -191,11 +197,15 @@ struct APIServer: AsyncParsableCommand {
     }
 
     private func initializeHealthCheckService(log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) {
+        log.info("initializing health check service")
+
         let svc = HealthCheckHarness(appRoot: appRoot, installRoot: installRoot, log: log)
         routes[XPCRoute.ping] = svc.ping
     }
 
     private func initializeKernelService(log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) throws {
+        log.info("initializing kernel service")
+
         let svc = try KernelService(log: log, appRoot: appRoot)
         let harness = KernelHarness(service: svc, log: log)
         routes[XPCRoute.installKernel] = harness.install
@@ -203,6 +213,8 @@ struct APIServer: AsyncParsableCommand {
     }
 
     private func initializeContainerService(pluginLoader: PluginLoader, log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) throws -> ContainersService {
+        log.info("initializing container service")
+
         let service = try ContainersService(
             appRoot: appRoot,
             pluginLoader: pluginLoader,
@@ -210,11 +222,18 @@ struct APIServer: AsyncParsableCommand {
         )
         let harness = ContainersHarness(service: service, log: log)
 
-        routes[XPCRoute.listContainer] = harness.list
-        routes[XPCRoute.createContainer] = harness.create
-        routes[XPCRoute.deleteContainer] = harness.delete
+        routes[XPCRoute.containerList] = harness.list
+        routes[XPCRoute.containerCreate] = harness.create
+        routes[XPCRoute.containerDelete] = harness.delete
         routes[XPCRoute.containerLogs] = harness.logs
-        routes[XPCRoute.containerEvent] = harness.eventHandler
+        routes[XPCRoute.containerBootstrap] = harness.bootstrap
+        routes[XPCRoute.containerDial] = harness.dial
+        routes[XPCRoute.containerStop] = harness.stop
+        routes[XPCRoute.containerStartProcess] = harness.startProcess
+        routes[XPCRoute.containerCreateProcess] = harness.createProcess
+        routes[XPCRoute.containerResize] = harness.resize
+        routes[XPCRoute.containerWait] = harness.wait
+        routes[XPCRoute.containerKill] = harness.kill
 
         return service
     }
@@ -225,6 +244,8 @@ struct APIServer: AsyncParsableCommand {
         log: Logger,
         routes: inout [XPCRoute: XPCServer.RouteHandler]
     ) async throws -> NetworksService {
+        log.info("initializing network service")
+
         let resourceRoot = appRoot.appendingPathComponent("networks")
         let service = try await NetworksService(
             pluginLoader: pluginLoader,
@@ -249,7 +270,13 @@ struct APIServer: AsyncParsableCommand {
         return service
     }
 
-    private func initializeVolumeService(containersService: ContainersService, log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) throws {
+    private func initializeVolumeService(
+        containersService: ContainersService,
+        log: Logger,
+        routes: inout [XPCRoute: XPCServer.RouteHandler]
+    ) throws {
+        log.info("initializing volume service")
+
         let resourceRoot = appRoot.appendingPathComponent("volumes")
         let service = try VolumesService(resourceRoot: resourceRoot, containersService: containersService, log: log)
         let harness = VolumesHarness(service: service, log: log)

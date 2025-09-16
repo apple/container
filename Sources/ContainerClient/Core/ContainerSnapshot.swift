@@ -20,11 +20,11 @@ import ContainerNetworkService
 /// and any runtime state information.
 public struct ContainerSnapshot: Codable, Sendable {
     /// The configuration of the container.
-    public let configuration: ContainerConfiguration
+    public var configuration: ContainerConfiguration
     /// The runtime status of the container.
-    public let status: RuntimeStatus
+    public var status: RuntimeStatus
     /// Network interfaces attached to the sandbox that are provided to the container.
-    public let networks: [Attachment]
+    public var networks: [Attachment]
 
     public init(
         configuration: ContainerConfiguration,

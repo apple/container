@@ -48,7 +48,11 @@ public actor NetworksService {
         self.log = log
 
         try FileManager.default.createDirectory(at: resourceRoot, withIntermediateDirectories: true)
-        self.store = try FilesystemEntityStore<NetworkConfiguration>(path: resourceRoot, type: "network", log: log)
+        self.store = try FilesystemEntityStore<NetworkConfiguration>(
+            path: resourceRoot,
+            type: "network",
+            log: log
+        )
 
         let networkPlugin =
             pluginLoader

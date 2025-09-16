@@ -19,11 +19,11 @@ import ContainerNetworkService
 /// A snapshot of a sandbox and its resources.
 public struct SandboxSnapshot: Codable, Sendable {
     /// The runtime status of the sandbox.
-    public let status: RuntimeStatus
+    public var status: RuntimeStatus
     /// Network attachments for the sandbox.
-    public let networks: [Attachment]
+    public var networks: [Attachment]
     /// Containers placed in the sandbox.
-    public let containers: [ContainerSnapshot]
+    public var containers: [ContainerSnapshot]
 
     public init(
         status: RuntimeStatus,

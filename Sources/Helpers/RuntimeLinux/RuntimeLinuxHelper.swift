@@ -64,15 +64,33 @@ struct RuntimeLinuxHelper: AsyncParsableCommand {
             signal(SIGPIPE, SIG_IGN)
 
             log.info("configuring XPC server")
+
             let interfaceStrategy: any InterfaceStrategy
             if #available(macOS 26, *) {
                 interfaceStrategy = NonisolatedInterfaceStrategy(log: log)
             } else {
                 interfaceStrategy = IsolatedInterfaceStrategy()
             }
-            let server = SandboxService(root: .init(fileURLWithPath: root), interfaceStrategy: interfaceStrategy, eventLoopGroup: eventLoopGroup, log: log)
-            let xpc = XPCServer(
+
+            nonisolated(unsafe) let anonymousConnection = xpc_connection_create(nil, nil)
+            let server = SandboxService(
+                root: .init(fileURLWithPath: root),
+                interfaceStrategy: interfaceStrategy,
+                eventLoopGroup: eventLoopGroup,
+                connection: anonymousConnection,
+                log: log
+            )
+
+            let endpointServer = XPCServer(
                 identifier: machServiceLabel,
+                routes: [
+                    SandboxRoutes.createEndpoint.rawValue: server.createEndpoint
+                ],
+                log: log
+            )
+
+            let mainServer = XPCServer(
+                connection: anonymousConnection,
                 routes: [
                     SandboxRoutes.bootstrap.rawValue: server.bootstrap,
                     SandboxRoutes.createProcess.rawValue: server.createProcess,
@@ -83,12 +101,23 @@ struct RuntimeLinuxHelper: AsyncParsableCommand {
                     SandboxRoutes.wait.rawValue: server.wait,
                     SandboxRoutes.start.rawValue: server.startProcess,
                     SandboxRoutes.dial.rawValue: server.dial,
+                    SandboxRoutes.shutdown.rawValue: server.shutdown,
                 ],
                 log: log
             )
 
             log.info("starting XPC server")
-            try await xpc.listen()
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    try await endpointServer.listen()
+                }
+                group.addTask {
+                    try await mainServer.listen()
+                }
+                defer { group.cancelAll() }
+
+                _ = try await group.next()
+            }
         } catch {
             log.error("\(commandName) failed", metadata: ["error": "\(error)"])
             try? await eventLoopGroup.shutdownGracefully()

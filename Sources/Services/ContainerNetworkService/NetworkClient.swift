@@ -40,7 +40,6 @@ extension NetworkClient {
     public func state() async throws -> NetworkState {
         let request = XPCMessage(route: NetworkRoutes.state.rawValue)
         let client = createClient()
-        defer { client.close() }
 
         let response = try await client.send(request)
         let state = try response.state()
@@ -52,7 +51,6 @@ extension NetworkClient {
         request.set(key: NetworkKeys.hostname.rawValue, value: hostname)
 
         let client = createClient()
-        defer { client.close() }
 
         let response = try await client.send(request)
         let attachment = try response.attachment()
@@ -65,7 +63,6 @@ extension NetworkClient {
         request.set(key: NetworkKeys.hostname.rawValue, value: hostname)
 
         let client = createClient()
-        defer { client.close() }
         try await client.send(request)
     }
 
@@ -74,7 +71,6 @@ extension NetworkClient {
         request.set(key: NetworkKeys.hostname.rawValue, value: hostname)
 
         let client = createClient()
-        defer { client.close() }
 
         let response = try await client.send(request)
         return try response.dataNoCopy(key: NetworkKeys.attachment.rawValue).map {
@@ -86,7 +82,6 @@ extension NetworkClient {
         let request = XPCMessage(route: NetworkRoutes.disableAllocator.rawValue)
 
         let client = createClient()
-        defer { client.close() }
 
         let response = try await client.send(request)
         return try response.allocatorDisabled()

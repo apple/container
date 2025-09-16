@@ -70,7 +70,10 @@ extension Application {
             )
             let failed = try await Self.stopContainers(containers: containers, stopOptions: opts)
             if failed.count > 0 {
-                throw ContainerizationError(.internalError, message: "stop failed for one or more containers \(failed.joined(separator: ","))")
+                throw ContainerizationError(
+                    .internalError,
+                    message: "stop failed for one or more containers \(failed.joined(separator: ","))"
+                )
             }
         }
 

@@ -15,6 +15,8 @@
 //===----------------------------------------------------------------------===//
 
 public enum SandboxRoutes: String {
+    /// Create an xpc endpoint to the sandbox instance.
+    case createEndpoint = "com.apple.container.sandbox/createEndpoint"
     /// Bootstrap the sandbox instance and create the init process.
     case bootstrap = "com.apple.container.sandbox/bootstrap"
     /// Create a process in the sandbox.
@@ -35,4 +37,6 @@ public enum SandboxRoutes: String {
     case exec = "com.apple.container.sandbox/exec"
     /// Dial a vsock port in the sandbox.
     case dial = "com.apple.container.sandbox/dial"
+    /// Shutdown the sandbox service process.
+    case shutdown = "com.apple.container.sandbox/shutdown"
 }

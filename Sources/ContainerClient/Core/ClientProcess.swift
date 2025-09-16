@@ -35,7 +35,7 @@ public protocol ClientProcess: Sendable {
     func start() async throws
     /// Send a terminal resize request to the process `id`.
     func resize(_ size: Terminal.Size) async throws
-    /// Send or "kill" a signal to the process `id`.
+    /// Send a signal to the process `id`.
     /// Kill does not wait for the process to exit, it only delivers the signal.
     func kill(_ signal: Int32) async throws
     ///  Wait for the process `id` to complete and return its exit code.
@@ -45,79 +45,66 @@ public protocol ClientProcess: Sendable {
 
 struct ClientProcessImpl: ClientProcess, Sendable {
     static let serviceIdentifier = "com.apple.container.apiserver"
+
+    /// ID of the process.
+    public var id: String {
+        processId ?? containerId
+    }
+
     /// Identifier of the container.
     public let containerId: String
-
-    private let client: SandboxClient
 
     /// Identifier of a process. That is running inside of a container.
     /// This field is nil if the process this objects refers to is the
     /// init process of the container.
     public let processId: String?
 
-    public var id: String {
-        processId ?? containerId
-    }
+    private let xpcClient: XPCClient
 
-    init(containerId: String, processId: String? = nil, client: SandboxClient) {
+    init(containerId: String, processId: String? = nil, xpcClient: XPCClient) {
         self.containerId = containerId
         self.processId = processId
-        self.client = client
+        self.xpcClient = xpcClient
     }
 
-    /// Start the container and return the initial process.
+    /// Start the process.
     public func start() async throws {
-        do {
-            let client = self.client
-            try await client.startProcess(self.id)
-        } catch {
-            throw ContainerizationError(
-                .internalError,
-                message: "failed to start container",
-                cause: error
-            )
-        }
+        let request = XPCMessage(route: .containerStartProcess)
+        request.set(key: .id, value: containerId)
+        request.set(key: .processIdentifier, value: id)
+
+        try await xpcClient.send(request)
     }
 
+    /// Send a signal to the process.
     public func kill(_ signal: Int32) async throws {
-        do {
+        let request = XPCMessage(route: .containerKill)
+        request.set(key: .id, value: containerId)
+        request.set(key: .processIdentifier, value: id)
+        request.set(key: .signal, value: Int64(signal))
 
-            let client = self.client
-            try await client.kill(self.id, signal: Int64(signal))
-        } catch {
-            throw ContainerizationError(
-                .internalError,
-                message: "failed to kill process",
-                cause: error
-            )
-        }
+        try await xpcClient.send(request)
     }
 
-    public func resize(_ size: ContainerizationOS.Terminal.Size) async throws {
-        do {
+    /// Resize the processes PTY if it has one.
+    public func resize(_ size: Terminal.Size) async throws {
+        let request = XPCMessage(route: .containerResize)
+        request.set(key: .id, value: containerId)
+        request.set(key: .processIdentifier, value: id)
+        request.set(key: .width, value: UInt64(size.width))
+        request.set(key: .height, value: UInt64(size.height))
 
-            let client = self.client
-            try await client.resize(self.id, size: size)
-
-        } catch {
-            throw ContainerizationError(
-                .internalError,
-                message: "failed to resize process",
-                cause: error
-            )
-        }
+        try await xpcClient.send(request)
     }
 
+    /// Wait for the process to exit.
     public func wait() async throws -> Int32 {
-        do {
-            let client = self.client
-            return try await client.wait(self.id)
-        } catch {
-            throw ContainerizationError(
-                .internalError,
-                message: "failed to wait on process",
-                cause: error
-            )
-        }
+        let request = XPCMessage(route: .containerWait)
+        request.set(key: .id, value: containerId)
+        request.set(key: .processIdentifier, value: id)
+
+        let response = try await xpcClient.send(request)
+        let code = response.int64(key: .exitCode)
+        return Int32(code)
     }
 }

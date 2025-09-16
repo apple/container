@@ -14,8 +14,6 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-//
-
 import ContainerClient
 import ContainerNetworkService
 import ContainerPersistence
@@ -37,6 +35,7 @@ import struct ContainerizationOCI.Process
 
 /// An XPC service that manages the lifecycle of a single VM-backed container.
 public actor SandboxService {
+    private let connection: xpc_connection_t
     private let root: URL
     private let interfaceStrategy: InterfaceStrategy
     private var container: ContainerInfo?
@@ -66,12 +65,36 @@ public actor SandboxService {
     ///   - interfaceStrategy: The strategy for producing network interface
     ///     objects for each network to which the container attaches.
     ///   - log: The destination for log messages.
-    public init(root: URL, interfaceStrategy: InterfaceStrategy, eventLoopGroup: any EventLoopGroup, log: Logger) {
+    public init(
+        root: URL,
+        interfaceStrategy: InterfaceStrategy,
+        eventLoopGroup: any EventLoopGroup,
+        connection: xpc_connection_t,
+        log: Logger
+    ) {
         self.root = root
         self.interfaceStrategy = interfaceStrategy
         self.log = log
         self.monitor = ExitMonitor(log: log)
         self.eventLoopGroup = eventLoopGroup
+        self.connection = connection
+    }
+
+    /// Returns an endpoint from an anonymous xpc connection.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with no parameters.
+    ///
+    /// - Returns: An XPC message with the following parameters:
+    ///   - endpoint: An XPC endpoint that can be used to communicate
+    ///     with the sandbox service.
+    @Sendable
+    public func createEndpoint(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`createEndpoint` xpc handler")
+        let endpoint = xpc_endpoint_create(self.connection)
+        let reply = message.reply()
+        reply.set(key: .sandboxServiceEndpoint, value: endpoint)
+        return reply
     }
 
     /// Start the VM and the guest agent process for a container.
@@ -217,7 +240,7 @@ public actor SandboxService {
     /// - Returns: An XPC message with no parameters.
     @Sendable
     public func startProcess(_ message: XPCMessage) async throws -> XPCMessage {
-        self.log.info("`start` xpc handler")
+        self.log.info("`startProcess` xpc handler")
         return try await self.lock.withLock { lock in
             let id = try message.id()
             let containerInfo = try await self.getContainer()
@@ -225,11 +248,362 @@ public actor SandboxService {
             if id == containerId {
                 try await self.startInitProcess(lock: lock)
                 await self.setState(.running)
-                try await self.sendContainerEvent(.containerStart(id: id))
             } else {
                 try await self.startExecProcess(processId: id, lock: lock)
             }
             return message.reply()
+        }
+    }
+
+    /// Shutdown the SandboxService.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with no parameters.
+    ///
+    /// - Returns: An XPC message with no parameters.
+    @Sendable
+    public func shutdown(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`shutdown` xpc handler")
+
+        switch self.state {
+        case .created, .stopped(_), .stopping:
+            self.state = .shuttingDown
+
+            Task {
+                do {
+                    try await Task.sleep(for: .seconds(5))
+                } catch {
+                    self.log.error("failed to sleep before shutting down SandboxService: \(error)")
+                }
+                self.log.info("Shutting down SandboxService")
+                exit(0)
+            }
+        default:
+            throw ContainerizationError(
+                .invalidState,
+                message: "cannot shutdown: container is not stopped"
+            )
+        }
+
+        return message.reply()
+    }
+
+    /// Create a process inside the virtual machine for the container.
+    ///
+    /// Use this procedure to run ad hoc processes in the virtual
+    /// machine (`container exec`).
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with the following parameters:
+    ///     - id: A client identifier for the process.
+    ///     - processConfig: JSON serialization of the `ProcessConfiguration`
+    ///       containing the process attributes.
+    ///
+    /// - Returns: An XPC message with no parameters.
+    @Sendable
+    public func createProcess(_ message: XPCMessage) async throws -> XPCMessage {
+        log.info("`createProcess` xpc handler")
+        return try await self.lock.withLock { [self] _ in
+            switch await self.state {
+            case .running, .booted:
+                let id = try message.id()
+                let config = try message.processConfig()
+                let stdio = message.stdio()
+
+                try await self.addNewProcess(id, config, stdio)
+
+                try await self.monitor.registerProcess(
+                    id: id,
+                    onExit: { id, code in
+                        guard let process = await self.processes[id]?.process else {
+                            throw ContainerizationError(
+                                .invalidState,
+                                message: "ProcessInfo missing for process \(id)"
+                            )
+                        }
+                        for cc in await self.waiters[id] ?? [] {
+                            cc.resume(returning: code)
+                        }
+                        await self.removeWaiters(for: id)
+                        try await process.delete()
+                        try await self.setProcessState(id: id, state: .stopped(code))
+                    }
+                )
+
+                return message.reply()
+            default:
+                throw ContainerizationError(
+                    .invalidState,
+                    message: "cannot exec: container is not running"
+                )
+            }
+        }
+    }
+
+    /// Return the state for the sandbox and its containers.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with no parameters.
+    ///
+    /// - Returns: An XPC message with the following parameters:
+    ///   - snapshot: The JSON serialization of the `SandboxSnapshot`
+    ///     that contains the state information.
+    @Sendable
+    public func state(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`state` xpc handler")
+        var status: RuntimeStatus = .unknown
+        var networks: [Attachment] = []
+        var cs: ContainerSnapshot?
+
+        switch state {
+        case .created, .stopped(_), .booted, .shuttingDown:
+            status = .stopped
+        case .stopping:
+            status = .stopping
+        case .running:
+            let ctr = try getContainer()
+
+            status = .running
+            networks = ctr.attachments
+            cs = ContainerSnapshot(
+                configuration: ctr.config,
+                status: RuntimeStatus.running,
+                networks: networks
+            )
+        }
+
+        let reply = message.reply()
+        try reply.setState(
+            .init(
+                status: status,
+                networks: networks,
+                containers: cs != nil ? [cs!] : []
+            )
+        )
+        return reply
+    }
+
+    /// Stop the container workload, any ad hoc processes, and the underlying
+    /// virtual machine.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with the following parameters:
+    ///     - stopOptions: JSON serialization of `ContainerStopOptions`
+    ///       that modify stop behavior.
+    ///
+    /// - Returns: An XPC message with no parameters.
+    @Sendable
+    public func stop(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`stop` xpc handler")
+        switch self.state {
+        case .running, .booted:
+            self.state = .stopping
+
+            let ctr = try getContainer()
+            let stopOptions = try message.stopOptions()
+            let code = try await gracefulStopContainer(
+                ctr.container,
+                stopOpts: stopOptions
+            )
+
+            await self.lock.withLock { _ in
+                do {
+                    if case .stopped(_) = await self.state {
+                        return
+                    }
+                    try await self.cleanupContainer()
+                } catch {
+                    self.log.error("failed to cleanup container: \(error)")
+                }
+                await self.setState(.stopped(code))
+            }
+        default:
+            break
+        }
+        return message.reply()
+    }
+
+    /// Signal a process running in the virtual machine.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with the following parameters:
+    ///     - id: The process identifier.
+    ///     - signal: The signal value.
+    ///
+    /// - Returns: An XPC message with no parameters.
+    @Sendable
+    public func kill(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`kill` xpc handler")
+        return try await self.lock.withLock { [self] _ in
+            switch await self.state {
+            case .running:
+                let ctr = try await getContainer()
+                let id = try message.id()
+                if id != ctr.container.id {
+                    guard let processInfo = await self.processes[id] else {
+                        throw ContainerizationError(.invalidState, message: "Process \(id) does not exist")
+                    }
+
+                    guard let proc = processInfo.process else {
+                        throw ContainerizationError(.invalidState, message: "Process \(id) not started")
+                    }
+                    try await proc.kill(Int32(try message.signal()))
+                    return message.reply()
+                }
+
+                // TODO: fix underlying signal value to int64
+                try await ctr.container.kill(Int32(try message.signal()))
+                return message.reply()
+            default:
+                throw ContainerizationError(
+                    .invalidState,
+                    message: "cannot kill: container is not running"
+                )
+            }
+        }
+    }
+
+    /// Resize the terminal for a process.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with the following parameters:
+    ///     - id: The process identifier.
+    ///     - width: The terminal width.
+    ///     - height: The terminal height.
+    ///
+    /// - Returns: An XPC message with no parameters.
+    @Sendable
+    public func resize(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`resize` xpc handler")
+        switch self.state {
+        case .running:
+            let id = try message.id()
+            let ctr = try getContainer()
+            let width = message.uint64(key: .width)
+            let height = message.uint64(key: .height)
+
+            if id != ctr.container.id {
+                guard let processInfo = self.processes[id] else {
+                    throw ContainerizationError(
+                        .invalidState,
+                        message: "Process \(id) does not exist"
+                    )
+                }
+
+                guard let proc = processInfo.process else {
+                    throw ContainerizationError(
+                        .invalidState,
+                        message: "Process \(id) not started"
+                    )
+                }
+
+                try await proc.resize(
+                    to: .init(
+                        width: UInt16(width),
+                        height: UInt16(height))
+                )
+            } else {
+                try await ctr.container.resize(
+                    to: .init(
+                        width: UInt16(width),
+                        height: UInt16(height))
+                )
+            }
+
+            return message.reply()
+        default:
+            throw ContainerizationError(
+                .invalidState,
+                message: "cannot resize: container is not running"
+            )
+        }
+    }
+
+    /// Wait for a process.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with the following parameters:
+    ///     - id: The process identifier.
+    ///
+    /// - Returns: An XPC message with the following parameters:
+    ///   - exitCode: The exit code for the process.
+    @Sendable
+    public func wait(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`wait` xpc handler")
+        guard let id = message.string(key: .id) else {
+            throw ContainerizationError(.invalidArgument, message: "Missing id in wait xpc message")
+        }
+
+        let cachedCode: Int32? = try await self.lock.withLock { _ in
+            let ctrInfo = try await self.getContainer()
+            let ctr = ctrInfo.container
+            if id == ctr.id {
+                switch await self.state {
+                case .stopped(let code):
+                    return code
+                default:
+                    break
+                }
+            } else {
+                guard let processInfo = await self.processes[id] else {
+                    throw ContainerizationError(.notFound, message: "Process with id \(id)")
+                }
+                switch processInfo.state {
+                case .stopped(let code):
+                    return code
+                default:
+                    break
+                }
+            }
+            return nil
+        }
+        if let cachedCode {
+            let reply = message.reply()
+            reply.set(key: .exitCode, value: Int64(cachedCode))
+            return reply
+        }
+
+        let exitCode = await withCheckedContinuation { cc in
+            // Is this safe since we are in an actor? :(
+            self.addWaiter(id: id, cont: cc)
+        }
+        let reply = message.reply()
+        reply.set(key: .exitCode, value: Int64(exitCode))
+        return reply
+    }
+
+    /// Dial a vsock port on the virtual machine.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with the following parameters:
+    ///     - port: The port number.
+    ///
+    /// - Returns: An XPC message with the following parameters:
+    ///   - fd: The file descriptor for the vsock.
+    @Sendable
+    public func dial(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`dial` xpc handler")
+        switch self.state {
+        case .running, .booted:
+            let port = message.uint64(key: .port)
+            guard port > 0 else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no vsock port supplied for dial"
+                )
+            }
+
+            let ctr = try getContainer()
+            let fh = try await ctr.container.dialVsock(port: UInt32(port))
+
+            let reply = message.reply()
+            reply.set(key: .fd, value: fh)
+            return reply
+        default:
+            throw ContainerizationError(
+                .invalidState,
+                message: "cannot dial: container is not running"
+            )
         }
     }
 
@@ -245,7 +619,6 @@ public actor SandboxService {
             )
         }
 
-        self.setState(.starting)
         do {
             let io = info.io
 
@@ -264,7 +637,6 @@ public actor SandboxService {
         } catch {
             try? await self.cleanupContainer()
             self.setState(.created)
-            try await self.sendContainerEvent(.containerExit(id: id, exitCode: -1))
             throw error
         }
     }
@@ -348,326 +720,15 @@ public actor SandboxService {
         log.info("closed forwarders")
     }
 
-    /// Create a process inside the virtual machine for the container.
-    ///
-    /// Use this procedure to run ad hoc processes in the virtual
-    /// machine (`container exec`).
-    ///
-    /// - Parameters:
-    ///   - message: An XPC message with the following parameters:
-    ///     - id: A client identifier for the process.
-    ///     - processConfig: JSON serialization of the `ProcessConfiguration`
-    ///       containing the process attributes.
-    ///
-    /// - Returns: An XPC message with no parameters.
-    @Sendable
-    public func createProcess(_ message: XPCMessage) async throws -> XPCMessage {
-        log.info("`createProcess` xpc handler")
-        return try await self.lock.withLock { [self] _ in
-            switch await self.state {
-            case .created, .stopped(_), .starting, .stopping:
-                throw ContainerizationError(
-                    .invalidState,
-                    message: "cannot exec: container is not running"
-                )
-            case .running, .booted:
-                let id = try message.id()
-                let config = try message.processConfig()
-                let stdio = message.stdio()
-
-                await self.addNewProcess(id, config, stdio)
-
-                try await self.monitor.registerProcess(
-                    id: id,
-                    onExit: { id, code in
-                        guard let process = await self.processes[id]?.process else {
-                            throw ContainerizationError(
-                                .invalidState,
-                                message: "ProcessInfo missing for process \(id)"
-                            )
-                        }
-                        for cc in await self.waiters[id] ?? [] {
-                            cc.resume(returning: code)
-                        }
-                        await self.removeWaiters(for: id)
-                        try await process.delete()
-                        try await self.setProcessState(id: id, state: .stopped(code))
-                    }
-                )
-
-                return message.reply()
-            }
-        }
-    }
-
-    /// Return the state for the sandbox and its containers.
-    ///
-    /// - Parameters:
-    ///   - message: An XPC message with no parameters.
-    ///
-    /// - Returns: An XPC message with the following parameters:
-    ///   - snapshot: The JSON serialization of the `SandboxSnapshot`
-    ///     that contains the state information.
-    @Sendable
-    public func state(_ message: XPCMessage) async throws -> XPCMessage {
-        self.log.info("`state` xpc handler")
-        var status: RuntimeStatus = .unknown
-        var networks: [Attachment] = []
-        var cs: ContainerSnapshot?
-
-        switch state {
-        case .created, .stopped(_), .starting, .booted:
-            status = .stopped
-        case .stopping:
-            status = .stopping
-        case .running:
-            let ctr = try getContainer()
-
-            status = .running
-            networks = ctr.attachments
-            cs = ContainerSnapshot(
-                configuration: ctr.config,
-                status: RuntimeStatus.running,
-                networks: networks
-            )
-        }
-
-        let reply = message.reply()
-        try reply.setState(
-            .init(
-                status: status,
-                networks: networks,
-                containers: cs != nil ? [cs!] : []
-            )
-        )
-        return reply
-    }
-
-    /// Stop the container workload, any ad hoc processes, and the underlying
-    /// virtual machine.
-    ///
-    /// - Parameters:
-    ///   - message: An XPC message with the following parameters:
-    ///     - stopOptions: JSON serialization of `ContainerStopOptions`
-    ///       that modify stop behavior.
-    ///
-    /// - Returns: An XPC message with no parameters.
-    @Sendable
-    public func stop(_ message: XPCMessage) async throws -> XPCMessage {
-        self.log.info("`stop` xpc handler")
-        let reply = try await self.lock.withLock { [self] _ in
-            switch await self.state {
-            case .stopped(_), .created, .stopping:
-                return message.reply()
-            case .starting:
-                throw ContainerizationError(
-                    .invalidState,
-                    message: "cannot stop: container is not running"
-                )
-            case .running, .booted:
-                let ctr = try await getContainer()
-                let stopOptions = try message.stopOptions()
-                do {
-                    try await gracefulStopContainer(
-                        ctr.container,
-                        stopOpts: stopOptions
-                    )
-                } catch {
-                    log.notice("failed to stop sandbox gracefully: \(error)")
-                }
-                await setState(.stopping)
-                return message.reply()
-            }
-        }
-        do {
-            try await cleanupContainer()
-        } catch {
-            self.log.error("failed to cleanup container: \(error)")
-        }
-        return reply
-    }
-
-    /// Signal a process running in the virtual machine.
-    ///
-    /// - Parameters:
-    ///   - message: An XPC message with the following parameters:
-    ///     - id: The process identifier.
-    ///     - signal: The signal value.
-    ///
-    /// - Returns: An XPC message with no parameters.
-    @Sendable
-    public func kill(_ message: XPCMessage) async throws -> XPCMessage {
-        self.log.info("`kill` xpc handler")
-        return try await self.lock.withLock { [self] _ in
-            switch await self.state {
-            case .created, .stopped, .starting, .booted, .stopping:
-                throw ContainerizationError(
-                    .invalidState,
-                    message: "cannot kill: container is not running"
-                )
-            case .running:
-                let ctr = try await getContainer()
-                let id = try message.id()
-                if id != ctr.container.id {
-                    guard let processInfo = await self.processes[id] else {
-                        throw ContainerizationError(.invalidState, message: "Process \(id) does not exist")
-                    }
-
-                    guard let proc = processInfo.process else {
-                        throw ContainerizationError(.invalidState, message: "Process \(id) not started")
-                    }
-                    try await proc.kill(Int32(try message.signal()))
-                    return message.reply()
-                }
-
-                // TODO: fix underlying signal value to int64
-                try await ctr.container.kill(Int32(try message.signal()))
-                return message.reply()
-            }
-        }
-    }
-
-    /// Resize the terminal for a process.
-    ///
-    /// - Parameters:
-    ///   - message: An XPC message with the following parameters:
-    ///     - id: The process identifier.
-    ///     - width: The terminal width.
-    ///     - height: The terminal height.
-    ///
-    /// - Returns: An XPC message with no parameters.
-    @Sendable
-    public func resize(_ message: XPCMessage) async throws -> XPCMessage {
-        self.log.info("`resize` xpc handler")
-        return try await self.lock.withLock { [self] _ in
-            switch await self.state {
-            case .created, .stopped, .starting, .booted, .stopping:
-                throw ContainerizationError(
-                    .invalidState,
-                    message: "cannot resize: container is not running"
-                )
-            case .running:
-                let id = try message.id()
-                let ctr = try await getContainer()
-                let width = message.uint64(key: .width)
-                let height = message.uint64(key: .height)
-                if id != ctr.container.id {
-                    guard let processInfo = await self.processes[id] else {
-                        throw ContainerizationError(.invalidState, message: "Process \(id) does not exist")
-                    }
-
-                    guard let proc = processInfo.process else {
-                        throw ContainerizationError(.invalidState, message: "Process \(id) not started")
-                    }
-
-                    try await proc.resize(to: .init(width: UInt16(width), height: UInt16(height)))
-                    return message.reply()
-                }
-
-                try await ctr.container.resize(to: .init(width: UInt16(width), height: UInt16(height)))
-                return message.reply()
-            }
-        }
-    }
-
-    /// Wait for a process.
-    ///
-    /// - Parameters:
-    ///   - message: An XPC message with the following parameters:
-    ///     - id: The process identifier.
-    ///
-    /// - Returns: An XPC message with the following parameters:
-    ///   - exitCode: The exit code for the process.
-    @Sendable
-    public func wait(_ message: XPCMessage) async throws -> XPCMessage {
-        self.log.info("`wait` xpc handler")
-        guard let id = message.string(key: .id) else {
-            throw ContainerizationError(.invalidArgument, message: "Missing id in wait xpc message")
-        }
-
-        let cachedCode: Int32? = try await self.lock.withLock { _ in
-            let ctrInfo = try await self.getContainer()
-            let ctr = ctrInfo.container
-            if id == ctr.id {
-                switch await self.state {
-                case .stopped(let code):
-                    return code
-                default:
-                    break
-                }
-            } else {
-                guard let processInfo = await self.processes[id] else {
-                    throw ContainerizationError(.notFound, message: "Process with id \(id)")
-                }
-                switch processInfo.state {
-                case .stopped(let code):
-                    return code
-                default:
-                    break
-                }
-            }
-            return nil
-        }
-        if let cachedCode {
-            let reply = message.reply()
-            reply.set(key: .exitCode, value: Int64(cachedCode))
-            return reply
-        }
-
-        let exitCode = await withCheckedContinuation { cc in
-            // Is this safe since we are in an actor? :(
-            self.addWaiter(id: id, cont: cc)
-        }
-        let reply = message.reply()
-        reply.set(key: .exitCode, value: Int64(exitCode))
-        return reply
-    }
-
-    /// Dial a vsock port on the virtual machine.
-    ///
-    /// - Parameters:
-    ///   - message: An XPC message with the following parameters:
-    ///     - port: The port number.
-    ///
-    /// - Returns: An XPC message with the following parameters:
-    ///   - fd: The file descriptor for the vsock.
-    @Sendable
-    public func dial(_ message: XPCMessage) async throws -> XPCMessage {
-        self.log.info("`dial` xpc handler")
-        switch self.state {
-        case .starting, .created, .stopped, .stopping:
-            throw ContainerizationError(
-                .invalidState,
-                message: "cannot dial: container is not running"
-            )
-        case .running, .booted:
-            let port = message.uint64(key: .port)
-            guard port > 0 else {
-                throw ContainerizationError(
-                    .invalidArgument,
-                    message: "no vsock port supplied for dial"
-                )
-            }
-
-            let ctr = try getContainer()
-            let fh = try await ctr.container.dialVsock(port: UInt32(port))
-
-            let reply = message.reply()
-            reply.set(key: .fd, value: fh)
-            return reply
-        }
-    }
-
     private func onContainerExit(id: String, code: Int32) async throws {
         self.log.info("init process exited with: \(code)")
 
         try await self.lock.withLock { [self] _ in
             let ctrInfo = try await getContainer()
             let ctr = ctrInfo.container
-            // Did someone explicitly call stop and we're already
-            // cleaning up?
+
             switch await self.state {
-            case .stopped(_):
+            case .stopped(_), .stopping:
                 return
             default:
                 break
@@ -676,7 +737,7 @@ public actor SandboxService {
             do {
                 try await ctr.stop()
             } catch {
-                log.notice("failed to stop sandbox gracefully: \(error)")
+                self.log.notice("failed to stop sandbox gracefully: \(error)")
             }
 
             do {
@@ -685,13 +746,12 @@ public actor SandboxService {
                 self.log.error("failed to cleanup container: \(error)")
             }
             await setState(.stopped(code))
+
             let waiters = await self.waiters[id] ?? []
             for cc in waiters {
                 cc.resume(returning: code)
             }
             await self.removeWaiters(for: id)
-            try await self.sendContainerEvent(.containerExit(id: id, exitCode: Int64(code)))
-            exit(code)
         }
     }
 
@@ -866,11 +926,12 @@ public actor SandboxService {
         return container
     }
 
-    private func gracefulStopContainer(_ lc: LinuxContainer, stopOpts: ContainerStopOptions) async throws {
+    private func gracefulStopContainer(_ lc: LinuxContainer, stopOpts: ContainerStopOptions) async throws -> Int32 {
         // Try and gracefully shut down the process. Even if this succeeds we need to power off
         // the vm, but we should try this first always.
+        var code: Int32 = 255
         do {
-            try await withThrowingTaskGroup(of: Void.self) { group in
+            code = try await withThrowingTaskGroup(of: Int32.self) { group in
                 group.addTask {
                     try await lc.wait()
                 }
@@ -878,13 +939,24 @@ public actor SandboxService {
                     try await lc.kill(stopOpts.signal)
                     try await Task.sleep(for: .seconds(stopOpts.timeoutInSeconds))
                     try await lc.kill(SIGKILL)
+
+                    return 137
                 }
-                try await group.next()
+                guard let code = try await group.next() else {
+                    throw ContainerizationError(
+                        .internalError,
+                        message: "failed to get exit code from gracefully stopping container"
+                    )
+                }
                 group.cancelAll()
+
+                return code
             }
         } catch {}
+
         // Now actually bring down the vm.
         try await lc.stop()
+        return code
     }
 
     private func cleanupContainer() async throws {
@@ -900,17 +972,6 @@ public actor SandboxService {
             }
         }
     }
-
-    private func sendContainerEvent(_ event: ContainerEvent) async throws {
-        let serviceIdentifier = "com.apple.container.apiserver"
-        let client = XPCClient(service: serviceIdentifier)
-        let message = XPCMessage(route: .containerEvent)
-
-        let data = try JSONEncoder().encode(event)
-        message.set(key: .containerEvent, value: data)
-        try await client.send(message)
-    }
-
 }
 
 extension XPCMessage {
@@ -1088,7 +1149,10 @@ extension SandboxService {
         self.container = info
     }
 
-    private func addNewProcess(_ id: String, _ config: ProcessConfiguration, _ io: [FileHandle?]) {
+    private func addNewProcess(_ id: String, _ config: ProcessConfiguration, _ io: [FileHandle?]) throws {
+        guard self.processes[id] == nil else {
+            throw ContainerizationError(.invalidArgument, message: "process \(id) already exists")
+        }
         self.processes[id] = ProcessInfo(config: config, process: nil, state: .created, io: io)
     }
 
@@ -1107,13 +1171,21 @@ extension SandboxService {
         let io: (in: FileHandle?, out: MultiWriter?, err: MultiWriter?)
     }
 
+    /// States the underlying sandbox can be in.
     public enum State: Sendable, Equatable {
+        /// Sandbox is created. This should be what the service starts the sandbox in.
         case created
+        /// Bootstrap will transition a .created state to .booted.
         case booted
-        case starting
+        /// startProcess on the init process will transition .booted to .running.
         case running
+        /// At the beginning of stop() .running will be transitioned to .stopping.
         case stopping
+        /// Once a stop is successful, .stopping will transition to .stopped.
         case stopped(Int32)
+        /// .shuttingDown will be the last state the sandbox service will ever be in. Shortly
+        /// afterwards the process will exit.
+        case shuttingDown
     }
 
     func setState(_ new: State) {

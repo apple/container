@@ -251,7 +251,7 @@ extension ClientContainer {
             defer { try? io.close() }
 
             let process = try await bootstrap(stdio: io.stdio)
-            _ = try await process.start()
+            try await process.start()
             await taskManager?.finish()
             try io.closeAfterStart()
 

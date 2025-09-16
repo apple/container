@@ -42,14 +42,141 @@ public struct ContainersHarness: Sendable {
     }
 
     @Sendable
+    public func bootstrap(_ message: XPCMessage) async throws -> XPCMessage {
+        let id = message.string(key: .id)
+        guard let id else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "id cannot be empty"
+            )
+        }
+        let stdio = message.stdio()
+        try await service.bootstrap(id: id, stdio: stdio)
+        return message.reply()
+    }
+
+    @Sendable
+    public func stop(_ message: XPCMessage) async throws -> XPCMessage {
+        let stopOptions = try message.stopOptions()
+        let id = message.string(key: .id)
+        guard let id else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "id cannot be empty"
+            )
+        }
+        try await service.stop(id: id, options: stopOptions)
+        return message.reply()
+    }
+
+    @Sendable
+    public func dial(_ message: XPCMessage) async throws -> XPCMessage {
+        let id = message.string(key: .id)
+        guard let id else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "id cannot be empty"
+            )
+        }
+
+        let port = message.uint64(key: .port)
+        let fh = try await service.dial(id: id, port: UInt32(port))
+        let reply = message.reply()
+        reply.setFileHandle(fh)
+
+        return reply
+    }
+
+    @Sendable
+    public func wait(_ message: XPCMessage) async throws -> XPCMessage {
+        let id = message.string(key: .id)
+        guard let id else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "id cannot be empty"
+            )
+        }
+        let processID = message.string(key: .processIdentifier)
+        guard let processID else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "process ID cannot be empty"
+            )
+        }
+
+        let exitCode = try await service.wait(id: id, processID: processID)
+        let reply = message.reply()
+        reply.set(key: .exitCode, value: Int64(exitCode))
+        return reply
+    }
+
+    @Sendable
+    public func resize(_ message: XPCMessage) async throws -> XPCMessage {
+        let id = message.string(key: .id)
+        guard let id else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "id cannot be empty"
+            )
+        }
+        let processID = message.string(key: .processIdentifier)
+        guard let processID else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "process ID cannot be empty"
+            )
+        }
+
+        let width = message.uint64(key: .width)
+        let height = message.uint64(key: .height)
+        try await service.resize(
+            id: id,
+            processID: processID,
+            size: Terminal.Size(width: UInt16(width), height: UInt16(height))
+        )
+
+        return message.reply()
+    }
+
+    @Sendable
+    public func kill(_ message: XPCMessage) async throws -> XPCMessage {
+        let id = message.string(key: .id)
+        guard let id else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "id cannot be empty"
+            )
+        }
+        let processID = message.string(key: .processIdentifier)
+        guard let processID else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "process ID cannot be empty"
+            )
+        }
+        try await service.kill(
+            id: id,
+            processID: processID,
+            signal: try message.signal()
+        )
+        return message.reply()
+    }
+
+    @Sendable
     public func create(_ message: XPCMessage) async throws -> XPCMessage {
         let data = message.dataNoCopy(key: .containerConfig)
         guard let data else {
-            throw ContainerizationError(.invalidArgument, message: "container configuration cannot be empty")
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "container configuration cannot be empty"
+            )
         }
         let kdata = message.dataNoCopy(key: .kernel)
         guard let kdata else {
-            throw ContainerizationError(.invalidArgument, message: "kernel cannot be empty")
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "kernel cannot be empty"
+            )
         }
         let odata = message.dataNoCopy(key: .containerOptions)
         var options: ContainerCreateOptions = .default
@@ -60,6 +187,60 @@ public struct ContainersHarness: Sendable {
         let kernel = try JSONDecoder().decode(Kernel.self, from: kdata)
 
         try await service.create(configuration: config, kernel: kernel, options: options)
+        return message.reply()
+    }
+
+    @Sendable
+    public func createProcess(_ message: XPCMessage) async throws -> XPCMessage {
+        let id = message.string(key: .id)
+        guard let id else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "id cannot be empty"
+            )
+        }
+        let processID = message.string(key: .processIdentifier)
+        guard let processID else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "process ID cannot be empty"
+            )
+        }
+        let config = try message.processConfig()
+        let stdio = message.stdio()
+
+        try await service.createProcess(
+            id: id,
+            processID: processID,
+            config: config,
+            stdio: stdio
+        )
+
+        return message.reply()
+    }
+
+    @Sendable
+    public func startProcess(_ message: XPCMessage) async throws -> XPCMessage {
+        let id = message.string(key: .id)
+        guard let id else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "id cannot be empty"
+            )
+        }
+        let processID = message.string(key: .processIdentifier)
+        guard let processID else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "process ID cannot be empty"
+            )
+        }
+
+        try await service.startProcess(
+            id: id,
+            processID: processID,
+        )
+
         return message.reply()
     }
 
@@ -87,22 +268,5 @@ public struct ContainersHarness: Sendable {
         let reply = message.reply()
         try reply.set(key: .logs, value: fds)
         return reply
-    }
-
-    @Sendable
-    public func eventHandler(_ message: XPCMessage) async throws -> XPCMessage {
-        let event = try message.containerEvent()
-        try await service.handleContainerEvents(event: event)
-        return message.reply()
-    }
-}
-
-extension XPCMessage {
-    public func containerEvent() throws -> ContainerEvent {
-        guard let data = self.dataNoCopy(key: .containerEvent) else {
-            throw ContainerizationError(.invalidArgument, message: "Missing container event data")
-        }
-        let event = try JSONDecoder().decode(ContainerEvent.self, from: data)
-        return event
     }
 }

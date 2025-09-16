@@ -25,10 +25,6 @@ import TerminalProgress
 public struct ClientContainer: Sendable, Codable {
     static let serviceIdentifier = "com.apple.container.apiserver"
 
-    private var sandboxClient: SandboxClient {
-        SandboxClient(id: configuration.id, runtime: configuration.runtimeHandler)
-    }
-
     /// Identifier of the container.
     public var id: String {
         configuration.id
@@ -58,14 +54,10 @@ public struct ClientContainer: Sendable, Codable {
         self.status = snapshot.status
         self.networks = snapshot.networks
     }
-
-    public var initProcess: ClientProcess {
-        ClientProcessImpl(containerId: self.id, client: self.sandboxClient)
-    }
 }
 
 extension ClientContainer {
-    private static func newClient() -> XPCClient {
+    private static func newXPCClient() -> XPCClient {
         XPCClient(service: serviceIdentifier)
     }
 
@@ -84,8 +76,8 @@ extension ClientContainer {
         kernel: Kernel
     ) async throws -> ClientContainer {
         do {
-            let client = Self.newClient()
-            let request = XPCMessage(route: .createContainer)
+            let client = Self.newXPCClient()
+            let request = XPCMessage(route: .containerCreate)
 
             let data = try JSONEncoder().encode(configuration)
             let kdata = try JSONEncoder().encode(kernel)
@@ -107,8 +99,8 @@ extension ClientContainer {
 
     public static func list() async throws -> [ClientContainer] {
         do {
-            let client = Self.newClient()
-            let request = XPCMessage(route: .listContainer)
+            let client = Self.newXPCClient()
+            let request = XPCMessage(route: .containerList)
 
             let response = try await xpcSend(
                 client: client,
@@ -145,16 +137,72 @@ extension ClientContainer {
 
 extension ClientContainer {
     public func bootstrap(stdio: [FileHandle?]) async throws -> ClientProcess {
-        let client = self.sandboxClient
-        try await client.bootstrap(stdio: stdio)
-        return ClientProcessImpl(containerId: self.id, client: self.sandboxClient)
+        let request = XPCMessage(route: .containerBootstrap)
+        let client = Self.newXPCClient()
+
+        for (i, h) in stdio.enumerated() {
+            let key: XPCKeys = try {
+                switch i {
+                case 0: .stdin
+                case 1: .stdout
+                case 2: .stderr
+                default:
+                    throw ContainerizationError(.invalidArgument, message: "invalid fd \(i)")
+                }
+            }()
+
+            if let h {
+                request.set(key: key, value: h)
+            }
+        }
+
+        do {
+            request.set(key: .id, value: self.id)
+            try await client.send(request)
+            return ClientProcessImpl(containerId: self.id, xpcClient: client)
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to bootstrap container",
+                cause: error
+            )
+        }
+    }
+
+    public func kill(_ signal: Int32) async throws {
+        do {
+            let request = XPCMessage(route: .containerKill)
+            request.set(key: .id, value: self.id)
+            request.set(key: .processIdentifier, value: self.id)
+            request.set(key: .signal, value: Int64(signal))
+
+            let client = Self.newXPCClient()
+            try await client.send(request)
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to kill container",
+                cause: error
+            )
+        }
     }
 
     /// Stop the container and all processes currently executing inside.
     public func stop(opts: ContainerStopOptions = ContainerStopOptions.default) async throws {
         do {
-            let client = self.sandboxClient
-            try await client.stop(options: opts)
+            let client = Self.newXPCClient()
+            let request = XPCMessage(route: .containerStop)
+            let data = try JSONEncoder().encode(opts)
+            request.set(key: .id, value: self.id)
+            request.set(key: .stopOptions, value: data)
+
+            // Stop is somewhat more prone to hanging than other commands given it
+            // has quite a bit of `wait()`'s down the chain to make sure the container actually
+            // exited. To combat a potential hang, lets timeout if we don't return in a small
+            // time period after the actual stop timeout sent via .stopOptions (the time
+            // until we send SIGKILL after SIGTERM if the container still hasn't exited).
+            let responseTimeout = Duration(.seconds(Int64(opts.timeoutInSeconds + 3)))
+            try await client.send(request, responseTimeout: responseTimeout)
         } catch {
             throw ContainerizationError(
                 .internalError,
@@ -167,8 +215,8 @@ extension ClientContainer {
     /// Delete the container along with any resources.
     public func delete(force: Bool = false) async throws {
         do {
-            let client = XPCClient(service: Self.serviceIdentifier)
-            let request = XPCMessage(route: .deleteContainer)
+            let client = Self.newXPCClient()
+            let request = XPCMessage(route: .containerDelete)
             request.set(key: .id, value: self.id)
             request.set(key: .forceDelete, value: force)
             try await client.send(request)
@@ -180,38 +228,45 @@ extension ClientContainer {
             )
         }
     }
-}
 
-extension ClientContainer {
-    /// Execute a new process inside a running container.
+    /// Create a new process inside a running container. The process is in a
+    /// created state and must still be started.
     public func createProcess(
         id: String,
         configuration: ProcessConfiguration,
         stdio: [FileHandle?]
     ) async throws -> ClientProcess {
         do {
-            let client = self.sandboxClient
-            try await client.createProcess(id, config: configuration, stdio: stdio)
-            return ClientProcessImpl(containerId: self.id, processId: id, client: client)
-        } catch {
-            throw ContainerizationError(
-                .internalError,
-                message: "failed to exec in container",
-                cause: error
-            )
-        }
-    }
+            let request = XPCMessage(route: .containerCreateProcess)
+            request.set(key: .id, value: self.id)
+            request.set(key: .processIdentifier, value: id)
 
-    /// Send or "kill" a signal to the initial process of the container.
-    /// Kill does not wait for the process to exit, it only delivers the signal.
-    public func kill(_ signal: Int32) async throws {
-        do {
-            let client = self.sandboxClient
-            try await client.kill(self.id, signal: Int64(signal))
+            let data = try JSONEncoder().encode(configuration)
+            request.set(key: .processConfig, value: data)
+
+            for (i, h) in stdio.enumerated() {
+                let key: XPCKeys = try {
+                    switch i {
+                    case 0: .stdin
+                    case 1: .stdout
+                    case 2: .stderr
+                    default:
+                        throw ContainerizationError(.invalidArgument, message: "invalid fd \(i)")
+                    }
+                }()
+
+                if let h {
+                    request.set(key: key, value: h)
+                }
+            }
+
+            let client = Self.newXPCClient()
+            try await client.send(request)
+            return ClientProcessImpl(containerId: self.id, processId: id, xpcClient: client)
         } catch {
             throw ContainerizationError(
                 .internalError,
-                message: "failed to kill container \(self.id)",
+                message: "failed to create process in container",
                 cause: error
             )
         }
@@ -219,7 +274,7 @@ extension ClientContainer {
 
     public func logs() async throws -> [FileHandle] {
         do {
-            let client = XPCClient(service: Self.serviceIdentifier)
+            let client = Self.newXPCClient()
             let request = XPCMessage(route: .containerLogs)
             request.set(key: .id, value: self.id)
 
@@ -242,15 +297,27 @@ extension ClientContainer {
     }
 
     public func dial(_ port: UInt32) async throws -> FileHandle {
+        let request = XPCMessage(route: .containerDial)
+        request.set(key: .id, value: self.id)
+        request.set(key: .port, value: UInt64(port))
+
+        let client = Self.newXPCClient()
+        let response: XPCMessage
         do {
-            let client = self.sandboxClient
-            return try await client.dial(port)
+            response = try await client.send(request)
         } catch {
             throw ContainerizationError(
                 .internalError,
-                message: "failed to dial \(port) in container \(self.id)",
+                message: "failed to dial port \(port) on container",
                 cause: error
             )
         }
+        guard let fh = response.fileHandle(key: .fd) else {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to get fd for vsock port \(port)"
+            )
+        }
+        return fh
     }
 }

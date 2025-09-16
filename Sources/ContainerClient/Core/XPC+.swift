@@ -48,6 +48,8 @@ public enum XPCKeys: String {
     case stopOptions
     /// Whether to force stop a container when deleting.
     case forceDelete
+    /// An endpoint to talk to a sandbox service.
+    case sandboxServiceEndpoint
     /// Plugins
     case pluginName
     case plugins
@@ -114,9 +116,18 @@ public enum XPCKeys: String {
 }
 
 public enum XPCRoute: String {
-    case listContainer
-    case createContainer
-    case deleteContainer
+    case containerList
+    case containerCreate
+    case containerBootstrap
+    case containerCreateProcess
+    case containerStartProcess
+    case containerWait
+    case containerDelete
+    case containerStop
+    case containerDial
+    case containerResize
+    case containerKill
+    case containerState
     case containerLogs
     case containerEvent
 

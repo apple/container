@@ -110,7 +110,6 @@ extension Application {
             )
 
             let detach = self.managementFlags.detach
-
             do {
                 let io = try ProcessIO.create(
                     tty: self.processFlags.tty,

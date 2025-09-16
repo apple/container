@@ -18,7 +18,7 @@
 import ContainerizationError
 import Foundation
 
-public struct XPCClient: Sendable {
+public final class XPCClient: Sendable {
     private nonisolated(unsafe) let connection: xpc_connection_t
     private let q: DispatchQueue?
     private let service: String
@@ -32,6 +32,20 @@ public struct XPCClient: Sendable {
         xpc_connection_set_event_handler(connection) { _ in }
         xpc_connection_set_target_queue(connection, self.q)
         xpc_connection_activate(connection)
+    }
+
+    public init(connection: xpc_connection_t, label: String, queue: DispatchQueue? = nil) {
+        self.connection = connection
+        self.q = queue
+        self.service = label
+
+        xpc_connection_set_event_handler(connection) { _ in }
+        xpc_connection_set_target_queue(connection, self.q)
+        xpc_connection_activate(connection)
+    }
+
+    deinit {
+        self.close()
     }
 }
 
@@ -56,7 +70,10 @@ extension XPCClient {
                 group.addTask {
                     try await Task.sleep(for: responseTimeout)
                     let route = message.string(key: XPCMessage.routeKey) ?? "nil"
-                    throw ContainerizationError(.internalError, message: "XPC timeout for request to \(self.service)/\(route)")
+                    throw ContainerizationError(
+                        .internalError,
+                        message: "XPC timeout for request to \(self.service)/\(route)"
+                    )
                 }
             }
 
