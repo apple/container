@@ -22,17 +22,17 @@ import ContainerizationOS
 import Foundation
 import Logging
 
-struct ContainersHarness {
+public struct ContainersHarness: Sendable {
     let log: Logging.Logger
     let service: ContainersService
 
-    init(service: ContainersService, log: Logging.Logger) {
+    public init(service: ContainersService, log: Logging.Logger) {
         self.log = log
         self.service = service
     }
 
     @Sendable
-    func list(_ message: XPCMessage) async throws -> XPCMessage {
+    public func list(_ message: XPCMessage) async throws -> XPCMessage {
         let containers = try await service.list()
         let data = try JSONEncoder().encode(containers)
 
@@ -42,7 +42,7 @@ struct ContainersHarness {
     }
 
     @Sendable
-    func create(_ message: XPCMessage) async throws -> XPCMessage {
+    public func create(_ message: XPCMessage) async throws -> XPCMessage {
         let data = message.dataNoCopy(key: .containerConfig)
         guard let data else {
             throw ContainerizationError(.invalidArgument, message: "container configuration cannot be empty")
@@ -64,7 +64,7 @@ struct ContainersHarness {
     }
 
     @Sendable
-    func delete(_ message: XPCMessage) async throws -> XPCMessage {
+    public func delete(_ message: XPCMessage) async throws -> XPCMessage {
         let id = message.string(key: .id)
         guard let id else {
             throw ContainerizationError(.invalidArgument, message: "id cannot be empty")
@@ -75,7 +75,7 @@ struct ContainersHarness {
     }
 
     @Sendable
-    func logs(_ message: XPCMessage) async throws -> XPCMessage {
+    public func logs(_ message: XPCMessage) async throws -> XPCMessage {
         let id = message.string(key: .id)
         guard let id else {
             throw ContainerizationError(
@@ -90,7 +90,7 @@ struct ContainersHarness {
     }
 
     @Sendable
-    func eventHandler(_ message: XPCMessage) async throws -> XPCMessage {
+    public func eventHandler(_ message: XPCMessage) async throws -> XPCMessage {
         let event = try message.containerEvent()
         try await service.handleContainerEvents(event: event)
         return message.reply()

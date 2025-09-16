@@ -25,7 +25,7 @@ import ContainerizationOS
 import Foundation
 import Logging
 
-actor NetworksService {
+public actor NetworksService {
     private let pluginLoader: PluginLoader
     private let resourceRoot: URL
     private let containersService: ContainersService

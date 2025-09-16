@@ -19,17 +19,17 @@ import ContainerizationError
 import Foundation
 import Logging
 
-struct PluginsHarness {
+public struct PluginsHarness: Sendable {
     private let log: Logging.Logger
     private let service: PluginsService
 
-    init(service: PluginsService, log: Logging.Logger) {
+    public init(service: PluginsService, log: Logging.Logger) {
         self.log = log
         self.service = service
     }
 
     @Sendable
-    func load(_ message: XPCMessage) async throws -> XPCMessage {
+    public func load(_ message: XPCMessage) async throws -> XPCMessage {
         let name = message.string(key: .pluginName)
         guard let name else {
             throw ContainerizationError(.invalidArgument, message: "no plugin name found")
@@ -41,7 +41,7 @@ struct PluginsHarness {
     }
 
     @Sendable
-    func get(_ message: XPCMessage) async throws -> XPCMessage {
+    public func get(_ message: XPCMessage) async throws -> XPCMessage {
         let name = message.string(key: .pluginName)
         guard let name else {
             throw ContainerizationError(.invalidArgument, message: "no plugin name found")
@@ -56,7 +56,7 @@ struct PluginsHarness {
     }
 
     @Sendable
-    func restart(_ message: XPCMessage) async throws -> XPCMessage {
+    public func restart(_ message: XPCMessage) async throws -> XPCMessage {
         let name = message.string(key: .pluginName)
         guard let name else {
             throw ContainerizationError(.invalidArgument, message: "no plugin name found")
@@ -68,7 +68,7 @@ struct PluginsHarness {
     }
 
     @Sendable
-    func unload(_ message: XPCMessage) async throws -> XPCMessage {
+    public func unload(_ message: XPCMessage) async throws -> XPCMessage {
         let name = message.string(key: .pluginName)
         guard let name else {
             throw ContainerizationError(.invalidArgument, message: "no plugin name found")
@@ -80,7 +80,7 @@ struct PluginsHarness {
     }
 
     @Sendable
-    func list(_ message: XPCMessage) async throws -> XPCMessage {
+    public func list(_ message: XPCMessage) async throws -> XPCMessage {
         let plugins = try await service.list()
 
         let data = try JSONEncoder().encode(plugins)

@@ -20,17 +20,17 @@ import ContainerizationError
 import Foundation
 import Logging
 
-struct VolumesHarness: Sendable {
+public struct VolumesHarness: Sendable {
     let log: Logging.Logger
     let service: VolumesService
 
-    init(service: VolumesService, log: Logging.Logger) {
+    public init(service: VolumesService, log: Logging.Logger) {
         self.log = log
         self.service = service
     }
 
     @Sendable
-    func list(_ message: XPCMessage) async throws -> XPCMessage {
+    public func list(_ message: XPCMessage) async throws -> XPCMessage {
         let volumes = try await service.list()
         let data = try JSONEncoder().encode(volumes)
 
@@ -40,7 +40,7 @@ struct VolumesHarness: Sendable {
     }
 
     @Sendable
-    func create(_ message: XPCMessage) async throws -> XPCMessage {
+    public func create(_ message: XPCMessage) async throws -> XPCMessage {
         guard let name = message.string(key: .volumeName) else {
             throw ContainerizationError(.invalidArgument, message: "volume name cannot be empty")
         }
@@ -70,7 +70,7 @@ struct VolumesHarness: Sendable {
     }
 
     @Sendable
-    func delete(_ message: XPCMessage) async throws -> XPCMessage {
+    public func delete(_ message: XPCMessage) async throws -> XPCMessage {
         guard let name = message.string(key: .volumeName) else {
             throw ContainerizationError(.invalidArgument, message: "volume name cannot be empty")
         }
@@ -80,7 +80,7 @@ struct VolumesHarness: Sendable {
     }
 
     @Sendable
-    func inspect(_ message: XPCMessage) async throws -> XPCMessage {
+    public func inspect(_ message: XPCMessage) async throws -> XPCMessage {
         guard let name = message.string(key: .volumeName) else {
             throw ContainerizationError(.invalidArgument, message: "volume name cannot be empty")
         }

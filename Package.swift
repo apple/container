@@ -29,6 +29,7 @@ let package = Package(
     name: "container",
     platforms: [.macOS("15")],
     products: [
+        .library(name: "ContainerAPIService", targets: ["ContainerAPIService"]),
         .library(name: "ContainerSandboxService", targets: ["ContainerSandboxService"]),
         .library(name: "ContainerNetworkService", targets: ["ContainerNetworkService"]),
         .library(name: "ContainerImagesService", targets: ["ContainerImagesService", "ContainerImagesServiceClient"]),
@@ -86,21 +87,41 @@ let package = Package(
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "AsyncHTTPClient", package: "async-http-client"),
-                .product(name: "GRPC", package: "grpc-swift"),
-                .product(name: "Logging", package: "swift-log"),
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
+                .product(name: "GRPC", package: "grpc-swift"),
+                .product(name: "Logging", package: "swift-log"),
+                "ContainerAPIService",
                 "ContainerClient",
                 "ContainerLog",
                 "ContainerNetworkService",
                 "ContainerPersistence",
                 "ContainerPlugin",
-                "ContainerSandboxService",
                 "ContainerVersion",
+                "ContainerXPC",
                 "DNSServer",
             ],
-            path: "Sources/APIServer"
+            path: "Sources/Helpers/APIServer"
+        ),
+        .target(
+            name: "ContainerAPIService",
+            dependencies: [
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                .product(name: "ContainerizationOS", package: "containerization"),
+                .product(name: "Logging", package: "swift-log"),
+                "ContainerClient",
+                "ContainerNetworkService",
+                "ContainerPersistence",
+                "ContainerPlugin",
+                "ContainerSandboxService",
+                "ContainerVersion",
+                "ContainerXPC",
+                "CVersion",
+                "TerminalProgress",
+            ],
+            path: "Sources/Services/ContainerAPIService"
         ),
         .executableTarget(
             name: "container-runtime-linux",

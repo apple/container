@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerAPIService
 import ContainerClient
 import ContainerLog
 import ContainerNetworkService

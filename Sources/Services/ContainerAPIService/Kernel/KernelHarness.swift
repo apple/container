@@ -21,15 +21,16 @@ import ContainerizationError
 import Foundation
 import Logging
 
-struct KernelHarness {
+public struct KernelHarness: Sendable {
     private let log: Logging.Logger
     private let service: KernelService
 
-    init(service: KernelService, log: Logging.Logger) {
+    public init(service: KernelService, log: Logging.Logger) {
         self.log = log
         self.service = service
     }
 
+    @Sendable
     public func install(_ message: XPCMessage) async throws -> XPCMessage {
         let kernelFilePath = try message.kernelFilePath()
         let platform = try message.platform()
@@ -50,6 +51,7 @@ struct KernelHarness {
         return message.reply()
     }
 
+    @Sendable
     public func getDefaultKernel(_ message: XPCMessage) async throws -> XPCMessage {
         guard let platformData = message.dataNoCopy(key: .systemPlatform) else {
             throw ContainerizationError(.invalidArgument, message: "Missing SystemPlatform")
