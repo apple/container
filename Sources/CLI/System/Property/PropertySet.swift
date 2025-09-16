@@ -55,7 +55,7 @@ extension Application {
                 }
                 DefaultsStore.set(value: value, key: key)
             case .defaultBuilderImage, .defaultInitImage:
-                guard (try? Reference(path: value)) != nil else {
+                guard (try? Reference.parse(value)) != nil else {
                     throw ContainerizationError(.invalidArgument, message: "invalid image reference: \(value)")
                 }
                 DefaultsStore.set(value: value, key: key)
@@ -65,6 +65,7 @@ extension Application {
                 guard URL(string: value) != nil else {
                     throw ContainerizationError(.invalidArgument, message: "invalid URL: \(value)")
                 }
+                DefaultsStore.set(value: value, key: key)
                 return
             case .defaultSubnet:
                 guard (try? CIDRAddress(value)) != nil else {
