@@ -94,6 +94,27 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(newImageName) == newImageName, "expected to have successfully built \(newImageName)")
         }
 
+        @Test func testBuildAddFromSpecialDirs() throws {
+            let tempDir = URL(filePath: "/tmp/container/.clitests" + testUUID)
+            try! FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+            defer {
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
+            let dockerfile: String =
+                """
+                FROM scratch
+
+                ADD emptyFile /
+                """
+            let context: [FileSystemEntry] = [.file("emptyFile", content: .zeroFilled(size: 1))]
+            try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
+            let imageName = "registry.local/scratch-add-special-dir:\(UUID().uuidString)"
+            try self.build(tag: imageName, tempDir: tempDir)
+            #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
+        }
+
         @Test func testBuildScratchAdd() throws {
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
