@@ -36,12 +36,6 @@ extension Application {
 
         @Argument(help: "Network name")
         var name: String
-      
-        @Option(name: .customLong("label"), help: "Set metadata on a network")
-        var labels: [String] = []
-
-        @Argument(help: "Network name")
-        var name: String
 
         public func run() async throws {
             let parsedLabels = Utility.parseKeyValuePairs(labels)
