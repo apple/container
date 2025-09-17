@@ -175,17 +175,19 @@ public final class ExecutionContext: @unchecked Sendable {
 
     /// Create a child context for a nested execution.
     public func childContext(for stage: BuildStage) -> ExecutionContext {
-        lock.withLock {
-            ExecutionContext(
-                stage: stage,
-                graph: graph,
-                platform: platform,
-                reporter: reporter,
-                snapshotter: snapshotter,
-                baseEnvironment: Environment(_environment.variables),
-                baseConfig: _imageConfig
-            )
+        let (environmentVars, imageConfig) = lock.withLock {
+            (_environment.variables, _imageConfig)
         }
+
+        return ExecutionContext(
+            stage: stage,
+            graph: graph,
+            platform: platform,
+            reporter: reporter,
+            snapshotter: snapshotter,
+            baseEnvironment: Environment(environmentVars),
+            baseConfig: imageConfig
+        )
     }
 
     // MARK: - Snapshotter Integration
