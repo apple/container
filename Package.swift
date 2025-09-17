@@ -71,7 +71,7 @@ let package = Package(
                 "ContainerClient",
                 "ContainerCommands",
             ],
-            path: "Sources/CLI"
+            path: "Sources/ExecutableCLI"
         ),
         .target(
             name: "ContainerCommands",
@@ -90,7 +90,7 @@ let package = Package(
                 "ContainerVersion",
                 "TerminalProgress",
             ],
-            path: "Sources/ContainerCommands"
+            path: "Sources/CLI"
         ),
         .executableTarget(
             name: "container-apiserver",
