@@ -24,8 +24,8 @@ import ContainerClient
 public struct Executable: AsyncParsableCommand {
     public init() {}
 
-    @OptionGroup
-    var global: Flags.Global
+    @Argument(parsing: .captureForPassthrough)
+    var arguments: [String] = []
 
     public static let configuration = Application.configuration
 
@@ -34,8 +34,7 @@ public struct Executable: AsyncParsableCommand {
     }
 
     public func run() async throws {
-        var application = Application()
-        application.global = global
+        var application = try Application.parse(arguments)
         try application.validate()
         try application.run()
     }
