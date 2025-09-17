@@ -24,6 +24,10 @@ import Foundation
 import Testing
 
 class TestCLIRunCommand: CLITest {
+    private func getLowercasedTestName() -> String {
+        return Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
+    }
+
     @Test func testRunCommand() throws {
         do {
             let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
@@ -264,7 +268,7 @@ class TestCLIRunCommand: CLITest {
 
     @Test func testRunCommandOSArch() throws {
         do {
-            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+            let name = getLowercasedTestName()
             let os = "linux"
             let arch = "amd64"
             let expectedArch = "x86_64"
@@ -469,7 +473,7 @@ class TestCLIRunCommand: CLITest {
         let retries = 10
         let retryDelaySeconds = Int64(3)
         do {
-            let name = Test.current!.name.trimmingCharacters(in: ["(", ")"])
+            let name = getLowercasedTestName()
             let proxyIp = "127.0.0.1"
             let proxyPort = UInt16.random(in: 50000..<55000)
             let serverPort = UInt16.random(in: 55000..<60000)
