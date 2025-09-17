@@ -33,22 +33,22 @@ extension Application {
             abstract: "Run a container")
 
         @OptionGroup
-        public var processFlags: Flags.Process
+        var processFlags: Flags.Process
 
         @OptionGroup
-        public var resourceFlags: Flags.Resource
+        var resourceFlags: Flags.Resource
 
         @OptionGroup
-        public var managementFlags: Flags.Management
+        var managementFlags: Flags.Management
 
         @OptionGroup
-        public var registryFlags: Flags.Registry
+        var registryFlags: Flags.Registry
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
         @OptionGroup
-        public var progressFlags: Flags.Progress
+        var progressFlags: Flags.Progress
 
         @Argument(help: "Image name")
         var image: String

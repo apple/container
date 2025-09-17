@@ -35,7 +35,7 @@ extension Application {
         var interactive = false
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
         @Argument(help: "Container's ID")
         var containerID: String

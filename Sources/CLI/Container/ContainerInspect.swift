@@ -28,7 +28,7 @@ extension Application {
             abstract: "Display information about one or more containers")
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
         @Argument(help: "Containers to inspect")
         var containers: [String]

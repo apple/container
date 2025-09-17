@@ -28,7 +28,7 @@ extension Application {
             abstract: "Display information about one or more networks")
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
         @Argument(help: "Networks to inspect")
         var networks: [String]

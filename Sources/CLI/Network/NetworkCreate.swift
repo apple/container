@@ -32,7 +32,7 @@ extension Application {
         var name: String
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
         public func run() async throws {
             let config = NetworkConfiguration(id: self.name, mode: .nat)

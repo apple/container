@@ -38,7 +38,7 @@ extension Application {
         var server: String
 
         @OptionGroup
-        public var registry: Flags.Registry
+        var registry: Flags.Registry
 
         public func run() async throws {
             var username = self.username

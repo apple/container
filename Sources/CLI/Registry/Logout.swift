@@ -29,7 +29,7 @@ extension Application {
         var registry: String
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
         public func run() async throws {
             let keychain = KeychainHelper(id: Constants.keychainID)

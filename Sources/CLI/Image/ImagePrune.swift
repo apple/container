@@ -26,7 +26,7 @@ extension Application {
             abstract: "Remove unreferenced and dangling images")
 
         @OptionGroup
-        public var global: Flags.Global
+        var global: Flags.Global
 
         public func run() async throws {
             let (_, size) = try await ClientImage.pruneImages()
