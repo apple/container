@@ -23,7 +23,7 @@ import Foundation
 import Logging
 import TerminalProgress
 
-actor KernelService {
+public actor KernelService {
     private static let defaultKernelNamePrefix: String = "default.kernel-"
 
     private let log: Logger

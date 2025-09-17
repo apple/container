@@ -28,7 +28,6 @@ extension Application {
                 DNSCreate.self,
                 DNSDelete.self,
                 DNSList.self,
-                DNSDefault.self,
             ]
         )
     }

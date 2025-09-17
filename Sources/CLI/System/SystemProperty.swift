@@ -15,18 +15,21 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerPersistence
+import ContainerizationError
+import Foundation
 
 extension Application {
-    public struct RegistryCommand: AsyncParsableCommand {
-        public init() {}
-        public static let configuration = CommandConfiguration(
-            commandName: "registry",
-            abstract: "Manage registry configurations",
+    struct SystemProperty: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "property",
+            abstract: "Manage system property values",
             subcommands: [
-                Login.self,
-                Logout.self,
-            ],
-            aliases: ["r"]
+                PropertyClear.self,
+                PropertyGet.self,
+                PropertyList.self,
+                PropertySet.self,
+            ]
         )
     }
 }

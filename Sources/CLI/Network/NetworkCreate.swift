@@ -28,14 +28,18 @@ extension Application {
             commandName: "create",
             abstract: "Create a new network")
 
+        @OptionGroup
+        var global: Flags.Global
+        
+        @Option(name: .customLong("label"), help: "Set metadata on a network")
+        var labels: [String] = []
+
         @Argument(help: "Network name")
         var name: String
 
-        @OptionGroup
-        var global: Flags.Global
-
         public func run() async throws {
-            let config = NetworkConfiguration(id: self.name, mode: .nat)
+            let parsedLabels = Utility.parseKeyValuePairs(labels)
+            let config = try NetworkConfiguration(id: self.name, mode: .nat, labels: parsedLabels)
             let state = try await ClientNetwork.create(configuration: config)
             print(state.id)
         }

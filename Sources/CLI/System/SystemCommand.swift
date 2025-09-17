@@ -24,11 +24,12 @@ extension Application {
             abstract: "Manage system components",
             subcommands: [
                 SystemDNS.self,
-                SystemLogs.self,
-                SystemStart.self,
-                SystemStop.self,
-                SystemStatus.self,
                 SystemKernel.self,
+                SystemLogs.self,
+                SystemProperty.self,
+                SystemStart.self,
+                SystemStatus.self,
+                SystemStop.self,
             ],
             aliases: ["s"]
         )

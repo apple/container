@@ -98,7 +98,7 @@ Use the `--help` flag to see which abbreviations exist.
 
 ```bash
 sudo container system dns create test
-container system dns default set test
+container system property set dns.domain test
 ```
 
 Enter your administrator password when prompted. The first command requires administrator privileges to create a file containing the domain configuration under the `/etc/resolver` directory, and to tell the macOS DNS resolver to reload its configuration files.
@@ -253,30 +253,30 @@ Push your image to a container registry, publishing it so that you and others ca
 
 ### Publish the web server image
 
-To publish your image, you need push images to a registry service that stores the image for future use. Typically, you need to authenticate with a registry to push an image. This example assumes that you have an account at a hypothetical registry named `registry.example.com` with username `fido` and a password or token `my-secret`, and that your personal repository name is the same as your username.
-
-> [!NOTE]
-> By default `container` is configured to use Docker Hub.
-> You can change the default registry used by running `container registry default set <registry url>`.
-> See the other sub commands under `container registry` for more options.
+To publish your image, you need push images to a registry service that stores the image for future use. Typically, you need to authenticate with a registry to push an image. This example assumes that you have an account at a hypothetical registry named `some-registry.example.com` with username `fido` and a password or token `my-secret`, and that your personal repository name is the same as your username.
 
 To sign into a secure registry with your login credentials, enter your username and password at the prompts after running:
 
 ```bash
-container registry login {registry.example.com}
+container registry login some-registry.example.com
 ```
 
 Create another name for your image that includes the registry name, your repository name, and the image name, with the tag `latest`:
 
 ```bash
-container image tag web-test {registry.example.com/fido}/web-test:latest
+container image tag web-test some-registry.example.com/fido/web-test:latest
 ```
 
 Then, push the image:
 
 ```bash
-container image push {registry.example.com/fido}/web-test:latest
+container image push some-registry.example.com/fido/web-test:latest
 ```
+
+> [!NOTE]
+> By default `container` is configured to use Docker Hub.
+> You can change the default registry to another value by running `container system property set registry.domain some-registry.example.com`.
+> See the other sub commands under `container registry` for more options.
 
 ### Pull and run your image
 
@@ -284,8 +284,8 @@ To validate your published image, stop your current web server container, remove
 
 ```bash
 container stop my-web-server
-container image delete web-test {registry.example.com/fido}/web-test:latest
-container run --name my-web-server --detach --rm {registry.example.com/fido}/web-test:latest
+container image delete web-test some-registry.example.com/fido/web-test:latest
+container run --name my-web-server --detach --rm some-registry.example.com/fido/web-test:latest
 ```
 
 ## Clean up

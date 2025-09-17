@@ -26,7 +26,7 @@ import ContainerizationOS
 import Foundation
 import Logging
 
-actor ContainersService {
+public actor ContainersService {
     private static let machServicePrefix = "com.apple.container"
     private static let launchdDomainString = try! ServiceManager.getDomainString()
 

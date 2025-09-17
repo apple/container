@@ -18,7 +18,7 @@ import ContainerPlugin
 import Foundation
 import Logging
 
-actor PluginsService {
+public actor PluginsService {
     private let log: Logger
     private var loaded: [String: Plugin]
     private let pluginLoader: PluginLoader

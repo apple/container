@@ -60,10 +60,7 @@ public final class Archiver: Sendable {
             try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
 
             guard
-                let enumerator = FileManager.default.enumerator(
-                    at: source,
-                    includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey]
-                )
+                let enumerator = FileManager.default.enumerator(atPath: source.path)
             else {
                 throw Error.fileDoesNotExist(source)
             }
@@ -74,7 +71,8 @@ public final class Archiver: Sendable {
                     entryInfo.append(info)
                 }
             } else {
-                while let url = enumerator.nextObject() as? URL {
+                while let relPath = enumerator.nextObject() as? String {
+                    let url = source.appending(path: relPath).standardizedFileURL
                     guard let info = closure(url) else {
                         continue
                     }

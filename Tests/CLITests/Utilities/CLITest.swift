@@ -29,6 +29,7 @@ class CLITest {
         let reference: String
     }
 
+    // These structs need to track their counterpart presentation structs in CLI.
     struct ImageInspectOutput: Codable {
         let name: String
         let variants: [variant]
@@ -39,6 +40,13 @@ class CLITest {
                 let architecture: String
             }
         }
+    }
+
+    struct NetworkInspectOutput: Codable {
+        let id: String
+        let state: String
+        let config: NetworkConfiguration
+        let status: NetworkStatus?
     }
 
     init() throws {}
@@ -398,9 +406,10 @@ class CLITest {
 
     func doDefaultRegistrySet(domain: String) throws {
         let args = [
-            "registry",
-            "default",
+            "system",
+            "property",
             "set",
+            "registry.domain",
             domain,
         ]
         let (_, error, status) = try run(arguments: args)
@@ -411,9 +420,10 @@ class CLITest {
 
     func doDefaultRegistryUnset() throws {
         let args = [
-            "registry",
-            "default",
-            "unset",
+            "system",
+            "property",
+            "clear",
+            "registry.domain",
         ]
         let (_, error, status) = try run(arguments: args)
         if status != 0 {

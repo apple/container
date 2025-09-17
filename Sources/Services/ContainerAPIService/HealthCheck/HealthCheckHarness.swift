@@ -22,7 +22,7 @@ import Containerization
 import Foundation
 import Logging
 
-actor HealthCheckHarness {
+public actor HealthCheckHarness {
     private let appRoot: URL
     private let installRoot: URL
     private let log: Logger
@@ -34,7 +34,7 @@ actor HealthCheckHarness {
     }
 
     @Sendable
-    func ping(_ message: XPCMessage) async -> XPCMessage {
+    public func ping(_ message: XPCMessage) async -> XPCMessage {
         let reply = message.reply()
         reply.set(key: .appRoot, value: appRoot.absoluteString)
         reply.set(key: .installRoot, value: installRoot.absoluteString)

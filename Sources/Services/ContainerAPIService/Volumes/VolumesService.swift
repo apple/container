@@ -26,7 +26,7 @@ import Logging
 import Synchronization
 import SystemPackage
 
-actor VolumesService {
+public actor VolumesService {
     private let resourceRoot: URL
     private let store: ContainerPersistence.FilesystemEntityStore<Volume>
     private let log: Logger

@@ -16,19 +16,17 @@
 
 import ArgumentParser
 import ContainerClient
-import ContainerNetworkService
-import ContainerizationExtras
+import ContainerPersistence
 import Foundation
-import SwiftProtobuf
 
 extension Application {
-    public struct NetworkList: AsyncParsableCommand {
-        public init() {}
-        public static let configuration = CommandConfiguration(
+    struct PropertyList: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
             commandName: "list",
-            abstract: "List networks",
-            aliases: ["ls"])
-        
+            abstract: "List system properties",
+            aliases: ["ls"]
+        )
+
         @Flag(name: .shortAndLong, help: "Only output the network name")
         var quiet = false
 
@@ -38,36 +36,32 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
 
-        public func run() async throws {
-            let networks = try await ClientNetwork.list()
-            try printNetworks(networks: networks, format: format)
+        func run() async throws {
+            let vals = DefaultsStore.allValues()
+            try printValues(vals, format: format)
         }
 
-        func createHeader() -> [[String]] {
-            [["NETWORK", "STATE", "SUBNET"]]
+        private func createHeader() -> [[String]] {
+            [["ID", "TYPE", "VALUE", "DESCRIPTION"]]
         }
 
-        func printNetworks(networks: [NetworkState], format: ListFormat) throws {
+        private func printValues(_ vals: [DefaultsStoreValue], format: ListFormat) throws {
             if format == .json {
-                let printables = networks.map {
-                    PrintableNetwork($0)
-                }
-                let data = try JSONEncoder().encode(printables)
+                let data = try JSONEncoder().encode(vals)
                 print(String(data: data, encoding: .utf8)!)
-
                 return
             }
 
             if self.quiet {
-                networks.forEach {
+                vals.forEach {
                     print($0.id)
                 }
                 return
             }
 
             var rows = createHeader()
-            for network in networks {
-                rows.append(network.asRow)
+            for property in vals {
+                rows.append(property.asRow)
             }
 
             let formatter = TableOutput(rows: rows)
@@ -76,33 +70,24 @@ extension Application {
     }
 }
 
-extension NetworkState {
+extension DefaultsStoreValue {
     var asRow: [String] {
-        switch self {
-        case .created(_):
-            return [self.id, self.state, "none"]
-        case .running(_, let status):
-            return [self.id, self.state, status.address]
-        }
+        [id, String(describing: type), value?.description.elided(to: 40) ?? "*undefined*", description]
     }
 }
 
-public struct PrintableNetwork: Codable {
-    let id: String
-    let state: String
-    let config: NetworkConfiguration
-    let status: NetworkStatus?
-
-    public init(_ network: NetworkState) {
-        self.id = network.id
-        self.state = network.state
-        switch network {
-        case .created(let config):
-            self.config = config
-            self.status = nil
-        case .running(let config, let status):
-            self.config = config
-            self.status = status
+extension String {
+    func elided(to maxCount: Int) -> String {
+        let ellipsis = "..."
+        guard self.count > maxCount else {
+            return self
         }
+
+        if maxCount < ellipsis.count {
+            return ellipsis
+        }
+
+        let prefixCount = maxCount - ellipsis.count
+        return self.prefix(prefixCount) + ellipsis
     }
 }
