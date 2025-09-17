@@ -28,7 +28,7 @@ extension Application {
             commandName: "list",
             abstract: "List networks",
             aliases: ["ls"])
-        
+      
         @Flag(name: .shortAndLong, help: "Only output the network name")
         var quiet = false
 
