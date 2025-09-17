@@ -23,7 +23,7 @@ import Foundation
 extension Application {
     public struct ContainerExec: AsyncParsableCommand {
         public init() {}
-        
+
         public static let configuration = CommandConfiguration(
             commandName: "exec",
             abstract: "Run a new command in a running container")

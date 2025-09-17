@@ -22,7 +22,7 @@ import SwiftProtobuf
 extension Application {
     public struct ContainerInspect: AsyncParsableCommand {
         public init() {}
-        
+
         public static let configuration = CommandConfiguration(
             commandName: "inspect",
             abstract: "Display information about one or more containers")

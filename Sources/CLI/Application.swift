@@ -38,7 +38,7 @@ nonisolated(unsafe) var log = {
 public struct Application: AsyncParsableCommand {
     @OptionGroup
     var global: Flags.Global
-    
+
     public init() {}
 
     public static let configuration = CommandConfiguration(

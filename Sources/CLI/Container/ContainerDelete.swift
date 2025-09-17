@@ -22,7 +22,7 @@ import Foundation
 extension Application {
     public struct ContainerDelete: AsyncParsableCommand {
         public init() {}
-        
+
         public static let configuration = CommandConfiguration(
             commandName: "delete",
             abstract: "Delete one or more containers",

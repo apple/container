@@ -24,7 +24,7 @@ import SwiftProtobuf
 extension Application {
     public struct ContainerList: AsyncParsableCommand {
         public init() {}
-        
+
         public static let configuration = CommandConfiguration(
             commandName: "list",
             abstract: "List containers",

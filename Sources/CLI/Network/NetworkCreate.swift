@@ -30,7 +30,7 @@ extension Application {
 
         @OptionGroup
         var global: Flags.Global
-        
+
         @Option(name: .customLong("label"), help: "Set metadata on a network")
         var labels: [String] = []
 

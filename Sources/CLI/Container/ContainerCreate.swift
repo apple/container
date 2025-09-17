@@ -23,7 +23,7 @@ import TerminalProgress
 extension Application {
     public struct ContainerCreate: AsyncParsableCommand {
         public init() {}
-        
+
         public static let configuration = CommandConfiguration(
             commandName: "create",
             abstract: "Create a new container")

@@ -24,7 +24,7 @@ import OSLog
 extension Application {
     public struct SystemLogs: AsyncParsableCommand {
         public init() {}
-        
+
         public static let subsystem = "com.apple.container"
 
         public static let configuration = CommandConfiguration(

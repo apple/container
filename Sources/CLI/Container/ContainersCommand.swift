@@ -19,7 +19,7 @@ import ArgumentParser
 extension Application {
     public struct ContainersCommand: AsyncParsableCommand {
         public init() {}
-        
+
         public static let configuration = CommandConfiguration(
             commandName: "containers",
             abstract: "Manage containers",

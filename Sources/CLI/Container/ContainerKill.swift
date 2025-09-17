@@ -23,7 +23,7 @@ import Darwin
 extension Application {
     public struct ContainerKill: AsyncParsableCommand {
         public init() {}
-        
+
         public static let configuration = CommandConfiguration(
             commandName: "kill",
             abstract: "Kill one or more running containers")

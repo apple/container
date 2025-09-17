@@ -24,7 +24,7 @@ import Foundation
 extension Application {
     public struct ContainerLogs: AsyncParsableCommand {
         public init() {}
-        
+
         public static let configuration = CommandConfiguration(
             commandName: "logs",
             abstract: "Fetch container stdio or boot logs"

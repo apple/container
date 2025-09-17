@@ -22,7 +22,7 @@ import Foundation
 extension Application {
     public struct BuilderStop: AsyncParsableCommand {
         public init() {}
-        
+
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
             config.commandName = "stop"

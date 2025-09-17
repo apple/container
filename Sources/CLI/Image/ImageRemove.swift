@@ -23,7 +23,7 @@ import Foundation
 extension Application {
     public struct RemoveImageOptions: ParsableArguments {
         public init() {}
-        
+
         @Flag(name: .shortAndLong, help: "Remove all images")
         var all: Bool = false
 
@@ -83,7 +83,7 @@ extension Application {
 
     public struct ImageRemove: AsyncParsableCommand {
         public init() {}
-        
+
         @OptionGroup
         var options: RemoveImageOptions
 

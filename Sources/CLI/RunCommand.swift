@@ -173,7 +173,7 @@ public struct ProcessIO: Sendable {
     let stderr: Pipe?
     var ioTracker: IoTracker?
 
-    public struct IoTracker: Sendable{
+    public struct IoTracker: Sendable {
         let stream: AsyncStream<Void>
         let cont: AsyncStream<Void>.Continuation
         let configuredStreams: Int

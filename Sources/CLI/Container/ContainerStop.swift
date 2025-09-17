@@ -23,7 +23,7 @@ import Foundation
 extension Application {
     public struct ContainerStop: AsyncParsableCommand {
         public init() {}
-        
+
         public static let configuration = CommandConfiguration(
             commandName: "stop",
             abstract: "Stop one or more running containers")
