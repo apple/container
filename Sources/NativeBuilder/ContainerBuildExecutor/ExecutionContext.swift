@@ -203,7 +203,7 @@ public final class ExecutionContext: @unchecked Sendable {
     /// - Returns: A prepared snapshot ready for modification
     /// - Throws: Any errors from the snapshotter
     public func prepareSnapshot(for operationId: UUID) async throws -> Snapshot {
-        let parentCommitted = lock.withLock { _headSnapshot }
+        let parentCommitted = headSnapshot
 
         // Always create a new child snapshot that points to the latest committed snapshot (if any).
         // Prepare is responsible for ensuring both the child mountpoint and parent materialization (if needed).
