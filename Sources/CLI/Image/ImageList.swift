@@ -38,8 +38,7 @@ extension Application {
         var global: Flags.Global
     }
 
-    public struct ListImageImplementation {
-        public init() {}
+    struct ListImageImplementation {
         static func createHeader() -> [[String]] {
             [["NAME", "TAG", "DIGEST"]]
         }

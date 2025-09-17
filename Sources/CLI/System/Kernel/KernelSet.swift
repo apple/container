@@ -90,7 +90,7 @@ extension Application {
             try await Self.downloadAndInstallWithProgressBar(tarRemoteURL: remoteURL.absoluteString, kernelFilePath: binaryPath, platform: platform, force: force)
         }
 
-        func getSystemPlatform() throws -> SystemPlatform {
+        private func getSystemPlatform() throws -> SystemPlatform {
             switch architecture {
             case "arm64":
                 return .linuxArm

@@ -39,7 +39,7 @@ extension Application.VolumeCommand {
             try printVolumes(volumes: volumes, format: format)
         }
 
-        func createHeader() -> [[String]] {
+        private func createHeader() -> [[String]] {
             [["NAME", "DRIVER", "OPTIONS"]]
         }
 

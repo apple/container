@@ -43,7 +43,7 @@ extension Application {
             try printNetworks(networks: networks, format: format)
         }
 
-        func createHeader() -> [[String]] {
+        private func createHeader() -> [[String]] {
             [["NETWORK", "STATE", "SUBNET"]]
         }
 
