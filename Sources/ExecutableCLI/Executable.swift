@@ -14,11 +14,9 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-//
-
 import ArgumentParser
-import ContainerCommands
 import ContainerClient
+import ContainerCommands
 
 @main
 public struct Executable: AsyncParsableCommand {
