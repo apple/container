@@ -28,8 +28,12 @@ class TestCLINetwork: CLITest {
     private static let retries = 10
     private static let retryDelaySeconds = Int64(3)
 
+    private func getTestName() -> String {
+        Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
+    }
+
     private func getLowercasedTestName() -> String {
-        return Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
+        getTestName().lowercased()
     }
 
     @available(macOS 26, *)

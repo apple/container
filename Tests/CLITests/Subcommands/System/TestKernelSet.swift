@@ -63,12 +63,16 @@ class TestCLIKernelSet: CLITest {
     }
 
     func validateContainerRun() throws {
-        let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+        let name = getTestName()
         try doLongRun(name: name, args: [])
         defer { try? doStop(name: name) }
 
         _ = try doExec(name: name, cmd: ["date"])
         try doStop(name: name)
+    }
+
+    private func getTestName() -> String {
+        Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
     }
 
     @Test func fromLocalTar() async throws {
