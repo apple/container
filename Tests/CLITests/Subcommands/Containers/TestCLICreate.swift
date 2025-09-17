@@ -18,8 +18,12 @@ import Foundation
 import Testing
 
 class TestCLICreateCommand: CLITest {
+    private func getTestName() -> String {
+        Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
+    }
+
     @Test func testCreateArgsPassthrough() throws {
-        let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+        let name = getTestName()
         #expect(throws: Never.self, "expected container create to succeed") {
             try doCreate(name: name, args: ["echo", "-n", "hello", "world"])
             try doRemove(name: name)

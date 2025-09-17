@@ -24,9 +24,17 @@ import Foundation
 import Testing
 
 class TestCLIRunCommand: CLITest {
+    private func getTestName() -> String {
+        Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
+    }
+
+    private func getLowercasedTestName() -> String {
+        getTestName().lowercased()
+    }
+
     @Test func testRunCommand() throws {
         do {
-            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+            let name = getTestName()
             try doLongRun(name: name, args: [])
             defer {
                 try? doStop(name: name)
@@ -41,7 +49,7 @@ class TestCLIRunCommand: CLITest {
 
     @Test func testRunCommandCWD() throws {
         do {
-            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+            let name = getTestName()
             let expectedCWD = "/tmp"
             try doLongRun(name: name, args: ["--cwd", expectedCWD])
             defer {
@@ -59,7 +67,7 @@ class TestCLIRunCommand: CLITest {
 
     @Test func testRunCommandEnv() throws {
         do {
-            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+            let name = getTestName()
             let envData = "FOO=bar"
             try doLongRun(name: name, args: ["--env", envData])
             defer {
@@ -78,7 +86,7 @@ class TestCLIRunCommand: CLITest {
 
     @Test func testRunCommandEnvFile() throws {
         do {
-            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+            let name = getTestName()
             let envData = "FOO=bar"
             let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("test.env")
             guard FileManager.default.createFile(atPath: tempFile.path(), contents: Data(envData.utf8)) else {
@@ -105,7 +113,7 @@ class TestCLIRunCommand: CLITest {
 
     @Test func testRunCommandUserIDGroupID() throws {
         do {
-            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+            let name = getTestName()
             let uid = "10"
             let gid = "100"
             try doLongRun(name: name, args: ["--uid", uid, "--gid", gid])
@@ -125,7 +133,7 @@ class TestCLIRunCommand: CLITest {
 
     @Test func testRunCommandUser() throws {
         do {
-            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+            let name = getTestName()
             let user = "nobody"
             try doLongRun(name: name, args: ["--user", user])
             defer {
@@ -143,7 +151,7 @@ class TestCLIRunCommand: CLITest {
 
     @Test func testRunCommandCPUs() throws {
         do {
-            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+            let name = getTestName()
             let cpus = "2"
             try doLongRun(name: name, args: ["--cpus", cpus])
             defer {
@@ -161,7 +169,7 @@ class TestCLIRunCommand: CLITest {
 
     @Test func testRunCommandMemory() throws {
         do {
-            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+            let name = getTestName()
             let expectedMBs = 1024
             try doLongRun(name: name, args: ["--memory", "\(expectedMBs)M"])
             defer {
@@ -179,7 +187,7 @@ class TestCLIRunCommand: CLITest {
 
     @Test func testRunCommandMount() throws {
         do {
-            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+            let name = getTestName()
             let targetContainerPath = "/tmp/testmount"
             let testData = "hello world"
             let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -208,7 +216,7 @@ class TestCLIRunCommand: CLITest {
 
     @Test func testRunCommandUnixSocketMount() throws {
         do {
-            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+            let name = getTestName()
             let socketPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
 
             let socketType = try UnixType(path: socketPath.path, unlinkExisting: true)
@@ -242,7 +250,7 @@ class TestCLIRunCommand: CLITest {
 
     @Test func testRunCommandTmpfs() throws {
         do {
-            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+            let name = getTestName()
             let targetContainerPath = "/tmp/testtmpfs"
             let expectedFilesystem = "tmpfs"
             try doLongRun(name: name, args: ["--tmpfs", targetContainerPath])
@@ -264,7 +272,7 @@ class TestCLIRunCommand: CLITest {
 
     @Test func testRunCommandOSArch() throws {
         do {
-            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+            let name = getLowercasedTestName()
             let os = "linux"
             let arch = "amd64"
             let expectedArch = "x86_64"
@@ -284,7 +292,7 @@ class TestCLIRunCommand: CLITest {
 
     @Test func testRunCommandPlatform() throws {
         do {
-            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+            let name = getTestName()
             let os = "linux"
             let platform = "linux/amd64"
             let expectedArch = "x86_64"
@@ -304,7 +312,7 @@ class TestCLIRunCommand: CLITest {
 
     @Test func testRunCommandVolume() throws {
         do {
-            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+            let name = getTestName()
             let targetContainerPath = "/tmp/testvolume"
             let testData = "one small step"
             let volume = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -333,7 +341,7 @@ class TestCLIRunCommand: CLITest {
 
     @Test func testRunCommandCidfile() throws {
         do {
-            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+            let name = getTestName()
             let filePath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             defer {
                 try? FileManager.default.removeItem(at: filePath)
@@ -343,7 +351,7 @@ class TestCLIRunCommand: CLITest {
                 try? doStop(name: name)
             }
             let actualID = try String(contentsOf: filePath, encoding: .utf8)
-            #expect(actualID == name, "expected container ID '\(name!)', instead got '\(actualID)'")
+            #expect(actualID == name, "expected container ID '\(name)', instead got '\(actualID)'")
             try doStop(name: name)
         } catch {
             Issue.record("failed to run container \(error)")
@@ -353,7 +361,7 @@ class TestCLIRunCommand: CLITest {
 
     @Test func testRunCommandNoDNS() throws {
         do {
-            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+            let name = getTestName()
             try doLongRun(name: name, args: ["--no-dns"])
             defer {
                 try? doStop(name: name)
@@ -369,7 +377,7 @@ class TestCLIRunCommand: CLITest {
 
     @Test func testRunCommandDefaultResolvConf() throws {
         do {
-            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+            let name = getTestName()
             try doLongRun(name: name, args: [])
             defer {
                 try? doStop(name: name)
@@ -404,7 +412,7 @@ class TestCLIRunCommand: CLITest {
             let expectedDomain = "example.com"
             let expectedSearch = "test.com"
             let expectedOption = "debug"
-            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+            let name = getTestName()
             try doLongRun(
                 name: name,
                 args: [
@@ -438,7 +446,7 @@ class TestCLIRunCommand: CLITest {
 
     @Test func testRunDefaultHostsEntries() throws {
         do {
-            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+            let name = getTestName()
             try doLongRun(name: name)
             defer {
                 try? doStop(name: name)
@@ -469,7 +477,7 @@ class TestCLIRunCommand: CLITest {
         let retries = 10
         let retryDelaySeconds = Int64(3)
         do {
-            let name = Test.current!.name.trimmingCharacters(in: ["(", ")"])
+            let name = getLowercasedTestName()
             let proxyIp = "127.0.0.1"
             let proxyPort = UInt16.random(in: 50000..<55000)
             let serverPort = UInt16.random(in: 55000..<60000)
