@@ -22,7 +22,7 @@ import Foundation
 extension Application {
     public struct SystemProperty: AsyncParsableCommand {
         public init() {}
-        
+
         public static let configuration = CommandConfiguration(
             commandName: "property",
             abstract: "Manage system property values",
