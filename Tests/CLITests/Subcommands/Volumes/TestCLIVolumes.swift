@@ -52,11 +52,15 @@ class TestCLIVolumes: CLITest {
         return status != 0
     }
 
+    private func getTestName() -> String {
+        Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
+    }
+
     @Test func testVolumeDataPersistenceAcrossContainers() throws {
-        let testName: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
-        let volumeName = "\(testName!)_vol"
-        let container1Name = "\(testName!)_c1"
-        let container2Name = "\(testName!)_c2"
+        let testName = getTestName()
+        let volumeName = "\(testName)_vol"
+        let container1Name = "\(testName)_c1"
+        let container2Name = "\(testName)_c2"
         let testData = "persistent-data-test"
         let testFile = "/data/test.txt"
 
@@ -102,10 +106,10 @@ class TestCLIVolumes: CLITest {
     }
 
     @Test func testVolumeSharedAccessConflict() throws {
-        let testName: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
-        let volumeName = "\(testName!)_vol"
-        let container1Name = "\(testName!)_c1"
-        let container2Name = "\(testName!)_c2"
+        let testName = getTestName()
+        let volumeName = "\(testName)_vol"
+        let container1Name = "\(testName)_c1"
+        let container2Name = "\(testName)_c2"
 
         // Clean up any existing resources from previous runs
         doVolumeDeleteIfExists(name: volumeName)
@@ -140,9 +144,9 @@ class TestCLIVolumes: CLITest {
     }
 
     @Test func testVolumeDeleteProtectionWhileInUse() throws {
-        let testName: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
-        let volumeName = "\(testName!)_vol"
-        let containerName = "\(testName!)_c1"
+        let testName = getTestName()
+        let volumeName = "\(testName)_vol"
+        let containerName = "\(testName)_c1"
 
         // Clean up any existing resources from previous runs
         doVolumeDeleteIfExists(name: volumeName)
@@ -175,9 +179,9 @@ class TestCLIVolumes: CLITest {
     }
 
     @Test func testVolumeDeleteProtectionWithCreatedContainer() async throws {
-        let testName: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
-        let volumeName = "\(testName!)_vol"
-        let containerName = "\(testName!)_c1"
+        let testName = getTestName()
+        let volumeName = "\(testName)_vol"
+        let containerName = "\(testName)_c1"
 
         // Clean up any existing resources from previous runs
         doVolumeDeleteIfExists(name: volumeName)
@@ -211,8 +215,8 @@ class TestCLIVolumes: CLITest {
     }
 
     @Test func testVolumeBasicOperations() throws {
-        let testName: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
-        let volumeName = "\(testName!)_vol"
+        let testName = getTestName()
+        let volumeName = "\(testName)_vol"
 
         // Clean up any existing resources from previous runs
         doVolumeDeleteIfExists(name: volumeName)

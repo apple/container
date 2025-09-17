@@ -28,10 +28,18 @@ class TestCLINetwork: CLITest {
     private static let retries = 10
     private static let retryDelaySeconds = Int64(3)
 
+    private func getTestName() -> String {
+        Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
+    }
+
+    private func getLowercasedTestName() -> String {
+        getTestName().lowercased()
+    }
+
     @available(macOS 26, *)
     @Test func testNetworkCreateAndUse() async throws {
         do {
-            let name = Test.current!.name.trimmingCharacters(in: ["(", ")"])
+            let name = getLowercasedTestName()
             let networkDeleteArgs = ["network", "delete", name]
             _ = try? run(arguments: networkDeleteArgs)
 
@@ -86,7 +94,7 @@ class TestCLINetwork: CLITest {
     @Test func testNetworkDeleteWithContainer() async throws {
         do {
             // prep: delete container and network, ignoring if it doesn't exist
-            let name = Test.current!.name.trimmingCharacters(in: ["(", ")"])
+            let name = getLowercasedTestName()
             try? doRemove(name: name)
             let networkDeleteArgs = ["network", "delete", name]
             _ = try? run(arguments: networkDeleteArgs)
@@ -133,7 +141,7 @@ class TestCLINetwork: CLITest {
     @Test func testNetworkLabels() async throws {
         do {
             // prep: delete container and network, ignoring if it doesn't exist
-            let name = Test.current!.name.trimmingCharacters(in: ["(", ")"])
+            let name = getLowercasedTestName()
             try? doRemove(name: name)
             let networkDeleteArgs = ["network", "delete", name]
             _ = try? run(arguments: networkDeleteArgs)

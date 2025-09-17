@@ -20,9 +20,13 @@ import Foundation
 import Testing
 
 class TestCLIExecCommand: CLITest {
+    private func getTestName() -> String {
+        Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
+    }
+
     @Test func testCreateExecCommand() throws {
         do {
-            let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+            let name = getTestName()
             try doCreate(name: name)
             defer {
                 try? doStop(name: name)

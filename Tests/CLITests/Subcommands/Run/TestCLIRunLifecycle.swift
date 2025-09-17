@@ -17,8 +17,12 @@
 import Testing
 
 class TestCLIRunLifecycle: CLITest {
+    private func getTestName() -> String {
+        Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
+    }
+
     @Test func testRunFailureCleanup() throws {
-        let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+        let name = getTestName()
 
         // try to create a container we know will fail
         let badArgs: [String] = [
@@ -36,7 +40,7 @@ class TestCLIRunLifecycle: CLITest {
             defer {
                 try? self.doStop(name: name)
             }
-            let _ = try self.doExec(name: name!, cmd: ["date"])
+            let _ = try self.doExec(name: name, cmd: ["date"])
             try self.doStop(name: name)
         }
     }

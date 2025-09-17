@@ -40,8 +40,12 @@ class TestCLIRmRaceCondition: CLITest {
         try doRemove(name: name, force: force)
     }
 
+    private func getTestName() -> String {
+        Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
+    }
+
     @Test func testStopRmRace() async throws {
-        let name: String! = Test.current?.name.trimmingCharacters(in: ["(", ")"])
+        let name = getTestName()
 
         do {
             // Create and start a container in detached mode that runs indefinitely
