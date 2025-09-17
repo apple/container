@@ -17,7 +17,7 @@
 //
 
 import ArgumentParser
-import ContainerCLI
+import ContainerCommands
 import ContainerClient
 
 @main
