@@ -23,7 +23,7 @@ import Foundation
 extension Application {
     public struct PropertyClear: AsyncParsableCommand {
         public init() {}
-        
+
         public static let configuration = CommandConfiguration(
             commandName: "clear",
             abstract: "Clear a property value"

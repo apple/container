@@ -25,7 +25,7 @@ import Foundation
 extension Application {
     public struct PropertySet: AsyncParsableCommand {
         public init() {}
-        
+
         public static let configuration = CommandConfiguration(
             commandName: "set",
             abstract: "Set a property value"
