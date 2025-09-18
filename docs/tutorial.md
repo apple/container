@@ -98,7 +98,7 @@ Use the `--help` flag to see which abbreviations exist.
 
 ```bash
 sudo container system dns create test
-container system property set dns.domain test
+container system dns default set test
 ```
 
 Enter your administrator password when prompted. The first command requires administrator privileges to create a file containing the domain configuration under the `/etc/resolver` directory, and to tell the macOS DNS resolver to reload its configuration files.
