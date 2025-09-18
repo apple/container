@@ -24,7 +24,7 @@ extension Application {
     public struct PropertyGet: AsyncParsableCommand {
         public init() {}
 
-        static let configuration = CommandConfiguration(
+        public static let configuration = CommandConfiguration(
             commandName: "get",
             abstract: "Retrieve a property value"
         )
