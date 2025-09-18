@@ -21,8 +21,10 @@ import ContainerizationError
 import Foundation
 
 extension Application {
-    struct PropertyClear: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct PropertyClear: AsyncParsableCommand {
+        public init() {}
+        
+        public static let configuration = CommandConfiguration(
             commandName: "clear",
             abstract: "Clear a property value"
         )
@@ -33,7 +35,7 @@ extension Application {
         @Argument(help: "the property ID")
         var id: String
 
-        func run() async throws {
+        public func run() async throws {
             guard let key = DefaultsStore.Keys(rawValue: id) else {
                 throw ContainerizationError(.invalidArgument, message: "invalid property ID: \(id)")
             }

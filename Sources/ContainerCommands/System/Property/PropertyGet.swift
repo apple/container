@@ -21,7 +21,9 @@ import ContainerizationError
 import Foundation
 
 extension Application {
-    struct PropertyGet: AsyncParsableCommand {
+    public struct PropertyGet: AsyncParsableCommand {
+        public init() {}
+        
         static let configuration = CommandConfiguration(
             commandName: "get",
             abstract: "Retrieve a property value"
@@ -33,7 +35,7 @@ extension Application {
         @Argument(help: "the property ID")
         var id: String
 
-        func run() async throws {
+        public func run() async throws {
             let value = DefaultsStore.allValues()
                 .filter { id == $0.id }
                 .first

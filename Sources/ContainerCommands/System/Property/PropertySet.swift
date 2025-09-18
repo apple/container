@@ -23,8 +23,10 @@ import ContainerizationOCI
 import Foundation
 
 extension Application {
-    struct PropertySet: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct PropertySet: AsyncParsableCommand {
+        public init() {}
+        
+        public static let configuration = CommandConfiguration(
             commandName: "set",
             abstract: "Set a property value"
         )
@@ -38,7 +40,7 @@ extension Application {
         @Argument(help: "the property value")
         var value: String
 
-        func run() async throws {
+        public func run() async throws {
             guard let key = DefaultsStore.Keys(rawValue: id) else {
                 throw ContainerizationError(.invalidArgument, message: "invalid property ID: \(id)")
             }

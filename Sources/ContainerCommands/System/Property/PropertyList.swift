@@ -20,8 +20,10 @@ import ContainerPersistence
 import Foundation
 
 extension Application {
-    struct PropertyList: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
+    public struct PropertyList: AsyncParsableCommand {
+        public init() {}
+        
+        public static let configuration = CommandConfiguration(
             commandName: "list",
             abstract: "List system properties",
             aliases: ["ls"]
@@ -36,7 +38,7 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
 
-        func run() async throws {
+        public func run() async throws {
             let vals = DefaultsStore.allValues()
             try printValues(vals, format: format)
         }
