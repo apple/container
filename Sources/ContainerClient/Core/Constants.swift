@@ -15,5 +15,5 @@
 //===----------------------------------------------------------------------===//
 
 public enum Constants {
-    public static let keychainID = "com.apple.container"
+    public static let keychainID = "com.apple.container.registry"
 }

@@ -26,8 +26,6 @@ import Logging
 import TerminalProgress
 
 public actor ImagesService {
-    public static let keychainID = "com.apple.container"
-
     private let log: Logger
     private let contentStore: ContentStore
     private let imageStore: ImageStore
@@ -165,7 +163,7 @@ extension ImagesService {
         if let authentication {
             return try await body(authentication)
         }
-        let keychain = KeychainHelper(id: Self.keychainID)
+        let keychain = KeychainHelper(id: Constants.keychainID)
         do {
             authentication = try keychain.lookup(domain: host)
         } catch let err as KeychainHelper.Error {
