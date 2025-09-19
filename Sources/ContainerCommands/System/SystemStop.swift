@@ -47,36 +47,47 @@ extension Application {
             let launchdDomainString = try ServiceManager.getDomainString()
             let fullLabel = "\(launchdDomainString)/\(prefix)apiserver"
 
-            log.info("stopping containers", metadata: ["stopTimeoutSeconds": "\(Self.stopTimeoutSeconds)"])
+            var running = true
             do {
-                let containers = try await ClientContainer.list()
-                let signal = try Signals.parseSignal("SIGTERM")
-                let opts = ContainerStopOptions(timeoutInSeconds: Self.stopTimeoutSeconds, signal: signal)
-                let failed = try await ContainerStop.stopContainers(containers: containers, stopOptions: opts)
-                if !failed.isEmpty {
-                    log.warning("some containers could not be stopped gracefully", metadata: ["ids": "\(failed)"])
-                }
-
+                log.info("checking if APIServer is alive")
+                _ = try await ClientHealthCheck.ping(timeout: .seconds(5))
             } catch {
-                log.warning("failed to stop all containers", metadata: ["error": "\(error)"])
+                log.info("APIServer health check failed, skipping bootout")
+                running = false
             }
 
-            log.info("waiting for containers to exit")
-            do {
-                for _ in 0..<Self.shutdownTimeoutSeconds {
-                    let anyRunning = try await ClientContainer.list()
-                        .contains { $0.status == .running }
-                    guard anyRunning else {
-                        break
+            if running {
+                log.info("stopping containers", metadata: ["stopTimeoutSeconds": "\(Self.stopTimeoutSeconds)"])
+                do {
+                    let containers = try await ClientContainer.list()
+                    let signal = try Signals.parseSignal("SIGTERM")
+                    let opts = ContainerStopOptions(timeoutInSeconds: Self.stopTimeoutSeconds, signal: signal)
+                    let failed = try await ContainerStop.stopContainers(containers: containers, stopOptions: opts)
+                    if !failed.isEmpty {
+                        log.warning("some containers could not be stopped gracefully", metadata: ["ids": "\(failed)"])
                     }
-                    try await Task.sleep(for: .seconds(1))
+                } catch {
+                    log.warning("failed to stop all containers", metadata: ["error": "\(error)"])
                 }
-            } catch {
-                log.warning("failed to wait for all containers", metadata: ["error": "\(error)"])
+
+                log.info("waiting for containers to exit")
+                do {
+                    for _ in 0..<Self.shutdownTimeoutSeconds {
+                        let anyRunning = try await ClientContainer.list()
+                            .contains { $0.status == .running }
+                        guard anyRunning else {
+                            break
+                        }
+                        try await Task.sleep(for: .seconds(1))
+                    }
+
+                    log.info("stopping service", metadata: ["label": "\(fullLabel)"])
+                    try ServiceManager.deregister(fullServiceLabel: fullLabel)
+                } catch {
+                    log.warning("failed to wait for all containers", metadata: ["error": "\(error)"])
+                }
             }
 
-            log.info("stopping service", metadata: ["label": "\(fullLabel)"])
-            try ServiceManager.deregister(fullServiceLabel: fullLabel)
             // Note: The assumption here is that we would have registered the launchd services
             // in the same domain as `launchdDomainString`. This is a fairly sane assumption since
             // if somehow the launchd domain changed, XPC interactions would not be possible.
