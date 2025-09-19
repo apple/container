@@ -4,7 +4,7 @@
     "author": "Apple",
     "servicesConfig" : {
         "loadAtBoot" : false,
-        "runAtLoad" : true,
+        "runAtLoad" : false,
         "services" : [
             {
                 "type" : "runtime"
