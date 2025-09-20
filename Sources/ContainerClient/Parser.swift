@@ -192,7 +192,7 @@ public struct Parser {
             var result: [String] = []
             var hasEntrypointOverride: Bool = false
             // ensure the entrypoint is honored if it has been explicitly set by the user
-            if let entrypoint = managementFlags.entryPoint, !entrypoint.isEmpty {
+            if let entrypoint = managementFlags.entrypoint, !entrypoint.isEmpty {
                 result = [entrypoint]
                 hasEntrypointOverride = true
             } else if let entrypoint = config?.entrypoint, !entrypoint.isEmpty {

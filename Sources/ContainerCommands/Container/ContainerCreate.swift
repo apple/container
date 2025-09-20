@@ -28,26 +28,26 @@ extension Application {
             commandName: "create",
             abstract: "Create a new container")
 
+        @OptionGroup(title: "Process options")
+        var processFlags: Flags.Process
+
+        @OptionGroup(title: "Resource options")
+        var resourceFlags: Flags.Resource
+
+        @OptionGroup(title: "Management options")
+        var managementFlags: Flags.Management
+
+        @OptionGroup(title: "Registry options")
+        var registryFlags: Flags.Registry
+
+        @OptionGroup
+        var global: Flags.Global
+
         @Argument(help: "Image name")
         var image: String
 
         @Argument(parsing: .captureForPassthrough, help: "Container init process arguments")
         var arguments: [String] = []
-
-        @OptionGroup
-        var processFlags: Flags.Process
-
-        @OptionGroup
-        var resourceFlags: Flags.Resource
-
-        @OptionGroup
-        var managementFlags: Flags.Management
-
-        @OptionGroup
-        var registryFlags: Flags.Registry
-
-        @OptionGroup
-        var global: Flags.Global
 
         public func run() async throws {
             let progressConfig = try ProgressConfig(

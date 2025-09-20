@@ -15,26 +15,25 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerClient
+import ContainerCommands
 
-extension Application {
-    public struct ContainersCommand: AsyncParsableCommand {
-        public init() {}
+@main
+public struct ContainerCLI: AsyncParsableCommand {
+    public init() {}
 
-        public static let configuration = CommandConfiguration(
-            commandName: "containers",
-            abstract: "Manage containers",
-            subcommands: [
-                ContainerCreate.self,
-                ContainerDelete.self,
-                ContainerExec.self,
-                ContainerInspect.self,
-                ContainerKill.self,
-                ContainerList.self,
-                ContainerLogs.self,
-                ContainerStart.self,
-                ContainerStop.self,
-            ],
-            aliases: ["container", "c"]
-        )
+    @Argument(parsing: .captureForPassthrough)
+    var arguments: [String] = []
+
+    public static let configuration = Application.configuration
+
+    public static func main() async throws {
+        try await Application.main()
+    }
+
+    public func run() async throws {
+        var application = try Application.parse(arguments)
+        try application.validate()
+        try application.run()
     }
 }

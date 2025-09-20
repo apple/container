@@ -26,29 +26,29 @@ import NIOPosix
 import TerminalProgress
 
 extension Application {
-    public struct ContainerRunCommand: AsyncParsableCommand {
+    public struct ContainerRun: AsyncParsableCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "run",
             abstract: "Run a container")
 
-        @OptionGroup
+        @OptionGroup(title: "Process options")
         var processFlags: Flags.Process
 
-        @OptionGroup
+        @OptionGroup(title: "Resource options")
         var resourceFlags: Flags.Resource
 
-        @OptionGroup
+        @OptionGroup(title: "Management options")
         var managementFlags: Flags.Management
 
-        @OptionGroup
+        @OptionGroup(title: "Registry options")
         var registryFlags: Flags.Registry
+
+        @OptionGroup(title: "Progress options")
+        var progressFlags: Flags.Progress
 
         @OptionGroup
         var global: Flags.Global
-
-        @OptionGroup
-        var progressFlags: Flags.Progress
 
         @Argument(help: "Image name")
         var image: String

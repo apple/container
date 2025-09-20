@@ -31,30 +31,30 @@ extension Application {
         @Flag(name: .shortAndLong, help: "Stop all running containers")
         var all = false
 
-        @Option(name: .shortAndLong, help: "Signal to send the container(s)")
+        @Option(name: .shortAndLong, help: "Signal to send the containers")
         var signal: String = "SIGTERM"
 
-        @Option(name: .shortAndLong, help: "Seconds to wait before killing the container(s)")
+        @Option(name: .shortAndLong, help: "Seconds to wait before killing the containers")
         var time: Int32 = 5
-
-        @Argument
-        var containerIDs: [String] = []
 
         @OptionGroup
         var global: Flags.Global
 
+        @Argument(help: "Container IDs")
+        var containerIds: [String] = []
+
         public func validate() throws {
-            if containerIDs.count == 0 && !all {
+            if containerIds.count == 0 && !all {
                 throw ContainerizationError(.invalidArgument, message: "no containers specified and --all not supplied")
             }
-            if containerIDs.count > 0 && all {
+            if containerIds.count > 0 && all {
                 throw ContainerizationError(
                     .invalidArgument, message: "explicitly supplied container IDs conflicts with the --all flag")
             }
         }
 
         public mutating func run() async throws {
-            let set = Set<String>(containerIDs)
+            let set = Set<String>(containerIds)
             var containers = [ClientContainer]()
             if self.all {
                 containers = try await ClientContainer.list()

@@ -33,11 +33,11 @@ extension Application {
         @Flag(name: .shortAndLong, help: "Show stopped containers as well")
         var all = false
 
-        @Flag(name: .shortAndLong, help: "Only output the container ID")
-        var quiet = false
-
         @Option(name: .long, help: "Format of the output")
         var format: ListFormat = .table
+
+        @Flag(name: .shortAndLong, help: "Only output the container ID")
+        var quiet = false
 
         @OptionGroup
         var global: Flags.Global

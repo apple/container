@@ -30,12 +30,12 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
 
-        @Argument(help: "Containers to inspect")
-        var containers: [String]
+        @Argument(help: "Container IDs")
+        var containerIds: [String]
 
         public func run() async throws {
             let objects: [any Codable] = try await ClientContainer.list().filter {
-                containers.contains($0.id)
+                containerIds.contains($0.id)
             }.map {
                 PrintableContainer($0)
             }
