@@ -16,11 +16,7 @@
 
 import ArgumentParser
 import ContainerLog
-import ContainerNetworkService
 import ContainerVersion
-import ContainerXPC
-import ContainerizationExtras
-import Foundation
 import Logging
 
 @main
@@ -33,83 +29,19 @@ struct NetworkVmnetHelper: AsyncParsableCommand {
             Start.self
         ]
     )
-}
 
-extension NetworkVmnetHelper {
-    struct Start: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
-            commandName: "start",
-            abstract: "Starts the network plugin"
-        )
-
-        @Flag(name: .long, help: "Enable debug logging")
-        var debug = false
-
-        @Option(name: .long, help: "XPC service identifier")
-        var serviceIdentifier: String
-
-        @Option(name: .shortAndLong, help: "Network identifier")
-        var id: String
-
-        @Option(name: .shortAndLong, help: "CIDR address for the subnet")
-        var subnet: String?
-
-        func run() async throws {
-            let commandName = NetworkVmnetHelper._commandName
-            let log = setupLogger()
-            log.info("starting \(commandName)")
-            defer {
-                log.info("stopping \(commandName)")
-            }
-
-            do {
-                log.info("configuring XPC server")
-                let subnet = try self.subnet.map { try CIDRAddress($0) }
-                let configuration = try NetworkConfiguration(id: id, mode: .nat, subnet: subnet?.description)
-                let network = try Self.createNetwork(configuration: configuration, log: log)
-                try await network.start()
-                let server = try await NetworkService(network: network, log: log)
-                let xpc = XPCServer(
-                    identifier: serviceIdentifier,
-                    routes: [
-                        NetworkRoutes.state.rawValue: server.state,
-                        NetworkRoutes.allocate.rawValue: server.allocate,
-                        NetworkRoutes.deallocate.rawValue: server.deallocate,
-                        NetworkRoutes.lookup.rawValue: server.lookup,
-                        NetworkRoutes.disableAllocator.rawValue: server.disableAllocator,
-                    ],
-                    log: log
-                )
-
-                log.info("starting XPC server")
-                try await xpc.listen()
-            } catch {
-                log.error("\(commandName) failed", metadata: ["error": "\(error)"])
-                NetworkVmnetHelper.exit(withError: error)
-            }
+    static func setupLogger(id: String, debug: Bool) -> Logger {
+        LoggingSystem.bootstrap { label in
+            OSLogHandler(
+                label: label,
+                category: "NetworkVmnetHelper"
+            )
         }
-
-        private func setupLogger() -> Logger {
-            LoggingSystem.bootstrap { label in
-                OSLogHandler(
-                    label: label,
-                    category: "NetworkVmnetHelper"
-                )
-            }
-            var log = Logger(label: "com.apple.container")
-            if debug {
-                log.logLevel = .debug
-            }
-            log[metadataKey: "id"] = "\(id)"
-            return log
+        var log = Logger(label: "com.apple.container")
+        if debug {
+            log.logLevel = .debug
         }
-
-        private static func createNetwork(configuration: NetworkConfiguration, log: Logger) throws -> Network {
-            guard #available(macOS 26, *) else {
-                return try AllocationOnlyVmnetNetwork(configuration: configuration, log: log)
-            }
-
-            return try ReservedVmnetNetwork(configuration: configuration, log: log)
-        }
+        log[metadataKey: "id"] = "\(id)"
+        return log
     }
 }

@@ -66,6 +66,7 @@ extension Application {
                 args.append("--debug")
             }
 
+            args.append("start")
             let apiServerDataUrl = appRoot.appending(path: "apiserver")
             try! FileManager.default.createDirectory(at: apiServerDataUrl, withIntermediateDirectories: true)
             var env = ProcessInfo.processInfo.environment.filter { key, _ in
