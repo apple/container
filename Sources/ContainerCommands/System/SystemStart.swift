@@ -32,13 +32,13 @@ extension Application {
 
         @Option(
             name: .shortAndLong,
-            help: "Application data directory",
+            help: "Path to the root directory for application data",
             transform: { URL(filePath: $0) })
         var appRoot = ApplicationRoot.defaultURL
 
         @Option(
             name: .long,
-            help: "Path to the installation root directory",
+            help: "Path to the root directory for application executables and plugins",
             transform: { URL(filePath: $0) })
         var installRoot = InstallRoot.defaultURL
 
@@ -52,7 +52,7 @@ extension Application {
 
         public func run() async throws {
             // Without the true path to the binary in the plist, `container-apiserver` won't launch properly.
-            // TODO: Use plugin loader for API server.
+            // TODO: Can we use the plugin loader to bootstrap the API server?
             let executableUrl = CommandLine.executablePathUrl
                 .deletingLastPathComponent()
                 .appendingPathComponent("container-apiserver")

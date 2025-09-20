@@ -177,6 +177,7 @@ public actor ContainersService {
         path: URL
     ) throws {
         let args = [
+            "start",
             "--root", path.path,
             "--uuid", configuration.id,
             "--debug",
