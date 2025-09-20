@@ -29,31 +29,34 @@ public struct Flags {
     public struct Process: ParsableArguments {
         public init() {}
 
-        @Option(name: .shortAndLong, help: "Set environment variables")
+        @Option(name: .shortAndLong, help: "Set environment variables (format: key=value)")
         public var env: [String] = []
 
-        @Option(name: .long, help: "Read in a file of environment variables")
+        @Option(
+            name: .long,
+            help: "Read in a file of environment variables (key=value format, ignores # comments and blank lines)"
+        )
         public var envFile: [String] = []
 
-        @Option(name: .long, help: "Set the gid for the process")
+        @Option(name: .long, help: "Set the group ID for the process")
         public var gid: UInt32?
 
-        @Flag(name: .shortAndLong, help: "Keep Stdin open even if not attached")
+        @Flag(name: .shortAndLong, help: "Keep the standard input open even if not attached")
         public var interactive = false
 
-        @Flag(name: .shortAndLong, help: "Open a tty with the process")
+        @Flag(name: .shortAndLong, help: "Open a TTY with the process")
         public var tty = false
 
-        @Option(name: .shortAndLong, help: "Set the user for the process")
+        @Option(name: .shortAndLong, help: "Set the user for the process (format: name|uid[:gid])")
         public var user: String?
 
-        @Option(name: .long, help: "Set the uid for the process")
+        @Option(name: .long, help: "Set the user ID for the process")
         public var uid: UInt32?
 
         @Option(
             name: [.customShort("w"), .customLong("workdir"), .long],
             help: .init(
-                "Current working directory for the container",
+                "Set the initial working directory inside the container",
                 valueName: "dir"
             )
         )
@@ -68,8 +71,7 @@ public struct Flags {
 
         @Option(
             name: .shortAndLong,
-            help:
-                "Amount of memory in bytes, kilobytes (K), megabytes (M), or gigabytes (G) for the container, with MB granularity (for example, 1024K will result in 1MB being allocated for the container)"
+            help: "Amount of memory (1MByte granularity), with optional K, M, G, T, or P suffix"
         )
         public var memory: String?
     }
@@ -143,7 +145,7 @@ public struct Flags {
         @Option(name: [.short, .customLong("label")], help: "Add a key=value label to the container")
         public var labels: [String] = []
 
-        @Option(name: .customLong("mount"), help: "Add a mount to the container (type=<>,source=<>,target=<>,readonly)")
+        @Option(name: .customLong("mount"), help: "Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)")
         public var mounts: [String] = []
 
         @Option(name: .long, help: "Use the specified name as the container ID")
@@ -194,7 +196,7 @@ public struct Flags {
         @Flag(
             name: .long,
             help:
-                "Expose virtualization capabilities to the container. (Host must have nested virtualization support, and guest kernel must have virtualization capabilities enabled)"
+                "Expose virtualization capabilities to the container (requires host and guest support)"
         )
         public var virtualization: Bool = false
     }

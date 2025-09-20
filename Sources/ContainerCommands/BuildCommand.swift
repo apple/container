@@ -40,7 +40,7 @@ extension Application {
 
         @Option(
             name: .shortAndLong,
-            help: ArgumentHelp("add the architecture type to the build", valueName: "value"),
+            help: ArgumentHelp("Add the architecture type to the build", valueName: "value"),
             transform: { val in val.split(separator: ",").map { String($0) } }
         )
         var arch: [[String]] = {
@@ -60,7 +60,7 @@ extension Application {
             []
         }()
 
-        @Option(name: .shortAndLong, help: "Number of CPUs to allocate to the container")
+        @Option(name: .shortAndLong, help: "Number of CPUs to allocate to the builder container")
         var cpus: Int64 = 2
 
         @Option(name: .shortAndLong, help: ArgumentHelp("Path to Dockerfile", valueName: "path"))
@@ -72,21 +72,21 @@ extension Application {
         @Option(
             name: .shortAndLong,
             help:
-                "Amount of memory in bytes, kilobytes (K), megabytes (M), or gigabytes (G) for the container, with MB granularity (for example, 1024K will result in 1MB being allocated for the container)"
+                "Amount of builder container memory (1MByte granularity), with optional K, M, G, T, or P suffix"
         )
         var memory: String = "2048MB"
 
         @Flag(name: .long, help: "Do not use cache")
         var noCache: Bool = false
 
-        @Option(name: .shortAndLong, help: ArgumentHelp("Output configuration for the build", valueName: "value"))
+        @Option(name: .shortAndLong, help: ArgumentHelp("Output configuration for the build (format: type=<oci|tar|local>[,dest=])", valueName: "value"))
         var output: [String] = {
             ["type=oci"]
         }()
 
         @Option(
             name: .long,
-            help: ArgumentHelp("add the OS type to the build", valueName: "value"),
+            help: ArgumentHelp("Add the OS type to the build", valueName: "value"),
             transform: { val in val.split(separator: ",").map { String($0) } }
         )
         var os: [[String]] = {
@@ -95,12 +95,12 @@ extension Application {
 
         @Option(
             name: .long,
-            help: "add the platform to the build",
+            help: "Add the platform to the build (takes precedence over --os and --arch)",
             transform: { val in val.split(separator: ",").map { String($0) } }
         )
         var platform: [[String]] = [[]]
 
-        @Option(name: .long, help: ArgumentHelp("Progress type - one of [auto|plain|tty]", valueName: "type"))
+        @Option(name: .long, help: ArgumentHelp("Progress type (format: auto|plain|tty)]", valueName: "type"))
         var progress: String = "auto"
 
         @Flag(name: .shortAndLong, help: "Suppress build output")
@@ -112,7 +112,7 @@ extension Application {
         @Option(name: .long, help: ArgumentHelp("Set the target build stage", valueName: "stage"))
         var target: String = ""
 
-        @Option(name: .long, help: ArgumentHelp("Builder-shim vsock port", valueName: "port"))
+        @Option(name: .long, help: ArgumentHelp("Builder shim vsock port", valueName: "port"))
         var vsockPort: UInt32 = 8088
 
         @Argument(help: "Build directory")
