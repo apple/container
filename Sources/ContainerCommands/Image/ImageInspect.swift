@@ -22,7 +22,6 @@ import SwiftProtobuf
 
 extension Application {
     public struct ImageInspect: AsyncParsableCommand {
-        public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "inspect",
             abstract: "Display information about one or more images")
@@ -32,6 +31,8 @@ extension Application {
 
         @Argument(help: "Images to inspect")
         var images: [String]
+
+        public init() {}
 
         public func run() async throws {
             var printable = [any Codable]()

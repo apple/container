@@ -30,31 +30,31 @@ extension Application {
             abstract: "Save an image as an OCI compatible tar archive"
         )
 
-        @OptionGroup
-        var global: Flags.Global
-
-        @Option(
-            help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'. This takes precedence over --os and --arch"
-        )
-        var platform: String?
-
-        @Option(
-            help: "Set OS if image can target multiple operating systems"
-        )
-        var os: String?
-
         @Option(
             name: [.customLong("arch"), .customShort("a")],
-            help: "Set arch if image can target multiple architectures"
+            help: "Architecture for the saved image"
         )
         var arch: String?
 
         @Option(
-            name: .shortAndLong, help: "Path to save the image tar archive", completion: .file(),
+            help: "OS for the saved image"
+        )
+        var os: String?
+
+        @Option(
+            name: .shortAndLong, help: "Pathname for the saved image", completion: .file(),
             transform: { str in
                 URL(fileURLWithPath: str, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false)
             })
         var output: String
+
+        @Option(
+            help: "Platform for the saved image (format: os/arch[/variant], takes precedence over --os and --arch)"
+        )
+        var platform: String?
+
+        @OptionGroup
+        var global: Flags.Global
 
         @Argument var references: [String]
 

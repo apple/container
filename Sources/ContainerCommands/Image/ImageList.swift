@@ -24,18 +24,19 @@ import SwiftProtobuf
 
 extension Application {
     public struct ListImageOptions: ParsableArguments {
-        public init() {}
+        @Option(name: .long, help: "Format of the output")
+        var format: ListFormat = .table
+
         @Flag(name: .shortAndLong, help: "Only output the image name")
         var quiet = false
 
         @Flag(name: .shortAndLong, help: "Verbose output")
         var verbose = false
 
-        @Option(name: .long, help: "Format of the output")
-        var format: ListFormat = .table
-
         @OptionGroup
         var global: Flags.Global
+
+        public init() {}
     }
 
     struct ListImageImplementation {

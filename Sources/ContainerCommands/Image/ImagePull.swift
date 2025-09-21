@@ -38,20 +38,20 @@ extension Application {
         var progressFlags: Flags.Progress
 
         @Option(
-            help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'. This takes precedence over --os and --arch"
+            name: .shortAndLong,
+            help: "Limit the pull to the specified architecture"
         )
-        var platform: String?
+        var arch: String?
 
         @Option(
-            help: "Set OS if image can target multiple operating systems"
+            help: "Limit the pull to the specified OS"
         )
         var os: String?
 
         @Option(
-            name: [.customLong("arch"), .customShort("a")],
-            help: "Set arch if image can target multiple architectures"
+            help: "Limit the pull to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)"
         )
-        var arch: String?
+        var platform: String?
 
         @Argument var reference: String
 

@@ -22,14 +22,10 @@ import TerminalProgress
 
 extension Application {
     public struct ImagePush: AsyncParsableCommand {
-        public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "push",
             abstract: "Push an image"
         )
-
-        @OptionGroup
-        var global: Flags.Global
 
         @OptionGroup
         var registry: Flags.Registry
@@ -37,14 +33,35 @@ extension Application {
         @OptionGroup
         var progressFlags: Flags.Progress
 
-        @Option(help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'") var platform: String?
+        @Option(
+            name: [.customLong("arch"), .customShort("a")],
+            help: "Limit the push to the specified architecture"
+        )
+        var arch: String?
+
+        @Option(
+            help: "Limit the push to the specified OS"
+        )
+        var os: String?
+
+        @Option(help: "Limit the push to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)")
+        var platform: String?
+
+        @OptionGroup
+        var global: Flags.Global
 
         @Argument var reference: String
+
+        public init() {}
 
         public func run() async throws {
             var p: Platform?
             if let platform {
                 p = try Platform(from: platform)
+            } else if let arch {
+                p = try Platform(from: "\(os ?? "linux")/\(arch)")
+            } else if let os {
+                p = try Platform(from: "\(os)/\(arch ?? Arch.hostArchitecture().rawValue)")
             }
 
             let scheme = try RequestScheme(registry.scheme)

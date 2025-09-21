@@ -71,8 +71,7 @@ extension Application {
 
         @Option(
             name: .shortAndLong,
-            help:
-                "Amount of builder container memory (1MiByte granularity), with optional K, M, G, T, or P suffix"
+            help: "Amount of builder container memory (1MiByte granularity), with optional K, M, G, T, or P suffix"
         )
         var memory: String = "2048MB"
 
@@ -95,7 +94,7 @@ extension Application {
 
         @Option(
             name: .long,
-            help: "Add the platform to the build (takes precedence over --os and --arch)",
+            help: "add the platform to the build (format: os/arch[/variant], takes precedence over --os and --arch)",
             transform: { val in val.split(separator: ",").map { String($0) } }
         )
         var platform: [[String]] = [[]]

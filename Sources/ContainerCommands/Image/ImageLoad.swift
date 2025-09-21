@@ -29,15 +29,15 @@ extension Application {
             abstract: "Load images from an OCI compatible tar archive"
         )
 
-        @OptionGroup
-        var global: Flags.Global
-
         @Option(
-            name: .shortAndLong, help: "Path to the tar archive to load images from", completion: .file(),
+            name: .shortAndLong, help: "Path to the image tar archive", completion: .file(),
             transform: { str in
                 URL(fileURLWithPath: str, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false)
             })
         var input: String
+
+        @OptionGroup
+        var global: Flags.Global
 
         public func run() async throws {
             guard FileManager.default.fileExists(atPath: input) else {

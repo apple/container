@@ -22,12 +22,12 @@ extension Application {
         public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "tag",
-            abstract: "Tag an image")
+            abstract: "Create a new reference for an existing image")
 
-        @Argument(help: "SOURCE_IMAGE[:TAG]")
+        @Argument(help: "the existing image reference (format: image-name[:tag])")
         var source: String
 
-        @Argument(help: "TARGET_IMAGE[:TAG]")
+        @Argument(help: "the new image reference")
         var target: String
 
         @OptionGroup
@@ -37,7 +37,7 @@ extension Application {
             let existing = try await ClientImage.get(reference: source)
             let targetReference = try ClientImage.normalizeReference(target)
             try await existing.tag(new: targetReference)
-            print("Image \(source) tagged as \(target)")
+            print(target)
         }
     }
 }
