@@ -31,7 +31,7 @@ struct ComposeRm: AsyncParsableCommand {
     var composeOptions: ComposeOptions
 
     @OptionGroup
-    var global: Flags.Global
+    var global: ComposeGlobalOptions
 
     @Flag(name: .long, help: "Force removal of running containers")
     var force: Bool = false
@@ -40,6 +40,7 @@ struct ComposeRm: AsyncParsableCommand {
     var services: [String] = []
 
     func run() async throws {
+        global.configureLogging()
         // Set environment variables
         composeOptions.loadDotEnvIfPresent()
         composeOptions.setEnvironmentVariables()

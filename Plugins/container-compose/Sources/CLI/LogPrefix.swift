@@ -61,7 +61,8 @@ enum LogPrefixFormatter {
             return String(name[..<endIndex])
         }
         if w > name.count {
-            return name.padding(toLength: w, withPad: " ", startingAt: 0)
+            let paddingCount = w - name.count
+            return name + String(repeating: " ", count: paddingCount)
         }
         return name
     }

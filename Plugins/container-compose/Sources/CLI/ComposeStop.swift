@@ -31,7 +31,7 @@ struct ComposeStop: AsyncParsableCommand {
     var composeOptions: ComposeOptions
     
     @OptionGroup
-    var global: Flags.Global
+    var global: ComposeGlobalOptions
         
         @Option(name: [.customLong("time"), .customShort("t")], help: "Specify a shutdown timeout in seconds")
         var timeout: Int = 10
@@ -40,6 +40,7 @@ struct ComposeStop: AsyncParsableCommand {
         var services: [String] = []
         
         func run() async throws {
+        global.configureLogging()
         // Set environment variables
         composeOptions.setEnvironmentVariables()
         

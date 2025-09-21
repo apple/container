@@ -20,14 +20,24 @@ import Foundation
 import ContainerLog
 import Logging
 
-// Import Flags namespace from main container CLI
-struct Flags {
-    struct Global: ParsableArguments {
-        @Flag(name: .shortAndLong, help: "Enable debug logging")
-        var debug = false
+struct ComposeGlobalOptions: ParsableArguments {
+    @OptionGroup
+    var shared: Flags.Global
 
-        @Flag(name: .long, help: "Allow YAML anchors and merge keys in compose files")
-        var allowAnchors = false
+    @Flag(name: .long, help: "Allow YAML anchors and merge keys in compose files")
+    var allowAnchors = false
+
+    var debug: Bool {
+        shared.debug
+    }
+
+    func configureLogging() {
+        let debugEnvVar = ProcessInfo.processInfo.environment["CONTAINER_DEBUG"]
+        if debug || debugEnvVar != nil {
+            log.logLevel = .debug
+        } else {
+            log.logLevel = .info
+        }
     }
 }
 

@@ -31,7 +31,7 @@ struct ComposeDown: AsyncParsableCommand {
     var composeOptions: ComposeOptions
     
     @OptionGroup
-    var global: Flags.Global
+    var global: ComposeGlobalOptions
         
         @Flag(name: .long, help: "Remove named volumes declared in the volumes section")
         var volumes: Bool = false
@@ -40,6 +40,7 @@ struct ComposeDown: AsyncParsableCommand {
         var removeOrphans: Bool = false
         
         func run() async throws {
+        global.configureLogging()
         // Set environment variables
         composeOptions.loadDotEnvIfPresent()
         composeOptions.setEnvironmentVariables()

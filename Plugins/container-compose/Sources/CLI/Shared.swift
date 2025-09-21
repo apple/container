@@ -17,8 +17,13 @@
 import Logging
 import Dispatch
 
-// Global logger instance
-let log = Logger(label: "com.apple.containercompose")
+// Global logger instance used across commands; matches ContainerCommands bootstrap behavior.
+nonisolated(unsafe) var log: Logger = {
+    LoggingSystem.bootstrap(StreamLogHandler.standardError)
+    var logger = Logger(label: "com.apple.containercompose")
+    logger.logLevel = .info
+    return logger
+}()
 
 // MARK: - Signal Handling Helpers
 

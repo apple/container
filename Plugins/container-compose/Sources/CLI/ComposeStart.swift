@@ -31,7 +31,7 @@ struct ComposeStart: AsyncParsableCommand {
     var composeOptions: ComposeOptions
     
     @OptionGroup
-    var global: Flags.Global
+    var global: ComposeGlobalOptions
 
     @Argument(help: "Services to start")
     var services: [String] = []
@@ -40,6 +40,7 @@ struct ComposeStart: AsyncParsableCommand {
     var noHealthcheck: Bool = false
         
         func run() async throws {
+        global.configureLogging()
         // Load .env and set environment variables
         composeOptions.loadDotEnvIfPresent()
         composeOptions.setEnvironmentVariables()

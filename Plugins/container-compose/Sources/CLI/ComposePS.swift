@@ -30,7 +30,7 @@ struct ComposePS: AsyncParsableCommand {
     var composeOptions: ComposeOptions
     
     @OptionGroup
-    var global: Flags.Global
+    var global: ComposeGlobalOptions
         
         @Flag(name: [.customLong("all"), .customShort("a")], help: "Show all containers (default shows just running)")
         var all: Bool = false
@@ -39,6 +39,7 @@ struct ComposePS: AsyncParsableCommand {
         var quiet: Bool = false
         
         func run() async throws {
+        global.configureLogging()
         // Load .env and set environment variables
         composeOptions.loadDotEnvIfPresent()
         composeOptions.setEnvironmentVariables()

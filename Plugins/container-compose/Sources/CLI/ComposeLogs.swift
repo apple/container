@@ -30,7 +30,7 @@ struct ComposeLogs: AsyncParsableCommand {
     var composeOptions: ComposeOptions
     
     @OptionGroup
-    var global: Flags.Global
+    var global: ComposeGlobalOptions
         
         @Flag(name: .long, help: "Follow log output")
         var follow: Bool = false
@@ -54,6 +54,7 @@ struct ComposeLogs: AsyncParsableCommand {
         var services: [String] = []
         
         func run() async throws {
+        global.configureLogging()
         // Load .env and set environment variables
         composeOptions.loadDotEnvIfPresent()
         composeOptions.setEnvironmentVariables()

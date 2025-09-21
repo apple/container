@@ -29,12 +29,13 @@ struct ComposeValidate: AsyncParsableCommand {
     var composeOptions: ComposeOptions
     
     @OptionGroup
-    var global: Flags.Global
+    var global: ComposeGlobalOptions
         
         @Flag(name: .long, help: "Don't print anything, just validate")
         var quiet: Bool = false
         
         func run() async throws {
+        global.configureLogging()
         // Load .env and set environment variables
         composeOptions.loadDotEnvIfPresent()
         composeOptions.setEnvironmentVariables()

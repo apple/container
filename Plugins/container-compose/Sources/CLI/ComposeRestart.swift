@@ -30,7 +30,7 @@ struct ComposeRestart: AsyncParsableCommand {
     var composeOptions: ComposeOptions
     
     @OptionGroup
-    var global: Flags.Global
+    var global: ComposeGlobalOptions
         
     @Option(name: [.customLong("timeout"), .customShort("t")], help: "Specify a shutdown timeout in seconds (default: 10)")
     var timeout: Int = 10
@@ -42,6 +42,7 @@ struct ComposeRestart: AsyncParsableCommand {
     var noHealthcheck: Bool = false
         
         func run() async throws {
+        global.configureLogging()
         // Set environment variables
         composeOptions.setEnvironmentVariables()
         

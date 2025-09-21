@@ -37,7 +37,7 @@ struct ComposeUp: AsyncParsableCommand {
     var composeOptions: ComposeOptions
     
     @OptionGroup
-    var global: Flags.Global
+    var global: ComposeGlobalOptions
     
     @Flag(name: [.customLong("detach"), .customShort("d")], help: "Run containers in the background")
     var detach: Bool = false
@@ -79,6 +79,7 @@ struct ComposeUp: AsyncParsableCommand {
     var services: [String] = []
     
     func run() async throws {
+        global.configureLogging()
         // Set environment variables
         composeOptions.loadDotEnvIfPresent()
         composeOptions.setEnvironmentVariables()

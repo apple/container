@@ -26,7 +26,7 @@ let package = Package(
     ],
     dependencies: [
         .package(name: "container", path: "../.."), // Main container package
-        .package(url: "https://github.com/apple/containerization.git", exact: "0.6.2"),
+        .package(url: "https://github.com/apple/containerization.git", exact: "0.8.0"),
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0"),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
@@ -56,6 +56,7 @@ let package = Package(
                 .product(name: "ContainerizationOS", package: "containerization"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "ContainerClient", package: "container"),
+                .product(name: "ContainerCommands", package: "container"),
             ],
             path: "Sources/Core"
         ),

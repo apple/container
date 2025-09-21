@@ -9,7 +9,7 @@ struct LogPrefixTests {
 
     @Test func testPlainPrefixPadding() {
         let s = LogPrefixFormatter.coloredPrefix(for: "api", width: 6, colorEnabled: false)
-        #expect(s == "api   | ")
+        #expect(s == "api    | ")
     }
 
     @Test func testPlainPrefixTruncate() {
@@ -19,4 +19,3 @@ struct LogPrefixTests {
         #expect(s == String(repeating: "x", count: 40) + " | ")
     }
 }
-

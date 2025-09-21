@@ -32,7 +32,7 @@ struct ComposeHealth: AsyncParsableCommand {
     
     @OptionGroup var composeOptions: ComposeOptions
     
-    @OptionGroup var global: Flags.Global
+    @OptionGroup var global: ComposeGlobalOptions
     
     @Argument(help: "Services to check (omit to check all)")
     var services: [String] = []
@@ -41,6 +41,7 @@ struct ComposeHealth: AsyncParsableCommand {
     var quiet: Bool = false
     
     func run() async throws {
+        global.configureLogging()
         
         // Set environment variables
         composeOptions.setEnvironmentVariables()

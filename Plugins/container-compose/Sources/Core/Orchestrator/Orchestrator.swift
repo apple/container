@@ -14,10 +14,12 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ArgumentParser
 import Foundation
 import ContainerNetworkService
 import CryptoKit
 import ContainerClient
+import ContainerCommands
 import Containerization
 import ContainerizationError
 import ContainerizationOS
@@ -151,13 +153,13 @@ public struct DefaultBuildService: BuildService {
                 )
             }
 
-            // Use the container CLI to perform the build
-            try await buildImageWithCLI(
+            try await runBuildCommand(
                 serviceName: serviceName,
                 buildConfig: buildConfig,
                 imageName: targetTag,
-                contextDir: contextDir,
-                dockerfilePath: dockerfileURL.path
+                contextURL: contextURL,
+                dockerfileURL: dockerfileURL,
+                progressHandler: progressHandler
             )
 
             log.info("Successfully built image \(targetTag) for service \(serviceName)")
@@ -175,176 +177,165 @@ public struct DefaultBuildService: BuildService {
         }
     }
 
-    private func buildImageWithCLI(
+    private func runBuildCommand(
         serviceName: String,
         buildConfig: BuildConfig,
         imageName: String,
-        contextDir: String,
-        dockerfilePath: String
+        contextURL: URL,
+        dockerfileURL: URL,
+        progressHandler: ProgressUpdateHandler?
     ) async throws {
-        // Get the container executable path
-        let executablePath: URL
-        do {
-            executablePath = try getContainerExecutablePath()
-        } catch {
-            throw ContainerizationError(
-                .internalError,
-                message: "Failed to find container executable: \(error.localizedDescription)"
-            )
-        }
-
-        // Prepare build arguments
-        var arguments = ["build"]
-
-        // Add dockerfile if not default
+        var arguments: [String] = []
+        let dockerfilePath = dockerfileURL.path(percentEncoded: false)
         if dockerfilePath != "Dockerfile" {
             arguments.append(contentsOf: ["--file", dockerfilePath])
         }
-
-        // Add build args
-        if let buildArgs = buildConfig.args {
-            for key in buildArgs.keys.sorted() {
-                if let value = buildArgs[key] {
+        if let args = buildConfig.args {
+            for key in args.keys.sorted() {
+                if let value = args[key] {
                     arguments.append(contentsOf: ["--build-arg", "\(key)=\(value)"])
                 }
             }
         }
-
-        // Target stage if specified
         if let target = buildConfig.target, !target.isEmpty {
             arguments.append(contentsOf: ["--target", target])
         }
-
-        // Add tag
         arguments.append(contentsOf: ["--tag", imageName])
+        arguments.append(contentsOf: ["--progress", "plain"])
+        arguments.append(contextURL.path(percentEncoded: false))
 
-        // Add context directory
-        arguments.append(contextDir)
+        let command = try ContainerCommands.Application.BuildCommand.parse(arguments)
+        try command.validate()
 
-        // Execute build command with proper error handling
-        let process = Process()
-        process.executableURL = executablePath
-        process.arguments = arguments
-
-        // Set working directory to build context
-        process.currentDirectoryURL = URL(fileURLWithPath: contextDir)
-
-        // Capture output
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = errorPipe
-
-        do {
-            try process.run()
-
-            // Wait for process completion
-            process.waitUntilExit()
-            let timeoutResult = process.terminationStatus
-
-            if timeoutResult != 0 {
-                let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-                let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-
-                let errorMessage = String(data: errorData, encoding: .utf8) ?? "Unknown build error"
-                let outputMessage = String(data: outputData, encoding: .utf8) ?? ""
-
-                log.error("Build failed for service '\(serviceName)'. Error: \(errorMessage)")
-                if !outputMessage.isEmpty {
-                    log.error("Build output: \(outputMessage)")
-                }
-
+        guard let handler = progressHandler else {
+            do {
+                try await command.run()
+            } catch {
                 throw ContainerizationError(
                     .internalError,
-                    message: "Build failed for service '\(serviceName)': \(errorMessage)"
+                    message: "Failed to build image for service '\(serviceName)': \(error.localizedDescription)"
                 )
             }
+            return
+        }
 
-            let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-            let outputMessage = String(data: outputData, encoding: .utf8) ?? ""
-            if !outputMessage.isEmpty {
-                log.info("Build output for \(serviceName): \(outputMessage)")
-            }
+        await handler([
+            .setDescription("Building \(serviceName)"),
+            .setSubDescription("Context: \(contextURL.path(percentEncoded: false))"),
+            .setTotalTasks(1),
+            .setTasks(0)
+        ])
 
-        } catch {
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+
+        let stdoutFD = FileHandle.standardOutput.fileDescriptor
+        let stderrFD = FileHandle.standardError.fileDescriptor
+
+        let stdoutBackup = dup(stdoutFD)
+        let stderrBackup = dup(stderrFD)
+
+        guard stdoutBackup != -1, stderrBackup != -1 else {
             throw ContainerizationError(
                 .internalError,
-                message: "Failed to execute build command for service '\(serviceName)': \(error.localizedDescription)"
+                message: "Failed to duplicate standard IO descriptors for build"
             )
         }
-    }
 
-    private func getContainerExecutablePath() throws -> URL {
-        // First try to find container in PATH using which command
-        do {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-            process.arguments = ["container"]
+        fflush(stdout)
+        fflush(stderr)
 
-            let outputPipe = Pipe()
-            process.standardOutput = outputPipe
+        dup2(stdoutPipe.fileHandleForWriting.fileDescriptor, stdoutFD)
+        dup2(stderrPipe.fileHandleForWriting.fileDescriptor, stderrFD)
 
-            try process.run()
-            process.waitUntilExit()
-
-            if process.terminationStatus == 0 {
-                let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-                if let pathString = String(data: outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !pathString.isEmpty {
-                    let url = URL(fileURLWithPath: pathString)
-                    if FileManager.default.fileExists(atPath: url.path) {
-                        return url
+        func forwardOutput(from handle: FileHandle, prefix: String) -> Task<Void, Never> {
+            Task {
+                var buffer = Data()
+                do {
+                    for try await byte in handle.bytes {
+                        if byte == 0x0A {
+                            if !buffer.isEmpty, let line = String(data: buffer, encoding: .utf8) {
+                                let events = progressEvents(for: line)
+                                if !events.isEmpty {
+                                    await handler(events)
+                                }
+                            }
+                            buffer.removeAll(keepingCapacity: true)
+                        } else {
+                            buffer.append(byte)
+                        }
                     }
+                    if !buffer.isEmpty, let line = String(data: buffer, encoding: .utf8) {
+                        let events = progressEvents(for: line)
+                        if !events.isEmpty {
+                            await handler(events)
+                        }
+                    }
+                } catch {
+                    await handler([.custom("\(prefix) stream error: \(error.localizedDescription)")])
                 }
             }
+        }
+
+        func progressEvents(for line: String) -> [ProgressUpdateEvent] {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return [] }
+
+            var events: [ProgressUpdateEvent] = [.setSubDescription(trimmed)]
+
+            if trimmed.localizedCaseInsensitiveContains("error") || trimmed.localizedCaseInsensitiveContains("failed") {
+                events.append(.custom("⚠️ \(trimmed)"))
+            } else if trimmed.localizedCaseInsensitiveContains("done") || trimmed.localizedCaseInsensitiveContains("completed") {
+                events.append(.custom("✅ \(trimmed)"))
+            } else {
+                events.append(.custom(trimmed))
+            }
+
+            return events
+        }
+
+        let stdoutTask = forwardOutput(from: stdoutPipe.fileHandleForReading, prefix: "build")
+        let stderrTask = forwardOutput(from: stderrPipe.fileHandleForReading, prefix: "build")
+
+        var encounteredError: Error?
+        do {
+            try await command.run()
         } catch {
-            // which command failed, continue with fallback
+            encounteredError = error
         }
 
-        // Try to find the container executable in the same directory as this process
-        if let exePath = Bundle.main.executableURL {
-            let containerPath = exePath.deletingLastPathComponent().appendingPathComponent("container")
-            if FileManager.default.fileExists(atPath: containerPath.path) {
-                return containerPath
-            }
+        fflush(stdout)
+        fflush(stderr)
+
+        dup2(stdoutBackup, stdoutFD)
+        dup2(stderrBackup, stderrFD)
+        close(stdoutBackup)
+        close(stderrBackup)
+
+        stdoutPipe.fileHandleForWriting.closeFile()
+        stderrPipe.fileHandleForWriting.closeFile()
+
+        await stdoutTask.value
+        await stderrTask.value
+
+        stdoutPipe.fileHandleForReading.closeFile()
+        stderrPipe.fileHandleForReading.closeFile()
+
+        if let error = encounteredError {
+            await handler([
+                .custom("Build failed for \(serviceName): \(error.localizedDescription)")
+            ])
+            throw ContainerizationError(
+                .internalError,
+                message: "Failed to build image for service '\(serviceName)': \(error.localizedDescription)"
+            )
         }
 
-        // Try common installation paths with proper permissions check
-        let commonPaths = [
-            "/usr/local/bin/container",
-            "/opt/homebrew/bin/container",
-            "/usr/bin/container",
-            "/opt/local/bin/container"
-        ]
-
-        for path in commonPaths {
-            let url = URL(fileURLWithPath: path)
-            if FileManager.default.fileExists(atPath: url.path) {
-                // Check if file is executable
-                if FileManager.default.isExecutableFile(atPath: url.path) {
-                    return url
-                }
-            }
-        }
-
-        // Try to find in PATH environment variable
-        if let pathEnv = getenv("PATH") {
-            let pathString = String(cString: pathEnv)
-            let paths = pathString.split(separator: ":").map(String.init)
-
-            for path in paths {
-                let containerPath = URL(fileURLWithPath: path).appendingPathComponent("container")
-                if FileManager.default.fileExists(atPath: containerPath.path) &&
-                   FileManager.default.isExecutableFile(atPath: containerPath.path) {
-                    return containerPath
-                }
-            }
-        }
-
-        throw ContainerizationError(
-            .notFound,
-            message: "Could not find container executable. Please ensure 'container' is installed and available in PATH"
-        )
+        await handler([
+            .setSubDescription("Built image \(imageName)"),
+            .addTasks(1),
+            .custom("Build completed for \(serviceName)")
+        ])
     }
 }
 
@@ -989,8 +980,8 @@ public actor Orchestrator {
         )
 
         // Bootstrap the sandbox (set up VM and agent) and then start the init process
-        _ = try await container.bootstrap(stdio: [nil, nil, nil])
-        try await container.initProcess.start()
+        let initProcess = try await container.bootstrap(stdio: [nil, nil, nil])
+        try await initProcess.start()
 
         // Update container state
         projectState[project.name]?.containers[serviceName]?.status = .starting
@@ -1539,7 +1530,7 @@ public actor Orchestrator {
     }
 
     /// Map declared service networks to Apple Container network IDs, honoring external vs project-scoped.
-    internal func mapServiceNetworkIds(project: Project, service: Service) throws -> [String] {
+    nonisolated internal func mapServiceNetworkIds(project: Project, service: Service) throws -> [String] {
         guard !service.networks.isEmpty else { return [] }
         // macOS gate aligns with Utility.getAttachmentConfigurations behavior
         guard #available(macOS 26, *) else {
@@ -1554,7 +1545,7 @@ public actor Orchestrator {
         }
     }
 
-    private func networkId(for project: Project, networkName: String, external: Bool, externalName: String?) -> String {
+    nonisolated private func networkId(for project: Project, networkName: String, external: Bool, externalName: String?) -> String {
         if external { return externalName ?? networkName }
         return "\(project.name)_\(networkName)"
     }
