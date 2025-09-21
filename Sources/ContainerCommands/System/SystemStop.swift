@@ -32,7 +32,7 @@ extension Application {
         )
 
         @Option(name: .shortAndLong, help: "Launchd prefix for services")
-        var prefix: String = ""
+        var prefix: String = "com.apple.container."
 
         @OptionGroup
         var global: Flags.Global
