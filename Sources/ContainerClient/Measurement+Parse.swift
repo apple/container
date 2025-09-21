@@ -16,7 +16,7 @@
 
 import Foundation
 
-private let units: [Character: UnitInformationStorage] = [
+private let binaryUnits: [Character: UnitInformationStorage] = [
     "b": .bytes,
     "k": .kibibytes,
     "m": .mebibytes,
@@ -40,20 +40,22 @@ extension Measurement {
         }
     }
 
-    /// parse the provided string into a measurement that is able to be converted to various byte sizes
+    /// parseMemory the provided string into a measurement that is able to be converted to various byte sizes using binary exponents
     public static func parse(parsing: String) throws -> Measurement<UnitInformationStorage> {
-        let check = "01234567890. "
-        let i = parsing.lastIndex {
-            check.contains($0)
-        }
-        guard let i else {
+        let check = "01234567890."
+        let trimmed = parsing.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !trimmed.isEmpty else {
             throw ParseError.invalidSize
         }
-        let after = parsing.index(after: i)
-        let rawValue = parsing[..<after].trimmingCharacters(in: .whitespaces)
-        let rawUnit = parsing[after...]
-            .trimmingCharacters(in: .whitespaces)
-            .lowercased()
+
+        let i = trimmed.firstIndex {
+            !check.contains($0)
+        }
+        let rawValue =
+            i
+            .map { trimmed[..<$0].trimmingCharacters(in: .whitespaces) }
+            ?? trimmed
+        let rawUnit = i.map { trimmed[$0...].trimmingCharacters(in: .whitespaces) } ?? ""
 
         let value = Double(rawValue)
         guard let value else {
@@ -61,7 +63,7 @@ extension Measurement {
         }
         let unitSymbol = try Self.parseUnit(rawUnit)
 
-        let unit = units[unitSymbol]
+        let unit = binaryUnits[unitSymbol]
         guard let unit else {
             throw ParseError.invalidSymbol(rawUnit)
         }
@@ -70,9 +72,11 @@ extension Measurement {
 
     static func parseUnit(_ unit: String) throws -> Character {
         let s = unit.dropFirst()
+        let unitSymbol = unit.first ?? "b"
+
         switch s {
-        case "", "b", "ib":
-            return unit.first ?? "b"
+        case "", "ib", "b":
+            return unitSymbol
         default:
             throw ParseError.invalidSymbol(unit)
         }

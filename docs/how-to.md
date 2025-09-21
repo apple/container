@@ -4,7 +4,7 @@ How to use the features of `container`.
 
 ## Configure memory and CPUs for your containers
 
-Since the containers created by `container` are lightweight virtual machines, consider the needs of your containerized application when you use `container run`.  The `--memory` and `--cpus` options allow you to override the default memory and CPU limits for the virtual machine. The default values are 1 gigabyte of RAM and 4 CPUs. You can use abbreviations for memory units; for example, to run a container for image `big` with 8 CPUs and 32 gigabytes of memory, use:
+Since the containers created by `container` are lightweight virtual machines, consider the needs of your containerized application when you use `container run`.  The `--memory` and `--cpus` options allow you to override the default memory and CPU limits for the virtual machine. The default values are 1 gigabyte of RAM and 4 CPUs. You can use abbreviations for memory units; for example, to run a container for image `big` with 8 CPUs and 32 GiBytes of memory, use:
 
 ```bash
 container run --rm --cpus 8 --memory 32g big
@@ -14,7 +14,7 @@ container run --rm --cpus 8 --memory 32g big
 
 When you first run `container build`, `container` starts a *builder*, which is a utility container that builds images from your `Dockerfile`s. As with anything you run with `container run`, the builder runs in a lightweight virtual machine, so for resource-intensive builds, you may need to increase the memory and CPU limits for the builder VM.
 
-By default, the builder VM receives 2 gigabytes of RAM and 2 CPUs. You can change these limits by starting the builder container before running `container build`:
+By default, the builder VM receives 2 GiBytes of RAM and 2 CPUs. You can change these limits by starting the builder container before running `container build`:
 
 ```bash
 container builder start --cpus 8 --memory 32g

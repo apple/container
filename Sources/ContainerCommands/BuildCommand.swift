@@ -44,7 +44,7 @@ extension Application {
         @Option(
             name: [.customLong("memory"), .customShort("m")],
             help:
-                "Amount of memory in bytes, kilobytes (K), megabytes (M), or gigabytes (G) for the container, with MB granularity (for example, 1024K will result in 1MB being allocated for the container)"
+                "Amount of builder container memory (1MiByte granularity), with optional K, M, G, T, or P suffix"
         )
         var memory: String = "2048MB"
 
