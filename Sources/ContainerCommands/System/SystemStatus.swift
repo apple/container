@@ -23,14 +23,18 @@ import Logging
 
 extension Application {
     public struct SystemStatus: AsyncParsableCommand {
-        public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "status",
             abstract: "Show the status of `container` services"
         )
 
-        @Option(name: .shortAndLong, help: "Launchd prefix for `container` services")
+        @Option(name: .shortAndLong, help: "Launchd prefix for services")
         var prefix: String = "com.apple.container."
+
+        @OptionGroup
+        var global: Flags.Global
+
+        public init() {}
 
         public func run() async throws {
             let isRegistered = try ServiceManager.isRegistered(fullServiceLabel: "\(prefix)apiserver")

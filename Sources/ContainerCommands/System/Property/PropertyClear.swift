@@ -22,8 +22,6 @@ import Foundation
 
 extension Application {
     public struct PropertyClear: AsyncParsableCommand {
-        public init() {}
-
         public static let configuration = CommandConfiguration(
             commandName: "clear",
             abstract: "Clear a property value"
@@ -32,8 +30,10 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
 
-        @Argument(help: "the property ID")
+        @Argument(help: "The property ID")
         var id: String
+
+        public init() {}
 
         public func run() async throws {
             guard let key = DefaultsStore.Keys(rawValue: id) else {

@@ -21,22 +21,22 @@ import Foundation
 
 extension Application {
     public struct PropertyList: AsyncParsableCommand {
-        public init() {}
-
         public static let configuration = CommandConfiguration(
             commandName: "list",
             abstract: "List system properties",
             aliases: ["ls"]
         )
 
-        @Flag(name: .shortAndLong, help: "Only output the network name")
-        var quiet = false
-
         @Option(name: .long, help: "Format of the output")
         var format: ListFormat = .table
 
+        @Flag(name: .shortAndLong, help: "Only output the property ID")
+        var quiet = false
+
         @OptionGroup
         var global: Flags.Global
+
+        public init() {}
 
         public func run() async throws {
             let vals = DefaultsStore.allValues()

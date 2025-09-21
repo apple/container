@@ -23,8 +23,6 @@ import Logging
 
 extension Application {
     public struct SystemStop: AsyncParsableCommand {
-        public init() {}
-
         private static let stopTimeoutSeconds: Int32 = 5
         private static let shutdownTimeoutSeconds: Int32 = 20
 
@@ -33,8 +31,13 @@ extension Application {
             abstract: "Stop all `container` services"
         )
 
-        @Option(name: .shortAndLong, help: "Launchd prefix for `container` services")
-        var prefix: String = "com.apple.container."
+        @Option(name: .shortAndLong, help: "Launchd prefix for services")
+        var prefix: String = ""
+
+        @OptionGroup
+        var global: Flags.Global
+
+        public init() {}
 
         public func run() async throws {
             let log = Logger(

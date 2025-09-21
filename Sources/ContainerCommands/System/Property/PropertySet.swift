@@ -24,8 +24,6 @@ import Foundation
 
 extension Application {
     public struct PropertySet: AsyncParsableCommand {
-        public init() {}
-
         public static let configuration = CommandConfiguration(
             commandName: "set",
             abstract: "Set a property value"
@@ -34,11 +32,13 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
 
-        @Argument(help: "the property ID")
+        @Argument(help: "The property ID")
         var id: String
 
-        @Argument(help: "the property value")
+        @Argument(help: "The property value")
         var value: String
+
+        public init() {}
 
         public func run() async throws {
             guard let key = DefaultsStore.Keys(rawValue: id) else {

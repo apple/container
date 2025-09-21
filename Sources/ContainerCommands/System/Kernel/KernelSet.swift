@@ -26,26 +26,30 @@ import TerminalProgress
 
 extension Application {
     public struct KernelSet: AsyncParsableCommand {
-        public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "set",
             abstract: "Set the default kernel"
         )
 
-        @Option(name: .customLong("binary"), help: "Path to the binary to set as the default kernel. If used with --tar, this points to a location inside the tar")
+        @Option(name: .long, help: "The architecture of the kernel binary (values: amd64, arm64)")
+        var arch: String = ContainerizationOCI.Platform.current.architecture.description
+
+        @Option(name: .customLong("binary"), help: "Path to the kernel file (or archive member, if used with --tar)")
         var binaryPath: String? = nil
 
-        @Option(name: .customLong("tar"), help: "Filesystem path or remote URL to a tar ball that contains the kernel to use")
-        var tarPath: String? = nil
+        @Flag(name: .long, help: "Overwrites an existing kernel with the same name")
+        var force: Bool = false
 
-        @Option(name: .customLong("arch"), help: "The architecture of the kernel binary. One of (amd64, arm64)")
-        var architecture: String = ContainerizationOCI.Platform.current.architecture.description
-
-        @Flag(name: .customLong("recommended"), help: "Download and install the recommended kernel as the default. This flag ignores any other arguments")
+        @Flag(name: .long, help: "Download and install the recommended kernel as the default (takes precedence over all other flags)")
         var recommended: Bool = false
 
-        @Flag(name: .long, help: "Force install of kernel. If a kernel exists with the same name, it will be overwritten.")
-        var force: Bool = false
+        @Option(name: .customLong("tar"), help: "Filesystem path or remote URL to a tar archive containing a kernel file")
+        var tarPath: String? = nil
+
+        @OptionGroup
+        var global: Flags.Global
+
+        public init() {}
 
         public func run() async throws {
             if recommended {
@@ -91,13 +95,13 @@ extension Application {
         }
 
         private func getSystemPlatform() throws -> SystemPlatform {
-            switch architecture {
+            switch arch {
             case "arm64":
                 return .linuxArm
             case "amd64":
                 return .linuxAmd
             default:
-                throw ContainerizationError(.unsupported, message: "Unsupported architecture \(architecture)")
+                throw ContainerizationError(.unsupported, message: "Unsupported architecture \(arch)")
             }
         }
 

@@ -24,7 +24,6 @@ import TerminalProgress
 
 extension Application {
     public struct SystemStart: AsyncParsableCommand {
-        public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "start",
             abstract: "Start `container` services"
@@ -42,13 +41,16 @@ extension Application {
             transform: { URL(filePath: $0) })
         var installRoot = InstallRoot.defaultURL
 
-        @Flag(name: .long, help: "Enable debug logging for the runtime daemon.")
-        var debug = false
-
         @Flag(
-            name: .long, inversion: .prefixedEnableDisable,
-            help: "Specify whether the default kernel should be installed or not. The default behavior is to prompt the user for a response.")
+            name: .long,
+            inversion: .prefixedEnableDisable,
+            help: "Specify whether the default kernel should be installed or not (default: prompt user)")
         var kernelInstall: Bool?
+
+        @OptionGroup
+        var global: Flags.Global
+
+        public init() {}
 
         public func run() async throws {
             // Without the true path to the binary in the plist, `container-apiserver` won't launch properly.
@@ -60,7 +62,7 @@ extension Application {
 
             var args = [executableUrl.absolutePath()]
 
-            if debug {
+            if global.debug {
                 args.append("--debug")
             }
 

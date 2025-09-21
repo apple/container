@@ -23,8 +23,6 @@ import OSLog
 
 extension Application {
     public struct SystemLogs: AsyncParsableCommand {
-        public init() {}
-
         public static let subsystem = "com.apple.container"
 
         public static let configuration = CommandConfiguration(
@@ -32,8 +30,8 @@ extension Application {
             abstract: "Fetch system logs for `container` services"
         )
 
-        @OptionGroup
-        var global: Flags.Global
+        @Flag(name: .shortAndLong, help: "Follow log output")
+        var follow: Bool = false
 
         @Option(
             name: .long,
@@ -41,8 +39,10 @@ extension Application {
         )
         var last: String = "5m"
 
-        @Flag(name: .shortAndLong, help: "Follow log output")
-        var follow: Bool = false
+        @OptionGroup
+        var global: Flags.Global
+
+        public init() {}
 
         public func run() async throws {
             let process = Process()

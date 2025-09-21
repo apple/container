@@ -22,8 +22,6 @@ import Foundation
 
 extension Application {
     public struct PropertyGet: AsyncParsableCommand {
-        public init() {}
-
         public static let configuration = CommandConfiguration(
             commandName: "get",
             abstract: "Retrieve a property value"
@@ -32,8 +30,10 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
 
-        @Argument(help: "the property ID")
+        @Argument(help: "The property ID")
         var id: String
+
+        public init() {}
 
         public func run() async throws {
             let value = DefaultsStore.allValues()

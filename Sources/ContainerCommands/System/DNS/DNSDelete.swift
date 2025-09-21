@@ -21,15 +21,19 @@ import Foundation
 
 extension Application {
     public struct DNSDelete: AsyncParsableCommand {
-        public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "delete",
             abstract: "Delete a local DNS domain (must run as an administrator)",
             aliases: ["rm"]
         )
 
-        @Argument(help: "the local domain name")
+        @OptionGroup
+        var global: Flags.Global
+
+        @Argument(help: "The local domain name")
         var domainName: String
+
+        public init() {}
 
         public func run() async throws {
             let resolver = HostDNSResolver()

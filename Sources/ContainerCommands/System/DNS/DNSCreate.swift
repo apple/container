@@ -22,14 +22,18 @@ import Foundation
 
 extension Application {
     public struct DNSCreate: AsyncParsableCommand {
-        public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "create",
             abstract: "Create a local DNS domain for containers (must run as an administrator)"
         )
 
-        @Argument(help: "the local domain name")
+        @OptionGroup
+        var global: Flags.Global
+
+        @Argument(help: "The local domain name")
         var domainName: String
+
+        public init() {}
 
         public func run() async throws {
             let resolver: HostDNSResolver = HostDNSResolver()

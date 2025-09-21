@@ -20,12 +20,16 @@ import Foundation
 
 extension Application {
     public struct DNSList: AsyncParsableCommand {
-        public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "list",
             abstract: "List local DNS domains",
             aliases: ["ls"]
         )
+
+        @OptionGroup
+        var global: Flags.Global
+
+        public init() {}
 
         public func run() async throws {
             let resolver: HostDNSResolver = HostDNSResolver()
