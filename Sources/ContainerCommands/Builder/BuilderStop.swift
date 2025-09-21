@@ -21,17 +21,17 @@ import Foundation
 
 extension Application {
     public struct BuilderStop: AsyncParsableCommand {
-        public init() {}
-
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
             config.commandName = "stop"
-            config._superCommandName = "builder"
-            config.abstract = "Stop builder"
-            config.usage = "\n\t builder stop"
-            config.helpNames = NameSpecification(arrayLiteral: .customShort("h"), .customLong("help"))
+            config.abstract = "Stop the builder container"
             return config
         }
+
+        @OptionGroup
+        var global: Flags.Global
+
+        public init() {}
 
         public func run() async throws {
             do {

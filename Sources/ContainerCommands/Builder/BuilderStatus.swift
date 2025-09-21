@@ -17,51 +17,36 @@
 import ArgumentParser
 import ContainerClient
 import ContainerizationError
+import ContainerizationExtras
 import Foundation
 
 extension Application {
     public struct BuilderStatus: AsyncParsableCommand {
-        public init() {}
-
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
             config.commandName = "status"
-            config._superCommandName = "builder"
-            config.abstract = "Print builder status"
-            config.usage = "\n\t builder status [command options]"
-            config.helpNames = NameSpecification(arrayLiteral: .customShort("h"), .customLong("help"))
+            config.abstract = "Display the builder container status"
             return config
         }
 
-        @Flag(name: .long, help: ArgumentHelp("Display detailed status in json format"))
-        var json: Bool = false
+        @Option(name: .long, help: "Format of the output")
+        var format: ListFormat = .table
+
+        @Flag(name: .shortAndLong, help: "Only output the container ID")
+        var quiet = false
+
+        @OptionGroup
+        var global: Flags.Global
+
+        public init() {}
 
         public func run() async throws {
             do {
                 let container = try await ClientContainer.get(id: "buildkit")
-                if json {
-                    let encoder = JSONEncoder()
-                    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                    let jsonData = try encoder.encode(container)
-
-                    guard let jsonString = String(data: jsonData, encoding: .utf8) else {
-                        throw ContainerizationError(.internalError, message: "failed to encode BuildKit container as json")
-                    }
-                    print(jsonString)
-                    return
-                }
-
-                let image = container.configuration.image.reference
-                let resources = container.configuration.resources
-                let cpus = resources.cpus
-                let memory = resources.memoryInBytes / (1024 * 1024)  // bytes to MB
-                let addr = ""
-
-                print("ID       IMAGE                           STATE   ADDR         CPUS MEMORY")
-                print("\(container.id) \(image) \(container.status.rawValue.uppercased()) \(addr) \(cpus)    \(memory) MB")
+                try printContainers(containers: [container], format: format)
             } catch {
                 if error is ContainerizationError {
-                    if (error as? ContainerizationError)?.code == .notFound {
+                    if (error as? ContainerizationError)?.code == .notFound && !quiet {
                         print("builder is not running")
                         return
                     }
@@ -69,5 +54,49 @@ extension Application {
                 throw error
             }
         }
+
+        private func createHeader() -> [[String]] {
+            [["ID", "IMAGE", "STATE", "ADDR", "CPUS", "MEMORY"]]
+        }
+
+        private func printContainers(containers: [ClientContainer], format: ListFormat) throws {
+            if format == .json {
+                let printables = containers.map {
+                    PrintableContainer($0)
+                }
+                let data = try JSONEncoder().encode(printables)
+                print(String(data: data, encoding: .utf8)!)
+
+                return
+            }
+
+            if self.quiet {
+                containers
+                    .filter { $0.status == .running }
+                    .forEach { print($0.id) }
+                return
+            }
+
+            var rows = createHeader()
+            for container in containers {
+                rows.append(container.asRow)
+            }
+
+            let formatter = TableOutput(rows: rows)
+            print(formatter.format())
+        }
+    }
+}
+
+extension ClientContainer {
+    fileprivate var asRow: [String] {
+        [
+            self.id,
+            self.configuration.image.reference,
+            self.status.rawValue,
+            self.networks.compactMap { try? CIDRAddress($0.address).address.description }.joined(separator: ","),
+            "\(self.configuration.resources.cpus)",
+            "\(self.configuration.resources.memoryInBytes / (1024 * 1024)) MB",
+        ]
     }
 }

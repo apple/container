@@ -21,21 +21,21 @@ import Foundation
 
 extension Application {
     public struct BuilderDelete: AsyncParsableCommand {
-        public init() {}
-
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
             config.commandName = "delete"
             config.aliases = ["rm"]
-            config._superCommandName = "builder"
-            config.abstract = "Delete builder"
-            config.usage = "\n\t builder delete [command options]"
-            config.helpNames = NameSpecification(arrayLiteral: .customShort("h"), .customLong("help"))
+            config.abstract = "Delete the builder container"
             return config
         }
 
-        @Flag(name: .shortAndLong, help: "Force delete builder even if it is running")
+        @Flag(name: .shortAndLong, help: "Delete the builder even if it is running")
         var force = false
+
+        @OptionGroup
+        var global: Flags.Global
+
+        public init() {}
 
         public func run() async throws {
             do {

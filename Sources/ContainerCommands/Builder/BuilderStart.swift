@@ -28,27 +28,26 @@ import TerminalProgress
 
 extension Application {
     public struct BuilderStart: AsyncParsableCommand {
-        public init() {}
-
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
             config.commandName = "start"
-            config._superCommandName = "builder"
-            config.abstract = "Start builder"
-            config.usage = "\nbuilder start [command options]"
-            config.helpNames = NameSpecification(arrayLiteral: .customShort("h"), .customLong("help"))
+            config.abstract = "Start the builder container"
             return config
         }
 
-        @Option(name: [.customLong("cpus"), .customShort("c")], help: "Number of CPUs to allocate to the container")
+        @Option(name: .shortAndLong, help: "Number of CPUs to allocate to the builder container")
         var cpus: Int64 = 2
 
         @Option(
-            name: [.customLong("memory"), .customShort("m")],
-            help:
-                "Amount of memory in bytes, kilobytes (K), megabytes (M), or gigabytes (G) for the container, with MB granularity (for example, 1024K will result in 1MB being allocated for the container)"
+            name: .shortAndLong,
+            help: "Amount of builder container memory (1MiByte granularity), with optional K, M, G, T, or P suffix"
         )
         var memory: String = "2048MB"
+
+        @OptionGroup
+        var global: Flags.Global
+
+        public init() {}
 
         public func run() async throws {
             let progressConfig = try ProgressConfig(

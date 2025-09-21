@@ -28,7 +28,7 @@ extension Application {
             abstract: "Delete one or more containers",
             aliases: ["rm"])
 
-        @Flag(name: .shortAndLong, help: "Force the removal of one or more running containers")
+        @Flag(name: .shortAndLong, help: "Delete containers even if they are running")
         var force = false
 
         @Flag(name: .shortAndLong, help: "Remove all containers")

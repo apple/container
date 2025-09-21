@@ -23,24 +23,24 @@ import SwiftProtobuf
 
 extension Application {
     public struct ContainerList: AsyncParsableCommand {
-        public init() {}
-
         public static let configuration = CommandConfiguration(
             commandName: "list",
             abstract: "List containers",
             aliases: ["ls"])
 
-        @Flag(name: .shortAndLong, help: "Show stopped containers as well")
+        @Flag(name: .shortAndLong, help: "Include containers that are not running")
         var all = false
-
-        @Flag(name: .shortAndLong, help: "Only output the container ID")
-        var quiet = false
 
         @Option(name: .long, help: "Format of the output")
         var format: ListFormat = .table
 
+        @Flag(name: .shortAndLong, help: "Only output the container ID")
+        var quiet = false
+
         @OptionGroup
         var global: Flags.Global
+
+        public init() {}
 
         public func run() async throws {
             let containers = try await ClientContainer.list()
@@ -48,7 +48,7 @@ extension Application {
         }
 
         private func createHeader() -> [[String]] {
-            [["ID", "IMAGE", "OS", "ARCH", "STATE", "ADDR"]]
+            [["ID", "IMAGE", "OS", "ARCH", "STATE", "ADDR", "CPUS", "MEMORY"]]
         }
 
         private func printContainers(containers: [ClientContainer], format: ListFormat) throws {
@@ -87,7 +87,7 @@ extension Application {
 }
 
 extension ClientContainer {
-    var asRow: [String] {
+    fileprivate var asRow: [String] {
         [
             self.id,
             self.configuration.image.reference,
@@ -95,6 +95,8 @@ extension ClientContainer {
             self.configuration.platform.architecture,
             self.status.rawValue,
             self.networks.compactMap { try? CIDRAddress($0.address).address.description }.joined(separator: ","),
+            "\(self.configuration.resources.cpus)",
+            "\(self.configuration.resources.memoryInBytes / (1024 * 1024)) MB",
         ]
     }
 }
