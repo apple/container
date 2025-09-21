@@ -22,20 +22,21 @@ import Foundation
 
 extension Application {
     public struct NetworkDelete: AsyncParsableCommand {
-        public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "delete",
             abstract: "Delete one or more networks",
             aliases: ["rm"])
 
+        @Flag(name: .shortAndLong, help: "Delete all networks")
+        var all = false
+
         @OptionGroup
         var global: Flags.Global
 
-        @Flag(name: .shortAndLong, help: "Remove all networks")
-        var all = false
-
         @Argument(help: "Network names")
         var networkNames: [String] = []
+
+        public init() {}
 
         public func validate() throws {
             if networkNames.count == 0 && !all {

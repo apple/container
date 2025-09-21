@@ -21,18 +21,22 @@ import Foundation
 
 extension Application.VolumeCommand {
     public struct VolumeList: AsyncParsableCommand {
-        public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "list",
             abstract: "List volumes",
             aliases: ["ls"]
         )
 
-        @Flag(name: .shortAndLong, help: "Only display volume names")
-        var quiet: Bool = false
-
         @Option(name: .long, help: "Format of the output")
         var format: Application.ListFormat = .table
+
+        @Flag(name: .shortAndLong, help: "Only output the volume name")
+        var quiet: Bool = false
+
+        @OptionGroup
+        var global: Flags.Global
+
+        public init() {}
 
         public func run() async throws {
             let volumes = try await ClientVolume.list()

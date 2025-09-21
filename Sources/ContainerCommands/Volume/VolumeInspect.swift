@@ -20,14 +20,18 @@ import Foundation
 
 extension Application.VolumeCommand {
     public struct VolumeInspect: AsyncParsableCommand {
-        public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "inspect",
-            abstract: "Display detailed information on one or more volumes"
+            abstract: "Display information about one or more volumes"
         )
 
-        @Argument(help: "Volume name(s)")
+        @OptionGroup
+        var global: Flags.Global
+
+        @Argument(help: "Volume names")
         var names: [String]
+
+        public init() {}
 
         public func run() async throws {
             var volumes: [Volume] = []

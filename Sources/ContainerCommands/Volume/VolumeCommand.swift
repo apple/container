@@ -18,7 +18,6 @@ import ArgumentParser
 
 extension Application {
     public struct VolumeCommand: AsyncParsableCommand {
-        public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "volume",
             abstract: "Manage container volumes",
@@ -30,5 +29,7 @@ extension Application {
             ],
             aliases: ["v"]
         )
+
+        public init() {}
     }
 }

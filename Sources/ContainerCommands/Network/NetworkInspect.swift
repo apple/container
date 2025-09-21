@@ -22,16 +22,17 @@ import SwiftProtobuf
 
 extension Application {
     public struct NetworkInspect: AsyncParsableCommand {
-        public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "inspect",
             abstract: "Display information about one or more networks")
 
+        @Argument(help: "Networks to inspect")
+        var networks: [String]
+
         @OptionGroup
         var global: Flags.Global
 
-        @Argument(help: "Networks to inspect")
-        var networks: [String]
+        public init() {}
 
         public func run() async throws {
             let objects: [any Codable] = try await ClientNetwork.list().filter {

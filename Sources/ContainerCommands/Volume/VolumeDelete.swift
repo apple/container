@@ -16,24 +16,83 @@
 
 import ArgumentParser
 import ContainerClient
+import ContainerizationError
 import Foundation
 
 extension Application.VolumeCommand {
     public struct VolumeDelete: AsyncParsableCommand {
-        public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "delete",
-            abstract: "Remove one or more volumes",
+            abstract: "Delete one or more volumes",
             aliases: ["rm"]
         )
 
-        @Argument(help: "Volume name(s)")
-        var names: [String]
+        @Flag(name: .shortAndLong, help: "Delete all volumes")
+        var all = false
+
+        @OptionGroup
+        var global: Flags.Global
+
+        @Argument(help: "Volume names")
+        var names: [String] = []
+
+        public init() {}
 
         public func run() async throws {
-            for name in names {
-                try await ClientVolume.delete(name: name)
-                print(name)
+            let uniqueVolumeNames = Set<String>(names)
+            let volumes: [Volume]
+
+            if all {
+                volumes = try await ClientVolume.list()
+            } else {
+                volumes = try await ClientVolume.list()
+                    .filter { v in
+                        uniqueVolumeNames.contains(v.id)
+                    }
+
+                // If one of the volumes requested isn't present lets throw. We don't need to do
+                // this for --all as --all should be perfectly usable with no volumes to remove,
+                // otherwise it'd be quite clunky.
+                if volumes.count != uniqueVolumeNames.count {
+                    let missing = uniqueVolumeNames.filter { id in
+                        !volumes.contains { v in
+                            v.id == id
+                        }
+                    }
+                    throw ContainerizationError(
+                        .notFound,
+                        message: "failed to delete one or more volumes: \(missing)"
+                    )
+                }
+            }
+
+            var failed = [String]()
+            try await withThrowingTaskGroup(of: Volume?.self) { group in
+                for volume in volumes {
+                    group.addTask {
+                        do {
+                            // delete atomically disables the IP allocator, then deletes
+                            // the allocator disable fails if any IPs are still in use
+                            try await ClientVolume.delete(name: volume.id)
+                            print(volume.id)
+                            return nil
+                        } catch {
+                            log.error("failed to delete volume \(volume.id): \(error)")
+                            return volume
+                        }
+                    }
+                }
+
+                for try await volume in group {
+                    guard let volume else {
+                        continue
+                    }
+                    failed.append(volume.id)
+                }
+            }
+
+            if failed.count > 0 {
+                throw ContainerizationError(.internalError, message: "delete failed for one or more volumes: \(failed)")
             }
         }
     }

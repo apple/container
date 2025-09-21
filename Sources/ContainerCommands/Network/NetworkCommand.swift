@@ -18,7 +18,6 @@ import ArgumentParser
 
 extension Application {
     public struct NetworkCommand: AsyncParsableCommand {
-        public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "network",
             abstract: "Manage container networks",
@@ -30,5 +29,7 @@ extension Application {
             ],
             aliases: ["n"]
         )
+
+        public init() {}
     }
 }

@@ -23,19 +23,20 @@ import TerminalProgress
 
 extension Application {
     public struct NetworkCreate: AsyncParsableCommand {
-        public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "create",
             abstract: "Create a new network")
 
+        @Option(name: .customLong("label"), help: "Set metadata for a network")
+        var labels: [String] = []
+
         @OptionGroup
         var global: Flags.Global
 
-        @Option(name: .customLong("label"), help: "Set metadata on a network")
-        var labels: [String] = []
-
         @Argument(help: "Network name")
         var name: String
+
+        public init() {}
 
         public func run() async throws {
             let parsedLabels = Utility.parseKeyValuePairs(labels)
