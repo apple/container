@@ -28,7 +28,7 @@ extension Application {
             commandName: "exec",
             abstract: "Run a new command in a running container")
 
-        @OptionGroup(title: "Process flags")
+        @OptionGroup(title: "Process options")
         var processFlags: Flags.Process
 
         @OptionGroup
