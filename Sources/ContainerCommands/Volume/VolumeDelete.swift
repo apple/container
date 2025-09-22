@@ -71,8 +71,6 @@ extension Application.VolumeCommand {
                 for volume in volumes {
                     group.addTask {
                         do {
-                            // delete atomically disables the IP allocator, then deletes
-                            // the allocator disable fails if any IPs are still in use
                             try await ClientVolume.delete(name: volume.id)
                             print(volume.id)
                             return nil

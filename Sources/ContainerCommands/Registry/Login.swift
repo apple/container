@@ -25,20 +25,23 @@ extension Application {
     public struct Login: AsyncParsableCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
-            abstract: "Login to a registry"
+            abstract: "Log in to a registry"
         )
 
-        @Option(name: .shortAndLong, help: "Username")
-        var username: String = ""
+        @OptionGroup
+        var registry: Flags.Registry
 
         @Flag(help: "Take the password from stdin")
         var passwordStdin: Bool = false
 
-        @Argument(help: "Registry server name")
-        var server: String
+        @Option(name: .shortAndLong, help: "Registry user name")
+        var username: String = ""
 
         @OptionGroup
-        var registry: Flags.Registry
+        var global: Flags.Global
+
+        @Argument(help: "Registry server name")
+        var server: String
 
         public func run() async throws {
             var username = self.username

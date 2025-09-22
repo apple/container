@@ -25,11 +25,11 @@ extension Application {
         public static let configuration = CommandConfiguration(
             abstract: "Log out from a registry")
 
-        @Argument(help: "Registry server name")
-        var registry: String
-
         @OptionGroup
         var global: Flags.Global
+
+        @Argument(help: "Registry server name")
+        var registry: String
 
         public func run() async throws {
             let keychain = KeychainHelper(id: Constants.keychainID)

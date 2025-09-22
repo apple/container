@@ -90,8 +90,8 @@ extension Application {
                 for network in networks {
                     group.addTask {
                         do {
-                            // delete atomically disables the IP allocator, then deletes
-                            // the allocator disable fails if any IPs are still in use
+                            // Delete atomically disables the IP allocator, then deletes
+                            // the allocator. The disable fails if any IPs are still in use.
                             try await ClientNetwork.delete(id: network.id)
                             print(network.id)
                             return nil

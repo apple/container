@@ -18,15 +18,16 @@ import ArgumentParser
 
 extension Application {
     public struct RegistryCommand: AsyncParsableCommand {
-        public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "registry",
-            abstract: "Manage registry configurations",
+            abstract: "Manage registry logins",
             subcommands: [
                 Login.self,
                 Logout.self,
             ],
             aliases: ["r"]
         )
+
+        public init() {}
     }
 }
