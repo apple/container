@@ -196,13 +196,7 @@ extension ClientContainer {
             request.set(key: .id, value: self.id)
             request.set(key: .stopOptions, value: data)
 
-            // Stop is somewhat more prone to hanging than other commands given it
-            // has quite a bit of `wait()`'s down the chain to make sure the container actually
-            // exited. To combat a potential hang, lets timeout if we don't return in a small
-            // time period after the actual stop timeout sent via .stopOptions (the time
-            // until we send SIGKILL after SIGTERM if the container still hasn't exited).
-            let responseTimeout = Duration(.seconds(Int64(opts.timeoutInSeconds + 3)))
-            try await client.send(request, responseTimeout: responseTimeout)
+            try await client.send(request)
         } catch {
             throw ContainerizationError(
                 .internalError,
