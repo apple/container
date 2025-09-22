@@ -38,35 +38,17 @@ extension Application {
             return config
         }
 
-        @Option(name: [.customLong("cpus"), .customShort("c")], help: "Number of CPUs to allocate to the container")
-        var cpus: Int64 = 2
-
         @Option(
-            name: [.customLong("memory"), .customShort("m")],
-            help:
-                "Amount of builder container memory (1MiByte granularity), with optional K, M, G, T, or P suffix"
+            name: .shortAndLong,
+            help: ArgumentHelp("Add the architecture type to the build", valueName: "value"),
+            transform: { val in val.split(separator: ",").map { String($0) } }
         )
-        var memory: String = "2048MB"
+        var arch: [[String]] = {
+            [[Arch.hostArchitecture().rawValue]]
+        }()
 
         @Option(name: .long, help: ArgumentHelp("Set build-time variables", valueName: "key=val"))
         var buildArg: [String] = []
-
-        @Argument(help: "Build directory")
-        var contextDir: String = "."
-
-        @Option(name: .shortAndLong, help: ArgumentHelp("Path to Dockerfile", valueName: "path"))
-        var file: String = "Dockerfile"
-
-        @Option(name: .shortAndLong, help: ArgumentHelp("Set a label", valueName: "key=val"))
-        var label: [String] = []
-
-        @Flag(name: .long, help: "Do not use cache")
-        var noCache: Bool = false
-
-        @Option(name: .shortAndLong, help: ArgumentHelp("Output configuration for the build", valueName: "value"))
-        var output: [String] = {
-            ["type=oci"]
-        }()
 
         @Option(name: .long, help: ArgumentHelp("Cache imports for the build", valueName: "value", visibility: .hidden))
         var cacheIn: [String] = {
@@ -78,16 +60,33 @@ extension Application {
             []
         }()
 
+        @Option(name: .shortAndLong, help: "Number of CPUs to allocate to the builder container")
+        var cpus: Int64 = 2
+
+        @Option(name: .shortAndLong, help: ArgumentHelp("Path to Dockerfile", valueName: "path"))
+        var file: String = "Dockerfile"
+
+        @Option(name: .shortAndLong, help: ArgumentHelp("Set a label", valueName: "key=val"))
+        var label: [String] = []
+
         @Option(
-            name: .long,
-            help: "add the platform to the build",
-            transform: { val in val.split(separator: ",").map { String($0) } }
+            name: .shortAndLong,
+            help:
+                "Amount of builder container memory (1MiByte granularity), with optional K, M, G, T, or P suffix"
         )
-        var platform: [[String]] = [[]]
+        var memory: String = "2048MB"
+
+        @Flag(name: .long, help: "Do not use cache")
+        var noCache: Bool = false
+
+        @Option(name: .shortAndLong, help: ArgumentHelp("Output configuration for the build (format: type=<oci|tar|local>[,dest=])", valueName: "value"))
+        var output: [String] = {
+            ["type=oci"]
+        }()
 
         @Option(
             name: .long,
-            help: ArgumentHelp("add the OS type to the build", valueName: "value"),
+            help: ArgumentHelp("Add the OS type to the build", valueName: "value"),
             transform: { val in val.split(separator: ",").map { String($0) } }
         )
         var os: [[String]] = {
@@ -95,28 +94,29 @@ extension Application {
         }()
 
         @Option(
-            name: [.long, .short],
-            help: ArgumentHelp("add the architecture type to the build", valueName: "value"),
+            name: .long,
+            help: "Add the platform to the build (takes precedence over --os and --arch)",
             transform: { val in val.split(separator: ",").map { String($0) } }
         )
-        var arch: [[String]] = {
-            [[Arch.hostArchitecture().rawValue]]
-        }()
+        var platform: [[String]] = [[]]
 
-        @Option(name: .long, help: ArgumentHelp("Progress type - one of [auto|plain|tty]", valueName: "type"))
+        @Option(name: .long, help: ArgumentHelp("Progress type (format: auto|plain|tty)]", valueName: "type"))
         var progress: String = "auto"
 
-        @Option(name: .long, help: ArgumentHelp("Builder-shim vsock port", valueName: "port"))
-        var vsockPort: UInt32 = 8088
+        @Flag(name: .shortAndLong, help: "Suppress build output")
+        var quiet: Bool = false
 
-        @Option(name: [.customShort("t"), .customLong("tag")], help: ArgumentHelp("Name for the built image", valueName: "name"))
+        @Option(name: [.short, .customLong("tag")], help: ArgumentHelp("Name for the built image", valueName: "name"))
         var targetImageName: String = UUID().uuidString.lowercased()
 
         @Option(name: .long, help: ArgumentHelp("Set the target build stage", valueName: "stage"))
         var target: String = ""
 
-        @Flag(name: .shortAndLong, help: "Suppress build output")
-        var quiet: Bool = false
+        @Option(name: .long, help: ArgumentHelp("Builder shim vsock port", valueName: "port"))
+        var vsockPort: UInt32 = 8088
+
+        @Argument(help: "Build directory")
+        var contextDir: String = "."
 
         public func run() async throws {
             do {
@@ -257,7 +257,7 @@ extension Application {
                         return results
                     }()
                     group.addTask { [terminal, buildArg, contextDir, label, noCache, target, quiet, cacheIn, cacheOut] in
-                        let config = ContainerBuild.Builder.BuildConfig(
+                        let config = Builder.BuildConfig(
                             buildID: buildID,
                             contentStore: RemoteContentStoreClient(),
                             buildArgs: buildArg,

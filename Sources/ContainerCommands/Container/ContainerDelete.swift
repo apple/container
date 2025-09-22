@@ -28,23 +28,23 @@ extension Application {
             abstract: "Delete one or more containers",
             aliases: ["rm"])
 
-        @Flag(name: .shortAndLong, help: "Delete containers even if they are running")
-        var force = false
-
         @Flag(name: .shortAndLong, help: "Remove all containers")
         var all = false
+
+        @Flag(name: .shortAndLong, help: "Delete containers even if they are running")
+        var force = false
 
         @OptionGroup
         var global: Flags.Global
 
-        @Argument(help: "Container IDs/names")
-        var containerIDs: [String] = []
+        @Argument(help: "Container IDs")
+        var containerIds: [String] = []
 
         public func validate() throws {
-            if containerIDs.count == 0 && !all {
+            if containerIds.count == 0 && !all {
                 throw ContainerizationError(.invalidArgument, message: "no containers specified and --all not supplied")
             }
-            if containerIDs.count > 0 && all {
+            if containerIds.count > 0 && all {
                 throw ContainerizationError(
                     .invalidArgument,
                     message: "explicitly supplied container ID(s) conflict with the --all flag"
@@ -53,7 +53,7 @@ extension Application {
         }
 
         public mutating func run() async throws {
-            let set = Set<String>(containerIDs)
+            let set = Set<String>(containerIds)
             var containers = [ClientContainer]()
 
             if all {

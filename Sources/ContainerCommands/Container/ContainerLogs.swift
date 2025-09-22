@@ -27,27 +27,27 @@ extension Application {
 
         public static let configuration = CommandConfiguration(
             commandName: "logs",
-            abstract: "Fetch container stdio or boot logs"
+            abstract: "Fetch container logs"
         )
-
-        @OptionGroup
-        var global: Flags.Global
-
-        @Flag(name: .shortAndLong, help: "Follow log output")
-        var follow: Bool = false
 
         @Flag(name: .long, help: "Display the boot log for the container instead of stdio")
         var boot: Bool = false
 
-        @Option(name: [.customShort("n")], help: "Number of lines to show from the end of the logs. If not provided this will print all of the logs")
+        @Flag(name: .shortAndLong, help: "Follow log output")
+        var follow: Bool = false
+
+        @Option(name: .short, help: "Number of lines to show from the end of the logs. If not provided this will print all of the logs")
         var numLines: Int?
 
-        @Argument(help: "Container to fetch logs for")
-        var container: String
+        @OptionGroup
+        var global: Flags.Global
+
+        @Argument(help: "Container ID")
+        var containerId: String
 
         public func run() async throws {
             do {
-                let container = try await ClientContainer.get(id: container)
+                let container = try await ClientContainer.get(id: containerId)
                 let fhs = try await container.logs()
                 let fileHandle = boot ? fhs[1] : fhs[0]
 
@@ -59,7 +59,7 @@ extension Application {
             } catch {
                 throw ContainerizationError(
                     .invalidArgument,
-                    message: "failed to fetch container logs for \(container): \(error)"
+                    message: "failed to fetch container logs for \(containerId): \(error)"
                 )
             }
         }

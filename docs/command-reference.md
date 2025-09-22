@@ -16,42 +16,47 @@ container run [OPTIONS] IMAGE [COMMAND] [ARG...]
 
 **Options**
 
-*   **Process and resources**
-    *   `-w, --cwd, --workdir <cwd>`: Current working directory for the container
-    *   `-e, --env <env>`: Set environment variables
-    *   `--env-file <env-file>`: Read in a file of environment variables
-    *   `--uid <uid>`: Set the uid for the process
-    *   `--gid <gid>`: Set the gid for the process
-    *   `-i, --interactive`: Keep Stdin open even if not attached
-    *   `-t, --tty`: Open a tty with the process
-    *   `-u, --user <user>`: Set the user for the process
+*   **Process options**
+    *   `-e, --env <env>`: Set environment variables (format: key=value)
+    *   `--env-file <env-file>`: Read in a file of environment variables (key=value format, ignores # comments and blank lines)
+    *   `--gid <gid>`: Set the group ID for the process
+    *   `-i, --interactive`: Keep the standard input open even if not attached
+    *   `-t, --tty`: Open a TTY with the process
+    *   `-u, --user <user>`: Set the user for the process (format: name|uid[:gid])
+    *   `--uid <uid>`: Set the user ID for the process
+    *   `-w, --workdir, --cwd <dir>`: Set the initial working directory inside the container
+*   **Resource options**
     *   `-c, --cpus <cpus>`: Number of CPUs to allocate to the container
-    *   `-m, --memory <memory>`: Amount of memory in bytes, kilobytes (K), megabytes (M), or gigabytes (G) for the container, with MB granularity (for example, 1024K will result in 1MB being allocated for the container)
-*   **Container management**
-    *   `-d, --detach`: Run the container and detach from the process
-    *   `--entrypoint <entrypoint>`: Override the entrypoint of the image
-    *   `--mount <mount>`: Add a mount to the container (type=<>,source=<>,target=<>,readonly)
-    *   `-p, --publish <publish>`: Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])
-    *   `--publish-socket <publish-socket>`: Publish a socket from container to host (format: host_path:container_path)
-    *   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
-    *   `--name <name>`: Assign a name to the container. If excluded will be a generated UUID
-    *   `--remove, --rm`: Remove the container after it stops
-    *   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
+    *   `-m, --memory <memory>`: Amount of memory (1MiByte granularity), with optional K, M, G, T, or P suffix
+*   **Management options**
     *   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: arm64)
-    *   `-v, --volume <volume>`: Bind mount a volume into the container
-    *   `-k, --kernel <kernel>`: Set a custom kernel path
-    *   `--network <network>`: Attach the container to a network
     *   `--cidfile <cidfile>`: Write the container ID to the path provided
-    *   `--no-dns`: Do not configure DNS in the container
-    *   `--dns <dns>`: DNS nameserver IP address
-    *   `--dns-domain <dns-domain>`: Default DNS domain
-    *   `--dns-search <dns-search>`: DNS search domains
-    *   `--dns-option <dns-option>`: DNS options
+    *   `-d, --detach`: Run the container and detach from the process
+    *   `--dns <ip>`: DNS nameserver IP address
+    *   `--dns-domain <domain>`: Default DNS domain
+    *   `--dns-option <option>`: DNS options
+    *   `--dns-search <domain>`: DNS search domains
+    *   `--entrypoint <cmd>`: Override the entrypoint of the image
+    *   `-k, --kernel <path>`: Set a custom kernel path
     *   `-l, --label <label>`: Add a key=value label to the container
-    *   `--virtualization`: Expose virtualization capabilities to the container. (Host must have nested virtualization support, and guest kernel must have virtualization capabilities enabled)
-*   **Registry/progress/global**
-    *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (`http`, `https`, `auto`) (default: `auto`)
+    *   `--mount <mount>`: Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)
+    *   `--name <name>`: Use the specified name as the container ID
+    *   `--network <network>`: Attach the container to a network
+    *   `--no-dns`: Do not configure DNS in the container
+    *   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
+    *   `-p, --publish <spec>`: Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])
+    *   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
+    *   `--publish-socket <spec>`: Publish a socket from container to host (format: host_path:container_path)
+    *   `--rm, --remove`: Remove the container after it stops
+    *   `--ssh`: Forward SSH agent socket to container
+    *   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
+    *   `-v, --volume <volume>`: Bind mount a volume into the container
+    *   `--virtualization`: Expose virtualization capabilities to the container (requires host and guest support)
+*   **Registry options**
+    *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
+*   **Progress options**
     *   `--disable-progress-updates`: Disable progress bar updates
+*   **Global options**
     *   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
     *   `--version`: Show the version.
     *   `-h, --help`: Show help information.
@@ -76,31 +81,32 @@ Builds an OCI image from a local build context. It reads a Dockerfile (default `
 **Usage**
 
 ```bash
-container build [OPTIONS] PATH
+container build [OPTIONS] [CONTEXT-DIR]
 ```
+
+**Arguments**
+
+*   `CONTEXT-DIR`: Build directory (default: .)
 
 **Options**
 
-*   **Resource management**
-    *   `-c, --cpus <number>`: CPUs to allocate to the build process (default 2)
-    *   `-m, --memory <size>`: Amount of memory in bytes, kilobytes (K), megabytes (M), or gigabytes (G) for the container, with MB granularity (for example, 1024K will result in 1MB being allocated for the container) (default: 2048MB)
-*   **Build configuration**
-    *   `--build-arg <key=value>`: build-time variables passed to the Dockerfile
-    *   `-f, --file <path>`: path to the Dockerfile (default `Dockerfile`)
-    *   `-l, --label <key=value>`: add metadata labels to the image
-    *   `--no-cache`: disable cache usage
-    *   `-o, --output <config>`: specify build output (default `type=oci`)
-    *   `--arch <arch>`: target architecture (default `arm64`)
-    *   `--os <os>`: target operating system (default `linux`)
-    *   `--progress <type>`: progress output mode: `auto`, `plain`, or `tty`
-    *   `--vsock-port <port>`: Builder-shim vsock port (default 8088)
-    *   `-t, --tag <name>`: set image name and tag
-    *   `--target <stage>`: set the target stage for multi-stage builds
-    *   `-q, --quiet`: suppress build output
-*   **Global**
-    *   `--debug`: enable debug logging
-    *   `--version`: show version and exit
-    *   `-h, --help`: show help
+*   `-a, --arch <value>`: Add the architecture type to the build
+*   `--build-arg <key=val>`: Set build-time variables
+*   `-c, --cpus <cpus>`: Number of CPUs to allocate to the builder container (default: 2)
+*   `-f, --file <path>`: Path to Dockerfile (default: Dockerfile)
+*   `-l, --label <key=val>`: Set a label
+*   `-m, --memory <memory>`: Amount of builder container memory (1MiByte granularity), with optional K, M, G, T, or P suffix (default: 2048MB)
+*   `--no-cache`: Do not use cache
+*   `-o, --output <value>`: Output configuration for the build (format: type=<oci|tar|local>[,dest=]) (default: type=oci)
+*   `--os <value>`: Add the OS type to the build
+*   `--platform <platform>`: Add the platform to the build (takes precedence over --os and --arch)
+*   `--progress <type>`: Progress type (format: auto|plain|tty)] (default: auto)
+*   `-q, --quiet`: Suppress build output
+*   `-t, --tag <name>`: Name for the built image
+*   `--target <stage>`: Set the target build stage
+*   `--vsock-port <port>`: Builder shim vsock port (default: 8088)
+*   `--version`: Show the version.
+*   `-h, --help`: Show help information.
 
 **Examples**
 
@@ -139,14 +145,20 @@ Starts a stopped container. You can attach to the container's output streams and
 **Usage**
 
 ```bash
-container start [OPTIONS] CONTAINER
+container start [OPTIONS] CONTAINER-ID
 ```
+
+**Arguments**
+
+*   `CONTAINER-ID`: Container ID
 
 **Options**
 
-*   `-a, --attach`: attach to STDOUT/STDERR of the container
-*   `-i, --interactive`: attach STDIN for interactive sessions
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
+*   `-a, --attach`: Attach STDOUT/STDERR
+*   `-i, --interactive`: Attach STDIN
+*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
+*   `--version`: Show the version.
+*   `-h, --help`: Show help information.
 
 ### `container stop`
 
@@ -155,31 +167,43 @@ Stops running containers gracefully by sending a signal. A timeout can be specif
 **Usage**
 
 ```bash
-container stop [OPTIONS] [CONTAINER...]
+container stop [OPTIONS] [CONTAINER-IDS...]
 ```
+
+**Arguments**
+
+*   `CONTAINER-IDS`: Container IDs
 
 **Options**
 
-*   `-a, --all`: stop all running containers
-*   `-s, --signal <signal>`: signal to send (default SIGTERM)
-*   `-t, --time <seconds>`: timeout in seconds before killing the container (default 5)
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
+*   `-a, --all`: Stop all running containers
+*   `-s, --signal <signal>`: Signal to send the containers (default: SIGTERM)
+*   `-t, --time <time>`: Seconds to wait before killing the containers (default: 5)
+*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
+*   `--version`: Show the version.
+*   `-h, --help`: Show help information.
 
 ### `container kill`
 
-Immediately kills running containers by sending a signal (defaults to `SIGKILL`). Use with caution: it does not allow for graceful shutdown.
+Immediately kills running containers by sending a signal (defaults to `KILL`). Use with caution: it does not allow for graceful shutdown.
 
 **Usage**
 
 ```bash
-container kill [OPTIONS] [CONTAINER...]
+container kill [OPTIONS] [CONTAINER-IDS...]
 ```
+
+**Arguments**
+
+*   `CONTAINER-IDS`: Container IDs
 
 **Options**
 
-*   `-s, --signal <signal>`: signal to send (default `KILL`)
-*   `-a, --all`: kill all running containers
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
+*   `-a, --all`: Kill or signal all running containers
+*   `-s, --signal <signal>`: Signal to send to the container(s) (default: KILL)
+*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
+*   `--version`: Show the version.
+*   `-h, --help`: Show help information.
 
 ### `container delete (rm)`
 
@@ -188,14 +212,20 @@ Removes one or more containers. If the container is running, you may force delet
 **Usage**
 
 ```bash
-container delete [OPTIONS] [CONTAINER...]
+container delete [OPTIONS] [CONTAINER-IDS...]
 ```
+
+**Arguments**
+
+*   `CONTAINER-IDS`: Container IDs
 
 **Options**
 
-*   `-f, --force`: remove running containers by sending SIGKILL
-*   `-a, --all`: remove all containers
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
+*   `-a, --all`: Remove all containers
+*   `-f, --force`: Force the removal of one or more running containers
+*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
+*   `--version`: Show the version.
+*   `-h, --help`: Show help information.
 
 ### `container list (ls)`
 
@@ -209,10 +239,12 @@ container list [OPTIONS]
 
 **Options**
 
-*   `-a, --all`: include stopped containers
-*   `-q, --quiet`: display only container IDs
-*   `--format <format>`: Format of the output (values: `json`, `table`; default: `table`)
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
+*   `-a, --all`: Show stopped containers as well
+*   `--format <format>`: Format of the output (values: json, table; default: table)
+*   `-q, --quiet`: Only output the container ID
+*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
+*   `--version`: Show the version.
+*   `-h, --help`: Show help information.
 
 ### `container exec`
 
@@ -221,20 +253,30 @@ Executes a command inside a running container. It uses the same process flags as
 **Usage**
 
 ```bash
-container exec [OPTIONS] CONTAINER COMMAND [ARG...]
+container exec [OPTIONS] CONTAINER-ID ARGUMENTS...
 ```
 
-**Key flags**
+**Arguments**
 
-*   `-w, --cwd, --workdir <cwd>`: Current working directory for the container
-*   `-e, --env <env>`: Set environment variables
-*   `--env-file <env-file>`: Read in a file of environment variables
-*   `--uid <uid>`: Set the uid for the process
-*   `--gid <gid>`: Set the gid for the process
-*   `-i, --interactive`: Keep Stdin open even if not attached
-*   `-t, --tty`: Open a tty with the process
-*   `-u, --user <user>`: Set the user for the process
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
+*   `CONTAINER-ID`: Container ID
+*   `ARGUMENTS`: New process arguments
+
+**Process flags**
+
+*   `-e, --env <env>`: Set environment variables (format: key=value)
+*   `--env-file <env-file>`: Read in a file of environment variables (key=value format, ignores # comments and blank lines)
+*   `--gid <gid>`: Set the group ID for the process
+*   `-i, --interactive`: Keep the standard input open even if not attached
+*   `-t, --tty`: Open a TTY with the process
+*   `-u, --user <user>`: Set the user for the process (format: name|uid[:gid])
+*   `--uid <uid>`: Set the user ID for the process
+*   `-w, --workdir, --cwd <dir>`: Set the initial working directory inside the container
+
+**Options**
+
+*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
+*   `--version`: Show the version.
+*   `-h, --help`: Show help information.
 
 ### `container logs`
 
@@ -243,15 +285,21 @@ Fetches logs from a container. You can follow the logs (`-f`/`--follow`), restri
 **Usage**
 
 ```bash
-container logs [OPTIONS] CONTAINER
+container logs [OPTIONS] CONTAINER-ID
 ```
+
+**Arguments**
+
+*   `CONTAINER-ID`: Container ID
 
 **Options**
 
-*   `-f, --follow`: Follow log output
 *   `--boot`: Display the boot log for the container instead of stdio
-*   `-n <lines>`: Number of lines to show from the end of the logs. If not provided this will print all of the logs
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
+*   `-f, --follow`: Follow log output
+*   `-n <n>`: Number of lines to show from the end of the logs. If not provided this will print all of the logs
+*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
+*   `--version`: Show the version.
+*   `-h, --help`: Show help information.
 
 ### `container inspect`
 
@@ -260,10 +308,18 @@ Displays detailed container information in JSON. Pass one or more container IDs 
 **Usage**
 
 ```bash
-container inspect [OPTIONS] CONTAINER...
+container inspect [OPTIONS] CONTAINER-IDS...
 ```
 
-No additional flags; uses global flags for debug, version, and help.
+**Arguments**
+
+*   `CONTAINER-IDS`: Container IDs
+
+**Options**
+
+*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
+*   `--version`: Show the version.
+*   `-h, --help`: Show help information.
 
 ## Image Management
 

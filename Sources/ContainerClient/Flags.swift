@@ -29,43 +29,49 @@ public struct Flags {
     public struct Process: ParsableArguments {
         public init() {}
 
-        @Option(
-            name: [.customLong("cwd"), .customShort("w"), .customLong("workdir")],
-            help: "Current working directory for the container")
-        public var cwd: String?
-
-        @Option(name: [.customLong("env"), .customShort("e")], help: "Set environment variables")
+        @Option(name: .shortAndLong, help: "Set environment variables (format: key=value)")
         public var env: [String] = []
 
-        @Option(name: .customLong("env-file"), help: "Read in a file of environment variables")
+        @Option(
+            name: .long,
+            help: "Read in a file of environment variables (key=value format, ignores # comments and blank lines)"
+        )
         public var envFile: [String] = []
 
-        @Option(name: .customLong("uid"), help: "Set the uid for the process")
-        public var uid: UInt32?
-
-        @Option(name: .customLong("gid"), help: "Set the gid for the process")
+        @Option(name: .long, help: "Set the group ID for the process")
         public var gid: UInt32?
 
-        @Flag(name: [.customLong("interactive"), .customShort("i")], help: "Keep Stdin open even if not attached")
+        @Flag(name: .shortAndLong, help: "Keep the standard input open even if not attached")
         public var interactive = false
 
-        @Flag(name: [.customLong("tty"), .customShort("t")], help: "Open a tty with the process")
+        @Flag(name: .shortAndLong, help: "Open a TTY with the process")
         public var tty = false
 
-        @Option(name: [.customLong("user"), .customShort("u")], help: "Set the user for the process")
+        @Option(name: .shortAndLong, help: "Set the user for the process (format: name|uid[:gid])")
         public var user: String?
+
+        @Option(name: .long, help: "Set the user ID for the process")
+        public var uid: UInt32?
+
+        @Option(
+            name: [.customShort("w"), .customLong("workdir"), .long],
+            help: .init(
+                "Set the initial working directory inside the container",
+                valueName: "dir"
+            )
+        )
+        public var cwd: String?
     }
 
     public struct Resource: ParsableArguments {
         public init() {}
 
-        @Option(name: [.customLong("cpus"), .customShort("c")], help: "Number of CPUs to allocate to the container")
+        @Option(name: .shortAndLong, help: "Number of CPUs to allocate to the container")
         public var cpus: Int64?
 
         @Option(
-            name: [.customLong("memory"), .customShort("m")],
-            help:
-                "Amount of memory (1MiByte granularity), with optional K, M, G, T, or P suffix"
+            name: .shortAndLong,
+            help: "Amount of memory (1MiByte granularity), with optional K, M, G, T, or P suffix"
         )
         public var memory: String?
     }
@@ -84,83 +90,115 @@ public struct Flags {
     public struct Management: ParsableArguments {
         public init() {}
 
-        @Flag(name: [.customLong("detach"), .short], help: "Run the container and detach from the process")
-        public var detach = false
-
-        @Option(name: .customLong("entrypoint"), help: "Override the entrypoint of the image")
-        public var entryPoint: String?
-
-        @Option(name: .customLong("mount"), help: "Add a mount to the container (type=<>,source=<>,target=<>,readonly)")
-        public var mounts: [String] = []
-
-        @Option(name: [.customLong("publish"), .short], help: "Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])")
-        public var publishPorts: [String] = []
-
-        @Option(name: .customLong("publish-socket"), help: "Publish a socket from container to host (format: host_path:container_path)")
-        public var publishSockets: [String] = []
-
-        @Option(name: .customLong("tmpfs"), help: "Add a tmpfs mount to the container at the given path")
-        public var tmpFs: [String] = []
-
-        @Option(name: .customLong("name"), help: "Assign a name to the container. If excluded will be a generated UUID")
-        public var name: String?
-
-        @Flag(name: [.customLong("remove"), .customLong("rm")], help: "Remove the container after it stops")
-        public var remove = false
-
-        @Option(name: .customLong("platform"), help: "Platform for the image if it's multi-platform. This takes precedence over --os and --arch")
-        public var platform: String?
-
-        @Option(name: .customLong("os"), help: "Set OS if image can target multiple operating systems")
-        public var os = "linux"
-
-        @Option(
-            name: [.long, .short], help: "Set arch if image can target multiple architectures")
+        @Option(name: .shortAndLong, help: "Set arch if image can target multiple architectures")
         public var arch: String = Arch.hostArchitecture().rawValue
 
-        @Option(name: [.customLong("volume"), .short], help: "Bind mount a volume into the container")
-        public var volumes: [String] = []
+        @Option(name: .long, help: "Write the container ID to the path provided")
+        public var cidfile = ""
+
+        @Flag(name: .shortAndLong, help: "Run the container and detach from the process")
+        public var detach = false
 
         @Option(
-            name: [.customLong("kernel"), .short], help: "Set a custom kernel path", completion: .file(),
+            name: .customLong("dns"),
+            help: .init("DNS nameserver IP address", valueName: "ip")
+        )
+        public var dnsNameservers: [String] = []
+
+        @Option(
+            name: .long,
+            help: .init("Default DNS domain", valueName: "domain")
+        )
+        public var dnsDomain: String? = nil
+
+        @Option(
+            name: .customLong("dns-option"),
+            help: .init("DNS options", valueName: "option")
+        )
+        public var dnsOptions: [String] = []
+
+        @Option(
+            name: .customLong("dns-search"),
+            help: .init("DNS search domains", valueName: "domain")
+        )
+        public var dnsSearchDomains: [String] = []
+
+        @Option(
+            name: .long,
+            help: .init(
+                "Override the entrypoint of the image",
+                valueName: "cmd"
+            )
+        )
+        public var entrypoint: String?
+
+        @Option(
+            name: .shortAndLong,
+            help: .init("Set a custom kernel path", valueName: "path"),
+            completion: .file(),
             transform: { str in
                 URL(fileURLWithPath: str, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false)
-            })
+            }
+        )
         public var kernel: String?
+
+        @Option(name: [.short, .customLong("label")], help: "Add a key=value label to the container")
+        public var labels: [String] = []
+
+        @Option(name: .customLong("mount"), help: "Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)")
+        public var mounts: [String] = []
+
+        @Option(name: .long, help: "Use the specified name as the container ID")
+        public var name: String?
 
         @Option(name: [.customLong("network")], help: "Attach the container to a network")
         public var networks: [String] = []
 
-        @Option(name: .customLong("cidfile"), help: "Write the container ID to the path provided")
-        public var cidfile = ""
-
         @Flag(name: [.customLong("no-dns")], help: "Do not configure DNS in the container")
         public var dnsDisabled = false
 
-        @Option(name: .customLong("dns"), help: "DNS nameserver IP address")
-        public var dnsNameservers: [String] = []
+        @Option(name: .long, help: "Set OS if image can target multiple operating systems")
+        public var os = "linux"
 
-        @Option(name: .customLong("dns-domain"), help: "Default DNS domain")
-        public var dnsDomain: String? = nil
+        @Option(
+            name: [.customShort("p"), .customLong("publish")],
+            help: .init(
+                "Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])",
+                valueName: "spec"
+            )
+        )
+        public var publishPorts: [String] = []
 
-        @Option(name: .customLong("dns-search"), help: "DNS search domains")
-        public var dnsSearchDomains: [String] = []
+        @Option(name: .long, help: "Platform for the image if it's multi-platform. This takes precedence over --os and --arch")
+        public var platform: String?
 
-        @Option(name: .customLong("dns-option"), help: "DNS options")
-        public var dnsOptions: [String] = []
+        @Option(
+            name: .customLong("publish-socket"),
+            help: .init(
+                "Publish a socket from container to host (format: host_path:container_path)",
+                valueName: "spec"
+            )
+        )
+        public var publishSockets: [String] = []
 
-        @Option(name: [.customLong("label"), .short], help: "Add a key=value label to the container")
-        public var labels: [String] = []
+        @Flag(name: [.customLong("rm"), .long], help: "Remove the container after it stops")
+        public var remove = false
+
+        @Flag(name: .long, help: "Forward SSH agent socket to container")
+        public var ssh = false
+
+        @Option(name: .customLong("tmpfs"), help: "Add a tmpfs mount to the container at the given path")
+        public var tmpFs: [String] = []
+
+        @Option(name: [.customLong("volume"), .short], help: "Bind mount a volume into the container")
+        public var volumes: [String] = []
 
         @Flag(
-            name: [.customLong("virtualization")],
+            name: .long,
             help:
-                "Expose virtualization capabilities to the container. (Host must have nested virtualization support, and guest kernel must have virtualization capabilities enabled)"
+                "Expose virtualization capabilities to the container (requires host and guest support)"
         )
         public var virtualization: Bool = false
-
-        @Flag(name: .customLong("ssh"), help: "Forward SSH agent socket to container")
-        public var ssh = false
     }
 
     public struct Progress: ParsableArguments {
@@ -170,7 +208,7 @@ public struct Flags {
             self.disableProgressUpdates = disableProgressUpdates
         }
 
-        @Flag(name: .customLong("disable-progress-updates"), help: "Disable progress bar updates")
+        @Flag(name: .long, help: "Disable progress bar updates")
         public var disableProgressUpdates = false
     }
 }
