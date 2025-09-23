@@ -79,7 +79,7 @@ extension RuntimeLinuxHelper {
                 let endpointServer = XPCServer(
                     identifier: machServiceLabel,
                     routes: [
-                        SandboxRoutes.createEndpoint.rawValue: server.createEndpoint,
+                        SandboxRoutes.createEndpoint.rawValue: server.createEndpoint
                     ],
                     log: log
                 )
@@ -109,7 +109,7 @@ extension RuntimeLinuxHelper {
                         try await mainServer.listen()
                     }
                     defer { group.cancelAll() }
-    
+
                     _ = try await group.next()
                 }
             } catch {
