@@ -15,140 +15,39 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
 import ContainerLog
-import ContainerNetworkService
-import ContainerSandboxService
 import ContainerVersion
-import ContainerXPC
-import Containerization
-import ContainerizationError
-import Foundation
 import Logging
-import NIO
+import OSLog
 
 @main
 struct RuntimeLinuxHelper: AsyncParsableCommand {
-    static let label = "com.apple.container.runtime.container-runtime-linux"
-
     static let configuration = CommandConfiguration(
         commandName: "container-runtime-linux",
         abstract: "XPC Service for managing a Linux sandbox",
-        version: ReleaseVersion.singleLine(appName: "container-runtime-linux")
+        version: ReleaseVersion.singleLine(appName: "container-runtime-linux"),
+        subcommands: [
+            Start.self
+        ]
     )
 
-    @Flag(name: .long, help: "Enable debug logging")
-    var debug = false
-
-    @Option(name: .shortAndLong, help: "Sandbox UUID")
-    var uuid: String
-
-    @Option(name: .shortAndLong, help: "Root directory for the sandbox")
-    var root: String
-
-    var machServiceLabel: String {
-        "\(Self.label).\(uuid)"
-    }
-
-    func run() async throws {
-        let commandName = Self._commandName
-        let log = setupLogger()
-        log.info("starting \(commandName)")
-        defer {
-            log.info("stopping \(commandName)")
-        }
-
-        let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
-        do {
-            try adjustLimits()
-            signal(SIGPIPE, SIG_IGN)
-
-            log.info("configuring XPC server")
-
-            let interfaceStrategy: any InterfaceStrategy
-            if #available(macOS 26, *) {
-                interfaceStrategy = NonisolatedInterfaceStrategy(log: log)
-            } else {
-                interfaceStrategy = IsolatedInterfaceStrategy()
-            }
-
-            nonisolated(unsafe) let anonymousConnection = xpc_connection_create(nil, nil)
-            let server = SandboxService(
-                root: .init(fileURLWithPath: root),
-                interfaceStrategy: interfaceStrategy,
-                eventLoopGroup: eventLoopGroup,
-                connection: anonymousConnection,
-                log: log
-            )
-
-            let endpointServer = XPCServer(
-                identifier: machServiceLabel,
-                routes: [
-                    SandboxRoutes.createEndpoint.rawValue: server.createEndpoint
-                ],
-                log: log
-            )
-
-            let mainServer = XPCServer(
-                connection: anonymousConnection,
-                routes: [
-                    SandboxRoutes.bootstrap.rawValue: server.bootstrap,
-                    SandboxRoutes.createProcess.rawValue: server.createProcess,
-                    SandboxRoutes.state.rawValue: server.state,
-                    SandboxRoutes.stop.rawValue: server.stop,
-                    SandboxRoutes.kill.rawValue: server.kill,
-                    SandboxRoutes.resize.rawValue: server.resize,
-                    SandboxRoutes.wait.rawValue: server.wait,
-                    SandboxRoutes.start.rawValue: server.startProcess,
-                    SandboxRoutes.dial.rawValue: server.dial,
-                    SandboxRoutes.shutdown.rawValue: server.shutdown,
-                ],
-                log: log
-            )
-
-            log.info("starting XPC server")
-            try await withThrowingTaskGroup(of: Void.self) { group in
-                group.addTask {
-                    try await endpointServer.listen()
-                }
-                group.addTask {
-                    try await mainServer.listen()
-                }
-                defer { group.cancelAll() }
-
-                _ = try await group.next()
-            }
-        } catch {
-            log.error("\(commandName) failed", metadata: ["error": "\(error)"])
-            try? await eventLoopGroup.shutdownGracefully()
-            RuntimeLinuxHelper.exit(withError: error)
-        }
-    }
-
-    private func setupLogger() -> Logger {
+    package static func setupLogger(debug: Bool, metadata: [String: Logging.Logger.Metadata.Value] = [:]) -> Logging.Logger {
         LoggingSystem.bootstrap { label in
             OSLogHandler(
                 label: label,
                 category: "RuntimeLinuxHelper"
             )
         }
+
         var log = Logger(label: "com.apple.container")
         if debug {
             log.logLevel = .debug
         }
-        log[metadataKey: "uuid"] = "\(uuid)"
-        return log
-    }
 
-    private func adjustLimits() throws {
-        var limits = rlimit()
-        guard getrlimit(RLIMIT_NOFILE, &limits) == 0 else {
-            throw POSIXError(.init(rawValue: errno)!)
+        for (key, val) in metadata {
+            log[metadataKey: key] = val
         }
-        limits.rlim_cur = 65536
-        limits.rlim_max = 65536
-        guard setrlimit(RLIMIT_NOFILE, &limits) == 0 else {
-            throw POSIXError(.init(rawValue: errno)!)
-        }
+
+        return log
     }
 }
