@@ -128,6 +128,7 @@ public actor SandboxService {
             // Dynamically configure the DNS nameserver from a network if no explicit configuration
             if let dns = config.dns, dns.nameservers.isEmpty {
                 if let nameserver = try await self.getDefaultNameserver(attachmentConfigurations: config.networks) {
+                    // Should be safe to proceed if the state changed during the await call.
                     config.dns = ContainerConfiguration.DNSConfiguration(
                         nameservers: [nameserver],
                         domain: dns.domain,
@@ -143,6 +144,7 @@ public actor SandboxService {
                 let network = config.networks[index]
                 let client = NetworkClient(id: network.network)
                 let (attachment, additionalData) = try await client.allocate(hostname: network.options.hostname)
+                // Should be safe to proceed if the state changed during the await call.
                 attachments.append(attachment)
 
                 let interface = try self.interfaceStrategy.toInterface(
@@ -210,17 +212,39 @@ public actor SandboxService {
 
             do {
                 try await container.create()
+                // Should be safe to proceed if the state changed during the await call.
+
                 try await self.monitor.registerProcess(id: config.id, onExit: self.onContainerExit)
+                // Should be safe to proceed if the state changed during the await call.
+
                 if !container.interfaces.isEmpty {
                     let firstCidr = try CIDRAddress(container.interfaces[0].address)
                     let ipAddress = firstCidr.address.description
                     try await self.startSocketForwarders(containerIpAddress: ipAddress, publishedPorts: config.publishedPorts)
                 }
-                await self.setState(.booted)
+
+                // Check if the state changed during the await call.
+                switch await self.state {
+                case .created:
+                    await self.setState(.booted)
+                case .shuttingDown:
+                    break
+                default:
+                    throw ContainerizationError(.invalidState, message: "Unexpected state during bootstrap: \(await self.state)")
+                }
             } catch {
                 do {
                     try await self.cleanupContainer()
-                    await self.setState(.created)
+
+                    // Check if the state changed during the await call.
+                    switch await self.state {
+                    case .created:
+                        await self.setState(.created)
+                    case .shuttingDown:
+                        break
+                    default:
+                        throw ContainerizationError(.invalidState, message: "Unexpected state during bootstrap cleanup: \(await self.state)")
+                    }
                 } catch {
                     self.log.error("failed to cleanup container: \(error)")
                 }
