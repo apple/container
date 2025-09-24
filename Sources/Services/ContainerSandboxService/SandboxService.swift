@@ -406,16 +406,22 @@ public actor SandboxService {
                 stopOpts: stopOptions
             )
 
-            await self.lock.withLock { _ in
-                do {
-                    if case .stopped(_) = await self.state {
-                        return
+            try await self.lock.withLock { _ in
+                // Check if the state changed during the await call.
+                switch await self.state {
+                case .stopping:
+                    do {
+                        try await self.cleanupContainer()
+                    } catch {
+                        self.log.error("failed to cleanup container: \(error)")
                     }
-                    try await self.cleanupContainer()
-                } catch {
-                    self.log.error("failed to cleanup container: \(error)")
+                    await self.setState(.stopped(code))
+                case .shuttingDown:
+                    return
+                default:
+                    let currentState = await self.state
+                    throw ContainerizationError(.invalidState, message: "Unexpected state during stop cleanup: \(currentState)")
                 }
-                await self.setState(.stopped(code))
             }
         default:
             break
