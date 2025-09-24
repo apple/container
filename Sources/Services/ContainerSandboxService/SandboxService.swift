@@ -560,6 +560,7 @@ public actor SandboxService {
                 )
             }
 
+            // Should be safe if the state changed during the await call.
             return message.reply()
         default:
             throw ContainerizationError(
@@ -646,6 +647,7 @@ public actor SandboxService {
             let ctr = try getContainer()
             let fh = try await ctr.container.dialVsock(port: UInt32(port))
 
+            // Should be safe if the state changed during the await call.
             let reply = message.reply()
             reply.set(key: .fd, value: fh)
             return reply
