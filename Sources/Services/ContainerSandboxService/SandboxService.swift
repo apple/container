@@ -271,7 +271,16 @@ public actor SandboxService {
             let containerId = containerInfo.container.id
             if id == containerId {
                 try await self.startInitProcess(lock: lock)
-                await self.setState(.running)
+
+                // Check if the state changed during the await call.
+                switch await self.state {
+                case .booted:
+                    await self.setState(.running)
+                case .stopping, .shuttingDown:
+                    break
+                default:
+                    throw ContainerizationError(.invalidState, message: "Unexpected state during starting process: \(await self.state)")
+                }
             } else {
                 try await self.startExecProcess(processId: id, lock: lock)
             }
