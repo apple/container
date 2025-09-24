@@ -90,7 +90,7 @@ extension Application {
                     stdio: io.stdio
                 )
 
-                exitCode = try await Application.handleProcess(io: io, process: process)
+                exitCode = try await io.handleProcess(process: process, log: log)
             } catch {
                 if error is ContainerizationError {
                     throw error

@@ -171,78 +171,6 @@ public struct Application: AsyncParsableCommand {
         )
     }
 
-    public static func handleProcess(io: ProcessIO, process: ClientProcess) async throws -> Int32 {
-        let signals = AsyncSignalHandler.create(notify: Application.signalSet)
-        return try await withThrowingTaskGroup(of: Int32?.self, returning: Int32.self) { group in
-            let waitAdded = group.addTaskUnlessCancelled {
-                let code = try await process.wait()
-                try await io.wait()
-                return code
-            }
-
-            guard waitAdded else {
-                group.cancelAll()
-                return -1
-            }
-
-            try await process.start()
-            try io.closeAfterStart()
-
-            if let current = io.console {
-                let size = try current.size
-                // It's supremely possible the process could've exited already. We shouldn't treat
-                // this as fatal.
-                try? await process.resize(size)
-                _ = group.addTaskUnlessCancelled {
-                    let winchHandler = AsyncSignalHandler.create(notify: [SIGWINCH])
-                    for await _ in winchHandler.signals {
-                        do {
-                            try await process.resize(try current.size)
-                        } catch {
-                            log.error(
-                                "failed to send terminal resize event",
-                                metadata: [
-                                    "error": "\(error)"
-                                ]
-                            )
-                        }
-                    }
-                    return nil
-                }
-            } else {
-                _ = group.addTaskUnlessCancelled {
-                    for await sig in signals.signals {
-                        do {
-                            try await process.kill(sig)
-                        } catch {
-                            log.error(
-                                "failed to send signal",
-                                metadata: [
-                                    "signal": "\(sig)",
-                                    "error": "\(error)",
-                                ]
-                            )
-                        }
-                    }
-                    return nil
-                }
-            }
-
-            while true {
-                let result = try await group.next()
-                if result == nil {
-                    return -1
-                }
-                let status = result!
-                if let status {
-                    group.cancelAll()
-                    return status
-                }
-            }
-            return -1
-        }
-    }
-
     public func validate() throws {
         // Not really a "validation", but a cheat to run this before
         // any of the commands do their business.
@@ -313,14 +241,6 @@ extension Application {
         case json
         case table
     }
-
-    static let signalSet: [Int32] = [
-        SIGTERM,
-        SIGINT,
-        SIGUSR1,
-        SIGUSR2,
-        SIGWINCH,
-    ]
 
     func isTranslated() throws -> Bool {
         do {

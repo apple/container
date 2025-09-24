@@ -74,7 +74,7 @@ extension Application {
                     return
                 }
 
-                exitCode = try await Application.handleProcess(io: io, process: process)
+                exitCode = try await io.handleProcess(process: process, log: log)
             } catch {
                 try? await container.stop()
 
