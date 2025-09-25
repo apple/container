@@ -265,27 +265,29 @@ public actor SandboxService {
     public func shutdown(_ message: XPCMessage) async throws -> XPCMessage {
         self.log.info("`shutdown` xpc handler")
 
-        switch self.state {
-        case .created, .stopped(_), .stopping:
-            self.state = .shuttingDown
+        return try await self.lock.withLock { _ in
+            switch await self.state {
+            case .created, .stopped(_), .stopping:
+                await self.setState(.shuttingDown)
 
-            Task {
-                do {
-                    try await Task.sleep(for: .seconds(5))
-                } catch {
-                    self.log.error("failed to sleep before shutting down SandboxService: \(error)")
+                Task {
+                    do {
+                        try await Task.sleep(for: .seconds(5))
+                    } catch {
+                        self.log.error("failed to sleep before shutting down SandboxService: \(error)")
+                    }
+                    self.log.info("Shutting down SandboxService")
+                    exit(0)
                 }
-                self.log.info("Shutting down SandboxService")
-                exit(0)
+            default:
+                throw ContainerizationError(
+                    .invalidState,
+                    message: "cannot shutdown: container is not stopped"
+                )
             }
-        default:
-            throw ContainerizationError(
-                .invalidState,
-                message: "cannot shutdown: container is not stopped"
-            )
-        }
 
-        return message.reply()
+            return message.reply()
+        }
     }
 
     /// Create a process inside the virtual machine for the container.
@@ -395,32 +397,32 @@ public actor SandboxService {
     @Sendable
     public func stop(_ message: XPCMessage) async throws -> XPCMessage {
         self.log.info("`stop` xpc handler")
-        switch self.state {
-        case .running, .booted:
-            self.state = .stopping
+        return try await self.lock.withLock { _ in
+            switch await self.state {
+            case .running, .booted:
+                await self.setState(.stopping)
 
-            let ctr = try getContainer()
-            let stopOptions = try message.stopOptions()
-            let code = try await gracefulStopContainer(
-                ctr.container,
-                stopOpts: stopOptions
-            )
+                let ctr = try await self.getContainer()
+                let stopOptions = try message.stopOptions()
+                let code = try await self.gracefulStopContainer(
+                    ctr.container,
+                    stopOpts: stopOptions
+                )
 
-            await self.lock.withLock { _ in
                 do {
                     if case .stopped(_) = await self.state {
-                        return
+                        return message.reply()
                     }
                     try await self.cleanupContainer()
                 } catch {
                     self.log.error("failed to cleanup container: \(error)")
                 }
                 await self.setState(.stopped(code))
+            default:
+                break
             }
-        default:
-            break
+            return message.reply()
         }
-        return message.reply()
     }
 
     /// Signal a process running in the virtual machine.
