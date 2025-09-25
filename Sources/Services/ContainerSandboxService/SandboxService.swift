@@ -477,6 +477,17 @@ public actor SandboxService {
             switch await self.state {
             case .running:
                 let ctr = try await getContainer()
+
+                // Check if the state changed during the await call.
+                switch await self.state {
+                case .running:
+                    break
+                case .stopping, .shuttingDown:
+                    return message.reply()
+                default:
+                    throw ContainerizationError(.invalidState, message: "Unexpected state during signaling a process: \(await self.state)")
+                }
+
                 let id = try message.id()
                 if id != ctr.container.id {
                     guard let processInfo = await self.processes[id] else {
