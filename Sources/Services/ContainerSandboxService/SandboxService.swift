@@ -805,7 +805,14 @@ public actor SandboxService {
             } catch {
                 self.log.error("failed to cleanup container: \(error)")
             }
-            await setState(.stopped(code))
+
+            // Check if the state changed during the await call.
+            switch await self.state {
+            case .shuttingDown:
+                break
+            default:
+                await setState(.stopped(code))
+            }
 
             let waiters = await self.waiters[id] ?? []
             for cc in waiters {
