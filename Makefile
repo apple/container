@@ -136,6 +136,21 @@ install-kernel:
 	@bin/container system stop || true
 	@bin/container system start --enable-kernel-install $(SYSTEM_START_OPTS)
 
+.PHONY: coverage
+coverage: init-block
+	@echo Ensuring apiserver stopped before the CLI integration tests...
+	@bin/container system stop && sleep 3 && scripts/ensure-container-stopped.sh
+	@echo Running the integration tests...
+	@bin/container system start $(SYSTEM_START_OPTS) && \
+	echo "Starting CLI integration tests" && \
+	{ \
+		exit_code=0; \
+		$(SWIFT) test --no-parallel --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) || exit_code=1 ; \
+		echo Ensuring apiserver stopped after the CLI integration tests ; \
+		scripts/ensure-container-stopped.sh ; \
+		exit $${exit_code} ; \
+	}
+
 .PHONY: integration
 integration: init-block
 	@echo Ensuring apiserver stopped before the CLI integration tests...
