@@ -673,6 +673,7 @@ public actor SandboxService {
             let io = info.io
 
             try await container.start()
+            // Should be safe if the state changed during the await call.
             let waitFunc: ExitMonitor.WaitHandler = {
                 let code = try await container.wait()
                 if let out = io.out {
@@ -686,7 +687,16 @@ public actor SandboxService {
             try await self.monitor.track(id: id, waitingOn: waitFunc)
         } catch {
             try? await self.cleanupContainer()
-            self.setState(.created)
+
+            // Check if the state changed during the await call.
+            switch self.state {
+            case .booted:
+                self.setState(.created)
+            case .stopping, .shuttingDown:
+                break
+            default:
+                throw ContainerizationError(.invalidState, message: "Unexpected state during starting init process: \(self.state)")
+            }
             throw error
         }
     }
