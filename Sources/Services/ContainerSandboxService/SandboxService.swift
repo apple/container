@@ -615,7 +615,6 @@ public actor SandboxService {
         }
 
         let exitCode = await withCheckedContinuation { cc in
-            // Is this safe since we are in an actor? :(
             self.addWaiter(id: id, cont: cc)
         }
         let reply = message.reply()
