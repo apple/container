@@ -14,8 +14,6 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-//
-
 import ContainerClient
 import Containerization
 import ContainerizationError

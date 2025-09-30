@@ -14,8 +14,6 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-//
-
 import AsyncHTTPClient
 import ContainerClient
 import ContainerNetworkService

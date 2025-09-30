@@ -14,8 +14,6 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-//
-
 import ContainerizationError
 import ContainerizationExtras
 import Testing

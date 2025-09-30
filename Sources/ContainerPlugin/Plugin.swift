@@ -14,8 +14,6 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-//
-
 import Foundation
 
 /// Value type that contains the plugin configuration, the parsed name of the
