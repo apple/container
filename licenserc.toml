@@ -22,4 +22,4 @@ ignore = 'enable'
 copyrightOwner = "Apple Inc. and the container project authors"
 
 [mapping.SWIFT_STYLE]
-extensions = ["swift"]
+extensions = ["swift", "c", "h"]
