@@ -36,6 +36,8 @@ public enum XPCKeys: String {
     case port
     /// Exit code for a process
     case exitCode
+    /// Exit timestamp for a process
+    case exitedAt
     /// An event that occurred in a container
     case containerEvent
     /// Error key.
@@ -207,6 +209,14 @@ extension XPCMessage {
 
     public func set(key: XPCKeys, value: Int) {
         set(key: key.rawValue, value: Int64(value))
+    }
+
+    public func date(key: XPCKeys) -> Date {
+        date(key: key.rawValue)
+    }
+
+    public func set(key: XPCKeys, value: Date) {
+        set(key: key.rawValue, value: value)
     }
 
     public func fileHandle(key: XPCKeys) -> FileHandle? {

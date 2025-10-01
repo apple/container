@@ -104,9 +104,10 @@ public struct ContainersHarness: Sendable {
             )
         }
 
-        let exitCode = try await service.wait(id: id, processID: processID)
+        let exitStatus = try await service.wait(id: id, processID: processID)
         let reply = message.reply()
-        reply.set(key: .exitCode, value: Int64(exitCode))
+        reply.set(key: .exitCode, value: Int64(exitStatus.exitCode))
+        reply.set(key: .exitedAt, value: exitStatus.exitedAt)
         return reply
     }
 

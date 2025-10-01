@@ -41,7 +41,7 @@ public actor SandboxService {
     private var container: ContainerInfo?
     private let monitor: ExitMonitor
     private let eventLoopGroup: any EventLoopGroup
-    private var waiters: [String: [CheckedContinuation<Int32, Never>]] = [:]
+    private var waiters: [String: [CheckedContinuation<ExitStatus, Never>]] = [:]
     private let lock: AsyncLock = AsyncLock()
     private let log: Logging.Logger
     private var state: State = .created
@@ -316,7 +316,7 @@ public actor SandboxService {
 
                 try await self.monitor.registerProcess(
                     id: id,
-                    onExit: { id, code in
+                    onExit: { id, exitStatus in
                         guard let process = await self.processes[id]?.process else {
                             throw ContainerizationError(
                                 .invalidState,
@@ -324,11 +324,11 @@ public actor SandboxService {
                             )
                         }
                         for cc in await self.waiters[id] ?? [] {
-                            cc.resume(returning: code)
+                            cc.resume(returning: exitStatus)
                         }
                         await self.removeWaiters(for: id)
                         try await process.delete()
-                        try await self.setProcessState(id: id, state: .stopped(code))
+                        try await self.setProcessState(id: id, state: .stopped(exitStatus.exitCode))
                     }
                 )
 
@@ -404,7 +404,7 @@ public actor SandboxService {
 
                 let ctr = try await self.getContainer()
                 let stopOptions = try message.stopOptions()
-                let code = try await self.gracefulStopContainer(
+                let exitStatus = try await self.gracefulStopContainer(
                     ctr.container,
                     stopOpts: stopOptions
                 )
@@ -417,7 +417,7 @@ public actor SandboxService {
                 } catch {
                     self.log.error("failed to cleanup container: \(error)")
                 }
-                await self.setState(.stopped(code))
+                await self.setState(.stopped(exitStatus.exitCode))
             default:
                 break
             }
@@ -565,12 +565,13 @@ public actor SandboxService {
             return reply
         }
 
-        let exitCode = await withCheckedContinuation { cc in
+        let exitStatus = await withCheckedContinuation { cc in
             // Is this safe since we are in an actor? :(
             self.addWaiter(id: id, cont: cc)
         }
         let reply = message.reply()
-        reply.set(key: .exitCode, value: Int64(exitCode))
+        reply.set(key: .exitCode, value: Int64(exitStatus.exitCode))
+        reply.set(key: .exitedAt, value: exitStatus.exitedAt)
         return reply
     }
 
@@ -722,8 +723,8 @@ public actor SandboxService {
         log.info("closed forwarders")
     }
 
-    private func onContainerExit(id: String, code: Int32) async throws {
-        self.log.info("init process exited with: \(code)")
+    private func onContainerExit(id: String, exitStatus: ExitStatus) async throws {
+        self.log.info("init process exited with: \(exitStatus)")
 
         try await self.lock.withLock { [self] _ in
             let ctrInfo = try await getContainer()
@@ -747,11 +748,11 @@ public actor SandboxService {
             } catch {
                 self.log.error("failed to cleanup container: \(error)")
             }
-            await setState(.stopped(code))
+            await setState(.stopped(exitStatus.exitCode))
 
             let waiters = await self.waiters[id] ?? []
             for cc in waiters {
-                cc.resume(returning: code)
+                cc.resume(returning: exitStatus)
             }
             await self.removeWaiters(for: id)
         }
@@ -928,12 +929,12 @@ public actor SandboxService {
         return container
     }
 
-    private func gracefulStopContainer(_ lc: LinuxContainer, stopOpts: ContainerStopOptions) async throws -> Int32 {
+    private func gracefulStopContainer(_ lc: LinuxContainer, stopOpts: ContainerStopOptions) async throws -> ExitStatus {
         // Try and gracefully shut down the process. Even if this succeeds we need to power off
         // the vm, but we should try this first always.
-        var code: Int32 = 255
+        var code = ExitStatus(exitCode: 255)
         do {
-            code = try await withThrowingTaskGroup(of: Int32.self) { group in
+            code = try await withThrowingTaskGroup(of: ExitStatus.self) { group in
                 group.addTask {
                     try await lc.wait()
                 }
@@ -942,7 +943,7 @@ public actor SandboxService {
                     try await Task.sleep(for: .seconds(stopOpts.timeoutInSeconds))
                     try await lc.kill(SIGKILL)
 
-                    return 137
+                    return ExitStatus(exitCode: 137)
                 }
                 guard let code = try await group.next() else {
                     throw ContainerizationError(
@@ -1121,7 +1122,7 @@ extension FileHandle: @retroactive ReaderStream, @retroactive Writer {
 // MARK: State handler helpers
 
 extension SandboxService {
-    private func addWaiter(id: String, cont: CheckedContinuation<Int32, Never>) {
+    private func addWaiter(id: String, cont: CheckedContinuation<ExitStatus, Never>) {
         var current = self.waiters[id] ?? []
         current.append(cont)
         self.waiters[id] = current

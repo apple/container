@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerXPC
+import Containerization
 import ContainerizationError
 import ContainerizationOS
 import Foundation
@@ -217,7 +218,7 @@ extension SandboxClient {
         }
     }
 
-    public func wait(_ id: String) async throws -> Int32 {
+    public func wait(_ id: String) async throws -> ExitStatus {
         let request = XPCMessage(route: SandboxRoutes.wait.rawValue)
         request.set(key: .id, value: id)
 
@@ -232,7 +233,8 @@ extension SandboxClient {
             )
         }
         let code = response.int64(key: .exitCode)
-        return Int32(code)
+        let date = response.date(key: .exitedAt)
+        return ExitStatus(exitCode: Int32(code), exitedAt: date)
     }
 
     public func dial(_ port: UInt32) async throws -> FileHandle {

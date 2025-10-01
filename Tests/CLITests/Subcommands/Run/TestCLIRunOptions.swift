@@ -435,7 +435,7 @@ class TestCLIRunCommand: CLITest {
                 "nameserver \(expectedDns)",
                 "domain \(expectedDomain)",
                 "search \(expectedSearch)",
-                "opts \(expectedOption)",
+                "options \(expectedOption)",
             ]
             #expect(expectedLines == actualLines)
         } catch {

@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import Containerization
 import ContainerizationError
 import ContainerizationExtras
 import Foundation
@@ -22,10 +23,10 @@ import Logging
 /// Track when long running work exits, and notify the caller via a callback.
 public actor ExitMonitor {
     /// A callback that receives the client identifier and exit code.
-    public typealias ExitCallback = @Sendable (String, Int32) async throws -> Void
+    public typealias ExitCallback = @Sendable (String, ExitStatus) async throws -> Void
 
     /// A function that waits for work to complete, returning an exit code.
-    public typealias WaitHandler = @Sendable () async throws -> Int32
+    public typealias WaitHandler = @Sendable () async throws -> ExitStatus
 
     /// Create a new monitor.
     ///
@@ -83,7 +84,7 @@ public actor ExitMonitor {
                 try await onExit(id, exitStatus)
             } catch {
                 self.log?.error("WaitHandler for \(id) threw error \(String(describing: error))")
-                try? await onExit(id, -1)
+                try? await onExit(id, ExitStatus(exitCode: -1))
             }
         }
     }

@@ -1,5 +1,5 @@
 {
-  "originHash" : "d852788a1449a5b3bdf211eea6fb59f173f6c8b3398bae619b5dc9c591d1620f",
+  "originHash" : "e8a26d708e3d286b0e29d74d94b6ff1539848a7a9fd209a230faedae5e285003",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -15,14 +15,14 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/containerization.git",
       "state" : {
-        "revision" : "511dd59e19a1b71127337639f5db7d7cc952b88c",
-        "version" : "0.8.1"
+        "revision" : "992ed9f5aa3b0e875ef8ac6b605a4c352218463b",
+        "version" : "0.9.1"
       }
     },
     {
       "identity" : "dns",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Bouke/DNS.git",
+      "location" : "https://github.com/Bouke/DNS",
       "state" : {
         "revision" : "78bbd1589890a90b202d11d5f9e1297050cf0eb2",
         "version" : "1.2.0"
@@ -31,7 +31,7 @@
     {
       "identity" : "dnsclient",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/orlandos-nl/DNSClient.git",
+      "location" : "https://github.com/orlandos-nl/DNSClient",
       "state" : {
         "revision" : "551fbddbf4fa728d4cd86f6a5208fe4f925f0549",
         "version" : "2.4.4"

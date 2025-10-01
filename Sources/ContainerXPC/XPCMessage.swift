@@ -201,6 +201,20 @@ extension XPCMessage {
         }
     }
 
+    public func date(key: String) -> Date {
+        lock.withLock {
+            let nsSinceEpoch = xpc_dictionary_get_date(self.object, key)
+            return Date(timeIntervalSince1970: TimeInterval(nsSinceEpoch) / 1_000_000_000)
+        }
+    }
+
+    public func set(key: String, value: Date) {
+        lock.withLock {
+            let nsSinceEpoch = Int64(value.timeIntervalSince1970 * 1_000_000_000)
+            xpc_dictionary_set_date(self.object, key, nsSinceEpoch)
+        }
+    }
+
     public func fileHandle(key: String) -> FileHandle? {
         let fd = lock.withLock {
             xpc_dictionary_get_value(self.object, key)

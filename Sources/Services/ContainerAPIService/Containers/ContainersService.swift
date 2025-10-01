@@ -352,7 +352,7 @@ public actor ContainersService {
 
     /// Wait waits for the container's init process or exec to exit and returns the
     /// exit status.
-    public func wait(id: String, processID: String) async throws -> Int32 {
+    public func wait(id: String, processID: String) async throws -> ExitStatus {
         self.log.debug("\(#function)")
 
         let state = try self._getContainerState(id: id)
@@ -423,13 +423,13 @@ public actor ContainersService {
         }
     }
 
-    private func handleContainerExit(id: String, code: Int32? = nil) async throws {
+    private func handleContainerExit(id: String, code: ExitStatus? = nil) async throws {
         try await self.lock.withLock { [self] context in
             try await handleContainerExit(id: id, code: code, context: context)
         }
     }
 
-    private func handleContainerExit(id: String, code: Int32?, context: AsyncLock.Context) async throws {
+    private func handleContainerExit(id: String, code: ExitStatus?, context: AsyncLock.Context) async throws {
         if let code {
             self.log.info("Handling container \(id) exit. Code \(code)")
         }
