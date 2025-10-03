@@ -85,9 +85,14 @@ class TestCLIRunCommand: CLITest {
     @Test func testRunCommandEnvFile() throws {
         do {
             let name = getTestName()
-            let envData = "FOO=bar"
+            let content = """
+                # Really cool comment
+                FOO=bar
+                BAR=baz wow
+                URL=https://foo.bar?baz=wow
+                """
             let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("test.env")
-            guard FileManager.default.createFile(atPath: tempFile.path(), contents: Data(envData.utf8)) else {
+            guard FileManager.default.createFile(atPath: tempFile.path(), contents: Data(content.utf8)) else {
                 Issue.record("failed to create temporary file \(tempFile.path())")
                 return
             }
@@ -99,9 +104,16 @@ class TestCLIRunCommand: CLITest {
                 try? doStop(name: name)
             }
             let inspectResp = try inspectContainer(name)
-            #expect(
-                inspectResp.configuration.initProcess.environment.contains(envData),
-                "environment variable \(envData) not set in container configuration")
+            let expected = [
+                "FOO=bar",
+                "BAR=baz wow",
+                "URL=https://foo.bar?baz=wow",
+            ]
+            for item in expected {
+                #expect(
+                    inspectResp.configuration.initProcess.environment.contains(item),
+                    "environment variable \(item) not set in container configuration")
+            }
             try doStop(name: name)
         } catch {
             Issue.record("failed to run container \(error)")
