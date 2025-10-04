@@ -17,8 +17,10 @@
 import ArgumentParser
 import ContainerizationError
 import Foundation
+import HelperMacros
 
 public struct Flags {
+    @OptionGroupPassthrough
     public struct Global: ParsableArguments {
         public init() {}
 
@@ -26,6 +28,7 @@ public struct Flags {
         public var debug = false
     }
 
+    @OptionGroupPassthrough
     public struct Process: ParsableArguments {
         public init() {}
 
@@ -63,6 +66,7 @@ public struct Flags {
         public var cwd: String?
     }
 
+    @OptionGroupPassthrough
     public struct Resource: ParsableArguments {
         public init() {}
 
@@ -76,6 +80,7 @@ public struct Flags {
         public var memory: String?
     }
 
+    @OptionGroupPassthrough
     public struct Registry: ParsableArguments {
         public init() {}
 
@@ -87,6 +92,7 @@ public struct Flags {
         public var scheme: String = "auto"
     }
 
+    @OptionGroupPassthrough
     public struct Management: ParsableArguments {
         public init() {}
 
@@ -201,6 +207,7 @@ public struct Flags {
         public var virtualization: Bool = false
     }
 
+    @OptionGroupPassthrough
     public struct Progress: ParsableArguments {
         public init() {}
 
