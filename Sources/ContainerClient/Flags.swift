@@ -17,6 +17,7 @@
 import ArgumentParser
 import ContainerizationError
 import Foundation
+import HelperMacros
 
 public struct Flags {
     public struct Global: ParsableArguments {
@@ -26,6 +27,7 @@ public struct Flags {
         public var debug = false
     }
 
+    @OptionGroupPassthrough
     public struct Process: ParsableArguments {
         public init() {}
 

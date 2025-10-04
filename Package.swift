@@ -19,6 +19,7 @@
 
 import Foundation
 import PackageDescription
+import CompilerPluginSupport
 
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
@@ -55,6 +56,7 @@ let package = Package(
         .package(url: "https://github.com/orlandos-nl/DNSClient.git", from: "2.4.1"),
         .package(url: "https://github.com/Bouke/DNS.git", from: "1.2.0"),
         .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion)),
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "602.0.0"),
     ],
     targets: [
         .executableTarget(
@@ -259,6 +261,7 @@ let package = Package(
                 "ContainerPlugin",
                 "ContainerXPC",
                 "TerminalProgress",
+                "HelperMacros",
             ]
         ),
         .testTarget(
@@ -372,6 +375,19 @@ let package = Package(
                 .define("RELEASE_VERSION", to: "\"\(releaseVersion)\""),
                 .define("BUILDER_SHIM_VERSION", to: "\"\(builderShimVersion)\""),
             ]
+        ),
+        .macro(
+            name: "HelperMacrosMacros",
+            dependencies: [
+                .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
+                .product(name: "SwiftCompilerPlugin", package: "swift-syntax")
+            ]
+        ),
+
+        // Library that exposes a macro as part of its API, which is used in client programs.
+        .target(
+            name: "HelperMacros",
+            dependencies: ["HelperMacrosMacros"]
         ),
     ]
 )

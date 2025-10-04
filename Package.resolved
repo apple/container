@@ -1,5 +1,5 @@
 {
-  "originHash" : "e8a26d708e3d286b0e29d74d94b6ff1539848a7a9fd209a230faedae5e285003",
+  "originHash" : "8316ed85ab8e011fad4661cdd43184f2fa28eb6d719b0cd7009a69822996e7b7",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -22,7 +22,7 @@
     {
       "identity" : "dns",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Bouke/DNS",
+      "location" : "https://github.com/Bouke/DNS.git",
       "state" : {
         "revision" : "78bbd1589890a90b202d11d5f9e1297050cf0eb2",
         "version" : "1.2.0"
@@ -31,7 +31,7 @@
     {
       "identity" : "dnsclient",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/orlandos-nl/DNSClient",
+      "location" : "https://github.com/orlandos-nl/DNSClient.git",
       "state" : {
         "revision" : "551fbddbf4fa728d4cd86f6a5208fe4f925f0549",
         "version" : "2.4.4"
@@ -233,6 +233,15 @@
       "state" : {
         "revision" : "e7187309187695115033536e8fc9b2eb87fd956d",
         "version" : "2.8.0"
+      }
+    },
+    {
+      "identity" : "swift-syntax",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swiftlang/swift-syntax.git",
+      "state" : {
+        "revision" : "4799286537280063c85a32f09884cfbca301b1a1",
+        "version" : "602.0.0"
       }
     },
     {
