@@ -1,5 +1,5 @@
 {
-  "originHash" : "e8a26d708e3d286b0e29d74d94b6ff1539848a7a9fd209a230faedae5e285003",
+  "originHash" : "2445cfa250b9b636c647750b1a28747cc3121b8450008ead928e955e52a454bc",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -13,10 +13,10 @@
     {
       "identity" : "containerization",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/containerization.git",
+      "location" : "https://github.com/sbhavani/containerization.git",
       "state" : {
-        "revision" : "992ed9f5aa3b0e875ef8ac6b605a4c352218463b",
-        "version" : "0.9.1"
+        "branch" : "feature/parallel-layer-downloads",
+        "revision" : "b39a2c3ade2be8e046e5a654ce55af5b02221fb0"
       }
     },
     {
