@@ -23,5 +23,6 @@
 
 import Foundation
 
-@attached(member, names: arbitrary)
+/// Creates a function in OptionGroups called `passThroughCommands` to return an array of strings to be appended and passed down for Plugin support.
+@attached(member, names: named(passThroughCommands))
 public macro OptionGroupPassthrough() = #externalMacro(module: "HelperMacrosMacros", type: "OptionGroupPassthrough")
