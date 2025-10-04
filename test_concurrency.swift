@@ -2,9 +2,6 @@
 
 import Foundation
 
-// MARK: - Minimal reproducible test for concurrent downloads
-
-/// Test that concurrent task groups respect the maxConcurrent limit
 func testConcurrentDownloads() async throws {
     print("Testing concurrent download behavior...\n")
 
@@ -49,7 +46,6 @@ func testConcurrentDownloads() async throws {
 
         let startTime = Date()
 
-        // This mimics the fetchAll() implementation in ImageStore+Import.swift
         try await withThrowingTaskGroup(of: Void.self) { group in
             var iterator = layers.makeIterator()
 
@@ -58,14 +54,11 @@ func testConcurrentDownloads() async throws {
                 if iterator.next() != nil {
                     group.addTask {
                         await tracker.taskStarted()
-                        // Simulate download time (10ms per layer)
                         try await Task.sleep(nanoseconds: 10_000_000)
                         await tracker.taskCompleted()
                     }
                 }
             }
-
-            // As tasks complete, add new ones to maintain concurrency
             for try await _ in group {
                 if iterator.next() != nil {
                     group.addTask {
@@ -80,33 +73,22 @@ func testConcurrentDownloads() async throws {
         let duration = Date().timeIntervalSince(startTime)
         let stats = await tracker.getStats()
 
-        print("  ✓ Completed: \(stats.completed)/\(layerCount) layers")
-        print("  ✓ Max concurrent: \(stats.max) (limit: \(maxConcurrent))")
+        print("  ✓ Completed: \(stats.completed)/\(layerCount)")
+        print("  ✓ Max concurrent: \(stats.max)")
         print("  ✓ Duration: \(String(format: "%.3f", duration))s")
 
-        // Verify constraints
         guard stats.max <= maxConcurrent + 1 else {
-            print("  ✗ FAILED: Exceeded concurrency limit!")
             throw TestError.concurrencyLimitExceeded
         }
 
         guard stats.completed == layerCount else {
-            print("  ✗ FAILED: Not all layers completed!")
             throw TestError.incompleteTasks
-        }
-
-        // Expected time should be roughly: (layerCount / maxConcurrent) * 0.01
-        let expectedTime = Double(layerCount) / Double(maxConcurrent) * 0.01
-        let tolerance = 0.1 // 100ms tolerance
-
-        if abs(duration - expectedTime) >= tolerance {
-            print("  ⚠ WARNING: Duration \(duration)s differs from expected \(expectedTime)s")
         }
 
         print("  ✅ PASSED\n")
     }
 
-    print("All concurrency tests passed! ✨")
+    print("All tests passed!")
 }
 
 enum TestError: Error {
@@ -114,16 +96,14 @@ enum TestError: Error {
     case incompleteTasks
 }
 
-// Run the test
 Task {
     do {
         try await testConcurrentDownloads()
         exit(0)
     } catch {
-        print("\n❌ Test failed: \(error)")
+        print("Test failed: \(error)")
         exit(1)
     }
 }
 
-// Keep the program running
 RunLoop.main.run()
