@@ -26,20 +26,23 @@ import SwiftSyntax
 import SwiftSyntaxMacros
 
 public struct OptionGroupPassthrough: MemberMacro {
-    public static func expansion(of node: AttributeSyntax, providingMembersOf declaration: some DeclGroupSyntax, conformingTo protocols: [TypeSyntax], in context: some MacroExpansionContext) throws -> [DeclSyntax] {
+    public static func expansion(
+        of node: AttributeSyntax, providingMembersOf declaration: some DeclGroupSyntax, conformingTo protocols: [TypeSyntax], in context: some MacroExpansionContext
+    ) throws -> [DeclSyntax] {
         guard let structDecl = declaration.as(StructDeclSyntax.self) else {
             throw MacroExpansionError.unsupportedDeclaration
         }
         let members = structDecl.memberBlock.members.filter({ $0.decl.is(VariableDeclSyntax.self) })
         var commands: [CommandOutline] = []
-        
-//        throw members.debugDescription
+
+        //        throw members.debugDescription
         for member in members {
             guard let decl = member.decl.as(VariableDeclSyntax.self) else {
                 continue
             }
             if let option = decl.attributes.first(where: { $0.as(AttributeSyntax.self)?.attributeName.as(IdentifierTypeSyntax.self)?.name.text == "Option" }),
-               let option = option.as(AttributeSyntax.self) {
+                let option = option.as(AttributeSyntax.self)
+            {
                 commands.append(try getOptionPropertyCommands(option, decl: decl))
             } else if let option = decl.attributes.first(where: { $0.as(AttributeSyntax.self)?.attributeName.as(IdentifierTypeSyntax.self)?.name.text == "Flag" }),
                 let option = option.as(AttributeSyntax.self)
@@ -47,53 +50,53 @@ public struct OptionGroupPassthrough: MemberMacro {
                 commands.append(try getFlagPropertyCommands(option, decl: decl))
             }
         }
-        
+
         var function = """
             public func passThroughCommands() -> [String] {
                 var commands: [String] = []
-            
+
             """
-        
+
         for command in commands {
             function.append(command.code)
             function.append("")
         }
-        
+
         function.append("return commands\n}")
-        
+
         return [.init(stringLiteral: function)]
     }
-    
+
     private static func getFlagPropertyCommands(_ option: AttributeSyntax, decl: VariableDeclSyntax) throws -> CommandOutline {
         let (optionType, customName) = try getOptionNameType(option)
         guard let identifierBinding = decl.bindings.first(where: { $0.pattern.is(IdentifierPatternSyntax.self) }),
-              let parameter = identifierBinding.pattern.as(IdentifierPatternSyntax.self)?.identifier
+            let parameter = identifierBinding.pattern.as(IdentifierPatternSyntax.self)?.identifier
         else {
             throw "Could Not Determine Variable"
         }
-        
+
         let optionName = customName ?? parameter.text
-        
+
         let nameCommand = optionType.tacks + optionName
-        
+
         return CommandOutline(type: .flag, flag: nameCommand, variable: parameter.text)
     }
-    
+
     private static func getOptionPropertyCommands(_ option: AttributeSyntax, decl: VariableDeclSyntax) throws -> CommandOutline {
         let (optionType, customName) = try getOptionNameType(option)
         guard let identifierBinding = decl.bindings.first(where: { $0.pattern.is(IdentifierPatternSyntax.self) }),
-              let parameter = identifierBinding.pattern.as(IdentifierPatternSyntax.self)?.identifier
+            let parameter = identifierBinding.pattern.as(IdentifierPatternSyntax.self)?.identifier
         else {
             throw "Could Not Determine Variable"
         }
-        
+
         let optionName = customName ?? parameter.text
-        
+
         let nameCommand = optionType.tacks + optionName
-        
+
         return CommandOutline(type: .option, flag: nameCommand, variable: parameter.text)
     }
-    
+
     private static func getOptionNameType(_ option: AttributeSyntax) throws -> (OptionNameType, String?) {
         guard let attribute = option.arguments?.as(LabeledExprListSyntax.self)?.first(where: { $0.label?.text == "name" }) else {
             throw "Error Parsing Option Name Attribute"
@@ -102,28 +105,31 @@ public struct OptionGroupPassthrough: MemberMacro {
         guard let optionType = OptionNameType(baseName: expression.declName.baseName) else {
             throw "Error Parsing Option Name"
         }
-        
+
         var customString: String?
         if [OptionNameType.customLong, .customShort].contains(optionType) {
             if let arrayExpression = attribute.expression.as(ArrayExprSyntax.self),
-               let last = arrayExpression.elements.last {
+                let last = arrayExpression.elements.last
+            {
                 customString = try _getCustomOptionNameFromExpression(last.expression)
             } else {
                 customString = try _getCustomOptionNameFromExpression(attribute.expression)
             }
         }
-        
+
         return (optionType, customString)
     }
-    
+
     private static func _getOptionNameTypeExpressionFromExpression(_ expression: ExprSyntax) throws -> MemberAccessExprSyntax {
-        if let expr = expression.as(MemberAccessExprSyntax.self)  {
+        if let expr = expression.as(MemberAccessExprSyntax.self) {
             return expr
         } else if let function = expression.as(FunctionCallExprSyntax.self),
-                  let expr = function.calledExpression.as(MemberAccessExprSyntax.self) {
+            let expr = function.calledExpression.as(MemberAccessExprSyntax.self)
+        {
             return expr
         } else if let array = expression.as(ArrayExprSyntax.self),
-                  let last = array.elements.last {
+            let last = array.elements.last
+        {
             return try _getOptionNameTypeExpressionFromExpression(last.expression)
         } else {
             throw "Error Parsing Option Name Expression: \(expression)"
@@ -132,24 +138,24 @@ public struct OptionGroupPassthrough: MemberMacro {
     private static func _getCustomOptionNameFromExpression(_ expression: ExprSyntax) throws -> String? {
         let customNameArguments = expression.as(FunctionCallExprSyntax.self)?.arguments
         guard let customNameArg = customNameArguments?.first,
-              let segment = customNameArg.expression.as(StringLiteralExprSyntax.self)?.segments.first
+            let segment = customNameArg.expression.as(StringLiteralExprSyntax.self)?.segments.first
         else {
             throw "Error Parsing Custom Option Name"
         }
-         return segment.as(StringSegmentSyntax.self)?.content.text
+        return segment.as(StringSegmentSyntax.self)?.content.text
     }
-    
+
     private enum OptionNameType: String {
         case short, long, customLong, customShort
-        
+
         init?(baseName: TokenSyntax) {
             guard let result = OptionNameType(baseName: baseName.text) else {
                 return nil
             }
-            
+
             self = result
         }
-        
+
         init?(baseName: String) {
             switch baseName {
             case "shortAndLong": self = .long
@@ -160,7 +166,7 @@ public struct OptionGroupPassthrough: MemberMacro {
             default: return nil
             }
         }
-        
+
         var tacks: String {
             switch self {
             case .short, .customShort:
@@ -176,25 +182,25 @@ private struct CommandOutline {
     let type: `Type`
     let flag: String
     let variable: String
-    
+
     enum `Type` {
         case flag, option
     }
-    
+
     var code: String {
         switch type {
         case .flag:
-        """
-        if \(variable) {
-            commands.append("\(flag)")
-        }
-        """
+            """
+            if \(variable) {
+                commands.append("\(flag)")
+            }
+            """
         case .option:
-        """
-        if "\\(\(variable), default: "%absolute-nil%")" != "%absolute-nil%" {
-            commands.append(contentsOf: ["\(flag)", "\\(\(variable), default: "%absolute-nil%")"])
-        }
-        """
+            """
+            if "\\(\(variable), default: "%absolute-nil%")" != "%absolute-nil%" {
+                commands.append(contentsOf: ["\(flag)", "\\(\(variable), default: "%absolute-nil%")"])
+            }
+            """
         }
     }
 }

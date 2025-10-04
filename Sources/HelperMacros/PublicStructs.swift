@@ -27,7 +27,7 @@ public struct CommandOutline {
     let type: `Type`
     let flag: String
     let variable: String
-    
+
     public enum `Type` {
         case flag, option
     }

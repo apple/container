@@ -22,8 +22,8 @@
 //
 
 import SwiftCompilerPlugin
-import SwiftSyntaxMacros
 import SwiftDiagnostics
+import SwiftSyntaxMacros
 
 @main
 struct SwiftMacrosAndMePlugin: CompilerPlugin {
@@ -37,7 +37,7 @@ extension String: @retroactive Error {
 
 enum MacroExpansionError: Error {
     case unsupportedDeclaration
-    
+
     var localizedDescription: String {
         switch self {
         case .unsupportedDeclaration:
