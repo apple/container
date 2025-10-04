@@ -99,7 +99,7 @@ public struct OptionGroupPassthrough: MemberMacro {
 
     private static func getOptionNameType(_ option: AttributeSyntax) throws -> (OptionNameType, String?) {
         guard let attribute = option.arguments?.as(LabeledExprListSyntax.self)?.first(where: { $0.label?.text == "name" }) else {
-            throw "Error Parsing Option Name Attribute"
+            return (.long, nil)
         }
         let expression: MemberAccessExprSyntax = try _getOptionNameTypeExpressionFromExpression(attribute.expression)
         guard let optionType = OptionNameType(baseName: expression.declName.baseName) else {
