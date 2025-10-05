@@ -130,80 +130,82 @@ public actor ContainersService {
     public func create(configuration: ContainerConfiguration, kernel: Kernel, options: ContainerCreateOptions) async throws {
         self.log.debug("\(#function)")
 
-        guard containers[configuration.id] == nil else {
-            throw ContainerizationError(
-                .exists,
-                message: "container already exists: \(configuration.id)"
-            )
-        }
-
-        var allHostnames = Set<String>()
-        for container in containers.values {
-            for attachmentConfiguration in container.snapshot.configuration.networks {
-                allHostnames.insert(attachmentConfiguration.options.hostname)
+        try await self.lock.withLock { context in
+            guard await self.containers[configuration.id] == nil else {
+                throw ContainerizationError(
+                    .exists,
+                    message: "container already exists: \(configuration.id)"
+                )
             }
-        }
 
-        var conflictingHostnames = [String]()
-        for attachmentConfiguration in configuration.networks {
-            if allHostnames.contains(attachmentConfiguration.options.hostname) {
-                conflictingHostnames.append(attachmentConfiguration.options.hostname)
+            var allHostnames = Set<String>()
+            for container in await self.containers.values {
+                for attachmentConfiguration in container.snapshot.configuration.networks {
+                    allHostnames.insert(attachmentConfiguration.options.hostname)
+                }
             }
-        }
 
-        guard conflictingHostnames.isEmpty else {
-            throw ContainerizationError(
-                .exists,
-                message: "hostname(s) already exist: \(conflictingHostnames)"
+            var conflictingHostnames = [String]()
+            for attachmentConfiguration in configuration.networks {
+                if allHostnames.contains(attachmentConfiguration.options.hostname) {
+                    conflictingHostnames.append(attachmentConfiguration.options.hostname)
+                }
+            }
+
+            guard conflictingHostnames.isEmpty else {
+                throw ContainerizationError(
+                    .exists,
+                    message: "hostname(s) already exist: \(conflictingHostnames)"
+                )
+            }
+
+            let runtimePlugin = self.runtimePlugins.filter {
+                $0.name == configuration.runtimeHandler
+            }.first
+            guard let runtimePlugin else {
+                throw ContainerizationError(
+                    .notFound,
+                    message: "unable to locate runtime plugin \(configuration.runtimeHandler)"
+                )
+            }
+
+            let path = self.containerRoot.appendingPathComponent(configuration.id)
+            let systemPlatform = kernel.platform
+            let initFs = try await self.getInitBlock(for: systemPlatform.ociPlatform())
+
+            let bundle = try ContainerClient.Bundle.create(
+                path: path,
+                initialFilesystem: initFs,
+                kernel: kernel,
+                containerConfiguration: configuration
             )
-        }
-
-        let runtimePlugin = self.runtimePlugins.filter {
-            $0.name == configuration.runtimeHandler
-        }.first
-        guard let runtimePlugin else {
-            throw ContainerizationError(
-                .notFound,
-                message: "unable to locate runtime plugin \(configuration.runtimeHandler)"
-            )
-        }
-
-        let path = self.containerRoot.appendingPathComponent(configuration.id)
-        let systemPlatform = kernel.platform
-        let initFs = try await getInitBlock(for: systemPlatform.ociPlatform())
-
-        let bundle = try ContainerClient.Bundle.create(
-            path: path,
-            initialFilesystem: initFs,
-            kernel: kernel,
-            containerConfiguration: configuration
-        )
-        do {
-            let containerImage = ClientImage(description: configuration.image)
-            let imageFs = try await containerImage.getCreateSnapshot(platform: configuration.platform)
-            try bundle.setContainerRootFs(cloning: imageFs)
-            try bundle.write(filename: "options.json", value: options)
-
-            try Self.registerService(
-                plugin: runtimePlugin,
-                loader: self.pluginLoader,
-                configuration: configuration,
-                path: path
-            )
-
-            let snapshot = ContainerSnapshot(
-                configuration: configuration,
-                status: .stopped,
-                networks: []
-            )
-            self.containers[configuration.id] = ContainerState(snapshot: snapshot)
-        } catch {
             do {
-                try bundle.delete()
+                let containerImage = ClientImage(description: configuration.image)
+                let imageFs = try await containerImage.getCreateSnapshot(platform: configuration.platform)
+                try bundle.setContainerRootFs(cloning: imageFs)
+                try bundle.write(filename: "options.json", value: options)
+
+                try Self.registerService(
+                    plugin: runtimePlugin,
+                    loader: self.pluginLoader,
+                    configuration: configuration,
+                    path: path
+                )
+
+                let snapshot = ContainerSnapshot(
+                    configuration: configuration,
+                    status: .stopped,
+                    networks: []
+                )
+                await self.setContainerState(configuration.id, ContainerState(snapshot: snapshot), context: context)
             } catch {
-                self.log.error("failed to delete bundle for container \(configuration.id): \(error)")
+                do {
+                    try bundle.delete()
+                } catch {
+                    self.log.error("failed to delete bundle for container \(configuration.id): \(error)")
+                }
+                throw error
             }
-            throw error
         }
     }
 
