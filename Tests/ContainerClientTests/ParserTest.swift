@@ -264,4 +264,160 @@ struct ParserTest {
             #expect(!Parser.isValidDomainName(name))
         }
     }
+
+    private func tmpFileWithContent(_ content: String) throws -> URL {
+        let tempDir = FileManager.default.temporaryDirectory
+        let tempFile = tempDir.appendingPathComponent("envfile-test-\(UUID().uuidString)")
+        try content.write(to: tempFile, atomically: true, encoding: .utf8)
+        return tempFile
+    }
+
+    // NOTE: A lot of these env-file tests are recreations of the docker cli's unit tests for their
+    // env-file support.
+
+    @Test
+    func testParseEnvFileGoodFile() throws {
+        var content = """
+            foo=bar
+                baz=quux
+            # comment
+
+            _foobar=foobaz
+            with.dots=working
+            and_underscore=working too
+            """
+        content += "\n    \t  "
+
+        let tmpFile = try tmpFileWithContent(content)
+        defer { try? FileManager.default.removeItem(at: tmpFile) }
+
+        let lines = try Parser.envFile(path: tmpFile.path)
+
+        let expectedLines = [
+            "foo=bar",
+            "baz=quux",
+            "_foobar=foobaz",
+            "with.dots=working",
+            "and_underscore=working too",
+        ]
+
+        #expect(lines == expectedLines)
+    }
+
+    @Test
+    func testParseEnvFileMultipleEqualsSigns() throws {
+        let content = """
+            URL=https://foo.bar?baz=woo
+            """
+        let tmpFile = try tmpFileWithContent(content)
+        defer { try? FileManager.default.removeItem(at: tmpFile) }
+
+        let lines = try Parser.envFile(path: tmpFile.path)
+
+        let expectedLines = [
+            "URL=https://foo.bar?baz=woo"
+        ]
+
+        #expect(lines == expectedLines)
+    }
+
+    @Test
+    func testParseEnvFileEmptyFile() throws {
+        let tmpFile = try tmpFileWithContent("")
+        defer { try? FileManager.default.removeItem(at: tmpFile) }
+
+        let lines = try Parser.envFile(path: tmpFile.path)
+        #expect(lines.isEmpty)
+    }
+
+    @Test
+    func testParseEnvFileNonExistentFile() throws {
+        #expect {
+            _ = try Parser.envFile(path: "/nonexistent/foo_bar_baz")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("not found")
+        }
+    }
+
+    @Test
+    func testParseEnvFileBadlyFormattedFile() throws {
+        let content = """
+            foo=bar
+                f   =quux
+            """
+        let tmpFile = try tmpFileWithContent(content)
+        defer { try? FileManager.default.removeItem(at: tmpFile) }
+
+        #expect {
+            _ = try Parser.envFile(path: tmpFile.path)
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("contains whitespaces")
+        }
+    }
+
+    @Test
+    func testParseEnvFileRandomFile() throws {
+        let content = """
+            first line
+            another invalid line
+            """
+        let tmpFile = try tmpFileWithContent(content)
+        defer { try? FileManager.default.removeItem(at: tmpFile) }
+
+        #expect {
+            _ = try Parser.envFile(path: tmpFile.path)
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("first line") && error.description.contains("contains whitespaces")
+        }
+    }
+
+    @Test
+    func testParseEnvVariableDefinitionsFile() throws {
+        let content = """
+            # comment=
+            UNDEFINED_VAR
+            HOME
+            """
+        let tmpFile = try tmpFileWithContent(content)
+        defer { try? FileManager.default.removeItem(at: tmpFile) }
+
+        let variables = try Parser.envFile(path: tmpFile.path)
+
+        // HOME should be imported from environment
+        guard let homeValue = ProcessInfo.processInfo.environment["HOME"] else {
+            Issue.record("HOME environment variable not set")
+            return
+        }
+
+        #expect(variables.count == 1)
+        #expect(variables[0] == "HOME=\(homeValue)")
+    }
+
+    @Test
+    func testParseEnvVariableWithNoNameFile() throws {
+        let content = """
+            # comment=
+            =blank variable names are an error case
+            """
+        let tmpFile = try tmpFileWithContent(content)
+        defer { try? FileManager.default.removeItem(at: tmpFile) }
+
+        #expect {
+            _ = try Parser.envFile(path: tmpFile.path)
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("no variable name")
+        }
+    }
 }
