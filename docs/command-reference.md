@@ -527,6 +527,7 @@ container network create NAME [OPTIONS]
 **Options**
 
 *   `--label <key=value>`: set metadata labels on the network
+*   `--subnet <value>`: set subnet on the network
 *   **Global**: `--version`, `-h`/`--help`
 
 ### `container network delete (rm)`
