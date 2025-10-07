@@ -46,7 +46,7 @@ extension Application {
             transform: { str in
                 URL(fileURLWithPath: str, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false)
             })
-        var output: String
+        var output: String?
 
         @Option(
             help: "Platform for the saved image (format: os/arch[/variant], takes precedence over --os and --arch)"
@@ -90,7 +90,32 @@ extension Application {
                 throw ContainerizationError(.invalidArgument, message: "failed to save image(s)")
 
             }
-            try await ClientImage.save(references: references, out: output, platform: p)
+
+            let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).tar")
+            defer {
+                try? FileManager.default.removeItem(at: tempFile)
+            }
+
+            guard FileManager.default.createFile(atPath: tempFile.path(), contents: nil) else {
+                throw ContainerizationError(.internalError, message: "unable to create temporary file")
+            }
+
+            try await ClientImage.save(references: references, out: output ?? tempFile.path(), platform: p)
+
+            // Write to stdout
+            if output == nil {
+                guard let outputHandle = try? FileHandle(forReadingFrom: tempFile) else {
+                    throw ContainerizationError(.internalError, message: "unable to open temporary file for reading")
+                }
+
+                let bufferSize = 4096
+                while true {
+                    let chunk = outputHandle.readData(ofLength: bufferSize)
+                    if chunk.isEmpty { break }
+                    FileHandle.standardOutput.write(chunk)
+                }
+                try outputHandle.close()
+            }
 
             progress.finish()
             for reference in references {

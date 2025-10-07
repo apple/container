@@ -34,14 +34,38 @@ extension Application {
             transform: { str in
                 URL(fileURLWithPath: str, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false)
             })
-        var input: String
+        var input: String?
 
         @OptionGroup
         var global: Flags.Global
 
         public func run() async throws {
-            guard FileManager.default.fileExists(atPath: input) else {
-                print("File does not exist \(input)")
+            let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).tar")
+            defer {
+                try? FileManager.default.removeItem(at: tempFile)
+            }
+
+            // Read from stdin
+            if input == nil {
+                guard FileManager.default.createFile(atPath: tempFile.path(), contents: nil) else {
+                    throw ContainerizationError(.internalError, message: "unable to create temporary file")
+                }
+
+                guard let outputHandle = try? FileHandle(forWritingTo: tempFile) else {
+                    throw ContainerizationError(.internalError, message: "unable to open temporary file for writing")
+                }
+
+                let bufferSize = 4096
+                while true {
+                    let chunk = FileHandle.standardInput.readData(ofLength: bufferSize)
+                    if chunk.isEmpty { break }
+                    outputHandle.write(chunk)
+                }
+                try outputHandle.close()
+            }
+
+            guard FileManager.default.fileExists(atPath: input ?? tempFile.path()) else {
+                print("File does not exist \(input ?? tempFile.path())")
                 Application.exit(withError: ArgumentParser.ExitCode(1))
             }
 
@@ -57,7 +81,7 @@ extension Application {
             progress.start()
 
             progress.set(description: "Loading tar archive")
-            let loaded = try await ClientImage.load(from: input)
+            let loaded = try await ClientImage.load(from: input ?? tempFile.path())
 
             let taskManager = ProgressTaskCoordinator()
             let unpackTask = await taskManager.startTask()

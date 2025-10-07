@@ -359,4 +359,65 @@ extension TestCLIImagesCommand {
             return
         }
     }
+
+    @Test func testImageSaveAndLoadStdinStdout() throws {
+        do {
+            // 1. pull image
+            try doPull(imageName: alpine)
+            try doPull(imageName: busybox)
+
+            // 2. Tag image so we can safely remove later
+            let alpineRef: Reference = try Reference.parse(alpine)
+            let alpineTagged = "\(alpineRef.name):testImageSaveAndLoadStdinStdout"
+            try doImageTag(image: alpine, newName: alpineTagged)
+            let alpineTaggedImagePresent = try isImagePresent(targetImage: alpineTagged)
+            #expect(alpineTaggedImagePresent, "expected to see image \(alpineTagged) tagged")
+
+            let busyboxRef: Reference = try Reference.parse(busybox)
+            let busyboxTagged = "\(busyboxRef.name):testImageSaveAndLoadStdinStdout"
+            try doImageTag(image: busybox, newName: busyboxTagged)
+            let busyboxTaggedImagePresent = try isImagePresent(targetImage: busyboxTagged)
+            #expect(busyboxTaggedImagePresent, "expected to see image \(busyboxTagged) tagged")
+
+            // 3. save the image and output to stdout
+            let saveArgs = [
+                "image",
+                "save",
+                alpineTagged,
+                busyboxTagged,
+            ]
+            let (stdoutData, _, error, status) = try run(arguments: saveArgs)
+            if status != 0 {
+                throw CLIError.executionFailed("command failed: \(error)")
+            }
+
+            // 4. remove the image through container
+            try doRemoveImages(images: [alpineTagged, busyboxTagged])
+
+            // 5. verify image is no longer present
+            let alpineImageRemoved = try !isImagePresent(targetImage: alpineTagged)
+            #expect(alpineImageRemoved, "expected image \(alpineTagged) to be removed")
+            let busyboxImageRemoved = try !isImagePresent(targetImage: busyboxTagged)
+            #expect(busyboxImageRemoved, "expected image \(busyboxTagged) to be removed")
+
+            // 6. load the tarball from the stdout data as stdin
+            let loadArgs = [
+                "image",
+                "load",
+            ]
+            let (_, _, loadErr, loadStatus) = try run(arguments: loadArgs, stdin: stdoutData)
+            if loadStatus != 0 {
+                throw CLIError.executionFailed("command failed: \(loadErr)")
+            }
+
+            // 7. verify image is in the list again
+            let alpineImagePresent = try isImagePresent(targetImage: alpineTagged)
+            #expect(alpineImagePresent, "expected \(alpineTagged) to be present")
+            let busyboxImagePresent = try isImagePresent(targetImage: busyboxTagged)
+            #expect(busyboxImagePresent, "expected \(busyboxTagged) to be present")
+        } catch {
+            Issue.record("failed to save and load image \(error)")
+            return
+        }
+    }
 }
