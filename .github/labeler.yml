@@ -1,0 +1,100 @@
+# Configuration for automatic PR labeling based on file changes
+# https://github.com/actions/labeler
+
+# Core areas
+"area: cli":
+  - Sources/CLI/**/*
+  - Sources/ContainerCommands/**/*
+
+"area: build":
+  - Sources/ContainerBuild/**/*
+  - Makefile
+  - Package.swift
+  - Package.resolved
+  - Protobuf.Makefile
+
+"area: client":
+  - Sources/ContainerClient/**/*
+
+"area: networking":
+  - Sources/ContainerNetworkService/**/*
+  - Sources/DNSServer/**/*
+  - Sources/SocketForwarder/**/*
+  - config/container-network-vmnet-config.json
+
+"area: services":
+  - Sources/Services/**/*
+  - Sources/ContainerAPIService/**/*
+  - Sources/ContainerImagesService/**/*
+  - Sources/ContainerSandboxService/**/*
+
+"area: runtime":
+  - Sources/Helpers/RuntimeLinux/**/*
+  - config/container-runtime-linux-config.json
+
+"area: plugin":
+  - Sources/ContainerPlugin/**/*
+
+"area: xpc":
+  - Sources/ContainerXPC/**/*
+
+"area: logging":
+  - Sources/ContainerLog/**/*
+
+"area: persistence":
+  - Sources/ContainerPersistence/**/*
+
+"area: terminal":
+  - Sources/TerminalProgress/**/*
+
+"area: helpers":
+  - Sources/Helpers/**/*
+
+# Testing
+"testing":
+  - Tests/**/*
+  - "**/*Test*.swift"
+  - "**/*Tests.swift"
+
+# Documentation
+"documentation":
+  - docs/**/*
+  - "**/*.md"
+  - scripts/make-docs.sh
+
+# Configuration
+"configuration":
+  - config/**/*
+  - "**/*.json"
+  - "**/*.toml"
+  - signing/**/*
+
+# Scripts and tooling
+"tooling":
+  - scripts/**/*
+  - licenserc.toml
+  - Makefile
+  - Protobuf.Makefile
+
+# GitHub specific
+"github":
+  - .github/**/*
+
+# Dependencies
+"dependencies":
+  - Package.swift
+  - Package.resolved
+
+# C/C++ code
+"c/c++":
+  - Sources/CVersion/**/*
+  - "**/*.c"
+  - "**/*.h"
+
+# Swift protocol buffers
+"protobuf":
+  - "**/*.proto"
+  - "**/*.pb.swift"
+  - "**/*.grpc.swift"
+  - Protobuf.Makefile
+

@@ -1,0 +1,50 @@
+name: "Pull Request Labeler"
+
+on:
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  label:
+    name: Label Pull Request
+    if: github.repository == 'apple/container'
+    runs-on: ubuntu-latest
+    outputs:
+      labels-applied: ${{ steps.labeler.outputs.labels-applied }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Apply labels based on file changes
+        id: labeler
+        uses: actions/labeler@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler.yml
+          sync-labels: true
+
+      - name: Trigger PR build workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            console.log('Labeling completed successfully, triggering PR build workflow');
+            
+            // Trigger the PR build workflow using workflow_dispatch
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'pr-build.yml',
+              ref: context.payload.pull_request.head.ref,
+              inputs: {
+                pr_number: context.payload.pull_request.number.toString(),
+                pr_head_sha: context.payload.pull_request.head.sha,
+                pr_base_ref: context.payload.pull_request.base.ref
+              }
+            });
+
