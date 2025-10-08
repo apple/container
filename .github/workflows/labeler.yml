@@ -11,7 +11,7 @@ permissions:
 jobs:
   label:
     name: Label Pull Request
-    if: github.repository == 'Ronitsabhaya75/container'
+    if: github.repository == 'apple/container'
     runs-on: ubuntu-latest
     outputs:
       labels-applied: ${{ steps.labeler.outputs.labels-applied }}
