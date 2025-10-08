@@ -218,15 +218,12 @@ extension PluginLoader {
         env[ApplicationRoot.environmentName] = appRoot.path(percentEncoded: false)
         env[InstallRoot.environmentName] = installRoot.path(percentEncoded: false)
 
-        let logUrl = rootURL.appendingPathComponent("service.log")
         let plist = LaunchPlist(
             label: id,
             arguments: [plugin.binaryURL.path] + (args ?? serviceConfig.defaultArguments),
             environment: env,
             limitLoadToSessionType: [.Aqua, .Background, .System],
             runAtLoad: serviceConfig.runAtLoad,
-            stdout: logUrl.path,
-            stderr: logUrl.path,
             machServices: plugin.getMachServices(instanceId: instanceId)
         )
 
