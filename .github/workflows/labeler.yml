@@ -29,22 +29,4 @@ jobs:
           configuration-path: .github/labeler.yml
           sync-labels: true
 
-      - name: Trigger PR build workflow
-        uses: actions/github-script@v7
-        with:
-          script: |
-            console.log('Labeling completed successfully, triggering PR build workflow');
-            
-            // Trigger the PR build workflow using workflow_dispatch
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'pr-build.yml',
-              ref: context.payload.pull_request.head.ref,
-              inputs: {
-                pr_number: context.payload.pull_request.number.toString(),
-                pr_head_sha: context.payload.pull_request.head.sha,
-                pr_base_ref: context.payload.pull_request.base.ref
-              }
-            });
 
