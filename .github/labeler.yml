@@ -3,98 +3,130 @@
 
 # Core areas
 "area: cli":
-  - Sources/CLI/**/*
-  - Sources/ContainerCommands/**/*
+  - changed-files:
+    - any-glob-to-any-file: 
+      - 'Sources/CLI/**/*'
+      - 'Sources/ContainerCommands/**/*'
 
 "area: build":
-  - Sources/ContainerBuild/**/*
-  - Makefile
-  - Package.swift
-  - Package.resolved
-  - Protobuf.Makefile
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Sources/ContainerBuild/**/*'
+      - 'Makefile'
+      - 'Package.swift'
+      - 'Package.resolved'
+      - 'Protobuf.Makefile'
 
 "area: client":
-  - Sources/ContainerClient/**/*
+  - changed-files:
+    - any-glob-to-any-file: 'Sources/ContainerClient/**/*'
 
 "area: networking":
-  - Sources/ContainerNetworkService/**/*
-  - Sources/DNSServer/**/*
-  - Sources/SocketForwarder/**/*
-  - config/container-network-vmnet-config.json
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Sources/ContainerNetworkService/**/*'
+      - 'Sources/DNSServer/**/*'
+      - 'Sources/SocketForwarder/**/*'
+      - 'config/container-network-vmnet-config.json'
 
 "area: services":
-  - Sources/Services/**/*
-  - Sources/ContainerAPIService/**/*
-  - Sources/ContainerImagesService/**/*
-  - Sources/ContainerSandboxService/**/*
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Sources/Services/**/*'
+      - 'Sources/ContainerAPIService/**/*'
+      - 'Sources/ContainerImagesService/**/*'
+      - 'Sources/ContainerSandboxService/**/*'
 
 "area: runtime":
-  - Sources/Helpers/RuntimeLinux/**/*
-  - config/container-runtime-linux-config.json
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Sources/Helpers/RuntimeLinux/**/*'
+      - 'config/container-runtime-linux-config.json'
 
 "area: plugin":
-  - Sources/ContainerPlugin/**/*
+  - changed-files:
+    - any-glob-to-any-file: 'Sources/ContainerPlugin/**/*'
 
 "area: xpc":
-  - Sources/ContainerXPC/**/*
+  - changed-files:
+    - any-glob-to-any-file: 'Sources/ContainerXPC/**/*'
 
 "area: logging":
-  - Sources/ContainerLog/**/*
+  - changed-files:
+    - any-glob-to-any-file: 'Sources/ContainerLog/**/*'
 
 "area: persistence":
-  - Sources/ContainerPersistence/**/*
+  - changed-files:
+    - any-glob-to-any-file: 'Sources/ContainerPersistence/**/*'
 
 "area: terminal":
-  - Sources/TerminalProgress/**/*
+  - changed-files:
+    - any-glob-to-any-file: 'Sources/TerminalProgress/**/*'
 
 "area: helpers":
-  - Sources/Helpers/**/*
+  - changed-files:
+    - any-glob-to-any-file: 'Sources/Helpers/**/*'
 
 # Testing
 "testing":
-  - Tests/**/*
-  - "**/*Test*.swift"
-  - "**/*Tests.swift"
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Tests/**/*'
+      - '**/*Test*.swift'
+      - '**/*Tests.swift'
 
 # Documentation
 "documentation":
-  - docs/**/*
-  - "**/*.md"
-  - scripts/make-docs.sh
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'docs/**/*'
+      - '**/*.md'
+      - 'scripts/make-docs.sh'
 
 # Configuration
 "configuration":
-  - config/**/*
-  - "**/*.json"
-  - "**/*.toml"
-  - signing/**/*
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'config/**/*'
+      - '**/*.json'
+      - '**/*.toml'
+      - 'signing/**/*'
 
 # Scripts and tooling
 "tooling":
-  - scripts/**/*
-  - licenserc.toml
-  - Makefile
-  - Protobuf.Makefile
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'scripts/**/*'
+      - 'licenserc.toml'
+      - 'Makefile'
+      - 'Protobuf.Makefile'
 
 # GitHub specific
 "github":
-  - .github/**/*
+  - changed-files:
+    - any-glob-to-any-file: '.github/**/*'
 
 # Dependencies
 "dependencies":
-  - Package.swift
-  - Package.resolved
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Package.swift'
+      - 'Package.resolved'
 
 # C/C++ code
 "c/c++":
-  - Sources/CVersion/**/*
-  - "**/*.c"
-  - "**/*.h"
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Sources/CVersion/**/*'
+      - '**/*.c'
+      - '**/*.h'
 
 # Swift protocol buffers
 "protobuf":
-  - "**/*.proto"
-  - "**/*.pb.swift"
-  - "**/*.grpc.swift"
-  - Protobuf.Makefile
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.proto'
+      - '**/*.pb.swift'
+      - '**/*.grpc.swift'
+      - 'Protobuf.Makefile'
 
