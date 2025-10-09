@@ -75,15 +75,12 @@ extension Application {
             env[ApplicationRoot.environmentName] = appRoot.path(percentEncoded: false)
             env[InstallRoot.environmentName] = installRoot.path(percentEncoded: false)
 
-            let logURL = apiServerDataUrl.appending(path: "apiserver.log")
             let plist = LaunchPlist(
                 label: "com.apple.container.apiserver",
                 arguments: args,
                 environment: env,
                 limitLoadToSessionType: [.Aqua, .Background, .System],
                 runAtLoad: true,
-                stdout: logURL.path,
-                stderr: logURL.path,
                 machServices: ["com.apple.container.apiserver"]
             )
 
