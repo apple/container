@@ -38,3 +38,8 @@ extension Application {
         )
     }
 }
+
+/// `ImageCommand` errors.
+public enum ImageCommandError: Swift.Error {
+    case invalidInput
+}

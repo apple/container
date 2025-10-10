@@ -46,7 +46,7 @@ extension Application {
             transform: { str in
                 URL(fileURLWithPath: str, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false)
             })
-        var output: String
+        var output: String?
 
         @Option(
             help: "Platform for the saved image (format: os/arch[/variant], takes precedence over --os and --arch)"
@@ -59,6 +59,15 @@ extension Application {
         @Argument var references: [String]
 
         public func run() async throws {
+            var filePath = ""
+            if output == nil {
+                print("Pathname for the saved image: ", terminator: "")
+                guard let userInput = readLine() else {
+                    throw ImageCommandError.invalidInput
+                }
+                filePath = userInput
+            }
+
             var p: Platform?
             if let platform {
                 p = try Platform(from: platform)
@@ -90,7 +99,7 @@ extension Application {
                 throw ContainerizationError(.invalidArgument, message: "failed to save image(s)")
 
             }
-            try await ClientImage.save(references: references, out: output, platform: p)
+            try await ClientImage.save(references: references, out: output ?? filePath, platform: p)
 
             progress.finish()
             for reference in references {

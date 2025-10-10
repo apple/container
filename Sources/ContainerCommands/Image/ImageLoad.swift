@@ -34,14 +34,23 @@ extension Application {
             transform: { str in
                 URL(fileURLWithPath: str, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false)
             })
-        var input: String
+        var input: String?
 
         @OptionGroup
         var global: Flags.Global
 
         public func run() async throws {
-            guard FileManager.default.fileExists(atPath: input) else {
-                print("File does not exist \(input)")
+            var filePath = ""
+            if input == nil {
+                print("Path to the image tar archive: ", terminator: "")
+                guard let userInput = readLine() else {
+                    throw ImageCommandError.invalidInput
+                }
+                filePath = userInput
+            }
+
+            guard FileManager.default.fileExists(atPath: input ?? filePath) else {
+                print("File does not exist \(input ?? filePath)")
                 Application.exit(withError: ArgumentParser.ExitCode(1))
             }
 
@@ -57,7 +66,7 @@ extension Application {
             progress.start()
 
             progress.set(description: "Loading tar archive")
-            let loaded = try await ClientImage.load(from: input)
+            let loaded = try await ClientImage.load(from: input ?? filePath)
 
             let taskManager = ProgressTaskCoordinator()
             let unpackTask = await taskManager.startTask()
