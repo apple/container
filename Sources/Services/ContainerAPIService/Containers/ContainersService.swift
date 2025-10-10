@@ -316,7 +316,7 @@ public actor ContainersService {
     public func kill(id: String, processID: String, signal: Int64) async throws {
         self.log.debug("\(#function)")
 
-        try await self.lock.withLock{ context in
+        try await self.lock.withLock { context in
             let state = try await self.getContainerState(id: id, context: context)
             let client = try state.getClient()
             try await client.kill(processID, signal: signal)
@@ -350,11 +350,11 @@ public actor ContainersService {
 
     public func dial(id: String, port: UInt32) async throws -> FileHandle {
 
-        try await self.lock.withLock{context in
+        try await self.lock.withLock { context in
             let state = try await self.getContainerState(id: id, context: context)
             let client = try state.getClient()
             return try await client.dial(port)
-        } 
+        }
     }
 
     /// Wait waits for the container's init process or exec to exit and returns the
@@ -362,7 +362,7 @@ public actor ContainersService {
     public func wait(id: String, processID: String) async throws -> ExitStatus {
         self.log.debug("\(#function)")
 
-        return try await self.lock.withLock {context in
+        return try await self.lock.withLock { context in
             let state = try await self.getContainerState(id: id, context: context)
             let client = try state.getClient()
             return try await client.wait(processID)
@@ -373,7 +373,7 @@ public actor ContainersService {
     public func resize(id: String, processID: String, size: Terminal.Size) async throws {
         self.log.debug("\(#function)")
 
-        try await self.lock.withLock {context in
+        try await self.lock.withLock { context in
             let state = try await self.getContainerState(id: id, context: context)
             let client = try state.getClient()
             try await client.resize(processID, size: size)
