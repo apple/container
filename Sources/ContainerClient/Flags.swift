@@ -18,6 +18,33 @@ import ArgumentParser
 import ContainerizationError
 import Foundation
 
+public struct NetworkArg: ExpressibleByArgument, Decodable {
+    var networkId: String
+    var ip: String?
+    // TODO throw error on invalid args
+    var invalidArgs: [String] = []
+
+    public init?(argument: String) {
+        let networkParts = argument.split(separator: ":", maxSplits: 1)
+        self.networkId = String(networkParts[0])
+        if networkParts.count == 2 {
+            let args = networkParts[1].split(separator: ",")
+            for arg in args {
+                let parts = arg.split(separator: "=", maxSplits: 1)
+                guard parts.count == 2 else {
+                    self.invalidArgs.append(String(arg))
+                    continue
+                }
+                if parts[0] == "ip" {
+                    self.ip = String(parts[1])
+                } else {
+                    self.invalidArgs.append(String(arg))
+                }
+            }
+        }
+    }
+}
+
 public struct Flags {
     public struct Global: ParsableArguments {
         public init() {}
@@ -151,8 +178,8 @@ public struct Flags {
         @Option(name: .long, help: "Use the specified name as the container ID")
         public var name: String?
 
-        @Option(name: [.customLong("network")], help: "Attach the container to a network")
-        public var networks: [String] = []
+        @Option(name: [.customLong("network")], help: "Attach the container to a network (format: network_id[:ip=<>])")
+        public var networks: [NetworkArg] = []
 
         @Flag(name: [.customLong("no-dns")], help: "Do not configure DNS in the container")
         public var dnsDisabled = false

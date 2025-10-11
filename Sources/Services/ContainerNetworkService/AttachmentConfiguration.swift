@@ -33,7 +33,10 @@ public struct AttachmentOptions: Codable, Sendable {
     /// The hostname associated with the attachment.
     public let hostname: String
 
-    public init(hostname: String) {
+    public let ip: String?
+
+    public init(hostname: String, ip: String? = nil) {
         self.hostname = hostname
+        self.ip = ip
     }
 }

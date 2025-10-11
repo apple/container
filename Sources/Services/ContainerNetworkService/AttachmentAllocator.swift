@@ -29,10 +29,16 @@ actor AttachmentAllocator {
     }
 
     /// Allocate a network address for a host.
-    func allocate(hostname: String) async throws -> UInt32 {
+    func allocate(hostname: String, staticIndex: UInt32? = nil) async throws -> UInt32 {
         // Client is responsible for ensuring two containers don't use same hostname, so provide existing IP if hostname exists
         if let index = hostnames[hostname] {
             return index
+        }
+
+        // TODO: Implement static index allocation properly
+        if let staticIndex {
+            hostnames[hostname] = staticIndex
+            return staticIndex
         }
 
         let index = try allocator.allocate()

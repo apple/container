@@ -142,7 +142,7 @@ public actor SandboxService {
             for index in 0..<config.networks.count {
                 let network = config.networks[index]
                 let client = NetworkClient(id: network.network)
-                let (attachment, additionalData) = try await client.allocate(hostname: network.options.hostname)
+                let (attachment, additionalData) = try await client.allocate(hostname: network.options.hostname, ip: network.options.ip)
                 attachments.append(attachment)
 
                 let interface = try self.interfaceStrategy.toInterface(

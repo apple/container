@@ -21,4 +21,5 @@ public enum NetworkKeys: String {
     case hostname
     case network
     case state
+    case ip
 }
