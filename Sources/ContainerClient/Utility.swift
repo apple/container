@@ -217,7 +217,7 @@ public struct Utility {
         return (config, kernel)
     }
 
-    static func getAttachmentConfigurations(containerId: String, networks: [NetworkArg]) throws -> [AttachmentConfiguration] {
+    static func getAttachmentConfigurations(containerId: String, networks: [Flags.NetworkArg]) throws -> [AttachmentConfiguration] {
         // make an FQDN for the first interface
         let fqdn: String?
         if !containerId.contains(".") {
