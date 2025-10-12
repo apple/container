@@ -21,7 +21,6 @@ import Foundation
 public struct NetworkArg: ExpressibleByArgument, Decodable {
     var networkId: String
     var ip: String?
-    // TODO throw error on invalid args
     var invalidArgs: [String] = []
 
     public init?(argument: String) {

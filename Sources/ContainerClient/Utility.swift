@@ -239,17 +239,14 @@ public struct Utility {
             }
 
             // attach the first network using the fqdn, and the rest using just the container ID
-            return networks.enumerated().map { item in
-                if item.offset == 0 {
-                    return AttachmentConfiguration(
-                        network: item.element.networkId,
-                        options: AttachmentOptions(hostname: fqdn ?? containerId, ip: item.element.ip)
-                    )
+            return try networks.enumerated().map { item in
+                guard item.element.invalidArgs.isEmpty else {
+                    throw ContainerizationError(.invalidArgument, message: "invalid network arguments \(item.element.networkId): \(item.element.invalidArgs.joined(separator: ", "))")
                 }
-                return AttachmentConfiguration(
-                    network: item.element.networkId,
-                    options: AttachmentOptions(hostname: containerId, ip: item.element.ip)
-                )
+                guard item.offset == 0 else {
+                    return AttachmentConfiguration(network: item.element.networkId, options: AttachmentOptions(hostname: containerId, ip: item.element.ip))
+                }
+                return AttachmentConfiguration(network: item.element.networkId, options: AttachmentOptions(hostname: fqdn ?? containerId, ip: item.element.ip))
             }
         }
         // if no networks specified, attach to the default network
