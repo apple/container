@@ -151,6 +151,9 @@ public struct Flags {
         @Option(name: .long, help: "Use the specified name as the container ID")
         public var name: String?
 
+        @Option(name: .long, help: "Set MAC address for the container (format: XX:XX:XX:XX:XX:XX)")
+        public var macAddress: String?
+
         @Option(name: [.customLong("network")], help: "Attach the container to a network")
         public var networks: [String] = []
 
