@@ -69,9 +69,8 @@ extension Application {
             args.append("start")
             let apiServerDataUrl = appRoot.appending(path: "apiserver")
             try! FileManager.default.createDirectory(at: apiServerDataUrl, withIntermediateDirectories: true)
-            var env = ProcessInfo.processInfo.environment.filter { key, _ in
-                key.hasPrefix("CONTAINER_")
-            }
+
+            var env = PluginLoader.filterEnvironment()
             env[ApplicationRoot.environmentName] = appRoot.path(percentEncoded: false)
             env[InstallRoot.environmentName] = installRoot.path(percentEncoded: false)
 
