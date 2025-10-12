@@ -35,8 +35,8 @@ actor AttachmentAllocator {
             return index
         }
 
-        // TODO: Implement static index allocation properly
         if let staticIndex {
+            try allocator.reserve(staticIndex)
             hostnames[hostname] = staticIndex
             return staticIndex
         }
