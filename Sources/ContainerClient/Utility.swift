@@ -241,7 +241,8 @@ public struct Utility {
             // attach the first network using the fqdn, and the rest using just the container ID
             return try networks.enumerated().map { item in
                 guard item.element.invalidArgs.isEmpty else {
-                    throw ContainerizationError(.invalidArgument, message: "invalid network arguments \(item.element.networkId): \(item.element.invalidArgs.joined(separator: ", "))")
+                    throw ContainerizationError(
+                        .invalidArgument, message: "invalid network arguments \(item.element.networkId): \(item.element.invalidArgs.joined(separator: ", "))")
                 }
                 guard item.offset == 0 else {
                     return AttachmentConfiguration(network: item.element.networkId, options: AttachmentOptions(hostname: containerId, ip: item.element.ip))

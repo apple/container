@@ -18,7 +18,6 @@ import ArgumentParser
 import ContainerizationError
 import Foundation
 
-
 public struct Flags {
     public struct NetworkArg: ExpressibleByArgument, Decodable {
         var networkId: String
