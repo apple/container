@@ -11,15 +11,6 @@
       }
     },
     {
-      "identity" : "containerization",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/containerization.git",
-      "state" : {
-        "revision" : "d0383eb5bf97f27bceb51538597194b020bc8945",
-        "version" : "0.10.0"
-      }
-    },
-    {
       "identity" : "dns",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Bouke/DNS",
