@@ -74,7 +74,9 @@ extension Application {
 
             let builderImage: String = DefaultsStore.get(key: .defaultBuilderImage)
             let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
-            let exportsMount: String = systemHealth.appRoot.appendingPathComponent(".build").absolutePath()
+            let exportsMount: String = systemHealth.appRoot
+                .appendingPathComponent(Application.BuilderCommand.builderResourceDir)
+                .absolutePath()
 
             if !FileManager.default.fileExists(atPath: exportsMount) {
                 try FileManager.default.createDirectory(
