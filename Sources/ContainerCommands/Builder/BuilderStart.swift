@@ -148,20 +148,6 @@ extension Application {
             let id = "buildkit"
             try ContainerClient.Utility.validEntityName(id)
 
-            let processConfig = ProcessConfiguration(
-                executable: "/usr/local/bin/container-builder-shim",
-                arguments: shimArguments,
-                environment: [],
-                workingDirectory: "/",
-                terminal: false,
-                user: .id(uid: 0, gid: 0)
-            )
-
-            let resources = try Parser.resources(
-                cpus: cpus,
-                memory: memory
-            )
-
             let image = try await ClientImage.fetch(
                 reference: builderImage,
                 platform: builderPlatform,
@@ -178,12 +164,28 @@ extension Application {
                 platform: builderPlatform,
                 progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: progressUpdate)
             )
-            let imageConfig = ImageDescription(
+
+            let imageDesc = ImageDescription(
                 reference: builderImage,
                 descriptor: image.descriptor
             )
 
-            var config = ContainerConfiguration(id: id, image: imageConfig, process: processConfig)
+            let imageConfig = try await image.config(for: builderPlatform).config
+            let processConfig = ProcessConfiguration(
+                executable: "/usr/local/bin/container-builder-shim",
+                arguments: shimArguments,
+                environment: imageConfig?.env ?? [],
+                workingDirectory: "/",
+                terminal: false,
+                user: .id(uid: 0, gid: 0)
+            )
+
+            let resources = try Parser.resources(
+                cpus: cpus,
+                memory: memory
+            )
+
+            var config = ContainerConfiguration(id: id, image: imageDesc, process: processConfig)
             config.resources = resources
             config.mounts = [
                 .init(
