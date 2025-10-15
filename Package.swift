@@ -23,7 +23,7 @@ import PackageDescription
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
 let builderShimVersion = "0.6.1"
-let scVersion = "0.10.0"
+let scVersion = "0.10.1"
 
 let package = Package(
     name: "container",

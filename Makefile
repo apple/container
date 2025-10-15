@@ -24,6 +24,8 @@ SWIFT := "/usr/bin/swift"
 DESTDIR ?= /usr/local/
 ROOT_DIR := $(shell git rev-parse --show-toplevel)
 BUILD_BIN_DIR = $(shell $(SWIFT) build -c $(BUILD_CONFIGURATION) --show-bin-path)
+COV_DATA_DIR = $(shell $(SWIFT) test --show-coverage-path | xargs dirname)
+COV_REPORT_FILE = $(ROOT_DIR)/code-coverage-report
 STAGING_DIR := bin/$(BUILD_CONFIGURATION)/staging/
 PKG_PATH := bin/$(BUILD_CONFIGURATION)/container-installer-unsigned.pkg
 DSYM_DIR := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM
@@ -136,6 +138,30 @@ install-kernel:
 	@bin/container system stop || true
 	@bin/container system start --enable-kernel-install $(SYSTEM_START_OPTS)
 
+.PHONY: coverage
+coverage: init-block
+	@echo Ensuring apiserver stopped before the CLI integration tests...
+	@bin/container system stop && sleep 3 && scripts/ensure-container-stopped.sh
+	@bin/container system start $(SYSTEM_START_OPTS) && \
+	echo "Starting unit tests" && \
+	{ \
+		exit_code=0; \
+		$(SWIFT) test --no-parallel --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) || exit_code=1 ; \
+		echo Ensuring apiserver stopped after the CLI integration tests ; \
+		scripts/ensure-container-stopped.sh ; \
+		echo Generating code coverage report... ; \
+		xcrun llvm-profdata merge -sparse $(COV_DATA_DIR)/*.profraw -o $(COV_DATA_DIR)/default.profdata ; \
+		xcrun llvm-cov show --compilation-dir=`pwd` \
+			-instr-profile=$(COV_DATA_DIR)/default.profdata \
+			--ignore-filename-regex=".build/" \
+			--ignore-filename-regex=".pb.swift" \
+			--ignore-filename-regex=".proto" \
+			--ignore-filename-regex=".grpc.swift" \
+			$(BUILD_BIN_DIR)/containerPackageTests.xctest/Contents/MacOS/containerPackageTests > $(COV_REPORT_FILE) ; \
+		echo Code coverage report generated: $(COV_REPORT_FILE) ; \
+		exit $${exit_code} ; \
+	}
+
 .PHONY: integration
 integration: init-block
 	@echo Ensuring apiserver stopped before the CLI integration tests...
@@ -206,4 +232,5 @@ clean:
 	@echo Cleaning build files...
 	@rm -rf bin/ libexec/
 	@rm -rf _site _serve
+	@rm -f $(COV_REPORT_FILE)
 	@$(SWIFT) package clean
