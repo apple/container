@@ -57,7 +57,7 @@ container run [OPTIONS] IMAGE [COMMAND] [ARG...]
     
     * **Behavior of `auto`**  
   
-        When `auto` is selected, the target registry is considered **internal/local** based checking the host against several criteria:  
+        When `auto` is selected, the target registry is considered **internal/local** if the registry host matches any of these criteria:    
         - The host is a loopback address (e.g., `localhost`, `127.*`)  
         - The host is within the `RFC1918` private IP ranges:  
             - `10.*.*.*`  
@@ -65,7 +65,7 @@ container run [OPTIONS] IMAGE [COMMAND] [ARG...]
             - `172.16.*.*` through `172.31.*.*`  
         - The host ends with the machine’s default container DNS domain (as defined in `DefaultsStore.Keys.defaultDNSDomain`, located [here](../Sources/ContainerPersistence/DefaultsStore.swift))  
   
-        If any of these conditions are true, the client uses **HTTP**. Otherwise, it uses **HTTPS**.
+        For internal/local registries, the client uses **HTTP**. Otherwise, it uses **HTTPS**.
 
 *   **Progress options**
     *   `--disable-progress-updates`: Disable progress bar updates
