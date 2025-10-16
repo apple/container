@@ -13,6 +13,7 @@ api-docs/
 workdir/
 installer/
 .venv/
+.claude/
 .clitests/
 test_results/
 *.pid

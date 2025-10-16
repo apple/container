@@ -545,7 +545,7 @@ class TestCLIRunCommand: CLITest {
         let invalidMAC = "invalid-mac"
         #expect(throws: (any Error).self) {
             try doLongRun(name: name, args: ["--mac-address", invalidMAC])
-        }  
+        }
     }
 
     func getDefaultDomain() throws -> String? {
