@@ -575,7 +575,7 @@ Only global flags are available for debugging, version, and help.
 
 ## Volume Management
 
-Manage persistent volumes for containers. Volumes can be explicitly created with `volume create` or implicitly created using anonymous volume syntax (`-v /path` without a source name).
+Manage persistent volumes for containers. Volumes can be explicitly created with `volume create` or implicitly created when referenced in container commands (e.g., `-v myvolume:/path` or `-v /path` for anonymous volumes).
 
 ### `container volume create`
 

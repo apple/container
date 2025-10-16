@@ -475,35 +475,4 @@ class TestCLIAnonymousVolumes: CLITest {
         let afterCount = try getAnonymousVolumeNames().count
         #expect(afterCount == beforeCount + 1, "anonymous volume should persist")
     }
-
-    @Test func testAnonymousVolumeErrorOnNonExistentNamedVolume() throws {
-        let testName = getTestName()
-        let containerName = "\(testName)_c1"
-        let nonExistentVolume = "\(testName)_nonexistent"
-
-        defer {
-            doRemoveIfExists(name: containerName, force: true)
-        }
-
-        // Try to run with non-existent named volume
-        let (_, error, status) = try run(arguments: [
-            "run",
-            "--name",
-            containerName,
-            "-v", "\(nonExistentVolume):/data",
-            alpine,
-            "echo", "test",
-        ])
-
-        // Should fail with volume not found error
-        #expect(status != 0, "should fail when named volume doesn't exist")
-        #expect(
-            error.contains("not found") || error.contains("nonexistent"),
-            "error should mention volume not found")
-
-        // No anonymous volume should be created
-        let volumes = try getAnonymousVolumeNames()
-        let hasMatchingVolume = volumes.contains { $0.contains(testName) }
-        #expect(!hasMatchingVolume, "no anonymous volume should be created for non-existent named volume")
-    }
 }
