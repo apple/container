@@ -190,15 +190,20 @@ class CLITest {
         name: String,
         image: String? = nil,
         args: [String]? = nil,
-        containerArgs: [String]? = nil
+        containerArgs: [String]? = nil,
+        autoRemove: Bool = true
     ) throws {
         var runArgs = [
-            "run",
-            "--rm",
+            "run"
+        ]
+        if autoRemove {
+            runArgs.append("--rm")
+        }
+        runArgs.append(contentsOf: [
             "--name",
             name,
             "-d",
-        ]
+        ])
         if let args {
             runArgs.append(contentsOf: args)
         }
