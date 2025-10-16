@@ -527,6 +527,7 @@ container network create NAME [OPTIONS]
 **Options**
 
 *   `--label <key=value>`: set metadata labels on the network
+*   `--subnet <value>`: set subnet on the network
 *   **Global**: `--version`, `-h`/`--help`
 
 ### `container network delete (rm)`
@@ -574,11 +575,11 @@ Only global flags are available for debugging, version, and help.
 
 ## Volume Management
 
-Manage persistent volumes for containers.
+Manage persistent volumes for containers. Volumes can be explicitly created with `volume create` or implicitly created using anonymous volume syntax (`-v /path` without a source name).
 
 ### `container volume create`
 
-Creates a new volume with an optional size and driver-specific options.
+Creates a new named volume with an optional size and driver-specific options.
 
 **Usage**
 
@@ -592,6 +593,24 @@ container volume create [OPTIONS] NAME
 *   `--opt <key=value>`: set driver-specific options
 *   `--label <key=value>`: set metadata labels on the volume
 *   **Global**: `--version`, `-h`/`--help`
+
+**Anonymous Volumes**
+
+Anonymous volumes are auto-created when using `-v /path` or `--mount type=volume,dst=/path` without specifying a source. They use UUID-based naming (`anon-{36-char-uuid}`):
+
+```bash
+# Creates anonymous volume
+container run -v /data alpine
+
+# Reuse anonymous volume by ID
+VOL=$(container volume list -q | grep anon)
+container run -v $VOL:/data alpine
+
+# Manual cleanup
+container volume rm $VOL
+```
+
+**Note**: Unlike Docker, anonymous volumes do NOT auto-cleanup with `--rm`. Manual deletion is required.
 
 ### `container volume delete (rm)`
 
