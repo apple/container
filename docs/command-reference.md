@@ -54,6 +54,19 @@ container run [OPTIONS] IMAGE [COMMAND] [ARG...]
     *   `--virtualization`: Expose virtualization capabilities to the container (requires host and guest support)
 *   **Registry options**
     *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
+    
+    * **Behavior of `auto`**  
+  
+        When `auto` is selected, the target registry is considered **internal/local** if the registry host matches any of these criteria:    
+        - The host is a loopback address (e.g., `localhost`, `127.*`)  
+        - The host is within the `RFC1918` private IP ranges:  
+            - `10.*.*.*`  
+            - `192.168.*.*`  
+            - `172.16.*.*` through `172.31.*.*`  
+        - The host ends with the machine’s default container DNS domain (as defined in `DefaultsStore.Keys.defaultDNSDomain`, located [here](../Sources/ContainerPersistence/DefaultsStore.swift))  
+  
+        For internal/local registries, the client uses **HTTP**. Otherwise, it uses **HTTPS**.
+
 *   **Progress options**
     *   `--disable-progress-updates`: Disable progress bar updates
 *   **Global options**
