@@ -26,6 +26,12 @@ extension Application {
             aliases: ["ls"]
         )
 
+        @Option(name: .long, help: "Format of the output")
+        var format: ListFormat = .table
+
+        @Flag(name: .shortAndLong, help: "Only output the domain")
+        var quiet = false
+
         @OptionGroup
         var global: Flags.Global
 
@@ -34,7 +40,35 @@ extension Application {
         public func run() async throws {
             let resolver: HostDNSResolver = HostDNSResolver()
             let domains = resolver.listDomains()
-            print(domains.joined(separator: "\n"))
+            try printDomains(domains: domains, format: format)
+        }
+
+        private func createHeader() -> [[String]] {
+            [["DOMAIN"]]
+        }
+
+        func printDomains(domains: [String], format: ListFormat) throws {
+            if format == .json {
+                let data = try JSONEncoder().encode(domains)
+                print(String(data: data, encoding: .utf8)!)
+
+                return
+            }
+
+            if self.quiet {
+                domains.forEach { domain in
+                    print(domain)
+                }
+                return
+            }
+
+            var rows = createHeader()
+            for domain in domains {
+                rows.append([domain])
+            }
+
+            let formatter = TableOutput(rows: rows)
+            print(formatter.format())
         }
 
     }
