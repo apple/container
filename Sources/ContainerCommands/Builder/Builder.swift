@@ -20,6 +20,7 @@ extension Application {
     public struct BuilderCommand: AsyncParsableCommand {
         public init() {}
 
+        public static let builderResourceDir = "builder"
         public static let configuration = CommandConfiguration(
             commandName: "builder",
             abstract: "Manage an image builder instance",
