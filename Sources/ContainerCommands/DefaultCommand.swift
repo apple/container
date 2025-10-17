@@ -32,6 +32,8 @@ struct DefaultCommand: AsyncParsableCommand {
     @Argument(parsing: .captureForPassthrough)
     var remaining: [String] = []
 
+    
+
     func run() async throws {
         // See if we have a possible plugin command.
         let pluginLoader = try? await Application.createPluginLoader()
