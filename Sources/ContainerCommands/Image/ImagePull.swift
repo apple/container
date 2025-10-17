@@ -102,7 +102,7 @@ extension Application {
             let taskManager = ProgressTaskCoordinator()
             let fetchTask = await taskManager.startTask()
             let image = try await ClientImage.pull(
-                reference: processedReference, platform: p, scheme: scheme, progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progress.handler)
+                reference: processedReference, platform: p, scheme: scheme, progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progress.handler), maxConcurrentDownloads: self.progressFlags.maxConcurrentDownloads
             )
 
             progress.set(description: "Unpacking image")
