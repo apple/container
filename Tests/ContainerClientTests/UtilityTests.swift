@@ -51,4 +51,10 @@ struct UtilityTests {
         #expect(result["standalone"] == "")
         #expect(result["key2"] == "value2")
     }
+
+    @Test("Trim digest removes sha256 prefix")
+    func testTrimDigestRemovesPrefix() {
+        let result = Utility.trimDigest(digest: "sha256:abc123")
+        #expect(result == "abc123")
+    }
 }
