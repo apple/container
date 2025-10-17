@@ -181,7 +181,7 @@ public struct Utility {
         config.virtualization = management.virtualization
 
         if management.networks.contains(ClientNetwork.noNetworkName) {
-            if management.networks.count != 1 {
+            guard management.networks.count == 1 else {
                 throw ContainerizationError(.unsupported, message: "no other networks may be created along with network \(ClientNetwork.noNetworkName)")
             }
             config.networks = []
