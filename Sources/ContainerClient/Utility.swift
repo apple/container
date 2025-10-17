@@ -160,19 +160,15 @@ public struct Utility {
             case .filesystem(let fs):
                 resolvedMounts.append(fs)
             case .volume(let parsed):
-                do {
-                    let volume = try await ClientVolume.inspect(parsed.name)
-                    let volumeMount = Filesystem.volume(
-                        name: parsed.name,
-                        format: volume.format,
-                        source: volume.source,
-                        destination: parsed.destination,
-                        options: parsed.options
-                    )
-                    resolvedMounts.append(volumeMount)
-                } catch {
-                    throw ContainerizationError(.invalidArgument, message: "volume '\(parsed.name)' not found")
-                }
+                let volume = try await getOrCreateVolume(parsed: parsed)
+                let volumeMount = Filesystem.volume(
+                    name: parsed.name,
+                    format: volume.format,
+                    source: volume.source,
+                    destination: parsed.destination,
+                    options: parsed.options
+                )
+                resolvedMounts.append(volumeMount)
             }
         }
 
@@ -287,5 +283,37 @@ public struct Utility {
             }
         }
         return result
+    }
+
+    /// Gets an existing volume or creates it if it doesn't exist.
+    /// Shows a warning for named volumes when auto-creating.
+    private static func getOrCreateVolume(parsed: ParsedVolume) async throws -> Volume {
+        let labels = parsed.isAnonymous ? [Volume.anonymousLabel: ""] : [:]
+
+        let volume: Volume
+        do {
+            volume = try await ClientVolume.create(
+                name: parsed.name,
+                driver: "local",
+                driverOpts: [:],
+                labels: labels
+            )
+        } catch let error as VolumeError {
+            guard case .volumeAlreadyExists = error else {
+                throw error
+            }
+            // Volume already exists, just inspect it
+            volume = try await ClientVolume.inspect(parsed.name)
+        } catch let error as ContainerizationError {
+            // Handle XPC-wrapped volumeAlreadyExists error
+            guard error.message.contains("already exists") else {
+                throw error
+            }
+            volume = try await ClientVolume.inspect(parsed.name)
+        }
+
+        // TODO: Warn user if named volume was auto-created
+
+        return volume
     }
 }
