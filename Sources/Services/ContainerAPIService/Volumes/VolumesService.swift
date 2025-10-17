@@ -167,7 +167,7 @@ public actor VolumesService {
 
         try await store.create(volume)
 
-        log.info("Created volume", metadata: ["name": "\(name)", "driver": "\(driver)"])
+        log.info("Created volume", metadata: ["name": "\(name)", "driver": "\(driver)", "isAnonymous": "\(volume.isAnonymous)"])
         return volume
     }
 
