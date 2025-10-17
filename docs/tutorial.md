@@ -69,7 +69,7 @@ CONTAINER SUBCOMMANDS:
   stop                    Stop one or more running containers
 
 IMAGE SUBCOMMANDS:
-  build                   Build an image from a Dockerfile
+  build                   Build an image from a Containerfile
   image, i                Manage images
   registry, r             Manage registry configurations
 
@@ -107,7 +107,7 @@ The second command makes `test` the default domain to use when running a contain
 
 ## Build an image
 
-Set up a `Dockerfile` for a basic Python web server, and use it to build a container image named `web-test`.
+Set up a `Containerfile` for a basic Python web server, and use it to build a container image named `web-test`.
 
 ### Set up a simple project
 
@@ -118,9 +118,9 @@ mkdir web-test
 cd web-test
 ```
 
-In the `web-test` directory, create a file named `Dockerfile` with this content:
+In the `web-test` directory, create a file named `Containerfile` with this content:
 
-```dockerfile
+```Containerfile
 FROM docker.io/python:alpine
 WORKDIR /content
 RUN apk add curl
@@ -140,13 +140,13 @@ The server listens on the wildcard address `0.0.0.0` to allow connections from t
 
 ### Build the web server image
 
-Run the `container build` command to create an image with the name `web-test` from your `Dockerfile`:
+Run the `container build` command to create an image with the name `web-test` from your `Containerfile`:
 
 ```bash
-container build --tag web-test --file Dockerfile .
+container build --tag web-test --file Containerfile .
 ```
 
-The last argument `.` tells the builder to use the current directory (`web-test`) as the root of the build context. You can copy files within the build context into your image using the `COPY` command in your Dockerfile.
+The last argument `.` tells the builder to use the current directory (`web-test`) as the root of the build context. You can copy files within the build context into your image using the `COPY` command in your Containerfile.
 
 After the build completes, list the images. You should see both the base image and the image that you built in the results:
 

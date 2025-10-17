@@ -32,7 +32,7 @@ extension Application {
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
             config.commandName = "build"
-            config.abstract = "Build an image from a Dockerfile"
+            config.abstract = "Build an image from a Containerfile"
             config._superCommandName = "container"
             config.helpNames = NameSpecification(arrayLiteral: .customShort("h"), .customLong("help"))
             return config
@@ -63,7 +63,7 @@ extension Application {
         @Option(name: .shortAndLong, help: "Number of CPUs to allocate to the builder container")
         var cpus: Int64 = 2
 
-        @Option(name: .shortAndLong, help: ArgumentHelp("Path to Dockerfile", valueName: "path"))
+        @Option(name: .shortAndLong, help: ArgumentHelp("Path to Containerfile", valueName: "path"))
         var file: String = "Dockerfile"
 
         @Option(name: .shortAndLong, help: ArgumentHelp("Set a label", valueName: "key=val"))
@@ -344,7 +344,7 @@ extension Application {
 
         public func validate() throws {
             guard FileManager.default.fileExists(atPath: file) else {
-                throw ValidationError("Dockerfile does not exist at path: \(file)")
+                throw ValidationError("Containerfile does not exist at path: \(file)")
             }
             guard FileManager.default.fileExists(atPath: contextDir) else {
                 throw ValidationError("context dir does not exist \(contextDir)")

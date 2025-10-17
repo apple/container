@@ -1,0 +1,94 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:apple-container}",
+            "name": "Debug container-runtime-linux",
+            "program": "${workspaceFolder:apple-container}/.build/debug/container-runtime-linux",
+            "preLaunchTask": "swift: Build Debug container-runtime-linux"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:apple-container}",
+            "name": "Release container-runtime-linux",
+            "program": "${workspaceFolder:apple-container}/.build/release/container-runtime-linux",
+            "preLaunchTask": "swift: Build Release container-runtime-linux"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:apple-container}",
+            "name": "Debug container-network-vmnet",
+            "program": "${workspaceFolder:apple-container}/.build/debug/container-network-vmnet",
+            "preLaunchTask": "swift: Build Debug container-network-vmnet"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:apple-container}",
+            "name": "Release container-network-vmnet",
+            "program": "${workspaceFolder:apple-container}/.build/release/container-network-vmnet",
+            "preLaunchTask": "swift: Build Release container-network-vmnet"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:apple-container}",
+            "name": "Debug container-core-images",
+            "program": "${workspaceFolder:apple-container}/.build/debug/container-core-images",
+            "preLaunchTask": "swift: Build Debug container-core-images"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:apple-container}",
+            "name": "Release container-core-images",
+            "program": "${workspaceFolder:apple-container}/.build/release/container-core-images",
+            "preLaunchTask": "swift: Build Release container-core-images"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:apple-container}",
+            "name": "Debug container-apiserver",
+            "program": "${workspaceFolder:apple-container}/.build/debug/container-apiserver",
+            "preLaunchTask": "swift: Build Debug container-apiserver"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:apple-container}",
+            "name": "Release container-apiserver",
+            "program": "${workspaceFolder:apple-container}/.build/release/container-apiserver",
+            "preLaunchTask": "swift: Build Release container-apiserver"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:apple-container}",
+            "name": "Debug container",
+            "program": "${workspaceFolder:apple-container}/.build/debug/container",
+            "preLaunchTask": "swift: Build Debug container"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:apple-container}",
+            "name": "Release container",
+            "program": "${workspaceFolder:apple-container}/.build/release/container",
+            "preLaunchTask": "swift: Build Release container"
+        }
+    ]
+}

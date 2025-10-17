@@ -12,7 +12,7 @@ container run --rm --cpus 8 --memory 32g big
 
 ## Configure memory and CPUs for large builds
 
-When you first run `container build`, `container` starts a *builder*, which is a utility container that builds images from your `Dockerfile`s. As with anything you run with `container run`, the builder runs in a lightweight virtual machine, so for resource-intensive builds, you may need to increase the memory and CPU limits for the builder VM.
+When you first run `container build`, `container` starts a *builder*, which is a utility container that builds images from your `Containerfile`s. As with anything you run with `container run`, the builder runs in a lightweight virtual machine, so for resource-intensive builds, you may need to increase the memory and CPU limits for the builder VM.
 
 By default, the builder VM receives 2 GiBytes of RAM and 2 CPUs. You can change these limits by starting the builder container before running `container build`:
 
@@ -62,7 +62,7 @@ Using the [project from the tutorial example](tutorial.md#set-up-a-simple-projec
 When building the image, just add `--arch` options that direct the builder to create an image supporting both the `arm64` and `amd64` architectures:
 
 ```bash
-container build --arch arm64 --arch amd64 --tag registry.example.com/fido/web-test:latest --file Dockerfile .
+container build --arch arm64 --arch amd64 --tag registry.example.com/fido/web-test:latest --file Containerfile .
 ```
 
 Try running the command `uname -a` with the `arm64` variant of the image to see the system information that the virtual machine reports:
