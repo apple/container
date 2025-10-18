@@ -102,7 +102,7 @@ container build [OPTIONS] [CONTEXT-DIR]
 *   `--platform <platform>`: Add the platform to the build (takes precedence over --os and --arch)
 *   `--progress <type>`: Progress type (format: auto|plain|tty)] (default: auto)
 *   `-q, --quiet`: Suppress build output
-*   `-t, --tag <name>`: Name for the built image
+*   `-t, --tag <name>`: Name for the built image (can be specified multiple times)
 *   `--target <stage>`: Set the target build stage
 *   `--vsock-port <port>`: Builder shim vsock port (default: 8088)
 *   `--version`: Show the version.
@@ -122,6 +122,9 @@ container build --build-arg NODE_VERSION=18 -t my-app .
 
 # build the production stage only and disable cache
 container build --target production --no-cache -t my-app:prod .
+
+# build with multiple tags
+container build -t my-app:latest -t my-app:v1.0.0 -t my-app:stable .
 ```
 
 ## Container Management

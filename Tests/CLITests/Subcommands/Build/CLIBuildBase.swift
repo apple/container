@@ -83,7 +83,23 @@ class TestCLIBuildBase: CLITest {
         otherArgs: [String] = []
     ) throws -> String {
         try buildWithPaths(
-            tag: tag,
+            tags: [tag],
+            tempContext: tempDir,
+            tempDockerfileContext: tempDir,
+            buildArgs: buildArgs,
+            otherArgs: otherArgs
+        )
+    }
+
+    @discardableResult
+    func build(
+        tags: [String],
+        tempDir: URL,
+        buildArgs: [String] = [],
+        otherArgs: [String] = []
+    ) throws -> String {
+        try buildWithPaths(
+            tags: tags,
             tempContext: tempDir,
             tempDockerfileContext: tempDir,
             buildArgs: buildArgs,
@@ -95,7 +111,7 @@ class TestCLIBuildBase: CLITest {
     // the dockerfile path. If both paths are the same, use `build` func above.
     @discardableResult
     func buildWithPaths(
-        tag: String,
+        tags: [String],
         tempContext: URL,
         tempDockerfileContext: URL,
         buildArgs: [String] = [],
@@ -107,9 +123,11 @@ class TestCLIBuildBase: CLITest {
             "build",
             "-f",
             tempDockerfileContext.appendingPathComponent("Dockerfile").path,
-            "-t",
-            tag,
         ]
+        for tag in tags {
+            args.append("-t")
+            args.append(tag)
+        }
         for arg in buildArgs {
             args.append("--build-arg")
             args.append(arg)
