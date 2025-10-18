@@ -55,8 +55,10 @@ extension DNSServer {
                     answers: []
                 )
 
-            // no responses
-            if response.answers.isEmpty {
+            // Only set NXDOMAIN if handler didn't explicitly set noError (NODATA response).
+            // This preserves NODATA responses for AAAA queries when A record exists,
+            // which prevents musl libc from treating empty AAAA as "domain doesn't exist".
+            if response.answers.isEmpty && response.returnCode != .noError {
                 response.returnCode = .nonExistentDomain
             }
 
