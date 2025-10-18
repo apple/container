@@ -18,6 +18,7 @@ import ContainerClient
 import Foundation
 import Testing
 
+@Suite(.serialized)
 class TestCLIVolumes: CLITest {
 
     func doVolumeCreate(name: String) throws {
@@ -322,5 +323,133 @@ class TestCLIVolumes: CLITest {
         ])
 
         #expect(status2 == 0, "second container should succeed")
+    }
+
+    @Test func testVolumePruneNoVolumes() throws {
+        // Prune with no volumes should succeed with 0 reclaimed
+        let (output, error, status) = try run(arguments: ["volume", "prune"])
+        if status != 0 {
+            throw CLIError.executionFailed("volume prune failed: \(error)")
+        }
+
+        #expect(output.contains("0 B") || output.contains("No volumes to prune"), "should show no space reclaimed or no volumes message")
+    }
+
+    @Test func testVolumePruneUnusedVolumes() throws {
+        let testName = getTestName()
+        let volumeName1 = "\(testName)_vol1"
+        let volumeName2 = "\(testName)_vol2"
+
+        // Clean up any existing resources from previous runs
+        doVolumeDeleteIfExists(name: volumeName1)
+        doVolumeDeleteIfExists(name: volumeName2)
+
+        defer {
+            doVolumeDeleteIfExists(name: volumeName1)
+            doVolumeDeleteIfExists(name: volumeName2)
+        }
+
+        try doVolumeCreate(name: volumeName1)
+        try doVolumeCreate(name: volumeName2)
+        let (listBefore, _, statusBefore) = try run(arguments: ["volume", "list", "--quiet"])
+        #expect(statusBefore == 0)
+        #expect(listBefore.contains(volumeName1))
+        #expect(listBefore.contains(volumeName2))
+
+        // Prune should remove both
+        let (output, error, status) = try run(arguments: ["volume", "prune"])
+        if status != 0 {
+            throw CLIError.executionFailed("volume prune failed: \(error)")
+        }
+
+        #expect(output.contains(volumeName1) || !output.contains("No volumes to prune"), "should prune volume1")
+        #expect(output.contains(volumeName2) || !output.contains("No volumes to prune"), "should prune volume2")
+        #expect(output.contains("Reclaimed"), "should show reclaimed space")
+
+        // Verify volumes are gone
+        let (listAfter, _, statusAfter) = try run(arguments: ["volume", "list", "--quiet"])
+        #expect(statusAfter == 0)
+        #expect(!listAfter.contains(volumeName1), "volume1 should be pruned")
+        #expect(!listAfter.contains(volumeName2), "volume2 should be pruned")
+    }
+
+    @Test func testVolumePruneSkipsVolumeInUse() throws {
+        let testName = getTestName()
+        let volumeInUse = "\(testName)_inuse"
+        let volumeUnused = "\(testName)_unused"
+        let containerName = "\(testName)_c1"
+
+        // Clean up any existing resources from previous runs
+        doVolumeDeleteIfExists(name: volumeInUse)
+        doVolumeDeleteIfExists(name: volumeUnused)
+        doRemoveIfExists(name: containerName, force: true)
+
+        defer {
+            try? doStop(name: containerName)
+            doRemoveIfExists(name: containerName, force: true)
+            doVolumeDeleteIfExists(name: volumeInUse)
+            doVolumeDeleteIfExists(name: volumeUnused)
+        }
+
+        try doVolumeCreate(name: volumeInUse)
+        try doVolumeCreate(name: volumeUnused)
+        try doLongRun(name: containerName, args: ["-v", "\(volumeInUse):/data"])
+        try waitForContainerRunning(containerName)
+
+        // Prune should only remove the unused volume
+        let (_, error, status) = try run(arguments: ["volume", "prune"])
+        if status != 0 {
+            throw CLIError.executionFailed("volume prune failed: \(error)")
+        }
+
+        // Verify in-use volume still exists
+        let (listAfter, _, statusAfter) = try run(arguments: ["volume", "list", "--quiet"])
+        #expect(statusAfter == 0)
+        #expect(listAfter.contains(volumeInUse), "volume in use should NOT be pruned")
+        #expect(!listAfter.contains(volumeUnused), "unused volume should be pruned")
+
+        try doStop(name: containerName)
+        doRemoveIfExists(name: containerName, force: true)
+        doVolumeDeleteIfExists(name: volumeInUse)
+    }
+
+    @Test func testVolumePruneSkipsVolumeAttachedToStoppedContainer() async throws {
+        let testName = getTestName()
+        let volumeName = "\(testName)_vol"
+        let containerName = "\(testName)_c1"
+
+        // Clean up any existing resources from previous runs
+        doVolumeDeleteIfExists(name: volumeName)
+        doRemoveIfExists(name: containerName, force: true)
+
+        defer {
+            doRemoveIfExists(name: containerName, force: true)
+            doVolumeDeleteIfExists(name: volumeName)
+        }
+
+        try doVolumeCreate(name: volumeName)
+        try doCreate(name: containerName, image: alpine, volumes: ["\(volumeName):/data"])
+        try await Task.sleep(for: .seconds(1))
+
+        // Prune should NOT remove the volume (container exists, even if stopped)
+        let (_, error, status) = try run(arguments: ["volume", "prune"])
+        if status != 0 {
+            throw CLIError.executionFailed("volume prune failed: \(error)")
+        }
+
+        let (listAfter, _, statusAfter) = try run(arguments: ["volume", "list", "--quiet"])
+        #expect(statusAfter == 0)
+        #expect(listAfter.contains(volumeName), "volume attached to stopped container should NOT be pruned")
+
+        doRemoveIfExists(name: containerName, force: true)
+        let (_, error2, status2) = try run(arguments: ["volume", "prune"])
+        if status2 != 0 {
+            throw CLIError.executionFailed("volume prune failed: \(error2)")
+        }
+
+        // Verify volume is gone
+        let (listFinal, _, statusFinal) = try run(arguments: ["volume", "list", "--quiet"])
+        #expect(statusFinal == 0)
+        #expect(!listFinal.contains(volumeName), "volume should be pruned after container is deleted")
     }
 }
