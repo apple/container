@@ -31,18 +31,13 @@ class TestCLIRunCommand: CLITest {
     }
 
     @Test func testRunCommand() throws {
-        do {
-            let name = getTestName()
-            try doLongRun(name: name, args: [])
-            defer {
-                try? doStop(name: name)
-            }
-            let _ = try doExec(name: name, cmd: ["date"])
-            try doStop(name: name)
-        } catch {
-            Issue.record("failed to run container \(error)")
-            return
+        let name = getTestName()
+        try doLongRun(name: name, args: [])
+        defer {
+            try? doStop(name: name)
         }
+        let _ = try doExec(name: name, cmd: ["date"])
+        try doStop(name: name)
     }
 
     @Test func testRunCommandCWD() throws {
@@ -524,6 +519,32 @@ class TestCLIRunCommand: CLITest {
         } catch {
             Issue.record("failed to run container \(error)")
             return
+        }
+    }
+
+    @Test func testRunCommandMACAddress() throws {
+        do {
+            let name = getTestName()
+            let expectedMAC = "02:42:ac:11:00:02"
+            try doLongRun(name: name, args: ["--mac-address", expectedMAC])
+            defer {
+                try? doStop(name: name)
+            }
+            var output = try doExec(name: name, cmd: ["ip", "addr", "show", "eth0"])
+            output = output.lowercased()
+            #expect(output.contains(expectedMAC.lowercased()), "expected MAC address \(expectedMAC) to be set, but got output: \(output)")
+            try doStop(name: name)
+        } catch {
+            Issue.record("failed to run container with custom MAC address \(error)")
+            return
+        }
+    }
+
+    @Test func testRunCommandInvalidMACAddress() throws {
+        let name = getTestName()
+        let invalidMAC = "invalid-mac"
+        #expect(throws: (any Error).self) {
+            try doLongRun(name: name, args: ["--mac-address", invalidMAC])
         }
     }
 

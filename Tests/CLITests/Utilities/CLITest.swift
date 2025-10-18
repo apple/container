@@ -256,7 +256,8 @@ class CLITest {
         image: String? = nil,
         args: [String]? = nil,
         volumes: [String] = [],
-        networks: [String] = []
+        networks: [String] = [],
+        macAddress: String? = nil
     ) throws {
         let image = image ?? alpine
         let args: [String] = args ?? ["sleep", "infinity"]
@@ -271,6 +272,11 @@ class CLITest {
         // Add networks
         for network in networks {
             arguments += ["--network", network]
+        }
+
+        // Add MAC address
+        if let macAddress = macAddress {
+            arguments += ["--mac-address", macAddress]
         }
 
         arguments += [image] + args
