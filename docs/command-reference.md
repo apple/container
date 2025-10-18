@@ -41,7 +41,7 @@ container run [OPTIONS] IMAGE [COMMAND] [ARG...]
     *   `-l, --label <label>`: Add a key=value label to the container
     *   `--mount <mount>`: Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)
     *   `--name <name>`: Use the specified name as the container ID
-    *   `--network <network>`: Attach the container to a network
+    *   `--network <network>`: Attach the container to a network (format: network_id[:ip=<>])
     *   `--no-dns`: Do not configure DNS in the container
     *   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
     *   `-p, --publish <spec>`: Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])

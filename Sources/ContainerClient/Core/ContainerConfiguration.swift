@@ -88,8 +88,8 @@ public struct ContainerConfiguration: Sendable, Codable {
             do {
                 networks = try container.decode([AttachmentConfiguration].self, forKey: .networks)
             } catch {
-                let networkIds = try container.decode([String].self, forKey: .networks)
-                networks = try Utility.getAttachmentConfigurations(containerId: id, networkIds: networkIds)
+                let networkArgs = try container.decode([Flags.NetworkArg].self, forKey: .networks)
+                networks = try Utility.getAttachmentConfigurations(containerId: id, networks: networkArgs)
             }
         } else {
             networks = []

@@ -46,9 +46,12 @@ extension NetworkClient {
         return state
     }
 
-    public func allocate(hostname: String) async throws -> (attachment: Attachment, additionalData: XPCMessage?) {
+    public func allocate(hostname: String, ip: String?) async throws -> (attachment: Attachment, additionalData: XPCMessage?) {
         let request = XPCMessage(route: NetworkRoutes.allocate.rawValue)
         request.set(key: NetworkKeys.hostname.rawValue, value: hostname)
+        if let ip {
+            request.set(key: NetworkKeys.ip.rawValue, value: ip)
+        }
 
         let client = createClient()
 
@@ -118,6 +121,14 @@ extension XPCMessage {
             throw ContainerizationError(.invalidArgument, message: "No hostname data in message")
         }
         return hostname
+    }
+
+    func ip() throws -> String? {
+        let ip = self.string(key: NetworkKeys.ip.rawValue)
+        guard let ip else {
+            return nil
+        }
+        return ip
     }
 
     func state() throws -> NetworkState {

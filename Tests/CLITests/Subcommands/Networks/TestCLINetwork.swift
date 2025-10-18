@@ -89,6 +89,52 @@ class TestCLINetwork: CLITest {
     }
 
     @available(macOS 26, *)
+    @Test func testNetworkStaticIp() async throws {
+        do {
+            let name = getLowercasedTestName()
+            let networkDeleteArgs = ["network", "delete", name]
+            _ = try? run(arguments: networkDeleteArgs)
+
+            let networkCreateArgs = ["network", "create", name]
+            let result = try run(arguments: networkCreateArgs)
+            if result.status != 0 {
+                throw CLIError.executionFailed("command failed: \(result.error)")
+            }
+
+            let networkInspectOutput = try inspectNetwork(name)
+            guard let networkInspectStatus = networkInspectOutput.status else {
+                throw CLIError.invalidOutput("network inspect output invalid, missing status")
+            }
+            let network = try CIDRAddress(networkInspectStatus.address)
+            var addressBytes = network.address.networkBytes
+            addressBytes[3] = UInt8.random(in: 10...100)
+            let staticIp = try IPv4Address(fromNetworkBytes: addressBytes).description
+
+            defer {
+                _ = try? run(arguments: networkDeleteArgs)
+            }
+            try doLongRun(
+                name: name,
+                image: "docker.io/library/alpine",
+                args: ["--network", "\(name):ip=\(staticIp)"],
+                containerArgs: ["sleep", "infinity"])
+            defer {
+                try? doStop(name: name)
+            }
+
+            let container = try inspectContainer(name)
+            #expect(container.networks.count > 0)
+            let cidrAddress = try CIDRAddress(container.networks[0].address)
+            #expect(cidrAddress.address.description == staticIp, "expected static ip \(staticIp), got \(cidrAddress.address.description)")
+
+            try doStop(name: name)
+        } catch {
+            Issue.record("failed to use a static IP in network \(error)")
+            return
+        }
+    }
+
+    @available(macOS 26, *)
     @Test func testNetworkDeleteWithContainer() async throws {
         do {
             // prep: delete container and network, ignoring if it doesn't exist

@@ -176,7 +176,7 @@ public struct Utility {
 
         config.virtualization = management.virtualization
 
-        config.networks = try getAttachmentConfigurations(containerId: config.id, networkIds: management.networks)
+        config.networks = try getAttachmentConfigurations(containerId: config.id, networks: management.networks)
         for attachmentConfiguration in config.networks {
             let network: NetworkState = try await ClientNetwork.get(id: attachmentConfiguration.network)
             guard case .running(_, _) = network else {
@@ -213,7 +213,7 @@ public struct Utility {
         return (config, kernel)
     }
 
-    static func getAttachmentConfigurations(containerId: String, networkIds: [String]) throws -> [AttachmentConfiguration] {
+    static func getAttachmentConfigurations(containerId: String, networks: [Flags.NetworkArg]) throws -> [AttachmentConfiguration] {
         // make an FQDN for the first interface
         let fqdn: String?
         if !containerId.contains(".") {
@@ -228,18 +228,22 @@ public struct Utility {
             fqdn = "\(containerId)."
         }
 
-        guard networkIds.isEmpty else {
+        guard networks.isEmpty else {
             // networks may only be specified for macOS 26+
             guard #available(macOS 26, *) else {
                 throw ContainerizationError(.invalidArgument, message: "non-default network configuration requires macOS 26 or newer")
             }
 
             // attach the first network using the fqdn, and the rest using just the container ID
-            return networkIds.enumerated().map { item in
-                guard item.offset == 0 else {
-                    return AttachmentConfiguration(network: item.element, options: AttachmentOptions(hostname: containerId))
+            return try networks.enumerated().map { item in
+                guard item.element.invalidArgs.isEmpty else {
+                    throw ContainerizationError(
+                        .invalidArgument, message: "invalid network arguments \(item.element.networkId): \(item.element.invalidArgs.joined(separator: ", "))")
                 }
-                return AttachmentConfiguration(network: item.element, options: AttachmentOptions(hostname: fqdn ?? containerId))
+                guard item.offset == 0 else {
+                    return AttachmentConfiguration(network: item.element.networkId, options: AttachmentOptions(hostname: containerId, ip: item.element.ip))
+                }
+                return AttachmentConfiguration(network: item.element.networkId, options: AttachmentOptions(hostname: fqdn ?? containerId, ip: item.element.ip))
             }
         }
         // if no networks specified, attach to the default network

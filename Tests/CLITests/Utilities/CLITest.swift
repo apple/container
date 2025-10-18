@@ -181,6 +181,7 @@ class CLITest {
         case invalidInput(String)
         case invalidOutput(String)
         case containerNotFound(String)
+        case networkNotFound(String)
         case containerRunFailed(String)
         case binaryNotFound
         case binaryAttributesNotFound(Error)
@@ -356,6 +357,36 @@ class CLITest {
             throw CLIError.containerNotFound(name)
         }
         return io[0].name
+    }
+
+    func inspectNetwork(_ name: String) throws -> NetworkInspectOutput {
+        let response = try run(arguments: [
+            "network",
+            "inspect",
+            name,
+        ])
+        let cmdStatus = response.status
+        guard cmdStatus == 0 else {
+            throw CLIError.executionFailed("network inspect failed: exit \(cmdStatus)")
+        }
+
+        let output = response.output
+        guard let jsonData = output.data(using: .utf8) else {
+            throw CLIError.invalidOutput("network inspect output invalid")
+        }
+
+        let decoder = JSONDecoder()
+
+        typealias inspectOutputs = [NetworkInspectOutput]
+
+        let io = try decoder.decode(inspectOutputs.self, from: jsonData)
+        guard io.count > 0 else {
+            throw CLIError.networkNotFound(name)
+        }
+        guard io.count == 1 else {
+            throw CLIError.invalidOutput("network inspect output invalid, multiple networks with same name")
+        }
+        return io[0]
     }
 
     func doPull(imageName: String, args: [String]? = nil) throws {

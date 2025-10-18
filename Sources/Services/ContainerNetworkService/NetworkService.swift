@@ -59,7 +59,13 @@ public actor NetworkService: Sendable {
         }
 
         let hostname = try message.hostname()
-        let index = try await allocator.allocate(hostname: hostname)
+        var index: UInt32
+        if let staticIpString = try message.ip() {
+            let staticIp = try IPv4Address(staticIpString)
+            index = try await allocator.allocate(hostname: hostname, staticIndex: staticIp.value)
+        } else {
+            index = try await allocator.allocate(hostname: hostname)
+        }
         let subnet = try CIDRAddress(status.address)
         let ip = IPv4Address(fromValue: index)
         let attachment = Attachment(
