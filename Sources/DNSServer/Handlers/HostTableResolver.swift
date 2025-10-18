@@ -32,13 +32,28 @@ public struct HostTableResolver: DNSHandler {
         switch question.type {
         case ResourceRecordType.host:
             record = answerHost(question: question)
+        case ResourceRecordType.host6:
+            // Return NODATA (noError with empty answers) for AAAA queries ONLY if A record exists.
+            // This is required because musl libc has issues when A record exists but AAAA returns NXDOMAIN.
+            // musl treats NXDOMAIN on AAAA as "domain doesn't exist" and fails DNS resolution entirely.
+            // NODATA correctly indicates "no IPv6 address available, but domain exists".
+            if hosts4[question.name] != nil {
+                return Message(
+                    id: query.id,
+                    type: .response,
+                    returnCode: .noError,
+                    questions: query.questions,
+                    answers: []
+                )
+            }
+            // If hostname doesn't exist, return nil which will become NXDOMAIN
+            return nil
         case ResourceRecordType.nameServer,
             ResourceRecordType.alias,
             ResourceRecordType.startOfAuthority,
             ResourceRecordType.pointer,
             ResourceRecordType.mailExchange,
             ResourceRecordType.text,
-            ResourceRecordType.host6,
             ResourceRecordType.service,
             ResourceRecordType.incrementalZoneTransfer,
             ResourceRecordType.standardZoneTransfer,
