@@ -1,13 +1,8 @@
-# Non-privileged workflow that analyzes PR content
-# This workflow runs with minimal permissions and processes untrusted code safely
-# Following OpenSSF best practices: https://openssf.org/blog/2024/08/12/mitigating-attack-vectors-in-github-workflows/
-
 name: PR Label Analysis
 
 on:
   pull_request:
     types: [opened]
-
 
 permissions:
   contents: read
@@ -18,21 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
-      
-      - name: Checkout labeler config from main
-        uses: actions/checkout@v4
-        with:
-          ref: main
-          sparse-checkout: |
-            .github/labeler.yml
-          sparse-checkout-cone-mode: false
-          path: trusted-config
       
       - name: Get changed files
         id: changed-files
@@ -42,6 +27,17 @@ jobs:
             cli:
               - 'Sources/CLI/**'
               - 'Sources/ContainerCommands/**'
+            builder:
+              - 'Sources/ContainerBuild/**'
+              - 'Sources/NativeBuilder/**'
+            documentation:
+              - '**/*.md'
+              - 'docs/**'
+            tests:
+              - 'Tests/**'
+              - '**/*Tests.swift'
+            ci:
+              - '.github/**'
       
       - name: Build label list
         id: build-labels
@@ -79,11 +75,6 @@ jobs:
           echo "${{ github.event.pull_request.number }}" > ./pr-metadata/pr-number.txt
           echo "${{ steps.build-labels.outputs.labels }}" > ./pr-metadata/labels.txt
           echo "${{ github.event.pull_request.head.sha }}" > ./pr-metadata/pr-sha.txt
-          
-          echo "=== PR Metadata ==="
-          cat ./pr-metadata/pr-number.txt
-          cat ./pr-metadata/labels.txt
-          cat ./pr-metadata/pr-sha.txt
       
       - name: Upload PR metadata as artifact
         uses: actions/upload-artifact@v4

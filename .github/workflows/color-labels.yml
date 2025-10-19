@@ -1,0 +1,63 @@
+name: Color Labels
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/color-labels.yml'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  create-labels:
+    name: Create labels with colors
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Create or update labels
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const labels = [
+              { name: 'cli', color: '0E8A16', description: 'Changes to CLI components' },
+            ];
+            
+            for (const label of labels) {
+              try {
+                await github.rest.issues.getLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: label.name
+                });
+                
+                await github.rest.issues.updateLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: label.name,
+                  color: label.color,
+                  description: label.description
+                });
+                
+                console.log(`✅ Updated label: ${label.name}`);
+              } catch (error) {
+                if (error.status === 404) {
+                  await github.rest.issues.createLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: label.name,
+                    color: label.color,
+                    description: label.description
+                  });
+                  
+                  console.log(`✅ Created label: ${label.name}`);
+                } else {
+                  throw error;
+                }
+              }
+            }
+            
+            console.log('🎉 All labels created/updated successfully!');
