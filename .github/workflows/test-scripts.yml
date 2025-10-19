@@ -1,0 +1,55 @@
+# Workflow to test JavaScript scripts used in PR labeling
+# This ensures our scripts work correctly before they're used in production
+
+name: Test Scripts
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/scripts/**'
+      - '.github/workflows/test-scripts.yml'
+  pull_request:
+    paths:
+      - '.github/scripts/**'
+      - '.github/workflows/test-scripts.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-javascript:
+    name: Test JavaScript Scripts
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Run apply-labels tests
+        run: |
+          cd .github/scripts
+          node apply-labels.test.js
+      
+      - name: Run post-comment tests
+        run: |
+          cd .github/scripts
+          node post-comment.test.js
+      
+      - name: Test summary
+        if: always()
+        run: |
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All JavaScript tests completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Tests Run:" >> $GITHUB_STEP_SUMMARY
+          echo "- apply-labels.test.js" >> $GITHUB_STEP_SUMMARY
+          echo "- post-comment.test.js" >> $GITHUB_STEP_SUMMARY

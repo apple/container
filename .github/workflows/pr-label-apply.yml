@@ -1,0 +1,144 @@
+# Privileged workflow that applies labels to PRs
+# This workflow runs with write permissions but does NOT checkout or run untrusted code
+# It only processes the PR number and labels from the artifact created by pr-label-analysis.yml
+# Following OpenSSF best practices: https://openssf.org/blog/2024/08/12/mitigating-attack-vectors-in-github-workflows/
+
+name: PR Label Apply
+
+on:
+  workflow_run:
+    workflows: ["PR Label Analysis"]
+    types:
+      - completed
+
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  apply-labels:
+    name: Apply labels to PR
+    runs-on: ubuntu-latest
+
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
+    steps:
+
+      - name: Checkout scripts from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          sparse-checkout: |
+            .github/scripts/
+          sparse-checkout-cone-mode: false
+      
+      - name: Download PR metadata artifact
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+          pattern: pr-metadata-*
+          merge-multiple: false
+        continue-on-error: true
+        id: download-artifact
+      
+      - name: Check if artifact was downloaded
+        id: check-artifact
+        run: |
+          METADATA_DIR=$(find . -type d -name "pr-metadata-*" 2>/dev/null | head -n 1)
+          
+          if [ -z "$METADATA_DIR" ]; then
+            echo "No PR metadata artifact found. This might be expected if the analysis workflow had no labels to apply."
+            echo "artifact-exists=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "artifact-exists=true" >> $GITHUB_OUTPUT
+          echo "metadata-dir=${METADATA_DIR}" >> $GITHUB_OUTPUT
+      
+      - name: Read PR metadata
+        if: steps.check-artifact.outputs.artifact-exists == 'true'
+        id: pr-metadata
+        run: |
+          METADATA_DIR="${{ steps.check-artifact.outputs.metadata-dir }}"
+          
+          if [ ! -f "${METADATA_DIR}/pr-number.txt" ]; then
+            echo "Error: pr-number.txt not found in artifact"
+            exit 1
+          fi
+          
+          PR_NUMBER=$(cat "${METADATA_DIR}/pr-number.txt")
+          LABELS=$(cat "${METADATA_DIR}/labels.txt" || echo "")
+          PR_SHA=$(cat "${METADATA_DIR}/pr-sha.txt" || echo "")
+          
+          echo "pr-number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+          echo "labels=${LABELS}" >> $GITHUB_OUTPUT
+          echo "pr-sha=${PR_SHA}" >> $GITHUB_OUTPUT
+          
+          echo "=== Processing PR ==="
+          echo "PR Number: ${PR_NUMBER}"
+          echo "Labels to apply: ${LABELS}"
+          echo "PR SHA: ${PR_SHA}"
+      
+      - name: Apply labels to PR
+        if: steps.check-artifact.outputs.artifact-exists == 'true' && steps.pr-metadata.outputs.labels != ''
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const applyLabels = require('./.github/scripts/apply-labels.js');
+            
+            const prNumber = parseInt('${{ steps.pr-metadata.outputs.pr-number }}');
+            const labelsString = '${{ steps.pr-metadata.outputs.labels }}';
+            
+            const result = await applyLabels(github, context, core, prNumber, labelsString);
+            
+            if (result.success) {
+              core.setOutput('labels-applied', result.appliedLabels.join(', '));
+              core.setOutput('should-comment', 'true');
+            } else {
+              console.log(`Skipped: ${result.reason || 'unknown'}`);
+              core.setOutput('should-comment', 'false');
+            }
+        id: apply-labels
+      
+      - name: Comment on PR
+        if: steps.apply-labels.outputs.should-comment == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const postComment = require('./.github/scripts/post-comment.js');
+            
+            const prNumber = parseInt('${{ steps.pr-metadata.outputs.pr-number }}');
+            const appliedLabels = '${{ steps.apply-labels.outputs.labels-applied }}'
+              .split(',')
+              .map(l => l.trim())
+              .filter(l => l !== '');
+            
+            await postComment(github, context, prNumber, appliedLabels);
+      
+      - name: Workflow summary
+        if: always()
+        run: |
+          echo "## PR Label Apply Workflow Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ steps.check-artifact.outputs.artifact-exists }}" == "true" ]]; then
+            echo "✅ PR metadata artifact found" >> $GITHUB_STEP_SUMMARY
+            echo "- **PR Number**: #${{ steps.pr-metadata.outputs.pr-number }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Labels**: ${{ steps.pr-metadata.outputs.labels }}" >> $GITHUB_STEP_SUMMARY
+            
+            if [[ "${{ steps.apply-labels.outputs.should-comment }}" == "true" ]]; then
+              echo "- **Status**: Labels applied successfully ✅" >> $GITHUB_STEP_SUMMARY
+            elif [[ -z "${{ steps.pr-metadata.outputs.labels }}" ]]; then
+              echo "- **Status**: No labels to apply (no matching file patterns)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- **Status**: Labels already present on PR" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "⚠️ No PR metadata artifact found" >> $GITHUB_STEP_SUMMARY
+            echo "This may happen if the analysis workflow failed or produced no labels." >> $GITHUB_STEP_SUMMARY
+          fi

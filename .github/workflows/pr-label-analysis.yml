@@ -1,0 +1,93 @@
+# Non-privileged workflow that analyzes PR content
+# This workflow runs with minimal permissions and processes untrusted code safely
+# Following OpenSSF best practices: https://openssf.org/blog/2024/08/12/mitigating-attack-vectors-in-github-workflows/
+
+name: PR Label Analysis
+
+on:
+  pull_request:
+    types: [opened]
+
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze PR for labeling
+    runs-on: ubuntu-latest
+    
+    steps:
+
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      
+      - name: Checkout labeler config from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          sparse-checkout: |
+            .github/labeler.yml
+          sparse-checkout-cone-mode: false
+          path: trusted-config
+      
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files_yaml: |
+            cli:
+              - 'Sources/CLI/**'
+              - 'Sources/ContainerCommands/**'
+      
+      - name: Build label list
+        id: build-labels
+        run: |
+          LABELS=""
+          
+          if [[ "${{ steps.changed-files.outputs.cli_any_changed }}" == "true" ]]; then
+            LABELS="${LABELS}cli,"
+          fi
+          
+          if [[ "${{ steps.changed-files.outputs.builder_any_changed }}" == "true" ]]; then
+            LABELS="${LABELS}area:builder,"
+          fi
+          
+          if [[ "${{ steps.changed-files.outputs.documentation_any_changed }}" == "true" ]]; then
+            LABELS="${LABELS}documentation,"
+          fi
+          
+          if [[ "${{ steps.changed-files.outputs.tests_any_changed }}" == "true" ]]; then
+            LABELS="${LABELS}tests,"
+          fi
+          
+          if [[ "${{ steps.changed-files.outputs.ci_any_changed }}" == "true" ]]; then
+            LABELS="${LABELS}ci,"
+          fi
+          
+          LABELS="${LABELS%,}"
+          
+          echo "labels=${LABELS}" >> $GITHUB_OUTPUT
+          echo "PR #${{ github.event.pull_request.number }} should have labels: ${LABELS}"
+      
+      - name: Save PR metadata
+        run: |
+          mkdir -p ./pr-metadata
+          echo "${{ github.event.pull_request.number }}" > ./pr-metadata/pr-number.txt
+          echo "${{ steps.build-labels.outputs.labels }}" > ./pr-metadata/labels.txt
+          echo "${{ github.event.pull_request.head.sha }}" > ./pr-metadata/pr-sha.txt
+          
+          echo "=== PR Metadata ==="
+          cat ./pr-metadata/pr-number.txt
+          cat ./pr-metadata/labels.txt
+          cat ./pr-metadata/pr-sha.txt
+      
+      - name: Upload PR metadata as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-metadata-${{ github.event.pull_request.number }}
+          path: pr-metadata/
+          retention-days: 1
