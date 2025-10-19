@@ -1,5 +1,8 @@
 name: container project - common jobs
 
+permissions:
+  contents: read
+
 on:
   workflow_call:
     inputs:
@@ -67,7 +70,6 @@ jobs:
 
       - name: Test the container project
         run: |
-          launchctl setenv HTTP_PROXY $HTTP_PROXY
           APP_ROOT=$(mktemp -d -p "${RUNNER_TEMP}")
           trap 'rm -rf "${APP_ROOT}"; echo Removing data directory ${APP_ROOT}' EXIT
           echo "Created data directory ${APP_ROOT}"

@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors. All rights reserved.
+// Copyright © 2025 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -167,7 +167,7 @@ public actor VolumesService {
 
         try await store.create(volume)
 
-        log.info("Created volume", metadata: ["name": "\(name)", "driver": "\(driver)"])
+        log.info("Created volume", metadata: ["name": "\(name)", "driver": "\(driver)", "isAnonymous": "\(volume.isAnonymous)"])
         return volume
     }
 

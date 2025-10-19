@@ -1,4 +1,4 @@
-Copyright ©{{ " " }}{%- set created = attrs.git_file_created_year or attrs.disk_file_created_year -%}{%- set modified = attrs.git_file_modified_year or created -%}{%- if created != modified -%} {{created}}-{{modified}}{%- else -%}{{created}}{%- endif -%}{{ " " }}{{ props["copyrightOwner"] }}. All rights reserved.
+Copyright ©{{ " " }}{%- set created = attrs.git_file_created_year or attrs.disk_file_created_year -%}{%- set modified = attrs.git_file_modified_year or created -%}{%- if created != modified -%} {{created}}-{{modified}}{%- else -%}{{created}}{%- endif -%}{{ " " }}{{ props["copyrightOwner"] }}.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

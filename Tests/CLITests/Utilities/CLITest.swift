@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors. All rights reserved.
+// Copyright © 2025 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -190,15 +190,20 @@ class CLITest {
         name: String,
         image: String? = nil,
         args: [String]? = nil,
-        containerArgs: [String]? = nil
+        containerArgs: [String]? = nil,
+        autoRemove: Bool = true
     ) throws {
         var runArgs = [
-            "run",
-            "--rm",
+            "run"
+        ]
+        if autoRemove {
+            runArgs.append("--rm")
+        }
+        runArgs.append(contentsOf: [
             "--name",
             name,
             "-d",
-        ]
+        ])
         if let args {
             runArgs.append(contentsOf: args)
         }

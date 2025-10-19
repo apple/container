@@ -1,6 +1,10 @@
 # Manual workflow for releasing docs ad-hoc. Workflow can only be run for main or release branches.
 # Workflow does NOT publish a release of container.
 name: Deploy application website
+
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
 

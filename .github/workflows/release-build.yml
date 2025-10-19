@@ -1,5 +1,8 @@
 name: container project - release build
 
+permissions:
+  contents: read
+
 on:
   push:
     tags:

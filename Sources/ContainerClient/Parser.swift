@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors. All rights reserved.
+// Copyright © 2025 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,11 +25,13 @@ public struct ParsedVolume {
     public let name: String
     public let destination: String
     public let options: [String]
+    public let isAnonymous: Bool
 
-    public init(name: String, destination: String, options: [String] = []) {
+    public init(name: String, destination: String, options: [String] = [], isAnonymous: Bool = false) {
         self.name = name
         self.destination = destination
         self.options = options
+        self.isAnonymous = isAnonymous
     }
 }
 
@@ -105,32 +107,83 @@ public struct Parser {
     }
 
     public static func envFile(path: String) throws -> [String] {
+        // This is a somewhat faithful Go->Swift port of Moby's envfile
+        // parsing in the cli:
+        // https://github.com/docker/cli/blob/f5a7a3c72eb35fc5ba9c4d65a2a0e2e1bd216bf2/pkg/kvfile/kvfile.go#L81
         guard FileManager.default.fileExists(atPath: path) else {
-            throw ContainerizationError(.notFound, message: "envfile at \(path) not found")
+            throw ContainerizationError(
+                .notFound,
+                message: "envfile at \(path) not found"
+            )
         }
 
-        let data = try String(contentsOfFile: path, encoding: .utf8)
-        let lines = data.components(separatedBy: .newlines)
-        var envVars: [String] = []
-        for line in lines {
-            let line = line.trimmingCharacters(in: .whitespaces)
-            if line.isEmpty {
+        guard let data = FileManager.default.contents(atPath: path) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "failed to read envfile at \(path)"
+            )
+        }
+
+        guard let content = String(data: data, encoding: .utf8) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "env file \(path) contains invalid utf8 bytes"
+            )
+        }
+
+        let whiteSpaces = " \t"
+
+        var lines: [String] = []
+        let fileLines = content.components(separatedBy: .newlines)
+
+        for line in fileLines {
+            let trimmedLine = line.drop(while: { $0.isWhitespace })
+
+            // Skip empty lines and comments
+            if trimmedLine.isEmpty || trimmedLine.hasPrefix("#") {
                 continue
             }
-            if !line.hasPrefix("#") {
-                let keyVals = line.split(separator: "=", maxSplits: 2)
-                if keyVals.count != 2 {
-                    continue
+
+            let hasValue: Bool
+            let variable: String
+            let value: String
+
+            if let equalIndex = trimmedLine.firstIndex(of: "=") {
+                variable = String(trimmedLine[..<equalIndex])
+                value = String(trimmedLine[trimmedLine.index(after: equalIndex)...])
+                hasValue = true
+            } else {
+                variable = String(trimmedLine)
+                value = ""
+                hasValue = false
+            }
+
+            let trimmedVariable = variable.drop(while: { whiteSpaces.contains($0) })
+            if trimmedVariable.contains(where: { whiteSpaces.contains($0) }) {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "variable '\(trimmedVariable)' contains whitespaces"
+                )
+            }
+
+            if trimmedVariable.isEmpty {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no variable name on line '\(trimmedLine)'"
+                )
+            }
+
+            if hasValue {
+                lines.append("\(trimmedVariable)=\(value)")
+            } else {
+                // We got just a variable name, try and see if it exists on the host.
+                if let envValue = ProcessInfo.processInfo.environment[String(trimmedVariable)] {
+                    lines.append("\(trimmedVariable)=\(envValue)")
                 }
-                let key = keyVals[0].trimmingCharacters(in: .whitespaces)
-                let val = keyVals[1].trimmingCharacters(in: .whitespaces)
-                if key.isEmpty || val.isEmpty {
-                    continue
-                }
-                envVars.append("\(key)=\(val)")
             }
         }
-        return envVars
+
+        return lines
     }
 
     public static func env(envList: [String]) -> [String] {
@@ -317,8 +370,7 @@ public struct Parser {
                 case "tmpfs":
                     fs.type = Filesystem.FSType.tmpfs
                 case "volume":
-                    // Volume type will be set later in source parsing when we create the actual volume filesystem
-                    break
+                    isVolume = true
                 default:
                     throw ContainerizationError(.invalidArgument, message: "unsupported mount type \(val)")
                 }
@@ -365,7 +417,6 @@ public struct Parser {
                     }
 
                     // This is a named volume
-                    isVolume = true
                     volumeName = val
                     fs.source = val
                 case "tmpfs":
@@ -383,11 +434,19 @@ public struct Parser {
         guard isVolume else {
             return .filesystem(fs)
         }
+
+        // If it's a volume type but no source was provided, create an anonymous volume
+        let isAnonymous = volumeName.isEmpty
+        if isAnonymous {
+            volumeName = VolumeStorage.generateAnonymousVolumeName()
+        }
+
         return .volume(
             ParsedVolume(
                 name: volumeName,
                 destination: fs.destination,
-                options: fs.options
+                options: fs.options,
+                isAnonymous: isAnonymous
             ))
     }
 
@@ -408,7 +467,19 @@ public struct Parser {
         let parts = vol.split(separator: ":")
         switch parts.count {
         case 1:
-            throw ContainerizationError(.invalidArgument, message: "anonymous volumes are not supported")
+            // Anonymous volume: -v /path
+            // Generate a random name for the anonymous volume
+            let anonymousName = VolumeStorage.generateAnonymousVolumeName()
+            let destination = String(parts[0])
+            let options: [String] = []
+
+            return .volume(
+                ParsedVolume(
+                    name: anonymousName,
+                    destination: destination,
+                    options: options,
+                    isAnonymous: true
+                ))
         case 2, 3:
             let src = String(parts[0])
             let dst = String(parts[1])

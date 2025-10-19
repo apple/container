@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors. All rights reserved.
+// Copyright © 2025 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,8 +41,9 @@ public enum DefaultsStore {
     }
 
     public static func get(key: DefaultsStore.Keys) -> String {
-        let current = udSuite.string(forKey: key.rawValue)
-        return current ?? key.defaultValue
+        udSuite.string(forKey: key.rawValue)
+            ?? Bundle.main.infoDictionary?["\(Self.userDefaultDomain).\(key.rawValue)"] as? String
+            ?? key.defaultValue
     }
 
     public static func getOptional(key: DefaultsStore.Keys) -> String? {
@@ -54,8 +55,11 @@ public enum DefaultsStore {
     }
 
     public static func getBool(key: DefaultsStore.Keys) -> Bool? {
-        guard udSuite.object(forKey: key.rawValue) != nil else { return nil }
-        return udSuite.bool(forKey: key.rawValue)
+        if udSuite.object(forKey: key.rawValue) != nil {
+            return udSuite.bool(forKey: key.rawValue)
+        }
+        return Bundle.main.infoDictionary?["\(Self.userDefaultDomain).\(key.rawValue)"] as? Bool
+            ?? Bool(key.defaultValue)
     }
 
     public static func allValues() -> [DefaultsStoreValue] {

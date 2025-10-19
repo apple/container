@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors. All rights reserved.
+// Copyright © 2025 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -250,6 +250,78 @@ class TestCLIVolumes: CLITest {
 
         // Delete volume
         try doVolumeDelete(name: volumeName)
+    }
+
+    @Test func testImplicitNamedVolumeCreation() throws {
+        let testName = getTestName()
+        let containerName = "\(testName)_c1"
+        let volumeName = "\(testName)_autovolume"
+
+        defer {
+            doRemoveIfExists(name: containerName, force: true)
+            doVolumeDeleteIfExists(name: volumeName)
+        }
+
+        // Verify volume doesn't exist yet
+        let (listOutput, _, _) = try run(arguments: ["volume", "list", "--quiet"])
+        let volumeExistsBefore = listOutput.contains(volumeName)
+        #expect(!volumeExistsBefore, "volume should not exist initially")
+
+        // Run container with non-existent named volume - should auto-create
+        let (output, _, status) = try run(arguments: [
+            "run",
+            "--name",
+            containerName,
+            "-v", "\(volumeName):/data",
+            alpine,
+            "echo", "test",
+        ])
+
+        // Should succeed and create volume automatically
+        #expect(status == 0, "should succeed and auto-create named volume")
+        #expect(output.contains("test"), "container should run successfully")
+
+        // Volume should now exist
+        let (listOutputAfter, _, _) = try run(arguments: ["volume", "list", "--quiet"])
+        let volumeExistsAfter = listOutputAfter.contains(volumeName)
+        #expect(volumeExistsAfter, "volume should be created")
+    }
+
+    @Test func testImplicitNamedVolumeReuse() throws {
+        let testName = getTestName()
+        let containerName1 = "\(testName)_c1"
+        let containerName2 = "\(testName)_c2"
+        let volumeName = "\(testName)_sharedvolume"
+
+        defer {
+            doRemoveIfExists(name: containerName1, force: true)
+            doRemoveIfExists(name: containerName2, force: true)
+            doVolumeDeleteIfExists(name: volumeName)
+        }
+
+        // First container - should auto-create volume
+        let (_, _, status1) = try run(arguments: [
+            "run",
+            "--name",
+            containerName1,
+            "-v", "\(volumeName):/data",
+            alpine,
+            "sh", "-c", "echo 'first' > /data/test.txt",
+        ])
+
+        #expect(status1 == 0, "first container should succeed")
+
+        // Second container - should reuse existing volume
+        let (_, _, status2) = try run(arguments: [
+            "run",
+            "--name",
+            containerName2,
+            "-v", "\(volumeName):/data",
+            alpine,
+            "cat", "/data/test.txt",
+        ])
+
+        #expect(status2 == 0, "second container should succeed")
     }
 
     @Test func testNewVolumeOwnershipIsSetCorrectly() throws {

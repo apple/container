@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors. All rights reserved.
+// Copyright © 2025 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,6 +30,9 @@ extension Application {
         @Option(name: .customLong("label"), help: "Set metadata for a network")
         var labels: [String] = []
 
+        @Option(name: .customLong("subnet"), help: "Set subnet for a network")
+        var subnet: String? = nil
+
         @OptionGroup
         var global: Flags.Global
 
@@ -40,7 +43,7 @@ extension Application {
 
         public func run() async throws {
             let parsedLabels = Utility.parseKeyValuePairs(labels)
-            let config = try NetworkConfiguration(id: self.name, mode: .nat, labels: parsedLabels)
+            let config = try NetworkConfiguration(id: self.name, mode: .nat, subnet: subnet, labels: parsedLabels)
             let state = try await ClientNetwork.create(configuration: config)
             print(state.id)
         }

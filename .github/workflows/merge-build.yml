@@ -1,5 +1,8 @@
 name: container project - merge build
 
+permissions:
+  contents: read
+
 on:
   push:
     branches:
