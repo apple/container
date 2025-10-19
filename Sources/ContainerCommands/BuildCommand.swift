@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors. All rights reserved.
+// Copyright © 2025 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -186,7 +186,8 @@ extension Application {
 
                 let dockerfile = try Data(contentsOf: URL(filePath: file))
                 let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
-                let exportPath = systemHealth.appRoot.appendingPathComponent(".build")
+                let exportPath = systemHealth.appRoot
+                    .appendingPathComponent(Application.BuilderCommand.builderResourceDir)
                 let buildID = UUID().uuidString
                 let tempURL = exportPath.appendingPathComponent(buildID)
                 try FileManager.default.createDirectory(at: tempURL, withIntermediateDirectories: true, attributes: nil)

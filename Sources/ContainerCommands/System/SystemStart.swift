@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors. All rights reserved.
+// Copyright © 2025 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -69,21 +69,17 @@ extension Application {
             args.append("start")
             let apiServerDataUrl = appRoot.appending(path: "apiserver")
             try! FileManager.default.createDirectory(at: apiServerDataUrl, withIntermediateDirectories: true)
-            var env = ProcessInfo.processInfo.environment.filter { key, _ in
-                key.hasPrefix("CONTAINER_")
-            }
+
+            var env = PluginLoader.filterEnvironment()
             env[ApplicationRoot.environmentName] = appRoot.path(percentEncoded: false)
             env[InstallRoot.environmentName] = installRoot.path(percentEncoded: false)
 
-            let logURL = apiServerDataUrl.appending(path: "apiserver.log")
             let plist = LaunchPlist(
                 label: "com.apple.container.apiserver",
                 arguments: args,
                 environment: env,
                 limitLoadToSessionType: [.Aqua, .Background, .System],
                 runAtLoad: true,
-                stdout: logURL.path,
-                stderr: logURL.path,
                 machServices: ["com.apple.container.apiserver"]
             )
 
