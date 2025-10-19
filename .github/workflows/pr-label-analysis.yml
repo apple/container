@@ -2,7 +2,7 @@ name: PR Label Analysis
 
 on:
   pull_request:
-    types: [opened]
+    types: [opened, reopened, synchronize]
 
 permissions:
   contents: read
@@ -19,55 +19,31 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
       
-      - name: Get changed files
-        id: changed-files
-        uses: tj-actions/changed-files@v44
-        with:
-          files_yaml: |
-            cli:
-              - 'Sources/CLI/**'
-              - 'Sources/ContainerCommands/**'
-            builder:
-              - 'Sources/ContainerBuild/**'
-              - 'Sources/NativeBuilder/**'
-            documentation:
-              - '**/*.md'
-              - 'docs/**'
-            tests:
-              - 'Tests/**'
-              - '**/*Tests.swift'
-            ci:
-              - '.github/**'
-      
-      - name: Build label list
+      - name: Get changed files and build labels
         id: build-labels
         run: |
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+          
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD)
+          
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          
           LABELS=""
           
-          if [[ "${{ steps.changed-files.outputs.cli_any_changed }}" == "true" ]]; then
+          if echo "$CHANGED_FILES" | grep -qE '^Sources/CLI/|^Sources/ContainerCommands/'; then
             LABELS="${LABELS}cli,"
           fi
           
-          if [[ "${{ steps.changed-files.outputs.builder_any_changed }}" == "true" ]]; then
+          if echo "$CHANGED_FILES" | grep -qE '^Sources/ContainerBuild/|^Sources/NativeBuilder/'; then
             LABELS="${LABELS}area:builder,"
           fi
           
-          if [[ "${{ steps.changed-files.outputs.documentation_any_changed }}" == "true" ]]; then
+          if echo "$CHANGED_FILES" | grep -qE '\.md$|^docs/'; then
             LABELS="${LABELS}documentation,"
           fi
           
-          if [[ "${{ steps.changed-files.outputs.tests_any_changed }}" == "true" ]]; then
-            LABELS="${LABELS}tests,"
-          fi
-          
-          if [[ "${{ steps.changed-files.outputs.ci_any_changed }}" == "true" ]]; then
-            LABELS="${LABELS}ci,"
-          fi
-          
-          LABELS="${LABELS%,}"
-          
-          echo "labels=${LABELS}" >> $GITHUB_OUTPUT
-          echo "PR #${{ github.event.pull_request.number }} should have labels: ${LABELS}"
+          if echo "$CHANGED_FILES" | grep -qE '^Tests/|Tests\.swift
       
       - name: Save PR metadata
         run: |
