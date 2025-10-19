@@ -251,4 +251,44 @@ class TestCLIVolumes: CLITest {
         // Delete volume
         try doVolumeDelete(name: volumeName)
     }
+
+    @Test func testNewVolumeOwnershipIsSetCorrectly() throws {
+        let testName = getTestName()
+        let volumeName = "\(testName)_vol"
+        let containerName = "\(testName)_c1"
+
+        // Clean up any existing resources from previous runs
+        doVolumeDeleteIfExists(name: volumeName)
+        doRemoveIfExists(name: containerName, force: true)
+
+        defer {
+            // Cleanup container and volume
+            try? doStop(name: containerName)
+            doRemoveIfExists(name: containerName, force: true)
+            doVolumeDeleteIfExists(name: volumeName)
+        }
+
+        // Create a new volume
+        try doVolumeCreate(name: volumeName)
+
+        // Run container with volume using a non-root user (uid 1000)
+        // We'll use a numeric user to make it more predictable
+        try doLongRun(
+            name: containerName,
+            args: [
+                "--user", "1000:1000",
+                "-v", "\(volumeName):/data"
+            ]
+        )
+        try waitForContainerRunning(containerName)
+
+        // Check ownership of the mounted volume directory
+        // Should be uid=1000 gid=1000, not root (uid=0 gid=0)
+        var output = try doExec(name: containerName, cmd: ["stat", "-c", "%u:%g", "/data"])
+        output = output.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        #expect(output == "1000:1000", "Expected volume ownership to be 1000:1000, but got '\(output)'. Volume ownership was not properly set for the non-root user.")
+
+        try doStop(name: containerName)
+    }
 }

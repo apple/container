@@ -20,6 +20,7 @@ import ContainerPersistence
 import ContainerXPC
 import Containerization
 import ContainerizationError
+import ContainerizationEXT4
 import ContainerizationExtras
 import ContainerizationOCI
 import ContainerizationOS
@@ -28,6 +29,8 @@ import Logging
 import NIO
 import NIOFoundationCompat
 import SocketForwarder
+import System
+import SystemPackage
 import Synchronization
 
 import struct ContainerizationOCI.Mount
@@ -178,6 +181,10 @@ public actor SandboxService {
 
             let id = config.id
             let rootfs = try bundle.containerRootfs.asMount
+
+            // Capture the container configuration to use for post-mount hooks
+            var capturedCzConfig: LinuxContainer.Configuration?
+
             let container = try LinuxContainer(id, rootfs: rootfs, vmm: vmm, logger: self.log) { czConfig in
                 try Self.configureContainer(czConfig: &czConfig, config: config)
                 czConfig.interfaces = interfaces
@@ -197,16 +204,28 @@ public actor SandboxService {
                         ))
                 }
                 czConfig.hosts = Hosts(entries: hostsEntries)
+
+                // Capture the configuration for post-mount hooks
+                capturedCzConfig = czConfig
+            }
+
+            guard let czConfig = capturedCzConfig else {
+                throw ContainerizationError(.internalError, message: "Failed to capture container configuration")
             }
 
             await self.setContainer(
                 ContainerInfo(
                     container: container,
                     config: config,
+                    czConfig: czConfig,
                     attachments: attachments,
                     bundle: bundle,
                     io: (in: stdin, out: stdout, err: stderr)
                 ))
+
+            // Fix volume ownership BEFORE creating/mounting the container
+            // This must happen before container.create() because volumes cannot be modified once mounted
+            try await self.fixVolumeOwnership(config: config, czConfig: czConfig, bundle: bundle)
 
             do {
                 try await container.create()
@@ -758,6 +777,220 @@ public actor SandboxService {
         }
     }
 
+    /// Checks if an EXT4 volume has never been mounted (is brand new).
+    /// Uses the EXT4 superblock mountCount field:
+    /// - mountCount == 0: Never mounted - SAFE to change ownership (brand new volume)
+    /// - mountCount > 0: Already been mounted/used - DO NOT change ownership (data may exist)
+    ///
+    /// This function is called BEFORE the volume is mounted, so new volumes will have mountCount=0.
+    private func isFirstMount(volumeImagePath: SystemPackage.FilePath) -> Bool {
+        do {
+            let reader = try EXT4.EXT4Reader(blockDevice: volumeImagePath)
+            let superBlock = reader.superBlock
+
+            let mountCount = superBlock.mountCount
+            let isFirst = mountCount == 0
+
+            if isFirst {
+                self.log.info("Volume has never been mounted (mountCount: \(mountCount)) - safe to fix ownership")
+            } else {
+                self.log.info("Volume has been mounted before (mountCount: \(mountCount)) - ownership will not be modified")
+            }
+
+            return isFirst
+        } catch {
+            self.log.error("Failed to check volume mount count: \(error)")
+            // On error, assume it's not the first mount to avoid destroying data
+            return false
+        }
+    }
+
+    /// Fixes EXT4 volume ownership to match container user before starting.
+    /// This function only modifies ownership for NEW/EMPTY volumes to prevent data loss.
+    /// Once a volume has been used and contains data, ownership is never changed.
+    private func fixVolumeOwnership(
+        config: ContainerConfiguration,
+        czConfig: LinuxContainer.Configuration,
+        bundle: ContainerClient.Bundle
+    ) async throws {
+        // Get uid/gid from czConfig.process.user
+        var uid = czConfig.process.user.uid
+        var gid = czConfig.process.user.gid
+
+        // If uid/gid is 0 but username is set, it means username needs to be resolved
+        // Username resolution happens in the Linux container runtime after start()
+        // So we need to resolve it ourselves by reading /etc/passwd from the rootfs
+        if uid == 0 && gid == 0 && !czConfig.process.user.username.isEmpty {
+            self.log.info("User specified as username '\(czConfig.process.user.username)', resolving to uid/gid...")
+            if let resolved = try? self.resolveUsernameToUidGid(
+                username: czConfig.process.user.username,
+                bundle: bundle
+            ) {
+                uid = resolved.uid
+                gid = resolved.gid
+                self.log.info("Resolved username '\(czConfig.process.user.username)' to uid=\(uid) gid=\(gid)")
+            } else {
+                self.log.warning("Failed to resolve username '\(czConfig.process.user.username)', skipping volume ownership fix")
+                return
+            }
+        }
+
+        // Skip if running as root (no fix needed, root can write anywhere)
+        guard uid != 0 else {
+            self.log.info("Container running as root (uid=0), skipping volume ownership fix")
+            return
+        }
+
+        self.log.info("Container user: uid=\(uid) gid=\(gid)")
+
+        // Find all volume mounts from container config
+        let volumeMounts = config.mounts.filter { mount in
+            // Only process named volumes, not bind mounts
+            switch mount.type {
+            case .volume:
+                return true
+            default:
+                return false
+            }
+        }
+
+        guard !volumeMounts.isEmpty else {
+            self.log.info("No volume mounts found, skipping ownership fix")
+            return
+        }
+
+        self.log.info("Fixing ownership of \(volumeMounts.count) volume(s) to \(uid):\(gid)")
+
+        // Fix ownership for each volume by modifying EXT4 image directly
+        for mount in volumeMounts {
+            guard case .volume(let volumeName, _, _, _) = mount.type else {
+                continue
+            }
+
+            self.log.info("Processing volume: \(volumeName) -> \(mount.destination)")
+
+            // Get volume information to find the source path (EXT4 image file)
+            let volume: Volume
+            do {
+                volume = try await ClientVolume.inspect(volumeName)
+            } catch {
+                self.log.error("Failed to inspect volume '\(volumeName)': \(error)")
+                continue
+            }
+
+            let volumeImagePath = SystemPackage.FilePath(volume.source)
+            self.log.info("Volume '\(volumeName)' image path: \(volumeImagePath), format: \(volume.format)")
+
+            // Check if volume is ext4 format (currently only ext4 is supported for ownership modification)
+            guard volume.format.lowercased() == "ext4" else {
+                self.log.warning("Volume '\(volumeName)' format '\(volume.format)' is not ext4, skipping ownership fix")
+                self.log.warning("User may encounter permission errors when writing to this volume")
+                continue
+            }
+
+            // IMPORTANT: Check if this volume has never been mounted before modifying ownership
+            // EXT4.Formatter constructor formats the filesystem and DESTROYS ALL DATA
+            // We only want to set ownership when the volume has never been mounted (mountCount == 0)
+            let isFirst = self.isFirstMount(volumeImagePath: volumeImagePath)
+
+            if !isFirst {
+                self.log.info("Volume '\(volumeName)' is not being mounted for the first time, skipping ownership fix to preserve data")
+                continue
+            }
+
+            self.log.info("Volume '\(volumeName)' is being mounted for the first time, setting ownership to \(uid):\(gid)")
+
+            // Open EXT4 image and fix ownership
+            do {
+                let formatter = try EXT4.Formatter(volumeImagePath)
+                defer {
+                    try? formatter.close()
+                }
+
+                // Convert UInt32 to UInt16 (EXT4 uses 16-bit uids)
+                let uid16 = UInt16(uid & 0xFFFF)
+                let gid16 = UInt16(gid & 0xFFFF)
+
+                // Set ownership recursively on root directory
+                try formatter.setOwner(path: SystemPackage.FilePath("/"), uid: uid16, gid: gid16, recursive: true)
+
+                self.log.info("Successfully set ownership for empty volume '\(volumeName)' to \(uid):\(gid)")
+            } catch {
+                self.log.error("Failed to set ownership for volume '\(volumeName)': \(error)")
+                // Don't throw - continue with other volumes
+                // The user will get permission errors when trying to write
+            }
+        }
+
+        self.log.info("Volume ownership fix completed")
+    }
+
+    /// Resolves a username to uid/gid by reading /etc/passwd from the container rootfs
+    ///
+    /// - Parameters:
+    ///   - username: The username to resolve (e.g., "appuser")
+    ///   - bundle: The container bundle containing rootfs
+    /// - Returns: A tuple of (uid, gid) if found, nil otherwise
+    private func resolveUsernameToUidGid(
+        username: String,
+        bundle: ContainerClient.Bundle
+    ) throws -> (uid: UInt32, gid: UInt32)? {
+        // Get rootfs path from bundle
+        let rootfs = try bundle.containerRootfs
+        guard case .block(let format, _, _) = rootfs.type else {
+            self.log.error("Container rootfs is not a block device")
+            return nil
+        }
+
+        // Check if rootfs is ext4 format (currently only ext4 is supported for reading /etc/passwd)
+        guard format.lowercased() == "ext4" else {
+            self.log.warning("Container rootfs format '\(format)' is not ext4, cannot read /etc/passwd to resolve username")
+            return nil
+        }
+
+        let rootfsImagePath = SystemPackage.FilePath(rootfs.source)
+        self.log.info("Reading /etc/passwd from ext4 rootfs: \(rootfsImagePath)")
+
+        // Open EXT4 image for reading
+        let reader = try EXT4.EXT4Reader(blockDevice: rootfsImagePath)
+
+        // Read /etc/passwd file
+        let passwdData: Data
+        do {
+            passwdData = try reader.readFile(at: SystemPackage.FilePath("/etc/passwd"))
+        } catch {
+            self.log.error("Failed to read /etc/passwd from rootfs: \(error)")
+            return nil
+        }
+
+        // Parse /etc/passwd to find username
+        // Format: username:x:uid:gid:comment:home:shell
+        guard let passwdString = String(data: passwdData, encoding: .utf8) else {
+            self.log.error("Failed to decode /etc/passwd as UTF-8")
+            return nil
+        }
+
+        for line in passwdString.split(separator: "\n") {
+            let parts = line.split(separator: ":")
+            guard parts.count >= 4 else { continue }
+
+            let lineUsername = String(parts[0])
+            guard lineUsername == username else { continue }
+
+            // Found matching username, parse uid and gid
+            guard let uid = UInt32(parts[2]), let gid = UInt32(parts[3]) else {
+                self.log.error("Failed to parse uid/gid for user '\(username)' from /etc/passwd line: \(line)")
+                return nil
+            }
+
+            self.log.info("Resolved username '\(username)' to uid=\(uid) gid=\(gid) from /etc/passwd")
+            return (uid: uid, gid: gid)
+        }
+
+        self.log.warning("Username '\(username)' not found in /etc/passwd")
+        return nil
+    }
+
     private static func configureContainer(
         czConfig: inout LinuxContainer.Configuration,
         config: ContainerConfiguration
@@ -848,13 +1081,36 @@ public actor SandboxService {
         }
         switch process.user {
         case .raw(let name):
-            czConfig.process.user = .init(
-                uid: 0,
-                gid: 0,
-                umask: nil,
-                additionalGids: process.supplementalGroups,
-                username: name
-            )
+            // Try to parse as "uid:gid" format first
+            let parts = name.split(separator: ":")
+            if parts.count == 2, let uid = UInt32(parts[0]), let gid = UInt32(parts[1]) {
+                // Numeric uid:gid format (e.g., "1000:1000")
+                czConfig.process.user = .init(
+                    uid: uid,
+                    gid: gid,
+                    umask: nil,
+                    additionalGids: process.supplementalGroups,
+                    username: ""
+                )
+            } else if let uid = UInt32(name) {
+                // Just numeric uid (e.g., "1000")
+                czConfig.process.user = .init(
+                    uid: uid,
+                    gid: uid,  // Use same value for gid
+                    umask: nil,
+                    additionalGids: process.supplementalGroups,
+                    username: ""
+                )
+            } else {
+                // Username string (e.g., "appuser")
+                czConfig.process.user = .init(
+                    uid: 0,
+                    gid: 0,
+                    umask: nil,
+                    additionalGids: process.supplementalGroups,
+                    username: name
+                )
+            }
         case .id(let uid, let gid):
             czConfig.process.user = .init(
                 uid: uid,
@@ -1169,6 +1425,7 @@ extension SandboxService {
     private struct ContainerInfo {
         let container: LinuxContainer
         let config: ContainerConfiguration
+        let czConfig: LinuxContainer.Configuration
         let attachments: [Attachment]
         let bundle: ContainerClient.Bundle
         let io: (in: FileHandle?, out: MultiWriter?, err: MultiWriter?)
