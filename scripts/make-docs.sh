@@ -39,9 +39,11 @@ fi
 echo '{}' > "$1/theme-settings.json"
 
 cat > "$1/index.html" <<'EOF'
+<!DOCTYPE html>
 <html lang="en-US">
   <head>
     <meta charset="utf-8">
+    <title>Redirecting...</title>
     <meta http-equiv="refresh" content="0; url=./documentation/">
   </head>
   <body>
