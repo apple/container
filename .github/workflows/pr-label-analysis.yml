@@ -13,12 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout PR branch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-      
       - name: Save PR metadata
         run: |
           mkdir -p ./pr-metadata
