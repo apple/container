@@ -19,28 +19,10 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
       
-      - name: Get changed files and build labels
-        id: build-labels
-        run: |
-          git fetch origin ${{ github.event.pull_request.base.ref }}
-          
-          CHANGED_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD)
-          
-          echo "Changed files:"
-          echo "$CHANGED_FILES"
-          
-          LABELS=""
-          
-          if echo "$CHANGED_FILES" | grep -qE '^Sources/CLI/|^Sources/ContainerCommands/'; then
-            LABELS="${LABELS}cli,"
-          fi
-      
       - name: Save PR metadata
         run: |
           mkdir -p ./pr-metadata
           echo "${{ github.event.pull_request.number }}" > ./pr-metadata/pr-number.txt
-          echo "${{ steps.build-labels.outputs.labels }}" > ./pr-metadata/labels.txt
-          echo "${{ github.event.pull_request.head.sha }}" > ./pr-metadata/pr-sha.txt
       
       - name: Upload PR metadata as artifact
         uses: actions/upload-artifact@v4

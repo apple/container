@@ -9,12 +9,14 @@ on:
   workflow_dispatch:
 
 permissions:
-  issues: write
+  contents: read
 
 jobs:
   create-labels:
     name: Create labels with colors
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     
     steps:
       - name: Create or update labels
@@ -23,7 +25,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const labels = [
-              { name: 'cli', color: '0E8A16', description: 'Changes to CLI components' },
+              { name: 'cli', color: '0E8A16', description: 'Changes to CLI components' }
             ];
             
             for (const label of labels) {

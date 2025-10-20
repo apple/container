@@ -8,14 +8,15 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
-  issues: write
 
 jobs:
   apply-labels:
     name: Apply labels to PR
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: read
+      pull-requests: write
     
     steps:
       - name: Download PR metadata artifact
@@ -28,102 +29,24 @@ jobs:
         continue-on-error: true
         id: download-artifact
       
-      - name: Check if artifact exists
-        id: check-artifact
+      - name: Read PR number
+        id: pr-number
         run: |
           METADATA_DIR=$(find . -type d -name "pr-metadata-*" 2>/dev/null | head -n 1)
           
           if [ -z "$METADATA_DIR" ]; then
-            echo "artifact-exists=false" >> $GITHUB_OUTPUT
-            exit 0
+            echo "No metadata found"
+            exit 1
           fi
           
-          echo "artifact-exists=true" >> $GITHUB_OUTPUT
-          echo "metadata-dir=${METADATA_DIR}" >> $GITHUB_OUTPUT
-      
-      - name: Read PR metadata
-        if: steps.check-artifact.outputs.artifact-exists == 'true'
-        id: pr-metadata
-        run: |
-          METADATA_DIR="${{ steps.check-artifact.outputs.metadata-dir }}"
-          
           PR_NUMBER=$(cat "${METADATA_DIR}/pr-number.txt")
-          LABELS=$(cat "${METADATA_DIR}/labels.txt" || echo "")
-          PR_SHA=$(cat "${METADATA_DIR}/pr-sha.txt" || echo "")
-          
-          echo "pr-number=${PR_NUMBER}" >> $GITHUB_OUTPUT
-          echo "labels=${LABELS}" >> $GITHUB_OUTPUT
-          echo "pr-sha=${PR_SHA}" >> $GITHUB_OUTPUT
+          echo "number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+          echo "PR Number: ${PR_NUMBER}"
       
-      - name: Apply labels
-        if: steps.check-artifact.outputs.artifact-exists == 'true' && steps.pr-metadata.outputs.labels != ''
-        uses: actions/github-script@v7
+      - name: Apply labels using labeler
+        uses: actions/labeler@v5
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const prNumber = parseInt('${{ steps.pr-metadata.outputs.pr-number }}');
-            const labelsString = '${{ steps.pr-metadata.outputs.labels }}';
-            
-            if (!labelsString) return;
-            
-            const labels = labelsString.split(',').map(l => l.trim()).filter(l => l !== '');
-            if (labels.length === 0) return;
-            
-            try {
-              const { data: pr } = await github.rest.pulls.get({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: prNumber
-              });
-              
-              const currentLabels = pr.labels.map(l => l.name);
-              const newLabels = labels.filter(l => !currentLabels.includes(l));
-              
-              if (newLabels.length === 0) {
-                console.log('All labels already applied');
-                return;
-              }
-              
-              await github.rest.issues.addLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                labels: newLabels
-              });
-              
-              core.setOutput('labels-applied', newLabels.join(','));
-              core.setOutput('should-comment', 'true');
-              
-            } catch (error) {
-              if (error.status === 404) return;
-              throw error;
-            }
-        id: apply-labels
-      
-      - name: Post comment
-        if: steps.apply-labels.outputs.should-comment == 'true'
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const prNumber = parseInt('${{ steps.pr-metadata.outputs.pr-number }}');
-            const labelsString = '${{ steps.apply-labels.outputs.labels-applied }}';
-            
-            if (!labelsString) return;
-            
-            const appliedLabels = labelsString.split(',').map(l => l.trim()).filter(l => l !== '');
-            if (appliedLabels.length === 0) return;
-            
-            const labelBadges = appliedLabels.map(l => `\`${l}\``).join(', ');
-            const comment = `🏷️ **Auto-labeler** has applied the following labels: ${labelBadges}`;
-            
-            try {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                body: comment
-              });
-            } catch (error) {
-              console.error('Failed to post comment:', error.message);
-            }
+          pr-number: ${{ steps.pr-number.outputs.number }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler.yml
+          sync-labels: true
