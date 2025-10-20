@@ -34,16 +34,6 @@ jobs:
           if echo "$CHANGED_FILES" | grep -qE '^Sources/CLI/|^Sources/ContainerCommands/'; then
             LABELS="${LABELS}cli,"
           fi
-          
-          if echo "$CHANGED_FILES" | grep -qE '^Sources/ContainerBuild/|^Sources/NativeBuilder/'; then
-            LABELS="${LABELS}area:builder,"
-          fi
-          
-          if echo "$CHANGED_FILES" | grep -qE '\.md$|^docs/'; then
-            LABELS="${LABELS}documentation,"
-          fi
-          
-          if echo "$CHANGED_FILES" | grep -qE '^Tests/|Tests\.swift
       
       - name: Save PR metadata
         run: |
