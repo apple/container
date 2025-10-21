@@ -64,7 +64,7 @@ extension Application {
         var cpus: Int64 = 2
 
         @Option(name: .shortAndLong, help: ArgumentHelp("Path to Dockerfile", valueName: "path"))
-        var file: String = "Dockerfile"
+        var file: String? = nil
 
         @Option(name: .shortAndLong, help: ArgumentHelp("Set a label", valueName: "key=val"))
         var label: [String] = []
@@ -186,7 +186,7 @@ extension Application {
                     throw ValidationError("builder is not running")
                 }
 
-                let filePath = file == "Dockerfile" ? contextDir + "/" + file : file
+                let filePath = getDockerfilePath()
                 let dockerfile = try Data(contentsOf: URL(filePath: filePath))
                 let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
                 let exportPath = systemHealth.appRoot
@@ -352,7 +352,7 @@ extension Application {
         }
 
         public func validate() throws {
-            let filePath = file == "Dockerfile" ? contextDir + "/" + file : file
+            let filePath = getDockerfilePath()
             guard FileManager.default.fileExists(atPath: filePath) else {
                 throw ValidationError("Dockerfile does not exist at path: \(filePath)")
             }
@@ -364,6 +364,10 @@ extension Application {
                     throw ValidationError("invalid reference \(name)")
                 }
             }
+        }
+        
+        private func getDockerfilePath() -> String {
+            return file ?? contextDir + "/Dockerfile"
         }
     }
 }
