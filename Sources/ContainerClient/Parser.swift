@@ -25,11 +25,13 @@ public struct ParsedVolume {
     public let name: String
     public let destination: String
     public let options: [String]
+    public let isAnonymous: Bool
 
-    public init(name: String, destination: String, options: [String] = []) {
+    public init(name: String, destination: String, options: [String] = [], isAnonymous: Bool = false) {
         self.name = name
         self.destination = destination
         self.options = options
+        self.isAnonymous = isAnonymous
     }
 }
 
@@ -368,8 +370,7 @@ public struct Parser {
                 case "tmpfs":
                     fs.type = Filesystem.FSType.tmpfs
                 case "volume":
-                    // Volume type will be set later in source parsing when we create the actual volume filesystem
-                    break
+                    isVolume = true
                 default:
                     throw ContainerizationError(.invalidArgument, message: "unsupported mount type \(val)")
                 }
@@ -416,7 +417,6 @@ public struct Parser {
                     }
 
                     // This is a named volume
-                    isVolume = true
                     volumeName = val
                     fs.source = val
                 case "tmpfs":
@@ -434,11 +434,19 @@ public struct Parser {
         guard isVolume else {
             return .filesystem(fs)
         }
+
+        // If it's a volume type but no source was provided, create an anonymous volume
+        let isAnonymous = volumeName.isEmpty
+        if isAnonymous {
+            volumeName = VolumeStorage.generateAnonymousVolumeName()
+        }
+
         return .volume(
             ParsedVolume(
                 name: volumeName,
                 destination: fs.destination,
-                options: fs.options
+                options: fs.options,
+                isAnonymous: isAnonymous
             ))
     }
 
@@ -459,7 +467,19 @@ public struct Parser {
         let parts = vol.split(separator: ":")
         switch parts.count {
         case 1:
-            throw ContainerizationError(.invalidArgument, message: "anonymous volumes are not supported")
+            // Anonymous volume: -v /path
+            // Generate a random name for the anonymous volume
+            let anonymousName = VolumeStorage.generateAnonymousVolumeName()
+            let destination = String(parts[0])
+            let options: [String] = []
+
+            return .volume(
+                ParsedVolume(
+                    name: anonymousName,
+                    destination: destination,
+                    options: options,
+                    isAnonymous: true
+                ))
         case 2, 3:
             let src = String(parts[0])
             let dst = String(parts[1])

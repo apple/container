@@ -1,5 +1,8 @@
 name: container project - common jobs
 
+permissions:
+  contents: read
+
 on:
   workflow_call:
     inputs:
