@@ -186,7 +186,8 @@ extension Application {
                     throw ValidationError("builder is not running")
                 }
 
-                let dockerfile = try Data(contentsOf: URL(filePath: file))
+                let filePath = file == "Dockerfile" ? contextDir + "/" + file : file
+                let dockerfile = try Data(contentsOf: URL(filePath: filePath))
                 let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
                 let exportPath = systemHealth.appRoot
                     .appendingPathComponent(Application.BuilderCommand.builderResourceDir)
@@ -351,8 +352,9 @@ extension Application {
         }
 
         public func validate() throws {
-            guard FileManager.default.fileExists(atPath: file) else {
-                throw ValidationError("Dockerfile does not exist at path: \(file)")
+            let filePath = file == "Dockerfile" ? contextDir + "/" + file : file
+            guard FileManager.default.fileExists(atPath: filePath) else {
+                throw ValidationError("Dockerfile does not exist at path: \(filePath)")
             }
             guard FileManager.default.fileExists(atPath: contextDir) else {
                 throw ValidationError("context dir does not exist \(contextDir)")
