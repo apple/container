@@ -390,7 +390,7 @@ extension TestCLIBuildBase {
 
             let imageName = "registry.local/build-diff-context:\(UUID().uuidString)"
             #expect(throws: Never.self) {
-                try self.buildWithPaths(tag: imageName, tempContext: buildContextDir, tempDockerfileContext: dockerfileCtxDir)
+                try self.buildWithPaths(tags: [imageName], tempContext: buildContextDir, tempDockerfileContext: dockerfileCtxDir)
             }
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
@@ -431,6 +431,30 @@ extension TestCLIBuildBase {
                 actual == expected,
                 "expected platforms \(expected), got \(actual)"
             )
+        }
+
+        @Test func testBuildMultipleTags() throws {
+            let tempDir: URL = try createTempDir()
+            let dockerfile: String =
+                """
+                FROM scratch
+
+                ADD emptyFile /
+                """
+            let context: [FileSystemEntry] = [.file("emptyFile", content: .zeroFilled(size: 1))]
+            try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
+
+            let uuid = UUID().uuidString
+            let tag1 = "registry.local/multi-tag-test:\(uuid)"
+            let tag2 = "registry.local/multi-tag-test:latest"
+            let tag3 = "registry.local/multi-tag-test:v1.0.0"
+
+            try self.build(tags: [tag1, tag2, tag3], tempDir: tempDir)
+
+            // Verify all three tags exist and point to the same image
+            #expect(try self.inspectImage(tag1) == tag1, "expected to have successfully built \(tag1)")
+            #expect(try self.inspectImage(tag2) == tag2, "expected to have successfully built \(tag2)")
+            #expect(try self.inspectImage(tag3) == tag3, "expected to have successfully built \(tag3)")
         }
     }
 }
