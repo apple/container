@@ -147,6 +147,7 @@ public enum XPCRoute: String {
     case volumeDelete
     case volumeList
     case volumeInspect
+    case volumePrune
 
     case ping
 

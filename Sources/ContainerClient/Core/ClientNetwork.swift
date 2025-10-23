@@ -24,6 +24,7 @@ public struct ClientNetwork {
     static let serviceIdentifier = "com.apple.container.apiserver"
 
     public static let defaultNetworkName = "default"
+    public static let noNetworkName = "none"
 }
 
 extension ClientNetwork {
