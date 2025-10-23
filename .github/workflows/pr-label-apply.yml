@@ -19,6 +19,9 @@ jobs:
       pull-requests: write
     
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Download PR metadata artifact
         uses: actions/download-artifact@v4
         with:
