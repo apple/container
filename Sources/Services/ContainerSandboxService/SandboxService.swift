@@ -121,7 +121,6 @@ public actor SandboxService {
             let vmm = VZVirtualMachineManager(
                 kernel: try bundle.kernel,
                 initialFilesystem: bundle.initialFilesystem.asMount,
-                bootlog: bundle.bootlog.path,
                 rosetta: config.rosetta,
                 logger: self.log
             )
@@ -198,6 +197,7 @@ public actor SandboxService {
                         ))
                 }
                 czConfig.hosts = Hosts(entries: hostsEntries)
+                czConfig.bootlog = bundle.bootlog
             }
 
             await self.setContainer(
