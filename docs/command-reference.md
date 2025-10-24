@@ -39,6 +39,7 @@ container run [OPTIONS] IMAGE [COMMAND] [ARG...]
     *   `--entrypoint <cmd>`: Override the entrypoint of the image
     *   `-k, --kernel <path>`: Set a custom kernel path
     *   `-l, --label <label>`: Add a key=value label to the container
+    *   `--mac-address <mac-address>`: Set MAC address for the container (format: XX:XX:XX:XX:XX:XX)
     *   `--mount <mount>`: Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)
     *   `--name <name>`: Use the specified name as the container ID
     *   `--network <network>`: Attach the container to a network
@@ -85,6 +86,9 @@ container run -d --name web -p 8080:80 nginx:latest
 
 # set environment variables and limit resources
 container run -e NODE_ENV=production --cpus 2 --memory 1G node:18
+
+# run a container with a specific MAC address
+container run --mac-address 02:42:ac:11:00:02 ubuntu:latest
 ```
 
 ### `container build`

@@ -62,6 +62,14 @@ public struct Utility {
         }
     }
 
+    public static func validMACAddress(_ macAddress: String) throws {
+        let pattern = #"^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$"#
+        let regex = try Regex(pattern)
+        if try regex.firstMatch(in: macAddress) == nil {
+            throw ContainerizationError(.invalidArgument, message: "invalid MAC address format \(macAddress), expected format: XX:XX:XX:XX:XX:XX")
+        }
+    }
+
     public static func containerConfigFromFlags(
         id: String,
         image: String,
@@ -176,13 +184,15 @@ public struct Utility {
 
         config.virtualization = management.virtualization
 
+        // Parse network specifications with properties
+        let parsedNetworks = try management.networks.map { try Parser.network($0) }
         if management.networks.contains(ClientNetwork.noNetworkName) {
             guard management.networks.count == 1 else {
                 throw ContainerizationError(.unsupported, message: "no other networks may be created along with network \(ClientNetwork.noNetworkName)")
             }
             config.networks = []
         } else {
-            config.networks = try getAttachmentConfigurations(containerId: config.id, networkIds: management.networks)
+            config.networks = try getAttachmentConfigurations(containerId: config.id, networks: parsedNetworks)
             for attachmentConfiguration in config.networks {
                 let network: NetworkState = try await ClientNetwork.get(id: attachmentConfiguration.network)
                 guard case .running(_, _) = network else {
@@ -220,7 +230,14 @@ public struct Utility {
         return (config, kernel)
     }
 
-    static func getAttachmentConfigurations(containerId: String, networkIds: [String]) throws -> [AttachmentConfiguration] {
+    static func getAttachmentConfigurations(containerId: String, networks: [Parser.ParsedNetwork]) throws -> [AttachmentConfiguration] {
+        // Validate MAC addresses if provided
+        for network in networks {
+            if let mac = network.macAddress {
+                try validMACAddress(mac)
+            }
+        }
+
         // make an FQDN for the first interface
         let fqdn: String?
         if !containerId.contains(".") {
@@ -235,22 +252,33 @@ public struct Utility {
             fqdn = "\(containerId)."
         }
 
-        guard networkIds.isEmpty else {
-            // networks may only be specified for macOS 26+
-            guard #available(macOS 26, *) else {
-                throw ContainerizationError(.invalidArgument, message: "non-default network configuration requires macOS 26 or newer")
+        guard networks.isEmpty else {
+            // Check if this is only the default network with properties (e.g., MAC address)
+            let isOnlyDefaultNetwork = networks.count == 1 && networks[0].name == ClientNetwork.defaultNetworkName
+
+            // networks may only be specified for macOS 26+ (except for default network with properties)
+            if !isOnlyDefaultNetwork {
+                guard #available(macOS 26, *) else {
+                    throw ContainerizationError(.invalidArgument, message: "non-default network configuration requires macOS 26 or newer")
+                }
             }
 
             // attach the first network using the fqdn, and the rest using just the container ID
-            return networkIds.enumerated().map { item in
+            return networks.enumerated().map { item in
                 guard item.offset == 0 else {
-                    return AttachmentConfiguration(network: item.element, options: AttachmentOptions(hostname: containerId))
+                    return AttachmentConfiguration(
+                        network: item.element.name,
+                        options: AttachmentOptions(hostname: containerId, macAddress: item.element.macAddress)
+                    )
                 }
-                return AttachmentConfiguration(network: item.element, options: AttachmentOptions(hostname: fqdn ?? containerId))
+                return AttachmentConfiguration(
+                    network: item.element.name,
+                    options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: item.element.macAddress)
+                )
             }
         }
         // if no networks specified, attach to the default network
-        return [AttachmentConfiguration(network: ClientNetwork.defaultNetworkName, options: AttachmentOptions(hostname: fqdn ?? containerId))]
+        return [AttachmentConfiguration(network: ClientNetwork.defaultNetworkName, options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: nil))]
     }
 
     private static func getKernel(management: Flags.Management) async throws -> Kernel {

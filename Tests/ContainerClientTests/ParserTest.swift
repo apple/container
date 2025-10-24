@@ -420,4 +420,87 @@ struct ParserTest {
             return error.description.contains("no variable name")
         }
     }
+
+    // MARK: Network Parser Tests
+
+    @Test
+    func testParseNetworkSimpleName() throws {
+        let result = try Parser.network("default")
+        #expect(result.name == "default")
+        #expect(result.macAddress == nil)
+    }
+
+    @Test
+    func testParseNetworkWithMACAddress() throws {
+        let result = try Parser.network("backend,mac=02:42:ac:11:00:02")
+        #expect(result.name == "backend")
+        #expect(result.macAddress == "02:42:ac:11:00:02")
+    }
+
+    @Test
+    func testParseNetworkWithMACAddressHyphenSeparator() throws {
+        let result = try Parser.network("backend,mac=02-42-ac-11-00-02")
+        #expect(result.name == "backend")
+        #expect(result.macAddress == "02-42-ac-11-00-02")
+    }
+
+    @Test
+    func testParseNetworkEmptyString() throws {
+        #expect {
+            _ = try Parser.network("")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("network specification cannot be empty")
+        }
+    }
+
+    @Test
+    func testParseNetworkEmptyName() throws {
+        #expect {
+            _ = try Parser.network(",mac=02:42:ac:11:00:02")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("network name cannot be empty")
+        }
+    }
+
+    @Test
+    func testParseNetworkEmptyMACAddress() throws {
+        #expect {
+            _ = try Parser.network("backend,mac=")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("mac address value cannot be empty")
+        }
+    }
+
+    @Test
+    func testParseNetworkUnknownProperty() throws {
+        #expect {
+            _ = try Parser.network("backend,unknown=value")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("unknown network property") && error.description.contains("unknown")
+        }
+    }
+
+    @Test
+    func testParseNetworkInvalidPropertyFormat() throws {
+        #expect {
+            _ = try Parser.network("backend,invalidproperty")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid property format")
+        }
+    }
 }
