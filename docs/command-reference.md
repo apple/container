@@ -95,7 +95,7 @@ container build [<options>] [<context-dir>]
 
 **Arguments**
 
-*   `CONTEXT-DIR`: Build directory (default: .)
+*   `<context-dir>`: Build directory (default: .)
 
 **Options**
 
@@ -209,7 +209,7 @@ container start [--attach] [--interactive] [--debug] <container-id>
 
 **Arguments**
 
-*   `CONTAINER-ID`: Container ID
+*   `<container-id>`: Container ID
 
 **Options**
 
@@ -228,7 +228,7 @@ container stop [--all] [--signal <signal>] [--time <time>] [--debug] [<container
 
 **Arguments**
 
-*   `CONTAINER-IDS`: Container IDs
+*   `<container-ids>`: Container IDs
 
 **Options**
 
@@ -248,7 +248,7 @@ container kill [--all] [--signal <signal>] [--debug] [<container-ids> ...]
 
 **Arguments**
 
-*   `CONTAINER-IDS`: Container IDs
+*   `<container-ids>`: Container IDs
 
 **Options**
 
@@ -267,7 +267,7 @@ container delete [--all] [--force] [--debug] [<container-ids> ...]
 
 **Arguments**
 
-*   `CONTAINER-IDS`: Container IDs
+*   `<container-ids>`: Container IDs
 
 **Options**
 
@@ -301,8 +301,8 @@ container exec [--env <env> ...] [--env-file <env-file> ...] [--gid <gid>] [--in
 
 **Arguments**
 
-*   `CONTAINER-ID`: Container ID
-*   `ARGUMENTS`: New process arguments
+*   `<container-id>`: Container ID
+*   `<arguments>`: New process arguments
 
 **Process flags**
 
@@ -327,7 +327,7 @@ container logs [--boot] [--follow] [-n <n>] [--debug] <container-id>
 
 **Arguments**
 
-*   `CONTAINER-ID`: Container ID
+*   `<container-id>`: Container ID
 
 **Options**
 
@@ -347,7 +347,7 @@ container inspect [--debug] <container-ids> ...
 
 **Arguments**
 
-*   `CONTAINER-IDS`: Container IDs
+*   `<container-ids>`: Container IDs
 
 **Options**
 
@@ -663,7 +663,7 @@ container volume delete [--all] [--debug] [<names> ...]
 
 **Arguments**
 
-*   `NAME...`: Volume names to delete
+*   `<names>`: Volume names
 
 **Options**
 
@@ -913,7 +913,7 @@ container system property get [--debug] <id>
 
 **Arguments**
 
-*   `PROPERTY_ID`: The ID of the property to retrieve (use `property list` to see available IDs)
+*   `<id>`: The property ID
 
 **Options**
 
@@ -941,8 +941,8 @@ container system property set [--debug] <id> <value>
 
 **Arguments**
 
-*   `PROPERTY_ID`: The ID of the property to set
-*   `VALUE`: The new value for the property
+*   `<id>`: The property ID
+*   `<value>`: The property value
 
 **Property Types and Validation**
 
@@ -984,7 +984,7 @@ container system property clear [--debug] <id>
 
 **Arguments**
 
-*   `PROPERTY_ID`: The ID of the property to clear
+*   `<id>`: The property ID
 
 **Options**
 
