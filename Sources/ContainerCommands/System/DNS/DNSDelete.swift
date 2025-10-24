@@ -41,7 +41,7 @@ extension Application {
                 try resolver.deleteDomain(name: domainName)
                 print(domainName)
             } catch {
-                throw ContainerizationError(.invalidState, message: "cannot create domain (try sudo?)")
+                throw ContainerizationError(.invalidState, message: "cannot delete domain (try sudo?)")
             }
 
             do {
