@@ -146,7 +146,56 @@ Creates a container from an image without starting it. This command accepts most
 container create [<options>] <image> [<arguments> ...]
 ```
 
-**Typical use**: create a container to inspect or modify its configuration before running it.
+**Arguments**
+
+*   `<image>`: Image name
+*   `<arguments>`: Container init process arguments
+
+**Process Options**
+
+*   `-e, --env <env>`: Set environment variables (format: key=value)
+*   `--env-file <env-file>`: Read in a file of environment variables (key=value format, ignores # comments and blank lines)
+*   `--gid <gid>`: Set the group ID for the process
+*   `-i, --interactive`: Keep the standard input open even if not attached
+*   `-t, --tty`: Open a TTY with the process
+*   `-u, --user <user>`: Set the user for the process (format: name|uid[:gid])
+*   `--uid <uid>`: Set the user ID for the process
+*   `-w, --workdir, --cwd <dir>`: Set the initial working directory inside the container
+
+**Resource Options**
+
+*   `-c, --cpus <cpus>`: Number of CPUs to allocate to the container
+*   `-m, --memory <memory>`: Amount of memory (1MiByte granularity), with optional K, M, G, T, or P suffix
+
+**Management Options**
+
+*   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: arm64)
+*   `--cidfile <cidfile>`: Write the container ID to the path provided
+*   `-d, --detach`: Run the container and detach from the process
+*   `--dns <ip>`: DNS nameserver IP address
+*   `--dns-domain <domain>`: Default DNS domain
+*   `--dns-option <option>`: DNS options
+*   `--dns-search <domain>`: DNS search domains
+*   `--entrypoint <cmd>`: Override the entrypoint of the image
+*   `-k, --kernel <path>`: Set a custom kernel path
+*   `-l, --label <label>`: Add a key=value label to the container
+*   `--mount <mount>`: Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)
+*   `--name <name>`: Use the specified name as the container ID
+*   `--network <network>`: Attach the container to a network
+*   `--no-dns`: Do not configure DNS in the container
+*   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
+*   `-p, --publish <spec>`: Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])
+*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
+*   `--publish-socket <spec>`: Publish a socket from container to host (format: host_path:container_path)
+*   `--rm, --remove`: Remove the container after it stops
+*   `--ssh`: Forward SSH agent socket to container
+*   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
+*   `-v, --volume <volume>`: Bind mount a volume into the container
+*   `--virtualization`: Expose virtualization capabilities to the container (requires host and guest support)
+
+**Registry Options**
+
+*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
 
 ### `container start`
 
