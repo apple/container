@@ -14,7 +14,10 @@ Runs a container from an image. If a command is provided, it will execute inside
 container run [<options>] <image> [<arguments> ...]
 ```
 
-**Options**
+**Arguments**
+
+*   `<image>`: Image name
+*   `<arguments>`: Container init process arguments
 
 *   **Process options**
     *   `-e, --env <env>`: Set environment variables (format: key=value)
@@ -381,6 +384,10 @@ Pulls an image from a registry. Supports specifying a platform and controlling p
 container image pull [--debug] [--scheme <scheme>] [--disable-progress-updates] [--arch <arch>] [--os <os>] [--platform <platform>] <reference>
 ```
 
+**Arguments**
+
+*   `<reference>`: Image reference to pull
+
 **Options**
 
 *   `--platform <platform>`: Platform string in the form `os/arch/variant`. Example `linux/arm64/v8`, `linux/amd64`. Default: current host platform.
@@ -397,6 +404,10 @@ Pushes an image to a registry. The flags mirror those for `image pull` with the 
 container image push [--scheme <scheme>] [--disable-progress-updates] [--arch <arch>] [--os <os>] [--platform <platform>] [--debug] <reference>
 ```
 
+**Arguments**
+
+*   `<reference>`: Image reference to push
+
 **Options**
 
 *   `--platform <platform>`: Platform string in the form `os/arch/variant`. Example `linux/arm64/v8`, `linux/amd64` (optional)
@@ -412,6 +423,10 @@ Saves an image to a tar archive on disk. Useful for exporting images for offline
 ```bash
 container image save [--arch <arch>] [--os <os>] --output <output> [--platform <platform>] [--debug] <references> ...
 ```
+
+**Arguments**
+
+*   `<references>`: Image references to save
 
 **Options**
 
@@ -442,6 +457,11 @@ Applies a new tag to an existing image. The original image reference remains unc
 container image tag <source> <target> [--debug]
 ```
 
+**Arguments**
+
+*   `<source>`: The existing image reference (format: image-name[:tag])
+*   `<target>`: The new image reference
+
 **Options**
 
 No options.
@@ -455,6 +475,10 @@ Removes one or more images. If no images are provided, `--all` can be used to re
 ```bash
 container image delete [--all] [--debug] [<images> ...]
 ```
+
+**Arguments**
+
+*   `<images>`: Image names or IDs
 
 **Options**
 
@@ -484,6 +508,9 @@ Shows detailed information for one or more images in JSON format. Accepts image 
 container image inspect [--debug] <images> ...
 ```
 
+**Arguments**
+
+*   `<images>`: Images to inspect
 
 **Options**
 
@@ -564,6 +591,10 @@ Creates a new network with the given name.
 container network create [--label <label> ...] [--debug] <name>
 ```
 
+**Arguments**
+
+*   `<name>`: Network name
+
 **Options**
 
 *   `--label <key=value>`: set metadata labels on the network
@@ -578,6 +609,10 @@ Deletes one or more networks. When deleting multiple networks, pass them as sepa
 ```bash
 container network delete [--all] [--debug] [<network-names> ...]
 ```
+
+**Arguments**
+
+*   `<network-names>`: Network names
 
 **Options**
 
@@ -608,6 +643,9 @@ Shows detailed information about one or more networks.
 container network inspect <networks> ... [--debug]
 ```
 
+**Arguments**
+
+*   `<networks>`: Networks to inspect
 
 **Options**
 
@@ -626,6 +664,10 @@ Creates a new named volume with an optional size and driver-specific options.
 ```bash
 container volume create [--label <label> ...] [--opt <opt> ...] [-s <s>] [--debug] <name>
 ```
+
+**Arguments**
+
+*   `<name>`: Volume name
 
 **Options**
 
@@ -707,6 +749,9 @@ Displays detailed information for one or more volumes in JSON.
 container volume inspect [--debug] <names> ...
 ```
 
+**Arguments**
+
+*   `<names>`: Volume names
 
 **Options**
 
@@ -726,6 +771,10 @@ Authenticates with a registry. Credentials can be provided interactively or via 
 container registry login [--scheme <scheme>] [--password-stdin] [--username <username>] [--debug] <server>
 ```
 
+**Arguments**
+
+*   `<server>`: Registry server name
+
 **Options**
 
 *   `-u, --username <username>`: username for the registry
@@ -742,6 +791,9 @@ Logs out of a registry, removing stored credentials.
 container registry logout [--debug] <registry>
 ```
 
+**Arguments**
+
+*   `<registry>`: Registry server name
 
 **Options**
 
@@ -822,6 +874,9 @@ Creates a local DNS domain for containers. Requires administrator privileges (us
 container system dns create [--debug] <domain-name>
 ```
 
+**Arguments**
+
+*   `<domain-name>`: The local domain name
 
 **Options**
 
@@ -837,6 +892,9 @@ Deletes a local DNS domain. Requires administrator privileges (use sudo).
 container system dns delete [--debug] <domain-name>
 ```
 
+**Arguments**
+
+*   `<domain-name>`: The local domain name
 
 **Options**
 
