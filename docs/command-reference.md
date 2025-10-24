@@ -11,7 +11,7 @@ Runs a container from an image. If a command is provided, it will execute inside
 **Usage**
 
 ```bash
-container run [OPTIONS] IMAGE [COMMAND] [ARG...]
+container run [<options>] <image> [<arguments> ...]
 ```
 
 **Options**
@@ -90,7 +90,7 @@ Builds an OCI image from a local build context. It reads a Dockerfile (default `
 **Usage**
 
 ```bash
-container build [OPTIONS] [CONTEXT-DIR]
+container build [<options>] [<context-dir>]
 ```
 
 **Arguments**
@@ -143,7 +143,7 @@ Creates a container from an image without starting it. This command accepts most
 **Usage**
 
 ```bash
-container create [OPTIONS] IMAGE [COMMAND] [ARG...]
+container create [<options>] <image> [<arguments> ...]
 ```
 
 **Typical use**: create a container to inspect or modify its configuration before running it.
@@ -155,7 +155,7 @@ Starts a stopped container. You can attach to the container's output streams and
 **Usage**
 
 ```bash
-container start [OPTIONS] CONTAINER-ID
+container start [--attach] [--interactive] [--debug] <container-id>
 ```
 
 **Arguments**
@@ -174,7 +174,7 @@ Stops running containers gracefully by sending a signal. A timeout can be specif
 **Usage**
 
 ```bash
-container stop [OPTIONS] [CONTAINER-IDS...]
+container stop [--all] [--signal <signal>] [--time <time>] [--debug] [<container-ids> ...]
 ```
 
 **Arguments**
@@ -194,7 +194,7 @@ Immediately kills running containers by sending a signal (defaults to `KILL`). U
 **Usage**
 
 ```bash
-container kill [OPTIONS] [CONTAINER-IDS...]
+container kill [--all] [--signal <signal>] [--debug] [<container-ids> ...]
 ```
 
 **Arguments**
@@ -213,7 +213,7 @@ Removes one or more containers. If the container is running, you may force delet
 **Usage**
 
 ```bash
-container delete [OPTIONS] [CONTAINER-IDS...]
+container delete [--all] [--force] [--debug] [<container-ids> ...]
 ```
 
 **Arguments**
@@ -231,7 +231,7 @@ Lists containers. By default only running containers are shown. Output can be fo
 **Usage**
 
 ```bash
-container list [OPTIONS]
+container list [--all] [--format <format>] [--quiet] [--debug]
 ```
 
 **Options**
@@ -247,7 +247,7 @@ Executes a command inside a running container. It uses the same process flags as
 **Usage**
 
 ```bash
-container exec [OPTIONS] CONTAINER-ID ARGUMENTS...
+container exec [--env <env> ...] [--env-file <env-file> ...] [--gid <gid>] [--interactive] [--tty] [--user <user>] [--uid <uid>] [--workdir <dir>] [--debug] <container-id> <arguments> ...
 ```
 
 **Arguments**
@@ -273,7 +273,7 @@ Fetches logs from a container. You can follow the logs (`-f`/`--follow`), restri
 **Usage**
 
 ```bash
-container logs [OPTIONS] CONTAINER-ID
+container logs [--boot] [--follow] [-n <n>] [--debug] <container-id>
 ```
 
 **Arguments**
@@ -293,7 +293,7 @@ Displays detailed container information in JSON. Pass one or more container IDs 
 **Usage**
 
 ```bash
-container inspect [OPTIONS] CONTAINER-IDS...
+container inspect [--debug] <container-ids> ...
 ```
 
 **Arguments**
@@ -313,7 +313,7 @@ Lists local images. Verbose output provides additional details such as image ID,
 **Usage**
 
 ```bash
-container image list [OPTIONS]
+container image list [--format <format>] [--quiet] [--verbose] [--debug]
 ```
 
 **Options**
@@ -329,7 +329,7 @@ Pulls an image from a registry. Supports specifying a platform and controlling p
 **Usage**
 
 ```bash
-container image pull [OPTIONS] REFERENCE
+container image pull [--debug] [--scheme <scheme>] [--disable-progress-updates] [--arch <arch>] [--os <os>] [--platform <platform>] <reference>
 ```
 
 **Options**
@@ -345,7 +345,7 @@ Pushes an image to a registry. The flags mirror those for `image pull` with the 
 **Usage**
 
 ```bash
-container image push [OPTIONS] REFERENCE
+container image push [--scheme <scheme>] [--disable-progress-updates] [--arch <arch>] [--os <os>] [--platform <platform>] [--debug] <reference>
 ```
 
 **Options**
@@ -361,7 +361,7 @@ Saves an image to a tar archive on disk. Useful for exporting images for offline
 **Usage**
 
 ```bash
-container image save [OPTIONS] REFERENCE
+container image save [--arch <arch>] [--os <os>] --output <output> [--platform <platform>] [--debug] <references> ...
 ```
 
 **Options**
@@ -376,7 +376,7 @@ Loads images from a tar archive created by `image save`. The tar file must be sp
 **Usage**
 
 ```bash
-container image load [OPTIONS]
+container image load --input <input> [--debug]
 ```
 
 **Options**
@@ -390,7 +390,7 @@ Applies a new tag to an existing image. The original image reference remains unc
 **Usage**
 
 ```bash
-container image tag SOURCE_IMAGE[:TAG] TARGET_IMAGE[:TAG]
+container image tag <source> <target> [--debug]
 ```
 
 **Options**
@@ -404,7 +404,7 @@ Removes one or more images. If no images are provided, `--all` can be used to re
 **Usage**
 
 ```bash
-container image delete [OPTIONS] [IMAGE...]
+container image delete [--all] [--debug] [<images> ...]
 ```
 
 **Options**
@@ -418,7 +418,7 @@ Removes unused (dangling) images to reclaim disk space. The command outputs the 
 **Usage**
 
 ```bash
-container image prune [OPTIONS]
+container image prune [--debug]
 ```
 
 **Options**
@@ -432,7 +432,7 @@ Shows detailed information for one or more images in JSON format. Accepts image 
 **Usage**
 
 ```bash
-container image inspect [OPTIONS] IMAGE...
+container image inspect [--debug] <images> ...
 ```
 
 
@@ -451,7 +451,7 @@ Starts the BuildKit builder container. CPU and memory limits can be set for the 
 **Usage**
 
 ```bash
-container builder start [OPTIONS]
+container builder start [--cpus <cpus>] [--memory <memory>] [--debug]
 ```
 
 **Options**
@@ -466,7 +466,7 @@ Shows the current status of the BuildKit builder. Without flags a human-readable
 **Usage**
 
 ```bash
-container builder status [OPTIONS]
+container builder status [--format <format>] [--quiet] [--debug]
 ```
 
 **Options**
@@ -476,6 +476,12 @@ container builder status [OPTIONS]
 ### `container builder stop`
 
 Stops the BuildKit builder. No additional options are required; uses global flags only.
+
+**Usage**
+
+```bash
+container builder stop [--debug]
+```
 
 **Options**
 
@@ -488,7 +494,7 @@ Removes the BuildKit builder container. It can optionally force deletion if the 
 **Usage**
 
 ```bash
-container builder delete [OPTIONS]
+container builder delete [--force] [--debug]
 ```
 
 **Options**
@@ -506,7 +512,7 @@ Creates a new network with the given name.
 **Usage**
 
 ```bash
-container network create NAME [OPTIONS]
+container network create [--label <label> ...] [--debug] <name>
 ```
 
 **Options**
@@ -521,7 +527,7 @@ Deletes one or more networks. When deleting multiple networks, pass them as sepa
 **Usage**
 
 ```bash
-container network delete [OPTIONS] [NAME...]
+container network delete [--all] [--debug] [<network-names> ...]
 ```
 
 **Options**
@@ -535,7 +541,7 @@ Lists user-defined networks.
 **Usage**
 
 ```bash
-container network list [OPTIONS]
+container network list [--format <format>] [--quiet] [--debug]
 ```
 
 **Options**
@@ -550,7 +556,7 @@ Shows detailed information about one or more networks.
 **Usage**
 
 ```bash
-container network inspect [OPTIONS] NAME...
+container network inspect <networks> ... [--debug]
 ```
 
 
@@ -569,7 +575,7 @@ Creates a new named volume with an optional size and driver-specific options.
 **Usage**
 
 ```bash
-container volume create [OPTIONS] NAME
+container volume create [--label <label> ...] [--opt <opt> ...] [-s <s>] [--debug] <name>
 ```
 
 **Options**
@@ -603,7 +609,7 @@ Removes one or more volumes by name. Volumes that are currently in use by contai
 **Usage**
 
 ```bash
-container volume delete [OPTIONS] [NAME...]
+container volume delete [--all] [--debug] [<names> ...]
 ```
 
 **Arguments**
@@ -634,7 +640,7 @@ Removes all volumes that have no container references. This includes volumes tha
 **Usage**
 
 ```bash
-container volume prune [OPTIONS]
+container volume prune [--debug]
 ```
 
 **Options**
@@ -664,7 +670,7 @@ Lists volumes.
 **Usage**
 
 ```bash
-container volume list [OPTIONS]
+container volume list [--format <format>] [--quiet] [--debug]
 ```
 
 **Options**
@@ -679,7 +685,7 @@ Displays detailed information for one or more volumes in JSON.
 **Usage**
 
 ```bash
-container volume inspect NAME...
+container volume inspect [--debug] <names> ...
 ```
 
 
@@ -698,7 +704,7 @@ Authenticates with a registry. Credentials can be provided interactively or via 
 **Usage**
 
 ```bash
-container registry login [OPTIONS] SERVER
+container registry login [--scheme <scheme>] [--password-stdin] [--username <username>] [--debug] <server>
 ```
 
 **Options**
@@ -714,7 +720,7 @@ Logs out of a registry, removing stored credentials.
 **Usage**
 
 ```bash
-container registry logout SERVER
+container registry logout [--debug] <registry>
 ```
 
 
@@ -733,7 +739,7 @@ Starts the container services and (optionally) installs a default kernel. It wil
 **Usage**
 
 ```bash
-container system start [OPTIONS]
+container system start [--app-root <app-root>] [--install-root <install-root>] [--enable-kernel-install] [--disable-kernel-install] [--debug]
 ```
 
 **Options**
@@ -751,7 +757,7 @@ Stops the container services and deregisters them from launchd. You can specify 
 **Usage**
 
 ```bash
-container system stop [OPTIONS]
+container system stop [--prefix <prefix>] [--debug]
 ```
 
 **Options**
@@ -765,7 +771,7 @@ Checks whether the container services are running and prints status information.
 **Usage**
 
 ```bash
-container system status [OPTIONS]
+container system status [--prefix <prefix>] [--debug]
 ```
 
 **Options**
@@ -779,7 +785,7 @@ Displays logs from the container services. You can specify a time interval or fo
 **Usage**
 
 ```bash
-container system logs [OPTIONS]
+container system logs [--follow] [--last <last>] [--debug]
 ```
 
 **Options**
@@ -794,7 +800,7 @@ Creates a local DNS domain for containers. Requires administrator privileges (us
 **Usage**
 
 ```bash
-container system dns create NAME
+container system dns create [--debug] <domain-name>
 ```
 
 
@@ -809,7 +815,7 @@ Deletes a local DNS domain. Requires administrator privileges (use sudo).
 **Usage**
 
 ```bash
-container system dns delete NAME
+container system dns delete [--debug] <domain-name>
 ```
 
 
@@ -824,7 +830,7 @@ Lists configured local DNS domains for containers.
 **Usage**
 
 ```bash
-container system dns list
+container system dns list [--debug]
 ```
 
 **Options**
@@ -838,7 +844,7 @@ Installs or updates the Linux kernel used by the container runtime on macOS host
 **Usage**
 
 ```bash
-container system kernel set [OPTIONS]
+container system kernel set [--arch <arch>] [--binary <binary>] [--force] [--recommended] [--tar <tar>] [--debug]
 ```
 
 **Options**
@@ -855,7 +861,7 @@ Lists all available system properties with their current values, types, and desc
 **Usage**
 
 ```bash
-container system property list [OPTIONS]
+container system property list [--format <format>] [--quiet] [--debug]
 ```
 
 **Options**
@@ -883,7 +889,7 @@ Retrieves the current value of a specific system property by its ID.
 **Usage**
 
 ```bash
-container system property get PROPERTY_ID
+container system property get [--debug] <id>
 ```
 
 **Arguments**
@@ -911,7 +917,7 @@ Sets the value of a system property. The command validates the value based on th
 **Usage**
 
 ```bash
-container system property set PROPERTY_ID VALUE
+container system property set [--debug] <id> <value>
 ```
 
 **Arguments**
@@ -954,7 +960,7 @@ Clears (unsets) a system property, reverting it to its default value.
 **Usage**
 
 ```bash
-container system property clear PROPERTY_ID
+container system property clear [--debug] <id>
 ```
 
 **Arguments**
