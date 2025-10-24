@@ -15,22 +15,34 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerClient
+import Foundation
 
-extension Application {
-    public struct VolumeCommand: AsyncParsableCommand {
-        public static let configuration = CommandConfiguration(
-            commandName: "volume",
-            abstract: "Manage container volumes",
-            subcommands: [
-                VolumeCreate.self,
-                VolumeDelete.self,
-                VolumeList.self,
-                VolumeInspect.self,
-                VolumePrune.self,
-            ],
-            aliases: ["v"]
-        )
-
+extension Application.VolumeCommand {
+    public struct VolumePrune: AsyncParsableCommand {
         public init() {}
+        public static let configuration = CommandConfiguration(
+            commandName: "prune",
+            abstract: "Remove volumes with no container references")
+
+        @OptionGroup
+        var global: Flags.Global
+
+        public func run() async throws {
+            let (volumeNames, size) = try await ClientVolume.prune()
+            let formatter = ByteCountFormatter()
+            let freed = formatter.string(fromByteCount: Int64(size))
+
+            if volumeNames.isEmpty {
+                print("No volumes to prune")
+            } else {
+                print("Pruned volumes:")
+                for name in volumeNames {
+                    print(name)
+                }
+                print()
+            }
+            print("Reclaimed \(freed) in disk space")
+        }
     }
 }

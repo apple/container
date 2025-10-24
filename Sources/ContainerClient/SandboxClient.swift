@@ -52,7 +52,7 @@ public struct SandboxClient: Sendable {
 
         let response: XPCMessage
         do {
-            response = try await client.send(request, responseTimeout: .seconds(3))
+            response = try await client.send(request, responseTimeout: .seconds(5))
         } catch {
             throw ContainerizationError(
                 .internalError,

@@ -120,13 +120,13 @@ public actor SandboxService {
             let bundle = ContainerClient.Bundle(path: self.root)
             try bundle.createLogFile()
 
+            var config = try bundle.configuration
             let vmm = VZVirtualMachineManager(
                 kernel: try bundle.kernel,
                 initialFilesystem: bundle.initialFilesystem.asMount,
-                bootlog: bundle.bootlog.path,
+                rosetta: config.rosetta,
                 logger: self.log
             )
-            var config = try bundle.configuration
 
             // Dynamically configure the DNS nameserver from a network if no explicit configuration
             if let dns = config.dns, dns.nameservers.isEmpty {
@@ -204,6 +204,8 @@ public actor SandboxService {
                         ))
                 }
                 czConfig.hosts = Hosts(entries: hostsEntries)
+                czConfig.bootlog = bundle.bootlog
+
 
                 // Capture the configuration for post-mount hooks
                 capturedCzConfig = czConfig
@@ -997,7 +999,6 @@ public actor SandboxService {
     ) throws {
         czConfig.cpus = config.resources.cpus
         czConfig.memoryInBytes = config.resources.memoryInBytes
-        czConfig.rosetta = config.rosetta
         czConfig.sysctl = config.sysctls.reduce(into: [String: String]()) {
             $0[$1.key] = $1.value
         }
@@ -1123,9 +1124,9 @@ public actor SandboxService {
     }
 
     private nonisolated func configureProcessConfig(config: ProcessConfiguration, stdio: [FileHandle?], containerConfig: ContainerConfiguration)
-        -> LinuxContainer.Configuration.Process
+        -> LinuxProcessConfiguration
     {
-        var proc = LinuxContainer.Configuration.Process()
+        var proc = LinuxProcessConfiguration()
         proc.stdin = stdio[0]
         proc.stdout = stdio[1]
         proc.stderr = stdio[2]
