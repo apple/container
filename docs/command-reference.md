@@ -111,7 +111,7 @@ container build [<options>] [<context-dir>]
 *   `--no-cache`: Do not use cache
 *   `-o, --output <value>`: Output configuration for the build (format: type=<oci|tar|local>[,dest=]) (default: type=oci)
 *   `--os <value>`: Add the OS type to the build
-*   `--platform <platform>`: Add the platform to the build (takes precedence over --os and --arch)
+*   `--platform <platform>`: Add the platform to the build (format: os/arch[/variant], takes precedence over --os and --arch)
 *   `--progress <type>`: Progress type (format: auto|plain|tty)] (default: auto)
 *   `-q, --quiet`: Suppress build output
 *   `-t, --tag <name>`: Name for the built image (can be specified multiple times)
@@ -288,7 +288,7 @@ container list [--all] [--format <format>] [--quiet] [--debug]
 
 **Options**
 
-*   `-a, --all`: Show stopped containers as well
+*   `-a, --all`: Include containers that are not running
 *   `--format <format>`: Format of the output (values: json, table; default: table)
 *   `-q, --quiet`: Only output the container ID
 
@@ -307,7 +307,7 @@ container exec [--env <env> ...] [--env-file <env-file> ...] [--gid <gid>] [--in
 *   `<container-id>`: Container ID
 *   `<arguments>`: New process arguments
 
-**Process flags**
+**Process Options**
 
 *   `-e, --env <env>`: Set environment variables (format: key=value)
 *   `--env-file <env-file>`: Read in a file of environment variables (key=value format, ignores # comments and blank lines)
@@ -370,9 +370,9 @@ container image list [--format <format>] [--quiet] [--verbose] [--debug]
 
 **Options**
 
+*   `--format <format>`: Format of the output (values: json, table; default: table)
 *   `-q, --quiet`: Only output the image name
 *   `-v, --verbose`: Verbose output
-*   `--format <format>`: Format of the output (values: `json`, `table`; default: `table`)
 
 ### `container image pull`
 
@@ -390,9 +390,9 @@ container image pull [--debug] [--scheme <scheme>] [--disable-progress-updates] 
 
 **Options**
 
-*   `--platform <platform>`: Platform string in the form `os/arch/variant`. Example `linux/arm64/v8`, `linux/amd64`. Default: current host platform.
-*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (`http`, `https`, `auto`) (default: `auto`)
+*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
 *   `--disable-progress-updates`: Disable progress bar updates
+*   `--platform <platform>`: Limit the pull to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)
 
 ### `container image push`
 
@@ -410,9 +410,9 @@ container image push [--scheme <scheme>] [--disable-progress-updates] [--arch <a
 
 **Options**
 
-*   `--platform <platform>`: Platform string in the form `os/arch/variant`. Example `linux/arm64/v8`, `linux/amd64` (optional)
-*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (`http`, `https`, `auto`) (default: `auto`)
+*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
 *   `--disable-progress-updates`: Disable progress bar updates
+*   `--platform <platform>`: Limit the push to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)
 
 ### `container image save`
 
@@ -430,8 +430,8 @@ container image save [--arch <arch>] [--os <os>] --output <output> [--platform <
 
 **Options**
 
-*   `--platform <platform>`: Platform string in the form `os/arch/variant`. Example `linux/arm64/v8`, `linux/amd64` (optional)
-*   `-o, --output <file>`: Path to save the image tar archive
+*   `-o, --output <output>`: Pathname for the saved image
+*   `--platform <platform>`: Platform for the saved image (format: os/arch[/variant], takes precedence over --os and --arch)
 
 ### `container image load`
 
@@ -445,7 +445,7 @@ container image load --input <input> [--debug]
 
 **Options**
 
-*   `-i, --input <file>`: Path to the tar archive to load images from
+*   `-i, --input <input>`: Path to the image tar archive
 
 ### `container image tag`
 
@@ -482,7 +482,7 @@ container image delete [--all] [--debug] [<images> ...]
 
 **Options**
 
-*   `-a, --all`: remove all images
+*   `-a, --all`: Remove all images
 
 ### `container image prune`
 
@@ -532,8 +532,8 @@ container builder start [--cpus <cpus>] [--memory <memory>] [--debug]
 
 **Options**
 
-*   `-c, --cpus <number>`: Number of CPUs to allocate to the container (default: 2)
-*   `-m, --memory <size>`: Amount of memory in bytes, kilobytes (K), megabytes (M), or gigabytes (G) for the container, with MB granularity (for example, 1024K will result in 1MB being allocated for the container) (default: 2048MB)
+*   `-c, --cpus <cpus>`: Number of CPUs to allocate to the builder container (default: 2)
+*   `-m, --memory <memory>`: Amount of builder container memory (1MiByte granularity), with optional K, M, G, T, or P suffix (default: 2048MB)
 
 ### `container builder status`
 
@@ -575,7 +575,7 @@ container builder delete [--force] [--debug]
 
 **Options**
 
-*   `-f, --force`: force deletion even if the builder is running
+*   `-f, --force`: Delete the builder even if it is running
 
 ## Network Management (macOS 26+)
 
@@ -597,8 +597,8 @@ container network create [--label <label> ...] [--debug] <name>
 
 **Options**
 
-*   `--label <key=value>`: set metadata labels on the network
 *   `--subnet <value>`: set subnet on the network
+*   `--label <label>`: Set metadata for a network
 
 ### `container network delete (rm)`
 
@@ -616,7 +616,7 @@ container network delete [--all] [--debug] [<network-names> ...]
 
 **Options**
 
-*   `-a, --all`: delete all defined networks
+*   `-a, --all`: Delete all networks
 
 ### `container network list (ls)`
 
@@ -630,8 +630,8 @@ container network list [--format <format>] [--quiet] [--debug]
 
 **Options**
 
+*   `--format <format>`: Format of the output (values: json, table; default: table)
 *   `-q, --quiet`: Only output the network name
-*   `--format <format>`: Format of the output (values: `json`, `table`; default: `table`)
 
 ### `container network inspect`
 
@@ -671,9 +671,9 @@ container volume create [--label <label> ...] [--opt <opt> ...] [-s <s>] [--debu
 
 **Options**
 
-*   `-s <size>`: size of the volume (default: 512GB). Examples: `1G`, `512MB`, `2T`
-*   `--opt <key=value>`: set driver-specific options
-*   `--label <key=value>`: set metadata labels on the volume
+*   `--label <label>`: Set metadata for a volume
+*   `--opt <opt>`: Set driver specific options
+*   `-s <s>`: Size of the volume in bytes, with optional K, M, G, T, or P suffix
 
 **Anonymous Volumes**
 
@@ -709,7 +709,7 @@ container volume delete [--all] [--debug] [<names> ...]
 
 **Options**
 
-*   `-a, --all`: Delete all volumes (only removes volumes not in use)
+*   `-a, --all`: Delete all volumes
 
 **Examples**
 
@@ -736,8 +736,8 @@ container volume list [--format <format>] [--quiet] [--debug]
 
 **Options**
 
-*   `-q, --quiet`: Only display volume names
-*   `--format <format>`: Format of the output (values: `json`, `table`; default: `table`)
+*   `--format <format>`: Format of the output (values: json, table; default: table)
+*   `-q, --quiet`: Only output the volume name
 
 ### `container volume inspect`
 
@@ -777,9 +777,9 @@ container registry login [--scheme <scheme>] [--password-stdin] [--username <use
 
 **Options**
 
-*   `-u, --username <username>`: username for the registry
-*   `--password-stdin`: read the password from STDIN (non-interactive)
-*   `--scheme <scheme>`: registry scheme. One of (`http`, `https`, `auto`) (default: `auto`)
+*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
+*   `--password-stdin`: Take the password from stdin
+*   `-u, --username <username>`: Registry user name
 
 ### `container registry logout`
 
@@ -815,11 +815,11 @@ container system start [--app-root <app-root>] [--install-root <install-root>] [
 
 **Options**
 
-*   `-a, --app-root <path>`: application data directory
-*   `--install-root <path>`: path to the installation root directory
-*   `--enable-kernel-install`: install the recommended default kernel
 *   `--disable-kernel-install`: skip installing the default kernel
   If neither kernel-install flag is provided, you will be prompted to choose whether to install the recommended kernel.
+*   `-a, --app-root <app-root>`: Path to the root directory for application data
+*   `--install-root <install-root>`: Path to the root directory for application executables and plugins
+*   `--enable-kernel-install/--disable-kernel-install`: Specify whether the default kernel should be installed or not (default: prompt user)
 
 ### `container system stop`
 
@@ -833,7 +833,7 @@ container system stop [--prefix <prefix>] [--debug]
 
 **Options**
 
-*   `-p, --prefix <prefix>`: launchd prefix (default: `com.apple.container.`)
+*   `-p, --prefix <prefix>`: Launchd prefix for services (default: com.apple.container.)
 
 ### `container system status`
 
@@ -847,7 +847,7 @@ container system status [--prefix <prefix>] [--debug]
 
 **Options**
 
-*   `-p, --prefix <prefix>`: launchd prefix to query (default: `com.apple.container.`)
+*   `-p, --prefix <prefix>`: Launchd prefix for services (default: com.apple.container.)
 
 ### `container system logs`
 
@@ -861,8 +861,8 @@ container system logs [--follow] [--last <last>] [--debug]
 
 **Options**
 
-*   `--last <duration>`: Fetch logs starting from the specified time period (minus the current time); supported formats: m, h, d (default: 5m)
 *   `-f, --follow`: Follow log output
+*   `--last <last>`: Fetch logs starting from the specified time period (minus the current time); supported formats: m, h, d (default: 5m)
 
 ### `container system dns create`
 
@@ -926,10 +926,10 @@ container system kernel set [--arch <arch>] [--binary <binary>] [--force] [--rec
 
 **Options**
 
-*   `--binary <path>`: Path to a kernel binary (can be used with `--tar` inside a tar archive)
-*   `--tar <path | URL>`: Path or URL to a tarball containing kernel images
-*   `--arch <arch>`: Target architecture (`arm64` or `x86_64`)
-*   `--recommended`: Download and install the recommended default kernel for your host
+*   `--arch <arch>`: The architecture of the kernel binary (values: amd64, arm64) (default: arm64)
+*   `--binary <binary>`: Path to the kernel file (or archive member, if used with --tar)
+*   `--recommended`: Download and install the recommended kernel as the default (takes precedence over all other flags)
+*   `--tar <tar>`: Filesystem path or remote URL to a tar archive containing a kernel file
 
 ### `container system property list (ls)`
 
@@ -943,8 +943,8 @@ container system property list [--format <format>] [--quiet] [--debug]
 
 **Options**
 
-*   `-q, --quiet`: Only output the property IDs
-*   `--format <format>`: Format of the output (values: `json`, `table`; default: `table`)
+*   `--format <format>`: Format of the output (values: json, table; default: table)
+*   `-q, --quiet`: Only output the property ID
 
 **Examples**
 
