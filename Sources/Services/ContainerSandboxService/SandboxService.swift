@@ -19,8 +19,8 @@ import ContainerNetworkService
 import ContainerPersistence
 import ContainerXPC
 import Containerization
-import ContainerizationError
 import ContainerizationEXT4
+import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOCI
 import ContainerizationOS
@@ -29,9 +29,9 @@ import Logging
 import NIO
 import NIOFoundationCompat
 import SocketForwarder
+import Synchronization
 import System
 import SystemPackage
-import Synchronization
 
 import struct ContainerizationOCI.Mount
 import struct ContainerizationOCI.Process
@@ -205,7 +205,6 @@ public actor SandboxService {
                 }
                 czConfig.hosts = Hosts(entries: hostsEntries)
                 czConfig.bootlog = bundle.bootlog
-
 
                 // Capture the configuration for post-mount hooks
                 capturedCzConfig = czConfig
@@ -824,17 +823,18 @@ public actor SandboxService {
         // So we need to resolve it ourselves by reading /etc/passwd from the rootfs
         if uid == 0 && gid == 0 && !czConfig.process.user.username.isEmpty {
             self.log.info("User specified as username '\(czConfig.process.user.username)', resolving to uid/gid...")
-            if let resolved = try? self.resolveUsernameToUidGid(
-                username: czConfig.process.user.username,
-                bundle: bundle
-            ) {
-                uid = resolved.uid
-                gid = resolved.gid
-                self.log.info("Resolved username '\(czConfig.process.user.username)' to uid=\(uid) gid=\(gid)")
-            } else {
+            guard
+                let resolved = try? self.resolveUsernameToUidGid(
+                    username: czConfig.process.user.username,
+                    bundle: bundle
+                )
+            else {
                 self.log.warning("Failed to resolve username '\(czConfig.process.user.username)', skipping volume ownership fix")
                 return
             }
+            uid = resolved.uid
+            gid = resolved.gid
+            self.log.info("Resolved username '\(czConfig.process.user.username)' to uid=\(uid) gid=\(gid)")
         }
 
         // Skip if running as root (no fix needed, root can write anywhere)

@@ -478,7 +478,7 @@ class TestCLIVolumes: CLITest {
             name: containerName,
             args: [
                 "--user", "1000:1000",
-                "-v", "\(volumeName):/data"
+                "-v", "\(volumeName):/data",
             ]
         )
         try waitForContainerRunning(containerName)
