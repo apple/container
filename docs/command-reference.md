@@ -54,6 +54,19 @@ container run [OPTIONS] IMAGE [COMMAND] [ARG...]
     *   `--virtualization`: Expose virtualization capabilities to the container (requires host and guest support)
 *   **Registry options**
     *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
+    
+    * **Behavior of `auto`**  
+  
+        When `auto` is selected, the target registry is considered **internal/local** if the registry host matches any of these criteria:    
+        - The host is a loopback address (e.g., `localhost`, `127.*`)  
+        - The host is within the `RFC1918` private IP ranges:  
+            - `10.*.*.*`  
+            - `192.168.*.*`  
+            - `172.16.*.*` through `172.31.*.*`  
+        - The host ends with the machine’s default container DNS domain (as defined in `DefaultsStore.Keys.defaultDNSDomain`, located [here](../Sources/ContainerPersistence/DefaultsStore.swift))  
+  
+        For internal/local registries, the client uses **HTTP**. Otherwise, it uses **HTTPS**.
+
 *   **Progress options**
     *   `--disable-progress-updates`: Disable progress bar updates
 *   **Global options**
@@ -102,7 +115,7 @@ container build [OPTIONS] [CONTEXT-DIR]
 *   `--platform <platform>`: Add the platform to the build (takes precedence over --os and --arch)
 *   `--progress <type>`: Progress type (format: auto|plain|tty)] (default: auto)
 *   `-q, --quiet`: Suppress build output
-*   `-t, --tag <name>`: Name for the built image
+*   `-t, --tag <name>`: Name for the built image (can be specified multiple times)
 *   `--target <stage>`: Set the target build stage
 *   `--vsock-port <port>`: Builder shim vsock port (default: 8088)
 *   `--version`: Show the version.
@@ -122,6 +135,9 @@ container build --build-arg NODE_VERSION=18 -t my-app .
 
 # build the production stage only and disable cache
 container build --target production --no-cache -t my-app:prod .
+
+# build with multiple tags
+container build -t my-app:latest -t my-app:v1.0.0 -t my-app:stable .
 ```
 
 ## Container Management
@@ -614,15 +630,66 @@ container volume rm $VOL
 
 ### `container volume delete (rm)`
 
-Removes one or more volumes by name.
+Removes one or more volumes by name. Volumes that are currently in use by containers (running or stopped) cannot be deleted.
 
 **Usage**
 
 ```bash
-container volume delete NAME...
+container volume delete [OPTIONS] [NAME...]
 ```
 
-Only global flags are available.
+**Arguments**
+
+*   `NAME...`: Volume names to delete
+
+**Options**
+
+*   `-a, --all`: Delete all volumes (only removes volumes not in use)
+*   **Global**: `--debug`, `--version`, `-h`/`--help`
+
+**Examples**
+
+```bash
+# delete a specific volume
+container volume delete myvolume
+
+# delete multiple volumes
+container volume delete vol1 vol2 vol3
+
+# delete all unused volumes
+container volume delete --all
+```
+
+### `container volume prune`
+
+Removes all volumes that have no container references. This includes volumes that are not attached to any running or stopped containers. The command reports the actual disk space reclaimed after deletion.
+
+**Usage**
+
+```bash
+container volume prune [OPTIONS]
+```
+
+**Options**
+
+*   **Global**: `--debug`, `--version`, `-h`/`--help`
+
+**Examples**
+
+```bash
+# remove all unused volumes
+container volume prune
+```
+
+**Example output:**
+
+```
+Pruned volumes:
+vol1
+vol2
+
+Reclaimed 71.8 MB in disk space
+```
 
 ### `container volume list (ls)`
 

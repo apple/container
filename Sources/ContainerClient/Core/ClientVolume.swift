@@ -81,4 +81,18 @@ public struct ClientVolume {
         return try JSONDecoder().decode(Volume.self, from: responseData)
     }
 
+    public static func prune() async throws -> ([String], UInt64) {
+        let client = XPCClient(service: serviceIdentifier)
+        let message = XPCMessage(route: .volumePrune)
+        let reply = try await client.send(message)
+
+        guard let responseData = reply.dataNoCopy(key: .volumes) else {
+            return ([], 0)
+        }
+
+        let volumeNames = try JSONDecoder().decode([String].self, from: responseData)
+        let size = reply.uint64(key: .size)
+        return (volumeNames, size)
+    }
+
 }
