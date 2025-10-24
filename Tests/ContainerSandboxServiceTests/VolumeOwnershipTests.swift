@@ -14,10 +14,11 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import XCTest
 import Containerization
 import ContainerizationOCI
 import SystemPackage
+import XCTest
+
 @testable import ContainerClient
 @testable import ContainerSandboxService
 
@@ -122,11 +123,11 @@ final class VolumeOwnershipTests: XCTestCase {
 
         // Simulate /etc/passwd content
         let passwdContent = """
-        root:x:0:0:root:/root:/bin/bash
-        daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
-        appuser:x:1000:1000:Application User:/home/appuser:/bin/bash
-        nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin
-        """
+            root:x:0:0:root:/root:/bin/bash
+            daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+            appuser:x:1000:1000:Application User:/home/appuser:/bin/bash
+            nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin
+            """
 
         // When: Username is resolved from /etc/passwd
         let resolved = parsePasswdEntry(username: "appuser", passwdContent: passwdContent)
@@ -205,7 +206,7 @@ final class VolumeOwnershipTests: XCTestCase {
 
         let mounts: [MountType] = [
             .volume(name: "namedvolume"),
-            .bind(source: "/host/path")
+            .bind(source: "/host/path"),
         ]
 
         // When: Filtering for volumes only
@@ -228,9 +229,9 @@ final class VolumeOwnershipTests: XCTestCase {
     func testUsernameNotFoundReturnsNil() throws {
         // Given: /etc/passwd without the requested username
         let passwdContent = """
-        root:x:0:0:root:/root:/bin/bash
-        daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
-        """
+            root:x:0:0:root:/root:/bin/bash
+            daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+            """
 
         // When: Trying to resolve non-existent username
         let resolved = parsePasswdEntry(username: "nonexistent", passwdContent: passwdContent)
@@ -303,7 +304,7 @@ final class VolumeOwnershipTests: XCTestCase {
     }
 
     private func createEmptyLinuxContainerConfig() -> LinuxContainer.Configuration {
-        return LinuxContainer.Configuration()
+        LinuxContainer.Configuration()
     }
 
     private func createMockBundle() throws -> ContainerClient.Bundle {
