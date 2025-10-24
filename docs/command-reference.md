@@ -69,10 +69,6 @@ container run [OPTIONS] IMAGE [COMMAND] [ARG...]
 
 *   **Progress options**
     *   `--disable-progress-updates`: Disable progress bar updates
-*   **Global options**
-    *   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
-    *   `--version`: Show the version.
-    *   `-h, --help`: Show help information.
 
 **Examples**
 
@@ -118,8 +114,6 @@ container build [OPTIONS] [CONTEXT-DIR]
 *   `-t, --tag <name>`: Name for the built image (can be specified multiple times)
 *   `--target <stage>`: Set the target build stage
 *   `--vsock-port <port>`: Builder shim vsock port (default: 8088)
-*   `--version`: Show the version.
-*   `-h, --help`: Show help information.
 
 **Examples**
 
@@ -170,11 +164,8 @@ container start [OPTIONS] CONTAINER-ID
 
 **Options**
 
-*   `-a, --attach`: Attach STDOUT/STDERR
-*   `-i, --interactive`: Attach STDIN
-*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
-*   `--version`: Show the version.
-*   `-h, --help`: Show help information.
+*   `-a, --attach`: Attach stdout/stderr
+*   `-i, --interactive`: Attach stdin
 
 ### `container stop`
 
@@ -195,9 +186,6 @@ container stop [OPTIONS] [CONTAINER-IDS...]
 *   `-a, --all`: Stop all running containers
 *   `-s, --signal <signal>`: Signal to send the containers (default: SIGTERM)
 *   `-t, --time <time>`: Seconds to wait before killing the containers (default: 5)
-*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
-*   `--version`: Show the version.
-*   `-h, --help`: Show help information.
 
 ### `container kill`
 
@@ -217,9 +205,6 @@ container kill [OPTIONS] [CONTAINER-IDS...]
 
 *   `-a, --all`: Kill or signal all running containers
 *   `-s, --signal <signal>`: Signal to send to the container(s) (default: KILL)
-*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
-*   `--version`: Show the version.
-*   `-h, --help`: Show help information.
 
 ### `container delete (rm)`
 
@@ -238,10 +223,6 @@ container delete [OPTIONS] [CONTAINER-IDS...]
 **Options**
 
 *   `-a, --all`: Remove all containers
-*   `-f, --force`: Force the removal of one or more running containers
-*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
-*   `--version`: Show the version.
-*   `-h, --help`: Show help information.
 
 ### `container list (ls)`
 
@@ -258,9 +239,6 @@ container list [OPTIONS]
 *   `-a, --all`: Show stopped containers as well
 *   `--format <format>`: Format of the output (values: json, table; default: table)
 *   `-q, --quiet`: Only output the container ID
-*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
-*   `--version`: Show the version.
-*   `-h, --help`: Show help information.
 
 ### `container exec`
 
@@ -288,12 +266,6 @@ container exec [OPTIONS] CONTAINER-ID ARGUMENTS...
 *   `--uid <uid>`: Set the user ID for the process
 *   `-w, --workdir, --cwd <dir>`: Set the initial working directory inside the container
 
-**Options**
-
-*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
-*   `--version`: Show the version.
-*   `-h, --help`: Show help information.
-
 ### `container logs`
 
 Fetches logs from a container. You can follow the logs (`-f`/`--follow`), restrict the number of lines shown, or view boot logs.
@@ -313,9 +285,6 @@ container logs [OPTIONS] CONTAINER-ID
 *   `--boot`: Display the boot log for the container instead of stdio
 *   `-f, --follow`: Follow log output
 *   `-n <n>`: Number of lines to show from the end of the logs. If not provided this will print all of the logs
-*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
-*   `--version`: Show the version.
-*   `-h, --help`: Show help information.
 
 ### `container inspect`
 
@@ -333,9 +302,7 @@ container inspect [OPTIONS] CONTAINER-IDS...
 
 **Options**
 
-*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
-*   `--version`: Show the version.
-*   `-h, --help`: Show help information.
+No options.
 
 ## Image Management
 
@@ -354,7 +321,6 @@ container image list [OPTIONS]
 *   `-q, --quiet`: Only output the image name
 *   `-v, --verbose`: Verbose output
 *   `--format <format>`: Format of the output (values: `json`, `table`; default: `table`)
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
 
 ### `container image pull`
 
@@ -371,7 +337,6 @@ container image pull [OPTIONS] REFERENCE
 *   `--platform <platform>`: Platform string in the form `os/arch/variant`. Example `linux/arm64/v8`, `linux/amd64`. Default: current host platform.
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (`http`, `https`, `auto`) (default: `auto`)
 *   `--disable-progress-updates`: Disable progress bar updates
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
 
 ### `container image push`
 
@@ -388,7 +353,6 @@ container image push [OPTIONS] REFERENCE
 *   `--platform <platform>`: Platform string in the form `os/arch/variant`. Example `linux/arm64/v8`, `linux/amd64` (optional)
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (`http`, `https`, `auto`) (default: `auto`)
 *   `--disable-progress-updates`: Disable progress bar updates
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
 
 ### `container image save`
 
@@ -404,7 +368,6 @@ container image save [OPTIONS] REFERENCE
 
 *   `--platform <platform>`: Platform string in the form `os/arch/variant`. Example `linux/arm64/v8`, `linux/amd64` (optional)
 *   `-o, --output <file>`: Path to save the image tar archive
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
 
 ### `container image load`
 
@@ -419,7 +382,6 @@ container image load [OPTIONS]
 **Options**
 
 *   `-i, --input <file>`: Path to the tar archive to load images from
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
 
 ### `container image tag`
 
@@ -431,7 +393,9 @@ Applies a new tag to an existing image. The original image reference remains unc
 container image tag SOURCE_IMAGE[:TAG] TARGET_IMAGE[:TAG]
 ```
 
-No extra flags aside from global options.
+**Options**
+
+No options.
 
 ### `container image delete (rm)`
 
@@ -446,7 +410,6 @@ container image delete [OPTIONS] [IMAGE...]
 **Options**
 
 *   `-a, --all`: remove all images
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
 
 ### `container image prune`
 
@@ -458,7 +421,9 @@ Removes unused (dangling) images to reclaim disk space. The command outputs the 
 container image prune [OPTIONS]
 ```
 
-No extra options; uses global flags for debug and help.
+**Options**
+
+No options.
 
 ### `container image inspect`
 
@@ -470,7 +435,10 @@ Shows detailed information for one or more images in JSON format. Accepts image 
 container image inspect [OPTIONS] IMAGE...
 ```
 
-Only global flags (`--debug`, `--version`, `-h`/`--help`) are available.
+
+**Options**
+
+No options.
 
 ## Builder Management
 
@@ -490,7 +458,6 @@ container builder start [OPTIONS]
 
 *   `-c, --cpus <number>`: Number of CPUs to allocate to the container (default: 2)
 *   `-m, --memory <size>`: Amount of memory in bytes, kilobytes (K), megabytes (M), or gigabytes (G) for the container, with MB granularity (for example, 1024K will result in 1MB being allocated for the container) (default: 2048MB)
-*   **Global**: `--version`, `-h`/`--help`
 
 ### `container builder status`
 
@@ -505,11 +472,14 @@ container builder status [OPTIONS]
 **Options**
 
 *   `--json`: output status as JSON
-*   **Global**: `--version`, `-h`/`--help`
 
 ### `container builder stop`
 
 Stops the BuildKit builder. No additional options are required; uses global flags only.
+
+**Options**
+
+No options.
 
 ### `container builder delete (rm)`
 
@@ -524,7 +494,6 @@ container builder delete [OPTIONS]
 **Options**
 
 *   `-f, --force`: force deletion even if the builder is running
-*   **Global**: `--version`, `-h`/`--help`
 
 ## Network Management (macOS 26+)
 
@@ -544,7 +513,6 @@ container network create NAME [OPTIONS]
 
 *   `--label <key=value>`: set metadata labels on the network
 *   `--subnet <value>`: set subnet on the network
-*   **Global**: `--version`, `-h`/`--help`
 
 ### `container network delete (rm)`
 
@@ -559,7 +527,6 @@ container network delete [OPTIONS] [NAME...]
 **Options**
 
 *   `-a, --all`: delete all defined networks
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
 
 ### `container network list (ls)`
 
@@ -575,7 +542,6 @@ container network list [OPTIONS]
 
 *   `-q, --quiet`: Only output the network name
 *   `--format <format>`: Format of the output (values: `json`, `table`; default: `table`)
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
 
 ### `container network inspect`
 
@@ -587,7 +553,10 @@ Shows detailed information about one or more networks.
 container network inspect [OPTIONS] NAME...
 ```
 
-Only global flags are available for debugging, version, and help.
+
+**Options**
+
+No options.
 
 ## Volume Management
 
@@ -608,7 +577,6 @@ container volume create [OPTIONS] NAME
 *   `-s <size>`: size of the volume (default: 512GB). Examples: `1G`, `512MB`, `2T`
 *   `--opt <key=value>`: set driver-specific options
 *   `--label <key=value>`: set metadata labels on the volume
-*   **Global**: `--version`, `-h`/`--help`
 
 **Anonymous Volumes**
 
@@ -645,7 +613,6 @@ container volume delete [OPTIONS] [NAME...]
 **Options**
 
 *   `-a, --all`: Delete all volumes (only removes volumes not in use)
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
 
 **Examples**
 
@@ -672,8 +639,6 @@ container volume prune [OPTIONS]
 
 **Options**
 
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
-
 **Examples**
 
 ```bash
@@ -690,6 +655,7 @@ vol2
 
 Reclaimed 71.8 MB in disk space
 ```
+No options.
 
 ### `container volume list (ls)`
 
@@ -705,7 +671,6 @@ container volume list [OPTIONS]
 
 *   `-q, --quiet`: Only display volume names
 *   `--format <format>`: Format of the output (values: `json`, `table`; default: `table`)
-*   **Global**: `--version`, `-h`/`--help`
 
 ### `container volume inspect`
 
@@ -717,7 +682,10 @@ Displays detailed information for one or more volumes in JSON.
 container volume inspect NAME...
 ```
 
-Only global flags are available.
+
+**Options**
+
+No options.
 
 ## Registry Management
 
@@ -738,7 +706,6 @@ container registry login [OPTIONS] SERVER
 *   `-u, --username <username>`: username for the registry
 *   `--password-stdin`: read the password from STDIN (non-interactive)
 *   `--scheme <scheme>`: registry scheme. One of (`http`, `https`, `auto`) (default: `auto`)
-*   **Global**: `--version`, `-h`/`--help`
 
 ### `container registry logout`
 
@@ -750,7 +717,10 @@ Logs out of a registry, removing stored credentials.
 container registry logout SERVER
 ```
 
-Only `--version` and `-h`/`--help` are available.
+
+**Options**
+
+No options.
 
 ## System Management
 
@@ -770,7 +740,6 @@ container system start [OPTIONS]
 
 *   `-a, --app-root <path>`: application data directory
 *   `--install-root <path>`: path to the installation root directory
-*   `--debug`: enable debug logging for the runtime daemon
 *   `--enable-kernel-install`: install the recommended default kernel
 *   `--disable-kernel-install`: skip installing the default kernel
   If neither kernel-install flag is provided, you will be prompted to choose whether to install the recommended kernel.
@@ -788,7 +757,6 @@ container system stop [OPTIONS]
 **Options**
 
 *   `-p, --prefix <prefix>`: launchd prefix (default: `com.apple.container.`)
-*   **Global**: `--version`, `-h`/`--help`
 
 ### `container system status`
 
@@ -803,7 +771,6 @@ container system status [OPTIONS]
 **Options**
 
 *   `-p, --prefix <prefix>`: launchd prefix to query (default: `com.apple.container.`)
-*   **Global**: `--version`, `-h`/`--help`
 
 ### `container system logs`
 
@@ -819,7 +786,6 @@ container system logs [OPTIONS]
 
 *   `--last <duration>`: Fetch logs starting from the specified time period (minus the current time); supported formats: m, h, d (default: 5m)
 *   `-f, --follow`: Follow log output
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
 
 ### `container system dns create`
 
@@ -830,6 +796,9 @@ Creates a local DNS domain for containers. Requires administrator privileges (us
 ```bash
 container system dns create NAME
 ```
+
+
+**Options**
 
 No options.
 
@@ -843,6 +812,9 @@ Deletes a local DNS domain. Requires administrator privileges (use sudo).
 container system dns delete NAME
 ```
 
+
+**Options**
+
 No options.
 
 ### `container system dns list (ls)`
@@ -854,6 +826,8 @@ Lists configured local DNS domains for containers.
 ```bash
 container system dns list
 ```
+
+**Options**
 
 No options.
 
@@ -873,7 +847,6 @@ container system kernel set [OPTIONS]
 *   `--tar <path | URL>`: Path or URL to a tarball containing kernel images
 *   `--arch <arch>`: Target architecture (`arm64` or `x86_64`)
 *   `--recommended`: Download and install the recommended default kernel for your host
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
 
 ### `container system property list (ls)`
 
@@ -889,7 +862,6 @@ container system property list [OPTIONS]
 
 *   `-q, --quiet`: Only output the property IDs
 *   `--format <format>`: Format of the output (values: `json`, `table`; default: `table`)
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
 
 **Examples**
 
@@ -918,7 +890,9 @@ container system property get PROPERTY_ID
 
 *   `PROPERTY_ID`: The ID of the property to retrieve (use `property list` to see available IDs)
 
-**Global flags**: `--debug`, `--version`, `-h`/`--help`
+**Options**
+
+No options.
 
 **Examples**
 
@@ -953,8 +927,9 @@ container system property set PROPERTY_ID VALUE
 *   **URL properties** (`kernel.url`): Must be valid URLs
 *   **Network properties** (`network.subnet`): Must be valid CIDR addresses
 *   **Path properties** (`kernel.binaryPath`): Accept any string value
+**Options**
 
-**Global flags**: `--debug`, `--version`, `-h`/`--help`
+No options.
 
 **Examples**
 
@@ -986,7 +961,9 @@ container system property clear PROPERTY_ID
 
 *   `PROPERTY_ID`: The ID of the property to clear
 
-**Global flags**: `--debug`, `--version`, `-h`/`--help`
+**Options**
+
+No options.
 
 **Examples**
 
