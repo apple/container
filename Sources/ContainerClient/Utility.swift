@@ -176,11 +176,18 @@ public struct Utility {
 
         config.virtualization = management.virtualization
 
-        config.networks = try getAttachmentConfigurations(containerId: config.id, networkIds: management.networks)
-        for attachmentConfiguration in config.networks {
-            let network: NetworkState = try await ClientNetwork.get(id: attachmentConfiguration.network)
-            guard case .running(_, _) = network else {
-                throw ContainerizationError(.invalidState, message: "network \(attachmentConfiguration.network) is not running")
+        if management.networks.contains(ClientNetwork.noNetworkName) {
+            guard management.networks.count == 1 else {
+                throw ContainerizationError(.unsupported, message: "no other networks may be created along with network \(ClientNetwork.noNetworkName)")
+            }
+            config.networks = []
+        } else {
+            config.networks = try getAttachmentConfigurations(containerId: config.id, networkIds: management.networks)
+            for attachmentConfiguration in config.networks {
+                let network: NetworkState = try await ClientNetwork.get(id: attachmentConfiguration.network)
+                guard case .running(_, _) = network else {
+                    throw ContainerizationError(.invalidState, message: "network \(attachmentConfiguration.network) is not running")
+                }
             }
         }
 

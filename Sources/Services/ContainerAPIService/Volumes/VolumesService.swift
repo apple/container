@@ -72,6 +72,77 @@ public actor VolumesService {
         }
     }
 
+    public func prune() async throws -> ([String], UInt64) {
+        try await lock.withLock { _ in
+            let allVolumes = try await self.store.list()
+
+            // do entire prune operation atomically with container list
+            return try await self.containersService.withContainerList { containers in
+                var inUseSet = Set<String>()
+                for container in containers {
+                    for mount in container.configuration.mounts {
+                        if mount.isVolume, let volumeName = mount.volumeName {
+                            inUseSet.insert(volumeName)
+                        }
+                    }
+                }
+
+                let volumesToPrune = allVolumes.filter { volume in
+                    !inUseSet.contains(volume.name)
+                }
+
+                var prunedNames = [String]()
+                var totalSize: UInt64 = 0
+
+                for volume in volumesToPrune {
+                    do {
+                        // calculate actual disk usage before deletion
+                        let volumePath = self.volumePath(for: volume.name)
+                        let actualSize = self.calculateDirectorySize(at: volumePath)
+
+                        try await self.store.delete(volume.name)
+                        try self.removeVolumeDirectory(for: volume.name)
+
+                        prunedNames.append(volume.name)
+                        totalSize += actualSize
+                        self.log.info("Pruned volume", metadata: ["name": "\(volume.name)", "size": "\(actualSize)"])
+                    } catch {
+                        self.log.error("Failed to prune volume \(volume.name): \(error)")
+                    }
+                }
+
+                return (prunedNames, totalSize)
+            }
+        }
+    }
+
+    private nonisolated func calculateDirectorySize(at path: String) -> UInt64 {
+        let url = URL(fileURLWithPath: path)
+        let fileManager = FileManager.default
+
+        guard
+            let enumerator = fileManager.enumerator(
+                at: url,
+                includingPropertiesForKeys: [.totalFileAllocatedSizeKey],
+                options: [.skipsHiddenFiles]
+            )
+        else {
+            return 0
+        }
+
+        var totalSize: UInt64 = 0
+        for case let fileURL as URL in enumerator {
+            guard let resourceValues = try? fileURL.resourceValues(forKeys: [.totalFileAllocatedSizeKey]),
+                let fileSize = resourceValues.totalFileAllocatedSize
+            else {
+                continue
+            }
+            totalSize += UInt64(fileSize)
+        }
+
+        return totalSize
+    }
+
     private func parseSize(_ sizeString: String) throws -> UInt64 {
         let measurement = try Measurement.parse(parsing: sizeString)
         let bytes = measurement.converted(to: .bytes).value
@@ -162,7 +233,8 @@ public actor VolumesService {
             format: "ext4",
             source: blockPath(for: name),
             labels: labels,
-            options: driverOpts
+            options: driverOpts,
+            sizeInBytes: sizeInBytes
         )
 
         try await store.create(volume)
