@@ -275,6 +275,7 @@ container delete [--all] [--force] [--debug] [<container-ids> ...]
 **Options**
 
 *   `-a, --all`: Remove all containers
+*   `-f, --force`: Delete containers even if they are running
 
 ### `container list (ls)`
 
@@ -392,6 +393,8 @@ container image pull [--debug] [--scheme <scheme>] [--disable-progress-updates] 
 
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
 *   `--disable-progress-updates`: Disable progress bar updates
+*   `-a, --arch <arch>`: Limit the pull to the specified architecture
+*   `--os <os>`: Limit the pull to the specified OS
 *   `--platform <platform>`: Limit the pull to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)
 
 ### `container image push`
@@ -412,6 +415,8 @@ container image push [--scheme <scheme>] [--disable-progress-updates] [--arch <a
 
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
 *   `--disable-progress-updates`: Disable progress bar updates
+*   `-a, --arch <arch>`: Limit the push to the specified architecture
+*   `--os <os>`: Limit the push to the specified OS
 *   `--platform <platform>`: Limit the push to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)
 
 ### `container image save`
@@ -430,6 +435,8 @@ container image save [--arch <arch>] [--os <os>] --output <output> [--platform <
 
 **Options**
 
+*   `-a, --arch <arch>`: Architecture for the saved image
+*   `--os <os>`: OS for the saved image
 *   `-o, --output <output>`: Pathname for the saved image
 *   `--platform <platform>`: Platform for the saved image (format: os/arch[/variant], takes precedence over --os and --arch)
 
@@ -548,6 +555,8 @@ container builder status [--format <format>] [--quiet] [--debug]
 **Options**
 
 *   `--json`: output status as JSON
+*   `--format <format>`: Format of the output (values: json, table; default: table)
+*   `-q, --quiet`: Only output the container ID
 
 ### `container builder stop`
 
@@ -928,6 +937,7 @@ container system kernel set [--arch <arch>] [--binary <binary>] [--force] [--rec
 
 *   `--arch <arch>`: The architecture of the kernel binary (values: amd64, arm64) (default: arm64)
 *   `--binary <binary>`: Path to the kernel file (or archive member, if used with --tar)
+*   `--force`: Overwrites an existing kernel with the same name
 *   `--recommended`: Download and install the recommended kernel as the default (takes precedence over all other flags)
 *   `--tar <tar>`: Filesystem path or remote URL to a tar archive containing a kernel file
 
