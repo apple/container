@@ -1008,14 +1008,6 @@ container system property set [--debug] <id> <value>
 *   `<id>`: The property ID
 *   `<value>`: The property value
 
-**Property Types and Validation**
-
-*   **Boolean properties** (`build.rosetta`): Accepts `true`, `t`, `false`, `f` (case-insensitive)
-*   **Domain properties** (`dns.domain`, `registry.domain`): Must be valid domain names
-*   **Image properties** (`image.builder`, `image.init`): Must be valid OCI image references
-*   **URL properties** (`kernel.url`): Must be valid URLs
-*   **Network properties** (`network.subnet`): Must be valid CIDR addresses
-*   **Path properties** (`kernel.binaryPath`): Accept any string value
 **Options**
 
 No options.
