@@ -335,12 +335,12 @@ class CLITest {
         ])
         let cmdStatus = response.status
         guard cmdStatus == 0 else {
-            throw CLIError.executionFailed("container inspect failed: exit \(cmdStatus)")
+            throw CLIError.executionFailed("image inspect failed: exit \(cmdStatus)")
         }
 
         let output = response.output
         guard let jsonData = output.data(using: .utf8) else {
-            throw CLIError.invalidOutput("container inspect output invalid")
+            throw CLIError.invalidOutput("image inspect output invalid")
         }
 
         let decoder = JSONDecoder()

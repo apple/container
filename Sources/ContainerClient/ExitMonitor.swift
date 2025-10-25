@@ -76,7 +76,7 @@ public actor ExitMonitor {
             throw ContainerizationError(.invalidState, message: "ExitMonitor not setup for process \(id)")
         }
         guard self.runningTasks[id] == nil else {
-            throw ContainerizationError(.invalidState, message: "Already have a running task tracking process \(id)")
+            throw ContainerizationError(.invalidState, message: "already have a running task tracking process \(id)")
         }
         self.runningTasks[id] = Task {
             do {

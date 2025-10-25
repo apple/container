@@ -106,7 +106,9 @@ extension Application {
         var quiet: Bool = false
 
         @Option(name: [.short, .customLong("tag")], help: ArgumentHelp("Name for the built image", valueName: "name"))
-        var targetImageName: String = UUID().uuidString.lowercased()
+        var targetImageNames: [String] = {
+            [UUID().uuidString.lowercased()]
+        }()
 
         @Option(name: .long, help: ArgumentHelp("Set the target build stage", valueName: "stage"))
         var target: String = ""
@@ -195,11 +197,11 @@ extension Application {
                     try? FileManager.default.removeItem(at: tempURL)
                 }
 
-                let imageName: String = try {
-                    let parsedReference = try Reference.parse(targetImageName)
+                let imageNames: [String] = try targetImageNames.map { name in
+                    let parsedReference = try Reference.parse(name)
                     parsedReference.normalize()
                     return parsedReference.description
-                }()
+                }
 
                 var terminal: Terminal?
                 switch self.progress {
@@ -267,7 +269,7 @@ extension Application {
                             noCache: noCache,
                             platforms: [Platform](platforms),
                             terminal: terminal,
-                            tag: imageName,
+                            tags: imageNames,
                             target: target,
                             quiet: quiet,
                             exports: exports,
@@ -294,7 +296,7 @@ extension Application {
                 }
                 unpackProgress.start()
 
-                var finalMessage = "Successfully built \(imageName)"
+                var finalMessage = "Successfully built \(imageNames.joined(separator: ", "))"
                 let taskManager = ProgressTaskCoordinator()
                 // Currently, only a single export can be specified.
                 for exp in exports {
@@ -311,6 +313,12 @@ extension Application {
                         for image in loaded {
                             try Task.checkCancellation()
                             try await image.unpack(platform: nil, progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: unpackProgress.handler))
+
+                            // Tag the unpacked image with all requested tags
+                            for tagName in imageNames {
+                                try Task.checkCancellation()
+                                _ = try await image.tag(new: tagName)
+                            }
                         }
                     case "tar":
                         guard let dest = exp.destination else {
@@ -349,8 +357,10 @@ extension Application {
             guard FileManager.default.fileExists(atPath: contextDir) else {
                 throw ValidationError("context dir does not exist \(contextDir)")
             }
-            guard let _ = try? Reference.parse(targetImageName) else {
-                throw ValidationError("invalid reference \(targetImageName)")
+            for name in targetImageNames {
+                guard let _ = try? Reference.parse(name) else {
+                    throw ValidationError("invalid reference \(name)")
+                }
             }
         }
     }

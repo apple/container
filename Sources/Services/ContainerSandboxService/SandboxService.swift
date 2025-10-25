@@ -117,13 +117,13 @@ public actor SandboxService {
             let bundle = ContainerClient.Bundle(path: self.root)
             try bundle.createLogFile()
 
+            var config = try bundle.configuration
             let vmm = VZVirtualMachineManager(
                 kernel: try bundle.kernel,
                 initialFilesystem: bundle.initialFilesystem.asMount,
-                bootlog: bundle.bootlog.path,
+                rosetta: config.rosetta,
                 logger: self.log
             )
-            var config = try bundle.configuration
 
             // Dynamically configure the DNS nameserver from a network if no explicit configuration
             if let dns = config.dns, dns.nameservers.isEmpty {
@@ -197,6 +197,7 @@ public actor SandboxService {
                         ))
                 }
                 czConfig.hosts = Hosts(entries: hostsEntries)
+                czConfig.bootlog = bundle.bootlog
             }
 
             await self.setContainer(
@@ -443,11 +444,11 @@ public actor SandboxService {
                 let id = try message.id()
                 if id != ctr.container.id {
                     guard let processInfo = await self.processes[id] else {
-                        throw ContainerizationError(.invalidState, message: "Process \(id) does not exist")
+                        throw ContainerizationError(.invalidState, message: "process \(id) does not exist")
                     }
 
                     guard let proc = processInfo.process else {
-                        throw ContainerizationError(.invalidState, message: "Process \(id) not started")
+                        throw ContainerizationError(.invalidState, message: "process \(id) not started")
                     }
                     try await proc.kill(Int32(try message.signal()))
                     return message.reply()
@@ -488,14 +489,14 @@ public actor SandboxService {
                 guard let processInfo = self.processes[id] else {
                     throw ContainerizationError(
                         .invalidState,
-                        message: "Process \(id) does not exist"
+                        message: "process \(id) does not exist"
                     )
                 }
 
                 guard let proc = processInfo.process else {
                     throw ContainerizationError(
                         .invalidState,
-                        message: "Process \(id) not started"
+                        message: "process \(id) not started"
                     )
                 }
 
@@ -533,7 +534,7 @@ public actor SandboxService {
     public func wait(_ message: XPCMessage) async throws -> XPCMessage {
         self.log.info("`wait` xpc handler")
         guard let id = message.string(key: .id) else {
-            throw ContainerizationError(.invalidArgument, message: "Missing id in wait xpc message")
+            throw ContainerizationError(.invalidArgument, message: "missing id in wait xpc message")
         }
 
         let cachedCode: Int32? = try await self.lock.withLock { _ in
@@ -548,7 +549,7 @@ public actor SandboxService {
                 }
             } else {
                 guard let processInfo = await self.processes[id] else {
-                    throw ContainerizationError(.notFound, message: "Process with id \(id)")
+                    throw ContainerizationError(.notFound, message: "process with id \(id)")
                 }
                 switch processInfo.state {
                 case .stopped(let code):
@@ -647,7 +648,7 @@ public actor SandboxService {
     private func startExecProcess(processId id: String, lock: AsyncLock.Context) async throws {
         let container = try self.getContainer().container
         guard let processInfo = self.processes[id] else {
-            throw ContainerizationError(.notFound, message: "Process with id \(id)")
+            throw ContainerizationError(.notFound, message: "process with id \(id)")
         }
 
         let containerInfo = try self.getContainer()
@@ -764,7 +765,6 @@ public actor SandboxService {
     ) throws {
         czConfig.cpus = config.resources.cpus
         czConfig.memoryInBytes = config.resources.memoryInBytes
-        czConfig.rosetta = config.rosetta
         czConfig.sysctl = config.sysctls.reduce(into: [String: String]()) {
             $0[$1.key] = $1.value
         }
@@ -867,9 +867,9 @@ public actor SandboxService {
     }
 
     private nonisolated func configureProcessConfig(config: ProcessConfiguration, stdio: [FileHandle?], containerConfig: ContainerConfiguration)
-        -> LinuxContainer.Configuration.Process
+        -> LinuxProcessConfiguration
     {
-        var proc = LinuxContainer.Configuration.Process()
+        var proc = LinuxProcessConfiguration()
         proc.stdin = stdio[0]
         proc.stdout = stdio[1]
         proc.stderr = stdio[2]
@@ -1134,7 +1134,7 @@ extension SandboxService {
 
     private func setUnderlyingProcess(_ id: String, _ process: LinuxProcess) throws {
         guard var info = self.processes[id] else {
-            throw ContainerizationError(.invalidState, message: "Process \(id) not found")
+            throw ContainerizationError(.invalidState, message: "process \(id) not found")
         }
         info.process = process
         self.processes[id] = info
@@ -1142,7 +1142,7 @@ extension SandboxService {
 
     private func setProcessState(id: String, state: State) throws {
         guard var info = self.processes[id] else {
-            throw ContainerizationError(.invalidState, message: "Process \(id) not found")
+            throw ContainerizationError(.invalidState, message: "process \(id) not found")
         }
         info.state = state
         self.processes[id] = info

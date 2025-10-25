@@ -52,7 +52,7 @@ public struct SandboxClient: Sendable {
 
         let response: XPCMessage
         do {
-            response = try await client.send(request, responseTimeout: .seconds(3))
+            response = try await client.send(request, responseTimeout: .seconds(5))
         } catch {
             throw ContainerizationError(
                 .internalError,
@@ -281,7 +281,7 @@ extension XPCMessage {
         guard let id else {
             throw ContainerizationError(
                 .invalidArgument,
-                message: "No id"
+                message: "no id"
             )
         }
         return id
@@ -292,7 +292,7 @@ extension XPCMessage {
         guard let data else {
             throw ContainerizationError(
                 .invalidArgument,
-                message: "No state data returned"
+                message: "no state data returned"
             )
         }
         return try JSONDecoder().decode(SandboxSnapshot.self, from: data)

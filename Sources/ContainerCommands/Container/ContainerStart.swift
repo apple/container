@@ -28,10 +28,10 @@ extension Application {
             commandName: "start",
             abstract: "Start a container")
 
-        @Flag(name: .shortAndLong, help: "Attach STDOUT/STDERR")
+        @Flag(name: .shortAndLong, help: "Attach stdout/stderr")
         var attach = false
 
-        @Flag(name: .shortAndLong, help: "Attach STDIN")
+        @Flag(name: .shortAndLong, help: "Attach stdin")
         var interactive = false
 
         @OptionGroup
@@ -52,9 +52,24 @@ extension Application {
             }
             progress.start()
 
+            let detach = !self.attach && !self.interactive
             let container = try await ClientContainer.get(id: containerId)
+
+            // Bootstrap and process start are both idempotent and don't fail the second time
+            // around, however not doing an rpc is always faster :). The other bit is we don't
+            // support attach currently, so we can't do `start -a` a second time and have it succeed.
+            if container.status == .running {
+                if !detach {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "attach is currently unsupported on already running containers"
+                    )
+                }
+                print(containerId)
+                return
+            }
+
             do {
-                let detach = !self.attach && !self.interactive
                 let io = try ProcessIO.create(
                     tty: container.configuration.initProcess.terminal,
                     interactive: self.interactive,

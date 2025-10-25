@@ -107,7 +107,7 @@ extension XPCMessage {
     func attachment() throws -> Attachment {
         let data = self.dataNoCopy(key: NetworkKeys.attachment.rawValue)
         guard let data else {
-            throw ContainerizationError(.invalidArgument, message: "No network attachment snapshot data in message")
+            throw ContainerizationError(.invalidArgument, message: "no network attachment snapshot data in message")
         }
         return try JSONDecoder().decode(Attachment.self, from: data)
     }
@@ -115,7 +115,7 @@ extension XPCMessage {
     func hostname() throws -> String {
         let hostname = self.string(key: NetworkKeys.hostname.rawValue)
         guard let hostname else {
-            throw ContainerizationError(.invalidArgument, message: "No hostname data in message")
+            throw ContainerizationError(.invalidArgument, message: "no hostname data in message")
         }
         return hostname
     }
@@ -123,7 +123,7 @@ extension XPCMessage {
     func state() throws -> NetworkState {
         let data = self.dataNoCopy(key: NetworkKeys.state.rawValue)
         guard let data else {
-            throw ContainerizationError(.invalidArgument, message: "No network snapshot data in message")
+            throw ContainerizationError(.invalidArgument, message: "no network snapshot data in message")
         }
         return try JSONDecoder().decode(NetworkState.self, from: data)
     }

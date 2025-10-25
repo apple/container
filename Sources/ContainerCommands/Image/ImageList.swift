@@ -146,11 +146,11 @@ extension Application {
 
         static func validate(options: ListImageOptions) throws {
             if options.quiet && options.verbose {
-                throw ContainerizationError(.invalidArgument, message: "Cannot use flag --quite and --verbose together")
+                throw ContainerizationError(.invalidArgument, message: "cannot use flag --quite and --verbose together")
             }
             let modifier = options.quiet || options.verbose
             if modifier && options.format == .json {
-                throw ContainerizationError(.invalidArgument, message: "Cannot use flag --quite or --verbose along with --format json")
+                throw ContainerizationError(.invalidArgument, message: "cannot use flag --quite or --verbose along with --format json")
             }
         }
 

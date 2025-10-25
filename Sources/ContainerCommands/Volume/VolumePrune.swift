@@ -16,39 +16,33 @@
 
 import ArgumentParser
 import ContainerClient
-import ContainerizationError
 import Foundation
 
-extension Application {
-    public struct DNSDelete: AsyncParsableCommand {
+extension Application.VolumeCommand {
+    public struct VolumePrune: AsyncParsableCommand {
+        public init() {}
         public static let configuration = CommandConfiguration(
-            commandName: "delete",
-            abstract: "Delete a local DNS domain (must run as an administrator)",
-            aliases: ["rm"]
-        )
+            commandName: "prune",
+            abstract: "Remove volumes with no container references")
 
         @OptionGroup
         var global: Flags.Global
 
-        @Argument(help: "The local domain name")
-        var domainName: String
-
-        public init() {}
-
         public func run() async throws {
-            let resolver = HostDNSResolver()
-            do {
-                try resolver.deleteDomain(name: domainName)
-                print(domainName)
-            } catch {
-                throw ContainerizationError(.invalidState, message: "cannot delete domain (try sudo?)")
-            }
+            let (volumeNames, size) = try await ClientVolume.prune()
+            let formatter = ByteCountFormatter()
+            let freed = formatter.string(fromByteCount: Int64(size))
 
-            do {
-                try HostDNSResolver.reinitialize()
-            } catch {
-                throw ContainerizationError(.invalidState, message: "mDNSResponder restart failed, run `sudo killall -HUP mDNSResponder` to deactivate domain")
+            if volumeNames.isEmpty {
+                print("No volumes to prune")
+            } else {
+                print("Pruned volumes:")
+                for name in volumeNames {
+                    print(name)
+                }
+                print()
             }
+            print("Reclaimed \(freed) in disk space")
         }
     }
 }

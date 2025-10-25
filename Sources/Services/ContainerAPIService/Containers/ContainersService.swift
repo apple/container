@@ -94,7 +94,7 @@ public actor ContainersService {
                 guard let plugin else {
                     throw ContainerizationError(
                         .internalError,
-                        message: "Failed to find runtime plugin \(config.runtimeHandler)"
+                        message: "failed to find runtime plugin \(config.runtimeHandler)"
                     )
                 }
                 try Self.registerService(
@@ -215,6 +215,14 @@ public actor ContainersService {
         do {
             try await self.lock.withLock { context in
                 var state = try await self.getContainerState(id: id, context: context)
+
+                // We've already bootstrapped this container. Ideally we should be able to
+                // return some sort of error code from the sandbox svc to check here, but this
+                // is also a very simple check and faster than doing an rpc to get the same result.
+                if state.client != nil {
+                    return
+                }
+
                 let runtime = state.snapshot.configuration.runtimeHandler
                 let sandboxClient = try await SandboxClient.create(
                     id: id,

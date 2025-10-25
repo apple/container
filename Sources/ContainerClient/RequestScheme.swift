@@ -33,7 +33,7 @@ public enum RequestScheme: String, Sendable {
         case RequestScheme.auto.rawValue:
             self = .auto
         default:
-            throw ContainerizationError(.invalidArgument, message: "Unsupported scheme \(rawValue)")
+            throw ContainerizationError(.invalidArgument, message: "unsupported scheme \(rawValue)")
         }
     }
 
@@ -42,7 +42,7 @@ public enum RequestScheme: String, Sendable {
     /// - Returns: RequestScheme
     package func schemeFor(host: String) throws -> Self {
         guard host.count > 0 else {
-            throw ContainerizationError(.invalidArgument, message: "Host cannot be empty")
+            throw ContainerizationError(.invalidArgument, message: "host cannot be empty")
         }
         switch self {
         case .http, .https:

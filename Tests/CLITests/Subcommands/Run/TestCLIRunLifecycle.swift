@@ -44,4 +44,43 @@ class TestCLIRunLifecycle: CLITest {
             try self.doStop(name: name)
         }
     }
+
+    @Test func testStartIdempotent() throws {
+        let name = getTestName()
+
+        #expect(throws: Never.self, "expected container run to succeed") {
+            try self.doLongRun(name: name, args: [])
+            defer {
+                try? self.doStop(name: name)
+            }
+            try self.waitForContainerRunning(name)
+
+            let (output, _, status) = try self.run(arguments: ["start", name])
+            #expect(status == 0, "expected start to succeed on already running container")
+            #expect(output.trimmingCharacters(in: .whitespacesAndNewlines) == name, "expected output to be container name")
+
+            // Don't care about the resp, just that the container is still there and not cleaned up.
+            let _ = try inspectContainer(name)
+
+            try self.doStop(name: name)
+        }
+    }
+
+    @Test func testStartIdempotentAttachFails() throws {
+        let name = getTestName()
+
+        #expect(throws: Never.self, "expected container run to succeed") {
+            try self.doLongRun(name: name, args: [])
+            defer {
+                try? self.doStop(name: name)
+            }
+            try self.waitForContainerRunning(name)
+
+            let (_, error, status) = try self.run(arguments: ["start", "-a", name])
+            #expect(status != 0, "expected start with attach to fail on already running container")
+            #expect(error.contains("attach is currently unsupported on already running containers"), "expected error message about attach not supported")
+
+            try self.doStop(name: name)
+        }
+    }
 }
