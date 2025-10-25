@@ -554,7 +554,6 @@ container builder status [--format <format>] [--quiet] [--debug]
 
 **Options**
 
-*   `--json`: output status as JSON
 *   `--format <format>`: Format of the output (values: json, table; default: table)
 *   `-q, --quiet`: Only output the container ID
 
@@ -606,7 +605,6 @@ container network create [--label <label> ...] [--debug] <name>
 
 **Options**
 
-*   `--subnet <value>`: set subnet on the network
 *   `--label <label>`: Set metadata for a network
 
 ### `container network delete (rm)`
@@ -824,8 +822,6 @@ container system start [--app-root <app-root>] [--install-root <install-root>] [
 
 **Options**
 
-*   `--disable-kernel-install`: skip installing the default kernel
-  If neither kernel-install flag is provided, you will be prompted to choose whether to install the recommended kernel.
 *   `-a, --app-root <app-root>`: Path to the root directory for application data
 *   `--install-root <install-root>`: Path to the root directory for application executables and plugins
 *   `--enable-kernel-install/--disable-kernel-install`: Specify whether the default kernel should be installed or not (default: prompt user)
