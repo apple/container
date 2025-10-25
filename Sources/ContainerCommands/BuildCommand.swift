@@ -365,9 +365,9 @@ extension Application {
                 }
             }
         }
-        
+
         private func getDockerfilePath() -> String {
-            return file ?? contextDir + "/Dockerfile"
+            file ?? contextDir + "/Dockerfile"
         }
     }
 }

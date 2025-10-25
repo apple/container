@@ -456,7 +456,7 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(tag2) == tag2, "expected to have successfully built \(tag2)")
             #expect(try self.inspectImage(tag3) == tag3, "expected to have successfully built \(tag3)")
         }
-        
+
         @Test func testBuildDefaultDockerfileInContextDir() throws {
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
@@ -465,15 +465,15 @@ extension TestCLIBuildBase {
                 RUN echo "default dockerfile" > /test.txt
                 """
             let context: [FileSystemEntry] = [
-                .file("emptyFile", content: .zeroFilled(size: 1)),
+                .file("emptyFile", content: .zeroFilled(size: 1))
             ]
             try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
             let imageName = "registry.local/default-dockerfile:\(UUID().uuidString)"
-            
+
             try self.build(tag: imageName, tempDir: tempDir)
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
-        
+
         @Test func testBuildCustomDockerfilePath() throws {
             let tempDir: URL = try createTempDir()
             let customDockerfile: String =
@@ -482,77 +482,77 @@ extension TestCLIBuildBase {
                 RUN echo "custom dockerfile" > /test.txt
                 """
             let context: [FileSystemEntry] = [
-                .file("emptyFile", content: .zeroFilled(size: 1)),
+                .file("emptyFile", content: .zeroFilled(size: 1))
             ]
-            
+
             let mainDockerfile: String =
                 """
                 FROM scratch
                 """
             try createContext(tempDir: tempDir, dockerfile: mainDockerfile, context: context)
-            
+
             let customDockerfilePath = tempDir.appendingPathComponent("CustomDockerfile")
             try customDockerfile.write(to: customDockerfilePath, atomically: true, encoding: .utf8)
-            
+
             let imageName = "registry.local/custom-dockerfile:\(UUID().uuidString)"
-            
+
             try self.build(tag: imageName, tempDir: tempDir, otherArgs: ["--file", customDockerfilePath.path])
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
-        
+
         @Test func testBuildDockerfileInSubdirectory() throws {
             let tempDir: URL = try createTempDir()
             let subDir = tempDir.appendingPathComponent("subdir")
             try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
-            
+
             let dockerfile: String =
                 """
                 FROM ghcr.io/linuxcontainers/alpine:3.20
                 RUN echo "subdirectory build" > /test.txt
                 """
             let context: [FileSystemEntry] = [
-                .file("emptyFile", content: .zeroFilled(size: 1)),
+                .file("emptyFile", content: .zeroFilled(size: 1))
             ]
-            
+
             try createContext(tempDir: subDir, dockerfile: dockerfile, context: context)
-            
+
             let imageName = "registry.local/subdir-dockerfile:\(UUID().uuidString)"
-            
+
             try self.build(tag: imageName, tempDir: subDir)
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
-        
+
         @Test func testBuildRelativeDockerfileWithContextDir() throws {
             let tempDir: URL = try createTempDir()
             let dockerDir = tempDir.appendingPathComponent("docker")
             let buildDir = tempDir.appendingPathComponent("build")
-            
+
             try FileManager.default.createDirectory(at: dockerDir, withIntermediateDirectories: true)
             try FileManager.default.createDirectory(at: buildDir, withIntermediateDirectories: true)
-            
+
             let dockerfile: String =
                 """
                 FROM ghcr.io/linuxcontainers/alpine:3.20
                 ADD emptyFile /
                 RUN echo "relative path build" > /test.txt
                 """
-            
+
             let dockerfilePath = dockerDir.appendingPathComponent("Dockerfile.custom")
             try dockerfile.write(to: dockerfilePath, atomically: true, encoding: .utf8)
-            
+
             let context: [FileSystemEntry] = [
-                .file("emptyFile", content: .zeroFilled(size: 1)),
+                .file("emptyFile", content: .zeroFilled(size: 1))
             ]
-            
+
             let dummyDockerfile = "FROM scratch"
             try createContext(tempDir: buildDir, dockerfile: dummyDockerfile, context: context)
-            
+
             let imageName = "registry.local/relative-dockerfile:\(UUID().uuidString)"
-            
+
             try self.build(tag: imageName, tempDir: buildDir, otherArgs: ["--file", dockerfilePath.path])
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
-        
+
         @Test func testBuildDefaultDockerfileInContextSubdir() throws {
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
@@ -562,12 +562,12 @@ extension TestCLIBuildBase {
                 RUN echo "context subdir build" > /test.txt
                 """
             let context: [FileSystemEntry] = [
-                .file("emptyFile", content: .zeroFilled(size: 1)),
+                .file("emptyFile", content: .zeroFilled(size: 1))
             ]
             try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
-            
+
             let imageName = "registry.local/context-subdir:\(UUID().uuidString)"
-            
+
             try self.build(tag: imageName, tempDir: tempDir)
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
