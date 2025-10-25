@@ -44,8 +44,8 @@ extension Application {
         @OptionGroup(title: "Registry options")
         var registryFlags: Flags.Registry
 
-        @OptionGroup(title: "Progress options")
-        var progressFlags: Flags.Progress
+        @Option(name: .long, help: ArgumentHelp("Progress type (format: none|plain)", valueName: "type"))
+        var progress: String = "plain"
 
         @OptionGroup
         var global: Flags.Global
@@ -61,15 +61,17 @@ extension Application {
             let id = Utility.createContainerID(name: self.managementFlags.name)
 
             var progressConfig: ProgressConfig
-            if progressFlags.disableProgressUpdates {
-                progressConfig = try ProgressConfig(disableProgressUpdates: progressFlags.disableProgressUpdates)
-            } else {
+            switch self.progress {
+            case "none": progressConfig = try ProgressConfig(disableProgressUpdates: true)
+            case "plain":
                 progressConfig = try ProgressConfig(
                     showTasks: true,
                     showItems: true,
                     ignoreSmallSize: true,
                     totalTasks: 6
                 )
+            default:
+                throw ContainerizationError(.invalidArgument, message: "invalid progress mode \(self.progress)")
             }
 
             let progress = ProgressBar(config: progressConfig)

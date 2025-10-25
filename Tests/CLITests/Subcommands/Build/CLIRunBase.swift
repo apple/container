@@ -42,8 +42,8 @@ class TestCLIRunBase: CLITest {
         nil
     }
 
-    var DisableProgressUpdates: Bool {
-        false
+    var Progress: String {
+        "plain"
     }
 
     override init() throws {
@@ -115,8 +115,10 @@ class TestCLIRunBase: CLITest {
             if Tty { arguments.append("-t") }
         }
 
-        if DisableProgressUpdates {
-            arguments.append("--disable-progress-updates")
+        if Progress == "none" {
+            arguments.append("--progress none")
+        } else {
+            arguments.append("--progress plain")
         }
 
         if let entrypoint = Entrypoint {

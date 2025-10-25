@@ -36,8 +36,8 @@ extension TestCLIRunBase {
             ["/bin/sh"]
         }
 
-        override var DisableProgressUpdates: Bool {
-            true
+        override var Progress: String {
+            "none"
         }
 
         @Test func testTermIODoesNotPanic() async throws {
