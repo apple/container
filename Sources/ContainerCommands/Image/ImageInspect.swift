@@ -48,7 +48,7 @@ extension Application {
                 print(try printable.jsonArray())
             }
             if notFound.count > 0 {
-                throw ContainerizationError(.notFound, message: "Images: \(notFound.joined(separator: "\n"))")
+                throw ContainerizationError(.notFound, message: "images: \(notFound.joined(separator: "\n"))")
             }
         }
     }
