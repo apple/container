@@ -444,11 +444,11 @@ public actor SandboxService {
                 let id = try message.id()
                 if id != ctr.container.id {
                     guard let processInfo = await self.processes[id] else {
-                        throw ContainerizationError(.invalidState, message: "Process \(id) does not exist")
+                        throw ContainerizationError(.invalidState, message: "process \(id) does not exist")
                     }
 
                     guard let proc = processInfo.process else {
-                        throw ContainerizationError(.invalidState, message: "Process \(id) not started")
+                        throw ContainerizationError(.invalidState, message: "process \(id) not started")
                     }
                     try await proc.kill(Int32(try message.signal()))
                     return message.reply()
@@ -489,14 +489,14 @@ public actor SandboxService {
                 guard let processInfo = self.processes[id] else {
                     throw ContainerizationError(
                         .invalidState,
-                        message: "Process \(id) does not exist"
+                        message: "process \(id) does not exist"
                     )
                 }
 
                 guard let proc = processInfo.process else {
                     throw ContainerizationError(
                         .invalidState,
-                        message: "Process \(id) not started"
+                        message: "process \(id) not started"
                     )
                 }
 
@@ -534,7 +534,7 @@ public actor SandboxService {
     public func wait(_ message: XPCMessage) async throws -> XPCMessage {
         self.log.info("`wait` xpc handler")
         guard let id = message.string(key: .id) else {
-            throw ContainerizationError(.invalidArgument, message: "Missing id in wait xpc message")
+            throw ContainerizationError(.invalidArgument, message: "missing id in wait xpc message")
         }
 
         let cachedCode: Int32? = try await self.lock.withLock { _ in
@@ -549,7 +549,7 @@ public actor SandboxService {
                 }
             } else {
                 guard let processInfo = await self.processes[id] else {
-                    throw ContainerizationError(.notFound, message: "Process with id \(id)")
+                    throw ContainerizationError(.notFound, message: "process with id \(id)")
                 }
                 switch processInfo.state {
                 case .stopped(let code):
@@ -648,7 +648,7 @@ public actor SandboxService {
     private func startExecProcess(processId id: String, lock: AsyncLock.Context) async throws {
         let container = try self.getContainer().container
         guard let processInfo = self.processes[id] else {
-            throw ContainerizationError(.notFound, message: "Process with id \(id)")
+            throw ContainerizationError(.notFound, message: "process with id \(id)")
         }
 
         let containerInfo = try self.getContainer()
@@ -1134,7 +1134,7 @@ extension SandboxService {
 
     private func setUnderlyingProcess(_ id: String, _ process: LinuxProcess) throws {
         guard var info = self.processes[id] else {
-            throw ContainerizationError(.invalidState, message: "Process \(id) not found")
+            throw ContainerizationError(.invalidState, message: "process \(id) not found")
         }
         info.process = process
         self.processes[id] = info
@@ -1142,7 +1142,7 @@ extension SandboxService {
 
     private func setProcessState(id: String, state: State) throws {
         guard var info = self.processes[id] else {
-            throw ContainerizationError(.invalidState, message: "Process \(id) not found")
+            throw ContainerizationError(.invalidState, message: "process \(id) not found")
         }
         info.state = state
         self.processes[id] = info

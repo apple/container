@@ -39,7 +39,7 @@ public struct KernelHarness: Sendable {
         guard let kernelTarUrl = try message.kernelTarURL() else {
             // We have been given a path to a kernel binary on disk
             guard let kernelFile = URL(string: kernelFilePath) else {
-                throw ContainerizationError(.invalidArgument, message: "Invalid kernel file path: \(kernelFilePath)")
+                throw ContainerizationError(.invalidArgument, message: "invalid kernel file path: \(kernelFilePath)")
             }
             try await self.service.installKernel(kernelFile: kernelFile, platform: platform, force: force)
             return message.reply()
@@ -54,7 +54,7 @@ public struct KernelHarness: Sendable {
     @Sendable
     public func getDefaultKernel(_ message: XPCMessage) async throws -> XPCMessage {
         guard let platformData = message.dataNoCopy(key: .systemPlatform) else {
-            throw ContainerizationError(.invalidArgument, message: "Missing SystemPlatform")
+            throw ContainerizationError(.invalidArgument, message: "missing SystemPlatform")
         }
         let platform = try JSONDecoder().decode(SystemPlatform.self, from: platformData)
         let kernel = try await self.service.getDefaultKernel(platform: platform)
@@ -68,7 +68,7 @@ public struct KernelHarness: Sendable {
 extension XPCMessage {
     fileprivate func platform() throws -> SystemPlatform {
         guard let platformData = self.dataNoCopy(key: .systemPlatform) else {
-            throw ContainerizationError(.invalidArgument, message: "Missing SystemPlatform in XPC Message")
+            throw ContainerizationError(.invalidArgument, message: "missing SystemPlatform in XPC Message")
         }
         let platform = try JSONDecoder().decode(SystemPlatform.self, from: platformData)
         return platform
@@ -76,7 +76,7 @@ extension XPCMessage {
 
     fileprivate func kernelFilePath() throws -> String {
         guard let kernelFilePath = self.string(key: .kernelFilePath) else {
-            throw ContainerizationError(.invalidArgument, message: "Missing kernel file path in XPC Message")
+            throw ContainerizationError(.invalidArgument, message: "missing kernel file path in XPC Message")
         }
         return kernelFilePath
     }
@@ -86,7 +86,7 @@ extension XPCMessage {
             return nil
         }
         guard let k = URL(string: kernelTarURLString) else {
-            throw ContainerizationError(.invalidArgument, message: "Cannot parse URL from \(kernelTarURLString)")
+            throw ContainerizationError(.invalidArgument, message: "cannot parse URL from \(kernelTarURLString)")
         }
         return k
     }

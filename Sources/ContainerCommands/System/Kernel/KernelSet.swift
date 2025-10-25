@@ -89,7 +89,7 @@ extension Application {
                 return
             }
             guard let remoteURL = URL(string: tarPath) else {
-                throw ContainerizationError(.invalidArgument, message: "Invalid remote URL '\(tarPath)' for argument '--tar'. Missing protocol?")
+                throw ContainerizationError(.invalidArgument, message: "invalid remote URL '\(tarPath)' for argument '--tar'. Missing protocol?")
             }
             try await Self.downloadAndInstallWithProgressBar(tarRemoteURL: remoteURL.absoluteString, kernelFilePath: binaryPath, platform: platform, force: force)
         }
@@ -101,7 +101,7 @@ extension Application {
             case "amd64":
                 return .linuxAmd
             default:
-                throw ContainerizationError(.unsupported, message: "Unsupported architecture \(arch)")
+                throw ContainerizationError(.unsupported, message: "unsupported architecture \(arch)")
             }
         }
 

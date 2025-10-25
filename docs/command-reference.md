@@ -6,7 +6,7 @@ Note: Command availability may vary depending on host operating system and macOS
 
 ### `container run`
 
-Runs a container from an image. If a command is provided, it will execute inside the container; otherwise the image's default command runs. By default the container runs in the foreground and STDIN remains closed unless `-i`/`--interactive` is specified.
+Runs a container from an image. If a command is provided, it will execute inside the container; otherwise the image's default command runs. By default the container runs in the foreground and stdin remains closed unless `-i`/`--interactive` is specified.
 
 **Usage**
 
