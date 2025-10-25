@@ -413,7 +413,7 @@ public struct Parser {
                 case "volume":
                     // For volume mounts, validate as volume name
                     guard VolumeStorage.isValidVolumeName(val) else {
-                        throw ContainerizationError(.invalidArgument, message: "Invalid volume name '\(val)': must match \(VolumeStorage.volumeNamePattern)")
+                        throw ContainerizationError(.invalidArgument, message: "invalid volume name '\(val)': must match \(VolumeStorage.volumeNamePattern)")
                     }
 
                     // This is a named volume
@@ -488,7 +488,7 @@ public struct Parser {
             guard src.hasPrefix("/") else {
                 // Named volume - validate name syntax only
                 guard VolumeStorage.isValidVolumeName(src) else {
-                    throw ContainerizationError(.invalidArgument, message: "Invalid volume name '\(src)': must match \(VolumeStorage.volumeNamePattern)")
+                    throw ContainerizationError(.invalidArgument, message: "invalid volume name '\(src)': must match \(VolumeStorage.volumeNamePattern)")
                 }
 
                 // This is a named volume

@@ -107,7 +107,7 @@ public actor VolumesService {
                         totalSize += actualSize
                         self.log.info("Pruned volume", metadata: ["name": "\(volume.name)", "size": "\(actualSize)"])
                     } catch {
-                        self.log.error("Failed to prune volume \(volume.name): \(error)")
+                        self.log.error("failed to prune volume \(volume.name): \(error)")
                     }
                 }
 

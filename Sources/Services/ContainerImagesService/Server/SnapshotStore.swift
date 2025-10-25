@@ -81,7 +81,7 @@ public actor SnapshotStore {
                 continue
             }
             guard let platform = desc.platform else {
-                throw ContainerizationError(.internalError, message: "Missing platform for descriptor \(desc.digest)")
+                throw ContainerizationError(.internalError, message: "missing platform for descriptor \(desc.digest)")
             }
             guard let unpacker = try await self.unpackStrategy(image, platform) else {
                 self.log?.warning("Skipping unpack for \(image.reference) for platform \(platform.description). No unpacker configured.")

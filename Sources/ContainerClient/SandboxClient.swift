@@ -281,7 +281,7 @@ extension XPCMessage {
         guard let id else {
             throw ContainerizationError(
                 .invalidArgument,
-                message: "No id"
+                message: "no id"
             )
         }
         return id
@@ -292,7 +292,7 @@ extension XPCMessage {
         guard let data else {
             throw ContainerizationError(
                 .invalidArgument,
-                message: "No state data returned"
+                message: "no state data returned"
             )
         }
         return try JSONDecoder().decode(SandboxSnapshot.self, from: data)

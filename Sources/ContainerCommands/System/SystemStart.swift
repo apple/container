@@ -118,7 +118,7 @@ extension Application {
             do {
                 try await pullCommand.run()
             } catch {
-                log.error("Failed to install base container filesystem: \(error)")
+                log.error("failed to install base container filesystem: \(error)")
             }
         }
 
@@ -132,7 +132,7 @@ extension Application {
                 print("No default kernel configured.")
                 print("Install the recommended default kernel from [\(kernelDependency.source)]? [Y/n]: ", terminator: "")
                 guard let read = readLine(strippingNewline: true) else {
-                    throw ContainerizationError(.internalError, message: "Failed to read user input")
+                    throw ContainerizationError(.internalError, message: "failed to read user input")
                 }
                 guard read.lowercased() == "y" || read.count == 0 else {
                     print("Please use the `container system kernel set --recommended` command to configure the default kernel")

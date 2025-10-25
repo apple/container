@@ -69,10 +69,10 @@ extension Application {
             let scheme = try RequestScheme(registry.scheme).schemeFor(host: server)
             let _url = "\(scheme)://\(server)"
             guard let url = URL(string: _url) else {
-                throw ContainerizationError(.invalidArgument, message: "Cannot convert \(_url) to URL")
+                throw ContainerizationError(.invalidArgument, message: "cannot convert \(_url) to URL")
             }
             guard let host = url.host else {
-                throw ContainerizationError(.invalidArgument, message: "Invalid host \(server)")
+                throw ContainerizationError(.invalidArgument, message: "invalid host \(server)")
             }
 
             let client = RegistryClient(
