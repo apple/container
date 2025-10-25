@@ -493,7 +493,7 @@ container image delete [--all] [--debug] [<images> ...]
 
 ### `container image prune`
 
-Removes unused (dangling) images to reclaim disk space. The command outputs the amount of space freed after deletion.
+Removes unreferenced and dangling images to reclaim disk space. The command outputs the amount of space freed after deletion.
 
 **Usage**
 
@@ -544,7 +544,7 @@ container builder start [--cpus <cpus>] [--memory <memory>] [--debug]
 
 ### `container builder status`
 
-Shows the current status of the BuildKit builder. Without flags a human-readable table is displayed; with `--json` the status is returned as JSON.
+Shows the current status of the BuildKit builder. Without flags a human-readable table is displayed; with `--format json` the status is returned as JSON.
 
 **Usage**
 
@@ -559,7 +559,7 @@ container builder status [--format <format>] [--quiet] [--debug]
 
 ### `container builder stop`
 
-Stops the BuildKit builder. No additional options are required; uses global flags only.
+Stops the BuildKit builder container.
 
 **Usage**
 
