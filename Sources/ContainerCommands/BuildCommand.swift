@@ -98,9 +98,15 @@ extension Application {
             transform: { val in val.split(separator: ",").map { String($0) } }
         )
         var platform: [[String]] = [[]]
+        
+        enum ProgressType: String, ExpressibleByArgument {
+            case auto
+            case plain
+            case tty
+        }
 
-        @Option(name: .long, help: ArgumentHelp("Progress type (format: auto|plain|tty)]", valueName: "type"))
-        var progress: String = "auto"
+        @Option(name: .long, help: ArgumentHelp("Progress type (format: auto|plain|tty)", valueName: "type"))
+        var progress: ProgressType = .auto
 
         @Flag(name: .shortAndLong, help: "Suppress build output")
         var quiet: Bool = false
@@ -205,15 +211,12 @@ extension Application {
 
                 var terminal: Terminal?
                 switch self.progress {
-                case "tty":
+                case .tty:
                     terminal = try Terminal(descriptor: STDERR_FILENO)
-                case "auto":
+                case .auto:
                     terminal = try? Terminal(descriptor: STDERR_FILENO)
-                case "plain":
+                case .plain:
                     terminal = nil
-                default:
-                    throw ContainerizationError(.invalidArgument, message: "invalid progress mode \(self.progress)")
-                }
 
                 defer { terminal?.tryReset() }
 
