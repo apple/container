@@ -24,11 +24,14 @@ public struct Attachment: Codable, Sendable {
     public let address: String
     /// The IPv4 gateway address.
     public let gateway: String
+    /// The MAC address associated with the attachment (optional).
+    public let macAddress: String?
 
-    public init(network: String, hostname: String, address: String, gateway: String) {
+    public init(network: String, hostname: String, address: String, gateway: String, macAddress: String? = nil) {
         self.network = network
         self.hostname = hostname
         self.address = address
         self.gateway = gateway
+        self.macAddress = macAddress
     }
 }

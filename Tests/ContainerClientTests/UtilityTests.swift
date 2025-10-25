@@ -51,4 +51,40 @@ struct UtilityTests {
         #expect(result["standalone"] == "")
         #expect(result["key2"] == "value2")
     }
+
+    @Test("Valid MAC address with colons")
+    func testValidMACAddressWithColons() throws {
+        try Utility.validMACAddress("02:42:ac:11:00:02")
+        try Utility.validMACAddress("AA:BB:CC:DD:EE:FF")
+        try Utility.validMACAddress("00:00:00:00:00:00")
+        try Utility.validMACAddress("ff:ff:ff:ff:ff:ff")
+    }
+
+    @Test("Valid MAC address with hyphens")
+    func testValidMACAddressWithHyphens() throws {
+        try Utility.validMACAddress("02-42-ac-11-00-02")
+        try Utility.validMACAddress("AA-BB-CC-DD-EE-FF")
+    }
+
+    @Test("Invalid MAC address format")
+    func testInvalidMACAddressFormat() {
+        #expect(throws: Error.self) {
+            try Utility.validMACAddress("invalid")
+        }
+        #expect(throws: Error.self) {
+            try Utility.validMACAddress("02:42:ac:11:00")  // Too short
+        }
+        #expect(throws: Error.self) {
+            try Utility.validMACAddress("02:42:ac:11:00:02:03")  // Too long
+        }
+        #expect(throws: Error.self) {
+            try Utility.validMACAddress("ZZ:ZZ:ZZ:ZZ:ZZ:ZZ")  // Invalid hex
+        }
+        #expect(throws: Error.self) {
+            try Utility.validMACAddress("02:42:ac:11:00:")  // Incomplete
+        }
+        #expect(throws: Error.self) {
+            try Utility.validMACAddress("02.42.ac.11.00.02")  // Wrong separator
+        }
+    }
 }

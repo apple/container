@@ -44,6 +44,6 @@ struct NonisolatedInterfaceStrategy: InterfaceStrategy {
 
         log.info("creating NATNetworkInterface with network reference")
         let gateway = interfaceIndex == 0 ? attachment.gateway : nil
-        return NATNetworkInterface(address: attachment.address, gateway: gateway, reference: networkRef)
+        return NATNetworkInterface(address: attachment.address, gateway: gateway, reference: networkRef, macAddress: attachment.macAddress)
     }
 }

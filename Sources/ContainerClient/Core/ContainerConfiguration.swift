@@ -89,7 +89,9 @@ public struct ContainerConfiguration: Sendable, Codable {
                 networks = try container.decode([AttachmentConfiguration].self, forKey: .networks)
             } catch {
                 let networkIds = try container.decode([String].self, forKey: .networks)
-                networks = try Utility.getAttachmentConfigurations(containerId: id, networkIds: networkIds)
+                // Parse old network IDs as simple network names without properties
+                let parsedNetworks = networkIds.map { Parser.ParsedNetwork(name: $0, macAddress: nil) }
+                networks = try Utility.getAttachmentConfigurations(containerId: id, networks: parsedNetworks)
             }
         } else {
             networks = []
