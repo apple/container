@@ -113,7 +113,7 @@ container build [OPTIONS] [CONTEXT-DIR]
 *   `-o, --output <value>`: Output configuration for the build (format: type=<oci|tar|local>[,dest=]) (default: type=oci)
 *   `--os <value>`: Add the OS type to the build
 *   `--platform <platform>`: Add the platform to the build (takes precedence over --os and --arch)
-*   `--progress <type>`: Progress type (format: auto|plain|tty)] (default: auto)
+*   `--progress <type>`: Progress type (format: auto|plain|tty) (default: auto)
 *   `-q, --quiet`: Suppress build output
 *   `-t, --tag <name>`: Name for the built image (can be specified multiple times)
 *   `--target <stage>`: Set the target build stage
