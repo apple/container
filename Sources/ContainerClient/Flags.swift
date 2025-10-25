@@ -200,15 +200,4 @@ public struct Flags {
         )
         public var virtualization: Bool = false
     }
-
-    public struct Progress: ParsableArguments {
-        public init() {}
-
-        public init(disableProgressUpdates: Bool) {
-            self.disableProgressUpdates = disableProgressUpdates
-        }
-
-        @Flag(name: .long, help: "Disable progress bar updates")
-        public var disableProgressUpdates = false
-    }
 }

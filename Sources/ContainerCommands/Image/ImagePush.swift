@@ -17,6 +17,7 @@
 import ArgumentParser
 import ContainerClient
 import Containerization
+import ContainerizationError
 import ContainerizationOCI
 import TerminalProgress
 
@@ -30,8 +31,8 @@ extension Application {
         @OptionGroup
         var registry: Flags.Registry
 
-        @OptionGroup
-        var progressFlags: Flags.Progress
+        @Option(name: .long, help: ArgumentHelp("Progress type (format: none|plain)", valueName: "type"))
+        var progress: String = "plain"
 
         @Option(
             name: [.customLong("arch"), .customShort("a")],
@@ -68,9 +69,9 @@ extension Application {
             let image = try await ClientImage.get(reference: reference)
 
             var progressConfig: ProgressConfig
-            if progressFlags.disableProgressUpdates {
-                progressConfig = try ProgressConfig(disableProgressUpdates: progressFlags.disableProgressUpdates)
-            } else {
+            switch self.progress {
+            case "none": progressConfig = try ProgressConfig(disableProgressUpdates: true)
+            case "plain":
                 progressConfig = try ProgressConfig(
                     description: "Pushing image \(image.reference)",
                     itemsName: "blobs",
@@ -78,7 +79,10 @@ extension Application {
                     showSpeed: false,
                     ignoreSmallSize: true
                 )
+            default:
+                throw ContainerizationError(.invalidArgument, message: "invalid progress mode \(self.progress)")
             }
+
             let progress = ProgressBar(config: progressConfig)
             defer {
                 progress.finish()

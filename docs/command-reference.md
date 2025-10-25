@@ -55,7 +55,7 @@ container run [OPTIONS] IMAGE [COMMAND] [ARG...]
 *   **Registry options**
     *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
 *   **Progress options**
-    *   `--disable-progress-updates`: Disable progress bar updates
+    *   `--progress <type>`: Progress type (format: none|plain) (default: plain)
 *   **Global options**
     *   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
     *   `--version`: Show the version.
@@ -354,7 +354,7 @@ container image pull [OPTIONS] REFERENCE
 
 *   `--platform <platform>`: Platform string in the form `os/arch/variant`. Example `linux/arm64/v8`, `linux/amd64`. Default: current host platform.
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (`http`, `https`, `auto`) (default: `auto`)
-*   `--disable-progress-updates`: Disable progress bar updates
+*   `--progress <type>`: Progress type (format: none|plain) (default: plain)
 *   **Global**: `--debug`, `--version`, `-h`/`--help`
 
 ### `container image push`
@@ -371,7 +371,7 @@ container image push [OPTIONS] REFERENCE
 
 *   `--platform <platform>`: Platform string in the form `os/arch/variant`. Example `linux/arm64/v8`, `linux/amd64` (optional)
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (`http`, `https`, `auto`) (default: `auto`)
-*   `--disable-progress-updates`: Disable progress bar updates
+*   `--progress <type>`: Progress type (format: none|plain) (default: plain)
 *   **Global**: `--debug`, `--version`, `-h`/`--help`
 
 ### `container image save`

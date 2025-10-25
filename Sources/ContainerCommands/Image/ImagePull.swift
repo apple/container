@@ -34,8 +34,8 @@ extension Application {
         @OptionGroup
         var registry: Flags.Registry
 
-        @OptionGroup
-        var progressFlags: Flags.Progress
+        @Option(name: .long, help: ArgumentHelp("Progress type (format: none|plain)", valueName: "type"))
+        var progress: String = "plain"
 
         @Option(
             name: .shortAndLong,
@@ -57,10 +57,9 @@ extension Application {
 
         public init() {}
 
-        public init(platform: String? = nil, scheme: String = "auto", reference: String, disableProgress: Bool = false) {
+        public init(platform: String? = nil, scheme: String = "auto", reference: String) {
             self.global = Flags.Global()
             self.registry = Flags.Registry(scheme: scheme)
-            self.progressFlags = Flags.Progress(disableProgressUpdates: disableProgress)
             self.platform = platform
             self.reference = reference
         }
@@ -80,15 +79,17 @@ extension Application {
             let processedReference = try ClientImage.normalizeReference(reference)
 
             var progressConfig: ProgressConfig
-            if self.progressFlags.disableProgressUpdates {
-                progressConfig = try ProgressConfig(disableProgressUpdates: self.progressFlags.disableProgressUpdates)
-            } else {
+            switch self.progress {
+            case "none": progressConfig = try ProgressConfig(disableProgressUpdates: true)
+            case "plain":
                 progressConfig = try ProgressConfig(
                     showTasks: true,
                     showItems: true,
                     ignoreSmallSize: true,
                     totalTasks: 2
                 )
+            default:
+                throw ContainerizationError(.invalidArgument, message: "invalid progress mode \(self.progress)")
             }
 
             let progress = ProgressBar(config: progressConfig)
