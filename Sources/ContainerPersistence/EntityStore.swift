@@ -54,7 +54,7 @@ public actor FilesystemEntityStore<T>: EntityStore where T: Codable & Identifiab
     public func create(_ entity: T) async throws {
         let metadataUrl = metadataUrl(entity.id)
         guard !FileManager.default.fileExists(atPath: metadataUrl.path) else {
-            throw ContainerizationError(.exists, message: "Entity \(entity.id) already exist")
+            throw ContainerizationError(.exists, message: "entity \(entity.id) already exist")
         }
 
         try FileManager.default.createDirectory(at: entityUrl(entity.id), withIntermediateDirectories: true)
@@ -70,7 +70,7 @@ public actor FilesystemEntityStore<T>: EntityStore where T: Codable & Identifiab
     public func update(_ entity: T) async throws {
         let metadataUrl: URL = metadataUrl(entity.id)
         guard FileManager.default.fileExists(atPath: metadataUrl.path) else {
-            throw ContainerizationError(.notFound, message: "Entity \(entity.id) not found")
+            throw ContainerizationError(.notFound, message: "entity \(entity.id) not found")
         }
 
         let data = try encoder.encode(entity)

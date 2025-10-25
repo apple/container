@@ -6,7 +6,7 @@ Note: Command availability may vary depending on host operating system and macOS
 
 ### `container run`
 
-Runs a container from an image. If a command is provided, it will execute inside the container; otherwise the image's default command runs. By default the container runs in the foreground and STDIN remains closed unless `-i`/`--interactive` is specified.
+Runs a container from an image. If a command is provided, it will execute inside the container; otherwise the image's default command runs. By default the container runs in the foreground and stdin remains closed unless `-i`/`--interactive` is specified.
 
 **Usage**
 
@@ -156,7 +156,7 @@ container create [OPTIONS] IMAGE [COMMAND] [ARG...]
 
 ### `container start`
 
-Starts a stopped container. You can attach to the container's output streams and optionally keep STDIN open.
+Starts a stopped container. You can attach to the container's output streams and optionally keep stdin open.
 
 **Usage**
 
@@ -170,8 +170,8 @@ container start [OPTIONS] CONTAINER-ID
 
 **Options**
 
-*   `-a, --attach`: Attach STDOUT/STDERR
-*   `-i, --interactive`: Attach STDIN
+*   `-a, --attach`: Attach stdout/stderr
+*   `-i, --interactive`: Attach stdin
 *   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
 *   `--version`: Show the version.
 *   `-h, --help`: Show help information.
@@ -736,7 +736,7 @@ container registry login [OPTIONS] SERVER
 **Options**
 
 *   `-u, --username <username>`: username for the registry
-*   `--password-stdin`: read the password from STDIN (non-interactive)
+*   `--password-stdin`: read the password from stdin (non-interactive)
 *   `--scheme <scheme>`: registry scheme. One of (`http`, `https`, `auto`) (default: `auto`)
 *   **Global**: `--version`, `-h`/`--help`
 

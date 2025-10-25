@@ -103,7 +103,7 @@ public actor KernelService {
         self.log.info("KernelService: \(#function) - name: \(name), platform: \(String(describing: platform))")
         let kernelPath = self.kernelDirectory.appendingPathComponent(name)
         guard FileManager.default.fileExists(atPath: kernelPath.path) else {
-            throw ContainerizationError(.notFound, message: "Kernel not found at \(kernelPath)")
+            throw ContainerizationError(.notFound, message: "kernel not found at \(kernelPath)")
         }
         let name = "\(Self.defaultKernelNamePrefix)\(platform.architecture)"
         let defaultKernelPath = self.kernelDirectory.appendingPathComponent(name)
@@ -116,7 +116,7 @@ public actor KernelService {
         let name = "\(Self.defaultKernelNamePrefix)\(platform.architecture)"
         let defaultKernelPath = self.kernelDirectory.appendingPathComponent(name).resolvingSymlinksInPath()
         guard FileManager.default.fileExists(atPath: defaultKernelPath.path) else {
-            throw ContainerizationError(.notFound, message: "Default kernel not found at \(defaultKernelPath)")
+            throw ContainerizationError(.notFound, message: "default kernel not found at \(defaultKernelPath)")
         }
         return Kernel(path: defaultKernelPath, platform: platform)
     }

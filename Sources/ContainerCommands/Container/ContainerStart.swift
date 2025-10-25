@@ -28,10 +28,10 @@ extension Application {
             commandName: "start",
             abstract: "Start a container")
 
-        @Flag(name: .shortAndLong, help: "Attach STDOUT/STDERR")
+        @Flag(name: .shortAndLong, help: "Attach stdout/stderr")
         var attach = false
 
-        @Flag(name: .shortAndLong, help: "Attach STDIN")
+        @Flag(name: .shortAndLong, help: "Attach stdin")
         var interactive = false
 
         @OptionGroup
