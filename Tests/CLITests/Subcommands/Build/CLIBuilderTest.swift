@@ -464,9 +464,7 @@ extension TestCLIBuildBase {
                 FROM ghcr.io/linuxcontainers/alpine:3.20
                 RUN echo "default dockerfile" > /test.txt
                 """
-            let context: [FileSystemEntry] = [
-                .file("emptyFile", content: .zeroFilled(size: 1))
-            ]
+            let context: [FileSystemEntry] = []
             try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
             let imageName = "registry.local/default-dockerfile:\(UUID().uuidString)"
 
@@ -481,9 +479,7 @@ extension TestCLIBuildBase {
                 FROM ghcr.io/linuxcontainers/alpine:3.20
                 RUN echo "custom dockerfile" > /test.txt
                 """
-            let context: [FileSystemEntry] = [
-                .file("emptyFile", content: .zeroFilled(size: 1))
-            ]
+            let context: [FileSystemEntry] = []
 
             let mainDockerfile: String =
                 """
@@ -510,9 +506,7 @@ extension TestCLIBuildBase {
                 FROM ghcr.io/linuxcontainers/alpine:3.20
                 RUN echo "subdirectory build" > /test.txt
                 """
-            let context: [FileSystemEntry] = [
-                .file("emptyFile", content: .zeroFilled(size: 1))
-            ]
+            let context: [FileSystemEntry] = []
 
             try createContext(tempDir: subDir, dockerfile: dockerfile, context: context)
 
