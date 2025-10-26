@@ -89,7 +89,9 @@ container run -e NODE_ENV=production --cpus 2 --memory 1G node:18
 
 ### `container build`
 
-Builds an OCI image from a local build context. It reads a Dockerfile (default `Dockerfile`) and produces an image tagged with `-t` option. The build runs in isolation using BuildKit, and resource limits may be set for the build process itself.
+Builds an OCI image from a local build context. It reads a Dockerfile (default `Dockerfile`) or Containerfile and produces an image tagged with `-t` option. The build runs in isolation using BuildKit, and resource limits may be set for the build process itself.
+
+When no `-f/--file` is specified, the build command will look for `Dockerfile` first, then fall back to `Containerfile` if `Dockerfile` is not found.
 
 **Usage**
 
@@ -106,7 +108,7 @@ container build [OPTIONS] [CONTEXT-DIR]
 *   `-a, --arch <value>`: Add the architecture type to the build
 *   `--build-arg <key=val>`: Set build-time variables
 *   `-c, --cpus <cpus>`: Number of CPUs to allocate to the builder container (default: 2)
-*   `-f, --file <path>`: Path to Dockerfile (default: Dockerfile)
+*   `-f, --file <path>`: Path to Dockerfile
 *   `-l, --label <key=val>`: Set a label
 *   `-m, --memory <memory>`: Amount of builder container memory (1MiByte granularity), with optional K, M, G, T, or P suffix (default: 2048MB)
 *   `--no-cache`: Do not use cache
