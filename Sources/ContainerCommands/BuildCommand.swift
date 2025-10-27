@@ -32,7 +32,7 @@ extension Application {
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
             config.commandName = "build"
-            config.abstract = "Build an image from a Dockerfile"
+            config.abstract = "Build an image from a Dockerfile or Containerfile"
             config._superCommandName = "container"
             config.helpNames = NameSpecification(arrayLiteral: .customShort("h"), .customLong("help"))
             return config
@@ -64,7 +64,7 @@ extension Application {
         var cpus: Int64 = 2
 
         @Option(name: .shortAndLong, help: ArgumentHelp("Path to Dockerfile", valueName: "path"))
-        var file: String = "Dockerfile"
+        var file: String?
 
         @Option(name: .shortAndLong, help: ArgumentHelp("Set a label", valueName: "key=val"))
         var label: [String] = []
@@ -186,7 +186,23 @@ extension Application {
                     throw ValidationError("builder is not running")
                 }
 
-                let dockerfile = try Data(contentsOf: URL(filePath: file))
+                let buildFilePath: String
+                if let file = self.file {
+                    buildFilePath = file
+                } else {
+                    guard
+                        let resolvedPath = try BuildFile.resolvePath(
+                            contextDir: self.contextDir,
+                            log: log
+                        )
+                    else {
+                        throw ValidationError("failed to find Dockerfile or Containerfile in the context directory \(self.contextDir)")
+                    }
+                    buildFilePath = resolvedPath
+                }
+
+                let buildFileData = try Data(contentsOf: URL(filePath: buildFilePath))
+
                 let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
                 let exportPath = systemHealth.appRoot
                     .appendingPathComponent(Application.BuilderCommand.builderResourceDir)
@@ -264,7 +280,7 @@ extension Application {
                             contentStore: RemoteContentStoreClient(),
                             buildArgs: buildArg,
                             contextDir: contextDir,
-                            dockerfile: dockerfile,
+                            dockerfile: buildFileData,
                             labels: label,
                             noCache: noCache,
                             platforms: [Platform](platforms),
@@ -351,9 +367,7 @@ extension Application {
         }
 
         public func validate() throws {
-            guard FileManager.default.fileExists(atPath: file) else {
-                throw ValidationError("Dockerfile does not exist at path: \(file)")
-            }
+            // NOTE: We'll "validate" the Dockerfile later.
             guard FileManager.default.fileExists(atPath: contextDir) else {
                 throw ValidationError("context dir does not exist \(contextDir)")
             }
