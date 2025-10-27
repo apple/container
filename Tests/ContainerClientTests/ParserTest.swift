@@ -190,7 +190,7 @@ struct ParserTest {
             guard let error = error as? ContainerizationError else {
                 return false
             }
-            return error.description.contains("Invalid volume name")
+            return error.description.contains("invalid volume name")
         }
     }
 

@@ -259,7 +259,7 @@ public struct Utility {
         let s: SystemPlatform = .current
         if let userKernel = management.kernel {
             guard FileManager.default.fileExists(atPath: userKernel) else {
-                throw ContainerizationError(.notFound, message: "Kernel file not found at path \(userKernel)")
+                throw ContainerizationError(.notFound, message: "kernel file not found at path \(userKernel)")
             }
             let p = URL(filePath: userKernel)
             return .init(path: p, platform: s)
