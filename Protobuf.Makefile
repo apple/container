@@ -34,12 +34,15 @@ $(PROTOC):
 	@unzip -o $(PROTOC_ZIP) 'include/*' -d $(dir $@)
 	@rm -f $(PROTOC_ZIP)
 
+.PHONY: protoc_gen_grpc_swift
 protoc_gen_grpc_swift:
 	@$(SWIFT) build --product protoc-gen-grpc-swift
 
+.PHONY: protoc-gen-swift
 protoc-gen-swift:
 	@$(SWIFT) build --product protoc-gen-swift
 
+.PHONY: protos
 protos: $(PROTOC) protoc-gen-swift protoc_gen_grpc_swift 
 	@echo Generating protocol buffers source code...
 	@mkdir -p $(LOCAL_DIR)
@@ -55,6 +58,7 @@ protos: $(PROTOC) protoc-gen-swift protoc_gen_grpc_swift
 		-I.
 	@"$(MAKE)" update-licenses
 
+.PHONY: clean-proto-tools
 clean-proto-tools:
 	@rm -rf $(LOCAL_DIR)/bin
 	@rm -rf $(LOCAL_DIR)/container-builder-shim
