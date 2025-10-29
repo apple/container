@@ -18,11 +18,11 @@ LOCAL_BIN_DIR := $(LOCAL_DIR)/bin
 
 BUILDER_SHIM_REPO ?= https://github.com/apple/container-builder-shim.git
 
-## Versions
+# Versions
 BUILDER_SHIM_VERSION ?= $(shell sed -n 's/let builderShimVersion *= *"\(.*\)"/\1/p' Package.swift)
 PROTOC_VERSION := 26.1
 
-# protoc binary installation
+# Protoc binary installation
 PROTOC_ZIP := protoc-$(PROTOC_VERSION)-osx-universal_binary.zip
 PROTOC := $(LOCAL_BIN_DIR)/protoc@$(PROTOC_VERSION)/protoc
 $(PROTOC):
