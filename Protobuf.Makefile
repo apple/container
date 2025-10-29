@@ -43,7 +43,9 @@ protoc-gen-swift:
 protos: $(PROTOC) protoc-gen-swift
 	@echo Generating protocol buffers source code...
 	@mkdir -p $(LOCAL_DIR)
-	@cd $(LOCAL_DIR) && git clone --branch $(BUILDER_SHIM_VERSION) --depth 1 $(BUILDER_SHIM_REPO)
+	@if [ ! -d "$(LOCAL_DIR)/container-builder-shim" ]; then \
+		cd $(LOCAL_DIR) && git clone --branch $(BUILDER_SHIM_VERSION) --depth 1 $(BUILDER_SHIM_REPO); \
+	fi
 	@$(PROTOC) $(LOCAL_DIR)/container-builder-shim/pkg/api/Builder.proto \
 		--plugin=protoc-gen-grpc-swift=$(BUILD_BIN_DIR)/protoc-gen-grpc-swift \
 		--plugin=protoc-gen-swift=$(BUILD_BIN_DIR)/protoc-gen-swift \
