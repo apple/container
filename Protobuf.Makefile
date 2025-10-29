@@ -60,6 +60,6 @@ protos: $(PROTOC) protoc-gen-swift protoc_gen_grpc_swift
 
 .PHONY: clean-proto-tools
 clean-proto-tools:
-	@rm -rf $(LOCAL_DIR)/bin
+	@echo Cleaning proto tools...
+	@rm -rf $(LOCAL_DIR)/bin/protoc*
 	@rm -rf $(LOCAL_DIR)/container-builder-shim
-	@echo "Removed $(LOCAL_DIR)/bin toolchains."
