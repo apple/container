@@ -29,6 +29,7 @@ import NIO
 import NIOFoundationCompat
 import SocketForwarder
 import Synchronization
+import SystemPackage
 
 import struct ContainerizationOCI.Mount
 import struct ContainerizationOCI.Process
@@ -51,7 +52,7 @@ public actor SandboxService {
     private static let sshAuthSocketGuestPath = "/run/host-services/ssh-auth.sock"
     private static let sshAuthSocketEnvVar = "SSH_AUTH_SOCK"
 
-    private static func hostSocketUrl(config: ContainerConfiguration) -> URL? {
+    private static func sshAuthSocketHostUrl(config: ContainerConfiguration) -> URL? {
         if config.ssh, let sshSocket = Foundation.ProcessInfo.processInfo.environment[Self.sshAuthSocketEnvVar] {
             return URL(fileURLWithPath: sshSocket)
         }
@@ -793,11 +794,16 @@ public actor SandboxService {
             czConfig.sockets.append(socketConfig)
         }
 
-        if let socketUrl = Self.hostSocketUrl(config: config) {
+        if let socketUrl = Self.sshAuthSocketHostUrl(config: config) {
+            let socketPath = socketUrl.path(percentEncoded: false)
+            let attrs = try? FileManager.default.attributesOfItem(atPath: socketPath)
+            let permissions = (attrs?[.posixPermissions] as? NSNumber)
+                .map { FilePermissions(rawValue: mode_t($0.intValue)) }
             let socketConfig = UnixSocketConfiguration(
                 source: socketUrl,
                 destination: URL(fileURLWithPath: Self.sshAuthSocketGuestPath),
-                direction: .into
+                permissions: permissions,
+                direction: .into,
             )
             czConfig.sockets.append(socketConfig)
         }
@@ -835,7 +841,7 @@ public actor SandboxService {
         czConfig.process.arguments = [process.executable] + process.arguments
         czConfig.process.environmentVariables = process.environment
 
-        if Self.hostSocketUrl(config: config) != nil {
+        if Self.sshAuthSocketHostUrl(config: config) != nil {
             if !czConfig.process.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
                 czConfig.process.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
             }
@@ -877,7 +883,7 @@ public actor SandboxService {
         proc.arguments = [config.executable] + config.arguments
         proc.environmentVariables = config.environment
 
-        if Self.hostSocketUrl(config: containerConfig) != nil {
+        if Self.sshAuthSocketHostUrl(config: containerConfig) != nil {
             if !proc.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
                 proc.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
             }

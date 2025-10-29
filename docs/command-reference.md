@@ -11,68 +11,75 @@ Runs a container from an image. If a command is provided, it will execute inside
 **Usage**
 
 ```bash
-container run [OPTIONS] IMAGE [COMMAND] [ARG...]
+container run [<options>] <image> [<arguments> ...]
 ```
 
-**Options**
+**Arguments**
 
-*   **Process options**
-    *   `-e, --env <env>`: Set environment variables (format: key=value)
-    *   `--env-file <env-file>`: Read in a file of environment variables (key=value format, ignores # comments and blank lines)
-    *   `--gid <gid>`: Set the group ID for the process
-    *   `-i, --interactive`: Keep the standard input open even if not attached
-    *   `-t, --tty`: Open a TTY with the process
-    *   `-u, --user <user>`: Set the user for the process (format: name|uid[:gid])
-    *   `--uid <uid>`: Set the user ID for the process
-    *   `-w, --workdir, --cwd <dir>`: Set the initial working directory inside the container
-*   **Resource options**
-    *   `-c, --cpus <cpus>`: Number of CPUs to allocate to the container
-    *   `-m, --memory <memory>`: Amount of memory (1MiByte granularity), with optional K, M, G, T, or P suffix
-*   **Management options**
-    *   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: arm64)
-    *   `--cidfile <cidfile>`: Write the container ID to the path provided
-    *   `-d, --detach`: Run the container and detach from the process
-    *   `--dns <ip>`: DNS nameserver IP address
-    *   `--dns-domain <domain>`: Default DNS domain
-    *   `--dns-option <option>`: DNS options
-    *   `--dns-search <domain>`: DNS search domains
-    *   `--entrypoint <cmd>`: Override the entrypoint of the image
-    *   `-k, --kernel <path>`: Set a custom kernel path
-    *   `-l, --label <label>`: Add a key=value label to the container
-    *   `--mount <mount>`: Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)
-    *   `--name <name>`: Use the specified name as the container ID
-    *   `--network <network>`: Attach the container to a network
-    *   `--no-dns`: Do not configure DNS in the container
-    *   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
-    *   `-p, --publish <spec>`: Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])
-    *   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
-    *   `--publish-socket <spec>`: Publish a socket from container to host (format: host_path:container_path)
-    *   `--rm, --remove`: Remove the container after it stops
-    *   `--ssh`: Forward SSH agent socket to container
-    *   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
-    *   `-v, --volume <volume>`: Bind mount a volume into the container
-    *   `--virtualization`: Expose virtualization capabilities to the container (requires host and guest support)
-*   **Registry options**
-    *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
-    
-    * **Behavior of `auto`**  
-  
-        When `auto` is selected, the target registry is considered **internal/local** if the registry host matches any of these criteria:    
-        - The host is a loopback address (e.g., `localhost`, `127.*`)  
-        - The host is within the `RFC1918` private IP ranges:  
-            - `10.*.*.*`  
-            - `192.168.*.*`  
-            - `172.16.*.*` through `172.31.*.*`  
-        - The host ends with the machine’s default container DNS domain (as defined in `DefaultsStore.Keys.defaultDNSDomain`, located [here](../Sources/ContainerPersistence/DefaultsStore.swift))  
-  
+*   `<image>`: Image name
+*   `<arguments>`: Container init process arguments
+
+**Process Options**
+
+*   `-e, --env <env>`: Set environment variables (format: key=value)
+*   `--env-file <env-file>`: Read in a file of environment variables (key=value format, ignores # comments and blank lines)
+*   `--gid <gid>`: Set the group ID for the process
+*   `-i, --interactive`: Keep the standard input open even if not attached
+*   `-t, --tty`: Open a TTY with the process
+*   `-u, --user <user>`: Set the user for the process (format: name|uid[:gid])
+*   `--uid <uid>`: Set the user ID for the process
+*   `-w, --workdir, --cwd <dir>`: Set the initial working directory inside the container
+
+**Resource Options**
+
+*   `-c, --cpus <cpus>`: Number of CPUs to allocate to the container
+*   `-m, --memory <memory>`: Amount of memory (1MiByte granularity), with optional K, M, G, T, or P suffix
+
+**Management Options**
+
+*   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: arm64)
+*   `--cidfile <cidfile>`: Write the container ID to the path provided
+*   `-d, --detach`: Run the container and detach from the process
+*   `--dns <ip>`: DNS nameserver IP address
+*   `--dns-domain <domain>`: Default DNS domain
+*   `--dns-option <option>`: DNS options
+*   `--dns-search <domain>`: DNS search domains
+*   `--entrypoint <cmd>`: Override the entrypoint of the image
+*   `-k, --kernel <path>`: Set a custom kernel path
+*   `-l, --label <label>`: Add a key=value label to the container
+*   `--mount <mount>`: Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)
+*   `--name <name>`: Use the specified name as the container ID
+*   `--network <network>`: Attach the container to a network
+*   `--no-dns`: Do not configure DNS in the container
+*   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
+*   `-p, --publish <spec>`: Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])
+*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
+*   `--publish-socket <spec>`: Publish a socket from container to host (format: host_path:container_path)
+*   `--rm, --remove`: Remove the container after it stops
+*   `--ssh`: Forward SSH agent socket to container
+*   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
+*   `-v, --volume <volume>`: Bind mount a volume into the container
+*   `--virtualization`: Expose virtualization capabilities to the container (requires host and guest support)
+
+**Registry Options**
+
+*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
+
+    * **Behavior of `auto`**
+
+        When `auto` is selected, the target registry is considered **internal/local** if the registry host matches any of these criteria:
+        - The host is a loopback address (e.g., `localhost`, `127.*`)
+        - The host is within the `RFC1918` private IP ranges:
+            - `10.*.*.*`
+            - `192.168.*.*`
+            - `172.16.*.*` through `172.31.*.*`
+        - The host ends with the machine's default container DNS domain (as defined in `DefaultsStore.Keys.defaultDNSDomain`, located [here](../Sources/ContainerPersistence/DefaultsStore.swift))
+
         For internal/local registries, the client uses **HTTP**. Otherwise, it uses **HTTPS**.
 
-*   **Progress options**
-    *   `--disable-progress-updates`: Disable progress bar updates
-*   **Global options**
-    *   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
-    *   `--version`: Show the version.
-    *   `-h, --help`: Show help information.
+**Progress Options**
+
+*   `--disable-progress-updates`: Disable progress bar updates
 
 **Examples**
 
@@ -96,12 +103,12 @@ When no `-f/--file` is specified, the build command will look for `Dockerfile` f
 **Usage**
 
 ```bash
-container build [OPTIONS] [CONTEXT-DIR]
+container build [<options>] [<context-dir>]
 ```
 
 **Arguments**
 
-*   `CONTEXT-DIR`: Build directory (default: .)
+*   `<context-dir>`: Build directory (default: .)
 
 **Options**
 
@@ -114,14 +121,12 @@ container build [OPTIONS] [CONTEXT-DIR]
 *   `--no-cache`: Do not use cache
 *   `-o, --output <value>`: Output configuration for the build (format: type=<oci|tar|local>[,dest=]) (default: type=oci)
 *   `--os <value>`: Add the OS type to the build
-*   `--platform <platform>`: Add the platform to the build (takes precedence over --os and --arch)
-*   `--progress <type>`: Progress type (format: auto|plain|tty)] (default: auto)
+*   `--platform <platform>`: Add the platform to the build (format: os/arch[/variant], takes precedence over --os and --arch)
+*   `--progress <type>`: Progress type (format: auto|plain|tty) (default: auto)
 *   `-q, --quiet`: Suppress build output
 *   `-t, --tag <name>`: Name for the built image (can be specified multiple times)
 *   `--target <stage>`: Set the target build stage
 *   `--vsock-port <port>`: Builder shim vsock port (default: 8088)
-*   `--version`: Show the version.
-*   `-h, --help`: Show help information.
 
 **Examples**
 
@@ -151,135 +156,15 @@ Creates a container from an image without starting it. This command accepts most
 **Usage**
 
 ```bash
-container create [OPTIONS] IMAGE [COMMAND] [ARG...]
-```
-
-**Typical use**: create a container to inspect or modify its configuration before running it.
-
-### `container start`
-
-Starts a stopped container. You can attach to the container's output streams and optionally keep stdin open.
-
-**Usage**
-
-```bash
-container start [OPTIONS] CONTAINER-ID
+container create [<options>] <image> [<arguments> ...]
 ```
 
 **Arguments**
 
-*   `CONTAINER-ID`: Container ID
+*   `<image>`: Image name
+*   `<arguments>`: Container init process arguments
 
-**Options**
-
-*   `-a, --attach`: Attach stdout/stderr
-*   `-i, --interactive`: Attach stdin
-*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
-*   `--version`: Show the version.
-*   `-h, --help`: Show help information.
-
-### `container stop`
-
-Stops running containers gracefully by sending a signal. A timeout can be specified before a SIGKILL is issued. If no containers are specified, nothing is stopped unless `--all` is used.
-
-**Usage**
-
-```bash
-container stop [OPTIONS] [CONTAINER-IDS...]
-```
-
-**Arguments**
-
-*   `CONTAINER-IDS`: Container IDs
-
-**Options**
-
-*   `-a, --all`: Stop all running containers
-*   `-s, --signal <signal>`: Signal to send the containers (default: SIGTERM)
-*   `-t, --time <time>`: Seconds to wait before killing the containers (default: 5)
-*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
-*   `--version`: Show the version.
-*   `-h, --help`: Show help information.
-
-### `container kill`
-
-Immediately kills running containers by sending a signal (defaults to `KILL`). Use with caution: it does not allow for graceful shutdown.
-
-**Usage**
-
-```bash
-container kill [OPTIONS] [CONTAINER-IDS...]
-```
-
-**Arguments**
-
-*   `CONTAINER-IDS`: Container IDs
-
-**Options**
-
-*   `-a, --all`: Kill or signal all running containers
-*   `-s, --signal <signal>`: Signal to send to the container(s) (default: KILL)
-*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
-*   `--version`: Show the version.
-*   `-h, --help`: Show help information.
-
-### `container delete (rm)`
-
-Removes one or more containers. If the container is running, you may force deletion with `--force`. Without a container ID, nothing happens unless `--all` is supplied.
-
-**Usage**
-
-```bash
-container delete [OPTIONS] [CONTAINER-IDS...]
-```
-
-**Arguments**
-
-*   `CONTAINER-IDS`: Container IDs
-
-**Options**
-
-*   `-a, --all`: Remove all containers
-*   `-f, --force`: Force the removal of one or more running containers
-*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
-*   `--version`: Show the version.
-*   `-h, --help`: Show help information.
-
-### `container list (ls)`
-
-Lists containers. By default only running containers are shown. Output can be formatted as a table or JSON.
-
-**Usage**
-
-```bash
-container list [OPTIONS]
-```
-
-**Options**
-
-*   `-a, --all`: Show stopped containers as well
-*   `--format <format>`: Format of the output (values: json, table; default: table)
-*   `-q, --quiet`: Only output the container ID
-*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
-*   `--version`: Show the version.
-*   `-h, --help`: Show help information.
-
-### `container exec`
-
-Executes a command inside a running container. It uses the same process flags as `container run` to control environment, user, and TTY settings.
-
-**Usage**
-
-```bash
-container exec [OPTIONS] CONTAINER-ID ARGUMENTS...
-```
-
-**Arguments**
-
-*   `CONTAINER-ID`: Container ID
-*   `ARGUMENTS`: New process arguments
-
-**Process flags**
+**Process Options**
 
 *   `-e, --env <env>`: Set environment variables (format: key=value)
 *   `--env-file <env-file>`: Read in a file of environment variables (key=value format, ignores # comments and blank lines)
@@ -290,11 +175,159 @@ container exec [OPTIONS] CONTAINER-ID ARGUMENTS...
 *   `--uid <uid>`: Set the user ID for the process
 *   `-w, --workdir, --cwd <dir>`: Set the initial working directory inside the container
 
+**Resource Options**
+
+*   `-c, --cpus <cpus>`: Number of CPUs to allocate to the container
+*   `-m, --memory <memory>`: Amount of memory (1MiByte granularity), with optional K, M, G, T, or P suffix
+
+**Management Options**
+
+*   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: arm64)
+*   `--cidfile <cidfile>`: Write the container ID to the path provided
+*   `-d, --detach`: Run the container and detach from the process
+*   `--dns <ip>`: DNS nameserver IP address
+*   `--dns-domain <domain>`: Default DNS domain
+*   `--dns-option <option>`: DNS options
+*   `--dns-search <domain>`: DNS search domains
+*   `--entrypoint <cmd>`: Override the entrypoint of the image
+*   `-k, --kernel <path>`: Set a custom kernel path
+*   `-l, --label <label>`: Add a key=value label to the container
+*   `--mount <mount>`: Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)
+*   `--name <name>`: Use the specified name as the container ID
+*   `--network <network>`: Attach the container to a network
+*   `--no-dns`: Do not configure DNS in the container
+*   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
+*   `-p, --publish <spec>`: Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])
+*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
+*   `--publish-socket <spec>`: Publish a socket from container to host (format: host_path:container_path)
+*   `--rm, --remove`: Remove the container after it stops
+*   `--ssh`: Forward SSH agent socket to container
+*   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
+*   `-v, --volume <volume>`: Bind mount a volume into the container
+*   `--virtualization`: Expose virtualization capabilities to the container (requires host and guest support)
+
+**Registry Options**
+
+*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
+
+### `container start`
+
+Starts a stopped container. You can attach to the container's output streams and optionally keep STDIN open.
+
+**Usage**
+
+```bash
+container start [--attach] [--interactive] [--debug] <container-id>
+```
+
+**Arguments**
+
+*   `<container-id>`: Container ID
+
 **Options**
 
-*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
-*   `--version`: Show the version.
-*   `-h, --help`: Show help information.
+*   `-a, --attach`: Attach stdout/stderr
+*   `-i, --interactive`: Attach stdin
+
+### `container stop`
+
+Stops running containers gracefully by sending a signal. A timeout can be specified before a SIGKILL is issued. If no containers are specified, nothing is stopped unless `--all` is used.
+
+**Usage**
+
+```bash
+container stop [--all] [--signal <signal>] [--time <time>] [--debug] [<container-ids> ...]
+```
+
+**Arguments**
+
+*   `<container-ids>`: Container IDs
+
+**Options**
+
+*   `-a, --all`: Stop all running containers
+*   `-s, --signal <signal>`: Signal to send the containers (default: SIGTERM)
+*   `-t, --time <time>`: Seconds to wait before killing the containers (default: 5)
+
+### `container kill`
+
+Immediately kills running containers by sending a signal (defaults to `KILL`). Use with caution: it does not allow for graceful shutdown.
+
+**Usage**
+
+```bash
+container kill [--all] [--signal <signal>] [--debug] [<container-ids> ...]
+```
+
+**Arguments**
+
+*   `<container-ids>`: Container IDs
+
+**Options**
+
+*   `-a, --all`: Kill or signal all running containers
+*   `-s, --signal <signal>`: Signal to send to the container(s) (default: KILL)
+
+### `container delete (rm)`
+
+Removes one or more containers. If the container is running, you may force deletion with `--force`. Without a container ID, nothing happens unless `--all` is supplied.
+
+**Usage**
+
+```bash
+container delete [--all] [--force] [--debug] [<container-ids> ...]
+```
+
+**Arguments**
+
+*   `<container-ids>`: Container IDs
+
+**Options**
+
+*   `-a, --all`: Remove all containers
+*   `-f, --force`: Delete containers even if they are running
+
+### `container list (ls)`
+
+Lists containers. By default only running containers are shown. Output can be formatted as a table or JSON.
+
+**Usage**
+
+```bash
+container list [--all] [--format <format>] [--quiet] [--debug]
+```
+
+**Options**
+
+*   `-a, --all`: Include containers that are not running
+*   `--format <format>`: Format of the output (values: json, table; default: table)
+*   `-q, --quiet`: Only output the container ID
+
+### `container exec`
+
+Executes a command inside a running container. It uses the same process flags as `container run` to control environment, user, and TTY settings.
+
+**Usage**
+
+```bash
+container exec [--env <env> ...] [--env-file <env-file> ...] [--gid <gid>] [--interactive] [--tty] [--user <user>] [--uid <uid>] [--workdir <dir>] [--debug] <container-id> <arguments> ...
+```
+
+**Arguments**
+
+*   `<container-id>`: Container ID
+*   `<arguments>`: New process arguments
+
+**Process Options**
+
+*   `-e, --env <env>`: Set environment variables (format: key=value)
+*   `--env-file <env-file>`: Read in a file of environment variables (key=value format, ignores # comments and blank lines)
+*   `--gid <gid>`: Set the group ID for the process
+*   `-i, --interactive`: Keep the standard input open even if not attached
+*   `-t, --tty`: Open a TTY with the process
+*   `-u, --user <user>`: Set the user for the process (format: name|uid[:gid])
+*   `--uid <uid>`: Set the user ID for the process
+*   `-w, --workdir, --cwd <dir>`: Set the initial working directory inside the container
 
 ### `container logs`
 
@@ -303,21 +336,18 @@ Fetches logs from a container. You can follow the logs (`-f`/`--follow`), restri
 **Usage**
 
 ```bash
-container logs [OPTIONS] CONTAINER-ID
+container logs [--boot] [--follow] [-n <n>] [--debug] <container-id>
 ```
 
 **Arguments**
 
-*   `CONTAINER-ID`: Container ID
+*   `<container-id>`: Container ID
 
 **Options**
 
 *   `--boot`: Display the boot log for the container instead of stdio
 *   `-f, --follow`: Follow log output
 *   `-n <n>`: Number of lines to show from the end of the logs. If not provided this will print all of the logs
-*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
-*   `--version`: Show the version.
-*   `-h, --help`: Show help information.
 
 ### `container inspect`
 
@@ -326,18 +356,16 @@ Displays detailed container information in JSON. Pass one or more container IDs 
 **Usage**
 
 ```bash
-container inspect [OPTIONS] CONTAINER-IDS...
+container inspect [--debug] <container-ids> ...
 ```
 
 **Arguments**
 
-*   `CONTAINER-IDS`: Container IDs
+*   `<container-ids>`: Container IDs
 
 **Options**
 
-*   `--debug`: Enable debug output [environment: CONTAINER_DEBUG]
-*   `--version`: Show the version.
-*   `-h, --help`: Show help information.
+No options.
 
 ## Image Management
 
@@ -348,15 +376,14 @@ Lists local images. Verbose output provides additional details such as image ID,
 **Usage**
 
 ```bash
-container image list [OPTIONS]
+container image list [--format <format>] [--quiet] [--verbose] [--debug]
 ```
 
 **Options**
 
+*   `--format <format>`: Format of the output (values: json, table; default: table)
 *   `-q, --quiet`: Only output the image name
 *   `-v, --verbose`: Verbose output
-*   `--format <format>`: Format of the output (values: `json`, `table`; default: `table`)
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
 
 ### `container image pull`
 
@@ -365,15 +392,20 @@ Pulls an image from a registry. Supports specifying a platform and controlling p
 **Usage**
 
 ```bash
-container image pull [OPTIONS] REFERENCE
+container image pull [--debug] [--scheme <scheme>] [--disable-progress-updates] [--arch <arch>] [--os <os>] [--platform <platform>] <reference>
 ```
+
+**Arguments**
+
+*   `<reference>`: Image reference to pull
 
 **Options**
 
-*   `--platform <platform>`: Platform string in the form `os/arch/variant`. Example `linux/arm64/v8`, `linux/amd64`. Default: current host platform.
-*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (`http`, `https`, `auto`) (default: `auto`)
+*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
 *   `--disable-progress-updates`: Disable progress bar updates
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
+*   `-a, --arch <arch>`: Limit the pull to the specified architecture
+*   `--os <os>`: Limit the pull to the specified OS
+*   `--platform <platform>`: Limit the pull to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)
 
 ### `container image push`
 
@@ -382,15 +414,20 @@ Pushes an image to a registry. The flags mirror those for `image pull` with the 
 **Usage**
 
 ```bash
-container image push [OPTIONS] REFERENCE
+container image push [--scheme <scheme>] [--disable-progress-updates] [--arch <arch>] [--os <os>] [--platform <platform>] [--debug] <reference>
 ```
+
+**Arguments**
+
+*   `<reference>`: Image reference to push
 
 **Options**
 
-*   `--platform <platform>`: Platform string in the form `os/arch/variant`. Example `linux/arm64/v8`, `linux/amd64` (optional)
-*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (`http`, `https`, `auto`) (default: `auto`)
+*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
 *   `--disable-progress-updates`: Disable progress bar updates
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
+*   `-a, --arch <arch>`: Limit the push to the specified architecture
+*   `--os <os>`: Limit the push to the specified OS
+*   `--platform <platform>`: Limit the push to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)
 
 ### `container image save`
 
@@ -399,14 +436,19 @@ Saves an image to a tar archive on disk. Useful for exporting images for offline
 **Usage**
 
 ```bash
-container image save [OPTIONS] REFERENCE
+container image save [--arch <arch>] [--os <os>] --output <output> [--platform <platform>] [--debug] <references> ...
 ```
+
+**Arguments**
+
+*   `<references>`: Image references to save
 
 **Options**
 
-*   `--platform <platform>`: Platform string in the form `os/arch/variant`. Example `linux/arm64/v8`, `linux/amd64` (optional)
-*   `-o, --output <file>`: Path to save the image tar archive
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
+*   `-a, --arch <arch>`: Architecture for the saved image
+*   `--os <os>`: OS for the saved image
+*   `-o, --output <output>`: Pathname for the saved image
+*   `--platform <platform>`: Platform for the saved image (format: os/arch[/variant], takes precedence over --os and --arch)
 
 ### `container image load`
 
@@ -415,13 +457,12 @@ Loads images from a tar archive created by `image save`. The tar file must be sp
 **Usage**
 
 ```bash
-container image load [OPTIONS]
+container image load --input <input> [--debug]
 ```
 
 **Options**
 
-*   `-i, --input <file>`: Path to the tar archive to load images from
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
+*   `-i, --input <input>`: Path to the image tar archive
 
 ### `container image tag`
 
@@ -430,10 +471,17 @@ Applies a new tag to an existing image. The original image reference remains unc
 **Usage**
 
 ```bash
-container image tag SOURCE_IMAGE[:TAG] TARGET_IMAGE[:TAG]
+container image tag <source> <target> [--debug]
 ```
 
-No extra flags aside from global options.
+**Arguments**
+
+*   `<source>`: The existing image reference (format: image-name[:tag])
+*   `<target>`: The new image reference
+
+**Options**
+
+No options.
 
 ### `container image delete (rm)`
 
@@ -442,25 +490,30 @@ Removes one or more images. If no images are provided, `--all` can be used to re
 **Usage**
 
 ```bash
-container image delete [OPTIONS] [IMAGE...]
+container image delete [--all] [--debug] [<images> ...]
 ```
+
+**Arguments**
+
+*   `<images>`: Image names or IDs
 
 **Options**
 
-*   `-a, --all`: remove all images
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
+*   `-a, --all`: Remove all images
 
 ### `container image prune`
 
-Removes unused (dangling) images to reclaim disk space. The command outputs the amount of space freed after deletion.
+Removes unreferenced and dangling images to reclaim disk space. The command outputs the amount of space freed after deletion.
 
 **Usage**
 
 ```bash
-container image prune [OPTIONS]
+container image prune [--debug]
 ```
 
-No extra options; uses global flags for debug and help.
+**Options**
+
+No options.
 
 ### `container image inspect`
 
@@ -469,10 +522,16 @@ Shows detailed information for one or more images in JSON format. Accepts image 
 **Usage**
 
 ```bash
-container image inspect [OPTIONS] IMAGE...
+container image inspect [--debug] <images> ...
 ```
 
-Only global flags (`--debug`, `--version`, `-h`/`--help`) are available.
+**Arguments**
+
+*   `<images>`: Images to inspect
+
+**Options**
+
+No options.
 
 ## Builder Management
 
@@ -485,33 +544,42 @@ Starts the BuildKit builder container. CPU and memory limits can be set for the 
 **Usage**
 
 ```bash
-container builder start [OPTIONS]
+container builder start [--cpus <cpus>] [--memory <memory>] [--debug]
 ```
 
 **Options**
 
-*   `-c, --cpus <number>`: Number of CPUs to allocate to the container (default: 2)
-*   `-m, --memory <size>`: Amount of memory in bytes, kilobytes (K), megabytes (M), or gigabytes (G) for the container, with MB granularity (for example, 1024K will result in 1MB being allocated for the container) (default: 2048MB)
-*   **Global**: `--version`, `-h`/`--help`
+*   `-c, --cpus <cpus>`: Number of CPUs to allocate to the builder container (default: 2)
+*   `-m, --memory <memory>`: Amount of builder container memory (1MiByte granularity), with optional K, M, G, T, or P suffix (default: 2048MB)
 
 ### `container builder status`
 
-Shows the current status of the BuildKit builder. Without flags a human-readable table is displayed; with `--json` the status is returned as JSON.
+Shows the current status of the BuildKit builder. Without flags a human-readable table is displayed; with `--format json` the status is returned as JSON.
 
 **Usage**
 
 ```bash
-container builder status [OPTIONS]
+container builder status [--format <format>] [--quiet] [--debug]
 ```
 
 **Options**
 
-*   `--json`: output status as JSON
-*   **Global**: `--version`, `-h`/`--help`
+*   `--format <format>`: Format of the output (values: json, table; default: table)
+*   `-q, --quiet`: Only output the container ID
 
 ### `container builder stop`
 
-Stops the BuildKit builder. No additional options are required; uses global flags only.
+Stops the BuildKit builder container.
+
+**Usage**
+
+```bash
+container builder stop [--debug]
+```
+
+**Options**
+
+No options.
 
 ### `container builder delete (rm)`
 
@@ -520,13 +588,12 @@ Removes the BuildKit builder container. It can optionally force deletion if the 
 **Usage**
 
 ```bash
-container builder delete [OPTIONS]
+container builder delete [--force] [--debug]
 ```
 
 **Options**
 
-*   `-f, --force`: force deletion even if the builder is running
-*   **Global**: `--version`, `-h`/`--help`
+*   `-f, --force`: Delete the builder even if it is running
 
 ## Network Management (macOS 26+)
 
@@ -539,14 +606,16 @@ Creates a new network with the given name.
 **Usage**
 
 ```bash
-container network create NAME [OPTIONS]
+container network create [--label <label> ...] [--debug] <name>
 ```
+
+**Arguments**
+
+*   `<name>`: Network name
 
 **Options**
 
-*   `--label <key=value>`: set metadata labels on the network
-*   `--subnet <value>`: set subnet on the network
-*   **Global**: `--version`, `-h`/`--help`
+*   `--label <label>`: Set metadata for a network
 
 ### `container network delete (rm)`
 
@@ -555,13 +624,16 @@ Deletes one or more networks. When deleting multiple networks, pass them as sepa
 **Usage**
 
 ```bash
-container network delete [OPTIONS] [NAME...]
+container network delete [--all] [--debug] [<network-names> ...]
 ```
+
+**Arguments**
+
+*   `<network-names>`: Network names
 
 **Options**
 
-*   `-a, --all`: delete all defined networks
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
+*   `-a, --all`: Delete all networks
 
 ### `container network list (ls)`
 
@@ -570,14 +642,13 @@ Lists user-defined networks.
 **Usage**
 
 ```bash
-container network list [OPTIONS]
+container network list [--format <format>] [--quiet] [--debug]
 ```
 
 **Options**
 
+*   `--format <format>`: Format of the output (values: json, table; default: table)
 *   `-q, --quiet`: Only output the network name
-*   `--format <format>`: Format of the output (values: `json`, `table`; default: `table`)
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
 
 ### `container network inspect`
 
@@ -586,10 +657,16 @@ Shows detailed information about one or more networks.
 **Usage**
 
 ```bash
-container network inspect [OPTIONS] NAME...
+container network inspect <networks> ... [--debug]
 ```
 
-Only global flags are available for debugging, version, and help.
+**Arguments**
+
+*   `<networks>`: Networks to inspect
+
+**Options**
+
+No options.
 
 ## Volume Management
 
@@ -602,15 +679,18 @@ Creates a new named volume with an optional size and driver-specific options.
 **Usage**
 
 ```bash
-container volume create [OPTIONS] NAME
+container volume create [--label <label> ...] [--opt <opt> ...] [-s <s>] [--debug] <name>
 ```
+
+**Arguments**
+
+*   `<name>`: Volume name
 
 **Options**
 
-*   `-s <size>`: size of the volume (default: 512GB). Examples: `1G`, `512MB`, `2T`
-*   `--opt <key=value>`: set driver-specific options
-*   `--label <key=value>`: set metadata labels on the volume
-*   **Global**: `--version`, `-h`/`--help`
+*   `--label <label>`: Set metadata for a volume
+*   `--opt <opt>`: Set driver specific options
+*   `-s <s>`: Size of the volume in bytes, with optional K, M, G, T, or P suffix
 
 **Anonymous Volumes**
 
@@ -637,17 +717,16 @@ Removes one or more volumes by name. Volumes that are currently in use by contai
 **Usage**
 
 ```bash
-container volume delete [OPTIONS] [NAME...]
+container volume delete [--all] [--debug] [<names> ...]
 ```
 
 **Arguments**
 
-*   `NAME...`: Volume names to delete
+*   `<names>`: Volume names
 
 **Options**
 
-*   `-a, --all`: Delete all volumes (only removes volumes not in use)
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
+*   `-a, --all`: Delete all volumes
 
 **Examples**
 
@@ -662,37 +741,6 @@ container volume delete vol1 vol2 vol3
 container volume delete --all
 ```
 
-### `container volume prune`
-
-Removes all volumes that have no container references. This includes volumes that are not attached to any running or stopped containers. The command reports the actual disk space reclaimed after deletion.
-
-**Usage**
-
-```bash
-container volume prune [OPTIONS]
-```
-
-**Options**
-
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
-
-**Examples**
-
-```bash
-# remove all unused volumes
-container volume prune
-```
-
-**Example output:**
-
-```
-Pruned volumes:
-vol1
-vol2
-
-Reclaimed 71.8 MB in disk space
-```
-
 ### `container volume list (ls)`
 
 Lists volumes.
@@ -700,14 +748,13 @@ Lists volumes.
 **Usage**
 
 ```bash
-container volume list [OPTIONS]
+container volume list [--format <format>] [--quiet] [--debug]
 ```
 
 **Options**
 
-*   `-q, --quiet`: Only display volume names
-*   `--format <format>`: Format of the output (values: `json`, `table`; default: `table`)
-*   **Global**: `--version`, `-h`/`--help`
+*   `--format <format>`: Format of the output (values: json, table; default: table)
+*   `-q, --quiet`: Only output the volume name
 
 ### `container volume inspect`
 
@@ -716,10 +763,16 @@ Displays detailed information for one or more volumes in JSON.
 **Usage**
 
 ```bash
-container volume inspect NAME...
+container volume inspect [--debug] <names> ...
 ```
 
-Only global flags are available.
+**Arguments**
+
+*   `<names>`: Volume names
+
+**Options**
+
+No options.
 
 ## Registry Management
 
@@ -732,15 +785,18 @@ Authenticates with a registry. Credentials can be provided interactively or via 
 **Usage**
 
 ```bash
-container registry login [OPTIONS] SERVER
+container registry login [--scheme <scheme>] [--password-stdin] [--username <username>] [--debug] <server>
 ```
+
+**Arguments**
+
+*   `<server>`: Registry server name
 
 **Options**
 
-*   `-u, --username <username>`: username for the registry
-*   `--password-stdin`: read the password from stdin (non-interactive)
-*   `--scheme <scheme>`: registry scheme. One of (`http`, `https`, `auto`) (default: `auto`)
-*   **Global**: `--version`, `-h`/`--help`
+*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
+*   `--password-stdin`: Take the password from stdin
+*   `-u, --username <username>`: Registry user name
 
 ### `container registry logout`
 
@@ -749,10 +805,16 @@ Logs out of a registry, removing stored credentials.
 **Usage**
 
 ```bash
-container registry logout SERVER
+container registry logout [--debug] <registry>
 ```
 
-Only `--version` and `-h`/`--help` are available.
+**Arguments**
+
+*   `<registry>`: Registry server name
+
+**Options**
+
+No options.
 
 ## System Management
 
@@ -765,17 +827,14 @@ Starts the container services and (optionally) installs a default kernel. It wil
 **Usage**
 
 ```bash
-container system start [OPTIONS]
+container system start [--app-root <app-root>] [--install-root <install-root>] [--enable-kernel-install] [--disable-kernel-install] [--debug]
 ```
 
 **Options**
 
-*   `-a, --app-root <path>`: application data directory
-*   `--install-root <path>`: path to the installation root directory
-*   `--debug`: enable debug logging for the runtime daemon
-*   `--enable-kernel-install`: install the recommended default kernel
-*   `--disable-kernel-install`: skip installing the default kernel
-  If neither kernel-install flag is provided, you will be prompted to choose whether to install the recommended kernel.
+*   `-a, --app-root <app-root>`: Path to the root directory for application data
+*   `--install-root <install-root>`: Path to the root directory for application executables and plugins
+*   `--enable-kernel-install/--disable-kernel-install`: Specify whether the default kernel should be installed or not (default: prompt user)
 
 ### `container system stop`
 
@@ -784,13 +843,12 @@ Stops the container services and deregisters them from launchd. You can specify 
 **Usage**
 
 ```bash
-container system stop [OPTIONS]
+container system stop [--prefix <prefix>] [--debug]
 ```
 
 **Options**
 
-*   `-p, --prefix <prefix>`: launchd prefix (default: `com.apple.container.`)
-*   **Global**: `--version`, `-h`/`--help`
+*   `-p, --prefix <prefix>`: Launchd prefix for services (default: com.apple.container.)
 
 ### `container system status`
 
@@ -799,13 +857,12 @@ Checks whether the container services are running and prints status information.
 **Usage**
 
 ```bash
-container system status [OPTIONS]
+container system status [--prefix <prefix>] [--debug]
 ```
 
 **Options**
 
-*   `-p, --prefix <prefix>`: launchd prefix to query (default: `com.apple.container.`)
-*   **Global**: `--version`, `-h`/`--help`
+*   `-p, --prefix <prefix>`: Launchd prefix for services (default: com.apple.container.)
 
 ### `container system logs`
 
@@ -814,14 +871,13 @@ Displays logs from the container services. You can specify a time interval or fo
 **Usage**
 
 ```bash
-container system logs [OPTIONS]
+container system logs [--follow] [--last <last>] [--debug]
 ```
 
 **Options**
 
-*   `--last <duration>`: Fetch logs starting from the specified time period (minus the current time); supported formats: m, h, d (default: 5m)
 *   `-f, --follow`: Follow log output
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
+*   `--last <last>`: Fetch logs starting from the specified time period (minus the current time); supported formats: m, h, d (default: 5m)
 
 ### `container system dns create`
 
@@ -830,8 +886,14 @@ Creates a local DNS domain for containers. Requires administrator privileges (us
 **Usage**
 
 ```bash
-container system dns create NAME
+container system dns create [--debug] <domain-name>
 ```
+
+**Arguments**
+
+*   `<domain-name>`: The local domain name
+
+**Options**
 
 No options.
 
@@ -842,8 +904,14 @@ Deletes a local DNS domain. Requires administrator privileges (use sudo).
 **Usage**
 
 ```bash
-container system dns delete NAME
+container system dns delete [--debug] <domain-name>
 ```
+
+**Arguments**
+
+*   `<domain-name>`: The local domain name
+
+**Options**
 
 No options.
 
@@ -854,8 +922,10 @@ Lists configured local DNS domains for containers.
 **Usage**
 
 ```bash
-container system dns list
+container system dns list [--debug]
 ```
+
+**Options**
 
 No options.
 
@@ -866,16 +936,16 @@ Installs or updates the Linux kernel used by the container runtime on macOS host
 **Usage**
 
 ```bash
-container system kernel set [OPTIONS]
+container system kernel set [--arch <arch>] [--binary <binary>] [--force] [--recommended] [--tar <tar>] [--debug]
 ```
 
 **Options**
 
-*   `--binary <path>`: Path to a kernel binary (can be used with `--tar` inside a tar archive)
-*   `--tar <path | URL>`: Path or URL to a tarball containing kernel images
-*   `--arch <arch>`: Target architecture (`arm64` or `x86_64`)
-*   `--recommended`: Download and install the recommended default kernel for your host
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
+*   `--arch <arch>`: The architecture of the kernel binary (values: amd64, arm64) (default: arm64)
+*   `--binary <binary>`: Path to the kernel file (or archive member, if used with --tar)
+*   `--force`: Overwrites an existing kernel with the same name
+*   `--recommended`: Download and install the recommended kernel as the default (takes precedence over all other flags)
+*   `--tar <tar>`: Filesystem path or remote URL to a tar archive containing a kernel file
 
 ### `container system property list (ls)`
 
@@ -884,14 +954,13 @@ Lists all available system properties with their current values, types, and desc
 **Usage**
 
 ```bash
-container system property list [OPTIONS]
+container system property list [--format <format>] [--quiet] [--debug]
 ```
 
 **Options**
 
-*   `-q, --quiet`: Only output the property IDs
-*   `--format <format>`: Format of the output (values: `json`, `table`; default: `table`)
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
+*   `--format <format>`: Format of the output (values: json, table; default: table)
+*   `-q, --quiet`: Only output the property ID
 
 **Examples**
 
@@ -913,14 +982,16 @@ Retrieves the current value of a specific system property by its ID.
 **Usage**
 
 ```bash
-container system property get PROPERTY_ID
+container system property get [--debug] <id>
 ```
 
 **Arguments**
 
-*   `PROPERTY_ID`: The ID of the property to retrieve (use `property list` to see available IDs)
+*   `<id>`: The property ID
 
-**Global flags**: `--debug`, `--version`, `-h`/`--help`
+**Options**
+
+No options.
 
 **Examples**
 
@@ -939,24 +1010,17 @@ Sets the value of a system property. The command validates the value based on th
 **Usage**
 
 ```bash
-container system property set PROPERTY_ID VALUE
+container system property set [--debug] <id> <value>
 ```
 
 **Arguments**
 
-*   `PROPERTY_ID`: The ID of the property to set
-*   `VALUE`: The new value for the property
+*   `<id>`: The property ID
+*   `<value>`: The property value
 
-**Property Types and Validation**
+**Options**
 
-*   **Boolean properties** (`build.rosetta`): Accepts `true`, `t`, `false`, `f` (case-insensitive)
-*   **Domain properties** (`dns.domain`, `registry.domain`): Must be valid domain names
-*   **Image properties** (`image.builder`, `image.init`): Must be valid OCI image references
-*   **URL properties** (`kernel.url`): Must be valid URLs
-*   **Network properties** (`network.subnet`): Must be valid CIDR addresses
-*   **Path properties** (`kernel.binaryPath`): Accept any string value
-
-**Global flags**: `--debug`, `--version`, `-h`/`--help`
+No options.
 
 **Examples**
 
@@ -981,14 +1045,16 @@ Clears (unsets) a system property, reverting it to its default value.
 **Usage**
 
 ```bash
-container system property clear PROPERTY_ID
+container system property clear [--debug] <id>
 ```
 
 **Arguments**
 
-*   `PROPERTY_ID`: The ID of the property to clear
+*   `<id>`: The property ID
 
-**Global flags**: `--debug`, `--version`, `-h`/`--help`
+**Options**
+
+No options.
 
 **Examples**
 
