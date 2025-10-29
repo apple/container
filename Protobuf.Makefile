@@ -34,16 +34,13 @@ $(PROTOC):
 	@unzip -o $(PROTOC_ZIP) 'include/*' -d $(dir $@)
 	@rm -f $(PROTOC_ZIP)
 
-.PHONY: protoc_gen_grpc_swift
-protoc_gen_grpc_swift:
-	@$(SWIFT) build --product protoc-gen-grpc-swift
-
 .PHONY: protoc-gen-swift
 protoc-gen-swift:
 	@$(SWIFT) build --product protoc-gen-swift
+	@$(SWIFT) build --product protoc-gen-grpc-swift
 
 .PHONY: protos
-protos: $(PROTOC) protoc-gen-swift protoc_gen_grpc_swift 
+protos: $(PROTOC) protoc-gen-swift
 	@echo Generating protocol buffers source code...
 	@mkdir -p $(LOCAL_DIR)
 	@cd $(LOCAL_DIR) && git clone --branch $(BUILDER_SHIM_VERSION) --depth 1 $(BUILDER_SHIM_REPO)
