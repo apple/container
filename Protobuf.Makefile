@@ -20,11 +20,11 @@ BUILDER_SHIM_REPO ?= https://github.com/apple/container-builder-shim.git
 
 ## Versions
 BUILDER_SHIM_VERSION ?= $(shell sed -n 's/let builderShimVersion *= *"\(.*\)"/\1/p' Package.swift)
-PROTOC_VERSION=26.1
+PROTOC_VERSION := 26.1
 
 # protoc binary installation
-PROTOC_ZIP = protoc-$(PROTOC_VERSION)-osx-universal_binary.zip
-PROTOC = $(LOCAL_BIN_DIR)/protoc@$(PROTOC_VERSION)/protoc
+PROTOC_ZIP := protoc-$(PROTOC_VERSION)-osx-universal_binary.zip
+PROTOC := $(LOCAL_BIN_DIR)/protoc@$(PROTOC_VERSION)/protoc
 $(PROTOC):
 	@echo Downloading protocol buffers...
 	@mkdir -p $(LOCAL_DIR)
