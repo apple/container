@@ -59,6 +59,7 @@ public actor NetworkService: Sendable {
         }
 
         let hostname = try message.hostname()
+        let macAddress = message.string(key: NetworkKeys.macAddress.rawValue)
         let index = try await allocator.allocate(hostname: hostname)
         let subnet = try CIDRAddress(status.address)
         let ip = IPv4Address(fromValue: index)
@@ -66,7 +67,8 @@ public actor NetworkService: Sendable {
             network: state.id,
             hostname: hostname,
             address: try CIDRAddress(ip, prefixLength: subnet.prefixLength).description,
-            gateway: status.gateway
+            gateway: status.gateway,
+            macAddress: macAddress
         )
         log?.info(
             "allocated attachment",
@@ -74,6 +76,7 @@ public actor NetworkService: Sendable {
                 "hostname": "\(hostname)",
                 "address": "\(attachment.address)",
                 "gateway": "\(attachment.gateway)",
+                "macAddress": "\(macAddress ?? "auto")",
             ])
         let reply = message.reply()
         try reply.setAttachment(attachment)
