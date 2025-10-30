@@ -277,7 +277,7 @@ extension ClientContainer {
             guard let fds else {
                 throw ContainerizationError(
                     .internalError,
-                    message: "No log fds returned"
+                    message: "no log fds returned"
                 )
             }
             return fds

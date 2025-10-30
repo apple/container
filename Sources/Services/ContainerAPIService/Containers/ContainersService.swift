@@ -94,7 +94,7 @@ public actor ContainersService {
                 guard let plugin else {
                     throw ContainerizationError(
                         .internalError,
-                        message: "Failed to find runtime plugin \(config.runtimeHandler)"
+                        message: "failed to find runtime plugin \(config.runtimeHandler)"
                     )
                 }
                 try Self.registerService(
