@@ -257,6 +257,41 @@ public actor SandboxService {
         }
     }
 
+    /// Get statistics for the container.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with the following parameters:
+    ///     - id: A client identifier for the process.
+    ///     - stdio: An array of file handles for standard input, output, and error.
+    ///
+    /// - Returns: An XPC message with the following parameters:
+    ///   - statistics: JSON serialization of the `ContainerStats`.
+    @Sendable
+    public func statistics(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`statistics` xpc handler")
+        return try await self.lock.withLock { lock in
+            let containerInfo = try await self.getContainer()
+            let stats = try await containerInfo.container.statistics()
+
+            let containerStats = ContainerStats(
+                id: stats.id,
+                memoryUsageBytes: stats.memory.usageBytes,
+                memoryLimitBytes: stats.memory.limitBytes,
+                cpuUsageUsec: stats.cpu.usageUsec,
+                networkRxBytes: stats.networks.reduce(0) { $0 + $1.receivedBytes },
+                networkTxBytes: stats.networks.reduce(0) { $0 + $1.transmittedBytes },
+                blockReadBytes: stats.blockIO.devices.reduce(0) { $0 + $1.readBytes },
+                blockWriteBytes: stats.blockIO.devices.reduce(0) { $0 + $1.writeBytes },
+                numProcesses: stats.process.current
+            )
+
+            let reply = message.reply()
+            let data = try JSONEncoder().encode(containerStats)
+            reply.set(key: .statistics, value: data)
+            return reply
+        }
+    }
+
     /// Shutdown the SandboxService.
     ///
     /// - Parameters:

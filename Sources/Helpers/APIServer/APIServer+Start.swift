@@ -213,6 +213,7 @@ extension APIServer {
             routes[XPCRoute.containerResize] = harness.resize
             routes[XPCRoute.containerWait] = harness.wait
             routes[XPCRoute.containerKill] = harness.kill
+            routes[XPCRoute.containerStats] = harness.stats
 
             return service
         }

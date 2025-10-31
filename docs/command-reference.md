@@ -370,6 +370,41 @@ container inspect [--debug] <container-ids> ...
 
 No options.
 
+### `container stats`
+
+Displays real-time resource usage statistics for containers. Shows CPU percentage, memory usage, network I/O, block I/O, and process count. By default, continuously updates statistics in an interactive display (like `top`). Use `--no-stream` for a single snapshot.
+
+**Usage**
+
+```bash
+container stats [--format <format>] [--no-stream] [--debug] [<container-ids> ...]
+```
+
+**Arguments**
+
+*   `<container-ids>`: Container IDs or names (optional, shows all running containers if not specified)
+
+**Options**
+
+*   `--format <format>`: Format of the output (values: json, table; default: table)
+*   `--no-stream`: Disable streaming stats and only pull the first result
+
+**Examples**
+
+```bash
+# show stats for all running containers (interactive)
+container stats
+
+# show stats for specific containers
+container stats web db cache
+
+# get a single snapshot of stats (non-interactive)
+container stats --no-stream web
+
+# output stats as JSON
+container stats --format json --no-stream web
+```
+
 ## Image Management
 
 ### `container image list (ls)`

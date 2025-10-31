@@ -115,6 +115,9 @@ public enum XPCKeys: String {
     case volumeLabels
     case volumeReadonly
     case volumeContainerId
+
+    /// Container statistics
+    case statistics
 }
 
 public enum XPCRoute: String {
@@ -132,6 +135,7 @@ public enum XPCRoute: String {
     case containerState
     case containerLogs
     case containerEvent
+    case containerStats
 
     case pluginLoad
     case pluginGet
