@@ -144,6 +144,42 @@ class TestCLIBuildBase: CLITest {
         return response.output
     }
 
+    @discardableResult
+    func buildWithStdin(
+        tags: [String],
+        tempContext: URL,
+        dockerfileContents: String,
+        buildArgs: [String] = [],
+        otherArgs: [String] = []
+    ) throws -> String {
+        let contextDir: URL = tempContext.appendingPathComponent("context")
+        let contextDirPath = contextDir.absoluteURL.path
+        var args = [
+            "build",
+            "-f",
+            "-",
+        ]
+        for tag in tags {
+            args.append("-t")
+            args.append(tag)
+        }
+        for arg in buildArgs {
+            args.append("--build-arg")
+            args.append(arg)
+        }
+        args.append(contextDirPath)
+
+        args.append(contentsOf: otherArgs)
+
+        let stdinData = Data(dockerfileContents.utf8)
+        let response = try run(arguments: args, stdin: stdinData)
+        if response.status != 0 {
+            throw CLIError.executionFailed("build failed: stdout=\(response.output) stderr=\(response.error)")
+        }
+
+        return response.output
+    }
+
     enum FileSystemEntry {
         case file(
             _ path: String,
