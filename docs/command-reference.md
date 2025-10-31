@@ -92,6 +92,9 @@ container run -d --name web -p 8080:80 nginx:latest
 
 # set environment variables and limit resources
 container run -e NODE_ENV=production --cpus 2 --memory 1G node:18
+
+# run a container with a specific MAC address
+container run --network default,mac=02:42:ac:11:00:02 ubuntu:latest
 ```
 
 ### `container build`
