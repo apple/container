@@ -413,7 +413,7 @@ public struct Parser {
                 case "volume":
                     // For volume mounts, validate as volume name
                     guard VolumeStorage.isValidVolumeName(val) else {
-                        throw ContainerizationError(.invalidArgument, message: "Invalid volume name '\(val)': must match \(VolumeStorage.volumeNamePattern)")
+                        throw ContainerizationError(.invalidArgument, message: "invalid volume name '\(val)': must match \(VolumeStorage.volumeNamePattern)")
                     }
 
                     // This is a named volume
@@ -488,7 +488,7 @@ public struct Parser {
             guard src.hasPrefix("/") else {
                 // Named volume - validate name syntax only
                 guard VolumeStorage.isValidVolumeName(src) else {
-                    throw ContainerizationError(.invalidArgument, message: "Invalid volume name '\(src)': must match \(VolumeStorage.volumeNamePattern)")
+                    throw ContainerizationError(.invalidArgument, message: "invalid volume name '\(src)': must match \(VolumeStorage.volumeNamePattern)")
                 }
 
                 // This is a named volume
@@ -710,6 +710,76 @@ public struct Parser {
                 message:
                     "invalid publish-socket format \(socketText). Expected: host_path:container_path")
         }
+    }
+
+    // MARK: Networks
+
+    /// Parsed network attachment with optional properties
+    public struct ParsedNetwork {
+        public let name: String
+        public let macAddress: String?
+
+        public init(name: String, macAddress: String? = nil) {
+            self.name = name
+            self.macAddress = macAddress
+        }
+    }
+
+    /// Parse network attachment with optional properties
+    /// Format: network_name[,mac=XX:XX:XX:XX:XX:XX]
+    /// Example: "backend,mac=02:42:ac:11:00:02"
+    public static func network(_ networkSpec: String) throws -> ParsedNetwork {
+        guard !networkSpec.isEmpty else {
+            throw ContainerizationError(.invalidArgument, message: "network specification cannot be empty")
+        }
+
+        let parts = networkSpec.split(separator: ",", omittingEmptySubsequences: false)
+
+        guard !parts.isEmpty else {
+            throw ContainerizationError(.invalidArgument, message: "network specification cannot be empty")
+        }
+
+        let networkName = String(parts[0])
+        if networkName.isEmpty {
+            throw ContainerizationError(.invalidArgument, message: "network name cannot be empty")
+        }
+
+        var macAddress: String?
+
+        // Parse properties if any
+        for part in parts.dropFirst() {
+            let keyVal = part.split(separator: "=", maxSplits: 2, omittingEmptySubsequences: false)
+
+            let key: String
+            let value: String
+
+            guard keyVal.count == 2 else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "invalid property format '\(part)' in network specification '\(networkSpec)'"
+                )
+            }
+            key = String(keyVal[0])
+            value = String(keyVal[1])
+
+            switch key {
+            case "mac":
+                if value.isEmpty {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "mac address value cannot be empty"
+                    )
+                }
+                macAddress = value
+            default:
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "unknown network property '\(key)'. Available properties: mac"
+                )
+            }
+        }
+
+        return ParsedNetwork(name: networkName, macAddress: macAddress)
     }
 
     // MARK: DNS

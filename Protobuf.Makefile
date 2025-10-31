@@ -14,17 +14,17 @@
 
 ROOT_DIR := $(shell git rev-parse --show-toplevel)
 LOCAL_DIR := $(ROOT_DIR)/.local
-LOCALBIN := $(LOCAL_DIR)/bin
+LOCAL_BIN_DIR := $(LOCAL_DIR)/bin
 
 BUILDER_SHIM_REPO ?= https://github.com/apple/container-builder-shim.git
 
-## Versions
+# Versions
 BUILDER_SHIM_VERSION ?= $(shell sed -n 's/let builderShimVersion *= *"\(.*\)"/\1/p' Package.swift)
-PROTOC_VERSION=26.1
+PROTOC_VERSION := 26.1
 
-# protoc binary installation
-PROTOC_ZIP = protoc-$(PROTOC_VERSION)-osx-universal_binary.zip
-PROTOC = $(LOCALBIN)/protoc@$(PROTOC_VERSION)/protoc
+# Protoc binary installation
+PROTOC_ZIP := protoc-$(PROTOC_VERSION)-osx-universal_binary.zip
+PROTOC := $(LOCAL_BIN_DIR)/protoc@$(PROTOC_VERSION)/protoc
 $(PROTOC):
 	@echo Downloading protocol buffers...
 	@mkdir -p $(LOCAL_DIR)
@@ -34,16 +34,18 @@ $(PROTOC):
 	@unzip -o $(PROTOC_ZIP) 'include/*' -d $(dir $@)
 	@rm -f $(PROTOC_ZIP)
 
-protoc_gen_grpc_swift:
-	@$(SWIFT) build --product protoc-gen-grpc-swift
-
+.PHONY: protoc-gen-swift
 protoc-gen-swift:
 	@$(SWIFT) build --product protoc-gen-swift
+	@$(SWIFT) build --product protoc-gen-grpc-swift
 
-protos: $(PROTOC) protoc-gen-swift protoc_gen_grpc_swift 
+.PHONY: protos
+protos: $(PROTOC) protoc-gen-swift
 	@echo Generating protocol buffers source code...
 	@mkdir -p $(LOCAL_DIR)
-	@cd $(LOCAL_DIR) && git clone --branch $(BUILDER_SHIM_VERSION) --depth 1 $(BUILDER_SHIM_REPO)
+	@if [ ! -d "$(LOCAL_DIR)/container-builder-shim" ]; then \
+		cd $(LOCAL_DIR) && git clone --branch $(BUILDER_SHIM_VERSION) --depth 1 $(BUILDER_SHIM_REPO); \
+	fi
 	@$(PROTOC) $(LOCAL_DIR)/container-builder-shim/pkg/api/Builder.proto \
 		--plugin=protoc-gen-grpc-swift=$(BUILD_BIN_DIR)/protoc-gen-grpc-swift \
 		--plugin=protoc-gen-swift=$(BUILD_BIN_DIR)/protoc-gen-swift \
@@ -55,7 +57,8 @@ protos: $(PROTOC) protoc-gen-swift protoc_gen_grpc_swift
 		-I.
 	@"$(MAKE)" update-licenses
 
+.PHONY: clean-proto-tools
 clean-proto-tools:
-	@rm -rf $(LOCAL_DIR)/bin
+	@echo Cleaning proto tools...
+	@rm -rf $(LOCAL_DIR)/bin/protoc*
 	@rm -rf $(LOCAL_DIR)/container-builder-shim
-	@echo "Removed $(LOCAL_DIR)/bin toolchains."

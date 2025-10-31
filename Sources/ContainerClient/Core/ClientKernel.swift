@@ -74,7 +74,7 @@ extension ClientKernel {
         do {
             let reply = try await client.send(message)
             guard let kData = reply.dataNoCopy(key: .kernel) else {
-                throw ContainerizationError(.internalError, message: "Missing kernel data from XPC response")
+                throw ContainerizationError(.internalError, message: "missing kernel data from XPC response")
             }
 
             let kernel = try JSONDecoder().decode(Kernel.self, from: kData)

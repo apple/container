@@ -15,13 +15,13 @@
 # Version and build configuration variables
 BUILD_CONFIGURATION ?= debug
 WARNINGS_AS_ERRORS ?= true
-SWIFT_CONFIGURATION = $(if $(filter-out false,$(WARNINGS_AS_ERRORS)),-Xswiftc -warnings-as-errors)
+SWIFT_CONFIGURATION := $(if $(filter-out false,$(WARNINGS_AS_ERRORS)),-Xswiftc -warnings-as-errors)
 export RELEASE_VERSION ?= $(shell git describe --tags --always)
 export GIT_COMMIT := $(shell git rev-parse HEAD)
 
 # Commonly used locations
 SWIFT := "/usr/bin/swift"
-DESTDIR ?= /usr/local/
+DEST_DIR ?= /usr/local/
 ROOT_DIR := $(shell git rev-parse --show-toplevel)
 BUILD_BIN_DIR = $(shell $(SWIFT) build -c $(BUILD_CONFIGURATION) --show-bin-path)
 COV_DATA_DIR = $(shell $(SWIFT) test --show-coverage-path | xargs dirname)
@@ -60,7 +60,7 @@ build:
 .PHONY: container
 # Install binaries under project directory
 container: build
-	@"$(MAKE)" BUILD_CONFIGURATION=$(BUILD_CONFIGURATION) DESTDIR="$(ROOT_DIR)/" SUDO= install
+	@"$(MAKE)" BUILD_CONFIGURATION=$(BUILD_CONFIGURATION) DEST_DIR="$(ROOT_DIR)/" SUDO= install
 
 .PHONY: release
 release: BUILD_CONFIGURATION = release
@@ -76,7 +76,7 @@ install: installer-pkg
 	@if [ -z "$(SUDO)" ] ; then \
 		temp_dir=$$(mktemp -d) ; \
 		xar -xf $(PKG_PATH) -C $${temp_dir} ; \
-		(cd $${temp_dir} && tar -xf Payload -C "$(DESTDIR)") ; \
+		(cd $${temp_dir} && tar -xf Payload -C "$(DEST_DIR)") ; \
 		rm -rf $${temp_dir} ; \
 	else \
 		$(SUDO) installer -pkg $(PKG_PATH) -target / ; \

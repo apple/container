@@ -49,7 +49,7 @@ public actor ImagesService {
     private func _get(_ description: ImageDescription) async throws -> Containerization.Image {
         let exists = try await self._get(description.reference)
         guard exists.descriptor == description.descriptor else {
-            throw ContainerizationError(.invalidState, message: "Descriptor mismatch. Expected \(description.descriptor), got \(exists.descriptor)")
+            throw ContainerizationError(.invalidState, message: "descriptor mismatch: expected \(description.descriptor), got \(exists.descriptor)")
         }
         return exists
     }
@@ -66,7 +66,7 @@ public actor ImagesService {
                 reference: reference, platform: platform, insecure: insecure, auth: auth, progress: ContainerizationProgressAdapter.handler(from: progressUpdate))
         }
         guard let img else {
-            throw ContainerizationError(.internalError, message: "Failed to pull image \(reference)")
+            throw ContainerizationError(.internalError, message: "failed to pull image \(reference)")
         }
         return img.description.fromCZ
     }
@@ -157,7 +157,7 @@ extension ImagesService {
         var authentication: Authentication?
         let ref = try Reference.parse(ref)
         guard let host = ref.resolvedDomain else {
-            throw ContainerizationError(.invalidArgument, message: "No host specified in image reference: \(ref)")
+            throw ContainerizationError(.invalidArgument, message: "no host specified in image reference: \(ref)")
         }
         authentication = Self.authenticationFromEnv(host: host)
         if let authentication {
@@ -168,7 +168,7 @@ extension ImagesService {
             authentication = try keychain.lookup(domain: host)
         } catch let err as KeychainHelper.Error {
             guard case .keyNotFound = err else {
-                throw ContainerizationError(.internalError, message: "Error querying keychain for \(host)", cause: err)
+                throw ContainerizationError(.internalError, message: "error querying keychain for \(host)", cause: err)
             }
         }
         do {
