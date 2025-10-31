@@ -208,7 +208,15 @@ public struct Flags {
             self.disableProgressUpdates = disableProgressUpdates
         }
 
+        public init(disableProgressUpdates: Bool, maxConcurrentDownloads: Int) {
+            self.disableProgressUpdates = disableProgressUpdates
+            self.maxConcurrentDownloads = maxConcurrentDownloads
+        }
+
         @Flag(name: .long, help: "Disable progress bar updates")
         public var disableProgressUpdates = false
+
+        @Option(name: .long, help: "Maximum number of concurrent layer downloads (default: 3)")
+        public var maxConcurrentDownloads: Int = 3
     }
 }
