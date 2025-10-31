@@ -212,7 +212,7 @@ extension Application {
                 defer {
                     try? FileManager.default.removeItem(at: tempFile)
                 }
-                
+
                 // Dockerfile should be read from stdin
                 if file == "-" {
                     guard FileManager.default.createFile(atPath: tempFile.path(), contents: nil) else {
