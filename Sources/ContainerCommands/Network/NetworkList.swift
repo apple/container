@@ -90,12 +90,14 @@ extension NetworkState {
 
 public struct PrintableNetwork: Codable {
     let id: String
+    let createdAt: Date
     let state: String
     let config: NetworkConfiguration
     let status: NetworkStatus?
 
     public init(_ network: NetworkState) {
         self.id = network.id
+        self.createdAt = network.createdAt
         self.state = network.state
         switch network {
         case .created(let config):
