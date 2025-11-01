@@ -91,17 +91,18 @@ extension Application {
 
             }
 
-            let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("temp-file.tar")
-            guard FileManager.default.createFile(atPath: tempFile.path(), contents: nil) else {
-                throw ContainerizationError(.internalError, message: "unable to create temporary file")
-            }
-            
+            let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).tar")
             defer {
                 try? FileManager.default.removeItem(at: tempFile)
             }
             
+            guard FileManager.default.createFile(atPath: tempFile.path(), contents: nil) else {
+                throw ContainerizationError(.internalError, message: "unable to create temporary file")
+            }
+            
             try await ClientImage.save(references: references, out: output ?? tempFile.path(), platform: p)
             
+            // Write to stdout
             if output == nil {
                 guard let outputHandle = try? FileHandle(forReadingFrom: tempFile) else {
                     throw ContainerizationError(.internalError, message: "unable to open temporary file for reading")
@@ -113,6 +114,7 @@ extension Application {
                     if chunk.isEmpty { break }
                     FileHandle.standardOutput.write(chunk)
                 }
+                try outputHandle.close()
             }
 
             progress.finish()

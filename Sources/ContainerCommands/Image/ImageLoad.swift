@@ -40,7 +40,12 @@ extension Application {
         var global: Flags.Global
 
         public func run() async throws {
-            let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("temp-file.tar")
+            let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).tar")
+            defer {
+                try? FileManager.default.removeItem(at: tempFile)
+            }
+            
+            // Read from stdin
             if input == nil {
                 guard FileManager.default.createFile(atPath: tempFile.path(), contents: nil) else {
                     throw ContainerizationError(.internalError, message: "unable to create temporary file")
@@ -56,9 +61,7 @@ extension Application {
                     if chunk.isEmpty { break }
                     outputHandle.write(chunk)
                 }
-            }
-            defer {
-                try? FileManager.default.removeItem(at: tempFile)
+                try outputHandle.close()
             }
 
             guard FileManager.default.fileExists(atPath: input ?? tempFile.path()) else {
