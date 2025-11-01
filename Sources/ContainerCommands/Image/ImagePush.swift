@@ -68,9 +68,9 @@ extension Application {
             let image = try await ClientImage.get(reference: reference)
 
             var progressConfig: ProgressConfig
-            if progressFlags.disableProgressUpdates {
-                progressConfig = try ProgressConfig(disableProgressUpdates: progressFlags.disableProgressUpdates)
-            } else {
+            switch self.progressFlags.progress {
+            case .none: progressConfig = try ProgressConfig(disableProgressUpdates: true)
+            case .ansi:
                 progressConfig = try ProgressConfig(
                     description: "Pushing image \(image.reference)",
                     itemsName: "blobs",
@@ -79,6 +79,7 @@ extension Application {
                     ignoreSmallSize: true
                 )
             }
+
             let progress = ProgressBar(config: progressConfig)
             defer {
                 progress.finish()

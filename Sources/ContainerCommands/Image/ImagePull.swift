@@ -17,7 +17,6 @@
 import ArgumentParser
 import ContainerClient
 import Containerization
-import ContainerizationError
 import ContainerizationOCI
 import TerminalProgress
 
@@ -57,10 +56,9 @@ extension Application {
 
         public init() {}
 
-        public init(platform: String? = nil, scheme: String = "auto", reference: String, disableProgress: Bool = false) {
+        public init(platform: String? = nil, scheme: String = "auto", reference: String) {
             self.global = Flags.Global()
             self.registry = Flags.Registry(scheme: scheme)
-            self.progressFlags = Flags.Progress(disableProgressUpdates: disableProgress)
             self.platform = platform
             self.reference = reference
         }
@@ -80,9 +78,9 @@ extension Application {
             let processedReference = try ClientImage.normalizeReference(reference)
 
             var progressConfig: ProgressConfig
-            if self.progressFlags.disableProgressUpdates {
-                progressConfig = try ProgressConfig(disableProgressUpdates: self.progressFlags.disableProgressUpdates)
-            } else {
+            switch self.progressFlags.progress {
+            case .none: progressConfig = try ProgressConfig(disableProgressUpdates: true)
+            case .ansi:
                 progressConfig = try ProgressConfig(
                     showTasks: true,
                     showItems: true,
