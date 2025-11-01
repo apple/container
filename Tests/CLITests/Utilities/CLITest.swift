@@ -110,7 +110,7 @@ class CLITest {
         }
     }
 
-    func run(arguments: [String], currentDirectory: URL? = nil) throws -> (output: String, error: String, status: Int32) {
+    func run(arguments: [String], stdin: Pipe? = nil, currentDirectory: URL? = nil) throws -> (output: String, error: String, status: Int32) {
         let process = Process()
         process.executableURL = try executablePath
         process.arguments = arguments
@@ -122,6 +122,10 @@ class CLITest {
         let errorPipe = Pipe()
         process.standardOutput = outputPipe
         process.standardError = errorPipe
+
+        if let stdin = stdin {
+            process.standardInput = stdin
+        }
 
         do {
             try process.run()

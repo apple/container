@@ -208,7 +208,7 @@ extension Application {
                 }
 
                 let buildFileData: Data
-                let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("TempDockerfile")
+                let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("Dockerfile-\(UUID().uuidString)")
                 defer {
                     try? FileManager.default.removeItem(at: tempFile)
                 }
