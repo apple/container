@@ -171,11 +171,7 @@ class TestCLIBuildBase: CLITest {
 
         args.append(contentsOf: otherArgs)
 
-        let stdinPipe = Pipe()
-        try stdinPipe.fileHandleForWriting.write(contentsOf: Data(dockerfileContents.utf8))
-        stdinPipe.fileHandleForWriting.closeFile()
-
-        let response = try run(arguments: args, stdin: stdinPipe)
+        let response = try run(arguments: args, stdin: dockerfileContents)
         if response.status != 0 {
             throw CLIError.executionFailed("build failed: stdout=\(response.output) stderr=\(response.error)")
         }
