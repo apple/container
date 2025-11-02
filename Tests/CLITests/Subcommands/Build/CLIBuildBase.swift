@@ -252,7 +252,7 @@ class TestCLIBuildBase: CLITest {
     }
 
     func builderStart(cpus: Int64 = 2, memoryInGBs: Int64 = 2) throws {
-        let (_, error, status) = try run(arguments: [
+        let (_, _, error, status) = try run(arguments: [
             "builder",
             "start",
             "-c",
@@ -266,7 +266,7 @@ class TestCLIBuildBase: CLITest {
     }
 
     func builderStop() throws {
-        let (_, error, status) = try run(arguments: [
+        let (_, _, error, status) = try run(arguments: [
             "builder",
             "stop",
         ])
@@ -276,7 +276,7 @@ class TestCLIBuildBase: CLITest {
     }
 
     func builderDelete(force: Bool = false) throws {
-        let (_, error, status) = try run(
+        let (_, _, error, status) = try run(
             arguments: [
                 "builder",
                 "delete",
