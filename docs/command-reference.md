@@ -79,7 +79,7 @@ container run [<options>] <image> [<arguments> ...]
 
 **Progress Options**
 
-*   `--disable-progress-updates`: Disable progress bar updates
+*   `--progress <type>`: Progress type (format: none|ansi) (default: ansi)
 
 **Examples**
 
@@ -395,7 +395,7 @@ Pulls an image from a registry. Supports specifying a platform and controlling p
 **Usage**
 
 ```bash
-container image pull [--debug] [--scheme <scheme>] [--disable-progress-updates] [--arch <arch>] [--os <os>] [--platform <platform>] <reference>
+container image pull [--debug] [--scheme <scheme>] [--progress <type>] [--arch <arch>] [--os <os>] [--platform <platform>] <reference>
 ```
 
 **Arguments**
@@ -405,7 +405,7 @@ container image pull [--debug] [--scheme <scheme>] [--disable-progress-updates] 
 **Options**
 
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
-*   `--disable-progress-updates`: Disable progress bar updates
+*   `--progress <type>`: Progress type (format: none|ansi) (default: ansi)
 *   `-a, --arch <arch>`: Limit the pull to the specified architecture
 *   `--os <os>`: Limit the pull to the specified OS
 *   `--platform <platform>`: Limit the pull to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)
@@ -417,7 +417,7 @@ Pushes an image to a registry. The flags mirror those for `image pull` with the 
 **Usage**
 
 ```bash
-container image push [--scheme <scheme>] [--disable-progress-updates] [--arch <arch>] [--os <os>] [--platform <platform>] [--debug] <reference>
+container image push [--scheme <scheme>] [--progress <type>] [--arch <arch>] [--os <os>] [--platform <platform>] [--debug] <reference>
 ```
 
 **Arguments**
@@ -427,7 +427,7 @@ container image push [--scheme <scheme>] [--disable-progress-updates] [--arch <a
 **Options**
 
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
-*   `--disable-progress-updates`: Disable progress bar updates
+*   `--progress <type>`: Progress type (format: none|ansi) (default: ansi)
 *   `-a, --arch <arch>`: Limit the push to the specified architecture
 *   `--os <os>`: Limit the push to the specified OS
 *   `--platform <platform>`: Limit the push to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)

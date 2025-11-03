@@ -204,11 +204,12 @@ public struct Flags {
     public struct Progress: ParsableArguments {
         public init() {}
 
-        public init(disableProgressUpdates: Bool) {
-            self.disableProgressUpdates = disableProgressUpdates
+        public enum ProgressType: String, ExpressibleByArgument {
+            case none
+            case ansi
         }
 
-        @Flag(name: .long, help: "Disable progress bar updates")
-        public var disableProgressUpdates = false
+        @Option(name: .long, help: ArgumentHelp("Progress type (format: none|ansi)", valueName: "type"))
+        public var progress: ProgressType = .ansi
     }
 }
