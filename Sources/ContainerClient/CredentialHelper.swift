@@ -34,6 +34,12 @@ public struct CredentialHelperExecutor: Sendable {
     ///   - host: The registry host to get credentials for
     /// - Returns: Authentication if the helper succeeded, nil otherwise
     public func execute(helperName: String, for host: String) async -> Authentication? {
+        // Validate helper name to prevent unexpected characters
+        let allowedCharacterSet = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
+        guard helperName.rangeOfCharacter(from: allowedCharacterSet.inverted) == nil else {
+            return nil
+        }
+        
         let executableName = "docker-credential-\(helperName)"
         
         let process = Process()

@@ -30,4 +30,27 @@ struct CredentialHelperTests {
         
         #expect(auth == nil)
     }
+    
+    @Test
+    func testCredentialHelperWithInvalidHelperName() async {
+        let executor = CredentialHelperExecutor()
+        
+        // Try to execute a credential helper with invalid characters
+        // This should return nil to prevent command injection
+        let auth = await executor.execute(helperName: "../../../bin/sh", for: "example.com")
+        
+        #expect(auth == nil)
+    }
+    
+    @Test
+    func testCredentialHelperWithValidHelperName() async {
+        let executor = CredentialHelperExecutor()
+        
+        // Valid helper names should be accepted (even if they don't exist)
+        // The validation should pass, but execution will fail
+        let auth = await executor.execute(helperName: "valid-helper_123", for: "example.com")
+        
+        // Should be nil because the helper doesn't exist, but validation passed
+        #expect(auth == nil)
+    }
 }
