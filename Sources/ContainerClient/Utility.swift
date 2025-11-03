@@ -53,6 +53,17 @@ public struct Utility {
         }
         return digest
     }
+    
+    public static func isShortDigest(_ digest: String) throws -> Bool {
+        // Short digest must be be 24 hexadecimal characters
+        let pattern = "^[0-9a-f]{24}$"
+        let regex = try Regex(pattern)
+        if try regex.firstMatch(in: digest) != nil {
+            return true
+        } else {
+            throw ContainerizationError(.invalidArgument, message: "invalid short sha digest \(digest)")
+        }
+    }
 
     public static func validEntityName(_ name: String) throws {
         let pattern = #"^[a-zA-Z0-9][a-zA-Z0-9_.-]+$"#
