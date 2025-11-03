@@ -51,10 +51,12 @@ public struct CredentialHelperExecutor: Sendable {
         do {
             try process.run()
             
-            // Write the host to stdin
+            // Write the host to stdin and ensure it's closed
+            defer {
+                try? inputPipe.fileHandleForWriting.close()
+            }
             let hostData = Data("\(host)\n".utf8)
             inputPipe.fileHandleForWriting.write(hostData)
-            try inputPipe.fileHandleForWriting.close()
             
             process.waitUntilExit()
             
