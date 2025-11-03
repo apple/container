@@ -20,60 +20,82 @@ import Testing
 @testable import ContainerClient
 
 struct DockerConfigTests {
-    @Test
+
+    @Test("Read Docker config with credHelpers")
     func testReadDockerConfig() throws {
         let tempDir = FileManager.default.temporaryDirectory
         let configPath = tempDir.appendingPathComponent("test-docker-config-\(UUID().uuidString).json")
-        
+
         let configJSON = """
-        {
-            "credHelpers": {
-                "cgr.dev": "cgr",
-                "us-east4-docker.pkg.dev": "gcloud"
+            {
+                "credHelpers": {
+                    "cgr.dev": "cgr",
+                    "us-east4-docker.pkg.dev": "gcloud"
+                }
             }
-        }
-        """
-        
+            """
+
         try configJSON.write(to: configPath, atomically: true, encoding: .utf8)
         defer {
             try? FileManager.default.removeItem(at: configPath)
         }
-        
+
         let reader = DockerConfigReader(configPath: configPath)
-        
+
         #expect(reader.credentialHelper(for: "cgr.dev") == "cgr")
         #expect(reader.credentialHelper(for: "us-east4-docker.pkg.dev") == "gcloud")
         #expect(reader.credentialHelper(for: "docker.io") == nil)
     }
-    
-    @Test
+
+    @Test("Read Docker config without credHelpers section")
     func testReadDockerConfigWithoutCredHelpers() throws {
         let tempDir = FileManager.default.temporaryDirectory
         let configPath = tempDir.appendingPathComponent("test-docker-config-\(UUID().uuidString).json")
-        
+
         let configJSON = """
-        {
-            "auths": {}
-        }
-        """
-        
+            {
+                "auths": {}
+            }
+            """
+
         try configJSON.write(to: configPath, atomically: true, encoding: .utf8)
         defer {
             try? FileManager.default.removeItem(at: configPath)
         }
-        
+
         let reader = DockerConfigReader(configPath: configPath)
-        
+
         #expect(reader.credentialHelper(for: "cgr.dev") == nil)
     }
-    
-    @Test
+
+    @Test("Read nonexistent config file")
     func testReadNonexistentConfig() {
         let tempDir = FileManager.default.temporaryDirectory
         let configPath = tempDir.appendingPathComponent("nonexistent-\(UUID().uuidString).json")
-        
+
         let reader = DockerConfigReader(configPath: configPath)
-        
+
+        #expect(reader.credentialHelper(for: "cgr.dev") == nil)
+    }
+
+    @Test("Read config with empty credHelpers")
+    func testReadConfigWithEmptyCredHelpers() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+        let configPath = tempDir.appendingPathComponent("test-docker-config-\(UUID().uuidString).json")
+
+        let configJSON = """
+            {
+                "credHelpers": {}
+            }
+            """
+
+        try configJSON.write(to: configPath, atomically: true, encoding: .utf8)
+        defer {
+            try? FileManager.default.removeItem(at: configPath)
+        }
+
+        let reader = DockerConfigReader(configPath: configPath)
+
         #expect(reader.credentialHelper(for: "cgr.dev") == nil)
     }
 }

@@ -14,8 +14,8 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import Foundation
 import Containerization
+import Foundation
 
 /// Response from a credential helper execution
 struct CredentialHelperResponse: Codable {
@@ -27,7 +27,7 @@ struct CredentialHelperResponse: Codable {
 /// Executes Docker credential helpers to retrieve registry credentials
 public struct CredentialHelperExecutor: Sendable {
     public init() {}
-    
+
     /// Execute a credential helper for a given host
     /// - Parameters:
     ///   - helperName: The name of the credential helper (e.g., "cgr" for "docker-credential-cgr")
@@ -39,41 +39,41 @@ public struct CredentialHelperExecutor: Sendable {
         guard helperName.rangeOfCharacter(from: allowedCharacterSet.inverted) == nil else {
             return nil
         }
-        
+
         let executableName = "docker-credential-\(helperName)"
-        
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = [executableName, "get"]
-        
+
         let inputPipe = Pipe()
         let outputPipe = Pipe()
         let errorPipe = Pipe()
-        
+
         process.standardInput = inputPipe
         process.standardOutput = outputPipe
         process.standardError = errorPipe
-        
+
         do {
             try process.run()
-            
+
             // Write the host to stdin
             let hostData = Data("\(host)\n".utf8)
             inputPipe.fileHandleForWriting.write(hostData)
             // Close stdin to signal EOF to the credential helper
             try inputPipe.fileHandleForWriting.close()
-            
+
             process.waitUntilExit()
-            
+
             guard process.terminationStatus == 0 else {
                 return nil
             }
-            
+
             let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-            
+
             let decoder = JSONDecoder()
             let response = try decoder.decode(CredentialHelperResponse.self, from: outputData)
-            
+
             return BasicAuthentication(username: response.Username, password: response.Secret)
         } catch {
             // Ensure stdin is closed even if we error out

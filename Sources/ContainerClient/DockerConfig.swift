@@ -20,7 +20,7 @@ import Foundation
 struct DockerConfig: Codable {
     /// Maps registry hosts to credential helper names
     let credHelpers: [String: String]?
-    
+
     enum CodingKeys: String, CodingKey {
         case credHelpers
     }
@@ -29,18 +29,18 @@ struct DockerConfig: Codable {
 /// Helper to read and parse Docker configuration
 public struct DockerConfigReader: Sendable {
     private let configPath: URL
-    
+
     /// Initialize with a custom config path
     public init(configPath: URL) {
         self.configPath = configPath
     }
-    
+
     /// Initialize with default Docker config path (~/.docker/config.json)
     public init() {
         let homeDirectory = FileManager.default.homeDirectoryForCurrentUser
         self.configPath = homeDirectory.appendingPathComponent(".docker/config.json")
     }
-    
+
     /// Get the credential helper name for a given registry host
     public func credentialHelper(for host: String) -> String? {
         guard let config = try? readConfig() else {
@@ -48,7 +48,7 @@ public struct DockerConfigReader: Sendable {
         }
         return config.credHelpers?[host]
     }
-    
+
     private func readConfig() throws -> DockerConfig {
         let data = try Data(contentsOf: configPath)
         let decoder = JSONDecoder()
