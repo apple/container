@@ -57,12 +57,11 @@ public struct CredentialHelperExecutor: Sendable {
         do {
             try process.run()
             
-            // Write the host to stdin and ensure it's closed
-            defer {
-                try? inputPipe.fileHandleForWriting.close()
-            }
+            // Write the host to stdin
             let hostData = Data("\(host)\n".utf8)
             inputPipe.fileHandleForWriting.write(hostData)
+            // Close stdin to signal EOF to the credential helper
+            try inputPipe.fileHandleForWriting.close()
             
             process.waitUntilExit()
             
@@ -77,6 +76,8 @@ public struct CredentialHelperExecutor: Sendable {
             
             return BasicAuthentication(username: response.Username, password: response.Secret)
         } catch {
+            // Ensure stdin is closed even if we error out
+            try? inputPipe.fileHandleForWriting.close()
             return nil
         }
     }
