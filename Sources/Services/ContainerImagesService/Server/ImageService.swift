@@ -163,6 +163,13 @@ extension ImagesService {
         if let authentication {
             return try await body(authentication)
         }
+        
+        // Try credential helper if configured
+        authentication = await Self.authenticationFromCredentialHelper(host: host)
+        if let authentication {
+            return try await body(authentication)
+        }
+        
         let keychain = KeychainHelper(id: Constants.keychainID)
         do {
             authentication = try keychain.lookup(domain: host)
@@ -196,6 +203,16 @@ extension ImagesService {
             return nil
         }
         return BasicAuthentication(username: user, password: password)
+    }
+    
+    private static func authenticationFromCredentialHelper(host: String) async -> Authentication? {
+        let configReader = DockerConfigReader()
+        guard let helperName = configReader.credentialHelper(for: host) else {
+            return nil
+        }
+        
+        let executor = CredentialHelperExecutor()
+        return await executor.execute(helperName: helperName, for: host)
     }
 }
 
