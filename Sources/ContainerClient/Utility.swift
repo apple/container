@@ -213,8 +213,10 @@ public struct Utility {
             )
         }
 
-        if Platform.current.architecture == "arm64" && requestedPlatform.architecture == "amd64" {
-            config.rosetta = true
+        config.rosetta = management.rosetta || (Platform.current.architecture == "arm64" && requestedPlatform.architecture == "amd64")
+
+        if management.rosetta && Platform.current.architecture != "arm64" {
+            throw ContainerizationError(.unsupported, message: "--rosetta flag requires an arm64 host")
         }
 
         config.labels = try Parser.labels(management.labels)
