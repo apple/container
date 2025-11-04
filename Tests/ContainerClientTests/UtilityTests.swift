@@ -87,4 +87,25 @@ struct UtilityTests {
             try Utility.validMACAddress("02.42.ac.11.00.02")  // Wrong separator
         }
     }
+
+    @Test("Valid short digest")
+    func testIsShortDigestValid() throws {
+        let validDigest = "8a1f59ffb675680d47db6337"
+        let result = try Utility.isShortDigest(validDigest)
+        #expect(result == true)
+    }
+
+    @Test("Invalid short digest length")
+    func testIsShortDigestInvalidLength() {
+        let invalidDigests = [
+            "8a1f59ffb675680d47db63",
+            "8a1f59ffb675680d47db63378a1f59ffb675",
+        ]
+
+        for digest in invalidDigests {
+            #expect(throws: Error.self) {
+                try Utility.isShortDigest(digest)
+            }
+        }
+    }
 }

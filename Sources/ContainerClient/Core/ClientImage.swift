@@ -211,7 +211,7 @@ extension ClientImage {
         if let locallyBuiltImage {
             return locallyBuiltImage
         }
-        
+
         let shortDigestReferencedImage: ClientImage? = try {
             // Check if we are looking for an image referenced by its short digest.
             // The assumption is that the short digest is passed like -> <name>:<short-digest>.
@@ -231,15 +231,14 @@ extension ClientImage {
             // Fetch the ClientImage with the correct short digest and image name
             // The second check for name is in case of duplicate short digests
             let shortDigestImage: ClientImage? = try all.first(where: { image in
-                try Utility.trimDigest(digest: image.digest) == shortDigestTag + "..." &&
-                imageName == String(Self.denormalizeReference(image.reference).prefix { $0 != ":" })
+                try Utility.trimDigest(digest: image.digest) == shortDigestTag + "..." && imageName == String(Self.denormalizeReference(image.reference).prefix { $0 != ":" })
             })
             return shortDigestImage
         }()
         if let shortDigestReferencedImage {
             return shortDigestReferencedImage
         }
-        
+
         // If we don't find a match, try matching `ImageDescription.name` against the given
         // input string, while also checking against its normalized form.
         // Return the first match.
