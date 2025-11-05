@@ -79,7 +79,7 @@ container run [<options>] <image> [<arguments> ...]
 
 **Progress Options**
 
-*   `--disable-progress-updates`: Disable progress bar updates
+*   `--progress <type>`: Progress type (format: none|ansi) (default: ansi)
 
 **Examples**
 
@@ -249,7 +249,7 @@ container stop [--all] [--signal <signal>] [--time <time>] [--debug] [<container
 **Options**
 
 *   `-a, --all`: Stop all running containers
-*   `-s, --signal <signal>`: Signal to send the containers (default: SIGTERM)
+*   `-s, --signal <signal>`: Signal to send to the containers (default: SIGTERM)
 *   `-t, --time <time>`: Seconds to wait before killing the containers (default: 5)
 
 ### `container kill`
@@ -273,7 +273,7 @@ container kill [--all] [--signal <signal>] [--debug] [<container-ids> ...]
 
 ### `container delete (rm)`
 
-Removes one or more containers. If the container is running, you may force deletion with `--force`. Without a container ID, nothing happens unless `--all` is supplied.
+Deletes one or more containers. If the container is running, you may force deletion with `--force`. Without a container ID, nothing happens unless `--all` is supplied.
 
 **Usage**
 
@@ -287,7 +287,7 @@ container delete [--all] [--force] [--debug] [<container-ids> ...]
 
 **Options**
 
-*   `-a, --all`: Remove all containers
+*   `-a, --all`: Delete all containers
 *   `-f, --force`: Delete containers even if they are running
 
 ### `container list (ls)`
@@ -395,7 +395,7 @@ Pulls an image from a registry. Supports specifying a platform and controlling p
 **Usage**
 
 ```bash
-container image pull [--debug] [--scheme <scheme>] [--disable-progress-updates] [--arch <arch>] [--os <os>] [--platform <platform>] <reference>
+container image pull [--debug] [--scheme <scheme>] [--progress <type>] [--arch <arch>] [--os <os>] [--platform <platform>] <reference>
 ```
 
 **Arguments**
@@ -405,7 +405,7 @@ container image pull [--debug] [--scheme <scheme>] [--disable-progress-updates] 
 **Options**
 
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
-*   `--disable-progress-updates`: Disable progress bar updates
+*   `--progress <type>`: Progress type (format: none|ansi) (default: ansi)
 *   `-a, --arch <arch>`: Limit the pull to the specified architecture
 *   `--os <os>`: Limit the pull to the specified OS
 *   `--platform <platform>`: Limit the pull to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)
@@ -417,7 +417,7 @@ Pushes an image to a registry. The flags mirror those for `image pull` with the 
 **Usage**
 
 ```bash
-container image push [--scheme <scheme>] [--disable-progress-updates] [--arch <arch>] [--os <os>] [--platform <platform>] [--debug] <reference>
+container image push [--scheme <scheme>] [--progress <type>] [--arch <arch>] [--os <os>] [--platform <platform>] [--debug] <reference>
 ```
 
 **Arguments**
@@ -427,7 +427,7 @@ container image push [--scheme <scheme>] [--disable-progress-updates] [--arch <a
 **Options**
 
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
-*   `--disable-progress-updates`: Disable progress bar updates
+*   `--progress <type>`: Progress type (format: none|ansi) (default: ansi)
 *   `-a, --arch <arch>`: Limit the push to the specified architecture
 *   `--os <os>`: Limit the push to the specified OS
 *   `--platform <platform>`: Limit the push to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)
@@ -488,7 +488,7 @@ No options.
 
 ### `container image delete (rm)`
 
-Removes one or more images. If no images are provided, `--all` can be used to remove all images. Images currently referenced by running containers cannot be deleted without first removing those containers.
+Deletes one or more images. If no images are provided, `--all` can be used to delete all images. Images currently referenced by running containers cannot be deleted without first removing those containers.
 
 **Usage**
 
@@ -502,7 +502,7 @@ container image delete [--all] [--debug] [<images> ...]
 
 **Options**
 
-*   `-a, --all`: Remove all images
+*   `-a, --all`: Delete all images
 
 ### `container image prune`
 
@@ -586,7 +586,7 @@ No options.
 
 ### `container builder delete (rm)`
 
-Removes the BuildKit builder container. It can optionally force deletion if the builder is still running.
+Deletes the BuildKit builder container. It can optionally force deletion if the builder is still running.
 
 **Usage**
 
@@ -715,7 +715,7 @@ container volume rm $VOL
 
 ### `container volume delete (rm)`
 
-Removes one or more volumes by name. Volumes that are currently in use by containers (running or stopped) cannot be deleted.
+Deletes one or more volumes by name. Volumes that are currently in use by containers (running or stopped) cannot be deleted.
 
 **Usage**
 

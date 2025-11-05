@@ -45,7 +45,7 @@ extension Application {
                 throw ContainerizationError(.invalidArgument, message: "no containers specified and --all not supplied")
             }
             if containerIds.count > 0 && all {
-                throw ContainerizationError(.invalidArgument, message: "explicitly supplied container IDs conflicts with the --all flag")
+                throw ContainerizationError(.invalidArgument, message: "explicitly supplied container IDs conflict with the --all flag")
             }
         }
 
@@ -74,7 +74,7 @@ extension Application {
                 }
             }
             if failed.count > 0 {
-                throw ContainerizationError(.internalError, message: "kill failed for one or more containers")
+                throw ContainerizationError(.internalError, message: "kill failed for one or more containers \(failed.joined(separator: ","))")
             }
         }
     }
