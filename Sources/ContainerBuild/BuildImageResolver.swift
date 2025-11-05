@@ -26,11 +26,13 @@ struct BuildImageResolver: BuildPipelineHandler {
     let contentStore: ContentStore
     let quiet: Bool
     let output: FileHandle
+    let pull: Bool
 
-    public init(_ contentStore: ContentStore, quiet: Bool = false, output: FileHandle = FileHandle.standardError) throws {
+    public init(_ contentStore: ContentStore, quiet: Bool = false, output: FileHandle = FileHandle.standardError, pull: Bool = false) throws {
         self.contentStore = contentStore
         self.quiet = quiet
         self.output = output
+        self.pull = pull
     }
 
     func accept(_ packet: ServerStream) throws -> Bool {
@@ -72,8 +74,14 @@ struct BuildImageResolver: BuildPipelineHandler {
             defer { progress.finish() }
             progress.start()
 
-            guard let img = try? await ClientImage.pull(reference: ref, platform: platform, progressUpdate: progress.handler) else {
-                return try await ClientImage.fetch(reference: ref, platform: platform, progressUpdate: progress.handler)
+            if self.pull {
+                return try await ClientImage.pull(reference: ref, platform: platform)
+            }
+
+            // Try and fetch locally cached image
+            guard let img = try? await ClientImage.fetch(reference: ref, platform: platform) else {
+                // Fall back to pulling image
+                return try await ClientImage.pull(reference: ref, platform: platform)
             }
             return img
         }()
