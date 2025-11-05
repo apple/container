@@ -226,11 +226,14 @@ class CLITest {
         }
     }
 
-    func doExec(name: String, cmd: [String]) throws -> String {
+    func doExec(name: String, cmd: [String], detach: Bool = false) throws -> String {
         var execArgs = [
-            "exec",
-            name,
+            "exec"
         ]
+        if detach {
+            execArgs.append("-d")
+        }
+        execArgs.append(name)
         execArgs.append(contentsOf: cmd)
         let (resp, error, status) = try run(arguments: execArgs)
         if status != 0 {

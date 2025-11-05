@@ -313,13 +313,17 @@ Executes a command inside a running container. It uses the same process flags as
 **Usage**
 
 ```bash
-container exec [--env <env> ...] [--env-file <env-file> ...] [--gid <gid>] [--interactive] [--tty] [--user <user>] [--uid <uid>] [--workdir <dir>] [--debug] <container-id> <arguments> ...
+container exec [--detach] [--env <env> ...] [--env-file <env-file> ...] [--gid <gid>] [--interactive] [--tty] [--user <user>] [--uid <uid>] [--workdir <dir>] [--debug] <container-id> <arguments> ...
 ```
 
 **Arguments**
 
 *   `<container-id>`: Container ID
 *   `<arguments>`: New process arguments
+
+**Options**
+
+*   `-d, --detach`: Run the process and detach from it
 
 **Process Options**
 

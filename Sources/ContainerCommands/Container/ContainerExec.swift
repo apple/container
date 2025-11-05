@@ -34,6 +34,9 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
 
+        @Flag(name: .shortAndLong, help: "Run the process and detach from it")
+        var detach = false
+
         @Argument(help: "Container ID")
         var containerId: String
 
@@ -71,9 +74,22 @@ extension Application {
             config.supplementalGroups.append(contentsOf: additionalGroups)
 
             do {
-                let io = try ProcessIO.create(tty: tty, interactive: stdin, detach: false)
+                let io = try ProcessIO.create(tty: tty, interactive: stdin, detach: self.detach)
                 defer {
                     try? io.close()
+                }
+
+                let process = try await container.createProcess(
+                    id: UUID().uuidString.lowercased(),
+                    configuration: config,
+                    stdio: io.stdio
+                )
+
+                if self.detach {
+                    try await process.start()
+                    try io.closeAfterStart()
+                    print(containerId)
+                    return
                 }
 
                 if !self.processFlags.tty {
@@ -83,12 +99,6 @@ extension Application {
                         Darwin.exit(1)
                     }
                 }
-
-                let process = try await container.createProcess(
-                    id: UUID().uuidString.lowercased(),
-                    configuration: config,
-                    stdio: io.stdio
-                )
 
                 exitCode = try await io.handleProcess(process: process, log: log)
             } catch {
