@@ -2,10 +2,9 @@ name: Stale PR and Issue Management
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # Daily at midnight UTC
-  workflow_dispatch:  # Allow manual triggering
+    - cron: '0 0 * * *' 
+  workflow_dispatch:
 
-# Top-level permissions: least permissive (following PR #781 pattern)
 permissions:
   contents: read
 
@@ -14,7 +13,6 @@ jobs:
     name: Mark stale issues and PRs
     runs-on: ubuntu-latest
     
-    # Job-level permissions: specific needs only
     permissions:
       issues: write
       pull-requests: write
@@ -25,7 +23,6 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           
-          # Stale PR Configuration
           days-before-stale: 60
           days-before-close: 14
           
@@ -53,7 +50,6 @@ jobs:
           
           stale-pr-label: 'stale'
           
-          # Stale Issue Configuration
           days-before-issue-stale: 90
           days-before-issue-close: 30
           
@@ -78,19 +74,13 @@ jobs:
           
           stale-issue-label: 'stale'
           
-          # Exemptions - Never mark these as stale
           exempt-pr-labels: 'security,critical,in-progress,on-hold,dependencies'
           exempt-issue-labels: 'security,critical,roadmap,pinned,on-hold,help-wanted,good-first-issue'
           
-          # Additional Configuration
           operations-per-run: 100
           remove-stale-when-updated: true
           
-          # Custom labels for better organization
-          ascending: false  # Process newest first
-          
-          # Prevent closing issues/PRs that have recent comments
+          ascending: false
           exempt-all-milestones: false
           
-          # Enable debug output for troubleshooting
-          debug-only: false
+          debug-only: True
