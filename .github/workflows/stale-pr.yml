@@ -1,4 +1,4 @@
-name: Stale PR and Issue Management
+name: Stale PR Management
 
 on:
   schedule:
@@ -10,11 +10,10 @@ permissions:
 
 jobs:
   stale:
-    name: Mark stale issues and PRs
+    name: Mark stale PRs
     runs-on: ubuntu-latest
     
     permissions:
-      issues: write
       pull-requests: write
     
     steps:
@@ -23,18 +22,18 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           
-          days-before-stale: 60
-          days-before-close: 14
+          days-before-stale: 14
+          days-before-close: 30
           
           stale-pr-message: |
-            This pull request has been inactive for 60 days and will be marked as stale.
+            This pull request has been inactive for 2 weeks and will be marked as stale.
             
             If you're still working on this, please:
             - Update the PR with recent changes
             - Respond to any review comments
             - Rebase on the latest main branch
             
-            The PR will be closed in 14 days if there's no activity.
+            The PR will be closed in 30 days if there's no activity.
             
             If you need help or have questions, feel free to ask! We appreciate your contribution. 🙏
           
@@ -50,37 +49,7 @@ jobs:
           
           stale-pr-label: 'stale'
           
-          days-before-issue-stale: 90
-          days-before-issue-close: 30
+          days-before-issue-stale: -1
+          days-before-issue-close: -1
           
-          stale-issue-message: |
-            This issue has been inactive for 90 days and will be marked as stale.
-            
-            If this is still relevant, please:
-            - Provide an update or additional context
-            - Confirm you can still reproduce the issue
-            - Let us know if you're working on a fix
-            
-            The issue will be closed in 30 days if there's no activity.
-          
-          close-issue-message: |
-            This issue was automatically closed due to inactivity.
-            
-            If this is still a problem, feel free to:
-            - Reopen with updated information
-            - Create a new issue with current details
-            
-            Thank you for reporting! 🙏
-          
-          stale-issue-label: 'stale'
-          
-          exempt-pr-labels: 'security,critical,in-progress,on-hold,dependencies'
-          exempt-issue-labels: 'security,critical,roadmap,pinned,on-hold,help-wanted,good-first-issue'
-          
-          operations-per-run: 100
           remove-stale-when-updated: true
-          
-          ascending: false
-          exempt-all-milestones: false
-          
-          debug-only: True
