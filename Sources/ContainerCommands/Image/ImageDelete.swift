@@ -24,7 +24,7 @@ extension Application {
     public struct RemoveImageOptions: ParsableArguments {
         public init() {}
 
-        @Flag(name: .shortAndLong, help: "Remove all images")
+        @Flag(name: .shortAndLong, help: "Delete all images")
         var all: Bool = false
 
         @OptionGroup
@@ -37,7 +37,7 @@ extension Application {
     struct DeleteImageImplementation {
         static func validate(options: RemoveImageOptions) throws {
             if options.images.count == 0 && !options.all {
-                throw ContainerizationError(.invalidArgument, message: "no image specified and --all not supplied")
+                throw ContainerizationError(.invalidArgument, message: "no images specified and --all not supplied")
             }
             if options.images.count > 0 && options.all {
                 throw ContainerizationError(.invalidArgument, message: "explicitly supplied images conflict with the --all flag")
@@ -64,7 +64,7 @@ extension Application {
                     print(image.reference)
                     didDeleteAnyImage = true
                 } catch {
-                    log.error("failed to remove \(image.reference): \(error)")
+                    log.error("failed to delete \(image.reference): \(error)")
                     failures.append(image.reference)
                 }
             }
@@ -87,7 +87,7 @@ extension Application {
 
         public static let configuration = CommandConfiguration(
             commandName: "delete",
-            abstract: "Remove one or more images",
+            abstract: "Delete one or more images",
             aliases: ["rm"])
 
         public init() {}

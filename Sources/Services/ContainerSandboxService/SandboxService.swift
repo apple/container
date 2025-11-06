@@ -54,7 +54,7 @@ public actor SandboxService {
     private static let sshAuthSocketGuestPath = "/run/host-services/ssh-auth.sock"
     private static let sshAuthSocketEnvVar = "SSH_AUTH_SOCK"
 
-    private static func hostSocketUrl(config: ContainerConfiguration) -> URL? {
+    private static func sshAuthSocketHostUrl(config: ContainerConfiguration) -> URL? {
         if config.ssh, let sshSocket = Foundation.ProcessInfo.processInfo.environment[Self.sshAuthSocketEnvVar] {
             return URL(fileURLWithPath: sshSocket)
         }
@@ -145,7 +145,7 @@ public actor SandboxService {
             for index in 0..<config.networks.count {
                 let network = config.networks[index]
                 let client = NetworkClient(id: network.network)
-                let (attachment, additionalData) = try await client.allocate(hostname: network.options.hostname)
+                let (attachment, additionalData) = try await client.allocate(hostname: network.options.hostname, macAddress: network.options.macAddress)
                 attachments.append(attachment)
 
                 let interface = try self.interfaceStrategy.toInterface(
@@ -463,11 +463,11 @@ public actor SandboxService {
                 let id = try message.id()
                 if id != ctr.container.id {
                     guard let processInfo = await self.processes[id] else {
-                        throw ContainerizationError(.invalidState, message: "Process \(id) does not exist")
+                        throw ContainerizationError(.invalidState, message: "process \(id) does not exist")
                     }
 
                     guard let proc = processInfo.process else {
-                        throw ContainerizationError(.invalidState, message: "Process \(id) not started")
+                        throw ContainerizationError(.invalidState, message: "process \(id) not started")
                     }
                     try await proc.kill(Int32(try message.signal()))
                     return message.reply()
@@ -508,14 +508,14 @@ public actor SandboxService {
                 guard let processInfo = self.processes[id] else {
                     throw ContainerizationError(
                         .invalidState,
-                        message: "Process \(id) does not exist"
+                        message: "process \(id) does not exist"
                     )
                 }
 
                 guard let proc = processInfo.process else {
                     throw ContainerizationError(
                         .invalidState,
-                        message: "Process \(id) not started"
+                        message: "process \(id) not started"
                     )
                 }
 
@@ -553,7 +553,7 @@ public actor SandboxService {
     public func wait(_ message: XPCMessage) async throws -> XPCMessage {
         self.log.info("`wait` xpc handler")
         guard let id = message.string(key: .id) else {
-            throw ContainerizationError(.invalidArgument, message: "Missing id in wait xpc message")
+            throw ContainerizationError(.invalidArgument, message: "missing id in wait xpc message")
         }
 
         let cachedCode: Int32? = try await self.lock.withLock { _ in
@@ -568,7 +568,7 @@ public actor SandboxService {
                 }
             } else {
                 guard let processInfo = await self.processes[id] else {
-                    throw ContainerizationError(.notFound, message: "Process with id \(id)")
+                    throw ContainerizationError(.notFound, message: "process with id \(id)")
                 }
                 switch processInfo.state {
                 case .stopped(let code):
@@ -667,7 +667,7 @@ public actor SandboxService {
     private func startExecProcess(processId id: String, lock: AsyncLock.Context) async throws {
         let container = try self.getContainer().container
         guard let processInfo = self.processes[id] else {
-            throw ContainerizationError(.notFound, message: "Process with id \(id)")
+            throw ContainerizationError(.notFound, message: "process with id \(id)")
         }
 
         let containerInfo = try self.getContainer()
@@ -1027,11 +1027,16 @@ public actor SandboxService {
             czConfig.sockets.append(socketConfig)
         }
 
-        if let socketUrl = Self.hostSocketUrl(config: config) {
+        if let socketUrl = Self.sshAuthSocketHostUrl(config: config) {
+            let socketPath = socketUrl.path(percentEncoded: false)
+            let attrs = try? FileManager.default.attributesOfItem(atPath: socketPath)
+            let permissions = (attrs?[.posixPermissions] as? NSNumber)
+                .map { FilePermissions(rawValue: mode_t($0.intValue)) }
             let socketConfig = UnixSocketConfiguration(
                 source: socketUrl,
                 destination: URL(fileURLWithPath: Self.sshAuthSocketGuestPath),
-                direction: .into
+                permissions: permissions,
+                direction: .into,
             )
             czConfig.sockets.append(socketConfig)
         }
@@ -1069,7 +1074,7 @@ public actor SandboxService {
         czConfig.process.arguments = [process.executable] + process.arguments
         czConfig.process.environmentVariables = process.environment
 
-        if Self.hostSocketUrl(config: config) != nil {
+        if Self.sshAuthSocketHostUrl(config: config) != nil {
             if !czConfig.process.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
                 czConfig.process.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
             }
@@ -1134,7 +1139,7 @@ public actor SandboxService {
         proc.arguments = [config.executable] + config.arguments
         proc.environmentVariables = config.environment
 
-        if Self.hostSocketUrl(config: containerConfig) != nil {
+        if Self.sshAuthSocketHostUrl(config: containerConfig) != nil {
             if !proc.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
                 proc.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
             }
@@ -1391,7 +1396,7 @@ extension SandboxService {
 
     private func setUnderlyingProcess(_ id: String, _ process: LinuxProcess) throws {
         guard var info = self.processes[id] else {
-            throw ContainerizationError(.invalidState, message: "Process \(id) not found")
+            throw ContainerizationError(.invalidState, message: "process \(id) not found")
         }
         info.process = process
         self.processes[id] = info
@@ -1399,7 +1404,7 @@ extension SandboxService {
 
     private func setProcessState(id: String, state: State) throws {
         guard var info = self.processes[id] else {
-            throw ContainerizationError(.invalidState, message: "Process \(id) not found")
+            throw ContainerizationError(.invalidState, message: "process \(id) not found")
         }
         info.state = state
         self.processes[id] = info

@@ -61,9 +61,9 @@ extension Application {
             let id = Utility.createContainerID(name: self.managementFlags.name)
 
             var progressConfig: ProgressConfig
-            if progressFlags.disableProgressUpdates {
-                progressConfig = try ProgressConfig(disableProgressUpdates: progressFlags.disableProgressUpdates)
-            } else {
+            switch self.progressFlags.progress {
+            case .none: progressConfig = try ProgressConfig(disableProgressUpdates: true)
+            case .ansi:
                 progressConfig = try ProgressConfig(
                     showTasks: true,
                     showItems: true,

@@ -30,7 +30,7 @@ struct HostTableResolverTest {
             id: UInt16(1),
             type: .query,
             questions: [
-                Question(name: "foo", type: .host6)
+                Question(name: "foo", type: .mailExchange)
             ])
 
         let response = try await handler.answer(query: query)
@@ -40,6 +40,49 @@ struct HostTableResolverTest {
         #expect(.response == response?.type)
         #expect(1 == response?.questions.count)
         #expect(0 == response?.answers.count)
+    }
+
+    @Test func testAAAAQueryReturnsNoDataWhenARecordExists() async throws {
+        guard let ip = IPv4("1.2.3.4") else {
+            throw DNSResolverError.serverError("cannot create IP address in test")
+        }
+        let handler = HostTableResolver(hosts4: ["foo": ip])
+
+        let query = Message(
+            id: UInt16(1),
+            type: .query,
+            questions: [
+                Question(name: "foo", type: .host6)
+            ])
+
+        let response = try await handler.answer(query: query)
+
+        // AAAA queries should return NODATA (noError with empty answers) when A record exists
+        // to avoid musl libc issues where NXDOMAIN causes complete DNS resolution failure
+        #expect(.noError == response?.returnCode)
+        #expect(1 == response?.id)
+        #expect(.response == response?.type)
+        #expect(1 == response?.questions.count)
+        #expect(0 == response?.answers.count)
+    }
+
+    @Test func testAAAAQueryReturnsNilWhenHostDoesNotExist() async throws {
+        guard let ip = IPv4("1.2.3.4") else {
+            throw DNSResolverError.serverError("cannot create IP address in test")
+        }
+        let handler = HostTableResolver(hosts4: ["foo": ip])
+
+        let query = Message(
+            id: UInt16(1),
+            type: .query,
+            questions: [
+                Question(name: "bar", type: .host6)
+            ])
+
+        let response = try await handler.answer(query: query)
+
+        // AAAA queries for non-existent hosts should return nil (which becomes NXDOMAIN)
+        #expect(nil == response)
     }
 
     @Test func testHostNotPresent() async throws {

@@ -25,7 +25,7 @@ extension Application {
     public struct ContainerList: AsyncParsableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "list",
-            abstract: "List containers",
+            abstract: "List running containers",
             aliases: ["ls"])
 
         @Flag(name: .shortAndLong, help: "Include containers that are not running")

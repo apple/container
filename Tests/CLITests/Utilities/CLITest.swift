@@ -268,7 +268,7 @@ class CLITest {
             arguments += ["-v", volume]
         }
 
-        // Add networks
+        // Add networks (can include properties like "network,mac=XX:XX:XX:XX:XX:XX")
         for network in networks {
             arguments += ["--network", network]
         }

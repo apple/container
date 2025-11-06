@@ -46,9 +46,12 @@ extension NetworkClient {
         return state
     }
 
-    public func allocate(hostname: String) async throws -> (attachment: Attachment, additionalData: XPCMessage?) {
+    public func allocate(hostname: String, macAddress: String? = nil) async throws -> (attachment: Attachment, additionalData: XPCMessage?) {
         let request = XPCMessage(route: NetworkRoutes.allocate.rawValue)
         request.set(key: NetworkKeys.hostname.rawValue, value: hostname)
+        if let macAddress = macAddress {
+            request.set(key: NetworkKeys.macAddress.rawValue, value: macAddress)
+        }
 
         let client = createClient()
 
@@ -107,7 +110,7 @@ extension XPCMessage {
     func attachment() throws -> Attachment {
         let data = self.dataNoCopy(key: NetworkKeys.attachment.rawValue)
         guard let data else {
-            throw ContainerizationError(.invalidArgument, message: "No network attachment snapshot data in message")
+            throw ContainerizationError(.invalidArgument, message: "no network attachment snapshot data in message")
         }
         return try JSONDecoder().decode(Attachment.self, from: data)
     }
@@ -115,7 +118,7 @@ extension XPCMessage {
     func hostname() throws -> String {
         let hostname = self.string(key: NetworkKeys.hostname.rawValue)
         guard let hostname else {
-            throw ContainerizationError(.invalidArgument, message: "No hostname data in message")
+            throw ContainerizationError(.invalidArgument, message: "no hostname data in message")
         }
         return hostname
     }
@@ -123,7 +126,7 @@ extension XPCMessage {
     func state() throws -> NetworkState {
         let data = self.dataNoCopy(key: NetworkKeys.state.rawValue)
         guard let data else {
-            throw ContainerizationError(.invalidArgument, message: "No network snapshot data in message")
+            throw ContainerizationError(.invalidArgument, message: "no network snapshot data in message")
         }
         return try JSONDecoder().decode(NetworkState.self, from: data)
     }

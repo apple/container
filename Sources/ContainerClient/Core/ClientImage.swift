@@ -41,7 +41,7 @@ public struct ClientImage: Sendable {
     /// Returns the underlying OCI index for the image.
     public func index() async throws -> Index {
         guard let content: Content = try await contentStore.get(digest: description.digest) else {
-            throw ContainerizationError(.notFound, message: "Content with digest \(description.digest)")
+            throw ContainerizationError(.notFound, message: "content with digest \(description.digest)")
         }
         return try content.decode()
     }
@@ -53,10 +53,10 @@ public struct ClientImage: Sendable {
             desc.platform == platform
         }
         guard let desc else {
-            throw ContainerizationError(.unsupported, message: "Platform \(platform.description)")
+            throw ContainerizationError(.unsupported, message: "platform \(platform.description)")
         }
         guard let content: Content = try await contentStore.get(digest: desc.digest) else {
-            throw ContainerizationError(.notFound, message: "Content with digest \(desc.digest)")
+            throw ContainerizationError(.notFound, message: "content with digest \(desc.digest)")
         }
         return try content.decode()
     }
@@ -66,7 +66,7 @@ public struct ClientImage: Sendable {
         let manifest = try await self.manifest(for: platform)
         let desc = manifest.config
         guard let content: Content = try await contentStore.get(digest: desc.digest) else {
-            throw ContainerizationError(.notFound, message: "Content with digest \(desc.digest)")
+            throw ContainerizationError(.notFound, message: "content with digest \(desc.digest)")
         }
         return try content.decode()
     }
@@ -83,7 +83,7 @@ public struct ClientImage: Sendable {
         guard let manifest = index.manifests.first else {
             throw ContainerizationError(
                 .internalError,
-                message: "Failed to resolve indirect index \(self.digest): no manifests found"
+                message: "failed to resolve indirect index \(self.digest): no manifests found"
             )
         }
         return manifest
@@ -188,7 +188,7 @@ extension ClientImage {
     public static func get(reference: String) async throws -> ClientImage {
         let all = try await self.list()
         guard let found = try self._search(reference: reference, in: all) else {
-            throw ContainerizationError(.notFound, message: "Image with reference \(reference)")
+            throw ContainerizationError(.notFound, message: "image with reference \(reference)")
         }
         return found
     }
@@ -226,7 +226,7 @@ extension ClientImage {
 
         let reference = try self.normalizeReference(reference)
         guard let host = try Reference.parse(reference).domain else {
-            throw ContainerizationError(.invalidArgument, message: "Could not extract host from reference \(reference)")
+            throw ContainerizationError(.invalidArgument, message: "could not extract host from reference \(reference)")
         }
 
         request.set(key: .imageReference, value: reference)
@@ -320,7 +320,7 @@ extension ClientImage {
         let request = Self.newRequest(.imagePush)
 
         guard let host = try Reference.parse(reference).domain else {
-            throw ContainerizationError(.invalidArgument, message: "Could not extract host from reference \(reference)")
+            throw ContainerizationError(.invalidArgument, message: "could not extract host from reference \(reference)")
         }
         request.set(key: .imageReference, value: reference)
 

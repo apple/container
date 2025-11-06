@@ -29,4 +29,21 @@ class TestCLICreateCommand: CLITest {
             try doRemove(name: name)
         }
     }
+
+    @Test func testCreateWithMACAddress() throws {
+        let name = getTestName()
+        let expectedMAC = "02:42:ac:11:00:03"
+        #expect(throws: Never.self, "expected container create with MAC address to succeed") {
+            try doCreate(name: name, networks: ["default,mac=\(expectedMAC)"])
+            try doStart(name: name)
+            defer {
+                try? doStop(name: name)
+                try? doRemove(name: name)
+            }
+            try waitForContainerRunning(name)
+            let inspectResp = try inspectContainer(name)
+            #expect(inspectResp.networks.count > 0, "expected at least one network attachment")
+            #expect(inspectResp.networks[0].macAddress == expectedMAC, "expected MAC address \(expectedMAC), got \(inspectResp.networks[0].macAddress ?? "nil")")
+        }
+    }
 }
