@@ -140,10 +140,12 @@ extension Application {
                 }
             }
 
-            let shimArguments: [String] = [
+            let useRosetta = DefaultsStore.getBool(key: .buildRosetta) ?? true
+            let shimArguments = [
                 "--debug",
                 "--vsock",
-            ]
+                useRosetta ? nil : "--enable-qemu",
+            ].compactMap { $0 }
 
             let id = "buildkit"
             try ContainerClient.Utility.validEntityName(id)
@@ -202,7 +204,7 @@ extension Application {
                 ),
             ]
             // Enable Rosetta only if the user didn't ask to disable it
-            config.rosetta = DefaultsStore.getBool(key: .buildRosetta) ?? true
+            config.rosetta = useRosetta
 
             let network = try await ClientNetwork.get(id: ClientNetwork.defaultNetworkName)
             guard case .running(_, let networkStatus) = network else {
