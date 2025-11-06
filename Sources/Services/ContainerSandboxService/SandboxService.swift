@@ -837,13 +837,13 @@ public actor SandboxService {
             self.log.info("Resolved username '\(czConfig.process.user.username)' to uid=\(uid) gid=\(gid)")
         }
 
-        // Skip if running as root (no fix needed, root can write anywhere)
-        guard uid != 0 else {
-            self.log.info("Container running as root (uid=0), skipping volume ownership fix")
+        self.log.info("Container user: uid=\(uid) gid=\(gid)")
+
+        // Skip if running as root with root group (no fix needed, root can write anywhere)
+        guard uid != 0 || gid != 0 else {
+            self.log.info("Container running as root:root (uid=0, gid=0), skipping volume ownership fix")
             return
         }
-
-        self.log.info("Container user: uid=\(uid) gid=\(gid)")
 
         // Find all volume mounts from container config
         let volumeMounts = config.mounts.filter { mount in
