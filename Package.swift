@@ -274,6 +274,7 @@ let package = Package(
             dependencies: [
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Containerization", package: "containerization"),
+                "ContainerVersion",
                 "CVersion",
             ]
         ),
