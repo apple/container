@@ -249,7 +249,7 @@ container stop [--all] [--signal <signal>] [--time <time>] [--debug] [<container
 **Options**
 
 *   `-a, --all`: Stop all running containers
-*   `-s, --signal <signal>`: Signal to send the containers (default: SIGTERM)
+*   `-s, --signal <signal>`: Signal to send to the containers (default: SIGTERM)
 *   `-t, --time <time>`: Seconds to wait before killing the containers (default: 5)
 
 ### `container kill`
@@ -273,7 +273,7 @@ container kill [--all] [--signal <signal>] [--debug] [<container-ids> ...]
 
 ### `container delete (rm)`
 
-Removes one or more containers. If the container is running, you may force deletion with `--force`. Without a container ID, nothing happens unless `--all` is supplied.
+Deletes one or more containers. If the container is running, you may force deletion with `--force`. Without a container ID, nothing happens unless `--all` is supplied.
 
 **Usage**
 
@@ -287,7 +287,7 @@ container delete [--all] [--force] [--debug] [<container-ids> ...]
 
 **Options**
 
-*   `-a, --all`: Remove all containers
+*   `-a, --all`: Delete all containers
 *   `-f, --force`: Delete containers even if they are running
 
 ### `container list (ls)`
@@ -488,7 +488,7 @@ No options.
 
 ### `container image delete (rm)`
 
-Removes one or more images. If no images are provided, `--all` can be used to remove all images. Images currently referenced by running containers cannot be deleted without first removing those containers.
+Deletes one or more images. If no images are provided, `--all` can be used to delete all images. Images currently referenced by running containers cannot be deleted without first removing those containers.
 
 **Usage**
 
@@ -502,7 +502,7 @@ container image delete [--all] [--debug] [<images> ...]
 
 **Options**
 
-*   `-a, --all`: Remove all images
+*   `-a, --all`: Delete all images
 
 ### `container image prune`
 
@@ -586,7 +586,7 @@ No options.
 
 ### `container builder delete (rm)`
 
-Removes the BuildKit builder container. It can optionally force deletion if the builder is still running.
+Deletes the BuildKit builder container. It can optionally force deletion if the builder is still running.
 
 **Usage**
 
@@ -715,7 +715,7 @@ container volume rm $VOL
 
 ### `container volume delete (rm)`
 
-Removes one or more volumes by name. Volumes that are currently in use by containers (running or stopped) cannot be deleted.
+Deletes one or more volumes by name. Volumes that are currently in use by containers (running or stopped) cannot be deleted.
 
 **Usage**
 

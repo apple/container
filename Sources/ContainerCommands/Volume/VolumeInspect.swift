@@ -28,7 +28,7 @@ extension Application.VolumeCommand {
         @OptionGroup
         var global: Flags.Global
 
-        @Argument(help: "Volume names")
+        @Argument(help: "Volumes to inspect")
         var names: [String]
 
         public init() {}
