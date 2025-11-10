@@ -283,6 +283,7 @@ let package = Package(
             dependencies: [
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "ContainerizationOS", package: "containerization"),
+                "ContainerVersion",
             ]
         ),
         .testTarget(
