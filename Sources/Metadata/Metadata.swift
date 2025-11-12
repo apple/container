@@ -31,12 +31,6 @@ public protocol HasMetadata {
     var metadata: ResourceMetadata { get set }
 }
 
-/// Used to access common metadata fields.
-extension HasMetadata {
-    /// Get the createdAt field
-    public var createdAt: Date? { metadata.createdAt }
-}
-
 extension DateFormatter {
     /// A date formatter for ISO 8601 dates with fractional seconds.
     public static var metadataFormatter: ISO8601DateFormatter {

@@ -22,7 +22,6 @@ import ContainerizationOCI
 import Foundation
 import TerminalProgress
 
-/// A client representation of a container managed by the container service.
 public struct ClientContainer: Sendable, Codable {
     static let serviceIdentifier = "com.apple.container.apiserver"
 
