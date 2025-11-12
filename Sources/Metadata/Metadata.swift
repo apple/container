@@ -16,14 +16,14 @@ public protocol HasMetadata {
 }
 
 /// Used to access common metadata fields.
-public extension HasMetadata {
+extension HasMetadata {
     /// Get the createdAt field
-    var createdAt: Date? { metadata.createdAt }
+    public var createdAt: Date? { metadata.createdAt }
 }
 
-public extension DateFormatter {
+extension DateFormatter {
     /// A date formatter for ISO 8601 dates with fractional seconds.
-    static var metadataFormatter: ISO8601DateFormatter {
+    public static var metadataFormatter: ISO8601DateFormatter {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter

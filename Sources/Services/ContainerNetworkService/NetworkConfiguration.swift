@@ -14,10 +14,10 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import Foundation
-import Metadata
 import ContainerizationError
 import ContainerizationExtras
+import Foundation
+import Metadata
 
 /// Configuration parameters for network creation.
 public struct NetworkConfiguration: Codable, Sendable, Identifiable, HasMetadata {

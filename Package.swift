@@ -170,7 +170,7 @@ let package = Package(
                 "ContainerNetworkService",
                 "ContainerVersion",
                 "ContainerXPC",
-                "ContainerPlugin"
+                "ContainerPlugin",
             ],
             path: "Sources/Helpers/NetworkVmnet"
         ),

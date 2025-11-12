@@ -16,12 +16,12 @@
 
 import ArgumentParser
 import ContainerNetworkService
+import ContainerPersistence
+import ContainerPlugin
 import ContainerXPC
 import ContainerizationExtras
 import Foundation
 import Logging
-import ContainerPersistence
-import ContainerPlugin
 
 extension NetworkVmnetHelper {
     struct Start: AsyncParsableCommand {
@@ -60,11 +60,13 @@ extension NetworkVmnetHelper {
             do {
                 log.info("configuring XPC server")
                 let subnet = try self.subnet.map { try CIDRAddress($0) }
-                let configuration = try await loadNetworkConfiguration(id: id, log: log) ?? NetworkConfiguration(
-                    id: id,
-                    mode: .nat,
-                    subnet: subnet?.description
-                )
+                let configuration =
+                    try await loadNetworkConfiguration(id: id, log: log)
+                    ?? NetworkConfiguration(
+                        id: id,
+                        mode: .nat,
+                        subnet: subnet?.description
+                    )
                 let network = try Self.createNetwork(configuration: configuration, log: log)
                 try await network.start()
                 let server = try await NetworkService(network: network, log: log)

@@ -92,8 +92,8 @@ extension Volume {
 }
 
 // coalesce createdAt
-public extension Volume {
-    var createdAtCoalesced: Date? {
+extension Volume {
+    public var createdAtCoalesced: Date? {
         if let createdAt = self.createdAt {
             return createdAt
         }
