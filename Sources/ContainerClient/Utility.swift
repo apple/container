@@ -24,6 +24,8 @@ import Foundation
 import TerminalProgress
 
 public struct Utility {
+    static let publishedPortCountLimit = 64
+
     private static let infraImages = [
         DefaultsStore.get(key: .defaultBuilderImage),
         DefaultsStore.get(key: .defaultInitImage),
@@ -222,6 +224,9 @@ public struct Utility {
         config.labels = try Parser.labels(management.labels)
 
         config.publishedPorts = try Parser.publishPorts(management.publishPorts)
+        guard config.publishedPorts.count <= publishedPortCountLimit else {
+            throw ContainerizationError(.invalidArgument, message: "cannot exceed more than \(publishedPortCountLimit) port publish descriptors")
+        }
 
         // Parse --publish-socket arguments and add to container configuration
         // to enable socket forwarding from container to host.

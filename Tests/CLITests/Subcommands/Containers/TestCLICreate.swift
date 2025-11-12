@@ -46,4 +46,51 @@ class TestCLICreateCommand: CLITest {
             #expect(inspectResp.networks[0].macAddress == expectedMAC, "expected MAC address \(expectedMAC), got \(inspectResp.networks[0].macAddress ?? "nil")")
         }
     }
+
+    @Test func testPublishPortParserMaxPorts() throws {
+        let name = getTestName()
+        var args: [String] = ["create", "--name", name]
+
+        let portCount = 64
+        for i in 0..<portCount {
+            args.append("--publish")
+            args.append("127.0.0.1:\(8000 + i):\(9000 + i)")
+        }
+
+        args.append("ghcr.io/linuxcontainers/alpine:3.20")
+        args.append("echo")
+        args.append("\"hello world\"")
+
+        #expect(throws: Never.self, "expected container create maximum port publishes to succeed") {
+            let (_, error, status) = try run(arguments: args)
+            defer { try? doRemove(name: name) }
+            if status != 0 {
+                throw CLIError.executionFailed("command failed: \(error)")
+            }
+        }
+    }
+
+    @Test func testPublishPortParserTooManyPorts() throws {
+        let name = getTestName()
+        var args: [String] = ["create", "--name", name]
+
+        let portCount = 65
+        for i in 0..<portCount {
+            args.append("--publish")
+            args.append("127.0.0.1:\(8000 + i):\(9000 + i)")
+        }
+
+        args.append("ghcr.io/linuxcontainers/alpine:3.20")
+        args.append("echo")
+        args.append("\"hello world\"")
+
+        #expect(throws: CLIError.self, "expected container create more than maximum port publishes to fail") {
+            let (_, error, status) = try run(arguments: args)
+            defer { try? doRemove(name: name) }
+            if status != 0 {
+                throw CLIError.executionFailed("command failed: \(error)")
+            }
+        }
+    }
+
 }
