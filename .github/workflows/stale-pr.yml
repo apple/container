@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     
     permissions:
+      issues: write
       pull-requests: write
     
     steps:
@@ -21,6 +22,7 @@ jobs:
         uses: actions/stale@v9
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+          only-labels: 'test-stale-pr'
           
           days-before-stale: 30
           days-before-close: 45
@@ -47,7 +49,5 @@ jobs:
             Thank you for your contribution!
           
           stale-pr-label: 'stale'
-          
-          exempt-pr-labels: 'security,critical,dependencies'
           
           remove-pr-stale-when-updated: true
