@@ -676,36 +676,39 @@ public actor SandboxService {
 
     private func startSocketForwarders(containerIpAddress: String, publishedPorts: [PublishPort]) async throws {
         var forwarders: [SocketForwarderResult] = []
+        try Utility.validPublishPorts(publishedPorts)
         try await withThrowingTaskGroup(of: SocketForwarderResult.self) { group in
             for publishedPort in publishedPorts {
-                let proxyAddress = try SocketAddress(ipAddress: publishedPort.hostAddress, port: Int(publishedPort.hostPort))
-                let serverAddress = try SocketAddress(ipAddress: containerIpAddress, port: Int(publishedPort.containerPort))
-                log.info(
-                    "creating forwarder for",
-                    metadata: [
-                        "proxy": "\(proxyAddress)",
-                        "server": "\(serverAddress)",
-                        "protocol": "\(publishedPort.proto)",
-                    ])
-                group.addTask {
-                    let forwarder: SocketForwarder
-                    switch publishedPort.proto {
-                    case .tcp:
-                        forwarder = try TCPForwarder(
-                            proxyAddress: proxyAddress,
-                            serverAddress: serverAddress,
-                            eventLoopGroup: self.eventLoopGroup,
-                            log: self.log
-                        )
-                    case .udp:
-                        forwarder = try UDPForwarder(
-                            proxyAddress: proxyAddress,
-                            serverAddress: serverAddress,
-                            eventLoopGroup: self.eventLoopGroup,
-                            log: self.log
-                        )
+                for index in 0..<publishedPort.count {
+                    let proxyAddress = try SocketAddress(ipAddress: publishedPort.hostAddress, port: Int(publishedPort.hostPort + index))
+                    let serverAddress = try SocketAddress(ipAddress: containerIpAddress, port: Int(publishedPort.containerPort + index))
+                    log.info(
+                        "creating forwarder for",
+                        metadata: [
+                            "proxy": "\(proxyAddress)",
+                            "server": "\(serverAddress)",
+                            "protocol": "\(publishedPort.proto)",
+                        ])
+                    group.addTask {
+                        let forwarder: SocketForwarder
+                        switch publishedPort.proto {
+                        case .tcp:
+                            forwarder = try TCPForwarder(
+                                proxyAddress: proxyAddress,
+                                serverAddress: serverAddress,
+                                eventLoopGroup: self.eventLoopGroup,
+                                log: self.log
+                            )
+                        case .udp:
+                            forwarder = try UDPForwarder(
+                                proxyAddress: proxyAddress,
+                                serverAddress: serverAddress,
+                                eventLoopGroup: self.eventLoopGroup,
+                                log: self.log
+                            )
+                        }
+                        return try await forwarder.run().get()
                     }
-                    return try await forwarder.run().get()
                 }
             }
             for try await result in group {

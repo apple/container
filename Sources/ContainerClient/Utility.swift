@@ -72,6 +72,19 @@ public struct Utility {
         }
     }
 
+    public static func validPublishPorts(_ publishPorts: [PublishPort]) throws {
+        var hostPorts = Set<UInt16>()
+        for publishPort in publishPorts {
+            for index in 0..<publishPort.count {
+                let hostPort = publishPort.hostPort + index
+                guard !hostPorts.contains(hostPort) else {
+                    throw ContainerizationError(.invalidArgument, message: "host ports for different publish port specs may not overlap")
+                }
+                hostPorts.insert(hostPort)
+            }
+        }
+    }
+
     public static func containerConfigFromFlags(
         id: String,
         image: String,
@@ -227,6 +240,7 @@ public struct Utility {
         guard config.publishedPorts.count <= publishedPortCountLimit else {
             throw ContainerizationError(.invalidArgument, message: "cannot exceed more than \(publishedPortCountLimit) port publish descriptors")
         }
+        try validPublishPorts(config.publishedPorts)
 
         // Parse --publish-socket arguments and add to container configuration
         // to enable socket forwarding from container to host.
