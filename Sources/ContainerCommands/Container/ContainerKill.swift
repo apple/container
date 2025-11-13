@@ -50,17 +50,7 @@ extension Application {
         }
 
         public mutating func run() async throws {
-            let set = Set<String>(containerIds)
-
-            var containers = try await ClientContainer.list().filter { c in
-                c.status == .running
-            }
-            if !self.all {
-                containers = containers.filter { c in
-                    set.contains(c.id)
-                }
-            }
-
+            let containers = try await ClientContainer.search(searches: containerIds)
             let signalNumber = try Signals.parseSignal(signal)
 
             var failed: [String] = []

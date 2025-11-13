@@ -34,11 +34,10 @@ extension Application {
         var containerIds: [String]
 
         public func run() async throws {
-            let objects: [any Codable] = try await ClientContainer.list().filter {
-                containerIds.contains($0.id)
-            }.map {
-                PrintableContainer($0)
-            }
+            let containers: [any Codable] = try await ClientContainer.search(
+                searches: containerIds
+            )
+            .map({ PrintableContainer($0) })
             print(try objects.jsonArray())
         }
     }

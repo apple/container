@@ -53,63 +53,33 @@ extension Application {
         }
 
         public mutating func run() async throws {
-            let set = Set<String>(containerIds)
             var containers = [ClientContainer]()
 
             if all {
                 containers = try await ClientContainer.list()
             } else {
-                let ctrs = try await ClientContainer.list()
-                containers = ctrs.filter { c in
-                    set.contains(c.id)
-                }
-                // If one of the containers requested isn't present, let's throw. We don't need to do
+                containers = try await ClientContainer.search(searches: containerIds)
+
+                // If one of the search terms requested has no containers present, let's throw. We don't need to do
                 // this for --all as --all should be perfectly usable with no containers to remove; otherwise,
                 // it'd be quite clunky.
-                if containers.count != set.count {
-                    let missing = set.filter { id in
-                        !containers.contains { c in
-                            c.id == id
-                        }
+                var missingTerms: [String] = []
+
+                for searchTerm in containerIds {
+                    if StringMatcher.match(partial: searchTerm, candidates: containers.map({ $0.id })) == .noMatch {
+                        missingTerms.append(searchTerm)
                     }
+                }
+
+                if missingTerms.count > 0 {
                     throw ContainerizationError(
                         .notFound,
-                        message: "failed to delete one or more containers: \(missing)"
+                        message: "failed to delete one or more containers: \(missingTerms)"
                     )
                 }
             }
 
-            var failed = [String]()
-            let force = self.force
-            let all = self.all
-            try await withThrowingTaskGroup(of: String?.self) { group in
-                for container in containers {
-                    group.addTask {
-                        do {
-                            if container.status == .running && !force {
-                                guard all else {
-                                    throw ContainerizationError(.invalidState, message: "container is running")
-                                }
-                                return nil  // Skip running container when using --all
-                            }
-
-                            try await container.delete(force: force)
-                            print(container.id)
-                            return nil
-                        } catch {
-                            log.error("failed to delete container \(container.id): \(error)")
-                            return container.id
-                        }
-                    }
-                }
-
-                for try await ctr in group {
-                    guard let ctr else {
-                        continue
-                    }
-                    failed.append(ctr)
-                }
-            }
+            let failed = try await deleteContainers(containers: containers, force: self.force, all: self.all)
 
             if failed.count > 0 {
                 throw ContainerizationError(
@@ -118,5 +88,39 @@ extension Application {
                 )
             }
         }
+    }
+
+    static func deleteContainers(containers: [ClientContainer], force: Bool, all: Bool) async throws -> [String] {
+        var failed = [String]()
+        try await withThrowingTaskGroup(of: String?.self) { group in
+            for container in containers {
+                group.addTask {
+                    do {
+                        if container.status == .running && !force {
+                            guard all else {
+                                throw ContainerizationError(.invalidState, message: "container is running")
+                            }
+                            return nil  // Skip running container when using --all
+                        }
+
+                        try await container.delete(force: force)
+                        print(container.id)
+                        return nil
+                    } catch {
+                        log.error("one or more search terms have no container matches \(container.id): \(error)")
+                        return container.id
+                    }
+                }
+            }
+
+            for try await ctr in group {
+                guard let ctr else {
+                    continue
+                }
+                failed.append(ctr)
+            }
+        }
+
+        return failed
     }
 }
