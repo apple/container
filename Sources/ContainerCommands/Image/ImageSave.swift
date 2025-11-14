@@ -27,11 +27,11 @@ extension Application {
         public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "save",
-            abstract: "Save an image as an OCI compatible tar archive"
+            abstract: "Save one or more images as an OCI compatible tar archive"
         )
 
         @Option(
-            name: [.customLong("arch"), .customShort("a")],
+            name: .shortAndLong,
             help: "Architecture for the saved image"
         )
         var arch: String?

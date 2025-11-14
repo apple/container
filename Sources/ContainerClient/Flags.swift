@@ -184,6 +184,9 @@ public struct Flags {
         @Flag(name: [.customLong("rm"), .long], help: "Remove the container after it stops")
         public var remove = false
 
+        @Flag(name: .long, help: "Enable Rosetta in the container")
+        public var rosetta = false
+
         @Flag(name: .long, help: "Forward SSH agent socket to container")
         public var ssh = false
 

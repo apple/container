@@ -14,32 +14,18 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ArgumentParser
-import ContainerClient
 import Foundation
-import SwiftProtobuf
 
-extension Application {
-    public struct ContainerInspect: AsyncParsableCommand {
-        public init() {}
-
-        public static let configuration = CommandConfiguration(
-            commandName: "inspect",
-            abstract: "Display information about one or more containers")
-
-        @OptionGroup
-        var global: Flags.Global
-
-        @Argument(help: "Container IDs to inspect")
-        var containerIds: [String]
-
-        public func run() async throws {
-            let objects: [any Codable] = try await ClientContainer.list().filter {
-                containerIds.contains($0.id)
-            }.map {
-                PrintableContainer($0)
-            }
-            print(try objects.jsonArray())
+/// Retrieve the application bundle for a path that refers to a macOS executable.
+extension Bundle {
+    public static func appBundle(executableURL: URL) -> Bundle? {
+        let resolvedURL = executableURL.resolvingSymlinksInPath()
+        let macOSURL = resolvedURL.deletingLastPathComponent()
+        let contentsURL = macOSURL.deletingLastPathComponent()
+        let bundleURL = contentsURL.deletingLastPathComponent()
+        if bundleURL.pathExtension == "app" {
+            return Bundle(url: bundleURL)
         }
+        return nil
     }
 }
