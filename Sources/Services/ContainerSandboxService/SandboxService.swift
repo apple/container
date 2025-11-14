@@ -1059,19 +1059,27 @@ extension Filesystem {
                 destination: self.destination,
                 options: self.options
             )
-        case .block(let format, _, _):
+        case .block(let format, let cacheMode, let syncMode):
             return .block(
                 format: format,
                 source: self.source,
                 destination: self.destination,
-                options: self.options
+                options: self.options,
+                runtimeOptions: [
+                    "\(Filesystem.CacheMode.vzRuntimeOptionKey)=\(cacheMode.asVZRuntimeOption)",
+                    "\(Filesystem.SyncMode.vzRuntimeOptionKey)=\(syncMode.asVZRuntimeOption)",
+                ],
             )
-        case .volume(_, let format, _, _):
+        case .volume(_, let format, let cacheMode, let syncMode):
             return .block(
                 format: format,
                 source: self.source,
                 destination: self.destination,
-                options: self.options
+                options: self.options,
+                runtimeOptions: [
+                    "\(Filesystem.CacheMode.vzRuntimeOptionKey)=\(cacheMode.asVZRuntimeOption)",
+                    "\(Filesystem.SyncMode.vzRuntimeOptionKey)=\(syncMode.asVZRuntimeOption)",
+                ],
             )
         }
     }
@@ -1082,6 +1090,30 @@ extension Filesystem {
         }
         let info = try File.info(self.source)
         return info.isSocket
+    }
+}
+
+extension Filesystem.CacheMode {
+    static let vzRuntimeOptionKey = "vzDiskImageCachingMode"
+
+    var asVZRuntimeOption: String {
+        switch self {
+        case .on: "cached"
+        case .off: "uncached"
+        case .auto: "automatic"
+        }
+    }
+}
+
+extension Filesystem.SyncMode {
+    static let vzRuntimeOptionKey = "vzDiskImageSynchronizationMode"
+
+    var asVZRuntimeOption: String {
+        switch self {
+        case .full: "full"
+        case .fsync: "fsync"
+        case .nosync: "none"
+        }
     }
 }
 
