@@ -715,7 +715,7 @@ container run -v $VOL:/data alpine
 container volume rm $VOL
 ```
 
-**Note**: Unlike Docker, anonymous volumes do NOT auto-cleanup with `--rm`. Manual deletion is required.
+**Note**: Anonymous volumes auto-cleanup when containers exit with `--rm` flag. Without `--rm`, they persist and require manual deletion.
 
 ### `container volume delete (rm)`
 

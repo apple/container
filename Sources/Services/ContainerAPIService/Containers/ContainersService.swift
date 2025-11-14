@@ -434,12 +434,17 @@ public actor ContainersService {
     }
 
     private func handleContainerExit(id: String, code: ExitStatus? = nil) async throws {
-        try await self.lock.withLock { [self] context in
+        let shouldCleanupVolumes = try await self.lock.withLock { [self] context in
             try await handleContainerExit(id: id, code: code, context: context)
+        }
+
+        // Lock released, safe for XPC calls
+        if shouldCleanupVolumes {
+            await self.cleanupAnonymousVolumes(forContainer: id)
         }
     }
 
-    private func handleContainerExit(id: String, code: ExitStatus?, context: AsyncLock.Context) async throws {
+    private func handleContainerExit(id: String, code: ExitStatus?, context: AsyncLock.Context) async throws -> Bool {
         if let code {
             self.log.info("Handling container \(id) exit. Code \(code)")
         }
@@ -448,11 +453,11 @@ public actor ContainersService {
         do {
             state = try self.getContainerState(id: id, context: context)
             if state.snapshot.status == .stopped {
-                return
+                return false
             }
         } catch {
             // Was auto removed by the background thread, nothing for us to do.
-            return
+            return false
         }
 
         await self.exitMonitor.stopTracking(id: id)
@@ -475,7 +480,9 @@ public actor ContainersService {
         let options = try getContainerCreationOptions(id: id)
         if options.autoRemove {
             try await self.cleanup(id: id, context: context)
+            return true
         }
+        return false
     }
 
     private static func fullLaunchdServiceLabel(runtimeName: String, instanceId: String) -> String {
@@ -509,6 +516,55 @@ public actor ContainersService {
 
     private func cleanup(id: String, context: AsyncLock.Context) async throws {
         try await self._cleanup(id: id)
+    }
+
+    /// Clean up anonymous volumes created by a container
+    private func cleanupAnonymousVolumes(forContainer id: String) async {
+        do {
+            let allVolumes = try await ClientVolume.list()
+            let anonymousVolumes = allVolumes.filter { $0.isAnonymous && $0.createdByContainerID == id }
+
+            guard !anonymousVolumes.isEmpty else { return }
+
+            await withTaskGroup(of: (String, Error?).self) { group in
+                for volume in anonymousVolumes {
+                    group.addTask {
+                        do {
+                            try await ClientVolume.delete(name: volume.name)
+                            return (volume.name, nil)
+                        } catch {
+                            return (volume.name, error)
+                        }
+                    }
+                }
+
+                for await (volumeName, error) in group {
+                    if let error = error {
+                        self.log.warning(
+                            "Failed to delete anonymous volume",
+                            metadata: [
+                                "volume": "\(volumeName)",
+                                "container": "\(id)",
+                                "error": "\(error)",
+                            ])
+                    } else {
+                        self.log.info(
+                            "Deleted anonymous volume",
+                            metadata: [
+                                "volume": "\(volumeName)",
+                                "container": "\(id)",
+                            ])
+                    }
+                }
+            }
+        } catch {
+            self.log.error(
+                "Failed to query anonymous volumes for cleanup",
+                metadata: [
+                    "container": "\(id)",
+                    "error": "\(error)",
+                ])
+        }
     }
 
     private func getContainerCreationOptions(id: String) throws -> ContainerCreateOptions {

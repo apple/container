@@ -168,7 +168,7 @@ public struct Utility {
             case .filesystem(let fs):
                 resolvedMounts.append(fs)
             case .volume(let parsed):
-                let volume = try await getOrCreateVolume(parsed: parsed)
+                let volume = try await getOrCreateVolume(parsed: parsed, containerID: id)
                 let volumeMount = Filesystem.volume(
                     name: parsed.name,
                     format: volume.format,
@@ -317,8 +317,11 @@ public struct Utility {
 
     /// Gets an existing volume or creates it if it doesn't exist.
     /// Shows a warning for named volumes when auto-creating.
-    private static func getOrCreateVolume(parsed: ParsedVolume) async throws -> Volume {
-        let labels = parsed.isAnonymous ? [Volume.anonymousLabel: ""] : [:]
+    private static func getOrCreateVolume(parsed: ParsedVolume, containerID: String) async throws -> Volume {
+        var labels = parsed.isAnonymous ? [Volume.anonymousLabel: ""] : [:]
+        if parsed.isAnonymous {
+            labels[Volume.createdByLabel] = containerID
+        }
 
         let volume: Volume
         do {

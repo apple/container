@@ -62,9 +62,17 @@ extension Volume {
     /// Reserved label key for marking anonymous volumes
     public static let anonymousLabel = "com.apple.container.resource.anonymous"
 
+    /// Reserved label key for storing the container ID that created this volume
+    public static let createdByLabel = "com.apple.container.resource.created-by"
+
     /// Whether this is an anonymous volume (detected via label)
     public var isAnonymous: Bool {
         labels[Self.anonymousLabel] != nil
+    }
+
+    /// The container ID that created this volume
+    public var createdByContainerID: String? {
+        labels[Self.createdByLabel]
     }
 }
 
