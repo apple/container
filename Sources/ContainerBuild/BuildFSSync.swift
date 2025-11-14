@@ -136,6 +136,9 @@ actor BuildFSSync: BuildPipelineHandler {
         var entries: [String: Set<DirEntry>] = [:]
         let followPaths: [String] = packet.followPaths() ?? []
 
+        // Parse .dockerignore if present
+        let ignorePatterns = try parseDockerignore()
+
         let followPathsWalked = try walk(root: self.contextDir, includePatterns: followPaths)
         for url in followPathsWalked {
             guard self.contextDir.absoluteURL.cleanPath != url.absoluteURL.cleanPath else {
@@ -146,6 +149,12 @@ actor BuildFSSync: BuildPipelineHandler {
             }
 
             let relPath = try url.relativeChildPath(to: contextDir)
+
+            // Check if the file should be ignored
+            if try shouldIgnore(relPath, patterns: ignorePatterns, isDirectory: url.hasDirectoryPath) {
+                continue
+            }
+
             let parentPath = try url.deletingLastPathComponent().relativeChildPath(to: contextDir)
             let entry = DirEntry(url: url, isDirectory: url.hasDirectoryPath, relativePath: relPath)
             entries[parentPath, default: []].insert(entry)
@@ -276,6 +285,62 @@ actor BuildFSSync: BuildPipelineHandler {
             try globber.match(p)
         }
         return Array(globber.results)
+    }
+
+    /// Parse .dockerignore file and return list of ignore patterns
+    private func parseDockerignore() throws -> [String] {
+        let dockerignorePath = contextDir.appendingPathComponent(".dockerignore")
+
+        guard FileManager.default.fileExists(atPath: dockerignorePath.path) else {
+            return []
+        }
+
+        let contents = try String(contentsOf: dockerignorePath, encoding: .utf8)
+
+        return
+            contents
+            .split(separator: "\n")
+            .map { line in line.trimmingCharacters(in: .whitespaces) }
+            .filter { line in !line.isEmpty && !line.hasPrefix("#") }
+            .map { String($0) }
+    }
+
+    /// Check if a file path should be ignored based on .dockerignore patterns
+    private func shouldIgnore(_ path: String, patterns: [String], isDirectory: Bool) throws -> Bool {
+        guard !patterns.isEmpty else {
+            return false
+        }
+
+        let globber = Globber(URL(fileURLWithPath: "/"))
+
+        for pattern in patterns {
+            // Try to match the pattern against the path
+            let pathToMatch = isDirectory ? path + "/" : path
+
+            let matchesWithSlash = try globber.glob(pathToMatch, pattern)
+            if matchesWithSlash {
+                return true
+            }
+
+            // Also try without the trailing slash for directories
+            if isDirectory {
+                let matchesWithoutSlash = try globber.glob(path, pattern)
+                if matchesWithoutSlash {
+                    return true
+                }
+            }
+
+            // Check if pattern matches with ** prefix for nested paths
+            let shouldAddPrefix = !pattern.hasPrefix("**/") && !pattern.hasPrefix("/")
+            if shouldAddPrefix {
+                let matchesWithPrefix = try globber.glob(pathToMatch, "**/" + pattern)
+                if matchesWithPrefix {
+                    return true
+                }
+            }
+        }
+
+        return false
     }
 
     private func processDirectory(
