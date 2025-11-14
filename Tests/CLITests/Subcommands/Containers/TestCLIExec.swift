@@ -62,7 +62,7 @@ class TestCLIExecCommand: CLITest {
             // Retry loop to check if the marker file was created by the detached process
             var markerFound = false
             for _ in 0..<3 {
-                let (_, _, status) = try run(arguments: [
+                let (_, _, _, status) = try run(arguments: [
                     "exec",
                     name,
                     "test", "-f", "/tmp/detach_test_marker",
