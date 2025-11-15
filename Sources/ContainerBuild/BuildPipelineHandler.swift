@@ -30,7 +30,7 @@ public actor BuildPipeline {
             [
                 try BuildFSSync(URL(filePath: config.contextDir)),
                 try BuildRemoteContentProxy(config.contentStore),
-                try BuildImageResolver(config.contentStore),
+                try BuildImageResolver(config.contentStore, quiet: config.quiet, output: config.terminal?.handle ?? FileHandle.standardError),
                 try BuildStdio(quiet: config.quiet, output: config.terminal?.handle ?? FileHandle.standardError),
             ]
     }

@@ -72,12 +72,12 @@ public struct ServiceManager {
         let status = launchctl.terminationStatus
         guard status == 0 else {
             throw ContainerizationError(
-                .internalError, message: "Command `launchctl list` failed with status \(status). Message: \(String(data: stderrData, encoding: .utf8) ?? "No error message")")
+                .internalError, message: "command `launchctl list` failed with status \(status). Message: \(String(data: stderrData, encoding: .utf8) ?? "No error message")")
         }
 
         guard let outputText = String(data: outputData, encoding: .utf8) else {
             throw ContainerizationError(
-                .internalError, message: "Could not decode output of command `launchctl list`. Message: \(String(data: stderrData, encoding: .utf8) ?? "No error message")")
+                .internalError, message: "could not decode output of command `launchctl list`. Message: \(String(data: stderrData, encoding: .utf8) ?? "No error message")")
         }
 
         // The third field of each line of launchctl list output is the label
@@ -108,10 +108,10 @@ public struct ServiceManager {
         launchctl.waitUntilExit()
         let status = launchctl.terminationStatus
         guard status == 0 else {
-            throw ContainerizationError(.internalError, message: "Command `launchctl managername` failed with status \(status)")
+            throw ContainerizationError(.internalError, message: "command `launchctl managername` failed with status \(status)")
         }
         guard let outputText = String(data: outputData, encoding: .utf8) else {
-            throw ContainerizationError(.internalError, message: "Could not decode output of command `launchctl managername`")
+            throw ContainerizationError(.internalError, message: "could not decode output of command `launchctl managername`")
         }
         return outputText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -126,7 +126,7 @@ public struct ServiceManager {
         case LaunchPlist.Domain.Aqua.rawValue:
             return "gui/\(getuid())"
         default:
-            throw ContainerizationError(.internalError, message: "Unsupported session type \(currentSessionType)")
+            throw ContainerizationError(.internalError, message: "unsupported session type \(currentSessionType)")
         }
     }
 }

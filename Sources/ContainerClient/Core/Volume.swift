@@ -16,7 +16,7 @@
 
 import Foundation
 
-/// A named volume that can be mounted in containers.
+/// A named or anonymous volume that can be mounted in containers.
 public struct Volume: Sendable, Codable, Equatable, Identifiable {
     // id of the volume.
     public var id: String { name }
@@ -45,7 +45,7 @@ public struct Volume: Sendable, Codable, Equatable, Identifiable {
         createdAt: Date = Date(),
         labels: [String: String] = [:],
         options: [String: String] = [:],
-        sizeInBytes: UInt64? = nil,
+        sizeInBytes: UInt64? = nil
     ) {
         self.name = name
         self.driver = driver
@@ -55,6 +55,16 @@ public struct Volume: Sendable, Codable, Equatable, Identifiable {
         self.labels = labels
         self.options = options
         self.sizeInBytes = sizeInBytes
+    }
+}
+
+extension Volume {
+    /// Reserved label key for marking anonymous volumes
+    public static let anonymousLabel = "com.apple.container.resource.anonymous"
+
+    /// Whether this is an anonymous volume (detected via label)
+    public var isAnonymous: Bool {
+        labels[Self.anonymousLabel] != nil
     }
 }
 
@@ -95,9 +105,14 @@ public struct VolumeStorage {
 
         do {
             let regex = try Regex(volumeNamePattern)
-            return name.contains(regex)
+            return (try? regex.wholeMatch(in: name)) != nil
         } catch {
             return false
         }
+    }
+
+    /// Generates an anonymous volume name with UUID format
+    public static func generateAnonymousVolumeName() -> String {
+        UUID().uuidString.lowercased()
     }
 }

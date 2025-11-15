@@ -25,11 +25,13 @@ public struct ParsedVolume {
     public let name: String
     public let destination: String
     public let options: [String]
+    public let isAnonymous: Bool
 
-    public init(name: String, destination: String, options: [String] = []) {
+    public init(name: String, destination: String, options: [String] = [], isAnonymous: Bool = false) {
         self.name = name
         self.destination = destination
         self.options = options
+        self.isAnonymous = isAnonymous
     }
 }
 
@@ -368,8 +370,7 @@ public struct Parser {
                 case "tmpfs":
                     fs.type = Filesystem.FSType.tmpfs
                 case "volume":
-                    // Volume type will be set later in source parsing when we create the actual volume filesystem
-                    break
+                    isVolume = true
                 default:
                     throw ContainerizationError(.invalidArgument, message: "unsupported mount type \(val)")
                 }
@@ -412,11 +413,10 @@ public struct Parser {
                 case "volume":
                     // For volume mounts, validate as volume name
                     guard VolumeStorage.isValidVolumeName(val) else {
-                        throw ContainerizationError(.invalidArgument, message: "Invalid volume name '\(val)': must match \(VolumeStorage.volumeNamePattern)")
+                        throw ContainerizationError(.invalidArgument, message: "invalid volume name '\(val)': must match \(VolumeStorage.volumeNamePattern)")
                     }
 
                     // This is a named volume
-                    isVolume = true
                     volumeName = val
                     fs.source = val
                 case "tmpfs":
@@ -434,11 +434,19 @@ public struct Parser {
         guard isVolume else {
             return .filesystem(fs)
         }
+
+        // If it's a volume type but no source was provided, create an anonymous volume
+        let isAnonymous = volumeName.isEmpty
+        if isAnonymous {
+            volumeName = VolumeStorage.generateAnonymousVolumeName()
+        }
+
         return .volume(
             ParsedVolume(
                 name: volumeName,
                 destination: fs.destination,
-                options: fs.options
+                options: fs.options,
+                isAnonymous: isAnonymous
             ))
     }
 
@@ -459,7 +467,19 @@ public struct Parser {
         let parts = vol.split(separator: ":")
         switch parts.count {
         case 1:
-            throw ContainerizationError(.invalidArgument, message: "anonymous volumes are not supported")
+            // Anonymous volume: -v /path
+            // Generate a random name for the anonymous volume
+            let anonymousName = VolumeStorage.generateAnonymousVolumeName()
+            let destination = String(parts[0])
+            let options: [String] = []
+
+            return .volume(
+                ParsedVolume(
+                    name: anonymousName,
+                    destination: destination,
+                    options: options,
+                    isAnonymous: true
+                ))
         case 2, 3:
             let src = String(parts[0])
             let dst = String(parts[1])
@@ -468,7 +488,7 @@ public struct Parser {
             guard src.hasPrefix("/") else {
                 // Named volume - validate name syntax only
                 guard VolumeStorage.isValidVolumeName(src) else {
-                    throw ContainerizationError(.invalidArgument, message: "Invalid volume name '\(src)': must match \(VolumeStorage.volumeNamePattern)")
+                    throw ContainerizationError(.invalidArgument, message: "invalid volume name '\(src)': must match \(VolumeStorage.volumeNamePattern)")
                 }
 
                 // This is a named volume
@@ -534,6 +554,7 @@ public struct Parser {
     /// Parse --publish-port arguments into PublishPort objects
     /// The format of each argument is `[host-ip:]host-port:container-port[/protocol]`
     /// (e.g., "127.0.0.1:8080:80/tcp")
+    /// host-port and container-port can be ranges (e.g., "127.0.0.1:3456-4567:3456-4567/tcp`
     ///
     /// - Parameter rawPublishPorts: Array of port arguments
     /// - Returns: Array of PublishPort objects
@@ -543,14 +564,14 @@ public struct Parser {
 
         // Process each raw port string
         for socket in rawPublishPorts {
-            let parsedSocket = try Parser.publishPort(socket)
-            sockets.append(parsedSocket)
+            let parsedSockets = try Parser.publishPort(socket)
+            sockets.append(contentsOf: parsedSockets)
         }
         return sockets
     }
 
-    // Parse a single `--publish-port` argument into a `PublishPort`.
-    public static func publishPort(_ portText: String) throws -> PublishPort {
+    // Parse a single `--publish-port` argument into a `[PublishPort]`.
+    public static func publishPort(_ portText: String) throws -> [PublishPort] {
         let protoSplit = portText.split(separator: "/")
         let proto: PublishProtocol
         let addressAndPortText: String
@@ -587,19 +608,98 @@ public struct Parser {
         }
 
         guard let hostPort = Int(hostPortText) else {
-            throw ContainerizationError(.invalidArgument, message: "invalid publish host port: \(hostPortText)")
+            let hostPortRangeStart: Int
+            let hostPortRangeEnd: Int
+            let containerPortRangeStart: Int
+            let containerPortRangeEnd: Int
+
+            let hostPortParts = hostPortText.split(separator: "-")
+            switch hostPortParts.count {
+            case 2:
+                guard let start = Int(hostPortParts[0]) else {
+                    throw ContainerizationError(.invalidArgument, message: "invalid publish host port \(hostPortText)")
+                }
+
+                guard let end = Int(hostPortParts[1]) else {
+                    throw ContainerizationError(.invalidArgument, message: "invalid publish host port \(hostPortText)")
+                }
+
+                hostPortRangeStart = start
+                hostPortRangeEnd = end
+            default:
+                throw ContainerizationError(.invalidArgument, message: "invalid publish host port \(hostPortText)")
+            }
+
+            let containerPortParts = containerPortText.split(separator: "-")
+            switch containerPortParts.count {
+            case 2:
+                guard let start = Int(containerPortParts[0]) else {
+                    throw ContainerizationError(.invalidArgument, message: "invalid publish container port \(containerPortText)")
+                }
+
+                guard let end = Int(containerPortParts[1]) else {
+                    throw ContainerizationError(.invalidArgument, message: "invalid publish container port \(containerPortText)")
+                }
+
+                containerPortRangeStart = start
+                containerPortRangeEnd = end
+            default:
+                throw ContainerizationError(.invalidArgument, message: "invalid publish container port \(containerPortText)")
+            }
+
+            guard hostPortRangeStart > 1,
+                hostPortRangeEnd > 1,
+                hostPortRangeStart < hostPortRangeEnd,
+                hostPortRangeEnd > hostPortRangeStart
+            else {
+                throw ContainerizationError(.invalidArgument, message: "invalid publish host port range \(hostPortText)")
+            }
+
+            guard containerPortRangeStart > 1,
+                containerPortRangeEnd > 1,
+                containerPortRangeStart < containerPortRangeEnd,
+                containerPortRangeEnd > containerPortRangeStart
+            else {
+                throw ContainerizationError(.invalidArgument, message: "invalid publish container port range \(containerPortText)")
+            }
+
+            let hostRange = hostPortRangeEnd - hostPortRangeStart
+            let containerRange = containerPortRangeEnd - containerPortRangeStart
+
+            guard hostRange == containerRange else {
+                throw ContainerizationError(.invalidArgument, message: "publish host and container port range are not equal \(addressAndPortText)")
+            }
+
+            var publishPorts = [PublishPort]()
+            for i in 0..<hostPortRangeEnd - hostPortRangeStart + 1 {
+                let hostPort = hostPortRangeStart + i
+                let containerPort = containerPortRangeStart + i
+
+                publishPorts.append(
+                    PublishPort(
+                        hostAddress: hostAddress,
+                        hostPort: hostPort,
+                        containerPort: containerPort,
+                        proto: proto
+                    )
+                )
+            }
+
+            return publishPorts
         }
 
         guard let containerPort = Int(containerPortText) else {
             throw ContainerizationError(.invalidArgument, message: "invalid publish container port: \(containerPortText)")
         }
 
-        return PublishPort(
-            hostAddress: hostAddress,
-            hostPort: hostPort,
-            containerPort: containerPort,
-            proto: proto
-        )
+        return [
+            PublishPort(
+                hostAddress: hostAddress,
+                hostPort: hostPort,
+                containerPort: containerPort,
+                proto: proto
+            )
+        ]
     }
 
     /// Parse --publish-socket arguments into PublishSocket objects
@@ -690,6 +790,76 @@ public struct Parser {
                 message:
                     "invalid publish-socket format \(socketText). Expected: host_path:container_path")
         }
+    }
+
+    // MARK: Networks
+
+    /// Parsed network attachment with optional properties
+    public struct ParsedNetwork {
+        public let name: String
+        public let macAddress: String?
+
+        public init(name: String, macAddress: String? = nil) {
+            self.name = name
+            self.macAddress = macAddress
+        }
+    }
+
+    /// Parse network attachment with optional properties
+    /// Format: network_name[,mac=XX:XX:XX:XX:XX:XX]
+    /// Example: "backend,mac=02:42:ac:11:00:02"
+    public static func network(_ networkSpec: String) throws -> ParsedNetwork {
+        guard !networkSpec.isEmpty else {
+            throw ContainerizationError(.invalidArgument, message: "network specification cannot be empty")
+        }
+
+        let parts = networkSpec.split(separator: ",", omittingEmptySubsequences: false)
+
+        guard !parts.isEmpty else {
+            throw ContainerizationError(.invalidArgument, message: "network specification cannot be empty")
+        }
+
+        let networkName = String(parts[0])
+        if networkName.isEmpty {
+            throw ContainerizationError(.invalidArgument, message: "network name cannot be empty")
+        }
+
+        var macAddress: String?
+
+        // Parse properties if any
+        for part in parts.dropFirst() {
+            let keyVal = part.split(separator: "=", maxSplits: 2, omittingEmptySubsequences: false)
+
+            let key: String
+            let value: String
+
+            guard keyVal.count == 2 else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "invalid property format '\(part)' in network specification '\(networkSpec)'"
+                )
+            }
+            key = String(keyVal[0])
+            value = String(keyVal[1])
+
+            switch key {
+            case "mac":
+                if value.isEmpty {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "mac address value cannot be empty"
+                    )
+                }
+                macAddress = value
+            default:
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "unknown network property '\(key)'. Available properties: mac"
+                )
+            }
+        }
+
+        return ParsedNetwork(name: networkName, macAddress: macAddress)
     }
 
     // MARK: DNS

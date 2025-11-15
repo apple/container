@@ -151,7 +151,7 @@ public struct Flags {
         @Option(name: .long, help: "Use the specified name as the container ID")
         public var name: String?
 
-        @Option(name: [.customLong("network")], help: "Attach the container to a network")
+        @Option(name: [.customLong("network")], help: "Attach the container to a network (format: <name>[,mac=XX:XX:XX:XX:XX:XX])")
         public var networks: [String] = []
 
         @Flag(name: [.customLong("no-dns")], help: "Do not configure DNS in the container")
@@ -184,6 +184,9 @@ public struct Flags {
         @Flag(name: [.customLong("rm"), .long], help: "Remove the container after it stops")
         public var remove = false
 
+        @Flag(name: .long, help: "Enable Rosetta in the container")
+        public var rosetta = false
+
         @Flag(name: .long, help: "Forward SSH agent socket to container")
         public var ssh = false
 
@@ -204,17 +207,13 @@ public struct Flags {
     public struct Progress: ParsableArguments {
         public init() {}
 
-        public init(disableProgressUpdates: Bool) {
-            self.disableProgressUpdates = disableProgressUpdates
+        public enum ProgressType: String, ExpressibleByArgument {
+            case none
+            case ansi
         }
 
-        public init(disableProgressUpdates: Bool, maxConcurrentDownloads: Int) {
-            self.disableProgressUpdates = disableProgressUpdates
-            self.maxConcurrentDownloads = maxConcurrentDownloads
-        }
-
-        @Flag(name: .long, help: "Disable progress bar updates")
-        public var disableProgressUpdates = false
+        @Option(name: .long, help: ArgumentHelp("Progress type (format: none|ansi)", valueName: "type"))
+        public var progress: ProgressType = .ansi
 
         @Option(name: .long, help: "Maximum number of concurrent layer downloads (default: 3)")
         public var maxConcurrentDownloads: Int = 3

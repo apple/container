@@ -92,4 +92,15 @@ public struct VolumesHarness: Sendable {
         reply.set(key: .volume, value: data)
         return reply
     }
+
+    @Sendable
+    public func prune(_ message: XPCMessage) async throws -> XPCMessage {
+        let (volumeNames, size) = try await service.prune()
+        let data = try JSONEncoder().encode(volumeNames)
+
+        let reply = message.reply()
+        reply.set(key: .volumes, value: data)
+        reply.set(key: .size, value: size)
+        return reply
+    }
 }

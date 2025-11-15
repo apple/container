@@ -14,12 +14,18 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-public enum NetworkKeys: String {
-    case additionalData
-    case allocatorDisabled
-    case attachment
-    case hostname
-    case macAddress
-    case network
-    case state
+import Foundation
+
+/// Retrieve the application bundle for a path that refers to a macOS executable.
+extension Bundle {
+    public static func appBundle(executableURL: URL) -> Bundle? {
+        let resolvedURL = executableURL.resolvingSymlinksInPath()
+        let macOSURL = resolvedURL.deletingLastPathComponent()
+        let contentsURL = macOSURL.deletingLastPathComponent()
+        let bundleURL = contentsURL.deletingLastPathComponent()
+        if bundleURL.pathExtension == "app" {
+            return Bundle(url: bundleURL)
+        }
+        return nil
+    }
 }

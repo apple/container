@@ -31,7 +31,7 @@ extension Application {
         @Flag(name: .shortAndLong, help: "Stop all running containers")
         var all = false
 
-        @Option(name: .shortAndLong, help: "Signal to send the containers")
+        @Option(name: .shortAndLong, help: "Signal to send to the containers")
         var signal: String = "SIGTERM"
 
         @Option(name: .shortAndLong, help: "Seconds to wait before killing the containers")
@@ -49,7 +49,7 @@ extension Application {
             }
             if containerIds.count > 0 && all {
                 throw ContainerizationError(
-                    .invalidArgument, message: "explicitly supplied container IDs conflicts with the --all flag")
+                    .invalidArgument, message: "explicitly supplied container IDs conflict with the --all flag")
             }
         }
 

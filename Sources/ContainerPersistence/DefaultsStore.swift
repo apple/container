@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import CVersion
+import ContainerVersion
 import ContainerizationError
 import Foundation
 
@@ -41,8 +42,10 @@ public enum DefaultsStore {
     }
 
     public static func get(key: DefaultsStore.Keys) -> String {
-        let current = udSuite.string(forKey: key.rawValue)
-        return current ?? key.defaultValue
+        let appBundle = Bundle.appBundle(executableURL: CommandLine.executablePathUrl)
+        return udSuite.string(forKey: key.rawValue)
+            ?? appBundle?.infoDictionary?["\(Self.userDefaultDomain).\(key.rawValue)"] as? String
+            ?? key.defaultValue
     }
 
     public static func getOptional(key: DefaultsStore.Keys) -> String? {
@@ -54,8 +57,12 @@ public enum DefaultsStore {
     }
 
     public static func getBool(key: DefaultsStore.Keys) -> Bool? {
-        guard udSuite.object(forKey: key.rawValue) != nil else { return nil }
-        return udSuite.bool(forKey: key.rawValue)
+        if udSuite.object(forKey: key.rawValue) != nil {
+            return udSuite.bool(forKey: key.rawValue)
+        }
+        let appBundle = Bundle.appBundle(executableURL: CommandLine.executablePathUrl)
+        return appBundle?.infoDictionary?["\(Self.userDefaultDomain).\(key.rawValue)"] as? Bool
+            ?? Bool(key.defaultValue)
     }
 
     public static func allValues() -> [DefaultsStoreValue] {

@@ -62,6 +62,14 @@ public struct Utility {
         }
     }
 
+    public static func validMACAddress(_ macAddress: String) throws {
+        let pattern = #"^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$"#
+        let regex = try Regex(pattern)
+        if try regex.firstMatch(in: macAddress) == nil {
+            throw ContainerizationError(.invalidArgument, message: "invalid MAC address format \(macAddress), expected format: XX:XX:XX:XX:XX:XX")
+        }
+    }
+
     public static func containerConfigFromFlags(
         id: String,
         image: String,
@@ -160,19 +168,15 @@ public struct Utility {
             case .filesystem(let fs):
                 resolvedMounts.append(fs)
             case .volume(let parsed):
-                do {
-                    let volume = try await ClientVolume.inspect(parsed.name)
-                    let volumeMount = Filesystem.volume(
-                        name: parsed.name,
-                        format: volume.format,
-                        source: volume.source,
-                        destination: parsed.destination,
-                        options: parsed.options
-                    )
-                    resolvedMounts.append(volumeMount)
-                } catch {
-                    throw ContainerizationError(.invalidArgument, message: "volume '\(parsed.name)' not found")
-                }
+                let volume = try await getOrCreateVolume(parsed: parsed)
+                let volumeMount = Filesystem.volume(
+                    name: parsed.name,
+                    format: volume.format,
+                    source: volume.source,
+                    destination: parsed.destination,
+                    options: parsed.options
+                )
+                resolvedMounts.append(volumeMount)
             }
         }
 
@@ -180,11 +184,20 @@ public struct Utility {
 
         config.virtualization = management.virtualization
 
-        config.networks = try getAttachmentConfigurations(containerId: config.id, networkIds: management.networks)
-        for attachmentConfiguration in config.networks {
-            let network: NetworkState = try await ClientNetwork.get(id: attachmentConfiguration.network)
-            guard case .running(_, _) = network else {
-                throw ContainerizationError(.invalidState, message: "network \(attachmentConfiguration.network) is not running")
+        // Parse network specifications with properties
+        let parsedNetworks = try management.networks.map { try Parser.network($0) }
+        if management.networks.contains(ClientNetwork.noNetworkName) {
+            guard management.networks.count == 1 else {
+                throw ContainerizationError(.unsupported, message: "no other networks may be created along with network \(ClientNetwork.noNetworkName)")
+            }
+            config.networks = []
+        } else {
+            config.networks = try getAttachmentConfigurations(containerId: config.id, networks: parsedNetworks)
+            for attachmentConfiguration in config.networks {
+                let network: NetworkState = try await ClientNetwork.get(id: attachmentConfiguration.network)
+                guard case .running(_, _) = network else {
+                    throw ContainerizationError(.invalidState, message: "network \(attachmentConfiguration.network) is not running")
+                }
             }
         }
 
@@ -200,8 +213,10 @@ public struct Utility {
             )
         }
 
-        if Platform.current.architecture == "arm64" && requestedPlatform.architecture == "amd64" {
-            config.rosetta = true
+        config.rosetta = management.rosetta || (Platform.current.architecture == "arm64" && requestedPlatform.architecture == "amd64")
+
+        if management.rosetta && Platform.current.architecture != "arm64" {
+            throw ContainerizationError(.unsupported, message: "--rosetta flag requires an arm64 host")
         }
 
         config.labels = try Parser.labels(management.labels)
@@ -217,7 +232,14 @@ public struct Utility {
         return (config, kernel)
     }
 
-    static func getAttachmentConfigurations(containerId: String, networkIds: [String]) throws -> [AttachmentConfiguration] {
+    static func getAttachmentConfigurations(containerId: String, networks: [Parser.ParsedNetwork]) throws -> [AttachmentConfiguration] {
+        // Validate MAC addresses if provided
+        for network in networks {
+            if let mac = network.macAddress {
+                try validMACAddress(mac)
+            }
+        }
+
         // make an FQDN for the first interface
         let fqdn: String?
         if !containerId.contains(".") {
@@ -232,22 +254,33 @@ public struct Utility {
             fqdn = "\(containerId)."
         }
 
-        guard networkIds.isEmpty else {
-            // networks may only be specified for macOS 26+
-            guard #available(macOS 26, *) else {
-                throw ContainerizationError(.invalidArgument, message: "non-default network configuration requires macOS 26 or newer")
+        guard networks.isEmpty else {
+            // Check if this is only the default network with properties (e.g., MAC address)
+            let isOnlyDefaultNetwork = networks.count == 1 && networks[0].name == ClientNetwork.defaultNetworkName
+
+            // networks may only be specified for macOS 26+ (except for default network with properties)
+            if !isOnlyDefaultNetwork {
+                guard #available(macOS 26, *) else {
+                    throw ContainerizationError(.invalidArgument, message: "non-default network configuration requires macOS 26 or newer")
+                }
             }
 
             // attach the first network using the fqdn, and the rest using just the container ID
-            return networkIds.enumerated().map { item in
+            return networks.enumerated().map { item in
                 guard item.offset == 0 else {
-                    return AttachmentConfiguration(network: item.element, options: AttachmentOptions(hostname: containerId))
+                    return AttachmentConfiguration(
+                        network: item.element.name,
+                        options: AttachmentOptions(hostname: containerId, macAddress: item.element.macAddress)
+                    )
                 }
-                return AttachmentConfiguration(network: item.element, options: AttachmentOptions(hostname: fqdn ?? containerId))
+                return AttachmentConfiguration(
+                    network: item.element.name,
+                    options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: item.element.macAddress)
+                )
             }
         }
         // if no networks specified, attach to the default network
-        return [AttachmentConfiguration(network: ClientNetwork.defaultNetworkName, options: AttachmentOptions(hostname: fqdn ?? containerId))]
+        return [AttachmentConfiguration(network: ClientNetwork.defaultNetworkName, options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: nil))]
     }
 
     private static func getKernel(management: Flags.Management) async throws -> Kernel {
@@ -256,7 +289,7 @@ public struct Utility {
         let s: SystemPlatform = .current
         if let userKernel = management.kernel {
             guard FileManager.default.fileExists(atPath: userKernel) else {
-                throw ContainerizationError(.notFound, message: "Kernel file not found at path \(userKernel)")
+                throw ContainerizationError(.notFound, message: "kernel file not found at path \(userKernel)")
             }
             let p = URL(filePath: userKernel)
             return .init(path: p, platform: s)
@@ -280,5 +313,37 @@ public struct Utility {
             }
         }
         return result
+    }
+
+    /// Gets an existing volume or creates it if it doesn't exist.
+    /// Shows a warning for named volumes when auto-creating.
+    private static func getOrCreateVolume(parsed: ParsedVolume) async throws -> Volume {
+        let labels = parsed.isAnonymous ? [Volume.anonymousLabel: ""] : [:]
+
+        let volume: Volume
+        do {
+            volume = try await ClientVolume.create(
+                name: parsed.name,
+                driver: "local",
+                driverOpts: [:],
+                labels: labels
+            )
+        } catch let error as VolumeError {
+            guard case .volumeAlreadyExists = error else {
+                throw error
+            }
+            // Volume already exists, just inspect it
+            volume = try await ClientVolume.inspect(parsed.name)
+        } catch let error as ContainerizationError {
+            // Handle XPC-wrapped volumeAlreadyExists error
+            guard error.message.contains("already exists") else {
+                throw error
+            }
+            volume = try await ClientVolume.inspect(parsed.name)
+        }
+
+        // TODO: Warn user if named volume was auto-created
+
+        return volume
     }
 }
