@@ -221,6 +221,10 @@ extension ClientImage {
     }
 
     public static func pull(reference: String, platform: Platform? = nil, scheme: RequestScheme = .auto, progressUpdate: ProgressUpdateHandler? = nil, maxConcurrentDownloads: Int = 3) async throws -> ClientImage {
+        guard maxConcurrentDownloads > 0 else {
+            throw ContainerizationError(.invalidArgument, message: "maxConcurrentDownloads must be greater than 0, got \(maxConcurrentDownloads)")
+        }
+
         let client = newXPCClient()
         let request = newRequest(.imagePull)
 
