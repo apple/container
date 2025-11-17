@@ -165,6 +165,34 @@ extension XPCMessage {
         }
     }
 
+    public func stringArray(key: String) -> [String]? {
+        let xpcArray = lock.withLock {
+            xpc_dictionary_get_value(self.object, key)
+        }
+        guard let xpcArray else {
+            return nil
+        }
+        var result: [String] = []
+        let count = xpc_array_get_count(xpcArray)
+        for i in 0..<count {
+            if let str = xpc_array_get_string(xpcArray, i) {
+                result.append(String(cString: str))
+            }
+        }
+        return result
+    }
+
+    public func set(key: String, value: [String]) throws {
+        let xpcArray = xpc_array_create(nil, 0)
+        for str in value {
+            let xpcStr = xpc_string_create(str)
+            xpc_array_append_value(xpcArray, xpcStr)
+        }
+        lock.withLock {
+            xpc_dictionary_set_value(self.object, key, xpcArray)
+        }
+    }
+
     public func bool(key: String) -> Bool {
         lock.withLock {
             xpc_dictionary_get_bool(self.object, key)

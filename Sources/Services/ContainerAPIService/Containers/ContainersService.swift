@@ -117,6 +117,30 @@ public actor ContainersService {
         return self.containers.values.map { $0.snapshot }
     }
 
+    /// List all containers that match the provided search terms.
+    public func search(searches: [String]) async throws -> [ContainerSnapshot] {
+        self.log.debug("\(#function)")
+
+        let allSnapshots = self.containers.values.map { $0.snapshot }
+
+        var allSnapshotsIds = Set<String>()
+        for search in searches {
+            let matchResult = StringMatcher.match(partial: search, candidates: allSnapshots.map({ $0.configuration.id }))
+            switch matchResult {
+            case .exactMatch(let m), .singleMatch(let m):
+                allSnapshotsIds.insert(m)
+            case .multipleMatches(let mList):
+                allSnapshotsIds.formUnion(mList)
+            case .noMatch:
+                break
+            }
+        }
+
+        return allSnapshots.filter {
+            allSnapshotsIds.contains($0.configuration.id)
+        }
+    }
+
     /// Execute an operation with the current container list while maintaining atomicity
     /// This prevents race conditions where containers are created during the operation
     public func withContainerList<T: Sendable>(_ operation: @Sendable @escaping ([ContainerSnapshot]) async throws -> T) async throws -> T {

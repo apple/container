@@ -54,26 +54,6 @@ public struct ClientContainer: Sendable, Codable {
         self.status = snapshot.status
         self.networks = snapshot.networks
     }
-
-    public static func search(searches: [String]) async throws -> [ClientContainer] {
-        var containerIdsToStop = Set<String>()
-
-        for partialContainerId in searches {
-            let matchResult = StringMatcher.match(partial: partialContainerId, candidates: try await ClientContainer.list().map({ $0.id }))
-            switch matchResult {
-            case .exactMatch(let m), .singleMatch(let m):
-                containerIdsToStop.insert(m)
-            case .multipleMatches(let mList):
-                containerIdsToStop.formUnion(mList)
-            case .noMatch:
-                break
-            }
-        }
-
-        return try await ClientContainer.list().filter {
-            c in containerIdsToStop.contains(c.id)
-        }
-    }
 }
 
 extension ClientContainer {
@@ -137,6 +117,33 @@ extension ClientContainer {
             throw ContainerizationError(
                 .internalError,
                 message: "failed to list containers",
+                cause: error
+            )
+        }
+    }
+
+    public static func search(searches: [String]) async throws -> [ClientContainer] {
+        do {
+            let client = Self.newXPCClient()
+            let request = XPCMessage(route: .containerSearch)
+            try request.set(key: .searches, value: searches)
+
+            let response = try await xpcSend(
+                client: client,
+                message: request,
+                timeout: .seconds(10)
+            )
+
+            let data = response.dataNoCopy(key: .containers)
+            guard let data else {
+                return []
+            }
+            let configs = try JSONDecoder().decode([ContainerSnapshot].self, from: data)
+            return configs.map { ClientContainer(snapshot: $0) }
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to search containers",
                 cause: error
             )
         }

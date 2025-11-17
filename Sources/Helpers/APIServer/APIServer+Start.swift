@@ -202,6 +202,7 @@ extension APIServer {
             let harness = ContainersHarness(service: service, log: log)
 
             routes[XPCRoute.containerList] = harness.list
+            routes[XPCRoute.containerSearch] = harness.search
             routes[XPCRoute.containerCreate] = harness.create
             routes[XPCRoute.containerDelete] = harness.delete
             routes[XPCRoute.containerLogs] = harness.logs
