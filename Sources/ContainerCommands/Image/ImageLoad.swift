@@ -45,13 +45,13 @@ extension Application {
                 try? FileManager.default.removeItem(at: tempFile)
             }
 
-            // Read from stdin
+            // Read from stdin; otherwise read from the input file
             if input == nil {
                 guard FileManager.default.createFile(atPath: tempFile.path(), contents: nil) else {
                     throw ContainerizationError(.internalError, message: "unable to create temporary file")
                 }
 
-                guard let outputHandle = try? FileHandle(forWritingTo: tempFile) else {
+                guard let fileHandle = try? FileHandle(forWritingTo: tempFile) else {
                     throw ContainerizationError(.internalError, message: "unable to open temporary file for writing")
                 }
 
@@ -59,14 +59,14 @@ extension Application {
                 while true {
                     let chunk = FileHandle.standardInput.readData(ofLength: bufferSize)
                     if chunk.isEmpty { break }
-                    outputHandle.write(chunk)
+                    fileHandle.write(chunk)
                 }
-                try outputHandle.close()
-            }
-
-            guard FileManager.default.fileExists(atPath: input ?? tempFile.path()) else {
-                print("File does not exist \(input ?? tempFile.path())")
-                Application.exit(withError: ArgumentParser.ExitCode(1))
+                try fileHandle.close()
+            } else {
+                guard FileManager.default.fileExists(atPath: input!) else {
+                    print("File does not exist \(input!)")
+                    Application.exit(withError: ArgumentParser.ExitCode(1))
+                }
             }
 
             let progressConfig = try ProgressConfig(

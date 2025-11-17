@@ -88,33 +88,34 @@ extension Application {
 
             guard images.count == references.count else {
                 throw ContainerizationError(.invalidArgument, message: "failed to save image(s)")
-
             }
 
-            let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).tar")
-            defer {
-                try? FileManager.default.removeItem(at: tempFile)
-            }
-
-            guard FileManager.default.createFile(atPath: tempFile.path(), contents: nil) else {
-                throw ContainerizationError(.internalError, message: "unable to create temporary file")
-            }
-
-            try await ClientImage.save(references: references, out: output ?? tempFile.path(), platform: p)
-
-            // Write to stdout
+            // Write to stdout; otherwise write to the output file
             if output == nil {
-                guard let outputHandle = try? FileHandle(forReadingFrom: tempFile) else {
+                let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).tar")
+                defer {
+                    try? FileManager.default.removeItem(at: tempFile)
+                }
+
+                guard FileManager.default.createFile(atPath: tempFile.path(), contents: nil) else {
+                    throw ContainerizationError(.internalError, message: "unable to create temporary file")
+                }
+
+                try await ClientImage.save(references: references, out: tempFile.path(), platform: p)
+
+                guard let fileHandle = try? FileHandle(forReadingFrom: tempFile) else {
                     throw ContainerizationError(.internalError, message: "unable to open temporary file for reading")
                 }
 
                 let bufferSize = 4096
                 while true {
-                    let chunk = outputHandle.readData(ofLength: bufferSize)
+                    let chunk = fileHandle.readData(ofLength: bufferSize)
                     if chunk.isEmpty { break }
                     FileHandle.standardOutput.write(chunk)
                 }
-                try outputHandle.close()
+                try fileHandle.close()
+            } else {
+                try await ClientImage.save(references: references, out: output!, platform: p)
             }
 
             progress.finish()
