@@ -52,6 +52,23 @@ public struct NetworksHarness: Sendable {
     }
 
     @Sendable
+    public func searchOne(_ message: XPCMessage) async throws -> XPCMessage {
+        let search = message.string(key: .search)
+        guard let search else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "search term cannot be empty"
+            )
+        }
+        let network = try await service.searchOne(search: search)
+        let data = try JSONEncoder().encode(network)
+
+        let reply = message.reply()
+        reply.set(key: .networkState, value: data)
+        return reply
+    }
+
+    @Sendable
     public func create(_ message: XPCMessage) async throws -> XPCMessage {
         let data = message.dataNoCopy(key: .networkConfig)
         guard let data else {

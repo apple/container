@@ -149,6 +149,33 @@ extension ClientContainer {
         }
     }
 
+    public static func searchOne(search: String) async throws -> ClientContainer {
+        do {
+            let client = Self.newXPCClient()
+            let request = XPCMessage(route: .containerSearchOne)
+            request.set(key: .search, value: search)
+
+            let response = try await xpcSend(
+                client: client,
+                message: request,
+                timeout: .seconds(10)
+            )
+
+            let data = response.dataNoCopy(key: .containers)
+            guard let data else {
+                throw ContainerizationError(.notFound, message: "container \(search) not found")
+            }
+            let snapshot = try JSONDecoder().decode(ContainerSnapshot.self, from: data)
+            return ClientContainer(snapshot: snapshot)
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to search for container",
+                cause: error
+            )
+        }
+    }
+
     /// Get the container for the provided id.
     public static func get(id: String) async throws -> ClientContainer {
         let containers = try await list()

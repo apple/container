@@ -70,6 +70,34 @@ extension ClientNetwork {
         return states
     }
 
+    public static func search(searches: [String]) async throws -> [NetworkState] {
+        let client = Self.newClient()
+        let request = XPCMessage(route: .networkSearch)
+        try request.set(key: .searches, value: searches)
+
+        let response = try await xpcSend(client: client, message: request, timeout: .seconds(1))
+        let responseData = response.dataNoCopy(key: .networkStates)
+        guard let responseData else {
+            return []
+        }
+        let states = try JSONDecoder().decode([NetworkState].self, from: responseData)
+        return states
+    }
+
+    public static func searchOne(search: String) async throws -> NetworkState {
+        let client = Self.newClient()
+        let request = XPCMessage(route: .networkSearchOne)
+        request.set(key: .search, value: search)
+
+        let response = try await xpcSend(client: client, message: request, timeout: .seconds(1))
+        let responseData = response.dataNoCopy(key: .networkState)
+        guard let responseData else {
+            throw ContainerizationError(.notFound, message: "network \(search) not found")
+        }
+        let state = try JSONDecoder().decode(NetworkState.self, from: responseData)
+        return state
+    }
+
     /// Get the network for the provided id.
     public static func get(id: String) async throws -> NetworkState {
         let networks = try await list()

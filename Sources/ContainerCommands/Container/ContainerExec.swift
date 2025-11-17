@@ -45,7 +45,7 @@ extension Application {
 
         public func run() async throws {
             var exitCode: Int32 = 127
-            let container = try await ClientContainer.get(id: containerId)
+            let container = try await ClientContainer.searchOne(search: containerId)
             try ensureRunning(container: container)
 
             let stdin = self.processFlags.interactive

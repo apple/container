@@ -34,12 +34,7 @@ extension Application.VolumeCommand {
         public init() {}
 
         public func run() async throws {
-            var volumes: [Volume] = []
-
-            for name in names {
-                let volume = try await ClientVolume.inspect(name)
-                volumes.append(volume)
-            }
+            let volumes = try await ClientVolume.search(searches: names)
 
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

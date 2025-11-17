@@ -67,6 +67,32 @@ public struct ClientVolume {
         return try JSONDecoder().decode([Volume].self, from: responseData)
     }
 
+    public static func search(searches: [String]) async throws -> [Volume] {
+        let client = XPCClient(service: serviceIdentifier)
+        let message = XPCMessage(route: .volumeSearch)
+        try message.set(key: .searches, value: searches)
+        let reply = try await client.send(message)
+
+        guard let responseData = reply.dataNoCopy(key: .volumes) else {
+            return []
+        }
+
+        return try JSONDecoder().decode([Volume].self, from: responseData)
+    }
+
+    public static func searchOne(search: String) async throws -> Volume {
+        let client = XPCClient(service: serviceIdentifier)
+        let message = XPCMessage(route: .volumeSearchOne)
+        message.set(key: .search, value: search)
+        let reply = try await client.send(message)
+
+        guard let responseData = reply.dataNoCopy(key: .volume) else {
+            throw VolumeError.volumeNotFound(search)
+        }
+
+        return try JSONDecoder().decode(Volume.self, from: responseData)
+    }
+
     public static func inspect(_ name: String) async throws -> Volume {
         let client = XPCClient(service: serviceIdentifier)
         let message = XPCMessage(route: .volumeInspect)

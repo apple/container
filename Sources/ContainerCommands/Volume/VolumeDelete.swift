@@ -39,29 +39,28 @@ extension Application.VolumeCommand {
         public init() {}
 
         public func run() async throws {
-            let uniqueVolumeNames = Set<String>(names)
             let volumes: [Volume]
 
             if all {
                 volumes = try await ClientVolume.list()
             } else {
-                volumes = try await ClientVolume.list()
-                    .filter { v in
-                        uniqueVolumeNames.contains(v.id)
-                    }
+                volumes = try await ClientVolume.search(searches: names)
 
-                // If one of the volumes requested isn't present lets throw. We don't need to do
+                // If one of the search terms requested has no volumes present, let's throw. We don't need to do
                 // this for --all as --all should be perfectly usable with no volumes to remove,
                 // otherwise it'd be quite clunky.
-                if volumes.count != uniqueVolumeNames.count {
-                    let missing = uniqueVolumeNames.filter { id in
-                        !volumes.contains { v in
-                            v.id == id
-                        }
+                var missingTerms: [String] = []
+
+                for searchTerm in names {
+                    if StringMatcher.match(partial: searchTerm, candidates: volumes.map({ $0.id })) == .noMatch {
+                        missingTerms.append(searchTerm)
                     }
+                }
+
+                if missingTerms.count > 0 {
                     throw ContainerizationError(
                         .notFound,
-                        message: "failed to delete one or more volumes: \(missing)"
+                        message: "failed to delete one or more volumes: \(missingTerms)"
                     )
                 }
             }

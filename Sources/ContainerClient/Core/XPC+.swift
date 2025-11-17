@@ -118,11 +118,14 @@ public enum XPCKeys: String {
 
     /// Search terms
     case searches
+    /// Single search term
+    case search
 }
 
 public enum XPCRoute: String {
     case containerList
     case containerSearch
+    case containerSearchOne
     case containerCreate
     case containerBootstrap
     case containerCreateProcess
@@ -147,11 +150,13 @@ public enum XPCRoute: String {
     case networkDelete
     case networkList
     case networkSearch
+    case networkSearchOne
 
     case volumeCreate
     case volumeDelete
     case volumeList
     case volumeSearch
+    case volumeSearchOne
     case volumeInspect
     case volumePrune
 

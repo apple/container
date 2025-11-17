@@ -53,6 +53,23 @@ public struct ContainersHarness: Sendable {
     }
 
     @Sendable
+    public func searchOne(_ message: XPCMessage) async throws -> XPCMessage {
+        let search = message.string(key: .search)
+        guard let search else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "search term cannot be empty"
+            )
+        }
+        let container = try await service.searchOne(search: search)
+        let data = try JSONEncoder().encode(container)
+
+        let reply = message.reply()
+        reply.set(key: .containers, value: data)
+        return reply
+    }
+
+    @Sendable
     public func bootstrap(_ message: XPCMessage) async throws -> XPCMessage {
         let id = message.string(key: .id)
         guard let id else {

@@ -125,6 +125,29 @@ public actor NetworksService {
         }
     }
 
+    /// Search for a single network using a partial ID match.
+    /// Returns an error if no match or multiple matches are found.
+    public func searchOne(search: String) async throws -> NetworkState {
+        log.info("network service: searchOne")
+
+        let matchResult = StringMatcher.match(partial: search, candidates: Array(networkStates.keys))
+
+        switch matchResult {
+        case .exactMatch(let id), .singleMatch(let id):
+            guard let state = networkStates[id] else {
+                throw ContainerizationError(.notFound, message: "network \(search) not found")
+            }
+            return state
+        case .multipleMatches(let matches):
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "Ambiguous search term '\(search)': matches multiple networks [\(matches.joined(separator: ", "))]. Please use a more specific identifier."
+            )
+        case .noMatch:
+            throw ContainerizationError(.notFound, message: "network \(search) not found")
+        }
+    }
+
     /// Create a new network from the provided configuration.
     public func create(configuration: NetworkConfiguration) async throws -> NetworkState {
         log.info(

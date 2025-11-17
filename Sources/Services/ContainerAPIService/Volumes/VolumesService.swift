@@ -88,6 +88,27 @@ public actor VolumesService {
         }
     }
 
+    /// Search for a single volume using a partial name match.
+    /// Returns an error if no match or multiple matches are found.
+    public func searchOne(search: String) async throws -> Volume {
+        let allVolumes = try await store.list()
+        let matchResult = StringMatcher.match(partial: search, candidates: allVolumes.map({ $0.name }))
+
+        switch matchResult {
+        case .exactMatch(let name), .singleMatch(let name):
+            guard let volume = allVolumes.first(where: { $0.name == name }) else {
+                throw VolumeError.volumeNotFound(search)
+            }
+            return volume
+        case .multipleMatches(let matches):
+            throw VolumeError.invalidVolumeName(
+                "Ambiguous search term '\(search)': matches multiple volumes [\(matches.joined(separator: ", "))]. Please use a more specific identifier."
+            )
+        case .noMatch:
+            throw VolumeError.volumeNotFound(search)
+        }
+    }
+
     public func inspect(_ name: String) async throws -> Volume {
         try await lock.withLock { _ in
             try await self._inspect(name)

@@ -141,6 +141,30 @@ public actor ContainersService {
         }
     }
 
+    /// Search for a single container using a partial ID match.
+    /// Returns an error if no match or multiple matches are found.
+    public func searchOne(search: String) async throws -> ContainerSnapshot {
+        self.log.debug("\(#function)")
+
+        let allSnapshots = self.containers.values.map { $0.snapshot }
+        let matchResult = StringMatcher.match(partial: search, candidates: allSnapshots.map({ $0.configuration.id }))
+
+        switch matchResult {
+        case .exactMatch(let id), .singleMatch(let id):
+            guard let snapshot = allSnapshots.first(where: { $0.configuration.id == id }) else {
+                throw ContainerizationError(.notFound, message: "container \(search) not found")
+            }
+            return snapshot
+        case .multipleMatches(let matches):
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "Ambiguous search term '\(search)': matches multiple containers [\(matches.joined(separator: ", "))]. Please use a more specific identifier."
+            )
+        case .noMatch:
+            throw ContainerizationError(.notFound, message: "container \(search) not found")
+        }
+    }
+
     /// Execute an operation with the current container list while maintaining atomicity
     /// This prevents race conditions where containers are created during the operation
     public func withContainerList<T: Sendable>(_ operation: @Sendable @escaping ([ContainerSnapshot]) async throws -> T) async throws -> T {
