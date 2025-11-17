@@ -41,6 +41,17 @@ public struct NetworksHarness: Sendable {
     }
 
     @Sendable
+    public func search(_ message: XPCMessage) async throws -> XPCMessage {
+        let searches = message.stringArray(key: .searches) ?? []
+        let networks = try await service.search(searches: searches)
+        let data = try JSONEncoder().encode(networks)
+
+        let reply = message.reply()
+        reply.set(key: .networkStates, value: data)
+        return reply
+    }
+
+    @Sendable
     public func create(_ message: XPCMessage) async throws -> XPCMessage {
         let data = message.dataNoCopy(key: .networkConfig)
         guard let data else {

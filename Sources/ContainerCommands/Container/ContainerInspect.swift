@@ -38,7 +38,7 @@ extension Application {
                 searches: containerIds
             )
             .map({ PrintableContainer($0) })
-            print(try objects.jsonArray())
+            print(try containers.jsonArray())
         }
     }
 }

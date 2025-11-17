@@ -66,6 +66,28 @@ public actor VolumesService {
         try await store.list()
     }
 
+    /// List all volumes that match the provided search terms.
+    public func search(searches: [String]) async throws -> [Volume] {
+        let allVolumes = try await store.list()
+
+        var allVolumeNames = Set<String>()
+        for search in searches {
+            let matchResult = StringMatcher.match(partial: search, candidates: allVolumes.map({ $0.name }))
+            switch matchResult {
+            case .exactMatch(let m), .singleMatch(let m):
+                allVolumeNames.insert(m)
+            case .multipleMatches(let mList):
+                allVolumeNames.formUnion(mList)
+            case .noMatch:
+                break
+            }
+        }
+
+        return allVolumes.filter {
+            allVolumeNames.contains($0.name)
+        }
+    }
+
     public func inspect(_ name: String) async throws -> Volume {
         try await lock.withLock { _ in
             try await self._inspect(name)

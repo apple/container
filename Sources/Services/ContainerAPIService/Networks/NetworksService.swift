@@ -99,6 +99,32 @@ public actor NetworksService {
         }
     }
 
+    /// List all networks that match the provided search terms.
+    public func search(searches: [String]) async throws -> [NetworkState] {
+        log.info("network service: search")
+
+        let allStates = networkStates.reduce(into: [NetworkState]()) {
+            $0.append($1.value)
+        }
+
+        var allNetworkIds = Set<String>()
+        for search in searches {
+            let matchResult = StringMatcher.match(partial: search, candidates: Array(networkStates.keys))
+            switch matchResult {
+            case .exactMatch(let m), .singleMatch(let m):
+                allNetworkIds.insert(m)
+            case .multipleMatches(let mList):
+                allNetworkIds.formUnion(mList)
+            case .noMatch:
+                break
+            }
+        }
+
+        return allStates.filter {
+            allNetworkIds.contains($0.id)
+        }
+    }
+
     /// Create a new network from the provided configuration.
     public func create(configuration: NetworkConfiguration) async throws -> NetworkState {
         log.info(
