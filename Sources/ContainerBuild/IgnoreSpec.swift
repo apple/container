@@ -46,48 +46,133 @@ struct IgnoreSpec {
             return false
         }
 
-        let globber = Globber(URL(fileURLWithPath: "/"))
-
         for pattern in patterns {
-            // According to Docker's .dockerignore spec, patterns match at any depth
-            // unless they start with / (which means root only)
-
-            let pathToMatch = isDirectory ? relPath + "/" : relPath
-
-            // Get the base name (last component) of the path for simple pattern matching
-            let pathComponents = relPath.split(separator: "/")
-            let baseName = String(pathComponents.last ?? "")
-            let baseNameToMatch = isDirectory ? baseName + "/" : baseName
-
-            // Try exact match first (handles absolute patterns like /node_modules)
-            if try globber.glob(pathToMatch, pattern) {
+            if try matchesPattern(path: relPath, pattern: pattern, isDirectory: isDirectory) {
                 return true
-            }
-
-            // Also try without trailing slash for directories
-            if isDirectory {
-                let matchesNoSlash = try globber.glob(relPath, pattern)
-                if matchesNoSlash {
-                    return true
-                }
-            }
-
-            // For patterns without leading /, they should match at any depth
-            // Try matching against just the basename
-            if !pattern.hasPrefix("/") {
-                let baseMatches = try globber.glob(baseNameToMatch, pattern)
-                if baseMatches {
-                    return true
-                }
-                if isDirectory {
-                    let baseMatchesNoSlash = try globber.glob(baseName, pattern)
-                    if baseMatchesNoSlash {
-                        return true
-                    }
-                }
             }
         }
 
         return false
+    }
+
+    /// Match a path against a dockerignore pattern
+    /// - Parameters:
+    ///   - path: The path to match
+    ///   - pattern: The dockerignore pattern
+    ///   - isDirectory: Whether the path is a directory
+    /// - Returns: true if the path matches the pattern
+    private func matchesPattern(path: String, pattern: String, isDirectory: Bool) throws -> Bool {
+        var pattern = pattern
+
+        // Handle trailing slash on pattern (means directories only)
+        let dirOnly = pattern.hasSuffix("/")
+        if dirOnly {
+            pattern = String(pattern.dropLast())
+            if !isDirectory {
+                return false
+            }
+        }
+
+        // Handle root-only patterns (starting with /)
+        let rootOnly = pattern.hasPrefix("/")
+        if rootOnly {
+            pattern = String(pattern.dropFirst())
+        }
+
+        // Convert pattern to regex, handling ** specially
+        let regex = try patternToRegex(pattern: pattern, rootOnly: rootOnly)
+
+        // Try matching the path (and with trailing slash for directories)
+        if path.range(of: regex, options: .regularExpression) != nil {
+            return true
+        }
+
+        if isDirectory {
+            let pathWithSlash = path + "/"
+            if pathWithSlash.range(of: regex, options: .regularExpression) != nil {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    /// Convert a dockerignore pattern to a regex pattern
+    /// - Parameters:
+    ///   - pattern: The dockerignore pattern
+    ///   - rootOnly: Whether the pattern should only match at root
+    /// - Returns: A regex pattern string
+    private func patternToRegex(pattern: String, rootOnly: Bool) throws -> String {
+        var result = ""
+
+        // If not root-only, pattern can match at any depth
+        if !rootOnly && !pattern.hasPrefix("**/") {
+            // Pattern matches at any depth (like **/pattern)
+            result = "(?:^|.*/)"
+        } else {
+            result = "^"
+        }
+
+        // Process the pattern
+        var i = pattern.startIndex
+        while i < pattern.endIndex {
+            let char = pattern[i]
+
+            // Handle **
+            if char == "*" && pattern.index(after: i) < pattern.endIndex && pattern[pattern.index(after: i)] == "*" {
+                // Check if it's **/ or just **
+                let afterStar = pattern.index(i, offsetBy: 2)
+                if afterStar < pattern.endIndex && pattern[afterStar] == "/" {
+                    // **/ matches zero or more path segments
+                    result += "(?:.*/)?"
+                    i = pattern.index(after: afterStar)
+                    continue
+                } else if afterStar == pattern.endIndex {
+                    // ** at end matches anything
+                    result += ".*"
+                    i = afterStar
+                    continue
+                }
+            }
+
+            // Handle single *
+            if char == "*" {
+                result += "[^/]*"
+                i = pattern.index(after: i)
+                continue
+            }
+
+            // Handle ?
+            if char == "?" {
+                result += "[^/]"
+                i = pattern.index(after: i)
+                continue
+            }
+
+            // Handle character classes [...]
+            if char == "[" {
+                var j = pattern.index(after: i)
+                while j < pattern.endIndex && pattern[j] != "]" {
+                    j = pattern.index(after: j)
+                }
+                if j < pattern.endIndex {
+                    let charClass = String(pattern[i...j])
+                    result += charClass
+                    i = pattern.index(after: j)
+                    continue
+                }
+            }
+
+            // Escape special regex characters
+            let specialChars = "\\^$.+(){}|"
+            if specialChars.contains(char) {
+                result += "\\"
+            }
+            result += String(char)
+            i = pattern.index(after: i)
+        }
+
+        result += "$"
+        return result
     }
 }

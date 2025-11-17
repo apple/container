@@ -68,7 +68,7 @@ enum TestError: Error {
         // Test that it correctly ignores files matching patterns
         #expect(try spec.shouldIgnore(relPath: "debug.log", isDirectory: false))
         #expect(try spec.shouldIgnore(relPath: "node_modules", isDirectory: true))
-        #expect(try spec.shouldIgnore(relPath: "temp/", isDirectory: true))
+        #expect(try spec.shouldIgnore(relPath: "temp", isDirectory: true))
         #expect(try !spec.shouldIgnore(relPath: "src/app.swift", isDirectory: false))
     }
 
@@ -99,6 +99,50 @@ enum TestError: Error {
         // Should match directories
         #expect(try spec.shouldIgnore(relPath: "node_modules", isDirectory: true))
         #expect(try spec.shouldIgnore(relPath: "src/node_modules", isDirectory: true))
+    }
+
+    @Test func testIgnoreSpecHandlesDoubleStarPatterns() throws {
+        let content = """
+            **/*.log
+            **/temp
+            src/**/*.tmp
+            """
+        let data = content.data(using: .utf8)!
+        let spec = IgnoreSpec(data)
+
+        // **/*.log should match .log files at any depth
+        #expect(try spec.shouldIgnore(relPath: "debug.log", isDirectory: false))
+        #expect(try spec.shouldIgnore(relPath: "logs/debug.log", isDirectory: false))
+        #expect(try spec.shouldIgnore(relPath: "app/logs/error.log", isDirectory: false))
+        #expect(try !spec.shouldIgnore(relPath: "debug.txt", isDirectory: false))
+
+        // **/temp should match temp directory at any depth
+        #expect(try spec.shouldIgnore(relPath: "temp", isDirectory: true))
+        #expect(try spec.shouldIgnore(relPath: "build/temp", isDirectory: true))
+        #expect(try spec.shouldIgnore(relPath: "app/cache/temp", isDirectory: true))
+
+        // src/**/*.tmp should match .tmp files only under src/
+        #expect(try spec.shouldIgnore(relPath: "src/file.tmp", isDirectory: false))
+        #expect(try spec.shouldIgnore(relPath: "src/nested/file.tmp", isDirectory: false))
+        #expect(try !spec.shouldIgnore(relPath: "file.tmp", isDirectory: false))
+        #expect(try !spec.shouldIgnore(relPath: "other/file.tmp", isDirectory: false))
+    }
+
+    @Test func testIgnoreSpecHandlesRootPatterns() throws {
+        let content = """
+            /root-only.txt
+            /build
+            """
+        let data = content.data(using: .utf8)!
+        let spec = IgnoreSpec(data)
+
+        // /root-only.txt should only match at root
+        #expect(try spec.shouldIgnore(relPath: "root-only.txt", isDirectory: false))
+        #expect(try !spec.shouldIgnore(relPath: "src/root-only.txt", isDirectory: false))
+
+        // /build should only match at root
+        #expect(try spec.shouldIgnore(relPath: "build", isDirectory: true))
+        #expect(try !spec.shouldIgnore(relPath: "src/build", isDirectory: true))
     }
 
     // MARK: - Integration tests with BuildFSSync
