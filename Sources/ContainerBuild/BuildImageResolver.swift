@@ -77,13 +77,8 @@ struct BuildImageResolver: BuildPipelineHandler {
             if self.pull {
                 return try await ClientImage.pull(reference: ref, platform: platform)
             }
-
-            // Try and fetch locally cached image
-            guard let img = try? await ClientImage.fetch(reference: ref, platform: platform) else {
-                // Fall back to pulling image
-                return try await ClientImage.pull(reference: ref, platform: platform)
-            }
-            return img
+            // Use fetch() which checks cache first, then pulls if needed
+            return try await ClientImage.fetch(reference: ref, platform: platform, progressUpdate: progress.handler)
         }()
 
         let index: Index = try await img.index()

@@ -32,7 +32,7 @@ class TestCLIImagesCommand: CLITest {
             args.append("--all")
         }
 
-        let (_, error, status) = try run(arguments: args)
+        let (_, _, error, status) = try run(arguments: args)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
@@ -49,7 +49,7 @@ class TestCLIImagesCommand: CLITest {
     }
 
     func doListImages() throws -> [Image] {
-        let (output, error, status) = try run(arguments: [
+        let (_, output, error, status) = try run(arguments: [
             "image",
             "list",
             "--format",
@@ -75,7 +75,7 @@ class TestCLIImagesCommand: CLITest {
             newName,
         ]
 
-        let (_, error, status) = try run(arguments: tagArgs)
+        let (_, _, error, status) = try run(arguments: tagArgs)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
@@ -323,7 +323,7 @@ extension TestCLIImagesCommand {
                 "--output",
                 tempFile.path(),
             ]
-            let (_, error, status) = try run(arguments: saveArgs)
+            let (_, _, error, status) = try run(arguments: saveArgs)
             if status != 0 {
                 throw CLIError.executionFailed("command failed: \(error)")
             }
@@ -344,7 +344,7 @@ extension TestCLIImagesCommand {
                 "-i",
                 tempFile.path(),
             ]
-            let (_, loadErr, loadStatus) = try run(arguments: loadArgs)
+            let (_, _, loadErr, loadStatus) = try run(arguments: loadArgs)
             if loadStatus != 0 {
                 throw CLIError.executionFailed("command failed: \(loadErr)")
             }

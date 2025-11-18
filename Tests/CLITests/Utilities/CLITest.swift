@@ -110,7 +110,7 @@ class CLITest {
         }
     }
 
-    func run(arguments: [String], currentDirectory: URL? = nil) throws -> (output: String, error: String, status: Int32) {
+    func run(arguments: [String], stdin: Data? = nil, currentDirectory: URL? = nil) throws -> (outputData: Data, output: String, error: String, status: Int32) {
         let process = Process()
         process.executableURL = try executablePath
         process.arguments = arguments
@@ -118,24 +118,32 @@ class CLITest {
             process.currentDirectoryURL = directory
         }
 
+        let inputPipe = Pipe()
         let outputPipe = Pipe()
         let errorPipe = Pipe()
+        process.standardInput = inputPipe
         process.standardOutput = outputPipe
         process.standardError = errorPipe
 
+        let outputData: Data
+        let errorData: Data
         do {
             try process.run()
+            if let data = stdin {
+                inputPipe.fileHandleForWriting.write(data)
+            }
+            inputPipe.fileHandleForWriting.closeFile()
+            outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+            errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
         } catch {
             throw CLIError.executionFailed("Failed to run CLI: \(error)")
         }
 
-        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
         let output = String(data: outputData, encoding: .utf8) ?? ""
         let error = String(data: errorData, encoding: .utf8) ?? ""
 
-        return (output: output, error: error, status: process.terminationStatus)
+        return (outputData: outputData, output: output, error: error, status: process.terminationStatus)
     }
 
     func runInteractive(arguments: [String], currentDirectory: URL? = nil) throws -> Terminal {
@@ -220,7 +228,7 @@ class CLITest {
             runArgs.append(contentsOf: defaultContainerArgs)
         }
 
-        let (_, error, status) = try run(arguments: runArgs)
+        let (_, _, error, status) = try run(arguments: runArgs)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
@@ -235,7 +243,7 @@ class CLITest {
         }
         execArgs.append(name)
         execArgs.append(contentsOf: cmd)
-        let (resp, error, status) = try run(arguments: execArgs)
+        let (_, resp, error, status) = try run(arguments: execArgs)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
@@ -243,7 +251,7 @@ class CLITest {
     }
 
     func doStop(name: String, signal: String = "SIGKILL") throws {
-        let (_, error, status) = try run(arguments: [
+        let (_, _, error, status) = try run(arguments: [
             "stop",
             "-s",
             signal,
@@ -278,14 +286,14 @@ class CLITest {
 
         arguments += [image] + args
 
-        let (_, error, status) = try run(arguments: arguments)
+        let (_, _, error, status) = try run(arguments: arguments)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
     }
 
     func doStart(name: String) throws {
-        let (_, error, status) = try run(arguments: [
+        let (_, _, error, status) = try run(arguments: [
             "start",
             name,
         ])
@@ -371,7 +379,7 @@ class CLITest {
         }
         pullArgs.append(imageName)
 
-        let (_, error, status) = try run(arguments: pullArgs)
+        let (_, _, error, status) = try run(arguments: pullArgs)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
@@ -384,7 +392,7 @@ class CLITest {
             "-q",
         ]
 
-        let (out, error, status) = try run(arguments: args)
+        let (_, out, error, status) = try run(arguments: args)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
@@ -392,7 +400,7 @@ class CLITest {
     }
 
     func doInspectImages(image: String) throws -> [ImageInspectOutput] {
-        let (output, error, status) = try run(arguments: [
+        let (_, output, error, status) = try run(arguments: [
             "image",
             "inspect",
             image,
@@ -418,7 +426,7 @@ class CLITest {
             "registry.domain",
             domain,
         ]
-        let (_, error, status) = try run(arguments: args)
+        let (_, _, error, status) = try run(arguments: args)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
@@ -431,7 +439,7 @@ class CLITest {
             "clear",
             "registry.domain",
         ]
-        let (_, error, status) = try run(arguments: args)
+        let (_, _, error, status) = try run(arguments: args)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
@@ -444,7 +452,7 @@ class CLITest {
         }
         args.append(name)
 
-        let (_, error, status) = try run(arguments: args)
+        let (_, _, error, status) = try run(arguments: args)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }

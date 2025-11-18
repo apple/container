@@ -41,7 +41,7 @@ class TestCLIKernelSet: CLITest {
             "--recommended",
             "--force",
         ]
-        let (_, error, status) = try run(arguments: arguments)
+        let (_, _, error, status) = try run(arguments: arguments)
         if status != 0 {
             throw CLIError.executionFailed("failed to reset kernel to recommended: \(error)")
         }
@@ -56,7 +56,7 @@ class TestCLIKernelSet: CLITest {
         ]
         arguments.append(contentsOf: extraArgs)
 
-        let (_, error, status) = try run(arguments: arguments)
+        let (_, _, error, status) = try run(arguments: arguments)
         if status != 0 {
             throw CLIError.executionFailed("failed to set kernel: \(error)")
         }

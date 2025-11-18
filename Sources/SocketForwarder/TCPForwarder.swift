@@ -57,6 +57,6 @@ public struct TCPForwarder: SocketForwarder {
         return
             bootstrap
             .bind(to: self.proxyAddress)
-            .flatMap { $0.eventLoop.makeSucceededFuture(SocketForwarderResult(channel: $0)) }
+            .map { SocketForwarderResult(channel: $0) }
     }
 }
