@@ -62,7 +62,7 @@ class TestCLICreateCommand: CLITest {
         args.append("\"hello world\"")
 
         #expect(throws: Never.self, "expected container create maximum port publishes to succeed") {
-            let (_, error, status) = try run(arguments: args)
+            let (_, _, error, status) = try run(arguments: args)
             defer { try? doRemove(name: name) }
             if status != 0 {
                 throw CLIError.executionFailed("command failed: \(error)")
@@ -85,7 +85,7 @@ class TestCLICreateCommand: CLITest {
         args.append("\"hello world\"")
 
         #expect(throws: CLIError.self, "expected container create more than maximum port publishes to fail") {
-            let (_, error, status) = try run(arguments: args)
+            let (_, _, error, status) = try run(arguments: args)
             defer { try? doRemove(name: name) }
             if status != 0 {
                 throw CLIError.executionFailed("command failed: \(error)")
