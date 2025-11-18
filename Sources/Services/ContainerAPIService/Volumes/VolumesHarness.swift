@@ -40,6 +40,34 @@ public struct VolumesHarness: Sendable {
     }
 
     @Sendable
+    public func search(_ message: XPCMessage) async throws -> XPCMessage {
+        let searches = message.stringArray(key: .searches) ?? []
+        let volumes = try await service.search(searches: searches)
+        let data = try JSONEncoder().encode(volumes)
+
+        let reply = message.reply()
+        reply.set(key: .volumes, value: data)
+        return reply
+    }
+
+    @Sendable
+    public func searchOne(_ message: XPCMessage) async throws -> XPCMessage {
+        let search = message.string(key: .search)
+        guard let search else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "search term cannot be empty"
+            )
+        }
+        let volume = try await service.searchOne(search: search)
+        let data = try JSONEncoder().encode(volume)
+
+        let reply = message.reply()
+        reply.set(key: .volume, value: data)
+        return reply
+    }
+
+    @Sendable
     public func create(_ message: XPCMessage) async throws -> XPCMessage {
         guard let name = message.string(key: .volumeName) else {
             throw ContainerizationError(.invalidArgument, message: "volume name cannot be empty")

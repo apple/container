@@ -53,7 +53,7 @@ extension Application {
             progress.start()
 
             let detach = !self.attach && !self.interactive
-            let container = try await ClientContainer.get(id: containerId)
+            let container = try await ClientContainer.searchOne(search: containerId)
 
             // Bootstrap and process start are both idempotent and don't fail the second time
             // around, however not doing an rpc is always faster :). The other bit is we don't

@@ -51,34 +51,33 @@ extension Application {
         }
 
         public mutating func run() async throws {
-            let uniqueNetworkNames = Set<String>(networkNames)
             let networks: [NetworkState]
 
             if all {
                 networks = try await ClientNetwork.list()
             } else {
-                networks = try await ClientNetwork.list()
-                    .filter { c in
-                        uniqueNetworkNames.contains(c.id)
-                    }
+                networks = try await ClientNetwork.search(searches: networkNames)
 
-                // If one of the networks requested isn't present lets throw. We don't need to do
+                // If one of the search terms requested has no networks present, let's throw. We don't need to do
                 // this for --all as --all should be perfectly usable with no networks to remove,
                 // otherwise it'd be quite clunky.
-                if networks.count != uniqueNetworkNames.count {
-                    let missing = uniqueNetworkNames.filter { id in
-                        !networks.contains { n in
-                            n.id == id
-                        }
+                var missingTerms: [String] = []
+
+                for searchTerm in networkNames {
+                    if StringMatcher.match(partial: searchTerm, candidates: networks.map({ $0.id })) == .noMatch {
+                        missingTerms.append(searchTerm)
                     }
+                }
+
+                if missingTerms.count > 0 {
                     throw ContainerizationError(
                         .notFound,
-                        message: "failed to delete one or more networks: \(missing)"
+                        message: "failed to delete one or more networks: \(missingTerms)"
                     )
                 }
             }
 
-            if uniqueNetworkNames.contains(ClientNetwork.defaultNetworkName) {
+            if networks.contains(where: { $0.id == ClientNetwork.defaultNetworkName }) {
                 throw ContainerizationError(
                     .invalidArgument,
                     message: "cannot delete the default network"

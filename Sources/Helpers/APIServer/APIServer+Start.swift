@@ -202,6 +202,8 @@ extension APIServer {
             let harness = ContainersHarness(service: service, log: log)
 
             routes[XPCRoute.containerList] = harness.list
+            routes[XPCRoute.containerSearch] = harness.search
+            routes[XPCRoute.containerSearchOne] = harness.searchOne
             routes[XPCRoute.containerCreate] = harness.create
             routes[XPCRoute.containerDelete] = harness.delete
             routes[XPCRoute.containerLogs] = harness.logs
@@ -246,6 +248,8 @@ extension APIServer {
             routes[XPCRoute.networkCreate] = harness.create
             routes[XPCRoute.networkDelete] = harness.delete
             routes[XPCRoute.networkList] = harness.list
+            routes[XPCRoute.networkSearch] = harness.search
+            routes[XPCRoute.networkSearchOne] = harness.searchOne
             return service
         }
 
@@ -263,6 +267,8 @@ extension APIServer {
             routes[XPCRoute.volumeCreate] = harness.create
             routes[XPCRoute.volumeDelete] = harness.delete
             routes[XPCRoute.volumeList] = harness.list
+            routes[XPCRoute.volumeSearch] = harness.search
+            routes[XPCRoute.volumeSearchOne] = harness.searchOne
             routes[XPCRoute.volumeInspect] = harness.inspect
             routes[XPCRoute.volumePrune] = harness.prune
         }

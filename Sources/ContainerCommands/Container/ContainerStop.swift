@@ -54,14 +54,11 @@ extension Application {
         }
 
         public mutating func run() async throws {
-            let set = Set<String>(containerIds)
             var containers = [ClientContainer]()
             if self.all {
                 containers = try await ClientContainer.list()
             } else {
-                containers = try await ClientContainer.list().filter { c in
-                    set.contains(c.id)
-                }
+                containers = try await ClientContainer.search(searches: containerIds)
             }
 
             let opts = ContainerStopOptions(

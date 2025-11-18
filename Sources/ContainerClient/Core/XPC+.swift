@@ -115,10 +115,17 @@ public enum XPCKeys: String {
     case volumeLabels
     case volumeReadonly
     case volumeContainerId
+
+    /// Search terms
+    case searches
+    /// Single search term
+    case search
 }
 
 public enum XPCRoute: String {
     case containerList
+    case containerSearch
+    case containerSearchOne
     case containerCreate
     case containerBootstrap
     case containerCreateProcess
@@ -142,10 +149,14 @@ public enum XPCRoute: String {
     case networkCreate
     case networkDelete
     case networkList
+    case networkSearch
+    case networkSearchOne
 
     case volumeCreate
     case volumeDelete
     case volumeList
+    case volumeSearch
+    case volumeSearchOne
     case volumeInspect
     case volumePrune
 
@@ -242,6 +253,14 @@ extension XPCMessage {
 
     public func set(key: XPCKeys, value: xpc_endpoint_t) {
         set(key: key.rawValue, value: value)
+    }
+
+    public func stringArray(key: XPCKeys) -> [String]? {
+        stringArray(key: key.rawValue)
+    }
+
+    public func set(key: XPCKeys, value: [String]) throws {
+        try set(key: key.rawValue, value: value)
     }
 }
 

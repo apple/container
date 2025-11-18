@@ -35,11 +35,10 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let objects: [any Codable] = try await ClientNetwork.list().filter {
-                networks.contains($0.id)
-            }.map {
-                PrintableNetwork($0)
-            }
+            let objects: [any Codable] = try await ClientNetwork.search(searches: networks)
+                .map {
+                    PrintableNetwork($0)
+                }
             print(try objects.jsonArray())
         }
     }
