@@ -46,13 +46,22 @@ struct IgnoreSpec {
             return false
         }
 
+        var shouldIgnore = false
+
+        // Process patterns in order - later patterns override earlier ones
         for pattern in patterns {
-            if try matchesPattern(path: relPath, pattern: pattern, isDirectory: isDirectory) {
-                return true
+            // Check if this is a negation pattern
+            let isNegation = pattern.hasPrefix("!")
+            let actualPattern = isNegation ? String(pattern.dropFirst()) : pattern
+
+            if try matchesPattern(path: relPath, pattern: actualPattern, isDirectory: isDirectory) {
+                // If it's a negation pattern, DON'T ignore (include the file)
+                // Otherwise, DO ignore
+                shouldIgnore = !isNegation
             }
         }
 
-        return false
+        return shouldIgnore
     }
 
     /// Match a path against a dockerignore pattern
@@ -68,9 +77,6 @@ struct IgnoreSpec {
         let dirOnly = pattern.hasSuffix("/")
         if dirOnly {
             pattern = String(pattern.dropLast())
-            if !isDirectory {
-                return false
-            }
         }
 
         // Handle root-only patterns (starting with /)
@@ -84,12 +90,27 @@ struct IgnoreSpec {
 
         // Try matching the path (and with trailing slash for directories)
         if path.range(of: regex, options: .regularExpression) != nil {
+            // If dirOnly is set, ensure the matched path is actually a directory
+            if dirOnly && !isDirectory {
+                return false
+            }
             return true
         }
 
         if isDirectory {
             let pathWithSlash = path + "/"
             if pathWithSlash.range(of: regex, options: .regularExpression) != nil {
+                return true
+            }
+        }
+
+        // Also check if the path is inside a matched directory
+        // e.g., pattern "foo" should match "foo/bar.txt"
+        // This is done by checking if any parent directory matches
+        let pathComponents = path.split(separator: "/")
+        for i in 0..<pathComponents.count {
+            let parentPath = pathComponents[0...i].joined(separator: "/")
+            if parentPath.range(of: regex, options: .regularExpression) != nil {
                 return true
             }
         }

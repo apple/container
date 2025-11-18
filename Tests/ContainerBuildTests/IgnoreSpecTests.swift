@@ -145,6 +145,64 @@ enum TestError: Error {
         #expect(try !spec.shouldIgnore(relPath: "src/build", isDirectory: true))
     }
 
+    @Test func testIgnoreSpecHandlesNegationPatterns() throws {
+        let content = """
+            *.log
+            !important.log
+            """
+        let data = content.data(using: .utf8)!
+        let spec = IgnoreSpec(data)
+
+        // *.log should match all .log files
+        #expect(try spec.shouldIgnore(relPath: "debug.log", isDirectory: false))
+        #expect(try spec.shouldIgnore(relPath: "error.log", isDirectory: false))
+
+        // But !important.log should negate and include important.log
+        #expect(try !spec.shouldIgnore(relPath: "important.log", isDirectory: false))
+    }
+
+    @Test func testIgnoreSpecHandlesNegationWithDirectories() throws {
+        let content = """
+            foo
+            !foo/bar.txt
+            """
+        let data = content.data(using: .utf8)!
+        let spec = IgnoreSpec(data)
+
+        // foo should match the directory and its contents
+        #expect(try spec.shouldIgnore(relPath: "foo", isDirectory: true))
+        #expect(try spec.shouldIgnore(relPath: "foo/other.txt", isDirectory: false))
+
+        // But !foo/bar.txt should negate and include that specific file
+        #expect(try !spec.shouldIgnore(relPath: "foo/bar.txt", isDirectory: false))
+    }
+
+    @Test func testIgnoreSpecHandlesComplexNegation() throws {
+        let content = """
+            # Ignore all markdown files
+            **/*.md
+            # Except README files
+            !README.md
+            !**/README.md
+            # But ignore README in temp directories
+            temp/**/README.md
+            """
+        let data = content.data(using: .utf8)!
+        let spec = IgnoreSpec(data)
+
+        // *.md should match all markdown files
+        #expect(try spec.shouldIgnore(relPath: "notes.md", isDirectory: false))
+        #expect(try spec.shouldIgnore(relPath: "docs/guide.md", isDirectory: false))
+
+        // But !README.md should include README files
+        #expect(try !spec.shouldIgnore(relPath: "README.md", isDirectory: false))
+        #expect(try !spec.shouldIgnore(relPath: "docs/README.md", isDirectory: false))
+
+        // Except temp/**/README.md should exclude README in temp dirs
+        #expect(try spec.shouldIgnore(relPath: "temp/README.md", isDirectory: false))
+        #expect(try spec.shouldIgnore(relPath: "temp/cache/README.md", isDirectory: false))
+    }
+
     // MARK: - Integration tests with BuildFSSync
 
     @Test func testDockerignoreExcludesMatchingFiles() async throws {
