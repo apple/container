@@ -23,13 +23,13 @@ enum TestError: Error {
     case missingBuildTransfer
 }
 
-@Suite class DockerignoreTests {
+@Suite class IgnoreSpecTests {
     private var baseTempURL: URL
     private let fileManager = FileManager.default
 
     init() throws {
         self.baseTempURL = URL.temporaryDirectory
-            .appendingPathComponent("DockerignoreTests-\(UUID().uuidString)")
+            .appendingPathComponent("IgnoreSpecTests-\(UUID().uuidString)")
         try fileManager.createDirectory(at: baseTempURL, withIntermediateDirectories: true, attributes: nil)
     }
 
@@ -50,6 +50,58 @@ enum TestError: Error {
         )
         try #require(created)
     }
+
+    // MARK: - Unit tests for IgnoreSpec
+
+    @Test func testIgnoreSpecParsesPatterns() throws {
+        let content = """
+            # This is a comment
+            *.log
+
+            node_modules
+            # Another comment
+            temp/
+            """
+        let data = content.data(using: .utf8)!
+        let spec = IgnoreSpec(data)
+
+        // Test that it correctly ignores files matching patterns
+        #expect(try spec.shouldIgnore(relPath: "debug.log", isDirectory: false))
+        #expect(try spec.shouldIgnore(relPath: "node_modules", isDirectory: true))
+        #expect(try spec.shouldIgnore(relPath: "temp/", isDirectory: true))
+        #expect(try !spec.shouldIgnore(relPath: "src/app.swift", isDirectory: false))
+    }
+
+    @Test func testIgnoreSpecHandlesEmptyData() throws {
+        let data = Data()
+        let spec = IgnoreSpec(data)
+
+        // Empty spec should not ignore anything
+        #expect(try !spec.shouldIgnore(relPath: "anyfile.txt", isDirectory: false))
+    }
+
+    @Test func testIgnoreSpecHandlesNestedPaths() throws {
+        let content = "*.log"
+        let data = content.data(using: .utf8)!
+        let spec = IgnoreSpec(data)
+
+        // Should match .log files in nested directories
+        #expect(try spec.shouldIgnore(relPath: "logs/debug.log", isDirectory: false))
+        #expect(try spec.shouldIgnore(relPath: "app/logs/error.log", isDirectory: false))
+        #expect(try !spec.shouldIgnore(relPath: "logs/debug.txt", isDirectory: false))
+    }
+
+    @Test func testIgnoreSpecHandlesDirectories() throws {
+        let content = "node_modules"
+        let data = content.data(using: .utf8)!
+        let spec = IgnoreSpec(data)
+
+        // Should match directories
+        #expect(try spec.shouldIgnore(relPath: "node_modules", isDirectory: true))
+        #expect(try spec.shouldIgnore(relPath: "src/node_modules", isDirectory: true))
+    }
+
+    // MARK: - Integration tests with BuildFSSync
 
     @Test func testDockerignoreExcludesMatchingFiles() async throws {
         // Setup: Create a build context with files and .dockerignore
