@@ -33,7 +33,7 @@ class TestCLIStatsCommand: CLITest {
             }
             try waitForContainerRunning(name)
 
-            let (output, error, status) = try run(arguments: [
+            let (data, _, error, status) = try run(arguments: [
                 "stats",
                 "--format", "json",
                 "--no-stream",
@@ -42,12 +42,8 @@ class TestCLIStatsCommand: CLITest {
 
             try #require(status == 0, "stats command should succeed, error: \(error)")
 
-            guard let jsonData = output.data(using: .utf8) else {
-                throw CLIError.invalidOutput("stats output invalid")
-            }
-
             let decoder = JSONDecoder()
-            let stats = try decoder.decode([ContainerStats].self, from: jsonData)
+            let stats = try decoder.decode([ContainerStats].self, from: data)
 
             #expect(stats.count == 1, "expected stats for one container")
             #expect(stats[0].id == name, "container ID should match")
@@ -67,7 +63,7 @@ class TestCLIStatsCommand: CLITest {
             try waitForContainerRunning(name)
 
             // Get stats in table format
-            let (output, _, status) = try run(arguments: [
+            let (_, output, _, status) = try run(arguments: [
                 "stats",
                 "--no-stream",
                 name,
@@ -111,7 +107,7 @@ class TestCLIStatsCommand: CLITest {
             try waitForContainerRunning(name)
 
             // Get stats in table format
-            let (output, _, status) = try run(arguments: [
+            let (_, output, _, status) = try run(arguments: [
                 "stats",
                 "--no-stream",
                 name,
@@ -157,7 +153,7 @@ class TestCLIStatsCommand: CLITest {
             try waitForContainerRunning(name)
 
             // Get stats in table format
-            let (output, error, status) = try run(arguments: [
+            let (_, output, error, status) = try run(arguments: [
                 "stats",
                 "--no-stream",
                 name,
@@ -187,7 +183,7 @@ class TestCLIStatsCommand: CLITest {
             try waitForContainerRunning(name2)
 
             // Get stats for all containers (no name specified)
-            let (output, error, status) = try run(arguments: [
+            let (data, _, error, status) = try run(arguments: [
                 "stats",
                 "--format", "json",
                 "--no-stream",
@@ -195,11 +191,7 @@ class TestCLIStatsCommand: CLITest {
 
             try #require(status == 0, "stats command should succeed, error: \(error)")
 
-            guard let jsonData = output.data(using: .utf8) else {
-                throw CLIError.invalidOutput("stats output invalid")
-            }
-
-            let stats = try JSONDecoder().decode([ContainerStats].self, from: jsonData)
+            let stats = try JSONDecoder().decode([ContainerStats].self, from: data)
 
             // Should have stats for both containers
             try #require(stats.count >= 2, "should have stats for at least 2 containers")
@@ -212,7 +204,7 @@ class TestCLIStatsCommand: CLITest {
 
     @Test func testStatsNonExistentContainer() throws {
         #expect(throws: Never.self, "expected stats to fail for non-existent container") {
-            let (_, _, status) = try run(arguments: [
+            let (_, _, _, status) = try run(arguments: [
                 "stats",
                 "--no-stream",
                 "nonexistent-container-xyz",
