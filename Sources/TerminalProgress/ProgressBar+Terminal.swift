@@ -63,12 +63,17 @@ extension ProgressBar {
     }
 
     func displayText(_ text: String, terminating: String = "\r") {
+        if config.plain {
+            display(text + "\n")
+            return
+        }
         var text = text
+        let visibleText = stripAnsi(text)
 
         // Clears previously printed characters if the new string is shorter.
         printedWidth.withLock {
-            text += String(repeating: " ", count: max($0 - text.count, 0))
-            $0 = text.count
+            text += String(repeating: " ", count: max($0 - visibleText.count, 0))
+            $0 = visibleText.count
         }
         state.withLock {
             $0.output = text
@@ -77,7 +82,7 @@ extension ProgressBar {
         // Clears previously printed lines.
         var lines = ""
         if terminating.hasSuffix("\r") && terminalWidth > 0 {
-            let lineCount = (text.count - 1) / terminalWidth
+            let lineCount = (visibleText.count - 1) / terminalWidth
             for _ in 0..<lineCount {
                 lines += EscapeSequence.moveUp
             }
@@ -85,5 +90,10 @@ extension ProgressBar {
 
         text = "\(text)\(terminating)\(lines)"
         display(text)
+    }
+
+    private func stripAnsi(_ text: String) -> String {
+        let pattern = #"\u001B\[[0-9;]*[A-Za-z]"#
+        return text.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
     }
 }
