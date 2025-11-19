@@ -65,7 +65,7 @@ uninstall-container.sh -k
 
 ## Contributing
 
-Contributions to `container` are welcomed and encouraged. Please see our [main contributing guide](https://github.com/apple/containerization/blob/main/CONTRIBUTING.md) for more information.
+Contributions to `container` are welcomed and encouraged. Please see our [main contributing guide](CONTRIBUTING.md) for more information.
 
 ## Project Status
 
