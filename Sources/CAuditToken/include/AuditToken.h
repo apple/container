@@ -14,21 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerVersion
-import Foundation
+#include <xpc/xpc.h>
+#include <bsm/libbsm.h> 
 
-/// Provides the application installation root path.
-public struct InstallRoot {
-    public static let environmentName = "CONTAINER_INSTALL_ROOT"
-
-    public static let defaultURL = CommandLine.executablePathUrl
-        .deletingLastPathComponent()
-        .appendingPathComponent("..")
-        .standardized
-
-    private static let envPath = ProcessInfo.processInfo.environment[Self.environmentName]
-
-    public static let url = envPath.map { URL(fileURLWithPath: $0) } ?? defaultURL
-
-    public static let path = url.path(percentEncoded: false)
-}
+void xpc_dictionary_get_audit_token(xpc_object_t xdict, audit_token_t *token);

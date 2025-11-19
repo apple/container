@@ -273,6 +273,30 @@ extension SandboxClient {
             )
         }
     }
+
+    public func statistics() async throws -> ContainerStats {
+        let request = XPCMessage(route: SandboxRoutes.statistics.rawValue)
+
+        let response: XPCMessage
+        do {
+            response = try await self.client.send(request)
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to get statistics for container \(self.id)",
+                cause: error
+            )
+        }
+
+        guard let data = response.dataNoCopy(key: .statistics) else {
+            throw ContainerizationError(
+                .internalError,
+                message: "no statistics data returned"
+            )
+        }
+
+        return try JSONDecoder().decode(ContainerStats.self, from: data)
+    }
 }
 
 extension XPCMessage {

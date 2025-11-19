@@ -194,6 +194,26 @@ If you configured the local domain `test` earlier in the tutorial, you can also 
 open http://my-web-server.test
 ```
 
+### Monitor container resource usage
+
+Now that your web server is running, you can monitor its resource usage with the `container stats` command:
+
+```bash
+container stats my-web-server
+```
+
+This displays real-time statistics about CPU usage, memory consumption, network traffic, disk I/O, and the number of running processes:
+
+<pre>
+% container stats --no-stream my-web-server
+Container ID    Cpu %   Memory Usage          Net Rx/Tx            Block I/O            Pids
+my-web-server   0.23%   12.45 MiB / 1.00 GiB  856.00 KiB / 1.2 KiB 2.10 MiB / 512 KiB   2
+%
+</pre>
+
+> [!NOTE]
+> Without the `--no-stream` flag, `container stats` continuously updates the display in real-time, similar to the `top` command. Press Ctrl+C to exit the live view.
+
 ### Run other commands in the container
 
 You can run other commands in `my-web-server` by using the `container exec` command. To list the files under the content directory, run an `ls` command:

@@ -400,6 +400,15 @@ public actor ContainersService {
         }
     }
 
+    /// Get statistics for the container.
+    public func stats(id: String) async throws -> ContainerStats {
+        self.log.debug("\(#function)")
+
+        let state = try self._getContainerState(id: id)
+        let client = try state.getClient()
+        return try await client.statistics()
+    }
+
     /// Delete a container and its resources.
     public func delete(id: String, force: Bool) async throws {
         self.log.debug("\(#function)")

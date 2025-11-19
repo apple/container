@@ -59,6 +59,7 @@ public struct Application: AsyncParsableCommand {
                     ContainerLogs.self,
                     ContainerRun.self,
                     ContainerStart.self,
+                    ContainerStats.self,
                     ContainerStop.self,
                 ]
             ),

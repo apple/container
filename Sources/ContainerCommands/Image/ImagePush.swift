@@ -34,7 +34,7 @@ extension Application {
         var progressFlags: Flags.Progress
 
         @Option(
-            name: [.customLong("arch"), .customShort("a")],
+            name: .shortAndLong,
             help: "Limit the push to the specified architecture"
         )
         var arch: String?

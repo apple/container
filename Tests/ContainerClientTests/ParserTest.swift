@@ -29,6 +29,7 @@ struct ParserTest {
         #expect(result[0].hostPort == UInt16(8080))
         #expect(result[0].containerPort == UInt16(8000))
         #expect(result[0].proto == .tcp)
+        #expect(result[0].count == 1)
     }
 
     @Test
@@ -39,6 +40,29 @@ struct ParserTest {
         #expect(result[0].hostPort == UInt16(8000))
         #expect(result[0].containerPort == UInt16(8080))
         #expect(result[0].proto == .udp)
+        #expect(result[0].count == 1)
+    }
+
+    @Test
+    func testPublishPortRange() throws {
+        let result = try Parser.publishPorts(["127.0.0.1:8080-8179:9000-9099/tcp"])
+        #expect(result.count == 1)
+        #expect(result[0].hostAddress == "127.0.0.1")
+        #expect(result[0].hostPort == UInt16(8080))
+        #expect(result[0].containerPort == UInt16(9000))
+        #expect(result[0].proto == .tcp)
+        #expect(result[0].count == 100)
+    }
+
+    @Test
+    func testPublishPortRangeSingle() throws {
+        let result = try Parser.publishPorts(["127.0.0.1:8080-8080:9000-9000/tcp"])
+        #expect(result.count == 1)
+        #expect(result[0].hostAddress == "127.0.0.1")
+        #expect(result[0].hostPort == UInt16(8080))
+        #expect(result[0].containerPort == UInt16(9000))
+        #expect(result[0].proto == .tcp)
+        #expect(result[0].count == 1)
     }
 
     @Test
@@ -49,6 +73,7 @@ struct ParserTest {
         #expect(result[0].hostPort == UInt16(8080))
         #expect(result[0].containerPort == UInt16(8000))
         #expect(result[0].proto == .tcp)
+        #expect(result[0].count == 1)
     }
 
     @Test
@@ -59,6 +84,7 @@ struct ParserTest {
         #expect(result[0].hostPort == UInt16(8080))
         #expect(result[0].containerPort == UInt16(8000))
         #expect(result[0].proto == .tcp)
+        #expect(result[0].count == 1)
     }
 
     @Test
@@ -100,7 +126,7 @@ struct ParserTest {
     @Test
     func testPublishPortInvalidHostPort() throws {
         #expect {
-            _ = try Parser.publishPorts(["foo:1234"])
+            _ = try Parser.publishPorts(["65536:1234"])
         } throws: { error in
             guard let error = error as? ContainerizationError else {
                 return false
@@ -112,7 +138,139 @@ struct ParserTest {
     @Test
     func testPublishPortInvalidContainerPort() throws {
         #expect {
-            _ = try Parser.publishPorts(["1234:foo"])
+            _ = try Parser.publishPorts(["1234:65536"])
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid publish container port")
+        }
+    }
+
+    @Test
+    func testPublishPortRangeMismatch() throws {
+        #expect {
+            _ = try Parser.publishPorts(["8000-8000:9000-9001"])
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("counts are not equal")
+        }
+    }
+
+    @Test
+    func testPublishPortRangeInvalidHostPortStart() throws {
+        #expect {
+            _ = try Parser.publishPorts(["65536-65537:9000-9001"])
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid publish host port")
+        }
+    }
+
+    @Test
+    func testPublishPortRangeZeroHostPortStart() throws {
+        #expect {
+            _ = try Parser.publishPorts(["0-1:9000-9001"])
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid publish host port")
+        }
+    }
+
+    @Test
+    func testPublishPortRangeInvalidHostPortEnd() throws {
+        #expect {
+            _ = try Parser.publishPorts(["65535-65536:9000-9001"])
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid publish host port")
+        }
+    }
+
+    @Test
+    func testPublishPortRangeInvalidHostPortRange() throws {
+        #expect {
+            _ = try Parser.publishPorts(["8000-8001-8002:9000-9001"])
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid publish host port")
+        }
+    }
+
+    @Test
+    func testPublishPortRangeNegativeHostPortRange() throws {
+        #expect {
+            _ = try Parser.publishPorts(["8001-8000:9000-9001"])
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid publish host port")
+        }
+    }
+
+    @Test
+    func testPublishPortRangeInvalidContainerPortStart() throws {
+        #expect {
+            _ = try Parser.publishPorts(["8000-8001:65536-65537"])
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid publish container port")
+        }
+    }
+
+    @Test
+    func testPublishPortRangeZeroContainerPortStart() throws {
+        #expect {
+            _ = try Parser.publishPorts(["8000-8001:0-1"])
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid publish container port")
+        }
+    }
+
+    @Test
+    func testPublishPortRangeInvalidContainerPortEnd() throws {
+        #expect {
+            _ = try Parser.publishPorts(["8000-8001:65535-65536"])
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid publish container port")
+        }
+    }
+
+    @Test
+    func testPublishPortRangeInvalidContainerPortRange() throws {
+        #expect {
+            _ = try Parser.publishPorts(["8000-8001:9000-9001-9002"])
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid publish container port")
+        }
+    }
+
+    @Test
+    func testPublishPortRangeNegativeContainerPortRange() throws {
+        #expect {
+            _ = try Parser.publishPorts(["8000-8001:9001-9000"])
         } throws: { error in
             guard let error = error as? ContainerizationError else {
                 return false

@@ -29,7 +29,7 @@ class TestCLIAnonymousVolumes: CLITest {
 
     private func cleanupAllTestResources() {
         // Clean up test containers (force remove)
-        if let (output, _, status) = try? run(arguments: ["ls", "-a"]), status == 0 {
+        if let (_, output, _, status) = try? run(arguments: ["ls", "-a"]), status == 0 {
             let containers = output.components(separatedBy: .newlines)
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { $0.lowercased().starts(with: "test") }
@@ -40,7 +40,7 @@ class TestCLIAnonymousVolumes: CLITest {
         }
 
         // Clean up test volumes (both anonymous and named)
-        if let (output, _, status) = try? run(arguments: ["volume", "list", "--quiet"]), status == 0 {
+        if let (_, output, _, status) = try? run(arguments: ["volume", "list", "--quiet"]), status == 0 {
             let volumes = output.components(separatedBy: .newlines)
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { isValidUUID($0) || $0.lowercased().starts(with: "test") }
@@ -56,7 +56,7 @@ class TestCLIAnonymousVolumes: CLITest {
     }
 
     func getAnonymousVolumeNames() throws -> [String] {
-        let (output, error, status) = try run(arguments: ["volume", "list", "--quiet"])
+        let (_, output, error, status) = try run(arguments: ["volume", "list", "--quiet"])
         guard status == 0 else {
             throw CLIError.executionFailed("volume list failed: \(error)")
         }
@@ -66,7 +66,7 @@ class TestCLIAnonymousVolumes: CLITest {
     }
 
     func volumeExists(name: String) throws -> Bool {
-        let (output, _, status) = try run(arguments: ["volume", "list", "--quiet"])
+        let (_, output, _, status) = try run(arguments: ["volume", "list", "--quiet"])
         guard status == 0 else { return false }
         let volumes = output.components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -80,14 +80,14 @@ class TestCLIAnonymousVolumes: CLITest {
     }
 
     func doVolumeCreate(name: String) throws {
-        let (_, error, status) = try run(arguments: ["volume", "create", name])
+        let (_, _, error, status) = try run(arguments: ["volume", "create", name])
         if status != 0 {
             throw CLIError.executionFailed("volume create failed: \(error)")
         }
     }
 
     func doVolumeDeleteIfExists(name: String) {
-        let (_, _, _) = (try? run(arguments: ["volume", "rm", name])) ?? ("", "", 1)
+        let (_, _, _, _) = (try? run(arguments: ["volume", "rm", name])) ?? (nil, "", "", 1)
     }
 
     func doRemoveIfExists(name: String, force: Bool = false) {
@@ -96,7 +96,7 @@ class TestCLIAnonymousVolumes: CLITest {
             args.append("--force")
         }
         args.append(name)
-        let (_, _, _) = (try? run(arguments: args)) ?? ("", "", 1)
+        let (_, _, _, _) = (try? run(arguments: args)) ?? (nil, "", "", 1)
     }
 
     @Test func testAnonymousVolumeCreationAndPersistence() async throws {
@@ -115,7 +115,7 @@ class TestCLIAnonymousVolumes: CLITest {
         let beforeCount = try getAnonymousVolumeNames().count
 
         // Run container with --rm and anonymous volume
-        let (_, _, status) = try run(arguments: [
+        let (_, _, _, status) = try run(arguments: [
             "run",
             "--rm",
             "--name",
@@ -133,7 +133,7 @@ class TestCLIAnonymousVolumes: CLITest {
         try await Task.sleep(for: .seconds(1))
 
         // Verify container was removed
-        let (lsOutput, _, _) = try run(arguments: ["ls", "-a"])
+        let (_, lsOutput, _, _) = try run(arguments: ["ls", "-a"])
         let containers = lsOutput.components(separatedBy: .newlines)
             .filter { $0.contains(containerName) }
         #expect(containers.isEmpty, "container should be removed with --rm")
@@ -206,7 +206,7 @@ class TestCLIAnonymousVolumes: CLITest {
         let beforeCount = try getAnonymousVolumeNames().count
 
         // Run with multiple anonymous volumes
-        let (_, _, status) = try run(arguments: [
+        let (_, _, _, status) = try run(arguments: [
             "run",
             "--rm",
             "--name",
@@ -243,7 +243,7 @@ class TestCLIAnonymousVolumes: CLITest {
         let beforeCount = try getAnonymousVolumeNames().count
 
         // Use --mount syntax
-        let (_, _, status) = try run(arguments: [
+        let (_, _, _, status) = try run(arguments: [
             "run",
             "--rm",
             "--name",
@@ -314,7 +314,7 @@ class TestCLIAnonymousVolumes: CLITest {
         let volumeName = volumeNames[0]
 
         // Inspect volume in JSON format
-        let (output, error, status) = try run(arguments: ["volume", "list", "--format", "json"])
+        let (_, output, error, status) = try run(arguments: ["volume", "list", "--format", "json"])
         #expect(status == 0, "volume list should succeed: \(error)")
 
         // Parse JSON to verify metadata
@@ -351,7 +351,7 @@ class TestCLIAnonymousVolumes: CLITest {
         try waitForContainerRunning(containerName)
 
         // List volumes
-        let (output, error, status) = try run(arguments: ["volume", "list"])
+        let (_, output, error, status) = try run(arguments: ["volume", "list"])
         #expect(status == 0, "volume list should succeed: \(error)")
 
         // Verify TYPE column exists and shows both types
@@ -381,7 +381,7 @@ class TestCLIAnonymousVolumes: CLITest {
         let beforeAnonCount = try getAnonymousVolumeNames().count
 
         // Run with both named and anonymous volumes, with --rm
-        let (_, _, status) = try run(arguments: [
+        let (_, _, _, status) = try run(arguments: [
             "run",
             "--rm",
             "--name",
@@ -427,7 +427,7 @@ class TestCLIAnonymousVolumes: CLITest {
         doRemoveIfExists(name: containerName, force: true)
 
         // Manual deletion should succeed (volume is unmounted)
-        let (_, error, status) = try run(arguments: ["volume", "rm", volumeID])
+        let (_, _, error, status) = try run(arguments: ["volume", "rm", volumeID])
         #expect(status == 0, "manual deletion of unmounted anonymous volume should succeed: \(error)")
 
         // Verify volume is gone
@@ -450,7 +450,7 @@ class TestCLIAnonymousVolumes: CLITest {
         let beforeCount = try getAnonymousVolumeNames().count
 
         // Run in detached mode with --rm
-        let (_, _, status) = try run(arguments: [
+        let (_, _, _, status) = try run(arguments: [
             "run",
             "-d",
             "--rm",
@@ -467,7 +467,7 @@ class TestCLIAnonymousVolumes: CLITest {
         try await Task.sleep(for: .seconds(3))
 
         // Container should be removed
-        let (lsOutput, _, _) = try run(arguments: ["ls", "-a"])
+        let (_, lsOutput, _, _) = try run(arguments: ["ls", "-a"])
         let containers = lsOutput.components(separatedBy: .newlines)
             .filter { $0.contains(containerName) }
         #expect(containers.isEmpty, "container should be auto-removed")

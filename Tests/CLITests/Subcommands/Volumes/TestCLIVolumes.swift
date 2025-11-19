@@ -22,21 +22,21 @@ import Testing
 class TestCLIVolumes: CLITest {
 
     func doVolumeCreate(name: String) throws {
-        let (_, error, status) = try run(arguments: ["volume", "create", name])
+        let (_, _, error, status) = try run(arguments: ["volume", "create", name])
         if status != 0 {
             throw CLIError.executionFailed("volume create failed: \(error)")
         }
     }
 
     func doVolumeDelete(name: String) throws {
-        let (_, error, status) = try run(arguments: ["volume", "rm", name])
+        let (_, _, error, status) = try run(arguments: ["volume", "rm", name])
         if status != 0 {
             throw CLIError.executionFailed("volume delete failed: \(error)")
         }
     }
 
     func doVolumeDeleteIfExists(name: String) {
-        let (_, _, _) = (try? run(arguments: ["volume", "rm", name])) ?? ("", "", 1)
+        let (_, _, _, _) = (try? run(arguments: ["volume", "rm", name])) ?? (nil, "", "", 1)
     }
 
     func doRemoveIfExists(name: String, force: Bool = false) {
@@ -45,11 +45,11 @@ class TestCLIVolumes: CLITest {
             args.append("--force")
         }
         args.append(name)
-        let (_, _, _) = (try? run(arguments: args)) ?? ("", "", 1)
+        let (_, _, _, _) = (try? run(arguments: args)) ?? (nil, "", "", 1)
     }
 
     func doesVolumeDeleteFail(name: String) throws -> Bool {
-        let (_, _, status) = try run(arguments: ["volume", "rm", name])
+        let (_, _, _, status) = try run(arguments: ["volume", "rm", name])
         return status != 0
     }
 
@@ -134,7 +134,7 @@ class TestCLIVolumes: CLITest {
         try waitForContainerRunning(container1Name)
 
         // Try to run second container with same volume - should fail
-        let (_, _, status) = try run(arguments: ["run", "--name", container2Name, "-v", "\(volumeName):/data", alpine] + defaultContainerArgs)
+        let (_, _, _, status) = try run(arguments: ["run", "--name", container2Name, "-v", "\(volumeName):/data", alpine] + defaultContainerArgs)
 
         #expect(status != 0, "second container should fail when trying to use volume already in use")
 
@@ -230,7 +230,7 @@ class TestCLIVolumes: CLITest {
         try doVolumeCreate(name: volumeName)
 
         // List volumes and verify it exists
-        let (output, error, status) = try run(arguments: ["volume", "list", "--quiet"])
+        let (_, output, error, status) = try run(arguments: ["volume", "list", "--quiet"])
         if status != 0 {
             throw CLIError.executionFailed("volume list failed: \(error)")
         }
@@ -242,7 +242,7 @@ class TestCLIVolumes: CLITest {
         #expect(volumes.contains(volumeName), "created volume should appear in list")
 
         // Inspect volume
-        let (inspectOutput, inspectError, inspectStatus) = try run(arguments: ["volume", "inspect", volumeName])
+        let (_, inspectOutput, inspectError, inspectStatus) = try run(arguments: ["volume", "inspect", volumeName])
         if inspectStatus != 0 {
             throw CLIError.executionFailed("volume inspect failed: \(inspectError)")
         }
@@ -264,12 +264,12 @@ class TestCLIVolumes: CLITest {
         }
 
         // Verify volume doesn't exist yet
-        let (listOutput, _, _) = try run(arguments: ["volume", "list", "--quiet"])
+        let (_, listOutput, _, _) = try run(arguments: ["volume", "list", "--quiet"])
         let volumeExistsBefore = listOutput.contains(volumeName)
         #expect(!volumeExistsBefore, "volume should not exist initially")
 
         // Run container with non-existent named volume - should auto-create
-        let (output, _, status) = try run(arguments: [
+        let (_, output, _, status) = try run(arguments: [
             "run",
             "--name",
             containerName,
@@ -283,7 +283,7 @@ class TestCLIVolumes: CLITest {
         #expect(output.contains("test"), "container should run successfully")
 
         // Volume should now exist
-        let (listOutputAfter, _, _) = try run(arguments: ["volume", "list", "--quiet"])
+        let (_, listOutputAfter, _, _) = try run(arguments: ["volume", "list", "--quiet"])
         let volumeExistsAfter = listOutputAfter.contains(volumeName)
         #expect(volumeExistsAfter, "volume should be created")
     }
@@ -301,7 +301,7 @@ class TestCLIVolumes: CLITest {
         }
 
         // First container - should auto-create volume
-        let (_, _, status1) = try run(arguments: [
+        let (_, _, _, status1) = try run(arguments: [
             "run",
             "--name",
             containerName1,
@@ -313,7 +313,7 @@ class TestCLIVolumes: CLITest {
         #expect(status1 == 0, "first container should succeed")
 
         // Second container - should reuse existing volume
-        let (_, _, status2) = try run(arguments: [
+        let (_, _, _, status2) = try run(arguments: [
             "run",
             "--name",
             containerName2,
@@ -327,7 +327,7 @@ class TestCLIVolumes: CLITest {
 
     @Test func testVolumePruneNoVolumes() throws {
         // Prune with no volumes should succeed with 0 reclaimed
-        let (output, error, status) = try run(arguments: ["volume", "prune"])
+        let (_, output, error, status) = try run(arguments: ["volume", "prune"])
         if status != 0 {
             throw CLIError.executionFailed("volume prune failed: \(error)")
         }
@@ -351,13 +351,13 @@ class TestCLIVolumes: CLITest {
 
         try doVolumeCreate(name: volumeName1)
         try doVolumeCreate(name: volumeName2)
-        let (listBefore, _, statusBefore) = try run(arguments: ["volume", "list", "--quiet"])
+        let (_, listBefore, _, statusBefore) = try run(arguments: ["volume", "list", "--quiet"])
         #expect(statusBefore == 0)
         #expect(listBefore.contains(volumeName1))
         #expect(listBefore.contains(volumeName2))
 
         // Prune should remove both
-        let (output, error, status) = try run(arguments: ["volume", "prune"])
+        let (_, output, error, status) = try run(arguments: ["volume", "prune"])
         if status != 0 {
             throw CLIError.executionFailed("volume prune failed: \(error)")
         }
@@ -367,7 +367,7 @@ class TestCLIVolumes: CLITest {
         #expect(output.contains("Reclaimed"), "should show reclaimed space")
 
         // Verify volumes are gone
-        let (listAfter, _, statusAfter) = try run(arguments: ["volume", "list", "--quiet"])
+        let (_, listAfter, _, statusAfter) = try run(arguments: ["volume", "list", "--quiet"])
         #expect(statusAfter == 0)
         #expect(!listAfter.contains(volumeName1), "volume1 should be pruned")
         #expect(!listAfter.contains(volumeName2), "volume2 should be pruned")
@@ -397,13 +397,13 @@ class TestCLIVolumes: CLITest {
         try waitForContainerRunning(containerName)
 
         // Prune should only remove the unused volume
-        let (_, error, status) = try run(arguments: ["volume", "prune"])
+        let (_, _, error, status) = try run(arguments: ["volume", "prune"])
         if status != 0 {
             throw CLIError.executionFailed("volume prune failed: \(error)")
         }
 
         // Verify in-use volume still exists
-        let (listAfter, _, statusAfter) = try run(arguments: ["volume", "list", "--quiet"])
+        let (_, listAfter, _, statusAfter) = try run(arguments: ["volume", "list", "--quiet"])
         #expect(statusAfter == 0)
         #expect(listAfter.contains(volumeInUse), "volume in use should NOT be pruned")
         #expect(!listAfter.contains(volumeUnused), "unused volume should be pruned")
@@ -432,23 +432,23 @@ class TestCLIVolumes: CLITest {
         try await Task.sleep(for: .seconds(1))
 
         // Prune should NOT remove the volume (container exists, even if stopped)
-        let (_, error, status) = try run(arguments: ["volume", "prune"])
+        let (_, _, error, status) = try run(arguments: ["volume", "prune"])
         if status != 0 {
             throw CLIError.executionFailed("volume prune failed: \(error)")
         }
 
-        let (listAfter, _, statusAfter) = try run(arguments: ["volume", "list", "--quiet"])
+        let (_, listAfter, _, statusAfter) = try run(arguments: ["volume", "list", "--quiet"])
         #expect(statusAfter == 0)
         #expect(listAfter.contains(volumeName), "volume attached to stopped container should NOT be pruned")
 
         doRemoveIfExists(name: containerName, force: true)
-        let (_, error2, status2) = try run(arguments: ["volume", "prune"])
+        let (_, _, error2, status2) = try run(arguments: ["volume", "prune"])
         if status2 != 0 {
             throw CLIError.executionFailed("volume prune failed: \(error2)")
         }
 
         // Verify volume is gone
-        let (listFinal, _, statusFinal) = try run(arguments: ["volume", "list", "--quiet"])
+        let (_, listFinal, _, statusFinal) = try run(arguments: ["volume", "list", "--quiet"])
         #expect(statusFinal == 0)
         #expect(!listFinal.contains(volumeName), "volume should be pruned after container is deleted")
     }

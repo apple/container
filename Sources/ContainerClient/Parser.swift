@@ -554,19 +554,20 @@ public struct Parser {
     /// Parse --publish-port arguments into PublishPort objects
     /// The format of each argument is `[host-ip:]host-port:container-port[/protocol]`
     /// (e.g., "127.0.0.1:8080:80/tcp")
+    /// host-port and container-port can be ranges (e.g., "127.0.0.1:3456-4567:3456-4567/tcp`
     ///
     /// - Parameter rawPublishPorts: Array of port arguments
     /// - Returns: Array of PublishPort objects
     /// - Throws: ContainerizationError if parsing fails
     public static func publishPorts(_ rawPublishPorts: [String]) throws -> [PublishPort] {
-        var sockets: [PublishPort] = []
+        var publishPorts: [PublishPort] = []
 
         // Process each raw port string
         for socket in rawPublishPorts {
-            let parsedSocket = try Parser.publishPort(socket)
-            sockets.append(parsedSocket)
+            let publishPort = try Parser.publishPort(socket)
+            publishPorts.append(publishPort)
         }
-        return sockets
+        return publishPorts
     }
 
     // Parse a single `--publish-port` argument into a `PublishPort`.
@@ -606,19 +607,83 @@ public struct Parser {
             throw ContainerizationError(.invalidArgument, message: "invalid publish address: \(portText)")
         }
 
-        guard let hostPort = Int(hostPortText) else {
+        let hostPortRangeStart: UInt16
+        let hostPortRangeEnd: UInt16
+        let containerPortRangeStart: UInt16
+        let containerPortRangeEnd: UInt16
+
+        let hostPortParts = hostPortText.split(separator: "-")
+        switch hostPortParts.count {
+        case 1:
+            guard let start = UInt16(hostPortParts[0]) else {
+                throw ContainerizationError(.invalidArgument, message: "invalid publish host port: \(hostPortText)")
+            }
+            hostPortRangeStart = start
+            hostPortRangeEnd = start
+        case 2:
+            guard let start = UInt16(hostPortParts[0]) else {
+                throw ContainerizationError(.invalidArgument, message: "invalid publish host port: \(hostPortText)")
+            }
+
+            guard let end = UInt16(hostPortParts[1]) else {
+                throw ContainerizationError(.invalidArgument, message: "invalid publish host port: \(hostPortText)")
+            }
+
+            hostPortRangeStart = start
+            hostPortRangeEnd = end
+        default:
             throw ContainerizationError(.invalidArgument, message: "invalid publish host port: \(hostPortText)")
         }
 
-        guard let containerPort = Int(containerPortText) else {
+        let containerPortParts = containerPortText.split(separator: "-")
+        switch containerPortParts.count {
+        case 1:
+            guard let start = UInt16(containerPortParts[0]) else {
+                throw ContainerizationError(.invalidArgument, message: "invalid publish container port: \(containerPortText)")
+            }
+
+            containerPortRangeStart = start
+            containerPortRangeEnd = start
+        case 2:
+            guard let start = UInt16(containerPortParts[0]) else {
+                throw ContainerizationError(.invalidArgument, message: "invalid publish container port: \(containerPortText)")
+            }
+
+            guard let end = UInt16(containerPortParts[1]) else {
+                throw ContainerizationError(.invalidArgument, message: "invalid publish container port: \(containerPortText)")
+            }
+
+            containerPortRangeStart = start
+            containerPortRangeEnd = end
+        default:
             throw ContainerizationError(.invalidArgument, message: "invalid publish container port: \(containerPortText)")
+        }
+
+        guard hostPortRangeStart > 1,
+            hostPortRangeStart <= hostPortRangeEnd
+        else {
+            throw ContainerizationError(.invalidArgument, message: "invalid publish host port range: \(hostPortText)")
+        }
+
+        guard containerPortRangeStart > 1,
+            containerPortRangeStart <= containerPortRangeEnd
+        else {
+            throw ContainerizationError(.invalidArgument, message: "invalid publish container port range: \(containerPortText)")
+        }
+
+        let hostCount = hostPortRangeEnd - hostPortRangeStart + 1
+        let containerCount = containerPortRangeEnd - containerPortRangeStart + 1
+
+        guard hostCount == containerCount else {
+            throw ContainerizationError(.invalidArgument, message: "publish host and container port counts are not equal: \(addressAndPortText)")
         }
 
         return PublishPort(
             hostAddress: hostAddress,
-            hostPort: hostPort,
-            containerPort: containerPort,
-            proto: proto
+            hostPort: hostPortRangeStart,
+            containerPort: containerPortRangeStart,
+            proto: proto,
+            count: hostCount
         )
     }
 
