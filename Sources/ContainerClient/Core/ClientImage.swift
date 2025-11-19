@@ -220,7 +220,11 @@ extension ClientImage {
         })
     }
 
-    public static func pull(reference: String, platform: Platform? = nil, scheme: RequestScheme = .auto, progressUpdate: ProgressUpdateHandler? = nil) async throws -> ClientImage {
+    public static func pull(reference: String, platform: Platform? = nil, scheme: RequestScheme = .auto, progressUpdate: ProgressUpdateHandler? = nil, maxConcurrentDownloads: Int = 3) async throws -> ClientImage {
+        guard maxConcurrentDownloads > 0 else {
+            throw ContainerizationError(.invalidArgument, message: "maxConcurrentDownloads must be greater than 0, got \(maxConcurrentDownloads)")
+        }
+
         let client = newXPCClient()
         let request = newRequest(.imagePull)
 
@@ -234,6 +238,7 @@ extension ClientImage {
 
         let insecure = try scheme.schemeFor(host: host) == .http
         request.set(key: .insecureFlag, value: insecure)
+        request.set(key: .maxConcurrentDownloads, value: Int64(maxConcurrentDownloads))
 
         var progressUpdateClient: ProgressUpdateClient?
         if let progressUpdate {
@@ -293,7 +298,7 @@ extension ClientImage {
         return (digests, size)
     }
 
-    public static func fetch(reference: String, platform: Platform? = nil, scheme: RequestScheme = .auto, progressUpdate: ProgressUpdateHandler? = nil) async throws -> ClientImage
+    public static func fetch(reference: String, platform: Platform? = nil, scheme: RequestScheme = .auto, progressUpdate: ProgressUpdateHandler? = nil, maxConcurrentDownloads: Int = 3) async throws -> ClientImage
     {
         do {
             let match = try await self.get(reference: reference)
@@ -307,7 +312,7 @@ extension ClientImage {
             guard err.isCode(.notFound) else {
                 throw err
             }
-            return try await Self.pull(reference: reference, platform: platform, scheme: scheme, progressUpdate: progressUpdate)
+            return try await Self.pull(reference: reference, platform: platform, scheme: scheme, progressUpdate: progressUpdate, maxConcurrentDownloads: maxConcurrentDownloads)
         }
     }
 }

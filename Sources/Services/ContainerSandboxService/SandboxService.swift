@@ -119,6 +119,7 @@ public actor SandboxService {
             try bundle.createLogFile()
 
             var config = try bundle.configuration
+
             let vmm = VZVirtualMachineManager(
                 kernel: try bundle.kernel,
                 initialFilesystem: bundle.initialFilesystem.asMount,
@@ -888,11 +889,11 @@ public actor SandboxService {
         czConfig.process.terminal = process.terminal
         czConfig.process.workingDirectory = process.workingDirectory
         czConfig.process.rlimits = process.rlimits.map {
-            .init(type: $0.limit, hard: $0.hard, soft: $0.soft)
+            POSIXRlimit(type: $0.limit, hard: $0.hard, soft: $0.soft)
         }
         switch process.user {
         case .raw(let name):
-            czConfig.process.user = .init(
+            czConfig.process.user = ContainerizationOCI.User(
                 uid: 0,
                 gid: 0,
                 umask: nil,
@@ -900,7 +901,7 @@ public actor SandboxService {
                 username: name
             )
         case .id(let uid, let gid):
-            czConfig.process.user = .init(
+            czConfig.process.user = ContainerizationOCI.User(
                 uid: uid,
                 gid: gid,
                 umask: nil,
@@ -930,11 +931,11 @@ public actor SandboxService {
         proc.terminal = config.terminal
         proc.workingDirectory = config.workingDirectory
         proc.rlimits = config.rlimits.map {
-            .init(type: $0.limit, hard: $0.hard, soft: $0.soft)
+            POSIXRlimit(type: $0.limit, hard: $0.hard, soft: $0.soft)
         }
         switch config.user {
         case .raw(let name):
-            proc.user = .init(
+            proc.user = ContainerizationOCI.User(
                 uid: 0,
                 gid: 0,
                 umask: nil,
@@ -942,7 +943,7 @@ public actor SandboxService {
                 username: name
             )
         case .id(let uid, let gid):
-            proc.user = .init(
+            proc.user = ContainerizationOCI.User(
                 uid: uid,
                 gid: gid,
                 umask: nil,

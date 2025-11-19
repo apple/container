@@ -214,5 +214,8 @@ public struct Flags {
 
         @Option(name: .long, help: ArgumentHelp("Progress type (format: none|ansi)", valueName: "type"))
         public var progress: ProgressType = .ansi
+
+        @Option(name: .long, help: "Maximum number of concurrent layer downloads (default: 3)")
+        public var maxConcurrentDownloads: Int = 3
     }
 }
