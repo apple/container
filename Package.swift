@@ -156,6 +156,15 @@ let package = Package(
             ],
             path: "Sources/Services/ContainerSandboxService"
         ),
+        .testTarget(
+            name: "ContainerSandboxServiceTests",
+            dependencies: [
+                "ContainerSandboxService",
+                "ContainerClient",
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
+            ]
+        ),
         .executableTarget(
             name: "container-network-vmnet",
             dependencies: [
