@@ -65,6 +65,10 @@ public struct ProgressConfig: Sendable {
     public let clearOnFinish: Bool
     /// The flag indicating whether to update the progress bar.
     public let disableProgressUpdates: Bool
+    /// The flag indicating whether to use colors.
+    public let color: Bool
+    /// The flag indicating whether to use plain output (no ANSI codes, one line per update).
+    public let plain: Bool
     /// Creates a new instance of `ProgressConfig`.
     /// - Parameters:
     ///   - terminal: The file handle for progress updates. The default value is `FileHandle.standardError`.
@@ -88,6 +92,8 @@ public struct ProgressConfig: Sendable {
     ///   - theme: The theme of the progress bar. The default value is `nil`.
     ///   - clearOnFinish: The flag indicating whether to clear the progress bar before resetting the cursor. The default is `true`.
     ///   - disableProgressUpdates: The flag indicating whether to update the progress bar. The default is `false`.
+    ///   - color: A flag indicating whether to enable ANSI color output. The default value is `false`.
+    ///   - plain: A flag indicating whether to force plain output with no control sequences. The default value is `false`.
     public init(
         terminal: FileHandle = .standardError,
         description: String = "",
@@ -109,7 +115,9 @@ public struct ProgressConfig: Sendable {
         width: Int = 120,
         theme: ProgressTheme? = nil,
         clearOnFinish: Bool = true,
-        disableProgressUpdates: Bool = false
+        disableProgressUpdates: Bool = false,
+        color: Bool = false,
+        plain: Bool = false
     ) throws {
         if let totalTasks {
             guard totalTasks > 0 else {
@@ -132,11 +140,11 @@ public struct ProgressConfig: Sendable {
         self.initialSubDescription = subDescription
         self.initialItemsName = itemsName
 
-        self.showSpinner = showSpinner
+        self.showSpinner = plain ? false : showSpinner
         self.showTasks = showTasks
         self.showDescription = showDescription
         self.showPercent = showPercent
-        self.showProgressBar = showProgressBar
+        self.showProgressBar = plain ? false : showProgressBar
         self.showItems = showItems
         self.showSize = showSize
         self.showSpeed = showSpeed
@@ -151,6 +159,8 @@ public struct ProgressConfig: Sendable {
         self.theme = theme ?? DefaultProgressTheme()
         self.clearOnFinish = clearOnFinish
         self.disableProgressUpdates = disableProgressUpdates
+        self.color = plain ? false : color
+        self.plain = plain
     }
 }
 

@@ -70,13 +70,15 @@ extension Application {
             var progressConfig: ProgressConfig
             switch self.progressFlags.progress {
             case .none: progressConfig = try ProgressConfig(disableProgressUpdates: true)
-            case .ansi:
+            case .ansi, .color, .plain:
                 progressConfig = try ProgressConfig(
                     description: "Pushing image \(image.reference)",
                     itemsName: "blobs",
                     showItems: true,
                     showSpeed: false,
-                    ignoreSmallSize: true
+                    ignoreSmallSize: true,
+                    color: self.progressFlags.progress == .color,
+                    plain: self.progressFlags.progress == .plain
                 )
             }
 

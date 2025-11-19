@@ -72,6 +72,9 @@ public final class ProgressBar: Sendable {
             $0.subDescription = ""
             $0.tasks += 1
         }
+        if config.plain {
+            render(force: true)
+        }
     }
 
     /// Updates the additional description of the progress bar.
@@ -80,6 +83,9 @@ public final class ProgressBar: Sendable {
         resetCurrentTask()
 
         state.withLock { $0.subDescription = subDescription }
+        if config.plain {
+            render(force: true)
+        }
     }
 
     private func start(intervalSeconds: TimeInterval) async {
@@ -96,6 +102,9 @@ public final class ProgressBar: Sendable {
     /// Starts an animation of the progress bar.
     /// - Parameter intervalSeconds: The time interval between updates in seconds.
     public func start(intervalSeconds: TimeInterval = 0.04) {
+        if config.plain {
+            return
+        }
         Task(priority: .utility) {
             await start(intervalSeconds: intervalSeconds)
         }
@@ -148,15 +157,15 @@ extension ProgressBar {
         if config.showSpinner && !config.showProgressBar {
             if !state.finished {
                 let spinnerIcon = config.theme.getSpinnerIcon(state.iteration)
-                components.append("\(spinnerIcon)")
+                components.append(colorize("\(spinnerIcon)", Color.cyan))
             } else {
-                components.append("\(config.theme.done)")
+                components.append(colorize("\(config.theme.done)", Color.green))
             }
         }
 
         if config.showTasks, let totalTasks = state.totalTasks {
             let tasks = min(state.tasks, totalTasks)
-            components.append("[\(tasks)/\(totalTasks)]")
+            components.append(colorize("[\(tasks)/\(totalTasks)]", Color.cyan))
         }
 
         if config.showDescription && !state.description.isEmpty {
@@ -172,7 +181,7 @@ extension ProgressBar {
         let total = state.totalSize ?? Int64(state.totalItems ?? 0)
 
         if config.showPercent && total > 0 && allowProgress {
-            components.append("\(state.finished ? "100%" : state.percent)")
+            components.append(colorize("\(state.finished ? "100%" : state.percent)", Color.green))
         }
 
         if config.showProgressBar, total > 0, allowProgress {
@@ -181,7 +190,7 @@ extension ProgressBar {
             let barLength = state.finished ? remainingWidth : Int(Int64(remainingWidth) * value / total)
             let barPaddingLength = remainingWidth - barLength
             let bar = "\(String(repeating: config.theme.bar, count: barLength))\(String(repeating: " ", count: barPaddingLength))"
-            components.append("|\(bar)|")
+            components.append("|\(colorize(bar, Color.green))|")
         }
 
         var additionalComponents = [String]()
@@ -246,13 +255,13 @@ extension ProgressBar {
 
         if additionalComponents.count > 0 {
             let joinedAdditionalComponents = additionalComponents.joined(separator: ", ")
-            components.append("(\(joinedAdditionalComponents))")
+            components.append("(\(colorize(joinedAdditionalComponents, Color.cyan)))")
         }
 
         if config.showTime {
             let timeDifferenceSeconds = secondsSinceStart()
             let formattedTime = timeDifferenceSeconds.formattedTime()
-            components.append("[\(formattedTime)]")
+            components.append("[\(colorize(formattedTime, Color.blue))]")
         }
 
         return components.joined(separator: " ")
@@ -286,5 +295,17 @@ extension ProgressBar {
             return "\(size)/\(totalSize)"
         }
         return "\(sizeNumber)/\(totalSizeNumber) \(totalSizeUnit)"
+    }
+
+    private func colorize(_ text: String, _ color: String) -> String {
+        guard config.color else { return text }
+        return "\(color)\(text)\(Color.reset)"
+    }
+
+    private enum Color {
+        static let green = "\u{001B}[32m"
+        static let cyan = "\u{001B}[36m"
+        static let blue = "\u{001B}[34m"
+        static let reset = "\u{001B}[0m"
     }
 }
