@@ -257,6 +257,17 @@ public struct ContainersHarness: Sendable {
     }
 
     @Sendable
+    public func prune(_ message: XPCMessage) async throws -> XPCMessage {
+        let (containerIds, size) = try await service.prune()
+        let data = try JSONEncoder().encode(containerIds)
+
+        let reply = message.reply()
+        reply.set(key: .containers, value: data)
+        reply.set(key: .imageSize, value: Int64(size))
+        return reply
+    }
+
+    @Sendable
     public func logs(_ message: XPCMessage) async throws -> XPCMessage {
         let id = message.string(key: .id)
         guard let id else {
