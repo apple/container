@@ -710,6 +710,20 @@ container network inspect <networks> ... [--debug]
 
 No options.
 
+### `container network prune`
+
+Removes networks not connected to any containers. The command preserves default and system networks, and only prunes networks in the running state.
+
+**Usage**
+
+```bash
+container network prune [--debug]
+```
+
+**Options**
+
+No options.
+
 ## Volume Management
 
 Manage persistent volumes for containers. Volumes can be explicitly created with `volume create` or implicitly created when referenced in container commands (e.g., `-v myvolume:/path` or `-v /path` for anonymous volumes).
