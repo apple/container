@@ -91,7 +91,7 @@ public struct ClientVolume {
         }
 
         let volumeNames = try JSONDecoder().decode([String].self, from: responseData)
-        let size = reply.uint64(key: .size)
+        let size = reply.uint64(key: .volumeSize)
         return (volumeNames, size)
     }
 

@@ -14,38 +14,27 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-#if os(macOS)
-import Foundation
 import ContainerXPC
+import ContainerizationError
+import Foundation
 
-public enum ImagesServiceXPCRoute: String {
-    case imageList
-    case imagePull
-    case imagePush
-    case imageTag
-    case imageBuild
-    case imageDelete
-    case imageSave
-    case imageLoad
-    case imagePrune
-    case imageDiskUsage
+/// Client API for disk usage operations
+public struct ClientDiskUsage {
+    static let serviceIdentifier = "com.apple.container.apiserver"
 
-    case contentGet
-    case contentDelete
-    case contentClean
-    case contentIngestStart
-    case contentIngestComplete
-    case contentIngestCancel
+    /// Get disk usage statistics for all resource types
+    public static func get() async throws -> DiskUsageStats {
+        let client = XPCClient(service: serviceIdentifier)
+        let message = XPCMessage(route: .systemDiskUsage)
+        let reply = try await client.send(message)
 
-    case imageUnpack
-    case snapshotDelete
-    case snapshotGet
-}
+        guard let responseData = reply.dataNoCopy(key: .diskUsageStats) else {
+            throw ContainerizationError(
+                .internalError,
+                message: "Invalid response from server: missing disk usage data"
+            )
+        }
 
-extension XPCMessage {
-    public init(route: ImagesServiceXPCRoute) {
-        self.init(route: route.rawValue)
+        return try JSONDecoder().decode(DiskUsageStats.self, from: responseData)
     }
 }
-
-#endif

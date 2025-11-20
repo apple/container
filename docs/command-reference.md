@@ -935,6 +935,20 @@ container system logs [--follow] [--last <last>] [--debug]
 *   `-f, --follow`: Follow log output
 *   `--last <last>`: Fetch logs starting from the specified time period (minus the current time); supported formats: m, h, d (default: 5m)
 
+### `container system df`
+
+Shows disk usage for images, containers, and volumes. Displays total count, active count, size, and reclaimable space for each resource type.
+
+**Usage**
+
+```bash
+container system df [--format <format>] [--debug]
+```
+
+**Options**
+
+*   `--format <format>`: Format of the output (values: json, table; default: table)
+
 ### `container system dns create`
 
 Creates a local DNS domain for containers. Requires administrator privileges (use sudo).

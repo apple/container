@@ -118,6 +118,10 @@ public enum XPCKeys: String {
 
     /// Container statistics
     case statistics
+    case volumeSize
+
+    /// Disk usage
+    case diskUsageStats
 }
 
 public enum XPCRoute: String {
@@ -152,6 +156,8 @@ public enum XPCRoute: String {
     case volumeList
     case volumeInspect
     case volumePrune
+
+    case systemDiskUsage
 
     case ping
 
