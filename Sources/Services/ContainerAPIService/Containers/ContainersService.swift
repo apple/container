@@ -126,6 +126,76 @@ public actor ContainersService {
         }
     }
 
+    /// Calculate disk usage for containers
+    /// - Returns: Tuple of (total count, active count, total size, reclaimable size)
+    public func calculateDiskUsage() async -> (Int, Int, UInt64, UInt64) {
+        await lock.withLock { _ in
+            var totalSize: UInt64 = 0
+            var reclaimableSize: UInt64 = 0
+            var activeCount = 0
+
+            for (id, state) in await self.containers {
+                let bundlePath = self.containerRoot.appendingPathComponent(id)
+                let containerSize = Self.calculateDirectorySize(at: bundlePath.path)
+                totalSize += containerSize
+
+                if state.snapshot.status == .running {
+                    activeCount += 1
+                } else {
+                    // Stopped containers are reclaimable
+                    reclaimableSize += containerSize
+                }
+            }
+
+            return (await self.containers.count, activeCount, totalSize, reclaimableSize)
+        }
+    }
+
+    /// Get set of image references used by containers (for disk usage calculation)
+    /// - Returns: Set of image references currently in use
+    public func getActiveImageReferences() async -> Set<String> {
+        await lock.withLock { _ in
+            var imageRefs = Set<String>()
+            for (_, state) in await self.containers {
+                imageRefs.insert(state.snapshot.configuration.image.reference)
+            }
+            return imageRefs
+        }
+    }
+
+    /// Calculate directory size using APFS-aware resource keys
+    /// - Parameter path: Path to directory
+    /// - Returns: Total allocated size in bytes
+    private static nonisolated func calculateDirectorySize(at path: String) -> UInt64 {
+        let url = URL(fileURLWithPath: path)
+        let fileManager = FileManager.default
+
+        guard
+            let enumerator = fileManager.enumerator(
+                at: url,
+                includingPropertiesForKeys: [.totalFileAllocatedSizeKey],
+                options: [.skipsHiddenFiles]
+            )
+        else {
+            return 0
+        }
+
+        var totalSize: UInt64 = 0
+        for case let fileURL as URL in enumerator {
+            guard
+                let resourceValues = try? fileURL.resourceValues(
+                    forKeys: [.totalFileAllocatedSizeKey]
+                ),
+                let fileSize = resourceValues.totalFileAllocatedSize
+            else {
+                continue
+            }
+            totalSize += UInt64(fileSize)
+        }
+
+        return totalSize
+    }
+
     /// Create a new container from the provided id and configuration.
     public func create(configuration: ContainerConfiguration, kernel: Kernel, options: ContainerCreateOptions) async throws {
         self.log.debug("\(#function)")
@@ -398,6 +468,15 @@ public actor ContainersService {
                 message: "failed to open container logs: \(error)"
             )
         }
+    }
+
+    /// Get statistics for the container.
+    public func stats(id: String) async throws -> ContainerStats {
+        self.log.debug("\(#function)")
+
+        let state = try self._getContainerState(id: id)
+        let client = try state.getClient()
+        return try await client.statistics()
     }
 
     /// Delete a container and its resources.

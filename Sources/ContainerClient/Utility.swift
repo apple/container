@@ -24,6 +24,8 @@ import Foundation
 import TerminalProgress
 
 public struct Utility {
+    static let publishedPortCountLimit = 64
+
     private static let infraImages = [
         DefaultsStore.get(key: .defaultBuilderImage),
         DefaultsStore.get(key: .defaultInitImage),
@@ -67,6 +69,19 @@ public struct Utility {
         let regex = try Regex(pattern)
         if try regex.firstMatch(in: macAddress) == nil {
             throw ContainerizationError(.invalidArgument, message: "invalid MAC address format \(macAddress), expected format: XX:XX:XX:XX:XX:XX")
+        }
+    }
+
+    public static func validPublishPorts(_ publishPorts: [PublishPort]) throws {
+        var hostPorts = Set<UInt16>()
+        for publishPort in publishPorts {
+            for index in 0..<publishPort.count {
+                let hostPort = publishPort.hostPort + index
+                guard !hostPorts.contains(hostPort) else {
+                    throw ContainerizationError(.invalidArgument, message: "host ports for different publish port specs may not overlap")
+                }
+                hostPorts.insert(hostPort)
+            }
         }
     }
 
@@ -213,13 +228,19 @@ public struct Utility {
             )
         }
 
-        if Platform.current.architecture == "arm64" && requestedPlatform.architecture == "amd64" {
-            config.rosetta = true
+        config.rosetta = management.rosetta || (Platform.current.architecture == "arm64" && requestedPlatform.architecture == "amd64")
+
+        if management.rosetta && Platform.current.architecture != "arm64" {
+            throw ContainerizationError(.unsupported, message: "--rosetta flag requires an arm64 host")
         }
 
         config.labels = try Parser.labels(management.labels)
 
         config.publishedPorts = try Parser.publishPorts(management.publishPorts)
+        guard config.publishedPorts.count <= publishedPortCountLimit else {
+            throw ContainerizationError(.invalidArgument, message: "cannot exceed more than \(publishedPortCountLimit) port publish descriptors")
+        }
+        try validPublishPorts(config.publishedPorts)
 
         // Parse --publish-socket arguments and add to container configuration
         // to enable socket forwarding from container to host.

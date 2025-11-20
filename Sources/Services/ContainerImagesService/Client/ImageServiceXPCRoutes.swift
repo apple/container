@@ -28,6 +28,7 @@ public enum ImagesServiceXPCRoute: String {
     case imageSave
     case imageLoad
     case imagePrune
+    case imageDiskUsage
 
     case contentGet
     case contentDelete

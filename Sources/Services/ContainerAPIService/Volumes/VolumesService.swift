@@ -116,6 +116,44 @@ public actor VolumesService {
         }
     }
 
+    /// Calculate disk usage for volumes
+    /// - Returns: Tuple of (total count, active count, total size, reclaimable size)
+    public func calculateDiskUsage() async throws -> (Int, Int, UInt64, UInt64) {
+        try await lock.withLock { _ in
+            let allVolumes = try await self.store.list()
+
+            // Atomically get active volumes with container list
+            return try await self.containersService.withContainerList { containers in
+                var inUseSet = Set<String>()
+
+                // Find all mounted volumes
+                for container in containers {
+                    for mount in container.configuration.mounts {
+                        if mount.isVolume, let volumeName = mount.volumeName {
+                            inUseSet.insert(volumeName)
+                        }
+                    }
+                }
+
+                var totalSize: UInt64 = 0
+                var reclaimableSize: UInt64 = 0
+
+                // Calculate sizes
+                for volume in allVolumes {
+                    let volumePath = self.volumePath(for: volume.name)
+                    let volumeSize = self.calculateDirectorySize(at: volumePath)
+                    totalSize += volumeSize
+
+                    if !inUseSet.contains(volume.name) {
+                        reclaimableSize += volumeSize
+                    }
+                }
+
+                return (allVolumes.count, inUseSet.count, totalSize, reclaimableSize)
+            }
+        }
+    }
+
     private nonisolated func calculateDirectorySize(at path: String) -> UInt64 {
         let url = URL(fileURLWithPath: path)
         let fileManager = FileManager.default

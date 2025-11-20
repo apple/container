@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerVersion
 import Foundation
 
 /// Provides the application installation root path.

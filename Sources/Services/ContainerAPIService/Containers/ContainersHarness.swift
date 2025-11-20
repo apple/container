@@ -270,4 +270,20 @@ public struct ContainersHarness: Sendable {
         try reply.set(key: .logs, value: fds)
         return reply
     }
+
+    @Sendable
+    public func stats(_ message: XPCMessage) async throws -> XPCMessage {
+        let id = message.string(key: .id)
+        guard let id else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "id cannot be empty"
+            )
+        }
+        let stats = try await service.stats(id: id)
+        let data = try JSONEncoder().encode(stats)
+        let reply = message.reply()
+        reply.set(key: .statistics, value: data)
+        return reply
+    }
 }

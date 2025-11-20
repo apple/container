@@ -124,6 +124,56 @@ public actor ImagesService {
         let (deleted, freedContentBytes) = try await self.imageStore.prune()
         return (deleted, freedContentBytes + freedSnapshotBytes)
     }
+
+    /// Calculate disk usage for images
+    /// - Parameter activeReferences: Set of image references currently in use by containers
+    /// - Returns: Tuple of (total count, active count, total size, reclaimable size)
+    public func calculateDiskUsage(activeReferences: Set<String>) async throws -> (Int, Int, UInt64, UInt64) {
+        let images = try await self._list()
+        var totalSize: UInt64 = 0
+        var reclaimableSize: UInt64 = 0
+        var activeCount = 0
+
+        for image in images {
+            // Calculate size for all platform variants
+            let imageSize = try await self.calculateImageSize(image)
+            totalSize += imageSize
+
+            // Check if image is referenced by any container
+            let isActive = activeReferences.contains(image.reference)
+            if isActive {
+                activeCount += 1
+            } else {
+                reclaimableSize += imageSize
+            }
+        }
+
+        return (images.count, activeCount, totalSize, reclaimableSize)
+    }
+
+    /// Calculate total size for an image including all platform variants
+    private func calculateImageSize(_ image: Containerization.Image) async throws -> UInt64 {
+        var totalSize: UInt64 = 0
+        let index = try await image.index()
+
+        for descriptor in index.manifests {
+            // Skip attestation manifests
+            if let refType = descriptor.annotations?["vnd.docker.reference.type"],
+                refType == "attestation-manifest"
+            {
+                continue
+            }
+
+            guard descriptor.platform != nil else { continue }
+
+            // Get snapshot size for this platform
+            if let snapshotSize = try? await self.snapshotStore.getSnapshotSize(descriptor: descriptor) {
+                totalSize += snapshotSize
+            }
+        }
+
+        return totalSize
+    }
 }
 
 // MARK: Image Snapshot Methods

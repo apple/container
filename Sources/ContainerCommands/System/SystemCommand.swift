@@ -23,6 +23,7 @@ extension Application {
             commandName: "system",
             abstract: "Manage system components",
             subcommands: [
+                SystemDF.self,
                 SystemDNS.self,
                 SystemKernel.self,
                 SystemLogs.self,

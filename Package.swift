@@ -23,8 +23,8 @@ import PackageDescription
 
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
-let builderShimVersion = "0.6.3"
-let scVersion = "0.13.0"
+let builderShimVersion = "0.7.0"
+let scVersion = "0.14.0"
 
 let package = Package(
     name: "container",
@@ -277,6 +277,7 @@ let package = Package(
             dependencies: [
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Containerization", package: "containerization"),
+                "ContainerVersion",
                 "CVersion",
             ]
         ),
@@ -285,6 +286,7 @@ let package = Package(
             dependencies: [
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "ContainerizationOS", package: "containerization"),
+                "ContainerVersion",
             ]
         ),
         .testTarget(
@@ -304,6 +306,7 @@ let package = Package(
             dependencies: [
                 .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "Logging", package: "swift-log"),
+                "CAuditToken",
             ]
         ),
         .target(
@@ -374,6 +377,9 @@ let package = Package(
                 .define("GIT_COMMIT", to: "\"\(gitCommit)\""),
                 .define("RELEASE_VERSION", to: "\"\(releaseVersion)\""),
                 .define("BUILDER_SHIM_VERSION", to: "\"\(builderShimVersion)\""),
+            ],
+            linkerSettings: [
+                .linkedLibrary("bsm")
             ]
         ),
         .macro(
@@ -383,11 +389,14 @@ let package = Package(
                 .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
             ]
         ),
-
-        // Library that exposes a macro as part of its API, which is used in client programs.
         .target(
             name: "HelperMacros",
             dependencies: ["HelperMacrosMacros"]
+        )
+        .target(
+            name: "CAuditToken",
+            dependencies: [],
+            publicHeadersPath: "include"
         ),
     ]
 )

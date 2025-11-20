@@ -144,6 +144,42 @@ class TestCLIBuildBase: CLITest {
         return response.output
     }
 
+    @discardableResult
+    func buildWithStdin(
+        tags: [String],
+        tempContext: URL,
+        dockerfileContents: String,
+        buildArgs: [String] = [],
+        otherArgs: [String] = []
+    ) throws -> String {
+        let contextDir: URL = tempContext.appendingPathComponent("context")
+        let contextDirPath = contextDir.absoluteURL.path
+        var args = [
+            "build",
+            "-f",
+            "-",
+        ]
+        for tag in tags {
+            args.append("-t")
+            args.append(tag)
+        }
+        for arg in buildArgs {
+            args.append("--build-arg")
+            args.append(arg)
+        }
+        args.append(contextDirPath)
+
+        args.append(contentsOf: otherArgs)
+
+        let stdinData = Data(dockerfileContents.utf8)
+        let response = try run(arguments: args, stdin: stdinData)
+        if response.status != 0 {
+            throw CLIError.executionFailed("build failed: stdout=\(response.output) stderr=\(response.error)")
+        }
+
+        return response.output
+    }
+
     enum FileSystemEntry {
         case file(
             _ path: String,
@@ -252,7 +288,7 @@ class TestCLIBuildBase: CLITest {
     }
 
     func builderStart(cpus: Int64 = 2, memoryInGBs: Int64 = 2) throws {
-        let (_, error, status) = try run(arguments: [
+        let (_, _, error, status) = try run(arguments: [
             "builder",
             "start",
             "-c",
@@ -266,7 +302,7 @@ class TestCLIBuildBase: CLITest {
     }
 
     func builderStop() throws {
-        let (_, error, status) = try run(arguments: [
+        let (_, _, error, status) = try run(arguments: [
             "builder",
             "stop",
         ])
@@ -276,7 +312,7 @@ class TestCLIBuildBase: CLITest {
     }
 
     func builderDelete(force: Bool = false) throws {
-        let (_, error, status) = try run(
+        let (_, _, error, status) = try run(
             arguments: [
                 "builder",
                 "delete",

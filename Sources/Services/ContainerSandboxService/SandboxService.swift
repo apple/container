@@ -198,7 +198,7 @@ public actor SandboxService {
                         ))
                 }
                 czConfig.hosts = Hosts(entries: hostsEntries)
-                czConfig.bootlog = bundle.bootlog
+                czConfig.bootLog = BootLog.file(path: bundle.bootlog, append: true)
             }
 
             await self.setContainer(
@@ -254,6 +254,41 @@ public actor SandboxService {
                 try await self.startExecProcess(processId: id, lock: lock)
             }
             return message.reply()
+        }
+    }
+
+    /// Get statistics for the container.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with the following parameters:
+    ///     - id: A client identifier for the process.
+    ///     - stdio: An array of file handles for standard input, output, and error.
+    ///
+    /// - Returns: An XPC message with the following parameters:
+    ///   - statistics: JSON serialization of the `ContainerStats`.
+    @Sendable
+    public func statistics(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`statistics` xpc handler")
+        return try await self.lock.withLock { lock in
+            let containerInfo = try await self.getContainer()
+            let stats = try await containerInfo.container.statistics()
+
+            let containerStats = ContainerStats(
+                id: stats.id,
+                memoryUsageBytes: stats.memory.usageBytes,
+                memoryLimitBytes: stats.memory.limitBytes,
+                cpuUsageUsec: stats.cpu.usageUsec,
+                networkRxBytes: stats.networks.reduce(0) { $0 + $1.receivedBytes },
+                networkTxBytes: stats.networks.reduce(0) { $0 + $1.transmittedBytes },
+                blockReadBytes: stats.blockIO.devices.reduce(0) { $0 + $1.readBytes },
+                blockWriteBytes: stats.blockIO.devices.reduce(0) { $0 + $1.writeBytes },
+                numProcesses: stats.process.current
+            )
+
+            let reply = message.reply()
+            let data = try JSONEncoder().encode(containerStats)
+            reply.set(key: .statistics, value: data)
+            return reply
         }
     }
 
@@ -676,36 +711,39 @@ public actor SandboxService {
 
     private func startSocketForwarders(containerIpAddress: String, publishedPorts: [PublishPort]) async throws {
         var forwarders: [SocketForwarderResult] = []
+        try Utility.validPublishPorts(publishedPorts)
         try await withThrowingTaskGroup(of: SocketForwarderResult.self) { group in
             for publishedPort in publishedPorts {
-                let proxyAddress = try SocketAddress(ipAddress: publishedPort.hostAddress, port: Int(publishedPort.hostPort))
-                let serverAddress = try SocketAddress(ipAddress: containerIpAddress, port: Int(publishedPort.containerPort))
-                log.info(
-                    "creating forwarder for",
-                    metadata: [
-                        "proxy": "\(proxyAddress)",
-                        "server": "\(serverAddress)",
-                        "protocol": "\(publishedPort.proto)",
-                    ])
-                group.addTask {
-                    let forwarder: SocketForwarder
-                    switch publishedPort.proto {
-                    case .tcp:
-                        forwarder = try TCPForwarder(
-                            proxyAddress: proxyAddress,
-                            serverAddress: serverAddress,
-                            eventLoopGroup: self.eventLoopGroup,
-                            log: self.log
-                        )
-                    case .udp:
-                        forwarder = try UDPForwarder(
-                            proxyAddress: proxyAddress,
-                            serverAddress: serverAddress,
-                            eventLoopGroup: self.eventLoopGroup,
-                            log: self.log
-                        )
+                for index in 0..<publishedPort.count {
+                    let proxyAddress = try SocketAddress(ipAddress: publishedPort.hostAddress, port: Int(publishedPort.hostPort + index))
+                    let serverAddress = try SocketAddress(ipAddress: containerIpAddress, port: Int(publishedPort.containerPort + index))
+                    log.info(
+                        "creating forwarder for",
+                        metadata: [
+                            "proxy": "\(proxyAddress)",
+                            "server": "\(serverAddress)",
+                            "protocol": "\(publishedPort.proto)",
+                        ])
+                    group.addTask {
+                        let forwarder: SocketForwarder
+                        switch publishedPort.proto {
+                        case .tcp:
+                            forwarder = try TCPForwarder(
+                                proxyAddress: proxyAddress,
+                                serverAddress: serverAddress,
+                                eventLoopGroup: self.eventLoopGroup,
+                                log: self.log
+                            )
+                        case .udp:
+                            forwarder = try UDPForwarder(
+                                proxyAddress: proxyAddress,
+                                serverAddress: serverAddress,
+                                eventLoopGroup: self.eventLoopGroup,
+                                log: self.log
+                            )
+                        }
+                        return try await forwarder.run().get()
                     }
-                    return try await forwarder.run().get()
                 }
             }
             for try await result in group {
@@ -1059,19 +1097,27 @@ extension Filesystem {
                 destination: self.destination,
                 options: self.options
             )
-        case .block(let format, _, _):
+        case .block(let format, let cacheMode, let syncMode):
             return .block(
                 format: format,
                 source: self.source,
                 destination: self.destination,
-                options: self.options
+                options: self.options,
+                runtimeOptions: [
+                    "\(Filesystem.CacheMode.vzRuntimeOptionKey)=\(cacheMode.asVZRuntimeOption)",
+                    "\(Filesystem.SyncMode.vzRuntimeOptionKey)=\(syncMode.asVZRuntimeOption)",
+                ],
             )
-        case .volume(_, let format, _, _):
+        case .volume(_, let format, let cacheMode, let syncMode):
             return .block(
                 format: format,
                 source: self.source,
                 destination: self.destination,
-                options: self.options
+                options: self.options,
+                runtimeOptions: [
+                    "\(Filesystem.CacheMode.vzRuntimeOptionKey)=\(cacheMode.asVZRuntimeOption)",
+                    "\(Filesystem.SyncMode.vzRuntimeOptionKey)=\(syncMode.asVZRuntimeOption)",
+                ],
             )
         }
     }
@@ -1082,6 +1128,30 @@ extension Filesystem {
         }
         let info = try File.info(self.source)
         return info.isSocket
+    }
+}
+
+extension Filesystem.CacheMode {
+    static let vzRuntimeOptionKey = "vzDiskImageCachingMode"
+
+    var asVZRuntimeOption: String {
+        switch self {
+        case .on: "cached"
+        case .off: "uncached"
+        case .auto: "automatic"
+        }
+    }
+}
+
+extension Filesystem.SyncMode {
+    static let vzRuntimeOptionKey = "vzDiskImageSynchronizationMode"
+
+    var asVZRuntimeOption: String {
+        switch self {
+        case .full: "full"
+        case .fsync: "fsync"
+        case .nosync: "none"
+        }
     }
 }
 

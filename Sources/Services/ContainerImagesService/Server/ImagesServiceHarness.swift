@@ -178,7 +178,28 @@ public struct ImagesServiceHarness: Sendable {
         let reply = message.reply()
         let data = try JSONEncoder().encode(deleted)
         reply.set(key: .digests, value: data)
-        reply.set(key: .size, value: size)
+        reply.set(key: .imageSize, value: size)
+        return reply
+    }
+
+    @Sendable
+    public func calculateDiskUsage(_ message: XPCMessage) async throws -> XPCMessage {
+        // Decode active image references from the message
+        let activeRefsData = message.dataNoCopy(key: .activeImageReferences)
+        let activeRefs: Set<String>
+        if let activeRefsData {
+            activeRefs = try JSONDecoder().decode(Set<String>.self, from: activeRefsData)
+        } else {
+            activeRefs = Set<String>()
+        }
+
+        let (total, active, size, reclaimable) = try await service.calculateDiskUsage(activeReferences: activeRefs)
+
+        let reply = message.reply()
+        reply.set(key: .totalCount, value: Int64(total))
+        reply.set(key: .activeCount, value: Int64(active))
+        reply.set(key: .imageSize, value: size)
+        reply.set(key: .reclaimableSize, value: reclaimable)
         return reply
     }
 }

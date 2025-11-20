@@ -356,6 +356,64 @@ Use the `--boot` option to see the logs for the virtual machine boot and init pr
 %
 </pre>
 
+## Monitor container resource usage
+
+The `container stats` command displays real-time resource usage statistics for your running containers, similar to the `top` command for processes. This is useful for:
+- Monitoring CPU and memory consumption
+- Tracking network and disk I/O
+- Identifying resource-intensive containers
+- Verifying container resource limits are appropriate
+
+By default, `container stats` shows live statistics for all running containers in an interactive display:
+
+```console
+% container stats
+Container ID    Cpu %    Memory Usage           Net Rx/Tx              Block I/O               Pids
+my-web-server   2.45%    45.23 MiB / 1.00 GiB   1.23 MiB / 856.00 KiB  4.50 MiB / 2.10 MiB     3
+db              125.12%  512.50 MiB / 2.00 GiB  5.67 MiB / 3.21 MiB    125.00 MiB / 89.00 MiB  12
+```
+
+To monitor specific containers, provide their names or IDs:
+
+```console
+% container stats my-web-server db
+```
+
+For a single snapshot (non-interactive), use the `--no-stream` flag:
+
+```console
+% container stats --no-stream my-web-server
+Container ID    Cpu %    Memory Usage          Net Rx/Tx              Block I/O              Pids
+my-web-server   30.45%    45.23 MiB / 1.00 GiB  1.23 MiB / 856.00 KiB  4.50 MiB / 2.10 MiB    3
+```
+
+You can also output statistics in JSON format for scripting:
+
+```console
+% container stats --format json --no-stream my-web-server | jq
+[
+  {
+    "id": "my-web-server",
+    "memoryUsageBytes": 47431680,
+    "memoryLimitBytes": 1073741824,
+    "cpuUsageUsec": 1234567,
+    "networkRxBytes": 1289011,
+    "networkTxBytes": 876544,
+    "blockReadBytes": 4718592,
+    "blockWriteBytes": 2202009,
+    "numProcesses": 3
+  }
+]
+```
+
+**Understanding the metrics:**
+
+- **Cpu %**: Percentage of CPU usage. ~100% = one fully utilized core. A multi-core container can show > 100%.
+- **Memory Usage**: Current memory usage vs. the container's memory limit.
+- **Net Rx/Tx**: Network bytes received and transmitted.
+- **Block I/O**: Disk bytes read and written.
+- **Pids**: Number of processes running in the container.
+
 ## Expose virtualization capabilities to a container
 
 > [!NOTE]
