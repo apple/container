@@ -228,6 +228,20 @@ extension ClientContainer {
         }
     }
 
+    public static func prune() async throws -> ([String], Int64) {
+        let client = Self.newXPCClient()
+        let request = XPCMessage(route: .containerPrune)
+        let reply = try await client.send(request)
+
+        guard let responseData = reply.dataNoCopy(key: .containers) else {
+            return ([], 0)
+        }
+
+        let containerIds = try JSONDecoder().decode([String].self, from: responseData)
+        let size = reply.int64(key: .imageSize)
+        return (containerIds, size)
+    }
+
     /// Create a new process inside a running container. The process is in a
     /// created state and must still be started.
     public func createProcess(

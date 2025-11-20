@@ -132,6 +132,7 @@ public enum XPCRoute: String {
     case containerStartProcess
     case containerWait
     case containerDelete
+    case containerPrune
     case containerStop
     case containerDial
     case containerResize
