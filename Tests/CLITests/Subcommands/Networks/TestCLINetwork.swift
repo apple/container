@@ -190,4 +190,44 @@ class TestCLINetwork: CLITest {
             return
         }
     }
+
+    @available(macOS 26, *)
+    @Test func testNetworkPruneRemovesUnusedNetwork() async throws {
+        do {
+            let name = getLowercasedTestName()
+            let networkArgs = ["network", "delete", name]
+            _ = try? run(arguments: networkArgs)
+
+            let createArgs = ["network", "create", name]
+            let createResult = try run(arguments: createArgs)
+            guard createResult.status == 0 else {
+                throw CLIError.executionFailed("command failed: \(createResult.error)")
+            }
+
+            try waitForNetworkRunning(name)
+
+            let pruneResult = try run(arguments: ["network", "prune"])
+            guard pruneResult.status == 0 else {
+                throw CLIError.executionFailed("command failed: \(pruneResult.error)")
+            }
+
+            let prunedNetworks = pruneResult.output
+                .split(whereSeparator: \.isNewline)
+                .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+
+            #expect(prunedNetworks.contains(name))
+
+            let inspectResult = try run(arguments: ["network", "inspect", name])
+            guard let data = inspectResult.output.data(using: .utf8) else {
+                throw CLIError.invalidOutput("network inspect output invalid")
+            }
+            let decoder = JSONDecoder()
+            let networks = try decoder.decode([NetworkInspectOutput].self, from: data)
+            #expect(networks.isEmpty)
+        } catch {
+            Issue.record("failed to prune unused network \(error)")
+            return
+        }
+    }
 }

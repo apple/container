@@ -184,6 +184,32 @@ class CLITest {
         }
     }
 
+    func waitForNetworkRunning(_ name: String, attempts: Int = 30, delay: UInt32 = 1) throws {
+        let decoder = JSONDecoder()
+        for _ in 0..<attempts {
+            let inspectResult = try run(arguments: [
+                "network",
+                "inspect",
+                name,
+            ])
+            if inspectResult.status != 0 {
+                sleep(delay)
+                continue
+            }
+            guard let data = inspectResult.output.data(using: .utf8) else {
+                sleep(delay)
+                continue
+            }
+            if let networks = try? decoder.decode([NetworkInspectOutput].self, from: data),
+                networks.first?.state == "running"
+            {
+                return
+            }
+            sleep(delay)
+        }
+        throw CLIError.executionFailed("network \(name) did not become running")
+    }
+
     enum CLIError: Error {
         case executionFailed(String)
         case invalidInput(String)

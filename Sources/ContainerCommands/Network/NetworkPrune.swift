@@ -48,7 +48,6 @@ extension Application {
                 return !networksInUse.contains(network.id)
             }
 
-            var prunedNetworks: [String] = []
             var failed = [String]()
 
             if !networksToPrune.isEmpty {
@@ -59,6 +58,8 @@ extension Application {
                                 try await ClientNetwork.delete(id: network.id)
                                 return (network.id, true)
                             } catch {
+                                // A failure here can happen when a container attached to the network
+                                // after we collected the state above (race with `container run --network`).
                                 log.error("failed to delete network \(network.id): \(error)")
                                 return (network.id, false)
                             }
@@ -67,20 +68,11 @@ extension Application {
 
                     for try await (networkId, success) in group {
                         if success {
-                            prunedNetworks.append(networkId)
+                            print(networkId)
                         } else {
                             failed.append(networkId)
                         }
                     }
-                }
-            }
-
-            if prunedNetworks.isEmpty {
-                print("No networks to prune")
-            } else {
-                print("Pruned networks:")
-                for networkName in prunedNetworks {
-                    print(networkName)
                 }
             }
 
