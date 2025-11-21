@@ -790,27 +790,18 @@ Removes all volumes that have no container references. This includes volumes tha
 **Usage**
 
 ```bash
-container volume prune [OPTIONS]
+container volume prune [--debug]
 ```
 
 **Options**
 
-*   **Global**: `--debug`, `--version`, `-h`/`--help`
+No options.
 
 **Examples**
 
 ```bash
 # remove all unused volumes
 container volume prune
-```
-
-**Example output:**
-
-```
-Pruned volumes:
-vol1
-vol2
-Reclaimed 71.8 MB in disk space
 ```
 
 ### `container volume list (ls)`
