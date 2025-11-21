@@ -54,6 +54,7 @@ USAGE: container [--debug] <subcommand>
 OPTIONS:
   --debug                 Enable debug output [environment: CONTAINER_DEBUG]
   --version               Show the version.
+  version                 Show detailed version information.
   -h, --help              Show help information.
 
 CONTAINER SUBCOMMANDS:
