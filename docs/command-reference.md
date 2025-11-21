@@ -797,13 +797,6 @@ container volume prune [--debug]
 
 No options.
 
-**Examples**
-
-```bash
-# remove all unused volumes
-container volume prune
-```
-
 ### `container volume list (ls)`
 
 Lists volumes.
