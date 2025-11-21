@@ -43,6 +43,16 @@ extension ClientHealthCheck {
         guard let apiServerCommit = reply.string(key: .apiServerCommit) else {
             throw ContainerizationError(.internalError, message: "failed to decode apiServerCommit in health check")
         }
-        return .init(appRoot: appRoot, installRoot: installRoot, apiServerVersion: apiServerVersion, apiServerCommit: apiServerCommit)
+        // Optional fields for newer servers
+        let apiServerBuild = reply.string(key: .apiServerBuild)
+        let apiServerAppName = reply.string(key: .apiServerAppName)
+        return .init(
+            appRoot: appRoot,
+            installRoot: installRoot,
+            apiServerVersion: apiServerVersion,
+            apiServerCommit: apiServerCommit,
+            apiServerBuild: apiServerBuild,
+            apiServerAppName: apiServerAppName
+        )
     }
 }
