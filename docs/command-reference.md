@@ -783,6 +783,36 @@ container volume delete vol1 vol2 vol3
 container volume delete --all
 ```
 
+### `container volume prune`
+
+Removes all volumes that have no container references. This includes volumes that are not attached to any running or stopped containers. The command reports the actual disk space reclaimed after deletion.
+
+**Usage**
+
+```bash
+container volume prune [OPTIONS]
+```
+
+**Options**
+
+*   **Global**: `--debug`, `--version`, `-h`/`--help`
+
+**Examples**
+
+```bash
+# remove all unused volumes
+container volume prune
+```
+
+**Example output:**
+
+```
+Pruned volumes:
+vol1
+vol2
+Reclaimed 71.8 MB in disk space
+```
+
 ### `container volume list (ls)`
 
 Lists volumes.
