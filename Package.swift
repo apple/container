@@ -375,14 +375,14 @@ let package = Package(
                 .define("RELEASE_VERSION", to: "\"\(releaseVersion)\""),
                 .define("BUILDER_SHIM_VERSION", to: "\"\(builderShimVersion)\""),
             ],
-            linkerSettings: [
-                .linkedLibrary("bsm")
-            ]
         ),
         .target(
             name: "CAuditToken",
             dependencies: [],
-            publicHeadersPath: "include"
+            publicHeadersPath: "include",
+            linkerSettings: [
+                .linkedLibrary("bsm")
+            ]
         ),
     ]
 )
