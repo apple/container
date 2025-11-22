@@ -70,12 +70,11 @@ public struct NetworksHarness: Sendable {
 
     @Sendable
     public func prune(_ message: XPCMessage) async throws -> XPCMessage {
-        let (networkNames, size) = try await service.prune()
+        let networkNames = try await service.prune()
         let data = try JSONEncoder().encode(networkNames)
 
         let reply = message.reply()
         reply.set(key: .networkId, value: data)
-        reply.set(key: .size, value: size)
         return reply
     }
 }

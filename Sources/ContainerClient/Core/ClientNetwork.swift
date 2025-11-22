@@ -88,17 +88,16 @@ extension ClientNetwork {
     }
 
     /// Prune the network with the given id.
-    public static func prune() async throws -> ([String], UInt64) {
+    public static func prune() async throws -> [String] {
         let client = XPCClient(service: serviceIdentifier)
         let message = XPCMessage(route: .networkPrune)
         let reply = try await client.send(message)
 
         guard let responseData = reply.dataNoCopy(key: .networkId) else {
-            return ([], 0)
+            return []
         }
 
         let networkNames = try JSONDecoder().decode([String].self, from: responseData)
-        let size = reply.uint64(key: .size)
-        return (networkNames, size)
+        return networkNames
     }
 }

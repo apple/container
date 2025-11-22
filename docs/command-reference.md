@@ -644,7 +644,7 @@ container network delete [--all] [--debug] [<network-names> ...]
 
 ### `container network prune`
 
-Removes networks not connected to any containers. However, default and system networks are preserved. The command reports the actual disk space reclaimed after deletion.
+Removes networks not connected to any containers. However, default and system networks are preserved.
 
 **Usage**
 

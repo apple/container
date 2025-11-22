@@ -247,7 +247,7 @@ public actor NetworksService {
     }
 
     /// Prune all networks with no container connections (preserve default/system networks)
-    public func prune() async throws -> ([String], UInt64) {
+    public func prune() async throws -> [String] {
         let allNetworks = try await self.store.list()
         // do entire prune operation atomically with container list
         return try await self.containersService.withContainerList { containers in
@@ -263,27 +263,20 @@ public actor NetworksService {
             }
 
             var prunedNames = [String]()
-            var totalSize: UInt64 = 0
 
             for network in networksToPrune {
                 do {
-                    // calculate actual disk usage before deletion
-                    let networkPath = self.networkPath(for: network.id)
-                    let actualSize = self.calculateDirectorySize(at: networkPath)
-
                     try await self.store.delete(network.id)
                     await self.removeNetworkState(for: network.id)
-                    try self.removeNetworkDirectory(for: network.id)
 
                     prunedNames.append(network.id)
-                    totalSize += actualSize
-                    self.log.info("Pruned network", metadata: ["name": "\(network.id)", "size": "\(actualSize)"])
+                    self.log.info("Pruned network", metadata: ["name": "\(network.id)"])
                 } catch {
                     self.log.error("Failed to prune network \(network.id): \(error)")
                 }
             }
 
-            return (prunedNames, totalSize)
+            return prunedNames
         }
     }
 
@@ -340,45 +333,5 @@ public actor NetworksService {
 
     private func removeNetworkState(for id: String) {
         networkStates.removeValue(forKey: id)
-    }
-
-    private nonisolated func networkPath(for name: String) -> String {
-        resourceRoot.appendingPathComponent(name).path
-    }
-
-    private nonisolated func removeNetworkDirectory(for name: String) throws {
-        let networkPath = networkPath(for: name)
-        let fm = FileManager.default
-
-        if fm.fileExists(atPath: networkPath) {
-            try fm.removeItem(atPath: networkPath)
-        }
-    }
-
-    private nonisolated func calculateDirectorySize(at path: String) -> UInt64 {
-        let url = URL(fileURLWithPath: path)
-        let fileManager = FileManager.default
-
-        guard
-            let enumerator = fileManager.enumerator(
-                at: url,
-                includingPropertiesForKeys: [.totalFileAllocatedSizeKey],
-                options: [.skipsHiddenFiles]
-            )
-        else {
-            return 0
-        }
-
-        var totalSize: UInt64 = 0
-        for case let fileURL as URL in enumerator {
-            guard let resourceValues = try? fileURL.resourceValues(forKeys: [.totalFileAllocatedSizeKey]),
-                let fileSize = resourceValues.totalFileAllocatedSize
-            else {
-                continue
-            }
-            totalSize += UInt64(fileSize)
-        }
-
-        return totalSize
     }
 }

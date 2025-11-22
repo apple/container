@@ -30,14 +30,11 @@ extension Application.NetworkCommand {
         var global: Flags.Global
 
         public func run() async throws {
-            let (networkNames, size) = try await ClientNetwork.prune()
-            let formatter = ByteCountFormatter()
-            let freed = formatter.string(fromByteCount: Int64(size))
+            let networkNames = try await ClientNetwork.prune()
 
             for name in networkNames {
                 print(name)
             }
-            print("Reclaimed \(freed) in disk space")
         }
     }
 }

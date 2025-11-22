@@ -208,7 +208,7 @@ class TestCLINetwork: CLITest {
         // Clean up is necessary for testing prune with no networks
         doNetworkDeleteIfExists(name: "testnetworkcreateanduse")
 
-        // Prune with no networks should succeed with 0 reclaimed
+        // Prune with no networks should succeed
         let (_, _, _, statusBefore) = try run(arguments: ["network", "list", "--quiet"])
         #expect(statusBefore == 0)
         let (_, output, error, status) = try run(arguments: ["network", "prune"])
@@ -216,7 +216,7 @@ class TestCLINetwork: CLITest {
             throw CLIError.executionFailed("network prune failed: \(error)")
         }
 
-        #expect(output.contains("Zero KB"), "should show no space reclaimed")
+        #expect(output.isEmpty, "should show no networks pruned")
     }
 
     @Test func testNetworkPruneUnusedNetworks() throws {
@@ -250,7 +250,6 @@ class TestCLINetwork: CLITest {
 
         #expect(output.contains(network1), "should prune network1")
         #expect(output.contains(network2), "should prune network2")
-        #expect(output.contains("Reclaimed"), "should show reclaimed space")
 
         // Verify networks are gone
         let (_, listAfter, _, statusAfter) = try run(arguments: ["network", "list", "--quiet"])
