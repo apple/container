@@ -42,6 +42,7 @@ class CLITest {
 
     struct NetworkInspectOutput: Codable {
         let id: String
+        let createdAt: Date
         let state: String
         let config: NetworkConfiguration
         let status: NetworkStatus?
