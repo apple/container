@@ -41,6 +41,7 @@ let package = Package(
         .library(name: "ContainerPlugin", targets: ["ContainerPlugin"]),
         .library(name: "ContainerVersion", targets: ["ContainerVersion"]),
         .library(name: "ContainerXPC", targets: ["ContainerXPC"]),
+        .library(name: "Metadata", targets: ["Metadata"]),
         .library(name: "SocketForwarder", targets: ["SocketForwarder"]),
     ],
     dependencies: [
@@ -169,6 +170,7 @@ let package = Package(
                 "ContainerNetworkService",
                 "ContainerVersion",
                 "ContainerXPC",
+                "ContainerPlugin",
             ],
             path: "Sources/Helpers/NetworkVmnet"
         ),
@@ -180,6 +182,7 @@ let package = Package(
                 .product(name: "ContainerizationOS", package: "containerization"),
                 "ContainerPersistence",
                 "ContainerXPC",
+                "Metadata",
             ],
             path: "Sources/Services/ContainerNetworkService"
         ),
@@ -258,6 +261,7 @@ let package = Package(
                 "ContainerNetworkService",
                 "ContainerPlugin",
                 "ContainerXPC",
+                "Metadata",
                 "TerminalProgress",
             ]
         ),
@@ -305,6 +309,10 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
                 "CAuditToken",
             ]
+        ),
+        .target(
+            name: "Metadata",
+            dependencies: []
         ),
         .target(
             name: "TerminalProgress",

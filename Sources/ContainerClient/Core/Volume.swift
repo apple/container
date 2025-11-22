@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import Metadata
 
 /// A named or anonymous volume that can be mounted in containers.
 public struct Volume: Sendable, Codable, Equatable, Identifiable {
@@ -29,20 +30,21 @@ public struct Volume: Sendable, Codable, Equatable, Identifiable {
     // The mount point of the volume on the host.
     public var source: String
     // Timestamp when the volume was created.
-    public var createdAt: Date
+    public var createdAt: Date?
     // User-defined key/value metadata.
     public var labels: [String: String]
     // Driver-specific options.
     public var options: [String: String]
     // Size of the volume in bytes (optional).
     public var sizeInBytes: UInt64?
+    // Metadata associated with the volume.
+    public var metadata: ResourceMetadata
 
     public init(
         name: String,
         driver: String = "local",
         format: String = "ext4",
         source: String,
-        createdAt: Date = Date(),
         labels: [String: String] = [:],
         options: [String: String] = [:],
         sizeInBytes: UInt64? = nil
@@ -51,10 +53,31 @@ public struct Volume: Sendable, Codable, Equatable, Identifiable {
         self.driver = driver
         self.format = format
         self.source = source
-        self.createdAt = createdAt
+        self.createdAt = nil
         self.labels = labels
         self.options = options
         self.sizeInBytes = sizeInBytes
+        self.metadata = ResourceMetadata(createdAt: Date.now)
+    }
+
+    public init(from decoder: Decoder) throws {
+        let volume = try decoder.container(keyedBy: CodingKeys.self)
+        self.name = try volume.decode(String.self, forKey: .name)
+        self.driver = try volume.decode(String.self, forKey: .driver)
+        self.format = try volume.decode(String.self, forKey: .format)
+        self.source = try volume.decode(String.self, forKey: .source)
+
+        // if createdAt is set (previous version of struct) then move into metadata, created at should be nil from here on out
+        self.createdAt = nil
+        if let createdAt = try volume.decodeIfPresent(Date.self, forKey: .createdAt) {
+            self.metadata = ResourceMetadata(createdAt: createdAt)
+        } else {
+            self.metadata = try volume.decodeIfPresent(ResourceMetadata.self, forKey: .metadata) ?? ResourceMetadata(createdAt: nil)
+        }
+
+        self.labels = try volume.decode([String: String].self, forKey: .labels)
+        self.options = try volume.decode([String: String].self, forKey: .options)
+        self.sizeInBytes = try volume.decodeIfPresent(UInt64.self, forKey: .sizeInBytes)
     }
 }
 
@@ -65,6 +88,16 @@ extension Volume {
     /// Whether this is an anonymous volume (detected via label)
     public var isAnonymous: Bool {
         labels[Self.anonymousLabel] != nil
+    }
+}
+
+// coalesce createdAt
+extension Volume {
+    public var createdAtCoalesced: Date? {
+        if let createdAt = self.createdAt {
+            return createdAt
+        }
+        return self.metadata.createdAt
     }
 }
 

@@ -5,6 +5,7 @@ Email is not required.
 ### Contributors
 
 Aditya Ramani (adityaramani)
+Alex Kennedy (solventak)
 Danny Canter (dcantah)
 Dmitry Kovba (dkovba)
 Eric Ernst (egernst)

@@ -45,7 +45,7 @@ extension Application {
         }
 
         private func createHeader() -> [[String]] {
-            [["NETWORK", "STATE", "SUBNET"]]
+            [["NETWORK", "STATE", "SUBNET", "CREATED"]]
         }
 
         func printNetworks(networks: [NetworkState], format: ListFormat) throws {
@@ -80,10 +80,18 @@ extension Application {
 extension NetworkState {
     var asRow: [String] {
         switch self {
-        case .created(_):
-            return [self.id, self.state, "none"]
-        case .running(_, let status):
-            return [self.id, self.state, status.address]
+        case .created(let config):
+            var createdAtFormatted = "-"
+            if let createdAt = config.metadata.createdAt {
+                createdAtFormatted = DateFormatter.metadataFormatter.string(from: createdAt)
+            }
+            return [self.id, self.state, "none", createdAtFormatted]
+        case .running(let config, let status):
+            var createdAtFormatted = "-"
+            if let createdAt = config.metadata.createdAt {
+                createdAtFormatted = DateFormatter.metadataFormatter.string(from: createdAt)
+            }
+            return [self.id, self.state, status.address, createdAtFormatted]
         }
     }
 }
@@ -93,6 +101,7 @@ public struct PrintableNetwork: Codable {
     let state: String
     let config: NetworkConfiguration
     let status: NetworkStatus?
+    let createdAt: String
 
     public init(_ network: NetworkState) {
         self.id = network.id
@@ -104,6 +113,13 @@ public struct PrintableNetwork: Codable {
         case .running(let config, let status):
             self.config = config
             self.status = status
+        }
+        if let createdAt = self.config.metadata.createdAt {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            self.createdAt = formatter.string(from: createdAt)
+        } else {
+            self.createdAt = "-"
         }
     }
 }

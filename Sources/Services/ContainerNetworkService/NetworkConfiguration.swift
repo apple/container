@@ -16,9 +16,11 @@
 
 import ContainerizationError
 import ContainerizationExtras
+import Foundation
+import Metadata
 
 /// Configuration parameters for network creation.
-public struct NetworkConfiguration: Codable, Sendable, Identifiable {
+public struct NetworkConfiguration: Codable, Sendable, Identifiable, HasMetadata {
     /// A unique identifier for the network
     public let id: String
 
@@ -31,6 +33,9 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     /// Key-value labels for the network.
     public var labels: [String: String] = [:]
 
+    /// Metadata for the network.
+    public var metadata: ResourceMetadata
+
     /// Creates a network configuration
     public init(
         id: String,
@@ -42,6 +47,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         self.mode = mode
         self.subnet = subnet
         self.labels = labels
+        self.metadata = ResourceMetadata(createdAt: Date.now)
         try validate()
     }
 
@@ -50,6 +56,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         case mode
         case subnet
         case labels
+        case metadata
     }
 
     /// Create a configuration from the supplied Decoder, initializing missing
@@ -61,6 +68,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         mode = try container.decode(NetworkMode.self, forKey: .mode)
         subnet = try container.decodeIfPresent(String.self, forKey: .subnet)
         labels = try container.decodeIfPresent([String: String].self, forKey: .labels) ?? [:]
+        metadata = try container.decodeIfPresent(ResourceMetadata.self, forKey: .metadata) ?? ResourceMetadata(createdAt: nil)
         try validate()
     }
 
