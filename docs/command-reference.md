@@ -642,6 +642,20 @@ container network delete [--all] [--debug] [<network-names> ...]
 
 *   `-a, --all`: Delete all networks
 
+### `container network prune`
+
+Removes networks not connected to any containers. However, default and system networks are preserved. The command reports the actual disk space reclaimed after deletion.
+
+**Usage**
+
+```bash
+container network prune [--debug]
+```
+
+**Options**
+
+No options.
+
 ### `container network list (ls)`
 
 Lists user-defined networks.

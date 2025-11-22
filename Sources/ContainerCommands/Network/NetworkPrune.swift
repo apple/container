@@ -15,22 +15,29 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerClient
+import Foundation
 
-extension Application {
-    public struct NetworkCommand: AsyncParsableCommand {
+extension Application.NetworkCommand {
+    public struct NetworkPrune: AsyncParsableCommand {
+        public init() {}
         public static let configuration = CommandConfiguration(
-            commandName: "network",
-            abstract: "Manage container networks",
-            subcommands: [
-                NetworkCreate.self,
-                NetworkDelete.self,
-                NetworkList.self,
-                NetworkInspect.self,
-                NetworkPrune.self,
-            ],
-            aliases: ["n"]
+            commandName: "prune",
+            abstract: "Remove networks with no container connections"
         )
 
-        public init() {}
+        @OptionGroup
+        var global: Flags.Global
+
+        public func run() async throws {
+            let (networkNames, size) = try await ClientNetwork.prune()
+            let formatter = ByteCountFormatter()
+            let freed = formatter.string(fromByteCount: Int64(size))
+
+            for name in networkNames {
+                print(name)
+            }
+            print("Reclaimed \(freed) in disk space")
+        }
     }
 }

@@ -86,4 +86,19 @@ extension ClientNetwork {
         request.set(key: .networkId, value: id)
         try await client.send(request)
     }
+
+    /// Prune the network with the given id.
+    public static func prune() async throws -> ([String], UInt64) {
+        let client = XPCClient(service: serviceIdentifier)
+        let message = XPCMessage(route: .networkPrune)
+        let reply = try await client.send(message)
+
+        guard let responseData = reply.dataNoCopy(key: .networkId) else {
+            return ([], 0)
+        }
+
+        let networkNames = try JSONDecoder().decode([String].self, from: responseData)
+        let size = reply.uint64(key: .size)
+        return (networkNames, size)
+    }
 }
