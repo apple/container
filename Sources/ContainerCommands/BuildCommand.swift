@@ -148,7 +148,8 @@ extension Application {
                     group.addTask { [vsockPort, cpus, memory] in
                         while true {
                             do {
-                                let container = try await ClientContainer.get(id: "buildkit")
+                                let snapshot = try await ClientContainer.get(id: "buildkit")
+                                let container = ClientContainer(snapshot: snapshot)
                                 let fh = try await container.dial(vsockPort)
 
                                 let threadGroup: MultiThreadedEventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)

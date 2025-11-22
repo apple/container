@@ -39,8 +39,9 @@ extension Application {
 
         public func run() async throws {
             do {
-                let container = try await ClientContainer.get(id: "buildkit")
-                if container.status != .stopped {
+                let snapshot = try await ClientContainer.get(id: "buildkit")
+                let container = ClientContainer(snapshot: snapshot)
+                if snapshot.status != .stopped {
                     guard force else {
                         throw ContainerizationError(.invalidState, message: "BuildKit container is not stopped, use --force to override")
                     }

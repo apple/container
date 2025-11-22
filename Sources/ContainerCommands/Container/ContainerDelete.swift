@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerClient
+import ContainerXPC
 import ContainerizationError
 import Foundation
 
@@ -54,22 +55,22 @@ extension Application {
 
         public mutating func run() async throws {
             let set = Set<String>(containerIds)
-            var containers = [ClientContainer]()
+            var snapshots = [ContainerSnapshot]()
 
             if all {
-                containers = try await ClientContainer.list()
+                snapshots = try await ClientContainer.list()
             } else {
                 let ctrs = try await ClientContainer.list()
-                containers = ctrs.filter { c in
-                    set.contains(c.id)
+                snapshots = ctrs.filter { c in
+                    set.contains(c.configuration.id)
                 }
                 // If one of the containers requested isn't present, let's throw. We don't need to do
                 // this for --all as --all should be perfectly usable with no containers to remove; otherwise,
                 // it'd be quite clunky.
-                if containers.count != set.count {
+                if snapshots.count != set.count {
                     let missing = set.filter { id in
-                        !containers.contains { c in
-                            c.id == id
+                        !snapshots.contains { c in
+                            c.configuration.id == id
                         }
                     }
                     throw ContainerizationError(
@@ -82,23 +83,26 @@ extension Application {
             var failed = [String]()
             let force = self.force
             let all = self.all
+            let sharedClient = XPCClient(service: ClientContainer.serviceIdentifier)
+
             try await withThrowingTaskGroup(of: String?.self) { group in
-                for container in containers {
+                for snapshot in snapshots {
                     group.addTask {
                         do {
-                            if container.status == .running && !force {
+                            if snapshot.status == .running && !force {
                                 guard all else {
                                     throw ContainerizationError(.invalidState, message: "container is running")
                                 }
                                 return nil  // Skip running container when using --all
                             }
 
+                            let container = ClientContainer(snapshot: snapshot, xpcClient: sharedClient)
                             try await container.delete(force: force)
-                            print(container.id)
+                            print(snapshot.configuration.id)
                             return nil
                         } catch {
-                            log.error("failed to delete container \(container.id): \(error)")
-                            return container.id
+                            log.error("failed to delete container \(snapshot.configuration.id): \(error)")
+                            return snapshot.configuration.id
                         }
                     }
                 }
