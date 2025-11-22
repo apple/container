@@ -148,6 +148,15 @@ public final class ReservedVmnetNetwork: Network {
         let runningSubnet = try CIDRAddress(lower: lower, upper: upper)
         let runningGateway = IPv4Address(fromValue: runningSubnet.lower.value + 1)
 
+        // Save auto-assigned subnet to persist across restarts (fixes #835)
+        if configuration.subnet == nil {
+            DefaultsStore.setOptional(key: .defaultSubnet, value: runningSubnet.description)
+            log.info(
+                "saved auto-assigned subnet for persistence",
+                metadata: ["subnet": "\(runningSubnet)"]
+            )
+        }
+
         log.info(
             "started vmnet network",
             metadata: [
