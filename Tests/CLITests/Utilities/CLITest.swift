@@ -316,6 +316,10 @@ class CLITest {
         try inspectContainer(name).status
     }
 
+    func getContainerId(_ name: String) throws -> String {
+        try inspectContainer(name).configuration.id
+    }
+
     func inspectContainer(_ name: String) throws -> inspectOutput {
         let response = try run(arguments: [
             "inspect",
