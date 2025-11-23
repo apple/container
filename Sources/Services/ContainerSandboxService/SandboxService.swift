@@ -851,11 +851,11 @@ public actor SandboxService {
         czConfig.process.terminal = process.terminal
         czConfig.process.workingDirectory = process.workingDirectory
         czConfig.process.rlimits = process.rlimits.map {
-            POSIXRlimit(type: $0.limit, hard: $0.hard, soft: $0.soft)
+            .init(type: $0.limit, hard: $0.hard, soft: $0.soft)
         }
         switch process.user {
         case .raw(let name):
-            czConfig.process.user = ContainerizationOCI.User(
+            czConfig.process.user = .init(
                 uid: 0,
                 gid: 0,
                 umask: nil,
@@ -863,7 +863,7 @@ public actor SandboxService {
                 username: name
             )
         case .id(let uid, let gid):
-            czConfig.process.user = ContainerizationOCI.User(
+            czConfig.process.user = .init(
                 uid: uid,
                 gid: gid,
                 umask: nil,
@@ -893,11 +893,11 @@ public actor SandboxService {
         proc.terminal = config.terminal
         proc.workingDirectory = config.workingDirectory
         proc.rlimits = config.rlimits.map {
-            POSIXRlimit(type: $0.limit, hard: $0.hard, soft: $0.soft)
+            .init(type: $0.limit, hard: $0.hard, soft: $0.soft)
         }
         switch config.user {
         case .raw(let name):
-            proc.user = ContainerizationOCI.User(
+            proc.user = .init(
                 uid: 0,
                 gid: 0,
                 umask: nil,
@@ -905,7 +905,7 @@ public actor SandboxService {
                 username: name
             )
         case .id(let uid, let gid):
-            proc.user = ContainerizationOCI.User(
+            proc.user = .init(
                 uid: uid,
                 gid: gid,
                 umask: nil,
