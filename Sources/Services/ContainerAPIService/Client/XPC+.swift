@@ -115,6 +115,7 @@ public enum XPCKeys: String {
     case volumeLabels
     case volumeReadonly
     case volumeContainerId
+    case path
 
     /// Container statistics
     case statistics
@@ -155,6 +156,8 @@ public enum XPCRoute: String {
     case volumeDelete
     case volumeList
     case volumeInspect
+    case volumeCopyIn
+    case volumeCopyOut
 
     case volumeDiskUsage
     case systemDiskUsage

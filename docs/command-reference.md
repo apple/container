@@ -851,6 +851,41 @@ container volume inspect [--debug] <names> ...
 
 No options.
 
+### `container volume cp`
+
+Copies files and directories between a volume and the local filesystem. Use the `volume:path` format to specify paths within a volume. For directories, the `-r` flag is required.
+
+**Usage**
+
+```bash
+container volume cp [-r] <source> <destination> [--debug]
+```
+
+**Arguments**
+
+*   `<source>`: Source path (use `volume:path` for volume paths)
+*   `<destination>`: Destination path (use `volume:path` for volume paths)
+
+**Options**
+
+*   `-r, --recursive`: Copy directories recursively (required for directories)
+
+**Examples**
+
+```bash
+# copy a file from local to volume
+container volume cp ./config.json myvolume:/app/config.json
+
+# copy a file from volume to local
+container volume cp myvolume:/app/data.txt ./data.txt
+
+# copy a directory to volume (requires -r)
+container volume cp -r ./src myvolume:/app/src
+
+# copy a directory from volume to local (requires -r)
+container volume cp -r myvolume:/app/logs ./logs
+```
+
 ## Registry Management
 
 The registry commands manage authentication and defaults for container registries.

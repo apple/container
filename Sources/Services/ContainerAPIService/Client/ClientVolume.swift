@@ -91,4 +91,31 @@ public struct ClientVolume {
         let size = reply.uint64(key: .volumeSize)
         return size
     }
+
+    public static func copyIn(volume: String, path: String, fileHandle: FileHandle) async throws {
+        let client = XPCClient(service: serviceIdentifier)
+        let message = XPCMessage(route: .volumeCopyIn)
+        message.set(key: .volumeName, value: volume)
+        message.set(key: .path, value: path)
+
+        let fd = fileHandle.fileDescriptor
+        let xpcHandle = FileHandle(fileDescriptor: fd, closeOnDealloc: false)
+        message.set(key: .fd, value: xpcHandle)
+
+        _ = try await client.send(message)
+    }
+
+    public static func copyOut(volume: String, path: String, fileHandle: FileHandle) async throws {
+        let client = XPCClient(service: serviceIdentifier)
+        let message = XPCMessage(route: .volumeCopyOut)
+        message.set(key: .volumeName, value: volume)
+        message.set(key: .path, value: path)
+
+        let fd = fileHandle.fileDescriptor
+        let xpcHandle = FileHandle(fileDescriptor: fd, closeOnDealloc: false)
+        message.set(key: .fd, value: xpcHandle)
+
+        _ = try await client.send(message)
+    }
+
 }

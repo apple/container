@@ -273,6 +273,8 @@ extension APIServer {
             routes[XPCRoute.volumeList] = harness.list
             routes[XPCRoute.volumeInspect] = harness.inspect
             routes[XPCRoute.volumeDiskUsage] = harness.diskUsage
+            routes[XPCRoute.volumeCopyIn] = harness.copyIn
+            routes[XPCRoute.volumeCopyOut] = harness.copyOut
 
             return service
         }
