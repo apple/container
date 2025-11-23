@@ -220,7 +220,9 @@ extension ClientImage {
         })
     }
 
-    public static func pull(reference: String, platform: Platform? = nil, scheme: RequestScheme = .auto, progressUpdate: ProgressUpdateHandler? = nil, maxConcurrentDownloads: Int = 3) async throws -> ClientImage {
+    public static func pull(
+        reference: String, platform: Platform? = nil, scheme: RequestScheme = .auto, progressUpdate: ProgressUpdateHandler? = nil, maxConcurrentDownloads: Int = 3
+    ) async throws -> ClientImage {
         guard maxConcurrentDownloads > 0 else {
             throw ContainerizationError(.invalidArgument, message: "--max-concurrent-downloads must be greater than 0, got \(maxConcurrentDownloads)")
         }
@@ -298,8 +300,9 @@ extension ClientImage {
         return (digests, size)
     }
 
-    public static func fetch(reference: String, platform: Platform? = nil, scheme: RequestScheme = .auto, progressUpdate: ProgressUpdateHandler? = nil, maxConcurrentDownloads: Int = 3) async throws -> ClientImage
-    {
+    public static func fetch(
+        reference: String, platform: Platform? = nil, scheme: RequestScheme = .auto, progressUpdate: ProgressUpdateHandler? = nil, maxConcurrentDownloads: Int = 3
+    ) async throws -> ClientImage {
         do {
             let match = try await self.get(reference: reference)
             if let platform {

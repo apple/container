@@ -366,12 +366,13 @@ extension TestCLIImagesCommand {
             "image",
             "pull",
             "--max-concurrent-downloads", "0",
-            "alpine:latest"
+            "alpine:latest",
         ])
 
         #expect(status != 0, "Expected command to fail with maxConcurrentDownloads=0")
-        #expect(error.contains("--max-concurrent-downloads must be greater than 0"),
-                "Expected validation error message in output")
+        #expect(
+            error.contains("--max-concurrent-downloads must be greater than 0"),
+            "Expected validation error message in output")
     }
 
     @Test func testMaxConcurrentDownloadsFlag() throws {

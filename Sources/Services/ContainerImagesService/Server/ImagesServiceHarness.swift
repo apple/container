@@ -50,7 +50,8 @@ public struct ImagesServiceHarness: Sendable {
         let maxConcurrentDownloads = message.int64(key: .maxConcurrentDownloads)
 
         let progressUpdateService = ProgressUpdateService(message: message)
-        let imageDescription = try await service.pull(reference: ref, platform: platform, insecure: insecure, progressUpdate: progressUpdateService?.handler, maxConcurrentDownloads: Int(maxConcurrentDownloads))
+        let imageDescription = try await service.pull(
+            reference: ref, platform: platform, insecure: insecure, progressUpdate: progressUpdateService?.handler, maxConcurrentDownloads: Int(maxConcurrentDownloads))
 
         let imageData = try JSONEncoder().encode(imageDescription)
         let reply = message.reply()
