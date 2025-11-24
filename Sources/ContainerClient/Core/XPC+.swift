@@ -150,6 +150,7 @@ public enum XPCRoute: String {
     case networkCreate
     case networkDelete
     case networkList
+    case networkPrune
 
     case volumeCreate
     case volumeDelete
