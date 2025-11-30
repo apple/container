@@ -1,5 +1,10 @@
 # Container CLI Command Reference
 
+> [!IMPORTANT]
+> This file contains documentation for the CURRENT BRANCH. To find documentation for official releases, find the target release on the [Release Page](https://github.com/apple/container/releases) and click the tag corresponding to your release version. 
+>
+> Example: [release 0.4.1 tag](https://github.com/apple/container/tree/0.4.1)
+
 Note: Command availability may vary depending on host operating system and macOS version.
 
 ## Core Commands
