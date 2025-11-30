@@ -73,7 +73,8 @@ extension ClientContainer {
     public static func create(
         configuration: ContainerConfiguration,
         options: ContainerCreateOptions = .default,
-        kernel: Kernel
+        kernel: Kernel,
+        initImage: String? = nil
     ) async throws -> ClientContainer {
         do {
             let client = Self.newXPCClient()
@@ -85,6 +86,10 @@ extension ClientContainer {
             request.set(key: .containerConfig, value: data)
             request.set(key: .kernel, value: kdata)
             request.set(key: .containerOptions, value: odata)
+
+            if let initImage {
+                request.set(key: .initImage, value: initImage)
+            }
 
             try await xpcSend(client: client, message: request)
             return ClientContainer(configuration: configuration)

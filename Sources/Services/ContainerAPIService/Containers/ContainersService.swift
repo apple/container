@@ -197,7 +197,7 @@ public actor ContainersService {
     }
 
     /// Create a new container from the provided id and configuration.
-    public func create(configuration: ContainerConfiguration, kernel: Kernel, options: ContainerCreateOptions) async throws {
+    public func create(configuration: ContainerConfiguration, kernel: Kernel, options: ContainerCreateOptions, initImage: String? = nil) async throws {
         self.log.debug("\(#function)")
 
         try await self.lock.withLock { context in
@@ -241,11 +241,20 @@ public actor ContainersService {
 
             let path = self.containerRoot.appendingPathComponent(configuration.id)
             let systemPlatform = kernel.platform
-            let initFs = try await self.getInitBlock(for: systemPlatform.ociPlatform())
+
+            // Fetch init image (custom or default)
+            let initFilesystem: Filesystem
+            if let customInitImage = initImage {
+                self.log.info("Using custom init image: \(customInitImage)")
+                initFilesystem = try await self.getInitBlock(for: systemPlatform.ociPlatform(), imageRef: customInitImage)
+            } else {
+                self.log.info("Using default init image: \(ClientImage.initImageRef)")
+                initFilesystem = try await self.getInitBlock(for: systemPlatform.ociPlatform())
+            }
 
             let bundle = try ContainerClient.Bundle.create(
                 path: path,
-                initialFilesystem: initFs,
+                initialFilesystem: initFilesystem,
                 kernel: kernel,
                 containerConfiguration: configuration
             )
@@ -597,8 +606,9 @@ public actor ContainersService {
         return options
     }
 
-    private func getInitBlock(for platform: Platform) async throws -> Filesystem {
-        let initImage = try await ClientImage.fetch(reference: ClientImage.initImageRef, platform: platform)
+    private func getInitBlock(for platform: Platform, imageRef: String? = nil) async throws -> Filesystem {
+        let ref = imageRef ?? ClientImage.initImageRef
+        let initImage = try await ClientImage.fetch(reference: ref, platform: platform)
         var fs = try await initImage.getCreateSnapshot(platform: platform)
         fs.options = ["ro"]
         return fs
