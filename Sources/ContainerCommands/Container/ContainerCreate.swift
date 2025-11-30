@@ -77,7 +77,7 @@ extension Application {
             )
 
             let options = ContainerCreateOptions(autoRemove: managementFlags.remove)
-            let container = try await ClientContainer.create(configuration: ck.0, options: options, kernel: ck.1)
+            let container = try await ClientContainer.create(configuration: ck.0, options: options, kernel: ck.1, initImage: ck.2)
 
             if !self.managementFlags.cidfile.isEmpty {
                 let path = self.managementFlags.cidfile
