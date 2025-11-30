@@ -84,7 +84,7 @@ public struct Utility {
         imageFetch: Flags.ImageFetch,
         progressUpdate: @escaping ProgressUpdateHandler,
         log: Logger
-    ) async throws -> (ContainerConfiguration, Kernel) {
+    ) async throws -> (ContainerConfiguration, Kernel, String?) {
         var requestedPlatform = Parser.platform(os: management.os, arch: management.arch)
         // Prefer --platform
         if let platform = management.platform {
@@ -252,7 +252,7 @@ public struct Utility {
             config.runtimeHandler = runtime
         }
 
-        return (config, kernel)
+        return (config, kernel, management.initImage)
     }
 
     static func getAttachmentConfigurations(

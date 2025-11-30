@@ -106,6 +106,9 @@ public enum XPCKeys: String {
     case systemPlatform
     case kernelForce
 
+    /// Init image reference
+    case initImage
+
     /// Volume
     case volume
     case volumes

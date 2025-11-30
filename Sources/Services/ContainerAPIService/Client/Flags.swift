@@ -158,6 +158,12 @@ public struct Flags {
         )
         public var kernel: String?
 
+        @Option(
+            name: .long,
+            help: .init("Use a custom init image instead of the default", valueName: "image")
+        )
+        public var initImage: String?
+
         @Option(name: [.short, .customLong("label")], help: "Add a key=value label to the container")
         public var labels: [String] = []
 
