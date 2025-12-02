@@ -16,6 +16,8 @@
 
 import ArgumentParser
 import ContainerNetworkService
+import ContainerPersistence
+import ContainerPlugin
 import ContainerXPC
 import ContainerizationExtras
 import Foundation
@@ -40,6 +42,13 @@ extension NetworkVmnetHelper {
         @Option(name: .shortAndLong, help: "CIDR address for the subnet")
         var subnet: String?
 
+        func loadNetworkConfiguration(id: String, log: Logger) async throws -> NetworkConfiguration? {
+            let appRoot = ApplicationRoot.url
+            let resourceRoot = appRoot.appendingPathComponent("networks")
+            let store = try FilesystemEntityStore<NetworkConfiguration>(path: resourceRoot, type: "network", log: log)
+            return try await store.retrieve(id)
+        }
+
         func run() async throws {
             let commandName = NetworkVmnetHelper._commandName
             let log = setupLogger(id: id, debug: debug)
@@ -51,7 +60,13 @@ extension NetworkVmnetHelper {
             do {
                 log.info("configuring XPC server")
                 let subnet = try self.subnet.map { try CIDRAddress($0) }
-                let configuration = try NetworkConfiguration(id: id, mode: .nat, subnet: subnet?.description)
+                let configuration =
+                    try await loadNetworkConfiguration(id: id, log: log)
+                    ?? NetworkConfiguration(
+                        id: id,
+                        mode: .nat,
+                        subnet: subnet?.description
+                    )
                 let network = try Self.createNetwork(configuration: configuration, log: log)
                 try await network.start()
                 let server = try await NetworkService(network: network, log: log)

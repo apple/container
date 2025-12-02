@@ -44,7 +44,7 @@ extension Application.VolumeCommand {
         }
 
         private func createHeader() -> [[String]] {
-            [["NAME", "TYPE", "DRIVER", "OPTIONS"]]
+            [["NAME", "TYPE", "DRIVER", "OPTIONS", "CREATED"]]
         }
 
         func printVolumes(volumes: [Volume], format: Application.ListFormat) throws {
@@ -63,7 +63,7 @@ extension Application.VolumeCommand {
 
             // Sort volumes by creation time (newest first)
             let sortedVolumes = volumes.sorted { v1, v2 in
-                v1.createdAt > v2.createdAt
+                v1.createdAtCoalesced ?? Date.distantPast > v2.createdAtCoalesced ?? Date.distantPast
             }
 
             var rows = createHeader()
@@ -81,11 +81,16 @@ extension Volume {
     var asRow: [String] {
         let volumeType = self.isAnonymous ? "anonymous" : "named"
         let optionsString = options.isEmpty ? "" : options.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
+        var createdAtStr = "-"
+        if let createdAt = self.metadata.createdAt {
+            createdAtStr = DateFormatter.metadataFormatter.string(from: createdAt)
+        }
         return [
             self.name,
             volumeType,
             self.driver,
             optionsString,
+            createdAtStr,
         ]
     }
 }
