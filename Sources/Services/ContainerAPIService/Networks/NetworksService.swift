@@ -252,7 +252,41 @@ public actor NetworksService {
         }
 
         // having deleted successfully, remove the runtime state
-        self.networkStates.removeValue(forKey: id)
+        self.removeNetworkState(for: id)
+    }
+
+    /// Prune all networks with no container connections (preserve default/system networks)
+    public func prune() async throws -> [String] {
+        let allNetworks = try await self.store.list()
+        // do entire prune operation atomically with container list
+        return try await self.containersService.withContainerList { containers in
+            var inUseSet = Set<String>()
+            for container in containers {
+                for network in container.configuration.networks {
+                    inUseSet.insert(network.network)
+                }
+            }
+
+            let networksToPrune = allNetworks.filter { network in
+                network.id != ClientNetwork.defaultNetworkName && !inUseSet.contains(network.id)
+            }
+
+            var prunedNames = [String]()
+
+            for network in networksToPrune {
+                do {
+                    try await self.store.delete(network.id)
+                    await self.removeNetworkState(for: network.id)
+
+                    prunedNames.append(network.id)
+                    self.log.info("Pruned network", metadata: ["name": "\(network.id)"])
+                } catch {
+                    self.log.error("Failed to prune network \(network.id): \(error)")
+                }
+            }
+
+            return prunedNames
+        }
     }
 
     /// Perform a hostname lookup on all networks.
@@ -304,5 +338,9 @@ public actor NetworksService {
             args: args,
             instanceId: configuration.id
         )
+    }
+
+    private func removeNetworkState(for id: String) {
+        networkStates.removeValue(forKey: id)
     }
 }

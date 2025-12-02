@@ -253,6 +253,7 @@ extension APIServer {
             routes[XPCRoute.networkCreate] = harness.create
             routes[XPCRoute.networkDelete] = harness.delete
             routes[XPCRoute.networkList] = harness.list
+            routes[XPCRoute.networkPrune] = harness.prune
             return service
         }
 
