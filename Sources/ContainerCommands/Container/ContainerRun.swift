@@ -103,11 +103,12 @@ extension Application {
             progress.set(description: "Starting container")
 
             let options = ContainerCreateOptions(autoRemove: managementFlags.remove)
-            let container = try await ClientContainer.create(
+            let snapshot = try await ClientContainer.create(
                 configuration: ck.0,
                 options: options,
                 kernel: ck.1
             )
+            let container = ClientContainer(snapshot: snapshot)
 
             let detach = self.managementFlags.detach
             do {

@@ -88,10 +88,10 @@ extension Application {
 
             let builderPlatform = ContainerizationOCI.Platform(arch: "arm64", os: "linux", variant: "v8")
 
-            let existingContainer = try? await ClientContainer.get(id: "buildkit")
-            if let existingContainer {
-                let existingImage = existingContainer.configuration.image.reference
-                let existingResources = existingContainer.configuration.resources
+            let existingSnapshot = try? await ClientContainer.get(id: "buildkit")
+            if let existingSnapshot {
+                let existingImage = existingSnapshot.configuration.image.reference
+                let existingResources = existingSnapshot.configuration.resources
 
                 // Check if we need to recreate the builder due to different image
                 let imageChanged = existingImage != builderImage
@@ -113,7 +113,9 @@ extension Application {
                     return false
                 }()
 
-                switch existingContainer.status {
+                let existingContainer = ClientContainer(snapshot: existingSnapshot)
+
+                switch existingSnapshot.status {
                 case .running:
                     guard imageChanged || cpuChanged || memChanged else {
                         // If image, mem and cpu are the same, continue using the existing builder
@@ -230,11 +232,12 @@ extension Application {
                 .setDescription("Starting BuildKit container")
             ])
 
-            let container = try await ClientContainer.create(
+            let snapshot = try await ClientContainer.create(
                 configuration: config,
                 options: .default,
                 kernel: kernel
             )
+            let container = ClientContainer(snapshot: snapshot)
 
             try await container.startBuildKit(progressUpdate, taskManager)
         }

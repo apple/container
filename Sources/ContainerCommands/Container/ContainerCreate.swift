@@ -77,11 +77,11 @@ extension Application {
             )
 
             let options = ContainerCreateOptions(autoRemove: managementFlags.remove)
-            let container = try await ClientContainer.create(configuration: ck.0, options: options, kernel: ck.1)
+            let snapshot = try await ClientContainer.create(configuration: ck.0, options: options, kernel: ck.1)
 
             if !self.managementFlags.cidfile.isEmpty {
                 let path = self.managementFlags.cidfile
-                let data = container.id.data(using: .utf8)
+                let data = snapshot.configuration.id.data(using: .utf8)
                 var attributes = [FileAttributeKey: Any]()
                 attributes[.posixPermissions] = 0o644
                 let success = FileManager.default.createFile(
@@ -96,7 +96,7 @@ extension Application {
             }
             progress.finish()
 
-            print(container.id)
+            print(snapshot.configuration.id)
         }
     }
 }

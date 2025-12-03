@@ -21,9 +21,9 @@ import ContainerizationOS
 import Foundation
 
 extension Application {
-    static func ensureRunning(container: ClientContainer) throws {
-        if container.status != .running {
-            throw ContainerizationError(.invalidState, message: "container \(container.id) is not running")
+    static func ensureRunning(snapshot: ContainerSnapshot) throws {
+        if snapshot.status != .running {
+            throw ContainerizationError(.invalidState, message: "container \(snapshot.configuration.id) is not running")
         }
     }
 }

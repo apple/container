@@ -43,17 +43,17 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let containers = try await ClientContainer.list()
-            try printContainers(containers: containers, format: format)
+            let snapshots = try await ClientContainer.list()
+            try printContainers(snapshots: snapshots, format: format)
         }
 
         private func createHeader() -> [[String]] {
             [["ID", "IMAGE", "OS", "ARCH", "STATE", "ADDR", "CPUS", "MEMORY"]]
         }
 
-        private func printContainers(containers: [ClientContainer], format: ListFormat) throws {
+        private func printContainers(snapshots: [ContainerSnapshot], format: ListFormat) throws {
             if format == .json {
-                let printables = containers.map {
+                let printables = snapshots.map {
                     PrintableContainer($0)
                 }
                 let data = try JSONEncoder().encode(printables)
@@ -63,21 +63,21 @@ extension Application {
             }
 
             if self.quiet {
-                containers.forEach {
+                snapshots.forEach {
                     if !self.all && $0.status != .running {
                         return
                     }
-                    print($0.id)
+                    print($0.configuration.id)
                 }
                 return
             }
 
             var rows = createHeader()
-            for container in containers {
-                if !self.all && container.status != .running {
+            for snapshot in snapshots {
+                if !self.all && snapshot.status != .running {
                     continue
                 }
-                rows.append(container.asRow)
+                rows.append(snapshot.asRow)
             }
 
             let formatter = TableOutput(rows: rows)
@@ -86,10 +86,10 @@ extension Application {
     }
 }
 
-extension ClientContainer {
+extension ContainerSnapshot {
     fileprivate var asRow: [String] {
         [
-            self.id,
+            self.configuration.id,
             self.configuration.image.reference,
             self.configuration.platform.os,
             self.configuration.platform.architecture,
@@ -106,9 +106,9 @@ struct PrintableContainer: Codable {
     let configuration: ContainerConfiguration
     let networks: [Attachment]
 
-    init(_ container: ClientContainer) {
-        self.status = container.status
-        self.configuration = container.configuration
-        self.networks = container.networks
+    init(_ snapshot: ContainerSnapshot) {
+        self.status = snapshot.status
+        self.configuration = snapshot.configuration
+        self.networks = snapshot.networks
     }
 }
