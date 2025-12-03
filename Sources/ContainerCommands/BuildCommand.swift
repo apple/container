@@ -84,7 +84,7 @@ extension Application {
         // sara here 
         @Option(
             name: .long,
-            help: "Disk capacity for the builder container (e.g. 512GB, 1TB)"
+            help: "Disk capacity for the builder container"
         )
         var storage: String?
         // sara done

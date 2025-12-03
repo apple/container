@@ -78,7 +78,7 @@ public struct Flags {
         // sara
         @Option(
             name: .shortAndLong,
-            help: "Disk capacity / storage size for the container (e.g. 512GB, 1TB)"
+            help: "Disk capacity / storage size for the container"
         )
         public var storage: String?
 // sara done

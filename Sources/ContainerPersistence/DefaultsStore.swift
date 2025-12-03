@@ -129,9 +129,9 @@ extension DefaultsStore.Keys {
         case .defaultBuilderImage:
             return "The image reference for the utility container that `container build` uses."
         case .defaultBuilderStorage:
-            return "Default disk capacity for the builder container (e.g. 512GB, 1TB)." // sara
+            return "Default disk capacity for the builder container." // sara
         case .defaultContainerStorage:
-            return "Default disk capacity for native containers (rootfs.capacity, e.g. 512GB, 1TB)." // sara
+            return "Default disk capacity for native containers." // sara
         case .defaultInitImage:
             return "The image reference for the default initial filesystem image."
         case .defaultKernelBinaryPath:

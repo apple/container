@@ -183,14 +183,6 @@ public struct Utility {
         )
         // sara
 
-        config.resources = try Parser.resources(
-            cpus: resource.cpus,
-            memory: resource.memory
-            // sara
-            storage: resource.storage
-            // done
-        )
-
         let tmpfs = try Parser.tmpfsMounts(management.tmpFs)
         let volumesOrFs = try Parser.volumes(management.volumes)
         let mountsOrFs = try Parser.mounts(management.mounts)

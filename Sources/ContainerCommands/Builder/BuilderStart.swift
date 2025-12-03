@@ -47,7 +47,7 @@ extension Application {
         // sara
         @Option(
             name: .long,
-            help: "Disk capacity for the builder container (e.g. 512GB, 1TB)"
+            help: "Disk capacity for the builder container"
         )
         var storage: String?
         // sara
@@ -152,15 +152,15 @@ extension Application {
                 // done
 
                 // sara and karen
-                    let storageChanged = try {
-                        if let effectiveStorage {
-                            let storageMiB = try Parser.memoryString(effectiveStorage)
-                            let storageBytes = UInt64(storageMiB.mib())
-                            // existingResources.storage is UInt64?
-                            return existingResources.storage != storageBytes
-                        }
-                        return false
-                    }()
+                let storageChanged = try {
+                    if let effectiveStorage {
+                        let storageInMiB = try Parser.memoryString(effectiveStorage)
+                        let storageInBytes = UInt64(storageInMiB.mib())
+                        // existingResources.storage is UInt64?
+                        return existingResources.storage != storageInBytes
+                    }
+                    return false
+                }()
                 // done
 
 
@@ -235,31 +235,11 @@ extension Application {
                 user: .id(uid: 0, gid: 0)
             )
 
-            // before sara
-            // let resources = try Parser.resources(
-                // cpus: cpus,
-                // memory: memory
-            // )
-
-            // sara changes
-            // Decide which storage value to use:
-            // 1. CLI flag if provided
-            // 2. Config default from DefaultsStore
-            // 3. Fallback (e.g. nil or hard-coded legacy default)
-            let effectiveStorage: String? = {
-                if let storage { return storage }
-                if let defaultStorage: String = DefaultsStore.get(key: .defaultBuilderStorage) {
-                    return defaultStorage
-                }
-                return nil   // or "512GB" if you want an explicit legacy default here
-            }()
-
             let resources = try Parser.resources(
                 cpus: cpus,
                 memory: memory,
-                storage: effectiveStorage          // ← new argument after you extend Parser.resources
+                storage: effectiveStorage          // sara change here
             )
-            // sara done
 
             var config = ContainerConfiguration(id: id, image: imageDesc, process: processConfig)
             config.resources = resources

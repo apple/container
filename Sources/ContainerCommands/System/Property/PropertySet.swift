@@ -76,7 +76,6 @@ extension Application {
                 DefaultsStore.set(value: value, key: key)
             // sara 
             case .defaultBuilderStorage, .defaultContainerStorage:
-                // validate capacity string (e.g. 512GB, 1TB, 2048MB)
                 _ = try Parser.memoryString(value)
                 DefaultsStore.set(value: value, key: key)
             // done 

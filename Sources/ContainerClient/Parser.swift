@@ -95,7 +95,6 @@ public struct Parser {
         }
         // sara start
         if let storage {
-        // parse "512GB", "1TB", etc. into bytes
             let storageInMiB = try Parser.memoryString(storage)
             resource.storage = UInt64(storageInMiB.mib())          
         }
