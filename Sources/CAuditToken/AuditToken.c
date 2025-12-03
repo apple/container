@@ -14,38 +14,4 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-#if os(macOS)
-import Foundation
-import ContainerXPC
-
-public enum ImagesServiceXPCRoute: String {
-    case imageList
-    case imagePull
-    case imagePush
-    case imageTag
-    case imageBuild
-    case imageDelete
-    case imageSave
-    case imageLoad
-    case imageCleanupOrphanedBlobs
-    case imageDiskUsage
-
-    case contentGet
-    case contentDelete
-    case contentClean
-    case contentIngestStart
-    case contentIngestComplete
-    case contentIngestCancel
-
-    case imageUnpack
-    case snapshotDelete
-    case snapshotGet
-}
-
-extension XPCMessage {
-    public init(route: ImagesServiceXPCRoute) {
-        self.init(route: route.rawValue)
-    }
-}
-
-#endif
+// This file is required for Xcode to generate `CAuditToken.o`.

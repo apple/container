@@ -24,7 +24,7 @@ import PackageDescription
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
 let builderShimVersion = "0.7.0"
-let scVersion = "0.14.0"
+let scVersion = "0.16.0"
 
 let package = Package(
     name: "container",
@@ -378,9 +378,6 @@ let package = Package(
                 .define("RELEASE_VERSION", to: "\"\(releaseVersion)\""),
                 .define("BUILDER_SHIM_VERSION", to: "\"\(builderShimVersion)\""),
             ],
-            linkerSettings: [
-                .linkedLibrary("bsm")
-            ]
         ),
         .macro(
             name: "HelperMacrosMacros",
@@ -396,7 +393,10 @@ let package = Package(
         .target(
             name: "CAuditToken",
             dependencies: [],
-            publicHeadersPath: "include"
+            publicHeadersPath: "include",
+            linkerSettings: [
+                .linkedLibrary("bsm")
+            ]
         ),
     ]
 )
