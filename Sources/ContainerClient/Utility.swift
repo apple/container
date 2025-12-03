@@ -181,7 +181,11 @@ public struct Utility {
             memory: resource.memory,
             storage: effectiveStorage
         )
-        // sara
+
+        if let storageBytes = config.resources.storage {
+            try Parser.validateHostStorage(bytes: storageBytes)
+        }
+        // end sara & karen
 
         let tmpfs = try Parser.tmpfsMounts(management.tmpFs)
         let volumesOrFs = try Parser.volumes(management.volumes)

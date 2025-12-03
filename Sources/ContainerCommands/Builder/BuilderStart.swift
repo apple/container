@@ -241,6 +241,12 @@ extension Application {
                 storage: effectiveStorage          // sara change here
             )
 
+            // karen and sara
+            if let storageBytes = resources.storage {
+                try Parser.validateHostStorage(bytes: storageBytes)
+            }
+            // end
+
             var config = ContainerConfiguration(id: id, image: imageDesc, process: processConfig)
             config.resources = resources
             config.mounts = [
