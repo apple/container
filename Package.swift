@@ -389,7 +389,7 @@ let package = Package(
         .target(
             name: "HelperMacros",
             dependencies: ["HelperMacrosMacros"]
-        )
+        ),
         .target(
             name: "CAuditToken",
             dependencies: [],
