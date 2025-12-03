@@ -44,6 +44,14 @@ extension Application {
         )
         var memory: String = "2048MB"
 
+        // sara
+        @Option(
+            name: .long,
+            help: "Disk capacity for the builder container (e.g. 512GB, 1TB)"
+        )
+        var storage: String?
+        // sara
+
         @OptionGroup
         var global: Flags.Global
 
@@ -60,11 +68,13 @@ extension Application {
                 progress.finish()
             }
             progress.start()
-            try await Self.start(cpus: self.cpus, memory: self.memory, progressUpdate: progress.handler)
+            // sara storage below
+            try await Self.start(cpus: self.cpus, memory: self.memory, storage: self.storage, progressUpdate: progress.handler)
             progress.finish()
         }
 
-        static func start(cpus: Int64?, memory: String?, progressUpdate: @escaping ProgressUpdateHandler) async throws {
+        // sara storage below
+        static func start(cpus: Int64?, memory: String?, storage: String?, progressUpdate: @escaping ProgressUpdateHandler) async throws {
             await progressUpdate([
                 .setDescription("Fetching BuildKit image"),
                 .setItemsName("blobs"),
@@ -88,6 +98,22 @@ extension Application {
 
             let builderPlatform = ContainerizationOCI.Platform(arch: "arm64", os: "linux", variant: "v8")
 
+            // sara and karen
+            // Decide which storage string to use for the builder:
+            // 1. CLI flag if provided
+            // 2. Default from config (you'll add .defaultBuilderStorage in DefaultsStore)
+            // 3. Otherwise, nil (keep existing behavior)
+            let effectiveStorage: String? = {
+                if let storage {
+                    return storage
+                }
+                if let defaultStorage: String = DefaultsStore.getOptional(key: .defaultBuilderStorage) {
+                    return defaultStorage
+                }
+                return nil
+            }()
+            // done
+
             let existingContainer = try? await ClientContainer.get(id: "buildkit")
             if let existingContainer {
                 let existingImage = existingContainer.configuration.image.reference
@@ -103,6 +129,7 @@ extension Application {
                     }
                     return false
                 }()
+                /* before
                 let memChanged = try {
                     if let memory {
                         let memoryInBytes = try Parser.resources(cpus: nil, memory: memory).memoryInBytes
@@ -111,11 +138,36 @@ extension Application {
                         }
                     }
                     return false
+                }() */
+
+                // sara and karen
+                let memChanged = try {
+                    if let memory {
+                        let memoryInMiB = try Parser.memoryString(memory)
+                        let memoryInBytes = UInt64(memoryInMiB.mib())
+                        return existingResources.memoryInBytes != memoryInBytes
+                    }
+                    return false
                 }()
+                // done
+
+                // sara and karen
+                    let storageChanged = try {
+                        if let effectiveStorage {
+                            let storageMiB = try Parser.memoryString(effectiveStorage)
+                            let storageBytes = UInt64(storageMiB.mib())
+                            // existingResources.storage is UInt64?
+                            return existingResources.storage != storageBytes
+                        }
+                        return false
+                    }()
+                // done
+
 
                 switch existingContainer.status {
                 case .running:
-                    guard imageChanged || cpuChanged || memChanged else {
+                // sara added storage changed below
+                    guard imageChanged || cpuChanged || memChanged || storageChanged else {
                         // If image, mem and cpu are the same, continue using the existing builder
                         return
                     }
@@ -125,7 +177,8 @@ extension Application {
                 case .stopped:
                     // If the builder is stopped and matches our requirements, start it
                     // Otherwise, delete it and create a new one
-                    guard imageChanged || cpuChanged || memChanged else {
+                    // sara storage changed below
+                    guard imageChanged || cpuChanged || memChanged || storageChanged else {
                         try await existingContainer.startBuildKit(progressUpdate, nil)
                         return
                     }
@@ -182,10 +235,31 @@ extension Application {
                 user: .id(uid: 0, gid: 0)
             )
 
+            // before sara
+            // let resources = try Parser.resources(
+                // cpus: cpus,
+                // memory: memory
+            // )
+
+            // sara changes
+            // Decide which storage value to use:
+            // 1. CLI flag if provided
+            // 2. Config default from DefaultsStore
+            // 3. Fallback (e.g. nil or hard-coded legacy default)
+            let effectiveStorage: String? = {
+                if let storage { return storage }
+                if let defaultStorage: String = DefaultsStore.get(key: .defaultBuilderStorage) {
+                    return defaultStorage
+                }
+                return nil   // or "512GB" if you want an explicit legacy default here
+            }()
+
             let resources = try Parser.resources(
                 cpus: cpus,
-                memory: memory
+                memory: memory,
+                storage: effectiveStorage          // ← new argument after you extend Parser.resources
             )
+            // sara done
 
             var config = ContainerConfiguration(id: id, image: imageDesc, process: processConfig)
             config.resources = resources

@@ -74,6 +74,14 @@ public struct Flags {
             help: "Amount of memory (1MiByte granularity), with optional K, M, G, T, or P suffix"
         )
         public var memory: String?
+
+        // sara
+        @Option(
+            name: .shortAndLong,
+            help: "Disk capacity / storage size for the container (e.g. 512GB, 1TB)"
+        )
+        public var storage: String?
+// sara done
     }
 
     public struct Registry: ParsableArguments {

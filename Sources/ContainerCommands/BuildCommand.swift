@@ -81,6 +81,14 @@ extension Application {
         )
         var memory: String = "2048MB"
 
+        // sara here 
+        @Option(
+            name: .long,
+            help: "Disk capacity for the builder container (e.g. 512GB, 1TB)"
+        )
+        var storage: String?
+        // sara done
+
         @Flag(name: .long, help: "Do not use cache")
         var noCache: Bool = false
 
@@ -140,12 +148,14 @@ extension Application {
 
                 progress.set(description: "Dialing builder")
 
-                let builder: Builder? = try await withThrowingTaskGroup(of: Builder.self) { [vsockPort, cpus, memory] group in
+                // sara here added storage below
+                let builder: Builder? = try await withThrowingTaskGroup(of: Builder.self) { [vsockPort, cpus, memory, storage] group in
                     defer {
                         group.cancelAll()
                     }
-
-                    group.addTask { [vsockPort, cpus, memory] in
+                    
+                    // sara here added stoagre below
+                    group.addTask { [vsockPort, cpus, memory, storage] in
                         while true {
                             do {
                                 let container = try await ClientContainer.get(id: "buildkit")
@@ -166,6 +176,9 @@ extension Application {
                                 try await BuilderStart.start(
                                     cpus: cpus,
                                     memory: memory,
+                                    // sara here
+                                    storage: storage,
+                                    // sara done
                                     progressUpdate: progress.handler
                                 )
 
