@@ -93,6 +93,7 @@ public struct Utility {
         management: Flags.Management,
         resource: Flags.Resource,
         registry: Flags.Registry,
+        imageFetch: Flags.ImageFetch,
         progressUpdate: @escaping ProgressUpdateHandler
     ) async throws -> (ContainerConfiguration, Kernel) {
         var requestedPlatform = Parser.platform(os: management.os, arch: management.arch)
@@ -112,7 +113,8 @@ public struct Utility {
             reference: image,
             platform: requestedPlatform,
             scheme: scheme,
-            progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progressUpdate)
+            progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progressUpdate),
+            maxConcurrentDownloads: imageFetch.maxConcurrentDownloads
         )
 
         // Unpack a fetched image before use
@@ -140,7 +142,8 @@ public struct Utility {
         let fetchInitTask = await taskManager.startTask()
         let initImage = try await ClientImage.fetch(
             reference: ClientImage.initImageRef, platform: .current, scheme: scheme,
-            progressUpdate: ProgressTaskCoordinator.handler(for: fetchInitTask, from: progressUpdate))
+            progressUpdate: ProgressTaskCoordinator.handler(for: fetchInitTask, from: progressUpdate),
+            maxConcurrentDownloads: imageFetch.maxConcurrentDownloads)
 
         await progressUpdate([
             .setDescription("Unpacking init image"),
