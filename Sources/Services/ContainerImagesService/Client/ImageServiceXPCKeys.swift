@@ -61,15 +61,15 @@ extension XPCMessage {
         self.set(key: key.rawValue, value: value)
     }
 
-    public func set(key: ImagesServiceXPCKeys, value: Int64) {
-        self.set(key: key.rawValue, value: value)
-    }
-
     public func set(key: ImagesServiceXPCKeys, value: Data) {
         self.set(key: key.rawValue, value: value)
     }
 
     public func set(key: ImagesServiceXPCKeys, value: Bool) {
+        self.set(key: key.rawValue, value: value)
+    }
+
+    public func set(key: ImagesServiceXPCKeys, value: Int64) {
         self.set(key: key.rawValue, value: value)
     }
 
