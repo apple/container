@@ -165,10 +165,25 @@ public struct Utility {
         var config = ContainerConfiguration(id: id, image: description, process: pc)
         config.platform = requestedPlatform
 
+        let effectiveStorage: String? = {
+            if let storage = resource.storage {
+                return storage
+            }
+            if let defaultStorage: String = DefaultsStore.getOptional(key: .defaultContainerStorage) {
+                return defaultStorage
+            }
+            return nil
+        }()
+
         config.resources = try Parser.resources(
             cpus: resource.cpus,
-            memory: resource.memory
+            memory: resource.memory,
+            storage: effectiveStorage
         )
+
+        if let storageBytes = config.resources.storage {
+            try Parser.validateHostStorage(bytes: storageBytes)
+        }
 
         let tmpfs = try Parser.tmpfsMounts(management.tmpFs)
         let volumesOrFs = try Parser.volumes(management.volumes)

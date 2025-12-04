@@ -84,13 +84,17 @@ public struct Parser {
         try .init(from: platform)
     }
 
-    public static func resources(cpus: Int64?, memory: String?) throws -> ContainerConfiguration.Resources {
+    public static func resources(cpus: Int64?, memory: String?, storage: String?) throws -> ContainerConfiguration.Resources {
         var resource = ContainerConfiguration.Resources()
         if let cpus {
             resource.cpus = Int(cpus)
         }
         if let memory {
             resource.memoryInBytes = try Parser.memoryString(memory).mib()
+        }
+        if let storage {
+            let storageInMiB = try Parser.memoryString(storage)
+            resource.storage = UInt64(storageInMiB.mib())
         }
         return resource
     }
@@ -872,6 +876,31 @@ public struct Parser {
         case "true", "t": return true
         case "false", "f": return false
         default: return nil
+        }
+    }
+}
+
+extension Parser {
+    /// Validates that the host has enough disk space for the requested storage.
+    public static func validateHostStorage(bytes: UInt64) throws {
+        let fileURL = URL(fileURLWithPath: "/")
+        do {
+            let values = try fileURL.resourceValues(forKeys: [.volumeAvailableCapacityKey])
+            if let available = values.volumeAvailableCapacity {
+                if UInt64(available) < bytes {
+                    let availableStr = ByteCountFormatter.string(fromByteCount: Int64(available), countStyle: .file)
+                    let requestedStr = ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
+
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "requested storage (\(requestedStr)) exceeds available host capacity (\(availableStr))"
+                    )
+                }
+            }
+        } catch let error as ContainerizationError {
+            throw error
+        } catch {
+            throw ContainerizationError(.unknown, message: "failed to validate host storage: \(error.localizedDescription)")
         }
     }
 }

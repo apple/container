@@ -44,6 +44,12 @@ extension Application {
         )
         var memory: String = "2048MB"
 
+        @Option(
+            name: .long,
+            help: "Disk capacity for the builder container"
+        )
+        var storage: String?
+
         @OptionGroup
         var global: Flags.Global
 
@@ -60,11 +66,11 @@ extension Application {
                 progress.finish()
             }
             progress.start()
-            try await Self.start(cpus: self.cpus, memory: self.memory, progressUpdate: progress.handler)
+            try await Self.start(cpus: self.cpus, memory: self.memory, storage: self.storage, progressUpdate: progress.handler)
             progress.finish()
         }
 
-        static func start(cpus: Int64?, memory: String?, progressUpdate: @escaping ProgressUpdateHandler) async throws {
+        static func start(cpus: Int64?, memory: String?, storage: String?, progressUpdate: @escaping ProgressUpdateHandler) async throws {
             await progressUpdate([
                 .setDescription("Fetching BuildKit image"),
                 .setItemsName("blobs"),
@@ -88,6 +94,17 @@ extension Application {
 
             let builderPlatform = ContainerizationOCI.Platform(arch: "arm64", os: "linux", variant: "v8")
 
+            // Decide which storage string to use for the builder
+            let effectiveStorage: String? = {
+                if let storage {
+                    return storage
+                }
+                if let defaultStorage: String = DefaultsStore.getOptional(key: .defaultBuilderStorage) {
+                    return defaultStorage
+                }
+                return nil
+            }()
+
             let existingContainer = try? await ClientContainer.get(id: "buildkit")
             if let existingContainer {
                 let existingImage = existingContainer.configuration.image.reference
@@ -103,19 +120,28 @@ extension Application {
                     }
                     return false
                 }()
+
                 let memChanged = try {
                     if let memory {
-                        let memoryInBytes = try Parser.resources(cpus: nil, memory: memory).memoryInBytes
-                        if existingResources.memoryInBytes != memoryInBytes {
-                            return true
-                        }
+                        let memoryInMiB = try Parser.memoryString(memory)
+                        let memoryInBytes = UInt64(memoryInMiB.mib())
+                        return existingResources.memoryInBytes != memoryInBytes
+                    }
+                    return false
+                }()
+
+                let storageChanged = try {
+                    if let effectiveStorage {
+                        let storageInMiB = try Parser.memoryString(effectiveStorage)
+                        let storageInBytes = UInt64(storageInMiB.mib())
+                        return existingResources.storage != storageInBytes
                     }
                     return false
                 }()
 
                 switch existingContainer.status {
                 case .running:
-                    guard imageChanged || cpuChanged || memChanged else {
+                    guard imageChanged || cpuChanged || memChanged || storageChanged else {
                         // If image, mem and cpu are the same, continue using the existing builder
                         return
                     }
@@ -125,7 +151,7 @@ extension Application {
                 case .stopped:
                     // If the builder is stopped and matches our requirements, start it
                     // Otherwise, delete it and create a new one
-                    guard imageChanged || cpuChanged || memChanged else {
+                    guard imageChanged || cpuChanged || memChanged || storageChanged else {
                         try await existingContainer.startBuildKit(progressUpdate, nil)
                         return
                     }
@@ -184,8 +210,13 @@ extension Application {
 
             let resources = try Parser.resources(
                 cpus: cpus,
-                memory: memory
+                memory: memory,
+                storage: effectiveStorage
             )
+
+            if let storageBytes = resources.storage {
+                try Parser.validateHostStorage(bytes: storageBytes)
+            }
 
             var config = ContainerConfiguration(id: id, image: imageDesc, process: processConfig)
             config.resources = resources

@@ -74,6 +74,9 @@ extension Application {
                     throw ContainerizationError(.invalidArgument, message: "invalid CIDRv4 address: \(value)")
                 }
                 DefaultsStore.set(value: value, key: key)
+            case .defaultBuilderStorage, .defaultContainerStorage:
+                _ = try Parser.memoryString(value)
+                DefaultsStore.set(value: value, key: key)
             }
         }
     }
