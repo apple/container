@@ -75,13 +75,11 @@ public struct Flags {
         )
         public var memory: String?
 
-        // sara
         @Option(
             name: .shortAndLong,
             help: "Disk capacity / storage size for the container"
         )
         public var storage: String?
-// sara done
     }
 
     public struct Registry: ParsableArguments {

@@ -81,13 +81,11 @@ extension Application {
         )
         var memory: String = "2048MB"
 
-        // sara here 
         @Option(
             name: .long,
             help: "Disk capacity for the builder container"
         )
         var storage: String?
-        // sara done
 
         @Flag(name: .long, help: "Do not use cache")
         var noCache: Bool = false
@@ -148,13 +146,11 @@ extension Application {
 
                 progress.set(description: "Dialing builder")
 
-                // sara here added storage below
                 let builder: Builder? = try await withThrowingTaskGroup(of: Builder.self) { [vsockPort, cpus, memory, storage] group in
                     defer {
                         group.cancelAll()
                     }
-                    
-                    // sara here added stoagre below
+
                     group.addTask { [vsockPort, cpus, memory, storage] in
                         while true {
                             do {
@@ -176,9 +172,7 @@ extension Application {
                                 try await BuilderStart.start(
                                     cpus: cpus,
                                     memory: memory,
-                                    // sara here
                                     storage: storage,
-                                    // sara done
                                     progressUpdate: progress.handler
                                 )
 

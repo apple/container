@@ -165,7 +165,6 @@ public struct Utility {
         var config = ContainerConfiguration(id: id, image: description, process: pc)
         config.platform = requestedPlatform
 
-        // sara
         let effectiveStorage: String? = {
             if let storage = resource.storage {
                 return storage
@@ -185,7 +184,6 @@ public struct Utility {
         if let storageBytes = config.resources.storage {
             try Parser.validateHostStorage(bytes: storageBytes)
         }
-        // end sara & karen
 
         let tmpfs = try Parser.tmpfsMounts(management.tmpFs)
         let volumesOrFs = try Parser.volumes(management.volumes)

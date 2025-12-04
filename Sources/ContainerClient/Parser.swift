@@ -84,7 +84,6 @@ public struct Parser {
         try .init(from: platform)
     }
 
-    // sara added storage below
     public static func resources(cpus: Int64?, memory: String?, storage: String?) throws -> ContainerConfiguration.Resources {
         var resource = ContainerConfiguration.Resources()
         if let cpus {
@@ -93,12 +92,10 @@ public struct Parser {
         if let memory {
             resource.memoryInBytes = try Parser.memoryString(memory).mib()
         }
-        // sara start
         if let storage {
             let storageInMiB = try Parser.memoryString(storage)
-            resource.storage = UInt64(storageInMiB.mib())          
+            resource.storage = UInt64(storageInMiB.mib())
         }
-        // sara done
         return resource
     }
 
@@ -883,7 +880,6 @@ public struct Parser {
     }
 }
 
-// sara and karen
 extension Parser {
     /// Validates that the host has enough disk space for the requested storage.
     public static func validateHostStorage(bytes: UInt64) throws {
@@ -894,9 +890,9 @@ extension Parser {
                 if UInt64(available) < bytes {
                     let availableStr = ByteCountFormatter.string(fromByteCount: Int64(available), countStyle: .file)
                     let requestedStr = ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
-                    
+
                     throw ContainerizationError(
-                        .invalidArgument, 
+                        .invalidArgument,
                         message: "requested storage (\(requestedStr)) exceeds available host capacity (\(availableStr))"
                     )
                 }
@@ -908,4 +904,3 @@ extension Parser {
         }
     }
 }
-// end
