@@ -73,10 +73,6 @@ extension XPCMessage {
         self.set(key: key.rawValue, value: value)
     }
 
-    public func set(key: ImagesServiceXPCKeys, value: Int64) {
-        self.set(key: key.rawValue, value: value)
-    }
-
     public func string(key: ImagesServiceXPCKeys) -> String? {
         self.string(key: key.rawValue)
     }
