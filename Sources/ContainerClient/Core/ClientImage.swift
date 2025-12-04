@@ -291,13 +291,33 @@ extension ClientImage {
         }
     }
 
-    public static func pruneImages() async throws -> ([String], UInt64) {
+    public static func cleanupOrphanedBlobs() async throws -> ([String], UInt64) {
         let client = newXPCClient()
-        let request = newRequest(.imagePrune)
+        let request = newRequest(.imageCleanupOrphanedBlobs)
         let response = try await client.send(request)
         let digests = try response.digests()
-        let size = response.uint64(key: .size)
+        let size = response.uint64(key: .imageSize)
         return (digests, size)
+    }
+
+    /// Calculate disk usage for images
+    /// - Parameter activeReferences: Set of image references currently in use by containers
+    /// - Returns: Tuple of (total count, active count, total size, reclaimable size)
+    public static func calculateDiskUsage(activeReferences: Set<String>) async throws -> (totalCount: Int, activeCount: Int, totalSize: UInt64, reclaimableSize: UInt64) {
+        let client = newXPCClient()
+        let request = newRequest(.imageDiskUsage)
+
+        // Encode active references
+        let activeRefsData = try JSONEncoder().encode(activeReferences)
+        request.set(key: .activeImageReferences, value: activeRefsData)
+
+        let response = try await client.send(request)
+        let total = Int(response.int64(key: .totalCount))
+        let active = Int(response.int64(key: .activeCount))
+        let size = response.uint64(key: .imageSize)
+        let reclaimable = response.uint64(key: .reclaimableSize)
+
+        return (totalCount: total, activeCount: active, totalSize: size, reclaimableSize: reclaimable)
     }
 
     public static func fetch(

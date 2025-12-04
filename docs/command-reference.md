@@ -1,5 +1,10 @@
 # Container CLI Command Reference
 
+> [!IMPORTANT]
+> This file contains documentation for the CURRENT BRANCH. To find documentation for official releases, find the target release on the [Release Page](https://github.com/apple/container/releases) and click the tag corresponding to your release version. 
+>
+> Example: [release 0.4.1 tag](https://github.com/apple/container/tree/0.4.1)
+
 Note: Command availability may vary depending on host operating system and macOS version.
 
 ## Core Commands
@@ -374,6 +379,41 @@ container inspect [--debug] <container-ids> ...
 
 No options.
 
+### `container stats`
+
+Displays real-time resource usage statistics for containers. Shows CPU percentage, memory usage, network I/O, block I/O, and process count. By default, continuously updates statistics in an interactive display (like `top`). Use `--no-stream` for a single snapshot.
+
+**Usage**
+
+```bash
+container stats [--format <format>] [--no-stream] [--debug] [<container-ids> ...]
+```
+
+**Arguments**
+
+*   `<container-ids>`: Container IDs or names (optional, shows all running containers if not specified)
+
+**Options**
+
+*   `--format <format>`: Format of the output (values: json, table; default: table)
+*   `--no-stream`: Disable streaming stats and only pull the first result
+
+**Examples**
+
+```bash
+# show stats for all running containers (interactive)
+container stats
+
+# show stats for specific containers
+container stats web db cache
+
+# get a single snapshot of stats (non-interactive)
+container stats --no-stream web
+
+# output stats as JSON
+container stats --format json --no-stream web
+```
+
 ## Image Management
 
 ### `container image list (ls)`
@@ -510,17 +550,17 @@ container image delete [--all] [--debug] [<images> ...]
 
 ### `container image prune`
 
-Removes unreferenced and dangling images to reclaim disk space. The command outputs the amount of space freed after deletion.
+Removes unused images to reclaim disk space. By default, only removes dangling images (images with no tags). Use `-a` to remove all images not referenced by any container.
 
 **Usage**
 
 ```bash
-container image prune [--debug]
+container image prune [--all] [--debug]
 ```
 
 **Options**
 
-No options.
+*   `-a, --all`: Remove all unused images, not just dangling ones
 
 ### `container image inspect`
 
@@ -748,6 +788,20 @@ container volume delete vol1 vol2 vol3
 container volume delete --all
 ```
 
+### `container volume prune`
+
+Removes all volumes that have no container references. This includes volumes that are not attached to any running or stopped containers. The command reports the actual disk space reclaimed after deletion.
+
+**Usage**
+
+```bash
+container volume prune [--debug]
+```
+
+**Options**
+
+No options.
+
 ### `container volume list (ls)`
 
 Lists volumes.
@@ -885,6 +939,20 @@ container system logs [--follow] [--last <last>] [--debug]
 
 *   `-f, --follow`: Follow log output
 *   `--last <last>`: Fetch logs starting from the specified time period (minus the current time); supported formats: m, h, d (default: 5m)
+
+### `container system df`
+
+Shows disk usage for images, containers, and volumes. Displays total count, active count, size, and reclaimable space for each resource type.
+
+**Usage**
+
+```bash
+container system df [--format <format>] [--debug]
+```
+
+**Options**
+
+*   `--format <format>`: Format of the output (values: json, table; default: table)
 
 ### `container system dns create`
 

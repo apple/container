@@ -115,6 +115,13 @@ public enum XPCKeys: String {
     case volumeLabels
     case volumeReadonly
     case volumeContainerId
+
+    /// Container statistics
+    case statistics
+    case volumeSize
+
+    /// Disk usage
+    case diskUsageStats
 }
 
 public enum XPCRoute: String {
@@ -132,6 +139,7 @@ public enum XPCRoute: String {
     case containerState
     case containerLogs
     case containerEvent
+    case containerStats
 
     case pluginLoad
     case pluginGet
@@ -148,6 +156,8 @@ public enum XPCRoute: String {
     case volumeList
     case volumeInspect
     case volumePrune
+
+    case systemDiskUsage
 
     case ping
 

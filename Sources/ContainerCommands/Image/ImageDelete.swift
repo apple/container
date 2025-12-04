@@ -68,7 +68,7 @@ extension Application {
                     failures.append(image.reference)
                 }
             }
-            let (_, size) = try await ClientImage.pruneImages()
+            let (_, size) = try await ClientImage.cleanupOrphanedBlobs()
             let formatter = ByteCountFormatter()
             let freed = formatter.string(fromByteCount: Int64(size))
 

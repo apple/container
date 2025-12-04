@@ -100,7 +100,7 @@ public struct VolumesHarness: Sendable {
 
         let reply = message.reply()
         reply.set(key: .volumes, value: data)
-        reply.set(key: .size, value: size)
+        reply.set(key: .volumeSize, value: size)
         return reply
     }
 }

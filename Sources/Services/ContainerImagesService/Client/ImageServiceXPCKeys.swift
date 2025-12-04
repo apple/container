@@ -42,8 +42,14 @@ public enum ImagesServiceXPCKeys: String {
     case digests
     case directory
     case contentPath
-    case size
+    case imageSize
     case ingestSessionId
+
+    /// Disk Usage
+    case activeImageReferences
+    case totalCount
+    case activeCount
+    case reclaimableSize
 }
 
 extension XPCMessage {
@@ -64,6 +70,10 @@ extension XPCMessage {
     }
 
     public func set(key: ImagesServiceXPCKeys, value: Bool) {
+        self.set(key: key.rawValue, value: value)
+    }
+
+    public func set(key: ImagesServiceXPCKeys, value: Int64) {
         self.set(key: key.rawValue, value: value)
     }
 

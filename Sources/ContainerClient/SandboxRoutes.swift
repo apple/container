@@ -39,4 +39,6 @@ public enum SandboxRoutes: String {
     case dial = "com.apple.container.sandbox/dial"
     /// Shutdown the sandbox service process.
     case shutdown = "com.apple.container.sandbox/shutdown"
+    /// Get statistics for the sandbox.
+    case statistics = "com.apple.container.sandbox/statistics"
 }

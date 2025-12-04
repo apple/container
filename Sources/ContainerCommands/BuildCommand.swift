@@ -207,7 +207,33 @@ extension Application {
                     buildFilePath = resolvedPath
                 }
 
-                let buildFileData = try Data(contentsOf: URL(filePath: buildFilePath))
+                let buildFileData: Data
+                // Dockerfile should be read from stdin
+                if file == "-" {
+                    let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("Dockerfile-\(UUID().uuidString)")
+                    defer {
+                        try? FileManager.default.removeItem(at: tempFile)
+                    }
+
+                    guard FileManager.default.createFile(atPath: tempFile.path(), contents: nil) else {
+                        throw ContainerizationError(.internalError, message: "unable to create temporary file")
+                    }
+
+                    guard let fileHandle = try? FileHandle(forWritingTo: tempFile) else {
+                        throw ContainerizationError(.internalError, message: "unable to open temporary file for writing")
+                    }
+
+                    let bufferSize = 4096
+                    while true {
+                        let chunk = FileHandle.standardInput.readData(ofLength: bufferSize)
+                        if chunk.isEmpty { break }
+                        fileHandle.write(chunk)
+                    }
+                    try fileHandle.close()
+                    buildFileData = try Data(contentsOf: URL(filePath: tempFile.path()))
+                } else {
+                    buildFileData = try Data(contentsOf: URL(filePath: buildFilePath))
+                }
 
                 let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
                 let exportPath = systemHealth.appRoot

@@ -23,7 +23,7 @@ import PackageDescription
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
 let builderShimVersion = "0.7.0"
-let scVersion = "0.13.0"
+let scVersion = "0.16.0"
 
 let package = Package(
     name: "container",
@@ -303,6 +303,7 @@ let package = Package(
             dependencies: [
                 .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "Logging", package: "swift-log"),
+                "CAuditToken",
             ]
         ),
         .target(
@@ -373,6 +374,14 @@ let package = Package(
                 .define("GIT_COMMIT", to: "\"\(gitCommit)\""),
                 .define("RELEASE_VERSION", to: "\"\(releaseVersion)\""),
                 .define("BUILDER_SHIM_VERSION", to: "\"\(builderShimVersion)\""),
+            ],
+        ),
+        .target(
+            name: "CAuditToken",
+            dependencies: [],
+            publicHeadersPath: "include",
+            linkerSettings: [
+                .linkedLibrary("bsm")
             ]
         ),
     ]

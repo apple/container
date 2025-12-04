@@ -14,25 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ArgumentParser
+#include <xpc/xpc.h>
+#include <bsm/libbsm.h> 
 
-extension Application {
-    public struct SystemCommand: AsyncParsableCommand {
-        public init() {}
-        public static let configuration = CommandConfiguration(
-            commandName: "system",
-            abstract: "Manage system components",
-            subcommands: [
-                SystemDF.self,
-                SystemDNS.self,
-                SystemKernel.self,
-                SystemLogs.self,
-                SystemProperty.self,
-                SystemStart.self,
-                SystemStatus.self,
-                SystemStop.self,
-            ],
-            aliases: ["s"]
-        )
-    }
-}
+void xpc_dictionary_get_audit_token(xpc_object_t xdict, audit_token_t *token);
