@@ -22,6 +22,7 @@ final class ConnectHandler {
     private var pendingBytes: [NIOAny]
     private let serverAddress: SocketAddress
     private var log: Logger? = nil
+    private var removed = false
 
     init(serverAddress: SocketAddress, log: Logger?) {
         self.pendingBytes = []
@@ -53,6 +54,7 @@ extension ConnectHandler: ChannelInboundHandler {
 
 extension ConnectHandler: RemovableChannelHandler {
     func removeHandler(context: ChannelHandlerContext, removalToken: ChannelHandlerContext.RemovalToken) {
+        self.removed = true
         var didRead = false
 
         // We are being removed, and need to deliver any pending bytes we may have if we're upgrading.
@@ -79,6 +81,13 @@ extension ConnectHandler {
             .connect(to: serverAddress)
             .assumeIsolatedUnsafeUnchecked()
             .whenComplete { result in
+                guard !self.removed else {
+                     if case .success(let channel) = result {
+                         channel.close(promise: nil)
+                     }
+                     return
+                }
+
                 switch result {
                 case .success(let channel):
                     self.log?.trace("backend - connected")
