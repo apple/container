@@ -66,7 +66,7 @@ struct BuildImageResolver: BuildPipelineHandler {
                 showProgressBar: true,
                 showSize: true,
                 showSpeed: true,
-                disableProgressUpdates: self.quiet
+                outputMode: self.quiet ? .none : .ansi
             )
             let progress = ProgressBar(config: progressConfig)
             defer { progress.finish() }

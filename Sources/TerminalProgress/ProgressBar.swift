@@ -72,7 +72,7 @@ public final class ProgressBar: Sendable {
             $0.subDescription = ""
             $0.tasks += 1
         }
-        if config.plain {
+        if config.outputMode == .plain {
             render(force: true)
         }
     }
@@ -83,7 +83,7 @@ public final class ProgressBar: Sendable {
         resetCurrentTask()
 
         state.withLock { $0.subDescription = subDescription }
-        if config.plain {
+        if config.outputMode == .plain {
             render(force: true)
         }
     }
@@ -102,7 +102,7 @@ public final class ProgressBar: Sendable {
     /// Starts an animation of the progress bar.
     /// - Parameter intervalSeconds: The time interval between updates in seconds.
     public func start(intervalSeconds: TimeInterval = 0.04) {
-        if config.plain {
+        if config.outputMode == .plain {
             return
         }
         Task(priority: .utility) {
@@ -121,7 +121,7 @@ public final class ProgressBar: Sendable {
         // The last render.
         render(force: true)
 
-        if !config.disableProgressUpdates && !config.clearOnFinish {
+        if config.outputMode != .none && !config.clearOnFinish {
             displayText(state.withLock { $0.output }, terminating: "\n")
         }
 
@@ -143,7 +143,7 @@ extension ProgressBar {
     }
 
     func render(force: Bool = false) {
-        guard term != nil && !config.disableProgressUpdates && (force || !state.withLock { $0.finished }) else {
+        guard term != nil && config.outputMode != .none && (force || !state.withLock { $0.finished }) else {
             return
         }
         let output = draw()
@@ -298,7 +298,7 @@ extension ProgressBar {
     }
 
     private func colorize(_ text: String, _ color: String) -> String {
-        guard config.color else { return text }
+        guard config.outputMode == .color else { return text }
         return "\(color)\(text)\(Color.reset)"
     }
 
