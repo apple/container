@@ -65,15 +65,14 @@ extension Application {
 
             var progressConfig: ProgressConfig
             switch self.progressFlags.progress {
-            case .none: progressConfig = try ProgressConfig(disableProgressUpdates: true)
+            case .none: progressConfig = try ProgressConfig(outputMode: .none)
             case .ansi, .plain, .color:
                 progressConfig = try ProgressConfig(
                     showTasks: true,
                     showItems: true,
                     ignoreSmallSize: true,
                     totalTasks: 6,
-                    color: self.progressFlags.progress == .color,
-                    plain: self.progressFlags.progress == .plain
+                    outputMode: self.progressFlags.progress.outputMode
                 )
             }
 
