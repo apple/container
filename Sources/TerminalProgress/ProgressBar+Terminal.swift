@@ -63,7 +63,7 @@ extension ProgressBar {
     }
 
     func displayText(_ text: String, terminating: String = "\r") {
-        if config.plain {
+        if config.outputMode == .plain {
             display(text + "\n")
             return
         }

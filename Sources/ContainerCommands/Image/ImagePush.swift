@@ -69,7 +69,7 @@ extension Application {
 
             var progressConfig: ProgressConfig
             switch self.progressFlags.progress {
-            case .none: progressConfig = try ProgressConfig(disableProgressUpdates: true)
+            case .none: progressConfig = try ProgressConfig(outputMode: .none)
             case .ansi, .color, .plain:
                 progressConfig = try ProgressConfig(
                     description: "Pushing image \(image.reference)",
@@ -77,8 +77,7 @@ extension Application {
                     showItems: true,
                     showSpeed: false,
                     ignoreSmallSize: true,
-                    color: self.progressFlags.progress == .color,
-                    plain: self.progressFlags.progress == .plain
+                    outputMode: self.progressFlags.progress.outputMode
                 )
             }
 
