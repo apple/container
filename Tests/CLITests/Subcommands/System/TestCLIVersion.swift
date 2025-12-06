@@ -46,14 +46,14 @@ final class TestCLIVersion: CLITest {
     }
 
     @Test func defaultDisplaysTable() throws {
-        let (data, out, err, status) = try run(arguments: ["system", "version"]) // default is table
+        let (data, out, err, status) = try run(arguments: ["system", "version"])  // default is table
         #expect(status == 0, "system version should succeed, stderr: \(err)")
         #expect(!out.isEmpty)
 
         // Validate table structure
         let lines = out.trimmingCharacters(in: .whitespacesAndNewlines)
             .components(separatedBy: .newlines)
-        #expect(lines.count >= 2) // header + at least CLI row
+        #expect(lines.count >= 2)  // header + at least CLI row
         #expect(lines[0].contains("COMPONENT") && lines[0].contains("VERSION") && lines[0].contains("BUILD") && lines[0].contains("COMMIT"))
         #expect(lines[1].hasPrefix("CLI "))
 
@@ -61,7 +61,7 @@ final class TestCLIVersion: CLITest {
         let expected = try expectedBuildType()
         #expect(lines.joined(separator: "\n").contains(" CLI "))
         #expect(lines.joined(separator: "\n").contains(" \(expected) "))
-        _ = data // silence unused warning if assertions short-circuit
+        _ = data  // silence unused warning if assertions short-circuit
     }
 
     @Test func jsonFormat() throws {

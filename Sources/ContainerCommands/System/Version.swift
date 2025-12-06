@@ -20,7 +20,7 @@ import ContainerVersion
 import Foundation
 
 extension Application {
-    public struct VersionCommand: AsyncParsableCommand {
+    public struct SystemVersion: AsyncParsableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "version",
             abstract: "Show version information"
@@ -39,7 +39,7 @@ extension Application {
                 version: ReleaseVersion.version(),
                 buildType: ReleaseVersion.buildType(),
                 commit: ReleaseVersion.gitCommit() ?? "unspecified",
-                appName: "container CLI"
+                appName: "container"
             )
 
             // Try to get API server version info
@@ -48,47 +48,35 @@ extension Application {
                 let health = try await ClientHealthCheck.ping(timeout: .seconds(2))
                 serverInfo = VersionInfo(
                     version: health.apiServerVersion,
-                    buildType: health.apiServerBuild ?? "unknown",
+                    buildType: health.apiServerBuild,
                     commit: health.apiServerCommit,
-                    appName: "container API Server"
+                    appName: health.apiServerAppName
                 )
             } catch {
                 serverInfo = nil
             }
 
+            let versions = [cliInfo, serverInfo].compactMap { $0 }
+
             switch format {
             case .table:
-                printVersionTable(cli: cliInfo, server: serverInfo)
+                printVersionTable(versions: versions)
             case .json:
-                try printVersionJSON(cli: cliInfo, server: serverInfo)
+                try printVersionJSON(versions: versions)
             }
         }
 
+        private func printVersionTable(versions: [VersionInfo]) {
+            let header = ["COMPONENT", "VERSION", "BUILD", "COMMIT"]
+            let rows = [header] + versions.map { [$0.appName, $0.version, $0.buildType, $0.commit] }
 
-        private func printVersionTable(cli: VersionInfo, server: VersionInfo?) {
-            var rows: [[String]] = [
-                ["COMPONENT", "VERSION", "BUILD", "COMMIT"],
-                ["CLI", cli.version, cli.buildType, cli.commit]
-            ]
-            
-            if let server = server {
-                rows.append(["API Server", server.version, server.buildType, server.commit])
-            }
-            
             let table = TableOutput(rows: rows)
             print(table.format())
         }
 
-        private func printVersionJSON(cli: VersionInfo, server: VersionInfo?) throws {
-            let output = VersionJSON(
-                version: cli.version,
-                buildType: cli.buildType,
-                commit: cli.commit,
-                appName: cli.appName,
-                server: server
-            )
-            let data = try JSONEncoder().encode(output)
-            print(String(data: data, encoding: .utf8) ?? "{}")
+        private func printVersionJSON(versions: [VersionInfo]) throws {
+            let data = try JSONEncoder().encode(versions)
+            print(String(data: data, encoding: .utf8) ?? "[]")
         }
     }
 
@@ -97,13 +85,5 @@ extension Application {
         let buildType: String
         let commit: String
         let appName: String
-    }
-
-    struct VersionJSON: Codable {
-        let version: String
-        let buildType: String
-        let commit: String
-        let appName: String
-        let server: VersionInfo?
     }
 }
