@@ -72,6 +72,12 @@ public struct Application: AsyncParsableCommand {
                 ]
             ),
             CommandGroup(
+                name: "Volume",
+                subcommands: [
+                    VolumeCommand.self
+                ]
+            ),
+            CommandGroup(
                 name: "Other",
                 subcommands: Self.otherCommands()
             ),

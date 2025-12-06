@@ -30,9 +30,9 @@ public struct SystemHealth: Sendable, Codable {
     /// The Git commit ID for the container services.
     public let apiServerCommit: String
 
-    /// Optional build type of the API server (debug|release). Present on newer servers.
-    public let apiServerBuild: String?
+    /// The build type of the API server (debug|release).
+    public let apiServerBuild: String
 
-    /// Optional app name label returned by the server.
-    public let apiServerAppName: String?
+    /// The app name label returned by the server.
+    public let apiServerAppName: String
 }

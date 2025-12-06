@@ -31,7 +31,7 @@ extension Application {
                 SystemStart.self,
                 SystemStatus.self,
                 SystemStop.self,
-                VersionCommand.self,
+                SystemVersion.self,
             ],
             aliases: ["s"]
         )
