@@ -261,12 +261,13 @@ extension ProgressBar {
     private func adjustFormattedSize(_ size: String) -> String {
         // Ensure we always have one digit after the decimal point to prevent flickering.
         let zero = Int64(0).formattedSize()
-        guard !size.contains("."), let first = size.first, first.isNumber || !size.contains(zero) else {
+        let decimalSep = Locale.current.decimalSeparator ?? "."
+        guard !size.contains(decimalSep), let first = size.first, first.isNumber || !size.contains(zero) else {
             return size
         }
         var size = size
         for unit in ["MB", "GB", "TB"] {
-            size = size.replacingOccurrences(of: " \(unit)", with: ".0 \(unit)")
+            size = size.replacingOccurrences(of: " \(unit)", with: "\(decimalSep)0 \(unit)")
         }
         return size
     }
