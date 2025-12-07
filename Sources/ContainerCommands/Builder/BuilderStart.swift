@@ -94,16 +94,18 @@ extension Application {
 
             let builderPlatform = ContainerizationOCI.Platform(arch: "arm64", os: "linux", variant: "v8")
 
+            // sara comment fix
             // Decide which storage string to use for the builder
-            let effectiveStorage: String? = {
-                if let storage {
-                    return storage
-                }
-                if let defaultStorage: String = DefaultsStore.getOptional(key: .defaultBuilderStorage) {
-                    return defaultStorage
-                }
-                return nil
-            }()
+            let effectiveStorage: String?
+            if let storage {
+                effectiveStorage = storage
+            } else if let defaultStorage: String = DefaultsStore.getOptional(key: .defaultBuilderStorage) {
+                _ = try Parser.memoryString(defaultStorage)
+                effectiveStorage = defaultStorage
+            } else {
+                effectiveStorage = nil
+            }
+            // sara done
 
             let existingContainer = try? await ClientContainer.get(id: "buildkit")
             if let existingContainer {
