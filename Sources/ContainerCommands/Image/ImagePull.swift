@@ -36,6 +36,9 @@ extension Application {
         @OptionGroup
         var progressFlags: Flags.Progress
 
+        @OptionGroup
+        var imageFetchFlags: Flags.ImageFetch
+
         @Option(
             name: .shortAndLong,
             help: "Limit the pull to the specified architecture"
@@ -100,7 +103,8 @@ extension Application {
             let taskManager = ProgressTaskCoordinator()
             let fetchTask = await taskManager.startTask()
             let image = try await ClientImage.pull(
-                reference: processedReference, platform: p, scheme: scheme, progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progress.handler)
+                reference: processedReference, platform: p, scheme: scheme, progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progress.handler),
+                maxConcurrentDownloads: self.imageFetchFlags.maxConcurrentDownloads
             )
 
             progress.set(description: "Unpacking image")

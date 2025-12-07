@@ -59,11 +59,15 @@ public actor ImagesService {
         return try await imageStore.list().map { $0.description.fromCZ }
     }
 
-    public func pull(reference: String, platform: Platform?, insecure: Bool, progressUpdate: ProgressUpdateHandler?) async throws -> ImageDescription {
-        self.log.info("ImagesService: \(#function) - ref: \(reference), platform: \(String(describing: platform)), insecure: \(insecure)")
+    public func pull(reference: String, platform: Platform?, insecure: Bool, progressUpdate: ProgressUpdateHandler?, maxConcurrentDownloads: Int = 3) async throws
+        -> ImageDescription
+    {
+        self.log.info(
+            "ImagesService: \(#function) - ref: \(reference), platform: \(String(describing: platform)), insecure: \(insecure), maxConcurrentDownloads: \(maxConcurrentDownloads)")
         let img = try await Self.withAuthentication(ref: reference) { auth in
             try await self.imageStore.pull(
-                reference: reference, platform: platform, insecure: insecure, auth: auth, progress: ContainerizationProgressAdapter.handler(from: progressUpdate))
+                reference: reference, platform: platform, insecure: insecure, auth: auth, progress: ContainerizationProgressAdapter.handler(from: progressUpdate),
+                maxConcurrentDownloads: maxConcurrentDownloads)
         }
         guard let img else {
             throw ContainerizationError(.internalError, message: "failed to pull image \(reference)")

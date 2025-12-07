@@ -47,9 +47,11 @@ public struct ImagesServiceHarness: Sendable {
             platform = try JSONDecoder().decode(ContainerizationOCI.Platform.self, from: platformData)
         }
         let insecure = message.bool(key: .insecureFlag)
+        let maxConcurrentDownloads = message.int64(key: .maxConcurrentDownloads)
 
         let progressUpdateService = ProgressUpdateService(message: message)
-        let imageDescription = try await service.pull(reference: ref, platform: platform, insecure: insecure, progressUpdate: progressUpdateService?.handler)
+        let imageDescription = try await service.pull(
+            reference: ref, platform: platform, insecure: insecure, progressUpdate: progressUpdateService?.handler, maxConcurrentDownloads: Int(maxConcurrentDownloads))
 
         let imageData = try JSONEncoder().encode(imageDescription)
         let reply = message.reply()

@@ -360,6 +360,41 @@ extension TestCLIImagesCommand {
         }
     }
 
+    @Test func testMaxConcurrentDownloadsValidation() throws {
+        // Test that invalid maxConcurrentDownloads value is rejected
+        let (_, _, error, status) = try run(arguments: [
+            "image",
+            "pull",
+            "--max-concurrent-downloads", "0",
+            "alpine:latest",
+        ])
+
+        #expect(status != 0, "Expected command to fail with maxConcurrentDownloads=0")
+        #expect(
+            error.contains("maximum number of concurrent downloads must be greater than 0"),
+            "Expected validation error message in output")
+    }
+
+    @Test func testMaxConcurrentDownloadsFlag() throws {
+        // Test that the flag is accepted with valid values
+        do {
+            try doPull(imageName: alpine, args: ["--max-concurrent-downloads", "1"])
+            let imagePresent = try isImagePresent(targetImage: alpine)
+            #expect(imagePresent, "Expected image to be pulled with maxConcurrentDownloads=1")
+
+            // Clean up
+            try? doRemoveImages(images: [alpine])
+
+            // Test with higher concurrency
+            try doPull(imageName: alpine, args: ["--max-concurrent-downloads", "6"])
+            let imagePresent2 = try isImagePresent(targetImage: alpine)
+            #expect(imagePresent2, "Expected image to be pulled with maxConcurrentDownloads=6")
+        } catch {
+            Issue.record("failed to pull image with maxConcurrentDownloads flag: \(error)")
+            return
+        }
+    }
+
     @Test func testImageSaveAndLoadStdinStdout() throws {
         do {
             // 1. pull image
