@@ -168,21 +168,38 @@ public struct Utility {
         var config = ContainerConfiguration(id: id, image: description, process: pc)
         config.platform = requestedPlatform
 
-        let effectiveStorage: String? = {
-            if let storage = resource.storage {
-                return storage
+        // sara 
+        let effectiveStorage: String?
+        if let storage = resource.storage {
+            do {
+                _ = try Parser.memoryString(storage)
+            } catch {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "invalid storage value '\(storage)' for --storage"
+                )
             }
-            if let defaultStorage: String = DefaultsStore.getOptional(key: .defaultContainerStorage) {
-                return defaultStorage
+            effectiveStorage = storage
+        } else if let defaultStorage: String = DefaultsStore.getOptional(key: .defaultContainerStorage) {
+            do {
+                _ = try Parser.memoryString(defaultStorage)
+            } catch {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "invalid default container storage value '\(defaultStorage)'; update it with `container property set defaultContainerStorage`"
+                )
             }
-            return nil
-        }()
+            effectiveStorage = defaultStorage
+        } else {
+            effectiveStorage = nil
+        }
 
         config.resources = try Parser.resources(
             cpus: resource.cpus,
             memory: resource.memory,
             storage: effectiveStorage
         )
+        // sara done
 
         if let storageBytes = config.resources.storage {
             try Parser.validateHostStorage(bytes: storageBytes)

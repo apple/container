@@ -98,9 +98,24 @@ extension Application {
             // Decide which storage string to use for the builder
             let effectiveStorage: String?
             if let storage {
+                do {
+                    _ = try Parser.memoryString(storage)
+                } catch {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "invalid storage value '\(storage)' for --storage"
+                    )
+                }
                 effectiveStorage = storage
             } else if let defaultStorage: String = DefaultsStore.getOptional(key: .defaultBuilderStorage) {
-                _ = try Parser.memoryString(defaultStorage)
+                do {
+                    _ = try Parser.memoryString(defaultStorage)
+                } catch {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "invalid default builder storage value '\(defaultStorage)'; update it with `container property set defaultBuilderStorage`"
+                    )
+                }
                 effectiveStorage = defaultStorage
             } else {
                 effectiveStorage = nil
