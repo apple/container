@@ -219,7 +219,7 @@ public struct Flags {
     public struct ImageFetch: ParsableArguments {
         public init() {}
 
-        @Option(name: .long, help: "Maximum number of concurrent layer downloads (default: 3)")
+        @Option(name: .long, help: "Maximum number of concurrent downloads (default: 3)")
         public var maxConcurrentDownloads: Int = 3
     }
 }

@@ -371,7 +371,7 @@ extension TestCLIImagesCommand {
 
         #expect(status != 0, "Expected command to fail with maxConcurrentDownloads=0")
         #expect(
-            error.contains("--max-concurrent-downloads must be greater than 0"),
+            error.contains("maximum number of concurrent downloads must be greater than 0"),
             "Expected validation error message in output")
     }
 
