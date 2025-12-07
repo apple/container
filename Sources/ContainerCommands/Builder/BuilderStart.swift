@@ -94,7 +94,6 @@ extension Application {
 
             let builderPlatform = ContainerizationOCI.Platform(arch: "arm64", os: "linux", variant: "v8")
 
-            // sara comment fix
             // Decide which storage string to use for the builder
             let effectiveStorage: String?
             if let storage {
@@ -120,7 +119,6 @@ extension Application {
             } else {
                 effectiveStorage = nil
             }
-            // sara done
 
             let existingContainer = try? await ClientContainer.get(id: "buildkit")
             if let existingContainer {
@@ -230,10 +228,6 @@ extension Application {
                 memory: memory,
                 storage: effectiveStorage
             )
-
-            if let storageBytes = resources.storage {
-                try Parser.validateHostStorage(bytes: storageBytes)
-            }
 
             var config = ContainerConfiguration(id: id, image: imageDesc, process: processConfig)
             config.resources = resources

@@ -879,28 +879,3 @@ public struct Parser {
         }
     }
 }
-
-extension Parser {
-    /// Validates that the host has enough disk space for the requested storage.
-    public static func validateHostStorage(bytes: UInt64) throws {
-        let fileURL = URL(fileURLWithPath: "/")
-        do {
-            let values = try fileURL.resourceValues(forKeys: [.volumeAvailableCapacityKey])
-            if let available = values.volumeAvailableCapacity {
-                if UInt64(available) < bytes {
-                    let availableStr = ByteCountFormatter.string(fromByteCount: Int64(available), countStyle: .file)
-                    let requestedStr = ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
-
-                    throw ContainerizationError(
-                        .invalidArgument,
-                        message: "requested storage (\(requestedStr)) exceeds available host capacity (\(availableStr))"
-                    )
-                }
-            }
-        } catch let error as ContainerizationError {
-            throw error
-        } catch {
-            throw ContainerizationError(.unknown, message: "failed to validate host storage: \(error.localizedDescription)")
-        }
-    }
-}
