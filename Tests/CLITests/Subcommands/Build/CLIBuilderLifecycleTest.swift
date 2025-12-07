@@ -16,6 +16,7 @@
 
 import Foundation
 import Testing
+import ContainerClient
 
 extension TestCLIBuildBase {
     class CLIBuilderLifecycleTest: TestCLIBuildBase {
@@ -31,6 +32,51 @@ extension TestCLIBuildBase {
                 try self.builderStop()
                 let status = try self.getContainerStatus("buildkit")
                 #expect(status == "stopped", "BuildKit container is not stopped")
+            }
+        }
+
+        @Test func testBuilderStorageFlag() throws {
+            do {
+                let requestedStorage = "4096MB"
+                let expectedMiB = Int(try Parser.memoryString(requestedStorage))
+
+                try? builderStop()
+                try? builderDelete(force: true)
+
+                let (_, _, err, status) = try run(arguments: [
+                    "builder",
+                    "start",
+                    "--storage", requestedStorage,
+                ])
+                try #require(status == 0, "builder start failed: \(err)")
+
+                try waitForBuilderRunning()
+
+                defer {
+                    try? builderStop()
+                    try? builderDelete(force: true)
+                }
+
+                let buildkitName = "buildkit"
+                var output = try doExec(
+                    name: buildkitName,
+                    cmd: ["sh", "-c", "df -m / | tail -1 | tr -s ' ' | cut -d' ' -f2"]
+                )
+                output = output.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                guard let reportedMiB = Int(output) else {
+                    Issue.record("expected integer df output, got '\(output)'")
+                    return
+                }
+
+                let tolerance = expectedMiB / 10
+                #expect(
+                    abs(reportedMiB - expectedMiB) <= tolerance,
+                    "expected root filesystem size ≈ \(expectedMiB) MiB for storage \(requestedStorage), got \(reportedMiB) MiB"
+                )
+            } catch {
+                Issue.record("failed to verify builder storage: \(error)")
+                return
             }
         }
     }

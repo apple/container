@@ -576,6 +576,42 @@ class TestCLIRunCommand: CLITest {
         }
     }
 
+    @Test func testRunCommandStorage() throws {
+        do {
+            let name = getTestName()
+            let requestedStorage = "2048MB"
+            let expectedMiB = Int(try Parser.memoryString(requestedStorage))
+
+            try doLongRun(name: name, args: ["--storage", requestedStorage])
+            defer {
+                try? doStop(name: name)
+            }
+
+            var output = try doExec(
+                name: name,
+                cmd: ["sh", "-c", "df -m / | tail -1 | tr -s ' ' | cut -d' ' -f2"]
+            )
+            output = output.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard let reportedMiB = Int(output) else {
+                Issue.record("expected integer df output, got '\(output)'")                
+                return
+            }
+
+            let tolerance = expectedMiB / 10
+            #expect(
+                abs(reportedMiB - expectedMiB) <= tolerance,
+                "expected root filesystem size ≈ \(expectedMiB) MiB for storage \(requestedStorage), got \(reportedMiB) MiB"
+            )
+
+            try doStop(name: name)
+        } catch {
+            Issue.record("failed to run container \(error)")
+            return
+        }
+
+    }
+
     func getDefaultDomain() throws -> String? {
         let (_, output, err, status) = try run(arguments: ["system", "property", "get", "dns.domain"])
         try #require(status == 0, "default DNS domain retrieval returned status \(status): \(err)")
