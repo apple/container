@@ -35,6 +35,7 @@ public enum ImagesServiceXPCKeys: String {
     case ociPlatform
     case insecureFlag
     case garbageCollect
+    case maxConcurrentDownloads
 
     /// ContentStore
     case digest

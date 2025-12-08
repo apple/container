@@ -215,4 +215,11 @@ public struct Flags {
         @Option(name: .long, help: ArgumentHelp("Progress type (format: none|ansi)", valueName: "type"))
         public var progress: ProgressType = .ansi
     }
+
+    public struct ImageFetch: ParsableArguments {
+        public init() {}
+
+        @Option(name: .long, help: "Maximum number of concurrent downloads (default: 3)")
+        public var maxConcurrentDownloads: Int = 3
+    }
 }

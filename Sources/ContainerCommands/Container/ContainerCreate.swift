@@ -40,6 +40,9 @@ extension Application {
         @OptionGroup(title: "Registry options")
         var registryFlags: Flags.Registry
 
+        @OptionGroup(title: "Image fetch options")
+        var imageFetchFlags: Flags.ImageFetch
+
         @OptionGroup
         var global: Flags.Global
 
@@ -73,6 +76,7 @@ extension Application {
                 management: managementFlags,
                 resource: resourceFlags,
                 registry: registryFlags,
+                imageFetch: imageFetchFlags,
                 progressUpdate: progress.handler
             )
 
