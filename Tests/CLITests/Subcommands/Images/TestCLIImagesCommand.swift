@@ -19,7 +19,12 @@ import ContainerizationOCI
 import Foundation
 import Testing
 
+@Suite(.serialized)
 class TestCLIImagesCommand: CLITest {
+    private func getTestName() -> String {
+        Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
+    }
+
     @Test func testPull() throws {
         do {
             try doPull(imageName: alpine)
@@ -369,5 +374,78 @@ class TestCLIImagesCommand: CLITest {
             Issue.record("failed to save and load image \(error)")
             return
         }
+    }
+    
+    @Test func testImagePruneNoImages() throws {
+        // Prune with no images should succeed
+        let (_, output, error, status) = try run(arguments: ["image", "prune"])
+        if status != 0 {
+            throw CLIError.executionFailed("image prune failed: \(error)")
+        }
+
+        #expect(output.contains("Zero KB"), "should show no space reclaimed")
+    }
+
+    @Test func testImagePruneUnusedImages() throws {
+        // 1. Pull the images
+        try doPull(imageName: alpine)
+        try doPull(imageName: busybox)
+
+        // 2. Verify the images are present
+        let alpinePresent = try isImagePresent(targetImage: alpine)
+        #expect(alpinePresent, "expected to see image \(alpine) pulled")
+        let busyBoxPresent = try isImagePresent(targetImage: busybox)
+        #expect(busyBoxPresent, "expected to see image \(busybox) pulled")
+
+        // 3. Prune with the -a flag should remove all unused images
+        let (_, output, error, status) = try run(arguments: ["image", "prune", "-a"])
+        if status != 0 {
+            throw CLIError.executionFailed("image prune failed: \(error)")
+        }
+        #expect(output.contains(alpine), "should prune alpine image")
+        #expect(output.contains(busybox), "should prune busybox image")
+
+        // 4. Verify the images are gone
+        let alpineRemoved = try !isImagePresent(targetImage: alpine)
+        #expect(alpineRemoved, "expected image \(alpine) to be removed")
+        let busyboxRemoved = try !isImagePresent(targetImage: busybox)
+        #expect(busyboxRemoved, "expected image \(busybox) to be removed")
+    }
+
+    @Test func testImagePruneDanglingImages() throws {
+        let name = getTestName()
+        let containerName = "\(name)_container"
+
+        // 1. Pull the images
+        try doPull(imageName: alpine)
+        try doPull(imageName: busybox)
+
+        // 2. Verify the images are present
+        let alpinePresent = try isImagePresent(targetImage: alpine)
+        #expect(alpinePresent, "expected to see image \(alpine) pulled")
+        let busyBoxPresent = try isImagePresent(targetImage: busybox)
+        #expect(busyBoxPresent, "expected to see image \(busybox) pulled")
+
+        // 3. Create a running container based on alpine
+        try doLongRun(
+            name: containerName,
+            image: alpine
+        )
+        try waitForContainerRunning(containerName)
+
+        // 4. Prune should only remove the dangling image
+        let (_, output, error, status) = try run(arguments: ["image", "prune", "-a"])
+        if status != 0 {
+            throw CLIError.executionFailed("image prune failed: \(error)")
+        }
+        #expect(output.contains(busybox), "should prune busybox image")
+
+        // 5. Verify the busybox image is gone
+        let busyboxRemoved = try !isImagePresent(targetImage: busybox)
+        #expect(busyboxRemoved, "expected image \(busybox) to be removed")
+
+        // 6. Verify the alpine image still exists
+        let alpineStillPresent = try isImagePresent(targetImage: alpine)
+        #expect(alpineStillPresent, "expected image \(alpine) to remain")
     }
 }
