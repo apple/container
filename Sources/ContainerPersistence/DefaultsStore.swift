@@ -27,7 +27,7 @@ public enum DefaultsStore {
         case defaultDNSDomain = "dns.domain"
         case defaultBuilderImage = "image.builder"
         case defaultBuilderStorage = "builder.storage"
-        case defaultContainerStorage = "rootfs.capacity"
+        case defaultContainerStorage = "container.storage"
         case defaultInitImage = "image.init"
         case defaultKernelBinaryPath = "kernel.binaryPath"
         case defaultKernelURL = "kernel.url"
