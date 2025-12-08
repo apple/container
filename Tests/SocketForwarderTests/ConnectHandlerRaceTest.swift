@@ -16,6 +16,7 @@
 
 import NIO
 import Testing
+
 @testable import SocketForwarder
 
 struct ConnectHandlerRaceTest {
@@ -24,7 +25,7 @@ struct ConnectHandlerRaceTest {
     @Test
     func testRapidConnectDisconnect() async throws {
         let requestCount = 500
-        
+
         let serverAddress = try SocketAddress(ipAddress: "127.0.0.1", port: 0)
         let server = TCPEchoServer(serverAddress: serverAddress, eventLoopGroup: eventLoopGroup)
         let serverChannel = try await server.run().get()
@@ -46,7 +47,7 @@ struct ConnectHandlerRaceTest {
                         let channel = try await ClientBootstrap(group: self.eventLoopGroup)
                             .connect(to: actualProxyAddress)
                             .get()
-                        
+
                         try await channel.close()
                     } catch {
                         // Going to ignore connection errors as we are intentionally stressing it
@@ -63,4 +64,3 @@ struct ConnectHandlerRaceTest {
         try await forwarderResult.wait()
     }
 }
-

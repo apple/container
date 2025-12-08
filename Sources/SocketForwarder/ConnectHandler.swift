@@ -82,10 +82,10 @@ extension ConnectHandler {
             .assumeIsolatedUnsafeUnchecked()
             .whenComplete { result in
                 guard !self.removed else {
-                     if case .success(let channel) = result {
-                         channel.close(promise: nil)
-                     }
-                     return
+                    if case .success(let channel) = result {
+                        channel.close(promise: nil)
+                    }
+                    return
                 }
 
                 switch result {
