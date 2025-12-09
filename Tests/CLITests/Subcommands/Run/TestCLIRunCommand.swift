@@ -596,7 +596,7 @@ class TestCLIRunCommand: CLITest {
             output = output.trimmingCharacters(in: .whitespacesAndNewlines)
 
             guard let reportedMiB = Int(output) else {
-                Issue.record("expected integer df output, got '\(output)'")                
+                Issue.record("expected integer df output, got '\(output)'")
                 return
             }
 

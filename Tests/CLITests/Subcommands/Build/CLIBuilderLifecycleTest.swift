@@ -14,9 +14,9 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerClient
 import Foundation
 import Testing
-import ContainerClient
 
 extension TestCLIBuildBase {
     class CLIBuilderLifecycleTest: TestCLIBuildBase {
