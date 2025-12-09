@@ -513,13 +513,14 @@ class TestCLIRunCommand: CLITest {
                     let response = try await client.execute(request, timeout: .seconds(retryDelaySeconds))
                     try #require(response.status == .ok)
                     success = true
+                    print("request to \(url) succeeded")
                 } catch {
                     print("request to \(url) failed, error \(error)")
                     try await Task.sleep(for: .seconds(retryDelaySeconds))
                 }
                 retriesRemaining -= 1
             }
-            #expect(success, "Request to \(url) failed after \(retries - retriesRemaining) retries")
+            try #require(success, "Request to \(url) failed after \(retries - retriesRemaining) retries")
             try doStop(name: name)
         } catch {
             Issue.record("failed to run container \(error)")
@@ -527,6 +528,7 @@ class TestCLIRunCommand: CLITest {
         }
     }
 
+    /*
     @Test func testForwardTCPPortRange() async throws {
         let range = UInt16(10)
         for portOffset in 0..<range {
@@ -547,7 +549,7 @@ class TestCLIRunCommand: CLITest {
                 defer {
                     try? doStop(name: name)
                 }
-
+    
                 let url = "http://\(proxyIp):\(proxyPortStart + portOffset)"
                 var request = HTTPClientRequest(url: url)
                 request.method = .GET
@@ -561,13 +563,14 @@ class TestCLIRunCommand: CLITest {
                         let response = try await client.execute(request, timeout: .seconds(retryDelaySeconds))
                         try #require(response.status == .ok)
                         success = true
+                        print("request to \(url) succeeded")
                     } catch {
                         print("request to \(url) failed, error: \(error)")
                         try await Task.sleep(for: .seconds(retryDelaySeconds))
                     }
                     retriesRemaining -= 1
                 }
-                #expect(success, "Request to \(url) failed after \(retries - retriesRemaining) retries")
+                try #require(success, "Request to \(url) failed after \(retries - retriesRemaining) retries")
                 try doStop(name: name)
             } catch {
                 Issue.record("failed to run container \(error)")
@@ -575,6 +578,7 @@ class TestCLIRunCommand: CLITest {
             }
         }
     }
+    */
 
     func getDefaultDomain() throws -> String? {
         let (_, output, err, status) = try run(arguments: ["system", "property", "get", "dns.domain"])

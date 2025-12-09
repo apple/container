@@ -484,4 +484,65 @@ class CLITest {
 
         return try await body(tempDir)
     }
+
+    func doRemoveImages(images: [String]? = nil) throws {
+        var args = [
+            "image",
+            "rm",
+        ]
+
+        if let images {
+            args.append(contentsOf: images)
+        } else {
+            args.append("--all")
+        }
+
+        let (_, _, error, status) = try run(arguments: args)
+        if status != 0 {
+            throw CLIError.executionFailed("command failed: \(error)")
+        }
+    }
+
+    func isImagePresent(targetImage: String) throws -> Bool {
+        let images = try doListImages()
+        return images.contains(where: { image in
+            if image.reference == targetImage {
+                return true
+            }
+            return false
+        })
+    }
+
+    func doListImages() throws -> [Image] {
+        let (_, output, error, status) = try run(arguments: [
+            "image",
+            "list",
+            "--format",
+            "json",
+        ])
+        if status != 0 {
+            throw CLIError.executionFailed("command failed: \(error)")
+        }
+
+        guard let jsonData = output.data(using: .utf8) else {
+            throw CLIError.invalidOutput("image list output invalid \(output)")
+        }
+
+        let decoder = JSONDecoder()
+        return try decoder.decode([Image].self, from: jsonData)
+    }
+
+    func doImageTag(image: String, newName: String) throws {
+        let tagArgs = [
+            "image",
+            "tag",
+            image,
+            newName,
+        ]
+
+        let (_, _, error, status) = try run(arguments: tagArgs)
+        if status != 0 {
+            throw CLIError.executionFailed("command failed: \(error)")
+        }
+    }
 }
