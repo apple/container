@@ -84,7 +84,7 @@ public actor SnapshotStore {
                 throw ContainerizationError(.internalError, message: "missing platform for descriptor \(desc.digest)")
             }
             guard let unpacker = try await self.unpackStrategy(image, platform) else {
-                self.log?.warning("Skipping unpack for \(image.reference) for platform \(platform.description). No unpacker configured.")
+                self.log?.warning("no unpacker configured, skipping unpack for \(image.reference) for platform \(platform.description)")
                 continue
             }
             let currentSubTask = await taskManager.startTask()

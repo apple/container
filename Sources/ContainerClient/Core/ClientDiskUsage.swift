@@ -31,7 +31,7 @@ public struct ClientDiskUsage {
         guard let responseData = reply.dataNoCopy(key: .diskUsageStats) else {
             throw ContainerizationError(
                 .internalError,
-                message: "Invalid response from server: missing disk usage data"
+                message: "invalid response from server: missing disk usage data"
             )
         }
 

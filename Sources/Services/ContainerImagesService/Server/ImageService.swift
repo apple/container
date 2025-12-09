@@ -235,7 +235,7 @@ extension ImagesService {
                 throw err
             }
             guard authentication != nil else {
-                throw ContainerizationError(.internalError, message: "\(String(describing: err)). No credentials found for host \(host)")
+                throw ContainerizationError(.internalError, message: "\(String(describing: err)), no credentials found for host \(host)")
             }
             throw err
         }
