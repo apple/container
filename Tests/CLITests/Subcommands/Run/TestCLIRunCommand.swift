@@ -528,7 +528,6 @@ class TestCLIRunCommand: CLITest {
         }
     }
 
-    /*
     @Test func testForwardTCPPortRange() async throws {
         let range = UInt16(10)
         for portOffset in 0..<range {
@@ -549,7 +548,7 @@ class TestCLIRunCommand: CLITest {
                 defer {
                     try? doStop(name: name)
                 }
-    
+
                 let url = "http://\(proxyIp):\(proxyPortStart + portOffset)"
                 var request = HTTPClientRequest(url: url)
                 request.method = .GET
@@ -578,7 +577,6 @@ class TestCLIRunCommand: CLITest {
             }
         }
     }
-    */
 
     func getDefaultDomain() throws -> String? {
         let (_, output, err, status) = try run(arguments: ["system", "property", "get", "dns.domain"])
