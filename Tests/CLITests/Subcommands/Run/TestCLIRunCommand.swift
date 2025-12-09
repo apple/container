@@ -513,13 +513,14 @@ class TestCLIRunCommand: CLITest {
                     let response = try await client.execute(request, timeout: .seconds(retryDelaySeconds))
                     try #require(response.status == .ok)
                     success = true
+                    print("request to \(url) succeeded")
                 } catch {
                     print("request to \(url) failed, error \(error)")
                     try await Task.sleep(for: .seconds(retryDelaySeconds))
                 }
                 retriesRemaining -= 1
             }
-            #expect(success, "Request to \(url) failed after \(retries - retriesRemaining) retries")
+            try #require(success, "Request to \(url) failed after \(retries - retriesRemaining) retries")
             try doStop(name: name)
         } catch {
             Issue.record("failed to run container \(error)")
@@ -561,13 +562,14 @@ class TestCLIRunCommand: CLITest {
                         let response = try await client.execute(request, timeout: .seconds(retryDelaySeconds))
                         try #require(response.status == .ok)
                         success = true
+                        print("request to \(url) succeeded")
                     } catch {
                         print("request to \(url) failed, error: \(error)")
                         try await Task.sleep(for: .seconds(retryDelaySeconds))
                     }
                     retriesRemaining -= 1
                 }
-                #expect(success, "Request to \(url) failed after \(retries - retriesRemaining) retries")
+                try #require(success, "Request to \(url) failed after \(retries - retriesRemaining) retries")
                 try doStop(name: name)
             } catch {
                 Issue.record("failed to run container \(error)")
