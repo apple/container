@@ -20,7 +20,7 @@ import Foundation
 import Testing
 
 /// Tests that need total control over environment to avoid conflicts.
-class TestNoParallelCases: CLITest {
+class TestCLINoParallelCases: CLITest {
     @Test func testImageSingleConcurrentDownload() throws {
         // removing this image during parallel tests breaks stuff!
         _ = try? run(arguments: ["image", "rm", alpine])
