@@ -191,7 +191,7 @@ public actor VolumesService {
         let sizeInBytes = UInt64(bytes)
 
         guard sizeInBytes >= minSize else {
-            throw VolumeError.storageError("Volume size too small: minimum 1MiB")
+            throw VolumeError.storageError("volume size too small: minimum 1MiB")
         }
 
         return sizeInBytes
@@ -244,7 +244,7 @@ public actor VolumesService {
         labels: [String: String]
     ) async throws -> Volume {
         guard VolumeStorage.isValidVolumeName(name) else {
-            throw VolumeError.invalidVolumeName("Invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
+            throw VolumeError.invalidVolumeName("invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
         }
 
         // Check if volume already exists by trying to list and finding it
@@ -283,7 +283,7 @@ public actor VolumesService {
 
     private func _delete(name: String) async throws {
         guard VolumeStorage.isValidVolumeName(name) else {
-            throw VolumeError.invalidVolumeName("Invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
+            throw VolumeError.invalidVolumeName("invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
         }
 
         // Check if volume exists by trying to list and finding it
@@ -311,7 +311,7 @@ public actor VolumesService {
 
     private func _inspect(_ name: String) async throws -> Volume {
         guard VolumeStorage.isValidVolumeName(name) else {
-            throw VolumeError.invalidVolumeName("Invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
+            throw VolumeError.invalidVolumeName("invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
         }
 
         let volumes = try await store.list()

@@ -262,7 +262,7 @@ public struct Parser {
         }()
 
         guard let commandToRun = processArguments, commandToRun.count > 0 else {
-            throw ContainerizationError(.invalidArgument, message: "Command/Entrypoint not specified for container process")
+            throw ContainerizationError(.invalidArgument, message: "command/entrypoint not specified for container process")
         }
 
         let defaultUser: ProcessConfiguration.User = {

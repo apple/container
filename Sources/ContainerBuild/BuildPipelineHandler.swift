@@ -105,7 +105,7 @@ public actor BuildPipeline {
             throw NSError(
                 domain: "untilFirstError",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Failed to initialize task continuation"])
+                userInfo: [NSLocalizedDescriptionKey: "failed to initialize task continuation"])
         }
         defer { taskContinuation.finish() }
         let stream = AsyncStream<Error> { continuation in

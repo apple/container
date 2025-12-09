@@ -163,7 +163,7 @@ extension ProgressConfig {
         public var description: String {
             switch self {
             case .invalid(let reason):
-                return "Failed to validate config (\(reason))"
+                return "failed to validate config (\(reason))"
             }
         }
     }

@@ -84,7 +84,7 @@ public enum DefaultsStore {
 
     private static var udSuite: UserDefaults {
         guard let ud = UserDefaults.init(suiteName: self.userDefaultDomain) else {
-            fatalError("Failed to initialize UserDefaults for domain \(self.userDefaultDomain)")
+            fatalError("failed to initialize UserDefaults for domain \(self.userDefaultDomain)")
         }
         return ud
     }

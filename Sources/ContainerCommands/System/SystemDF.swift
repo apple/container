@@ -44,7 +44,7 @@ extension Application {
                 guard let jsonString = String(data: data, encoding: .utf8) else {
                     throw ContainerizationError(
                         .internalError,
-                        message: "Failed to encode JSON output"
+                        message: "failed to encode JSON output"
                     )
                 }
                 print(jsonString)

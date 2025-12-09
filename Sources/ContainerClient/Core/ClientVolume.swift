@@ -41,7 +41,7 @@ public struct ClientVolume {
         let reply = try await client.send(message)
 
         guard let responseData = reply.dataNoCopy(key: .volume) else {
-            throw VolumeError.storageError("Invalid response from server")
+            throw VolumeError.storageError("invalid response from server")
         }
 
         return try JSONDecoder().decode(Volume.self, from: responseData)
