@@ -72,7 +72,7 @@ public struct ServiceManager {
         let status = launchctl.terminationStatus
         guard status == 0 else {
             throw ContainerizationError(
-                .internalError, message: "command `launchctl list` failed with status \(status). Message: \(String(data: stderrData, encoding: .utf8) ?? "no error message")")
+                .internalError, message: "command `launchctl list` failed with status \(status), message: \(String(data: stderrData, encoding: .utf8) ?? "no error message")")
         }
 
         guard let outputText = String(data: outputData, encoding: .utf8) else {
