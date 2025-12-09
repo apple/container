@@ -77,7 +77,7 @@ public struct ServiceManager {
 
         guard let outputText = String(data: outputData, encoding: .utf8) else {
             throw ContainerizationError(
-                .internalError, message: "could not decode output of command `launchctl list`. Message: \(String(data: stderrData, encoding: .utf8) ?? "no error message")")
+                .internalError, message: "could not decode output of command `launchctl list`, message: \(String(data: stderrData, encoding: .utf8) ?? "no error message")")
         }
 
         // The third field of each line of launchctl list output is the label
