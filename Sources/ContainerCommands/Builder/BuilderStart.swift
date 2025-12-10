@@ -148,10 +148,10 @@ extension Application {
                 let storageChanged = try {
                     if let effectiveStorage {
                         let storageInMiB = try Parser.memoryString(effectiveStorage)
-                        let storageInBytes = UInt64(storageInMiB.mib())
+                        let storageInBytes = UInt64(storageInMiB)
                         return existingResources.storage != storageInBytes
                     }
-                    return false
+                    return existingResources.storage != 0
                 }()
 
                 switch existingContainer.status {
@@ -230,6 +230,7 @@ extension Application {
             )
 
             var config = ContainerConfiguration(id: id, image: imageDesc, process: processConfig)
+            config.platform = builderPlatform
             config.resources = resources
             config.mounts = [
                 .init(

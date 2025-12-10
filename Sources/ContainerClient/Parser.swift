@@ -94,7 +94,7 @@ public struct Parser {
         }
         if let storage {
             let storageInMiB = try Parser.memoryString(storage)
-            resource.storage = UInt64(storageInMiB.mib())
+            resource.storage = UInt64(storageInMiB)
         }
         return resource
     }
