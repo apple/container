@@ -63,6 +63,8 @@ public enum XPCKeys: String {
     case installRoot
     case apiServerVersion
     case apiServerCommit
+    case apiServerBuild
+    case apiServerAppName
 
     /// Process request keys.
     case signal

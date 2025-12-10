@@ -925,6 +925,55 @@ container system status [--prefix <prefix>] [--debug]
 
 *   `-p, --prefix <prefix>`: Launchd prefix for services (default: com.apple.container.)
 
+### `container system version`
+
+Shows version information for the CLI and, if available, the API server. The table format is consistent with other list outputs and includes a header. If the API server responds to a health check, a second row for the server is added.
+
+**Usage**
+
+```bash
+container system version [--format <format>]
+```
+
+**Options**
+
+*   `--format <format>`: Output format (values: json, table; default: table)
+
+**Table Output**
+
+Columns: `COMPONENT`, `VERSION`, `BUILD`, `COMMIT`.
+
+Example:
+
+```bash
+container system version
+```
+
+```
+COMPONENT   VERSION                         BUILD   COMMIT
+CLI         1.2.3                           debug   abcdef1
+API Server  container-apiserver 1.2.3       release 1234abc
+```
+
+**JSON Output**
+
+Backward-compatible with previous CLI-only output. Top-level fields describe the CLI. When available, a `server` object is included with the same fields.
+
+```json
+{
+  "version": "1.2.3",
+  "buildType": "debug",
+  "commit": "abcdef1",
+  "appName": "container CLI",
+  "server": {
+    "version": "container-apiserver 1.2.3",
+    "buildType": "release",
+    "commit": "1234abc",
+    "appName": "container API Server"
+  }
+}
+```
+
 ### `container system logs`
 
 Displays logs from the container services. You can specify a time interval or follow new logs in real time.
