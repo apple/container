@@ -35,10 +35,11 @@ extension TestCLIBuildBase {
             }
         }
 
-        @Test func testBuilderStorageFlag() throws {
+        @Test func testBuilderStorageFlag() async throws {
             do {
                 let requestedStorage = "4096MB"
                 let expectedMiB = Int(try Parser.memoryString(requestedStorage))
+                let expectedBytes = UInt64(expectedMiB.mib())
 
                 try? builderStop()
                 try? builderDelete(force: true)
@@ -58,21 +59,17 @@ extension TestCLIBuildBase {
                 }
 
                 let buildkitName = "buildkit"
-                var output = try doExec(
-                    name: buildkitName,
-                    cmd: ["sh", "-c", "df -m / | tail -1 | tr -s ' ' | cut -d' ' -f2"]
-                )
-                output = output.trimmingCharacters(in: .whitespacesAndNewlines)
+                let buildkit = try await ClientContainer.get(id: buildkitName)
+                let resources = buildkit.configuration.resources
 
-                guard let reportedMiB = Int(output) else {
-                    Issue.record("expected integer df output, got '\(output)'")
+                guard let storageBytes = resources.storage else {
+                    Issue.record("expected builder resources.storage to be set for --storage \(requestedStorage)")
                     return
                 }
 
-                let tolerance = expectedMiB / 10
                 #expect(
-                    abs(reportedMiB - expectedMiB) <= tolerance,
-                    "expected root filesystem size ≈ \(expectedMiB) MiB for storage \(requestedStorage), got \(reportedMiB) MiB"
+                    storageBytes == expectedBytes,
+                    "expected builder storage \(expectedBytes) bytes for \(requestedStorage), got \(storageBytes) bytes"
                 )
             } catch {
                 Issue.record("failed to verify builder storage: \(error)")

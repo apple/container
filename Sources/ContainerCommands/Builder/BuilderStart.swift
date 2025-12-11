@@ -148,7 +148,7 @@ extension Application {
                 let storageChanged = try {
                     if let effectiveStorage {
                         let storageInMiB = try Parser.memoryString(effectiveStorage)
-                        let storageInBytes = UInt64(storageInMiB)
+                        let storageInBytes = UInt64(storageInMiB.mib())
                         return existingResources.storage != storageInBytes
                     }
                     return existingResources.storage != 0

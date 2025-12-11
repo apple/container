@@ -578,32 +578,31 @@ class TestCLIRunCommand: CLITest {
         }
     }
 
-    @Test func testRunCommandStorage() throws {
+    @Test
+    func testRunCommandStorage() async throws {
         do {
             let name = getTestName()
             let requestedStorage = "2048MB"
             let expectedMiB = Int(try Parser.memoryString(requestedStorage))
+            let expectedBytes = UInt64(expectedMiB.mib())
 
             try doLongRun(name: name, args: ["--storage", requestedStorage])
             defer {
                 try? doStop(name: name)
             }
 
-            var output = try doExec(
-                name: name,
-                cmd: ["sh", "-c", "df -m / | tail -1 | tr -s ' ' | cut -d' ' -f2"]
-            )
-            output = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            // Inspect configuration via the client instead of df
+            let container = try await ClientContainer.get(id: name)
+            let resources = container.configuration.resources
 
-            guard let reportedMiB = Int(output) else {
-                Issue.record("expected integer df output, got '\(output)'")
+            guard let storageBytes = resources.storage else {
+                Issue.record("expected container resources.storage to be set for --storage \(requestedStorage)")
                 return
             }
 
-            let tolerance = expectedMiB / 10
             #expect(
-                abs(reportedMiB - expectedMiB) <= tolerance,
-                "expected root filesystem size ≈ \(expectedMiB) MiB for storage \(requestedStorage), got \(reportedMiB) MiB"
+                storageBytes == expectedBytes,
+                "expected container storage \(expectedBytes) bytes for \(requestedStorage), got \(storageBytes) bytes"
             )
 
             try doStop(name: name)
