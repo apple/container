@@ -805,6 +805,7 @@ public actor SandboxService {
     ) throws {
         czConfig.cpus = config.resources.cpus
         czConfig.memoryInBytes = config.resources.memoryInBytes
+        czConfig.storageInBytes = config.resources.storage
         czConfig.sysctl = config.sysctls.reduce(into: [String: String]()) {
             $0[$1.key] = $1.value
         }
