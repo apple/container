@@ -133,7 +133,7 @@ extension PluginLoader {
                             }.first)
                     else {
                         log?.warning(
-                            "Not installing plugin with missing configuration",
+                            "not installing plugin with missing configuration",
                             metadata: [
                                 "path": "\(installURL.path)"
                             ]
@@ -144,7 +144,7 @@ extension PluginLoader {
                     // Warn and skip if this plugin name has been encountered already
                     guard !pluginNames.contains(plugin.name) else {
                         log?.warning(
-                            "Not installing shadowed plugin",
+                            "not installing shadowed plugin",
                             metadata: [
                                 "path": "\(installURL.path)",
                                 "name": "\(plugin.name)",
@@ -157,7 +157,7 @@ extension PluginLoader {
                     pluginNames.insert(plugin.name)
                 } catch {
                     log?.warning(
-                        "Not installing plugin with invalid configuration",
+                        "not installing plugin with invalid configuration",
                         metadata: [
                             "path": "\(installURL.path)",
                             "error": "\(error)",
@@ -183,7 +183,7 @@ extension PluginLoader {
             }
         } catch {
             log?.warning(
-                "Not installing plugin with invalid configuration",
+                "not installing plugin with invalid configuration",
                 metadata: [
                     "name": "\(name)",
                     "error": "\(error)",

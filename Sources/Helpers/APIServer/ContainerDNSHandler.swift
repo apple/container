@@ -97,12 +97,12 @@ struct ContainerDNSHandler: DNSHandler {
 
         let components = ipAllocation.address.split(separator: "/")
         guard !components.isEmpty else {
-            throw DNSResolverError.serverError("Invalid IP format: empty address")
+            throw DNSResolverError.serverError("invalid IP format: empty address")
         }
 
         let ipString = String(components[0])
         guard let ip = IPv4(ipString) else {
-            throw DNSResolverError.serverError("Failed to parse IP address: \(ipString)")
+            throw DNSResolverError.serverError("failed to parse IP address: \(ipString)")
         }
 
         return HostRecord<IPv4>(name: question.name, ttl: ttl, ip: ip)

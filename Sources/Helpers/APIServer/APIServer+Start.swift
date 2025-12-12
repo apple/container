@@ -271,7 +271,7 @@ extension APIServer {
             routes[XPCRoute.volumeDelete] = harness.delete
             routes[XPCRoute.volumeList] = harness.list
             routes[XPCRoute.volumeInspect] = harness.inspect
-            routes[XPCRoute.volumePrune] = harness.prune
+            routes[XPCRoute.volumeDiskUsage] = harness.diskUsage
 
             return service
         }

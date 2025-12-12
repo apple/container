@@ -72,48 +72,10 @@ public actor VolumesService {
         }
     }
 
-    public func prune() async throws -> ([String], UInt64) {
-        try await lock.withLock { _ in
-            let allVolumes = try await self.store.list()
-
-            // do entire prune operation atomically with container list
-            return try await self.containersService.withContainerList { containers in
-                var inUseSet = Set<String>()
-                for container in containers {
-                    for mount in container.configuration.mounts {
-                        if mount.isVolume, let volumeName = mount.volumeName {
-                            inUseSet.insert(volumeName)
-                        }
-                    }
-                }
-
-                let volumesToPrune = allVolumes.filter { volume in
-                    !inUseSet.contains(volume.name)
-                }
-
-                var prunedNames = [String]()
-                var totalSize: UInt64 = 0
-
-                for volume in volumesToPrune {
-                    do {
-                        // calculate actual disk usage before deletion
-                        let volumePath = self.volumePath(for: volume.name)
-                        let actualSize = self.calculateDirectorySize(at: volumePath)
-
-                        try await self.store.delete(volume.name)
-                        try self.removeVolumeDirectory(for: volume.name)
-
-                        prunedNames.append(volume.name)
-                        totalSize += actualSize
-                        self.log.info("Pruned volume", metadata: ["name": "\(volume.name)", "size": "\(actualSize)"])
-                    } catch {
-                        self.log.error("failed to prune volume \(volume.name): \(error)")
-                    }
-                }
-
-                return (prunedNames, totalSize)
-            }
-        }
+    /// Calculate disk usage for a single volume
+    public func volumeDiskUsage(name: String) async throws -> UInt64 {
+        let volumePath = self.volumePath(for: name)
+        return self.calculateDirectorySize(at: volumePath)
     }
 
     /// Calculate disk usage for volumes
@@ -191,7 +153,7 @@ public actor VolumesService {
         let sizeInBytes = UInt64(bytes)
 
         guard sizeInBytes >= minSize else {
-            throw VolumeError.storageError("Volume size too small: minimum 1MiB")
+            throw VolumeError.storageError("volume size too small: minimum 1MiB")
         }
 
         return sizeInBytes
@@ -244,7 +206,7 @@ public actor VolumesService {
         labels: [String: String]
     ) async throws -> Volume {
         guard VolumeStorage.isValidVolumeName(name) else {
-            throw VolumeError.invalidVolumeName("Invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
+            throw VolumeError.invalidVolumeName("invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
         }
 
         // Check if volume already exists by trying to list and finding it
@@ -283,7 +245,7 @@ public actor VolumesService {
 
     private func _delete(name: String) async throws {
         guard VolumeStorage.isValidVolumeName(name) else {
-            throw VolumeError.invalidVolumeName("Invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
+            throw VolumeError.invalidVolumeName("invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
         }
 
         // Check if volume exists by trying to list and finding it
@@ -311,7 +273,7 @@ public actor VolumesService {
 
     private func _inspect(_ name: String) async throws -> Volume {
         guard VolumeStorage.isValidVolumeName(name) else {
-            throw VolumeError.invalidVolumeName("Invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
+            throw VolumeError.invalidVolumeName("invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
         }
 
         let volumes = try await store.list()

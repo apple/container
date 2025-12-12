@@ -67,7 +67,7 @@ extension Application {
 
         private func setKernelFromBinary() async throws {
             guard let binaryPath else {
-                throw ArgumentParser.ValidationError("Missing argument '--binary'")
+                throw ArgumentParser.ValidationError("missing argument '--binary'")
             }
             let absolutePath = URL(fileURLWithPath: binaryPath, relativeTo: .currentDirectory()).absoluteURL.absoluteString
             let platform = try getSystemPlatform()
@@ -76,10 +76,10 @@ extension Application {
 
         private func setKernelFromTar() async throws {
             guard let binaryPath else {
-                throw ArgumentParser.ValidationError("Missing argument '--binary'")
+                throw ArgumentParser.ValidationError("missing argument '--binary'")
             }
             guard let tarPath else {
-                throw ArgumentParser.ValidationError("Missing argument '--tar")
+                throw ArgumentParser.ValidationError("missing argument '--tar")
             }
             let platform = try getSystemPlatform()
             let localTarPath = URL(fileURLWithPath: tarPath, relativeTo: .currentDirectory()).path

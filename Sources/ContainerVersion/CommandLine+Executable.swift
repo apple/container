@@ -26,7 +26,7 @@ extension CommandLine {
         /// Create the buffer and get the path
         buffer = [CChar](repeating: 0, count: Int(bufferSize))
         guard _NSGetExecutablePath(&buffer, &bufferSize) == 0 else {
-            fatalError("UNEXPECTED: failed to get executable path")
+            fatalError("unexpected: failed to get executable path")
         }
 
         /// Return the path with the executable file component removed the last component and

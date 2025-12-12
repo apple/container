@@ -58,8 +58,14 @@ USAGE: container [--debug] <subcommand>
 
 OPTIONS:
   --debug                 Enable debug output [environment: CONTAINER_DEBUG]
-  --version               Show the version.
+  --version               Show the CLI version (single line).
   -h, --help              Show help information.
+
+Detailed version information is available under the system command:
+
+```
+container system version [--format json|table]
+```
 
 CONTAINER SUBCOMMANDS:
   create                  Create a new container

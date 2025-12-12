@@ -74,7 +74,7 @@ extension Application {
                     guard let container = allContainers.first(where: { $0.id == containerId || $0.id.starts(with: containerId) }) else {
                         throw ContainerizationError(
                             .notFound,
-                            message: "Error: No such container: \(containerId)"
+                            message: "no such container: \(containerId)"
                         )
                     }
                     found.append(container)
@@ -102,7 +102,7 @@ extension Application {
                     guard allContainers.first(where: { $0.id == containerId || $0.id.starts(with: containerId) }) != nil else {
                         throw ContainerizationError(
                             .notFound,
-                            message: "Error: No such container: \(containerId)"
+                            message: "no such container: \(containerId)"
                         )
                     }
                 }
@@ -140,7 +140,7 @@ extension Application {
                     }
                 } catch {
                     clearScreen()
-                    print("Error collecting stats: \(error)")
+                    print("error collecting stats: \(error)")
                     try await Task.sleep(for: .seconds(2))
                 }
             }
