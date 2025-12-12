@@ -210,9 +210,11 @@ public struct Flags {
         public enum ProgressType: String, ExpressibleByArgument {
             case none
             case ansi
+            case plain
+            case color
         }
 
-        @Option(name: .long, help: ArgumentHelp("Progress type (format: none|ansi)", valueName: "type"))
+        @Option(name: .long, help: ArgumentHelp("Progress type (format: none|ansi|plain|color)", valueName: "type"))
         public var progress: ProgressType = .ansi
     }
 
