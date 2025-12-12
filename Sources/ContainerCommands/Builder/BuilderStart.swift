@@ -88,10 +88,26 @@ extension Application {
 
             let builderPlatform = ContainerizationOCI.Platform(arch: "arm64", os: "linux", variant: "v8")
 
+            var targetEnvVars: [String] = []
+            if let buildkitColors = ProcessInfo.processInfo.environment["BUILDKIT_COLORS"] {
+                targetEnvVars.append("BUILDKIT_COLORS=\(buildkitColors)")
+            }
+            if ProcessInfo.processInfo.environment["NO_COLOR"] != nil {
+                targetEnvVars.append("NO_COLOR=true")
+            }
+            targetEnvVars.sort()
+
             let existingContainer = try? await ClientContainer.get(id: "buildkit")
             if let existingContainer {
                 let existingImage = existingContainer.configuration.image.reference
                 let existingResources = existingContainer.configuration.resources
+                let existingEnv = existingContainer.configuration.initProcess.environment
+
+                let existingManagedEnv = existingEnv.filter { envVar in
+                    envVar.hasPrefix("BUILDKIT_COLORS=") || envVar.hasPrefix("NO_COLOR=")
+                }.sorted()
+
+                let envChanged = existingManagedEnv != targetEnvVars
 
                 // Check if we need to recreate the builder due to different image
                 let imageChanged = existingImage != builderImage
@@ -115,7 +131,7 @@ extension Application {
 
                 switch existingContainer.status {
                 case .running:
-                    guard imageChanged || cpuChanged || memChanged else {
+                    guard imageChanged || cpuChanged || memChanged || envChanged else {
                         // If image, mem and cpu are the same, continue using the existing builder
                         return
                     }
@@ -125,7 +141,7 @@ extension Application {
                 case .stopped:
                     // If the builder is stopped and matches our requirements, start it
                     // Otherwise, delete it and create a new one
-                    guard imageChanged || cpuChanged || memChanged else {
+                    guard imageChanged || cpuChanged || memChanged || envChanged else {
                         try await existingContainer.startBuildKit(progressUpdate, nil)
                         return
                     }
@@ -173,10 +189,13 @@ extension Application {
             )
 
             let imageConfig = try await image.config(for: builderPlatform).config
+            var environment = imageConfig?.env ?? []
+            environment.append(contentsOf: targetEnvVars)
+
             let processConfig = ProcessConfiguration(
                 executable: "/usr/local/bin/container-builder-shim",
                 arguments: shimArguments,
-                environment: imageConfig?.env ?? [],
+                environment: environment,
                 workingDirectory: "/",
                 terminal: false,
                 user: .id(uid: 0, gid: 0)
