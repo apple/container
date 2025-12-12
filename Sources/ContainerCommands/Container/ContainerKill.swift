@@ -40,6 +40,11 @@ extension Application {
         @Argument(help: "Container IDs")
         var containerIds: [String] = []
 
+        struct KillError: Error {
+            let succeeded: [String]
+            let failed: [(String, Error)]
+        }
+
         public func validate() throws {
             if containerIds.count == 0 && !all {
                 throw ContainerizationError(.invalidArgument, message: "no containers specified and --all not supplied")
@@ -50,31 +55,67 @@ extension Application {
         }
 
         public mutating func run() async throws {
-            let set = Set<String>(containerIds)
+            var containers = [ClientContainer]()
+            var allErrors: [String] = []
 
-            var containers = try await ClientContainer.list().filter { c in
-                c.status == .running
-            }
-            if !self.all {
-                containers = containers.filter { c in
-                    set.contains(c.id)
+            let allContainers = try await ClientContainer.list()
+
+            if self.all {
+                containers = allContainers.filter { c in
+                    c.status == .running
+                }
+            } else {
+                let containerMap = Dictionary(uniqueKeysWithValues: allContainers.map { ($0.id, $0) })
+
+                for id in containerIds {
+                    if let container = containerMap[id] {
+                        containers.append(container)
+                    } else {
+                        allErrors.append("Error: No such container: \(id)")
+                    }
                 }
             }
 
             let signalNumber = try Signals.parseSignal(signal)
 
-            var failed: [String] = []
-            for container in containers {
-                do {
-                    try await container.kill(signalNumber)
+            do {
+                try await Self.killContainers(containers: containers, signal: signalNumber)
+                for container in containers {
                     print(container.id)
-                } catch {
-                    log.error("failed to kill container \(container.id): \(error)")
-                    failed.append(container.id)
+                }
+            } catch let error as KillError {
+                for id in error.succeeded {
+                    print(id)
+                }
+
+                for (_, err) in error.failed {
+                    allErrors.append("Error from APIServer: \(err.localizedDescription)")
                 }
             }
-            if failed.count > 0 {
-                throw ContainerizationError(.internalError, message: "kill failed for one or more containers \(failed.joined(separator: ","))")
+            if !allErrors.isEmpty {
+                var stderr = StandardError()
+                for error in allErrors {
+                    print(error, to: &stderr)
+                }
+                throw ExitCode(1)
+            }
+        }
+
+        static func killContainers(containers: [ClientContainer], signal: Int32) async throws {
+            var succeeded: [String] = []
+            var failed: [(String, Error)] = []
+
+            for container in containers {
+                do {
+                    try await container.kill(signal)
+                    succeeded.append(container.id)
+                } catch {
+                    failed.append((container.id, error))
+                }
+            }
+
+            if !failed.isEmpty {
+                throw KillError(succeeded: succeeded, failed: failed)
             }
         }
     }
