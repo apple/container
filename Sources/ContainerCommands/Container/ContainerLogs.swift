@@ -47,7 +47,8 @@ extension Application {
 
         public func run() async throws {
             do {
-                let container = try await ClientContainer.get(id: containerId)
+                let snapshot = try await ClientContainer.get(id: containerId)
+                let container = ClientContainer(snapshot: snapshot)
                 let fhs = try await container.logs()
                 let fileHandle = boot ? fhs[1] : fhs[0]
 

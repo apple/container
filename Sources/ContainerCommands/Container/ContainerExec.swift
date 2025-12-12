@@ -45,13 +45,14 @@ extension Application {
 
         public func run() async throws {
             var exitCode: Int32 = 127
-            let container = try await ClientContainer.get(id: containerId)
-            try ensureRunning(container: container)
+            let snapshot = try await ClientContainer.get(id: containerId)
+            let container = ClientContainer(snapshot: snapshot)
+            try ensureRunning(snapshot: snapshot)
 
             let stdin = self.processFlags.interactive
             let tty = self.processFlags.tty
 
-            var config = container.configuration.initProcess
+            var config = snapshot.configuration.initProcess
             config.executable = arguments.first!
             config.arguments = [String](self.arguments.dropFirst())
             config.terminal = tty

@@ -35,7 +35,7 @@ extension Application {
 
         public func run() async throws {
             let objects: [any Codable] = try await ClientContainer.list().filter {
-                containerIds.contains($0.id)
+                containerIds.contains($0.configuration.id)
             }.map {
                 PrintableContainer($0)
             }

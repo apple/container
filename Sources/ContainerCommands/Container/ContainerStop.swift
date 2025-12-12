@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerClient
+import ContainerXPC
 import ContainerizationError
 import ContainerizationOS
 import Foundation
@@ -55,12 +56,12 @@ extension Application {
 
         public mutating func run() async throws {
             let set = Set<String>(containerIds)
-            var containers = [ClientContainer]()
+            var snapshots = [ContainerSnapshot]()
             if self.all {
-                containers = try await ClientContainer.list()
+                snapshots = try await ClientContainer.list()
             } else {
-                containers = try await ClientContainer.list().filter { c in
-                    set.contains(c.id)
+                snapshots = try await ClientContainer.list().filter { c in
+                    set.contains(c.configuration.id)
                 }
             }
 
@@ -68,7 +69,7 @@ extension Application {
                 timeoutInSeconds: self.time,
                 signal: try Signals.parseSignal(self.signal)
             )
-            let failed = try await Self.stopContainers(containers: containers, stopOptions: opts)
+            let failed = try await Self.stopContainers(snapshots: snapshots, stopOptions: opts)
             if failed.count > 0 {
                 throw ContainerizationError(
                     .internalError,
@@ -77,27 +78,30 @@ extension Application {
             }
         }
 
-        static func stopContainers(containers: [ClientContainer], stopOptions: ContainerStopOptions) async throws -> [String] {
+        static func stopContainers(snapshots: [ContainerSnapshot], stopOptions: ContainerStopOptions) async throws -> [String] {
             var failed: [String] = []
-            try await withThrowingTaskGroup(of: ClientContainer?.self) { group in
-                for container in containers {
+            let sharedClient = XPCClient(service: ClientContainer.serviceIdentifier)
+
+            try await withThrowingTaskGroup(of: String?.self) { group in
+                for snapshot in snapshots {
                     group.addTask {
                         do {
+                            let container = ClientContainer(snapshot: snapshot, xpcClient: sharedClient)
                             try await container.stop(opts: stopOptions)
-                            print(container.id)
+                            print(snapshot.configuration.id)
                             return nil
                         } catch {
-                            log.error("failed to stop container \(container.id): \(error)")
-                            return container
+                            log.error("failed to stop container \(snapshot.configuration.id): \(error)")
+                            return snapshot.configuration.id
                         }
                     }
                 }
 
-                for try await ctr in group {
-                    guard let ctr else {
+                for try await id in group {
+                    guard let id else {
                         continue
                     }
-                    failed.append(ctr.id)
+                    failed.append(id)
                 }
             }
 

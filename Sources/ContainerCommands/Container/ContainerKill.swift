@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerClient
+import ContainerXPC
 import ContainerizationError
 import ContainerizationOS
 import Darwin
@@ -52,25 +53,27 @@ extension Application {
         public mutating func run() async throws {
             let set = Set<String>(containerIds)
 
-            var containers = try await ClientContainer.list().filter { c in
+            var snapshots = try await ClientContainer.list().filter { c in
                 c.status == .running
             }
             if !self.all {
-                containers = containers.filter { c in
-                    set.contains(c.id)
+                snapshots = snapshots.filter { c in
+                    set.contains(c.configuration.id)
                 }
             }
 
             let signalNumber = try Signals.parseSignal(signal)
+            let sharedClient = XPCClient(service: ClientContainer.serviceIdentifier)
 
             var failed: [String] = []
-            for container in containers {
+            for snapshot in snapshots {
                 do {
+                    let container = ClientContainer(snapshot: snapshot, xpcClient: sharedClient)
                     try await container.kill(signalNumber)
-                    print(container.id)
+                    print(snapshot.configuration.id)
                 } catch {
-                    log.error("failed to kill container \(container.id): \(error)")
-                    failed.append(container.id)
+                    log.error("failed to kill container \(snapshot.configuration.id): \(error)")
+                    failed.append(snapshot.configuration.id)
                 }
             }
             if failed.count > 0 {
