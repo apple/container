@@ -578,6 +578,41 @@ class TestCLIRunCommand: CLITest {
         }
     }
 
+    @Test
+    func testRunCommandStorage() async throws {
+        do {
+            let name = getTestName()
+            let requestedStorage = "2048MB"
+            let expectedMiB = Int(try Parser.memoryString(requestedStorage))
+            let expectedBytes = UInt64(expectedMiB.mib())
+
+            try doLongRun(name: name, args: ["--storage", requestedStorage])
+            defer {
+                try? doStop(name: name)
+            }
+
+            // Inspect configuration via the client instead of df
+            let container = try await ClientContainer.get(id: name)
+            let resources = container.configuration.resources
+
+            guard let storageBytes = resources.storage else {
+                Issue.record("expected container resources.storage to be set for --storage \(requestedStorage)")
+                return
+            }
+
+            #expect(
+                storageBytes == expectedBytes,
+                "expected container storage \(expectedBytes) bytes for \(requestedStorage), got \(storageBytes) bytes"
+            )
+
+            try doStop(name: name)
+        } catch {
+            Issue.record("failed to run container \(error)")
+            return
+        }
+
+    }
+
     func getDefaultDomain() throws -> String? {
         let (_, output, err, status) = try run(arguments: ["system", "property", "get", "dns.domain"])
         try #require(status == 0, "default DNS domain retrieval returned status \(status): \(err)")

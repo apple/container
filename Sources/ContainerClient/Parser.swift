@@ -84,13 +84,17 @@ public struct Parser {
         try .init(from: platform)
     }
 
-    public static func resources(cpus: Int64?, memory: String?) throws -> ContainerConfiguration.Resources {
+    public static func resources(cpus: Int64?, memory: String?, storage: String?) throws -> ContainerConfiguration.Resources {
         var resource = ContainerConfiguration.Resources()
         if let cpus {
             resource.cpus = Int(cpus)
         }
         if let memory {
             resource.memoryInBytes = try Parser.memoryString(memory).mib()
+        }
+        if let storage {
+            let storageInMiB = try Parser.memoryString(storage)
+            resource.storage = UInt64(storageInMiB.mib())
         }
         return resource
     }
