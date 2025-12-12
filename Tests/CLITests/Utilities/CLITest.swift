@@ -545,4 +545,15 @@ class CLITest {
             throw CLIError.executionFailed("command failed: \(error)")
         }
     }
+
+    func doNetworkCreate(name: String) throws {
+        let (_, _, error, status) = try run(arguments: ["network", "create", name])
+        if status != 0 {
+            throw CLIError.executionFailed("network create failed: \(error)")
+        }
+    }
+
+    func doNetworkDeleteIfExists(name: String) {
+        let (_, _, _, _) = (try? run(arguments: ["network", "rm", name])) ?? (nil, "", "", 1)
+    }
 }

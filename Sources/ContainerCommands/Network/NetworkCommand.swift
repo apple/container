@@ -26,6 +26,7 @@ extension Application {
                 NetworkDelete.self,
                 NetworkList.self,
                 NetworkInspect.self,
+                NetworkPrune.self,
             ],
             aliases: ["n"]
         )
