@@ -92,7 +92,7 @@ extension Application {
             if let buildkitColors = ProcessInfo.processInfo.environment["BUILDKIT_COLORS"] {
                 targetEnvVars.append("BUILDKIT_COLORS=\(buildkitColors)")
             }
-            if ProcessInfo.processInfo.environment["NO_COLOR"] != nil || ProcessInfo.processInfo.environment["NOCOLOR"] != nil {
+            if ProcessInfo.processInfo.environment["NO_COLOR"] != nil {
                 targetEnvVars.append("NO_COLOR=true")
             }
             targetEnvVars.sort()
