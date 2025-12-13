@@ -512,6 +512,14 @@ public actor ContainersService {
         }
     }
 
+    public func containerDiskUsage(id: String) async throws -> UInt64 {
+        self.log.debug("\(#function)")
+
+        let containerPath = self.containerRoot.appendingPathComponent(id).path
+
+        return Self.calculateDirectorySize(at: containerPath)
+    }
+
     private func handleContainerExit(id: String, code: ExitStatus? = nil) async throws {
         try await self.lock.withLock { [self] context in
             try await handleContainerExit(id: id, code: code, context: context)
