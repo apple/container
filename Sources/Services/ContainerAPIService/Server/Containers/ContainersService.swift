@@ -509,32 +509,12 @@ public actor ContainersService {
         }
     }
 
-    public func prune() async throws -> ([String], UInt64) {
+    public func containerDiskUsage(id: String) async throws -> UInt64 {
         self.log.debug("\(#function)")
-        let stoppedContainers = self.containers.filter { $0.value.snapshot.status == .stopped }
 
-        var pruned = [String]()
-        var totalSize: UInt64 = 0
+        let containerPath = self.containerRoot.appendingPathComponent(id).path
 
-        for (id, _) in stoppedContainers {
-            do {
-                let containerPath = self.containerRoot.appendingPathComponent(id).path
-                let size = Self.calculateDirectorySize(at: containerPath)
-
-                try await self.lock.withLock { context in
-                    try await self.cleanup(id: id, context: context)
-                }
-
-                pruned.append(id)
-                totalSize += size
-
-                self.log.info("Pruned container", metadata: ["id": "\(id)", "size": "\(size)"])
-            } catch {
-                self.log.error("Failed to prune container \(id): \(error)")
-            }
-        }
-
-        return (pruned, totalSize)
+        return Self.calculateDirectorySize(at: containerPath)
     }
 
     private func handleContainerExit(id: String, code: ExitStatus? = nil) async throws {

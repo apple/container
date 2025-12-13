@@ -228,18 +228,14 @@ extension ClientContainer {
         }
     }
 
-    public static func prune() async throws -> ([String], Int64) {
+    public static func containerDiskUsage(id: String) async throws -> UInt64 {
         let client = Self.newXPCClient()
-        let request = XPCMessage(route: .containerPrune)
+        let request = XPCMessage(route: .containerDiskUsage)
+        request.set(key: .id, value: id)
         let reply = try await client.send(request)
 
-        guard let responseData = reply.dataNoCopy(key: .containers) else {
-            return ([], 0)
-        }
-
-        let containerIds = try JSONDecoder().decode([String].self, from: responseData)
-        let size = reply.int64(key: .imageSize)
-        return (containerIds, size)
+        let size = reply.uint64(key: .containerSize)
+        return size
     }
 
     /// Create a new process inside a running container. The process is in a
