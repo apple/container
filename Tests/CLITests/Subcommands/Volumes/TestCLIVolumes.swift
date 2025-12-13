@@ -332,7 +332,7 @@ class TestCLIVolumes: CLITest {
             throw CLIError.executionFailed("volume prune failed: \(error)")
         }
 
-        #expect(output.contains("0 B") || output.contains("No volumes to prune"), "should show no space reclaimed or no volumes message")
+        #expect(output.contains("Zero KB"), "should show no space reclaimed")
     }
 
     @Test func testVolumePruneUnusedVolumes() throws {

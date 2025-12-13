@@ -20,71 +20,6 @@ import Foundation
 import Testing
 
 class TestCLIImagesCommand: CLITest {
-    func doRemoveImages(images: [String]? = nil) throws {
-        var args = [
-            "image",
-            "rm",
-        ]
-
-        if let images {
-            args.append(contentsOf: images)
-        } else {
-            args.append("--all")
-        }
-
-        let (_, _, error, status) = try run(arguments: args)
-        if status != 0 {
-            throw CLIError.executionFailed("command failed: \(error)")
-        }
-    }
-
-    func isImagePresent(targetImage: String) throws -> Bool {
-        let images = try doListImages()
-        return images.contains(where: { image in
-            if image.reference == targetImage {
-                return true
-            }
-            return false
-        })
-    }
-
-    func doListImages() throws -> [Image] {
-        let (_, output, error, status) = try run(arguments: [
-            "image",
-            "list",
-            "--format",
-            "json",
-        ])
-        if status != 0 {
-            throw CLIError.executionFailed("command failed: \(error)")
-        }
-
-        guard let jsonData = output.data(using: .utf8) else {
-            throw CLIError.invalidOutput("image list output invalid \(output)")
-        }
-
-        let decoder = JSONDecoder()
-        return try decoder.decode([Image].self, from: jsonData)
-    }
-
-    func doImageTag(image: String, newName: String) throws {
-        let tagArgs = [
-            "image",
-            "tag",
-            image,
-            newName,
-        ]
-
-        let (_, _, error, status) = try run(arguments: tagArgs)
-        if status != 0 {
-            throw CLIError.executionFailed("command failed: \(error)")
-        }
-    }
-
-}
-
-extension TestCLIImagesCommand {
-
     @Test func testPull() throws {
         do {
             try doPull(imageName: alpine)
@@ -358,6 +293,21 @@ extension TestCLIImagesCommand {
             Issue.record("failed to save and load image \(error)")
             return
         }
+    }
+
+    @Test func testMaxConcurrentDownloadsValidation() throws {
+        // Test that invalid maxConcurrentDownloads value is rejected
+        let (_, _, error, status) = try run(arguments: [
+            "image",
+            "pull",
+            "--max-concurrent-downloads", "0",
+            "alpine:latest",
+        ])
+
+        #expect(status != 0, "Expected command to fail with maxConcurrentDownloads=0")
+        #expect(
+            error.contains("maximum number of concurrent downloads must be greater than 0"),
+            "Expected validation error message in output")
     }
 
     @Test func testImageSaveAndLoadStdinStdout() throws {

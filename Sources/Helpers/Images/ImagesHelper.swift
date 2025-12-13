@@ -98,7 +98,8 @@ extension ImagesHelper {
             routes[ImagesServiceXPCRoute.imageSave.rawValue] = harness.save
             routes[ImagesServiceXPCRoute.imageLoad.rawValue] = harness.load
             routes[ImagesServiceXPCRoute.imageUnpack.rawValue] = harness.unpack
-            routes[ImagesServiceXPCRoute.imagePrune.rawValue] = harness.prune
+            routes[ImagesServiceXPCRoute.imageCleanupOrphanedBlobs.rawValue] = harness.cleanupOrphanedBlobs
+            routes[ImagesServiceXPCRoute.imageDiskUsage.rawValue] = harness.calculateDiskUsage
             routes[ImagesServiceXPCRoute.snapshotDelete.rawValue] = harness.deleteSnapshot
             routes[ImagesServiceXPCRoute.snapshotGet.rawValue] = harness.getSnapshot
         }

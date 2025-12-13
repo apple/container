@@ -35,9 +35,6 @@ extension ConnectHandler: ChannelInboundHandler {
     typealias OutboundOut = ByteBuffer
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        if self.pendingBytes.isEmpty {
-            self.connectToServer(context: context)
-        }
         self.pendingBytes.append(data)
     }
 
@@ -45,6 +42,12 @@ extension ConnectHandler: ChannelInboundHandler {
         // Add logger metadata.
         self.log?[metadataKey: "proxy"] = "\(context.channel.localAddress?.description ?? "none")"
         self.log?[metadataKey: "server"] = "\(context.channel.remoteAddress?.description ?? "none")"
+    }
+
+    func channelActive(context: ChannelHandlerContext) {
+        self.log?.trace("frontend - channel active, connecting to backend")
+        self.connectToServer(context: context)
+        context.fireChannelActive()
     }
 }
 

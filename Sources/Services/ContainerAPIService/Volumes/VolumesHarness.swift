@@ -94,13 +94,14 @@ public struct VolumesHarness: Sendable {
     }
 
     @Sendable
-    public func prune(_ message: XPCMessage) async throws -> XPCMessage {
-        let (volumeNames, size) = try await service.prune()
-        let data = try JSONEncoder().encode(volumeNames)
+    public func diskUsage(_ message: XPCMessage) async throws -> XPCMessage {
+        guard let name = message.string(key: .volumeName) else {
+            throw ContainerizationError(.invalidArgument, message: "volume name cannot be empty")
+        }
+        let size = try await service.volumeDiskUsage(name: name)
 
         let reply = message.reply()
-        reply.set(key: .volumes, value: data)
-        reply.set(key: .size, value: size)
+        reply.set(key: .volumeSize, value: size)
         return reply
     }
 }

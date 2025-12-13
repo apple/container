@@ -14,23 +14,27 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerXPC
+import ContainerizationError
 import Foundation
 
-extension CommandLine {
-    public static var executablePathUrl: URL {
-        /// _NSGetExecutablePath with a zero-length buffer returns the needed buffer length
-        var bufferSize: Int32 = 0
-        var buffer = [CChar](repeating: 0, count: Int(bufferSize))
-        _ = _NSGetExecutablePath(&buffer, &bufferSize)
+/// Client API for disk usage operations
+public struct ClientDiskUsage {
+    static let serviceIdentifier = "com.apple.container.apiserver"
 
-        /// Create the buffer and get the path
-        buffer = [CChar](repeating: 0, count: Int(bufferSize))
-        guard _NSGetExecutablePath(&buffer, &bufferSize) == 0 else {
-            fatalError("unexpected: failed to get executable path")
+    /// Get disk usage statistics for all resource types
+    public static func get() async throws -> DiskUsageStats {
+        let client = XPCClient(service: serviceIdentifier)
+        let message = XPCMessage(route: .systemDiskUsage)
+        let reply = try await client.send(message)
+
+        guard let responseData = reply.dataNoCopy(key: .diskUsageStats) else {
+            throw ContainerizationError(
+                .internalError,
+                message: "invalid response from server: missing disk usage data"
+            )
         }
 
-        /// Return the path with the executable file component removed the last component and
-        let executablePath = String(cString: &buffer)
-        return URL(filePath: executablePath)
+        return try JSONDecoder().decode(DiskUsageStats.self, from: responseData)
     }
 }

@@ -1,5 +1,10 @@
 # Container CLI Command Reference
 
+> [!IMPORTANT]
+> This file contains documentation for the CURRENT BRANCH. To find documentation for official releases, find the target release on the [Release Page](https://github.com/apple/container/releases) and click the tag corresponding to your release version. 
+>
+> Example: [release 0.4.1 tag](https://github.com/apple/container/tree/0.4.1)
+
 Note: Command availability may vary depending on host operating system and macOS version.
 
 ## Core Commands
@@ -545,17 +550,17 @@ container image delete [--all] [--debug] [<images> ...]
 
 ### `container image prune`
 
-Removes unreferenced and dangling images to reclaim disk space. The command outputs the amount of space freed after deletion.
+Removes unused images to reclaim disk space. By default, only removes dangling images (images with no tags). Use `-a` to remove all images not referenced by any container.
 
 **Usage**
 
 ```bash
-container image prune [--debug]
+container image prune [--all] [--debug]
 ```
 
 **Options**
 
-No options.
+*   `-a, --all`: Remove all unused images, not just dangling ones
 
 ### `container image inspect`
 
@@ -783,6 +788,20 @@ container volume delete vol1 vol2 vol3
 container volume delete --all
 ```
 
+### `container volume prune`
+
+Removes all volumes that have no container references. This includes volumes that are not attached to any running or stopped containers. The command reports the actual disk space reclaimed after deletion.
+
+**Usage**
+
+```bash
+container volume prune [--debug]
+```
+
+**Options**
+
+No options.
+
 ### `container volume list (ls)`
 
 Lists volumes.
@@ -906,6 +925,55 @@ container system status [--prefix <prefix>] [--debug]
 
 *   `-p, --prefix <prefix>`: Launchd prefix for services (default: com.apple.container.)
 
+### `container system version`
+
+Shows version information for the CLI and, if available, the API server. The table format is consistent with other list outputs and includes a header. If the API server responds to a health check, a second row for the server is added.
+
+**Usage**
+
+```bash
+container system version [--format <format>]
+```
+
+**Options**
+
+*   `--format <format>`: Output format (values: json, table; default: table)
+
+**Table Output**
+
+Columns: `COMPONENT`, `VERSION`, `BUILD`, `COMMIT`.
+
+Example:
+
+```bash
+container system version
+```
+
+```
+COMPONENT   VERSION                         BUILD   COMMIT
+CLI         1.2.3                           debug   abcdef1
+API Server  container-apiserver 1.2.3       release 1234abc
+```
+
+**JSON Output**
+
+Backward-compatible with previous CLI-only output. Top-level fields describe the CLI. When available, a `server` object is included with the same fields.
+
+```json
+{
+  "version": "1.2.3",
+  "buildType": "debug",
+  "commit": "abcdef1",
+  "appName": "container CLI",
+  "server": {
+    "version": "container-apiserver 1.2.3",
+    "buildType": "release",
+    "commit": "1234abc",
+    "appName": "container API Server"
+  }
+}
+```
+
 ### `container system logs`
 
 Displays logs from the container services. You can specify a time interval or follow new logs in real time.
@@ -920,6 +988,20 @@ container system logs [--follow] [--last <last>] [--debug]
 
 *   `-f, --follow`: Follow log output
 *   `--last <last>`: Fetch logs starting from the specified time period (minus the current time); supported formats: m, h, d (default: 5m)
+
+### `container system df`
+
+Shows disk usage for images, containers, and volumes. Displays total count, active count, size, and reclaimable space for each resource type.
+
+**Usage**
+
+```bash
+container system df [--format <format>] [--debug]
+```
+
+**Options**
+
+*   `--format <format>`: Format of the output (values: json, table; default: table)
 
 ### `container system dns create`
 

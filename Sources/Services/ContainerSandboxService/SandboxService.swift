@@ -119,6 +119,7 @@ public actor SandboxService {
             try bundle.createLogFile()
 
             var config = try bundle.configuration
+
             let vmm = VZVirtualMachineManager(
                 kernel: try bundle.kernel,
                 initialFilesystem: bundle.initialFilesystem.asMount,

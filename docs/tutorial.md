@@ -1,5 +1,10 @@
 # Tutorial
 
+> [!IMPORTANT]
+> This file contains documentation for the CURRENT BRANCH. To find documentation for official releases, find the target release on the [Release Page](https://github.com/apple/container/releases) and click the tag corresponding to your release version. 
+>
+> Example: [release 0.4.1 tag](https://github.com/apple/container/tree/0.4.1)
+
 Take a guided tour of `container` by building, running, and publishing a simple web server image.
 
 ## Try out the `container` CLI
@@ -53,8 +58,14 @@ USAGE: container [--debug] <subcommand>
 
 OPTIONS:
   --debug                 Enable debug output [environment: CONTAINER_DEBUG]
-  --version               Show the version.
+  --version               Show the CLI version (single line).
   -h, --help              Show help information.
+
+Detailed version information is available under the system command:
+
+```
+container system version [--format json|table]
+```
 
 CONTAINER SUBCOMMANDS:
   create                  Create a new container

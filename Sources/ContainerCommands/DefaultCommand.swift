@@ -42,9 +42,9 @@ struct DefaultCommand: AsyncParsableCommand {
 
         // Check for edge cases and unknown options to match the behavior in the absence of plugins.
         if command.isEmpty {
-            throw ValidationError("Unknown argument '\(command)'")
+            throw ValidationError("unknown argument '\(command)'")
         } else if command.starts(with: "-") {
-            throw ValidationError("Unknown option '\(command)'")
+            throw ValidationError("unknown option '\(command)'")
         }
 
         // Compute canonical plugin directories to show in helpful errors (avoid hard-coded paths)
