@@ -274,6 +274,31 @@ public actor SandboxService {
             let containerInfo = try await self.getContainer()
             let stats = try await containerInfo.container.statistics()
 
+            // Calculate I/O operations per second (IOPS) from block device stats
+            // TODO: The Containerization framework needs to provide readOps and writeOps
+            // from blockIO.devices. For now, we estimate from bytes assuming 4KB operations.
+            let totalReadBytes = stats.blockIO.devices.reduce(0) { $0 + $1.readBytes }
+            let totalWriteBytes = stats.blockIO.devices.reduce(0) { $0 + $1.writeBytes }
+            let estimatedReadOps = Double(totalReadBytes) / 4096.0
+            let estimatedWriteOps = Double(totalWriteBytes) / 4096.0
+            
+            // TODO: Collect latency metrics from Containerization framework
+            // These would ideally come from blockIO.devices with new properties:
+            // - readLatencyMicros, writeLatencyMicros, fsyncLatencyMicros
+            let readLatency: Double? = nil  // stats.blockIO.averageReadLatencyMs
+            let writeLatency: Double? = nil // stats.blockIO.averageWriteLatencyMs
+            let fsyncLatency: Double? = nil // stats.blockIO.averageFsyncLatencyMs
+            
+            // TODO: Get queue depth from Containerization framework
+            let queueDepth: UInt64? = nil // stats.blockIO.queueDepth
+            
+            // TODO: Get dirty pages percentage from memory stats
+            let dirtyPages: Double? = nil // stats.memory.dirtyPagesPercent
+            
+            // TODO: Detect storage backend type from device information
+            // This would require inspecting the block device type in the VM
+            let backend: String? = "virtio" // Default for VM-based containers
+
             let containerStats = ContainerStats(
                 id: stats.id,
                 memoryUsageBytes: stats.memory.usageBytes,
@@ -281,9 +306,17 @@ public actor SandboxService {
                 cpuUsageUsec: stats.cpu.usageUsec,
                 networkRxBytes: stats.networks.reduce(0) { $0 + $1.receivedBytes },
                 networkTxBytes: stats.networks.reduce(0) { $0 + $1.transmittedBytes },
-                blockReadBytes: stats.blockIO.devices.reduce(0) { $0 + $1.readBytes },
-                blockWriteBytes: stats.blockIO.devices.reduce(0) { $0 + $1.writeBytes },
-                numProcesses: stats.process.current
+                blockReadBytes: totalReadBytes,
+                blockWriteBytes: totalWriteBytes,
+                numProcesses: stats.process.current,
+                readOpsPerSec: estimatedReadOps,
+                writeOpsPerSec: estimatedWriteOps,
+                readLatencyMs: readLatency,
+                writeLatencyMs: writeLatency,
+                fsyncLatencyMs: fsyncLatency,
+                queueDepth: queueDepth,
+                dirtyPagesPercent: dirtyPages,
+                storageBackend: backend
             )
 
             let reply = message.reply()

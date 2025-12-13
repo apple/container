@@ -36,6 +36,24 @@ public struct ContainerStats: Sendable, Codable {
     public var blockWriteBytes: UInt64
     /// Number of processes in the container
     public var numProcesses: UInt64
+    
+    // Extended I/O metrics
+    /// Read operations per second
+    public var readOpsPerSec: Double?
+    /// Write operations per second
+    public var writeOpsPerSec: Double?
+    /// Average read latency in milliseconds
+    public var readLatencyMs: Double?
+    /// Average write latency in milliseconds
+    public var writeLatencyMs: Double?
+    /// Average fsync latency in milliseconds
+    public var fsyncLatencyMs: Double?
+    /// I/O queue depth
+    public var queueDepth: UInt64?
+    /// Percentage of dirty pages
+    public var dirtyPagesPercent: Double?
+    /// Storage backend type (e.g., "apfs", "ext4", "virtio")
+    public var storageBackend: String?
 
     public init(
         id: String,
@@ -46,7 +64,15 @@ public struct ContainerStats: Sendable, Codable {
         networkTxBytes: UInt64,
         blockReadBytes: UInt64,
         blockWriteBytes: UInt64,
-        numProcesses: UInt64
+        numProcesses: UInt64,
+        readOpsPerSec: Double? = nil,
+        writeOpsPerSec: Double? = nil,
+        readLatencyMs: Double? = nil,
+        writeLatencyMs: Double? = nil,
+        fsyncLatencyMs: Double? = nil,
+        queueDepth: UInt64? = nil,
+        dirtyPagesPercent: Double? = nil,
+        storageBackend: String? = nil
     ) {
         self.id = id
         self.memoryUsageBytes = memoryUsageBytes
@@ -57,5 +83,13 @@ public struct ContainerStats: Sendable, Codable {
         self.blockReadBytes = blockReadBytes
         self.blockWriteBytes = blockWriteBytes
         self.numProcesses = numProcesses
+        self.readOpsPerSec = readOpsPerSec
+        self.writeOpsPerSec = writeOpsPerSec
+        self.readLatencyMs = readLatencyMs
+        self.writeLatencyMs = writeLatencyMs
+        self.fsyncLatencyMs = fsyncLatencyMs
+        self.queueDepth = queueDepth
+        self.dirtyPagesPercent = dirtyPagesPercent
+        self.storageBackend = storageBackend
     }
 }
