@@ -242,7 +242,7 @@ extension APIServer {
             routes[XPCRoute.containerWait] = harness.wait
             routes[XPCRoute.containerKill] = harness.kill
             routes[XPCRoute.containerStats] = harness.stats
-            routes[XPCRoute.containerPrune] = harness.prune
+            routes[XPCRoute.containerDiskUsage] = harness.diskUsage
 
             return service
         }

@@ -28,11 +28,26 @@ extension Application {
             abstract: "Remove all stopped containers"
         )
         public func run() async throws {
-            let (containerIds, size) = try await ClientContainer.prune()
-            let formatter = ByteCountFormatter()
-            let freed = formatter.string(fromByteCount: size)
+            let containersToPrune = try await ClientContainer.list().filter { $0.status == .stopped }
 
-            for name in containerIds {
+            var prunedContainerIds = [String]()
+            var totalSize: UInt64 = 0
+
+            for container in containersToPrune {
+                do {
+                    let actualSize = try await ClientContainer.containerDiskUsage(id: container.id)
+                    totalSize += actualSize
+                    try await container.delete()
+                    prunedContainerIds.append(container.id)
+                } catch {
+                    log.error("Failed to prune container \(container.id): \(error)")
+                }
+            }
+
+            let formatter = ByteCountFormatter()
+            let freed = formatter.string(fromByteCount: Int64(totalSize))
+
+            for name in prunedContainerIds {
                 print(name)
             }
             print("Reclaimed \(freed) in disk space")
