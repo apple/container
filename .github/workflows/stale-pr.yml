@@ -1,6 +1,7 @@
 name: Stale PR Management
 
 on:
+  pull_request:
   schedule:
     - cron: '0 0 * * *' 
   workflow_dispatch:
