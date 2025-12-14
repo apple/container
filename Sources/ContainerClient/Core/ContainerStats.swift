@@ -36,7 +36,7 @@ public struct ContainerStats: Sendable, Codable {
     public var blockWriteBytes: UInt64
     /// Number of processes in the container
     public var numProcesses: UInt64
-    
+
     // Extended I/O metrics
     /// Read operations per second
     public var readOpsPerSec: Double?

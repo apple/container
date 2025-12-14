@@ -34,7 +34,7 @@ extension Application {
 
         @Flag(name: .long, help: "Disable streaming stats and only pull the first result")
         var noStream = false
-        
+
         @Flag(name: .long, help: "Display detailed I/O statistics (IOPS, latency, fsync, queue depth)")
         var io = false
 
@@ -234,7 +234,7 @@ extension Application {
                 printDefaultStatsTable(statsData)
             }
         }
-        
+
         private func printDefaultStatsTable(_ statsData: [StatsSnapshot]) {
             let header = [["Container ID", "Cpu %", "Memory Usage", "Net Rx/Tx", "Block I/O", "Pids"]]
             var rows = header
@@ -263,28 +263,28 @@ extension Application {
             let formatter = TableOutput(rows: rows)
             print(formatter.format())
         }
-        
+
         private func printIOStatsTable(_ statsData: [StatsSnapshot]) {
             let header = [["CONTAINER", "READ/s", "WRITE/s", "LAT(ms)", "FSYNC(ms)", "QD", "DIRTY", "BACKEND"]]
             var rows = header
 
             for snapshot in statsData {
                 let stats2 = snapshot.stats2
-                
+
                 // Calculate throughput from bytes (convert to MB/s)
                 let readMBps = Self.formatThroughput(stats2.blockReadBytes)
                 let writeMBps = Self.formatThroughput(stats2.blockWriteBytes)
-                
+
                 // Format latency metrics
                 let latency = stats2.readLatencyMs != nil ? String(format: "%.1f", stats2.readLatencyMs!) : "N/A"
                 let fsyncLatency = stats2.fsyncLatencyMs != nil ? String(format: "%.1f", stats2.fsyncLatencyMs!) : "N/A"
-                
+
                 // Format queue depth
                 let queueDepth = stats2.queueDepth != nil ? "\(stats2.queueDepth!)" : "N/A"
-                
+
                 // Format dirty pages percentage
                 let dirty = stats2.dirtyPagesPercent != nil ? String(format: "%.1f%%", stats2.dirtyPagesPercent!) : "N/A"
-                
+
                 // Storage backend
                 let backend = stats2.storageBackend ?? "unknown"
 
@@ -296,7 +296,7 @@ extension Application {
                     fsyncLatency,
                     queueDepth,
                     dirty,
-                    backend
+                    backend,
                 ])
             }
 
@@ -304,12 +304,12 @@ extension Application {
             let formatter = TableOutput(rows: rows)
             print(formatter.format())
         }
-        
+
         static func formatThroughput(_ bytes: UInt64) -> String {
             let mb = 1024.0 * 1024.0
             let kb = 1024.0
             let value = Double(bytes)
-            
+
             if value >= mb {
                 return String(format: "%.0fMB", value / mb)
             } else if value >= kb {
