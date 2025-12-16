@@ -190,11 +190,10 @@ public actor SandboxService {
                 // a default /etc/hosts.
                 var hostsEntries = [Hosts.Entry.localHostIPV4()]
                 if !interfaces.isEmpty {
-                    let primaryIfaceAddr = interfaces[0].address
-                    let ip = primaryIfaceAddr.split(separator: "/")
+                    let primaryIfaceAddr = interfaces[0].ipv4Address
                     hostsEntries.append(
                         Hosts.Entry(
-                            ipAddress: String(ip[0]),
+                            ipAddress: primaryIfaceAddr.address.description,
                             hostnames: [czConfig.hostname],
                         ))
                 }
@@ -215,7 +214,7 @@ public actor SandboxService {
                 try await container.create()
                 try await self.monitor.registerProcess(id: config.id, onExit: self.onContainerExit)
                 if !container.interfaces.isEmpty {
-                    let firstCidr = try CIDRAddress(container.interfaces[0].address)
+                    let firstCidr = container.interfaces[0].ipv4Address
                     let ipAddress = firstCidr.address.description
                     try await self.startSocketForwarders(containerIpAddress: ipAddress, publishedPorts: config.publishedPorts)
                 }
@@ -865,7 +864,7 @@ public actor SandboxService {
             guard case .running(_, let status) = state else {
                 continue
             }
-            return status.gateway
+            return status.ipv4Gateway.description
         }
 
         return nil

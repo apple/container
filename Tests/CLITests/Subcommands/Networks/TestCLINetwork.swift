@@ -61,7 +61,7 @@ class TestCLINetwork: CLITest {
 
             let container = try inspectContainer(name)
             #expect(container.networks.count > 0)
-            let cidrAddress = try CIDRAddress(container.networks[0].address)
+            let cidrAddress = container.networks[0].ipv4Address
             let url = "http://\(cidrAddress.address):\(port)"
             var request = HTTPClientRequest(url: url)
             request.method = .GET
