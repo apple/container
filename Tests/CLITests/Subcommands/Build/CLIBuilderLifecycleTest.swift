@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerClient
 import Foundation
 import Testing
 
@@ -31,6 +32,48 @@ extension TestCLIBuildBase {
                 try self.builderStop()
                 let status = try self.getContainerStatus("buildkit")
                 #expect(status == "stopped", "BuildKit container is not stopped")
+            }
+        }
+
+        @Test func testBuilderStorageFlag() async throws {
+            do {
+                let requestedStorage = "4096MB"
+                let expectedMiB = Int(try Parser.memoryString(requestedStorage))
+                let expectedBytes = UInt64(expectedMiB.mib())
+
+                try? builderStop()
+                try? builderDelete(force: true)
+
+                let (_, _, err, status) = try run(arguments: [
+                    "builder",
+                    "start",
+                    "--storage", requestedStorage,
+                ])
+                try #require(status == 0, "builder start failed: \(err)")
+
+                try waitForBuilderRunning()
+
+                defer {
+                    try? builderStop()
+                    try? builderDelete(force: true)
+                }
+
+                let buildkitName = "buildkit"
+                let buildkit = try await ClientContainer.get(id: buildkitName)
+                let resources = buildkit.configuration.resources
+
+                guard let storageBytes = resources.storage else {
+                    Issue.record("expected builder resources.storage to be set for --storage \(requestedStorage)")
+                    return
+                }
+
+                #expect(
+                    storageBytes == expectedBytes,
+                    "expected builder storage \(expectedBytes) bytes for \(requestedStorage), got \(storageBytes) bytes"
+                )
+            } catch {
+                Issue.record("failed to verify builder storage: \(error)")
+                return
             }
         }
     }

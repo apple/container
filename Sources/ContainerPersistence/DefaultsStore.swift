@@ -26,6 +26,8 @@ public enum DefaultsStore {
         case buildRosetta = "build.rosetta"
         case defaultDNSDomain = "dns.domain"
         case defaultBuilderImage = "image.builder"
+        case defaultBuilderStorage = "builder.storage"
+        case defaultContainerStorage = "container.storage"
         case defaultInitImage = "image.init"
         case defaultKernelBinaryPath = "kernel.binaryPath"
         case defaultKernelURL = "kernel.url"
@@ -69,6 +71,8 @@ public enum DefaultsStore {
         let allKeys: [(Self.Keys, (Self.Keys) -> Any?)] = [
             (.buildRosetta, { Self.getBool(key: $0) }),
             (.defaultBuilderImage, { Self.get(key: $0) }),
+            (.defaultBuilderStorage, { Self.getOptional(key: $0) }),
+            (.defaultContainerStorage, { Self.getOptional(key: $0) }),
             (.defaultInitImage, { Self.get(key: $0) }),
             (.defaultKernelBinaryPath, { Self.get(key: $0) }),
             (.defaultKernelURL, { Self.get(key: $0) }),
@@ -124,6 +128,10 @@ extension DefaultsStore.Keys {
             return "If defined, the local DNS domain to use for containers with unqualified names."
         case .defaultBuilderImage:
             return "The image reference for the utility container that `container build` uses."
+        case .defaultBuilderStorage:
+            return "Default disk capacity for the builder container."
+        case .defaultContainerStorage:
+            return "Default disk capacity for native containers."
         case .defaultInitImage:
             return "The image reference for the default initial filesystem image."
         case .defaultKernelBinaryPath:
@@ -144,6 +152,10 @@ extension DefaultsStore.Keys {
         case .defaultDNSDomain:
             return String.self
         case .defaultBuilderImage:
+            return String.self
+        case .defaultBuilderStorage:
+            return String.self
+        case .defaultContainerStorage:
             return String.self
         case .defaultInitImage:
             return String.self
@@ -168,6 +180,10 @@ extension DefaultsStore.Keys {
         case .defaultBuilderImage:
             let tag = String(cString: get_container_builder_shim_version())
             return "ghcr.io/apple/container-builder-shim/builder:\(tag)"
+        case .defaultBuilderStorage:
+            return ""
+        case .defaultContainerStorage:
+            return ""
         case .defaultInitImage:
             let tag = String(cString: get_swift_containerization_version())
             guard tag != "latest" else {
