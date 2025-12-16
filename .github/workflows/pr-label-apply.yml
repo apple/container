@@ -20,10 +20,10 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
       - name: Download PR metadata artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
@@ -47,7 +47,7 @@ jobs:
           echo "PR Number: ${PR_NUMBER}"
       
       - name: Apply labels using labeler
-        uses: actions/labeler@v5
+        uses: actions/labeler@634933edcd8ababfe52f92936142cc22ac488b1b # v6
         with:
           pr-number: ${{ steps.pr-number.outputs.number }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}
