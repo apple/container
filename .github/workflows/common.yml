@@ -22,7 +22,7 @@ jobs:
       packages: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           fetch-depth: 0
 
@@ -78,14 +78,14 @@ jobs:
           DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
 
       - name: Save documentation artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: api-docs
           path: "./_site.tgz"
           retention-days: 14
 
       - name: Save package artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: container-package
           path: ${{ github.workspace }}/outputs
@@ -102,7 +102,7 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Download a single artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: api-docs
 

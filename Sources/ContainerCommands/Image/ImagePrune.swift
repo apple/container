@@ -35,7 +35,7 @@ extension Application {
         public func run() async throws {
             let allImages = try await ClientImage.list()
 
-            let imagesToDelete: [ClientImage]
+            let imagesToPrune: [ClientImage]
             if all {
                 // Find all images not used by any container
                 let containers = try await ClientContainer.list()
@@ -43,40 +43,40 @@ extension Application {
                 for container in containers {
                     imagesInUse.insert(container.configuration.image.reference)
                 }
-                imagesToDelete = allImages.filter { image in
+                imagesToPrune = allImages.filter { image in
                     !imagesInUse.contains(image.reference)
                 }
             } else {
                 // Find dangling images (images with no tag)
-                imagesToDelete = allImages.filter { image in
+                imagesToPrune = allImages.filter { image in
                     !hasTag(image.reference)
                 }
             }
 
-            for image in imagesToDelete {
-                try await ClientImage.delete(reference: image.reference, garbageCollect: false)
+            var prunedImages = [String]()
+
+            for image in imagesToPrune {
+                do {
+                    try await ClientImage.delete(reference: image.reference, garbageCollect: false)
+                    prunedImages.append(image.reference)
+                } catch {
+                    log.error("Failed to prune image \(image.reference): \(error)")
+                }
             }
 
             let (deletedDigests, size) = try await ClientImage.cleanupOrphanedBlobs()
 
+            for image in imagesToPrune {
+                print("untagged \(image.reference)")
+            }
+            for digest in deletedDigests {
+                print("deleted \(digest)")
+            }
+
             let formatter = ByteCountFormatter()
             formatter.countStyle = .file
-
-            if imagesToDelete.isEmpty && deletedDigests.isEmpty {
-                print("No images to prune")
-                print("Reclaimed Zero KB in disk space")
-            } else {
-                print("Deleted images:")
-                for image in imagesToDelete {
-                    print("untagged: \(image.reference)")
-                }
-                for digest in deletedDigests {
-                    print("deleted: \(digest)")
-                }
-                print()
-                let freed = formatter.string(fromByteCount: Int64(size))
-                print("Reclaimed \(freed) in disk space")
-            }
+            let freed = formatter.string(fromByteCount: Int64(size))
+            print("Reclaimed \(freed) in disk space")
         }
 
         private func hasTag(_ reference: String) -> Bool {
