@@ -23,7 +23,7 @@ import Foundation
 import TerminalProgress
 
 public struct ClientContainer: Sendable, Codable {
-    static let serviceIdentifier = "com.apple.container.apiserver"
+    public static let serviceIdentifier = "com.apple.container.apiserver"
 
     /// Identifier of the container.
     public var id: String {
@@ -43,16 +43,46 @@ public struct ClientContainer: Sendable, Codable {
     /// Network allocated to the container.
     public let networks: [Attachment]
 
+    /// Optional XPC client for connection reuse across operations.
+    private let xpcClient: XPCClient?
+
     package init(configuration: ContainerConfiguration) {
         self.configuration = configuration
         self.status = .stopped
         self.networks = []
+        self.xpcClient = nil
     }
 
-    init(snapshot: ContainerSnapshot) {
+    public init(snapshot: ContainerSnapshot, xpcClient: XPCClient? = nil) {
         self.configuration = snapshot.configuration
         self.status = snapshot.status
         self.networks = snapshot.networks
+        self.xpcClient = xpcClient
+    }
+
+    private func client() -> XPCClient {
+        xpcClient ?? Self.newXPCClient()
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case configuration
+        case status
+        case networks
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.configuration = try container.decode(ContainerConfiguration.self, forKey: .configuration)
+        self.status = try container.decode(RuntimeStatus.self, forKey: .status)
+        self.networks = try container.decode([Attachment].self, forKey: .networks)
+        self.xpcClient = nil
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(configuration, forKey: .configuration)
+        try container.encode(status, forKey: .status)
+        try container.encode(networks, forKey: .networks)
     }
 }
 
@@ -74,7 +104,7 @@ extension ClientContainer {
         configuration: ContainerConfiguration,
         options: ContainerCreateOptions = .default,
         kernel: Kernel
-    ) async throws -> ClientContainer {
+    ) async throws -> ContainerSnapshot {
         do {
             let client = Self.newXPCClient()
             let request = XPCMessage(route: .containerCreate)
@@ -87,7 +117,11 @@ extension ClientContainer {
             request.set(key: .containerOptions, value: odata)
 
             try await xpcSend(client: client, message: request)
-            return ClientContainer(configuration: configuration)
+            return ContainerSnapshot(
+                configuration: configuration,
+                status: .stopped,
+                networks: []
+            )
         } catch {
             throw ContainerizationError(
                 .internalError,
@@ -97,7 +131,7 @@ extension ClientContainer {
         }
     }
 
-    public static func list() async throws -> [ClientContainer] {
+    public static func list() async throws -> [ContainerSnapshot] {
         do {
             let client = Self.newXPCClient()
             let request = XPCMessage(route: .containerList)
@@ -111,8 +145,7 @@ extension ClientContainer {
             guard let data else {
                 return []
             }
-            let configs = try JSONDecoder().decode([ContainerSnapshot].self, from: data)
-            return configs.map { ClientContainer(snapshot: $0) }
+            return try JSONDecoder().decode([ContainerSnapshot].self, from: data)
         } catch {
             throw ContainerizationError(
                 .internalError,
@@ -123,9 +156,9 @@ extension ClientContainer {
     }
 
     /// Get the container for the provided id.
-    public static func get(id: String) async throws -> ClientContainer {
+    public static func get(id: String) async throws -> ContainerSnapshot {
         let containers = try await list()
-        guard let container = containers.first(where: { $0.id == id }) else {
+        guard let container = containers.first(where: { $0.configuration.id == id }) else {
             throw ContainerizationError(
                 .notFound,
                 message: "get failed: container \(id) not found"
@@ -176,7 +209,7 @@ extension ClientContainer {
             request.set(key: .processIdentifier, value: self.id)
             request.set(key: .signal, value: Int64(signal))
 
-            let client = Self.newXPCClient()
+            let client = self.client()
             try await client.send(request)
         } catch {
             throw ContainerizationError(
@@ -190,7 +223,7 @@ extension ClientContainer {
     /// Stop the container and all processes currently executing inside.
     public func stop(opts: ContainerStopOptions = ContainerStopOptions.default) async throws {
         do {
-            let client = Self.newXPCClient()
+            let client = self.client()
             let request = XPCMessage(route: .containerStop)
             let data = try JSONEncoder().encode(opts)
             request.set(key: .id, value: self.id)
@@ -209,7 +242,7 @@ extension ClientContainer {
     /// Delete the container along with any resources.
     public func delete(force: Bool = false) async throws {
         do {
-            let client = Self.newXPCClient()
+            let client = self.client()
             let request = XPCMessage(route: .containerDelete)
             request.set(key: .id, value: self.id)
             request.set(key: .forceDelete, value: force)
@@ -268,7 +301,7 @@ extension ClientContainer {
 
     public func logs() async throws -> [FileHandle] {
         do {
-            let client = Self.newXPCClient()
+            let client = self.client()
             let request = XPCMessage(route: .containerLogs)
             request.set(key: .id, value: self.id)
 
@@ -295,7 +328,7 @@ extension ClientContainer {
         request.set(key: .id, value: self.id)
         request.set(key: .port, value: UInt64(port))
 
-        let client = Self.newXPCClient()
+        let client = self.client()
         let response: XPCMessage
         do {
             response = try await client.send(request)

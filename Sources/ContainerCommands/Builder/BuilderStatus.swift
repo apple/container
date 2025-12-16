@@ -42,8 +42,8 @@ extension Application {
 
         public func run() async throws {
             do {
-                let container = try await ClientContainer.get(id: "buildkit")
-                try printContainers(containers: [container], format: format)
+                let snapshot = try await ClientContainer.get(id: "buildkit")
+                try printContainers(snapshots: [snapshot], format: format)
             } catch {
                 if error is ContainerizationError {
                     if (error as? ContainerizationError)?.code == .notFound && !quiet {
@@ -59,9 +59,9 @@ extension Application {
             [["ID", "IMAGE", "STATE", "ADDR", "CPUS", "MEMORY"]]
         }
 
-        private func printContainers(containers: [ClientContainer], format: ListFormat) throws {
+        private func printContainers(snapshots: [ContainerSnapshot], format: ListFormat) throws {
             if format == .json {
-                let printables = containers.map {
+                let printables = snapshots.map {
                     PrintableContainer($0)
                 }
                 let data = try JSONEncoder().encode(printables)
@@ -71,15 +71,15 @@ extension Application {
             }
 
             if self.quiet {
-                containers
+                snapshots
                     .filter { $0.status == .running }
-                    .forEach { print($0.id) }
+                    .forEach { print($0.configuration.id) }
                 return
             }
 
             var rows = createHeader()
-            for container in containers {
-                rows.append(container.asRow)
+            for snapshot in snapshots {
+                rows.append(snapshot.asRow)
             }
 
             let formatter = TableOutput(rows: rows)
@@ -88,10 +88,10 @@ extension Application {
     }
 }
 
-extension ClientContainer {
+extension ContainerSnapshot {
     fileprivate var asRow: [String] {
         [
-            self.id,
+            self.configuration.id,
             self.configuration.image.reference,
             self.status.rawValue,
             self.networks.compactMap { try? CIDRAddress($0.address).address.description }.joined(separator: ","),

@@ -35,7 +35,8 @@ extension Application {
 
         public func run() async throws {
             do {
-                let container = try await ClientContainer.get(id: "buildkit")
+                let snapshot = try await ClientContainer.get(id: "buildkit")
+                let container = ClientContainer(snapshot: snapshot)
                 try await container.stop()
             } catch {
                 if error is ContainerizationError {
