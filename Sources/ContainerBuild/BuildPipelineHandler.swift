@@ -30,7 +30,7 @@ public actor BuildPipeline {
             [
                 try BuildFSSync(URL(filePath: config.contextDir)),
                 try BuildRemoteContentProxy(config.contentStore),
-                try BuildImageResolver(config.contentStore),
+                try BuildImageResolver(config.contentStore, quiet: config.quiet, output: config.terminal?.handle ?? FileHandle.standardError),
                 try BuildStdio(quiet: config.quiet, output: config.terminal?.handle ?? FileHandle.standardError),
             ]
     }
@@ -105,7 +105,7 @@ public actor BuildPipeline {
             throw NSError(
                 domain: "untilFirstError",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Failed to initialize task continuation"])
+                userInfo: [NSLocalizedDescriptionKey: "failed to initialize task continuation"])
         }
         defer { taskContinuation.finish() }
         let stream = AsyncStream<Error> { continuation in

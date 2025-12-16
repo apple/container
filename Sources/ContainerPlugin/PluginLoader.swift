@@ -133,7 +133,7 @@ extension PluginLoader {
                             }.first)
                     else {
                         log?.warning(
-                            "Not installing plugin with missing configuration",
+                            "not installing plugin with missing configuration",
                             metadata: [
                                 "path": "\(installURL.path)"
                             ]
@@ -144,7 +144,7 @@ extension PluginLoader {
                     // Warn and skip if this plugin name has been encountered already
                     guard !pluginNames.contains(plugin.name) else {
                         log?.warning(
-                            "Not installing shadowed plugin",
+                            "not installing shadowed plugin",
                             metadata: [
                                 "path": "\(installURL.path)",
                                 "name": "\(plugin.name)",
@@ -157,7 +157,7 @@ extension PluginLoader {
                     pluginNames.insert(plugin.name)
                 } catch {
                     log?.warning(
-                        "Not installing plugin with invalid configuration",
+                        "not installing plugin with invalid configuration",
                         metadata: [
                             "path": "\(installURL.path)",
                             "error": "\(error)",
@@ -183,7 +183,7 @@ extension PluginLoader {
             }
         } catch {
             log?.warning(
-                "Not installing plugin with invalid configuration",
+                "not installing plugin with invalid configuration",
                 metadata: [
                     "name": "\(name)",
                     "error": "\(error)",
@@ -196,6 +196,12 @@ extension PluginLoader {
 }
 
 extension PluginLoader {
+    public static let proxyKeys = Set([
+        "http_proxy", "HTTP_PROXY",
+        "https_proxy", "HTTPS_PROXY",
+        "no_proxy", "NO_PROXY",
+    ])
+
     public func registerWithLaunchd(
         plugin: Plugin,
         pluginStateRoot: URL? = nil,
@@ -212,21 +218,17 @@ extension PluginLoader {
         log?.info("Registering plugin", metadata: ["id": "\(id)"])
         let rootURL = pluginStateRoot ?? self.pluginResourceRoot.appending(path: plugin.name)
         try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
-        var env = ProcessInfo.processInfo.environment.filter { key, _ in
-            key.hasPrefix("CONTAINER_")
-        }
+
+        var env = Self.filterEnvironment()
         env[ApplicationRoot.environmentName] = appRoot.path(percentEncoded: false)
         env[InstallRoot.environmentName] = installRoot.path(percentEncoded: false)
 
-        let logUrl = rootURL.appendingPathComponent("service.log")
         let plist = LaunchPlist(
             label: id,
             arguments: [plugin.binaryURL.path] + (args ?? serviceConfig.defaultArguments),
             environment: env,
             limitLoadToSessionType: [.Aqua, .Background, .System],
             runAtLoad: serviceConfig.runAtLoad,
-            stdout: logUrl.path,
-            stderr: logUrl.path,
             machServices: plugin.getMachServices(instanceId: instanceId)
         )
 
@@ -246,5 +248,14 @@ extension PluginLoader {
         let label = "\(domain)/\(plugin.getLaunchdLabel(instanceId: instanceId))"
         log?.info("Deregistering plugin", metadata: ["id": "\(plugin.getLaunchdLabel())"])
         try ServiceManager.deregister(fullServiceLabel: label)
+    }
+
+    public static func filterEnvironment(
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        additionalAllowKeys: Set<String> = Self.proxyKeys
+    ) -> [String: String] {
+        env.filter { key, _ in
+            key.hasPrefix("CONTAINER_") || additionalAllowKeys.contains(key)
+        }
     }
 }

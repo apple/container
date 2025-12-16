@@ -94,7 +94,7 @@ public actor ContainersService {
                 guard let plugin else {
                     throw ContainerizationError(
                         .internalError,
-                        message: "Failed to find runtime plugin \(config.runtimeHandler)"
+                        message: "failed to find runtime plugin \(config.runtimeHandler)"
                     )
                 }
                 try Self.registerService(
@@ -126,84 +126,156 @@ public actor ContainersService {
         }
     }
 
+    /// Calculate disk usage for containers
+    /// - Returns: Tuple of (total count, active count, total size, reclaimable size)
+    public func calculateDiskUsage() async -> (Int, Int, UInt64, UInt64) {
+        await lock.withLock { _ in
+            var totalSize: UInt64 = 0
+            var reclaimableSize: UInt64 = 0
+            var activeCount = 0
+
+            for (id, state) in await self.containers {
+                let bundlePath = self.containerRoot.appendingPathComponent(id)
+                let containerSize = Self.calculateDirectorySize(at: bundlePath.path)
+                totalSize += containerSize
+
+                if state.snapshot.status == .running {
+                    activeCount += 1
+                } else {
+                    // Stopped containers are reclaimable
+                    reclaimableSize += containerSize
+                }
+            }
+
+            return (await self.containers.count, activeCount, totalSize, reclaimableSize)
+        }
+    }
+
+    /// Get set of image references used by containers (for disk usage calculation)
+    /// - Returns: Set of image references currently in use
+    public func getActiveImageReferences() async -> Set<String> {
+        await lock.withLock { _ in
+            var imageRefs = Set<String>()
+            for (_, state) in await self.containers {
+                imageRefs.insert(state.snapshot.configuration.image.reference)
+            }
+            return imageRefs
+        }
+    }
+
+    /// Calculate directory size using APFS-aware resource keys
+    /// - Parameter path: Path to directory
+    /// - Returns: Total allocated size in bytes
+    private static nonisolated func calculateDirectorySize(at path: String) -> UInt64 {
+        let url = URL(fileURLWithPath: path)
+        let fileManager = FileManager.default
+
+        guard
+            let enumerator = fileManager.enumerator(
+                at: url,
+                includingPropertiesForKeys: [.totalFileAllocatedSizeKey],
+                options: [.skipsHiddenFiles]
+            )
+        else {
+            return 0
+        }
+
+        var totalSize: UInt64 = 0
+        for case let fileURL as URL in enumerator {
+            guard
+                let resourceValues = try? fileURL.resourceValues(
+                    forKeys: [.totalFileAllocatedSizeKey]
+                ),
+                let fileSize = resourceValues.totalFileAllocatedSize
+            else {
+                continue
+            }
+            totalSize += UInt64(fileSize)
+        }
+
+        return totalSize
+    }
+
     /// Create a new container from the provided id and configuration.
     public func create(configuration: ContainerConfiguration, kernel: Kernel, options: ContainerCreateOptions) async throws {
         self.log.debug("\(#function)")
 
-        guard containers[configuration.id] == nil else {
-            throw ContainerizationError(
-                .exists,
-                message: "container already exists: \(configuration.id)"
-            )
-        }
-
-        var allHostnames = Set<String>()
-        for container in containers.values {
-            for attachmentConfiguration in container.snapshot.configuration.networks {
-                allHostnames.insert(attachmentConfiguration.options.hostname)
+        try await self.lock.withLock { context in
+            guard await self.containers[configuration.id] == nil else {
+                throw ContainerizationError(
+                    .exists,
+                    message: "container already exists: \(configuration.id)"
+                )
             }
-        }
 
-        var conflictingHostnames = [String]()
-        for attachmentConfiguration in configuration.networks {
-            if allHostnames.contains(attachmentConfiguration.options.hostname) {
-                conflictingHostnames.append(attachmentConfiguration.options.hostname)
+            var allHostnames = Set<String>()
+            for container in await self.containers.values {
+                for attachmentConfiguration in container.snapshot.configuration.networks {
+                    allHostnames.insert(attachmentConfiguration.options.hostname)
+                }
             }
-        }
 
-        guard conflictingHostnames.isEmpty else {
-            throw ContainerizationError(
-                .exists,
-                message: "hostname(s) already exist: \(conflictingHostnames)"
+            var conflictingHostnames = [String]()
+            for attachmentConfiguration in configuration.networks {
+                if allHostnames.contains(attachmentConfiguration.options.hostname) {
+                    conflictingHostnames.append(attachmentConfiguration.options.hostname)
+                }
+            }
+
+            guard conflictingHostnames.isEmpty else {
+                throw ContainerizationError(
+                    .exists,
+                    message: "hostname(s) already exist: \(conflictingHostnames)"
+                )
+            }
+
+            let runtimePlugin = self.runtimePlugins.filter {
+                $0.name == configuration.runtimeHandler
+            }.first
+            guard let runtimePlugin else {
+                throw ContainerizationError(
+                    .notFound,
+                    message: "unable to locate runtime plugin \(configuration.runtimeHandler)"
+                )
+            }
+
+            let path = self.containerRoot.appendingPathComponent(configuration.id)
+            let systemPlatform = kernel.platform
+            let initFs = try await self.getInitBlock(for: systemPlatform.ociPlatform())
+
+            let bundle = try ContainerClient.Bundle.create(
+                path: path,
+                initialFilesystem: initFs,
+                kernel: kernel,
+                containerConfiguration: configuration
             )
-        }
-
-        let runtimePlugin = self.runtimePlugins.filter {
-            $0.name == configuration.runtimeHandler
-        }.first
-        guard let runtimePlugin else {
-            throw ContainerizationError(
-                .notFound,
-                message: "unable to locate runtime plugin \(configuration.runtimeHandler)"
-            )
-        }
-
-        let path = self.containerRoot.appendingPathComponent(configuration.id)
-        let systemPlatform = kernel.platform
-        let initFs = try await getInitBlock(for: systemPlatform.ociPlatform())
-
-        let bundle = try ContainerClient.Bundle.create(
-            path: path,
-            initialFilesystem: initFs,
-            kernel: kernel,
-            containerConfiguration: configuration
-        )
-        do {
-            let containerImage = ClientImage(description: configuration.image)
-            let imageFs = try await containerImage.getCreateSnapshot(platform: configuration.platform)
-            try bundle.setContainerRootFs(cloning: imageFs)
-            try bundle.write(filename: "options.json", value: options)
-
-            try Self.registerService(
-                plugin: runtimePlugin,
-                loader: self.pluginLoader,
-                configuration: configuration,
-                path: path
-            )
-
-            let snapshot = ContainerSnapshot(
-                configuration: configuration,
-                status: .stopped,
-                networks: []
-            )
-            self.containers[configuration.id] = ContainerState(snapshot: snapshot)
-        } catch {
             do {
-                try bundle.delete()
+                let containerImage = ClientImage(description: configuration.image)
+                let imageFs = try await containerImage.getCreateSnapshot(platform: configuration.platform)
+                try bundle.setContainerRootFs(cloning: imageFs)
+                try bundle.write(filename: "options.json", value: options)
+
+                try Self.registerService(
+                    plugin: runtimePlugin,
+                    loader: self.pluginLoader,
+                    configuration: configuration,
+                    path: path
+                )
+
+                let snapshot = ContainerSnapshot(
+                    configuration: configuration,
+                    status: .stopped,
+                    networks: []
+                )
+                await self.setContainerState(configuration.id, ContainerState(snapshot: snapshot), context: context)
             } catch {
-                self.log.error("failed to delete bundle for container \(configuration.id): \(error)")
+                do {
+                    try bundle.delete()
+                } catch {
+                    self.log.error("failed to delete bundle for container \(configuration.id): \(error)")
+                }
+                throw error
             }
-            throw error
         }
     }
 
@@ -213,6 +285,14 @@ public actor ContainersService {
         do {
             try await self.lock.withLock { context in
                 var state = try await self.getContainerState(id: id, context: context)
+
+                // We've already bootstrapped this container. Ideally we should be able to
+                // return some sort of error code from the sandbox svc to check here, but this
+                // is also a very simple check and faster than doing an rpc to get the same result.
+                if state.client != nil {
+                    return
+                }
+
                 let runtime = state.snapshot.configuration.runtimeHandler
                 let sandboxClient = try await SandboxClient.create(
                     id: id,
@@ -388,6 +468,15 @@ public actor ContainersService {
                 message: "failed to open container logs: \(error)"
             )
         }
+    }
+
+    /// Get statistics for the container.
+    public func stats(id: String) async throws -> ContainerStats {
+        self.log.debug("\(#function)")
+
+        let state = try self._getContainerState(id: id)
+        let client = try state.getClient()
+        return try await client.statistics()
     }
 
     /// Delete a container and its resources.

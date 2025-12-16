@@ -92,4 +92,16 @@ public struct VolumesHarness: Sendable {
         reply.set(key: .volume, value: data)
         return reply
     }
+
+    @Sendable
+    public func diskUsage(_ message: XPCMessage) async throws -> XPCMessage {
+        guard let name = message.string(key: .volumeName) else {
+            throw ContainerizationError(.invalidArgument, message: "volume name cannot be empty")
+        }
+        let size = try await service.volumeDiskUsage(name: name)
+
+        let reply = message.reply()
+        reply.set(key: .volumeSize, value: size)
+        return reply
+    }
 }

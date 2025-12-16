@@ -58,11 +58,6 @@ uninstall-container.sh -k
 - [Build and run](./BUILDING.md) `container` on your own development system.
 - View the project [API documentation](https://apple.github.io/container/documentation/).
 
-> [!IMPORTANT]
-> The links above are for the CURRENT BRANCH's documentation. To find documentation for official releases, find the target release on the [Release Page](https://github.com/apple/container/releases) and click the tag corresponding to your release version. 
->
-> Example: [release 0.4.1 tag](https://github.com/apple/container/tree/0.4.1)
-
 ## Contributing
 
 Contributions to `container` are welcomed and encouraged. Please see our [main contributing guide](https://github.com/apple/containerization/blob/main/CONTRIBUTING.md) for more information.

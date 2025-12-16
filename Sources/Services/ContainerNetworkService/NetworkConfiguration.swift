@@ -16,6 +16,7 @@
 
 import ContainerizationError
 import ContainerizationExtras
+import Foundation
 
 /// Configuration parameters for network creation.
 public struct NetworkConfiguration: Codable, Sendable, Identifiable {
@@ -24,6 +25,9 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
 
     /// The network type
     public let mode: NetworkMode
+
+    /// When the network was created.
+    public let creationDate: Date
 
     /// The preferred CIDR address for the subnet, if specified
     public let subnet: String?
@@ -39,6 +43,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         labels: [String: String] = [:]
     ) throws {
         self.id = id
+        self.creationDate = Date()
         self.mode = mode
         self.subnet = subnet
         self.labels = labels
@@ -47,6 +52,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case id
+        case creationDate
         case mode
         case subnet
         case labels
@@ -58,6 +64,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         id = try container.decode(String.self, forKey: .id)
+        creationDate = try container.decodeIfPresent(Date.self, forKey: .creationDate) ?? Date(timeIntervalSince1970: 0)
         mode = try container.decode(NetworkMode.self, forKey: .mode)
         subnet = try container.decodeIfPresent(String.self, forKey: .subnet)
         labels = try container.decodeIfPresent([String: String].self, forKey: .labels) ?? [:]

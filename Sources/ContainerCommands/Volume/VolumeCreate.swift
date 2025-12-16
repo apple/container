@@ -22,7 +22,7 @@ extension Application.VolumeCommand {
     public struct VolumeCreate: AsyncParsableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "create",
-            abstract: "Create a volume"
+            abstract: "Create a new volume"
         )
 
         @Option(name: .customLong("label"), help: "Set metadata for a volume")

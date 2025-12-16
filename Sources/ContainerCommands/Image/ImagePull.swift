@@ -17,7 +17,6 @@
 import ArgumentParser
 import ContainerClient
 import Containerization
-import ContainerizationError
 import ContainerizationOCI
 import TerminalProgress
 
@@ -36,6 +35,9 @@ extension Application {
 
         @OptionGroup
         var progressFlags: Flags.Progress
+
+        @OptionGroup
+        var imageFetchFlags: Flags.ImageFetch
 
         @Option(
             name: .shortAndLong,
@@ -57,10 +59,9 @@ extension Application {
 
         public init() {}
 
-        public init(platform: String? = nil, scheme: String = "auto", reference: String, disableProgress: Bool = false) {
+        public init(platform: String? = nil, scheme: String = "auto", reference: String) {
             self.global = Flags.Global()
             self.registry = Flags.Registry(scheme: scheme)
-            self.progressFlags = Flags.Progress(disableProgressUpdates: disableProgress)
             self.platform = platform
             self.reference = reference
         }
@@ -80,9 +81,9 @@ extension Application {
             let processedReference = try ClientImage.normalizeReference(reference)
 
             var progressConfig: ProgressConfig
-            if self.progressFlags.disableProgressUpdates {
-                progressConfig = try ProgressConfig(disableProgressUpdates: self.progressFlags.disableProgressUpdates)
-            } else {
+            switch self.progressFlags.progress {
+            case .none: progressConfig = try ProgressConfig(disableProgressUpdates: true)
+            case .ansi:
                 progressConfig = try ProgressConfig(
                     showTasks: true,
                     showItems: true,
@@ -102,7 +103,8 @@ extension Application {
             let taskManager = ProgressTaskCoordinator()
             let fetchTask = await taskManager.startTask()
             let image = try await ClientImage.pull(
-                reference: processedReference, platform: p, scheme: scheme, progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progress.handler)
+                reference: processedReference, platform: p, scheme: scheme, progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progress.handler),
+                maxConcurrentDownloads: self.imageFetchFlags.maxConcurrentDownloads
             )
 
             progress.set(description: "Unpacking image")

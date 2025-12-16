@@ -19,18 +19,24 @@ import Foundation
 
 public struct ReleaseVersion {
     public static func singleLine(appName: String) -> String {
-        var versionDetails: [String: String] = ["build": "release"]
-        #if DEBUG
-        versionDetails["build"] = "debug"
-        #endif
+        var versionDetails: [String: String] = ["build": buildType()]
         versionDetails["commit"] = gitCommit().map { String($0.prefix(7)) } ?? "unspecified"
         let extras: String = versionDetails.map { "\($0): \($1)" }.sorted().joined(separator: ", ")
 
         return "\(appName) version \(version()) (\(extras))"
     }
 
+    public static func buildType() -> String {
+        #if DEBUG
+        return "debug"
+        #else
+        return "release"
+        #endif
+    }
+
     public static func version() -> String {
-        let bundleVersion = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String)
+        let appBundle = Bundle.appBundle(executableURL: CommandLine.executablePathUrl)
+        let bundleVersion = appBundle?.infoDictionary?["CFBundleShortVersionString"] as? String
         return bundleVersion ?? get_release_version().map { String(cString: $0) } ?? "0.0.0"
     }
 

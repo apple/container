@@ -49,24 +49,31 @@ public struct FileDownloader {
                 }
             })
 
-        let client = FileDownloader.createClient()
-        _ = try await client.execute(request: request, delegate: delegate).get()
+        let client = FileDownloader.createClient(url: url)
+        do {
+            _ = try await client.execute(request: request, delegate: delegate).get()
+        } catch {
+            try? await client.shutdown()
+            throw error
+        }
         try await client.shutdown()
     }
 
-    private static func createClient() -> HTTPClient {
+    private static func createClient(url: URL) -> HTTPClient {
         var httpConfiguration = HTTPClient.Configuration()
-        let proxyConfig: HTTPClient.Configuration.Proxy? = {
-            let proxyEnv = ProcessInfo.processInfo.environment["HTTP_PROXY"]
-            guard let proxyEnv else {
-                return nil
+        // for large file downloads we keep a generous connect timeout, and
+        // no read timeout since download durations can vary
+        httpConfiguration.timeout = HTTPClient.Configuration.Timeout(
+            connect: .seconds(30),
+            read: .none
+        )
+        if let host = url.host {
+            let proxyURL = ProxyUtils.proxyFromEnvironment(scheme: url.scheme, host: host)
+            if let proxyURL, let proxyHost = proxyURL.host {
+                httpConfiguration.proxy = HTTPClient.Configuration.Proxy.server(host: proxyHost, port: proxyURL.port ?? 8080)
             }
-            guard let url = URL(string: proxyEnv), let host = url.host(), let port = url.port else {
-                return nil
-            }
-            return .server(host: host, port: port)
-        }()
-        httpConfiguration.proxy = proxyConfig
+        }
+
         return HTTPClient(eventLoopGroupProvider: .singleton, configuration: httpConfiguration)
     }
 }

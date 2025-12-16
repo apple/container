@@ -48,7 +48,7 @@ public struct ProcessIO: Sendable {
             if !tty || !interactive {
                 return nil
             }
-            let current = try Terminal.current
+            let current = try Terminal(descriptor: STDIN_FILENO)
             try current.setraw()
             return current
         }()
@@ -94,13 +94,9 @@ public struct ProcessIO: Sendable {
         let (stream, cc) = AsyncStream<Void>.makeStream()
         if let stdout {
             configuredStreams += 1
-            let pout: FileHandle = {
-                if let current {
-                    return current.handle
-                }
-                return .standardOutput
-            }()
 
+            stdio[1] = stdout.fileHandleForWriting
+            let pout = FileHandle.standardOutput
             let rout = stdout.fileHandleForReading
             rout.readabilityHandler = { handle in
                 let data = handle.availableData
@@ -111,7 +107,6 @@ public struct ProcessIO: Sendable {
                 }
                 try! pout.write(contentsOf: data)
             }
-            stdio[1] = stdout.fileHandleForWriting
         }
 
         let stderr: Pipe? = {

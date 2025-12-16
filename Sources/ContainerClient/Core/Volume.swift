@@ -16,7 +16,7 @@
 
 import Foundation
 
-/// A named volume that can be mounted in containers.
+/// A named or anonymous volume that can be mounted in containers.
 public struct Volume: Sendable, Codable, Equatable, Identifiable {
     // id of the volume.
     public var id: String { name }
@@ -45,7 +45,7 @@ public struct Volume: Sendable, Codable, Equatable, Identifiable {
         createdAt: Date = Date(),
         labels: [String: String] = [:],
         options: [String: String] = [:],
-        sizeInBytes: UInt64? = nil,
+        sizeInBytes: UInt64? = nil
     ) {
         self.name = name
         self.driver = driver
@@ -55,6 +55,16 @@ public struct Volume: Sendable, Codable, Equatable, Identifiable {
         self.labels = labels
         self.options = options
         self.sizeInBytes = sizeInBytes
+    }
+}
+
+extension Volume {
+    /// Reserved label key for marking anonymous volumes
+    public static let anonymousLabel = "com.apple.container.resource.anonymous"
+
+    /// Whether this is an anonymous volume (detected via label)
+    public var isAnonymous: Bool {
+        labels[Self.anonymousLabel] != nil
     }
 }
 
@@ -70,17 +80,17 @@ public enum VolumeError: Error, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .volumeNotFound(let name):
-            return "Volume '\(name)' not found"
+            return "volume '\(name)' not found"
         case .volumeAlreadyExists(let name):
-            return "Volume '\(name)' already exists"
+            return "volume '\(name)' already exists"
         case .volumeInUse(let name):
-            return "Volume '\(name)' is currently in use and cannot be accessed by another container, or deleted."
+            return "volume '\(name)' is currently in use and cannot be accessed by another container, or deleted"
         case .invalidVolumeName(let name):
-            return "Invalid volume name '\(name)'"
+            return "invalid volume name '\(name)'"
         case .driverNotSupported(let driver):
-            return "Volume driver '\(driver)' is not supported"
+            return "volume driver '\(driver)' is not supported"
         case .storageError(let message):
-            return "Storage error: \(message)"
+            return "storage error: \(message)"
         }
     }
 }
@@ -95,9 +105,14 @@ public struct VolumeStorage {
 
         do {
             let regex = try Regex(volumeNamePattern)
-            return name.contains(regex)
+            return (try? regex.wholeMatch(in: name)) != nil
         } catch {
             return false
         }
+    }
+
+    /// Generates an anonymous volume name with UUID format
+    public static func generateAnonymousVolumeName() -> String {
+        UUID().uuidString.lowercased()
     }
 }

@@ -40,19 +40,35 @@ public struct PublishPort: Sendable, Codable {
     public let hostAddress: String
 
     /// The port number of the proxy listener on the host
-    public let hostPort: Int
+    public let hostPort: UInt16
 
     /// The port number of the container listener
-    public let containerPort: Int
+    public let containerPort: UInt16
 
     /// The network protocol for the proxy
     public let proto: PublishProtocol
 
+    /// The number of ports to publish
+    public let count: UInt16
+
     /// Creates a new port forwarding specification.
-    public init(hostAddress: String, hostPort: Int, containerPort: Int, proto: PublishProtocol) {
+    public init(hostAddress: String, hostPort: UInt16, containerPort: UInt16, proto: PublishProtocol, count: UInt16) {
         self.hostAddress = hostAddress
         self.hostPort = hostPort
         self.containerPort = containerPort
         self.proto = proto
+        self.count = count
+    }
+
+    /// Create a configuration from the supplied Decoder, initializing missing
+    /// values where possible to reasonable defaults.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        hostAddress = try container.decode(String.self, forKey: .hostAddress)
+        hostPort = try container.decode(UInt16.self, forKey: .hostPort)
+        containerPort = try container.decode(UInt16.self, forKey: .containerPort)
+        proto = try container.decode(PublishProtocol.self, forKey: .proto)
+        count = try container.decodeIfPresent(UInt16.self, forKey: .count) ?? 1
     }
 }

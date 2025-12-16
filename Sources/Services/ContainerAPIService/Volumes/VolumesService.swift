@@ -72,6 +72,77 @@ public actor VolumesService {
         }
     }
 
+    /// Calculate disk usage for a single volume
+    public func volumeDiskUsage(name: String) async throws -> UInt64 {
+        let volumePath = self.volumePath(for: name)
+        return self.calculateDirectorySize(at: volumePath)
+    }
+
+    /// Calculate disk usage for volumes
+    /// - Returns: Tuple of (total count, active count, total size, reclaimable size)
+    public func calculateDiskUsage() async throws -> (Int, Int, UInt64, UInt64) {
+        try await lock.withLock { _ in
+            let allVolumes = try await self.store.list()
+
+            // Atomically get active volumes with container list
+            return try await self.containersService.withContainerList { containers in
+                var inUseSet = Set<String>()
+
+                // Find all mounted volumes
+                for container in containers {
+                    for mount in container.configuration.mounts {
+                        if mount.isVolume, let volumeName = mount.volumeName {
+                            inUseSet.insert(volumeName)
+                        }
+                    }
+                }
+
+                var totalSize: UInt64 = 0
+                var reclaimableSize: UInt64 = 0
+
+                // Calculate sizes
+                for volume in allVolumes {
+                    let volumePath = self.volumePath(for: volume.name)
+                    let volumeSize = self.calculateDirectorySize(at: volumePath)
+                    totalSize += volumeSize
+
+                    if !inUseSet.contains(volume.name) {
+                        reclaimableSize += volumeSize
+                    }
+                }
+
+                return (allVolumes.count, inUseSet.count, totalSize, reclaimableSize)
+            }
+        }
+    }
+
+    private nonisolated func calculateDirectorySize(at path: String) -> UInt64 {
+        let url = URL(fileURLWithPath: path)
+        let fileManager = FileManager.default
+
+        guard
+            let enumerator = fileManager.enumerator(
+                at: url,
+                includingPropertiesForKeys: [.totalFileAllocatedSizeKey],
+                options: [.skipsHiddenFiles]
+            )
+        else {
+            return 0
+        }
+
+        var totalSize: UInt64 = 0
+        for case let fileURL as URL in enumerator {
+            guard let resourceValues = try? fileURL.resourceValues(forKeys: [.totalFileAllocatedSizeKey]),
+                let fileSize = resourceValues.totalFileAllocatedSize
+            else {
+                continue
+            }
+            totalSize += UInt64(fileSize)
+        }
+
+        return totalSize
+    }
+
     private func parseSize(_ sizeString: String) throws -> UInt64 {
         let measurement = try Measurement.parse(parsing: sizeString)
         let bytes = measurement.converted(to: .bytes).value
@@ -82,7 +153,7 @@ public actor VolumesService {
         let sizeInBytes = UInt64(bytes)
 
         guard sizeInBytes >= minSize else {
-            throw VolumeError.storageError("Volume size too small: minimum 1MiB")
+            throw VolumeError.storageError("volume size too small: minimum 1MiB")
         }
 
         return sizeInBytes
@@ -135,7 +206,7 @@ public actor VolumesService {
         labels: [String: String]
     ) async throws -> Volume {
         guard VolumeStorage.isValidVolumeName(name) else {
-            throw VolumeError.invalidVolumeName("Invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
+            throw VolumeError.invalidVolumeName("invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
         }
 
         // Check if volume already exists by trying to list and finding it
@@ -162,18 +233,19 @@ public actor VolumesService {
             format: "ext4",
             source: blockPath(for: name),
             labels: labels,
-            options: driverOpts
+            options: driverOpts,
+            sizeInBytes: sizeInBytes
         )
 
         try await store.create(volume)
 
-        log.info("Created volume", metadata: ["name": "\(name)", "driver": "\(driver)"])
+        log.info("Created volume", metadata: ["name": "\(name)", "driver": "\(driver)", "isAnonymous": "\(volume.isAnonymous)"])
         return volume
     }
 
     private func _delete(name: String) async throws {
         guard VolumeStorage.isValidVolumeName(name) else {
-            throw VolumeError.invalidVolumeName("Invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
+            throw VolumeError.invalidVolumeName("invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
         }
 
         // Check if volume exists by trying to list and finding it
@@ -201,7 +273,7 @@ public actor VolumesService {
 
     private func _inspect(_ name: String) async throws -> Volume {
         guard VolumeStorage.isValidVolumeName(name) else {
-            throw VolumeError.invalidVolumeName("Invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
+            throw VolumeError.invalidVolumeName("invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
         }
 
         let volumes = try await store.list()

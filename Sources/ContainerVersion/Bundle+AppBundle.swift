@@ -16,21 +16,16 @@
 
 import Foundation
 
-extension CommandLine {
-    public static var executablePathUrl: URL {
-        /// _NSGetExecutablePath with a zero-length buffer returns the needed buffer length
-        var bufferSize: Int32 = 0
-        var buffer = [CChar](repeating: 0, count: Int(bufferSize))
-        _ = _NSGetExecutablePath(&buffer, &bufferSize)
-
-        /// Create the buffer and get the path
-        buffer = [CChar](repeating: 0, count: Int(bufferSize))
-        guard _NSGetExecutablePath(&buffer, &bufferSize) == 0 else {
-            fatalError("UNEXPECTED: failed to get executable path")
+/// Retrieve the application bundle for a path that refers to a macOS executable.
+extension Bundle {
+    public static func appBundle(executableURL: URL) -> Bundle? {
+        let resolvedURL = executableURL.resolvingSymlinksInPath()
+        let macOSURL = resolvedURL.deletingLastPathComponent()
+        let contentsURL = macOSURL.deletingLastPathComponent()
+        let bundleURL = contentsURL.deletingLastPathComponent()
+        if bundleURL.pathExtension == "app" {
+            return Bundle(url: bundleURL)
         }
-
-        /// Return the path with the executable file component removed the last component and
-        let executablePath = String(cString: &buffer)
-        return URL(filePath: executablePath)
+        return nil
     }
 }

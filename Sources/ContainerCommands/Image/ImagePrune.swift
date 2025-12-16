@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerClient
+import ContainerizationOCI
 import Foundation
 
 extension Application {
@@ -23,17 +24,68 @@ extension Application {
         public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "prune",
-            abstract: "Remove unreferenced and dangling images")
+            abstract: "Remove all dangling images. If -a is specified, also remove all images not referenced by any container.")
 
         @OptionGroup
         var global: Flags.Global
 
+        @Flag(name: .shortAndLong, help: "Remove all unused images, not just dangling ones")
+        var all: Bool = false
+
         public func run() async throws {
-            let (_, size) = try await ClientImage.pruneImages()
+            let allImages = try await ClientImage.list()
+
+            let imagesToPrune: [ClientImage]
+            if all {
+                // Find all images not used by any container
+                let containers = try await ClientContainer.list()
+                var imagesInUse = Set<String>()
+                for container in containers {
+                    imagesInUse.insert(container.configuration.image.reference)
+                }
+                imagesToPrune = allImages.filter { image in
+                    !imagesInUse.contains(image.reference)
+                }
+            } else {
+                // Find dangling images (images with no tag)
+                imagesToPrune = allImages.filter { image in
+                    !hasTag(image.reference)
+                }
+            }
+
+            var prunedImages = [String]()
+
+            for image in imagesToPrune {
+                do {
+                    try await ClientImage.delete(reference: image.reference, garbageCollect: false)
+                    prunedImages.append(image.reference)
+                } catch {
+                    log.error("Failed to prune image \(image.reference): \(error)")
+                }
+            }
+
+            let (deletedDigests, size) = try await ClientImage.cleanupOrphanedBlobs()
+
+            for image in imagesToPrune {
+                print("untagged \(image.reference)")
+            }
+            for digest in deletedDigests {
+                print("deleted \(digest)")
+            }
+
             let formatter = ByteCountFormatter()
+            formatter.countStyle = .file
             let freed = formatter.string(fromByteCount: Int64(size))
-            print("Cleaned unreferenced images and snapshots")
             print("Reclaimed \(freed) in disk space")
+        }
+
+        private func hasTag(_ reference: String) -> Bool {
+            do {
+                let ref = try ContainerizationOCI.Reference.parse(reference)
+                return ref.tag != nil && !ref.tag!.isEmpty
+            } catch {
+                return false
+            }
         }
     }
 }

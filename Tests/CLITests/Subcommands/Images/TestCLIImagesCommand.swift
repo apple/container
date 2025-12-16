@@ -20,71 +20,6 @@ import Foundation
 import Testing
 
 class TestCLIImagesCommand: CLITest {
-    func doRemoveImages(images: [String]? = nil) throws {
-        var args = [
-            "image",
-            "rm",
-        ]
-
-        if let images {
-            args.append(contentsOf: images)
-        } else {
-            args.append("--all")
-        }
-
-        let (_, error, status) = try run(arguments: args)
-        if status != 0 {
-            throw CLIError.executionFailed("command failed: \(error)")
-        }
-    }
-
-    func isImagePresent(targetImage: String) throws -> Bool {
-        let images = try doListImages()
-        return images.contains(where: { image in
-            if image.reference == targetImage {
-                return true
-            }
-            return false
-        })
-    }
-
-    func doListImages() throws -> [Image] {
-        let (output, error, status) = try run(arguments: [
-            "image",
-            "list",
-            "--format",
-            "json",
-        ])
-        if status != 0 {
-            throw CLIError.executionFailed("command failed: \(error)")
-        }
-
-        guard let jsonData = output.data(using: .utf8) else {
-            throw CLIError.invalidOutput("image list output invalid \(output)")
-        }
-
-        let decoder = JSONDecoder()
-        return try decoder.decode([Image].self, from: jsonData)
-    }
-
-    func doImageTag(image: String, newName: String) throws {
-        let tagArgs = [
-            "image",
-            "tag",
-            image,
-            newName,
-        ]
-
-        let (_, error, status) = try run(arguments: tagArgs)
-        if status != 0 {
-            throw CLIError.executionFailed("command failed: \(error)")
-        }
-    }
-
-}
-
-extension TestCLIImagesCommand {
-
     @Test func testPull() throws {
         do {
             try doPull(imageName: alpine)
@@ -323,7 +258,7 @@ extension TestCLIImagesCommand {
                 "--output",
                 tempFile.path(),
             ]
-            let (_, error, status) = try run(arguments: saveArgs)
+            let (_, _, error, status) = try run(arguments: saveArgs)
             if status != 0 {
                 throw CLIError.executionFailed("command failed: \(error)")
             }
@@ -344,7 +279,83 @@ extension TestCLIImagesCommand {
                 "-i",
                 tempFile.path(),
             ]
-            let (_, loadErr, loadStatus) = try run(arguments: loadArgs)
+            let (_, _, loadErr, loadStatus) = try run(arguments: loadArgs)
+            if loadStatus != 0 {
+                throw CLIError.executionFailed("command failed: \(loadErr)")
+            }
+
+            // 7. verify image is in the list again
+            let alpineImagePresent = try isImagePresent(targetImage: alpineTagged)
+            #expect(alpineImagePresent, "expected \(alpineTagged) to be present")
+            let busyboxImagePresent = try isImagePresent(targetImage: busyboxTagged)
+            #expect(busyboxImagePresent, "expected \(busyboxTagged) to be present")
+        } catch {
+            Issue.record("failed to save and load image \(error)")
+            return
+        }
+    }
+
+    @Test func testMaxConcurrentDownloadsValidation() throws {
+        // Test that invalid maxConcurrentDownloads value is rejected
+        let (_, _, error, status) = try run(arguments: [
+            "image",
+            "pull",
+            "--max-concurrent-downloads", "0",
+            "alpine:latest",
+        ])
+
+        #expect(status != 0, "Expected command to fail with maxConcurrentDownloads=0")
+        #expect(
+            error.contains("maximum number of concurrent downloads must be greater than 0"),
+            "Expected validation error message in output")
+    }
+
+    @Test func testImageSaveAndLoadStdinStdout() throws {
+        do {
+            // 1. pull image
+            try doPull(imageName: alpine)
+            try doPull(imageName: busybox)
+
+            // 2. Tag image so we can safely remove later
+            let alpineRef: Reference = try Reference.parse(alpine)
+            let alpineTagged = "\(alpineRef.name):testImageSaveAndLoadStdinStdout"
+            try doImageTag(image: alpine, newName: alpineTagged)
+            let alpineTaggedImagePresent = try isImagePresent(targetImage: alpineTagged)
+            #expect(alpineTaggedImagePresent, "expected to see image \(alpineTagged) tagged")
+
+            let busyboxRef: Reference = try Reference.parse(busybox)
+            let busyboxTagged = "\(busyboxRef.name):testImageSaveAndLoadStdinStdout"
+            try doImageTag(image: busybox, newName: busyboxTagged)
+            let busyboxTaggedImagePresent = try isImagePresent(targetImage: busyboxTagged)
+            #expect(busyboxTaggedImagePresent, "expected to see image \(busyboxTagged) tagged")
+
+            // 3. save the image and output to stdout
+            let saveArgs = [
+                "image",
+                "save",
+                alpineTagged,
+                busyboxTagged,
+            ]
+            let (stdoutData, _, error, status) = try run(arguments: saveArgs)
+            if status != 0 {
+                throw CLIError.executionFailed("command failed: \(error)")
+            }
+
+            // 4. remove the image through container
+            try doRemoveImages(images: [alpineTagged, busyboxTagged])
+
+            // 5. verify image is no longer present
+            let alpineImageRemoved = try !isImagePresent(targetImage: alpineTagged)
+            #expect(alpineImageRemoved, "expected image \(alpineTagged) to be removed")
+            let busyboxImageRemoved = try !isImagePresent(targetImage: busyboxTagged)
+            #expect(busyboxImageRemoved, "expected image \(busyboxTagged) to be removed")
+
+            // 6. load the tarball from the stdout data as stdin
+            let loadArgs = [
+                "image",
+                "load",
+            ]
+            let (_, _, loadErr, loadStatus) = try run(arguments: loadArgs, stdin: stdoutData)
             if loadStatus != 0 {
                 throw CLIError.executionFailed("command failed: \(loadErr)")
             }

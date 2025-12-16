@@ -25,6 +25,6 @@ import Containerization
 struct IsolatedInterfaceStrategy: InterfaceStrategy {
     public func toInterface(attachment: Attachment, interfaceIndex: Int, additionalData: XPCMessage?) -> Interface {
         let gateway = interfaceIndex == 0 ? attachment.gateway : nil
-        return NATInterface(address: attachment.address, gateway: gateway)
+        return NATInterface(address: attachment.address, gateway: gateway, macAddress: attachment.macAddress)
     }
 }

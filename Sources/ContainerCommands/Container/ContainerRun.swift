@@ -47,6 +47,9 @@ extension Application {
         @OptionGroup(title: "Progress options")
         var progressFlags: Flags.Progress
 
+        @OptionGroup(title: "Image fetch options")
+        var imageFetchFlags: Flags.ImageFetch
+
         @OptionGroup
         var global: Flags.Global
 
@@ -61,9 +64,9 @@ extension Application {
             let id = Utility.createContainerID(name: self.managementFlags.name)
 
             var progressConfig: ProgressConfig
-            if progressFlags.disableProgressUpdates {
-                progressConfig = try ProgressConfig(disableProgressUpdates: progressFlags.disableProgressUpdates)
-            } else {
+            switch self.progressFlags.progress {
+            case .none: progressConfig = try ProgressConfig(disableProgressUpdates: true)
+            case .ansi:
                 progressConfig = try ProgressConfig(
                     showTasks: true,
                     showItems: true,
@@ -97,6 +100,7 @@ extension Application {
                 management: managementFlags,
                 resource: resourceFlags,
                 registry: registryFlags,
+                imageFetch: imageFetchFlags,
                 progressUpdate: progress.handler
             )
 

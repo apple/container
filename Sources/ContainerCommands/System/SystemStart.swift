@@ -69,21 +69,17 @@ extension Application {
             args.append("start")
             let apiServerDataUrl = appRoot.appending(path: "apiserver")
             try! FileManager.default.createDirectory(at: apiServerDataUrl, withIntermediateDirectories: true)
-            var env = ProcessInfo.processInfo.environment.filter { key, _ in
-                key.hasPrefix("CONTAINER_")
-            }
+
+            var env = PluginLoader.filterEnvironment()
             env[ApplicationRoot.environmentName] = appRoot.path(percentEncoded: false)
             env[InstallRoot.environmentName] = installRoot.path(percentEncoded: false)
 
-            let logURL = apiServerDataUrl.appending(path: "apiserver.log")
             let plist = LaunchPlist(
                 label: "com.apple.container.apiserver",
                 arguments: args,
                 environment: env,
                 limitLoadToSessionType: [.Aqua, .Background, .System],
                 runAtLoad: true,
-                stdout: logURL.path,
-                stderr: logURL.path,
                 machServices: ["com.apple.container.apiserver"]
             )
 
@@ -122,7 +118,7 @@ extension Application {
             do {
                 try await pullCommand.run()
             } catch {
-                log.error("Failed to install base container filesystem: \(error)")
+                log.error("failed to install base container filesystem: \(error)")
             }
         }
 
@@ -136,7 +132,7 @@ extension Application {
                 print("No default kernel configured.")
                 print("Install the recommended default kernel from [\(kernelDependency.source)]? [Y/n]: ", terminator: "")
                 guard let read = readLine(strippingNewline: true) else {
-                    throw ContainerizationError(.internalError, message: "Failed to read user input")
+                    throw ContainerizationError(.internalError, message: "failed to read user input")
                 }
                 guard read.lowercased() == "y" || read.count == 0 else {
                     print("Please use the `container system kernel set --recommended` command to configure the default kernel")

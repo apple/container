@@ -83,7 +83,23 @@ class TestCLIBuildBase: CLITest {
         otherArgs: [String] = []
     ) throws -> String {
         try buildWithPaths(
-            tag: tag,
+            tags: [tag],
+            tempContext: tempDir,
+            tempDockerfileContext: tempDir,
+            buildArgs: buildArgs,
+            otherArgs: otherArgs
+        )
+    }
+
+    @discardableResult
+    func build(
+        tags: [String],
+        tempDir: URL,
+        buildArgs: [String] = [],
+        otherArgs: [String] = []
+    ) throws -> String {
+        try buildWithPaths(
+            tags: tags,
             tempContext: tempDir,
             tempDockerfileContext: tempDir,
             buildArgs: buildArgs,
@@ -95,7 +111,7 @@ class TestCLIBuildBase: CLITest {
     // the dockerfile path. If both paths are the same, use `build` func above.
     @discardableResult
     func buildWithPaths(
-        tag: String,
+        tags: [String],
         tempContext: URL,
         tempDockerfileContext: URL,
         buildArgs: [String] = [],
@@ -107,9 +123,11 @@ class TestCLIBuildBase: CLITest {
             "build",
             "-f",
             tempDockerfileContext.appendingPathComponent("Dockerfile").path,
-            "-t",
-            tag,
         ]
+        for tag in tags {
+            args.append("-t")
+            args.append(tag)
+        }
         for arg in buildArgs {
             args.append("--build-arg")
             args.append(arg)
@@ -119,6 +137,42 @@ class TestCLIBuildBase: CLITest {
         args.append(contentsOf: otherArgs)
 
         let response = try run(arguments: args)
+        if response.status != 0 {
+            throw CLIError.executionFailed("build failed: stdout=\(response.output) stderr=\(response.error)")
+        }
+
+        return response.output
+    }
+
+    @discardableResult
+    func buildWithStdin(
+        tags: [String],
+        tempContext: URL,
+        dockerfileContents: String,
+        buildArgs: [String] = [],
+        otherArgs: [String] = []
+    ) throws -> String {
+        let contextDir: URL = tempContext.appendingPathComponent("context")
+        let contextDirPath = contextDir.absoluteURL.path
+        var args = [
+            "build",
+            "-f",
+            "-",
+        ]
+        for tag in tags {
+            args.append("-t")
+            args.append(tag)
+        }
+        for arg in buildArgs {
+            args.append("--build-arg")
+            args.append(arg)
+        }
+        args.append(contextDirPath)
+
+        args.append(contentsOf: otherArgs)
+
+        let stdinData = Data(dockerfileContents.utf8)
+        let response = try run(arguments: args, stdin: stdinData)
         if response.status != 0 {
             throw CLIError.executionFailed("build failed: stdout=\(response.output) stderr=\(response.error)")
         }
@@ -234,7 +288,7 @@ class TestCLIBuildBase: CLITest {
     }
 
     func builderStart(cpus: Int64 = 2, memoryInGBs: Int64 = 2) throws {
-        let (_, error, status) = try run(arguments: [
+        let (_, _, error, status) = try run(arguments: [
             "builder",
             "start",
             "-c",
@@ -248,7 +302,7 @@ class TestCLIBuildBase: CLITest {
     }
 
     func builderStop() throws {
-        let (_, error, status) = try run(arguments: [
+        let (_, _, error, status) = try run(arguments: [
             "builder",
             "stop",
         ])
@@ -258,7 +312,7 @@ class TestCLIBuildBase: CLITest {
     }
 
     func builderDelete(force: Bool = false) throws {
-        let (_, error, status) = try run(
+        let (_, _, error, status) = try run(
             arguments: [
                 "builder",
                 "delete",

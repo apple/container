@@ -78,7 +78,16 @@ public actor NetworksService {
 
             let client = NetworkClient(id: configuration.id)
             let networkState = try await client.state()
-            networkStates[configuration.id] = networkState
+
+            // FIXME: Temporary workaround for persisted configuration being overwritten
+            // by what comes back from the network helper, which messes up creationDate.
+            switch networkState {
+            case .created(_):
+                networkStates[configuration.id] = NetworkState.created(configuration)
+            case .running(_, let status):
+                networkStates[configuration.id] = NetworkState.running(configuration, status)
+            }
+
             guard case .running = networkState else {
                 log.error(
                     "network failed to start",
@@ -106,6 +115,11 @@ public actor NetworksService {
             metadata: [
                 "id": "\(configuration.id)"
             ])
+
+        //Ensure that the network is not named "none"
+        if configuration.id == ClientNetwork.noNetworkName {
+            throw ContainerizationError(.unsupported, message: "network \(configuration.id) is not a valid name")
+        }
 
         // Ensure nobody is manipulating the network already.
         guard !busyNetworks.contains(configuration.id) else {

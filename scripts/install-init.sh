@@ -15,8 +15,8 @@
 
 SWIFT="/usr/bin/swift"
 IMAGE_NAME="vminit:latest"
-DESTDIR="${1:-$(git rev-parse --show-toplevel)/bin}"
-mkdir -p "${DESTDIR}"
+DEST_DIR="${1:-$(git rev-parse --show-toplevel)/bin}"
+mkdir -p "${DEST_DIR}"
 
 CONTAINERIZATION_VERSION="$(${SWIFT} package show-dependencies --format json | jq -r '.dependencies[] | select(.identity == "containerization") | .version')"
 if [ "${CONTAINERIZATION_VERSION}" == "unspecified" ] ; then

@@ -29,6 +29,7 @@ import NIO
 import NIOFoundationCompat
 import SocketForwarder
 import Synchronization
+import SystemPackage
 
 import struct ContainerizationOCI.Mount
 import struct ContainerizationOCI.Process
@@ -51,7 +52,7 @@ public actor SandboxService {
     private static let sshAuthSocketGuestPath = "/run/host-services/ssh-auth.sock"
     private static let sshAuthSocketEnvVar = "SSH_AUTH_SOCK"
 
-    private static func hostSocketUrl(config: ContainerConfiguration) -> URL? {
+    private static func sshAuthSocketHostUrl(config: ContainerConfiguration) -> URL? {
         if config.ssh, let sshSocket = Foundation.ProcessInfo.processInfo.environment[Self.sshAuthSocketEnvVar] {
             return URL(fileURLWithPath: sshSocket)
         }
@@ -117,13 +118,14 @@ public actor SandboxService {
             let bundle = ContainerClient.Bundle(path: self.root)
             try bundle.createLogFile()
 
+            var config = try bundle.configuration
+
             let vmm = VZVirtualMachineManager(
                 kernel: try bundle.kernel,
                 initialFilesystem: bundle.initialFilesystem.asMount,
-                bootlog: bundle.bootlog.path,
+                rosetta: config.rosetta,
                 logger: self.log
             )
-            var config = try bundle.configuration
 
             // Dynamically configure the DNS nameserver from a network if no explicit configuration
             if let dns = config.dns, dns.nameservers.isEmpty {
@@ -142,7 +144,7 @@ public actor SandboxService {
             for index in 0..<config.networks.count {
                 let network = config.networks[index]
                 let client = NetworkClient(id: network.network)
-                let (attachment, additionalData) = try await client.allocate(hostname: network.options.hostname)
+                let (attachment, additionalData) = try await client.allocate(hostname: network.options.hostname, macAddress: network.options.macAddress)
                 attachments.append(attachment)
 
                 let interface = try self.interfaceStrategy.toInterface(
@@ -197,6 +199,7 @@ public actor SandboxService {
                         ))
                 }
                 czConfig.hosts = Hosts(entries: hostsEntries)
+                czConfig.bootLog = BootLog.file(path: bundle.bootlog, append: true)
             }
 
             await self.setContainer(
@@ -252,6 +255,41 @@ public actor SandboxService {
                 try await self.startExecProcess(processId: id, lock: lock)
             }
             return message.reply()
+        }
+    }
+
+    /// Get statistics for the container.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with the following parameters:
+    ///     - id: A client identifier for the process.
+    ///     - stdio: An array of file handles for standard input, output, and error.
+    ///
+    /// - Returns: An XPC message with the following parameters:
+    ///   - statistics: JSON serialization of the `ContainerStats`.
+    @Sendable
+    public func statistics(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`statistics` xpc handler")
+        return try await self.lock.withLock { lock in
+            let containerInfo = try await self.getContainer()
+            let stats = try await containerInfo.container.statistics()
+
+            let containerStats = ContainerStats(
+                id: stats.id,
+                memoryUsageBytes: stats.memory.usageBytes,
+                memoryLimitBytes: stats.memory.limitBytes,
+                cpuUsageUsec: stats.cpu.usageUsec,
+                networkRxBytes: stats.networks.reduce(0) { $0 + $1.receivedBytes },
+                networkTxBytes: stats.networks.reduce(0) { $0 + $1.transmittedBytes },
+                blockReadBytes: stats.blockIO.devices.reduce(0) { $0 + $1.readBytes },
+                blockWriteBytes: stats.blockIO.devices.reduce(0) { $0 + $1.writeBytes },
+                numProcesses: stats.process.current
+            )
+
+            let reply = message.reply()
+            let data = try JSONEncoder().encode(containerStats)
+            reply.set(key: .statistics, value: data)
+            return reply
         }
     }
 
@@ -443,11 +481,11 @@ public actor SandboxService {
                 let id = try message.id()
                 if id != ctr.container.id {
                     guard let processInfo = await self.processes[id] else {
-                        throw ContainerizationError(.invalidState, message: "Process \(id) does not exist")
+                        throw ContainerizationError(.invalidState, message: "process \(id) does not exist")
                     }
 
                     guard let proc = processInfo.process else {
-                        throw ContainerizationError(.invalidState, message: "Process \(id) not started")
+                        throw ContainerizationError(.invalidState, message: "process \(id) not started")
                     }
                     try await proc.kill(Int32(try message.signal()))
                     return message.reply()
@@ -488,14 +526,14 @@ public actor SandboxService {
                 guard let processInfo = self.processes[id] else {
                     throw ContainerizationError(
                         .invalidState,
-                        message: "Process \(id) does not exist"
+                        message: "process \(id) does not exist"
                     )
                 }
 
                 guard let proc = processInfo.process else {
                     throw ContainerizationError(
                         .invalidState,
-                        message: "Process \(id) not started"
+                        message: "process \(id) not started"
                     )
                 }
 
@@ -533,7 +571,7 @@ public actor SandboxService {
     public func wait(_ message: XPCMessage) async throws -> XPCMessage {
         self.log.info("`wait` xpc handler")
         guard let id = message.string(key: .id) else {
-            throw ContainerizationError(.invalidArgument, message: "Missing id in wait xpc message")
+            throw ContainerizationError(.invalidArgument, message: "missing id in wait xpc message")
         }
 
         let cachedCode: Int32? = try await self.lock.withLock { _ in
@@ -548,7 +586,7 @@ public actor SandboxService {
                 }
             } else {
                 guard let processInfo = await self.processes[id] else {
-                    throw ContainerizationError(.notFound, message: "Process with id \(id)")
+                    throw ContainerizationError(.notFound, message: "process with id \(id)")
                 }
                 switch processInfo.state {
                 case .stopped(let code):
@@ -647,7 +685,7 @@ public actor SandboxService {
     private func startExecProcess(processId id: String, lock: AsyncLock.Context) async throws {
         let container = try self.getContainer().container
         guard let processInfo = self.processes[id] else {
-            throw ContainerizationError(.notFound, message: "Process with id \(id)")
+            throw ContainerizationError(.notFound, message: "process with id \(id)")
         }
 
         let containerInfo = try self.getContainer()
@@ -674,36 +712,39 @@ public actor SandboxService {
 
     private func startSocketForwarders(containerIpAddress: String, publishedPorts: [PublishPort]) async throws {
         var forwarders: [SocketForwarderResult] = []
+        try Utility.validPublishPorts(publishedPorts)
         try await withThrowingTaskGroup(of: SocketForwarderResult.self) { group in
             for publishedPort in publishedPorts {
-                let proxyAddress = try SocketAddress(ipAddress: publishedPort.hostAddress, port: Int(publishedPort.hostPort))
-                let serverAddress = try SocketAddress(ipAddress: containerIpAddress, port: Int(publishedPort.containerPort))
-                log.info(
-                    "creating forwarder for",
-                    metadata: [
-                        "proxy": "\(proxyAddress)",
-                        "server": "\(serverAddress)",
-                        "protocol": "\(publishedPort.proto)",
-                    ])
-                group.addTask {
-                    let forwarder: SocketForwarder
-                    switch publishedPort.proto {
-                    case .tcp:
-                        forwarder = try TCPForwarder(
-                            proxyAddress: proxyAddress,
-                            serverAddress: serverAddress,
-                            eventLoopGroup: self.eventLoopGroup,
-                            log: self.log
-                        )
-                    case .udp:
-                        forwarder = try UDPForwarder(
-                            proxyAddress: proxyAddress,
-                            serverAddress: serverAddress,
-                            eventLoopGroup: self.eventLoopGroup,
-                            log: self.log
-                        )
+                for index in 0..<publishedPort.count {
+                    let proxyAddress = try SocketAddress(ipAddress: publishedPort.hostAddress, port: Int(publishedPort.hostPort + index))
+                    let serverAddress = try SocketAddress(ipAddress: containerIpAddress, port: Int(publishedPort.containerPort + index))
+                    log.info(
+                        "creating forwarder for",
+                        metadata: [
+                            "proxy": "\(proxyAddress)",
+                            "server": "\(serverAddress)",
+                            "protocol": "\(publishedPort.proto)",
+                        ])
+                    group.addTask {
+                        let forwarder: SocketForwarder
+                        switch publishedPort.proto {
+                        case .tcp:
+                            forwarder = try TCPForwarder(
+                                proxyAddress: proxyAddress,
+                                serverAddress: serverAddress,
+                                eventLoopGroup: self.eventLoopGroup,
+                                log: self.log
+                            )
+                        case .udp:
+                            forwarder = try UDPForwarder(
+                                proxyAddress: proxyAddress,
+                                serverAddress: serverAddress,
+                                eventLoopGroup: self.eventLoopGroup,
+                                log: self.log
+                            )
+                        }
+                        return try await forwarder.run().get()
                     }
-                    return try await forwarder.run().get()
                 }
             }
             for try await result in group {
@@ -764,7 +805,6 @@ public actor SandboxService {
     ) throws {
         czConfig.cpus = config.resources.cpus
         czConfig.memoryInBytes = config.resources.memoryInBytes
-        czConfig.rosetta = config.rosetta
         czConfig.sysctl = config.sysctls.reduce(into: [String: String]()) {
             $0[$1.key] = $1.value
         }
@@ -793,11 +833,16 @@ public actor SandboxService {
             czConfig.sockets.append(socketConfig)
         }
 
-        if let socketUrl = Self.hostSocketUrl(config: config) {
+        if let socketUrl = Self.sshAuthSocketHostUrl(config: config) {
+            let socketPath = socketUrl.path(percentEncoded: false)
+            let attrs = try? FileManager.default.attributesOfItem(atPath: socketPath)
+            let permissions = (attrs?[.posixPermissions] as? NSNumber)
+                .map { FilePermissions(rawValue: mode_t($0.intValue)) }
             let socketConfig = UnixSocketConfiguration(
                 source: socketUrl,
                 destination: URL(fileURLWithPath: Self.sshAuthSocketGuestPath),
-                direction: .into
+                permissions: permissions,
+                direction: .into,
             )
             czConfig.sockets.append(socketConfig)
         }
@@ -835,7 +880,7 @@ public actor SandboxService {
         czConfig.process.arguments = [process.executable] + process.arguments
         czConfig.process.environmentVariables = process.environment
 
-        if Self.hostSocketUrl(config: config) != nil {
+        if Self.sshAuthSocketHostUrl(config: config) != nil {
             if !czConfig.process.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
                 czConfig.process.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
             }
@@ -867,9 +912,9 @@ public actor SandboxService {
     }
 
     private nonisolated func configureProcessConfig(config: ProcessConfiguration, stdio: [FileHandle?], containerConfig: ContainerConfiguration)
-        -> LinuxContainer.Configuration.Process
+        -> LinuxProcessConfiguration
     {
-        var proc = LinuxContainer.Configuration.Process()
+        var proc = LinuxProcessConfiguration()
         proc.stdin = stdio[0]
         proc.stdout = stdio[1]
         proc.stderr = stdio[2]
@@ -877,7 +922,7 @@ public actor SandboxService {
         proc.arguments = [config.executable] + config.arguments
         proc.environmentVariables = config.environment
 
-        if Self.hostSocketUrl(config: containerConfig) != nil {
+        if Self.sshAuthSocketHostUrl(config: containerConfig) != nil {
             if !proc.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
                 proc.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
             }
@@ -1053,19 +1098,27 @@ extension Filesystem {
                 destination: self.destination,
                 options: self.options
             )
-        case .block(let format, _, _):
+        case .block(let format, let cacheMode, let syncMode):
             return .block(
                 format: format,
                 source: self.source,
                 destination: self.destination,
-                options: self.options
+                options: self.options,
+                runtimeOptions: [
+                    "\(Filesystem.CacheMode.vzRuntimeOptionKey)=\(cacheMode.asVZRuntimeOption)",
+                    "\(Filesystem.SyncMode.vzRuntimeOptionKey)=\(syncMode.asVZRuntimeOption)",
+                ],
             )
-        case .volume(_, let format, _, _):
+        case .volume(_, let format, let cacheMode, let syncMode):
             return .block(
                 format: format,
                 source: self.source,
                 destination: self.destination,
-                options: self.options
+                options: self.options,
+                runtimeOptions: [
+                    "\(Filesystem.CacheMode.vzRuntimeOptionKey)=\(cacheMode.asVZRuntimeOption)",
+                    "\(Filesystem.SyncMode.vzRuntimeOptionKey)=\(syncMode.asVZRuntimeOption)",
+                ],
             )
         }
     }
@@ -1076,6 +1129,30 @@ extension Filesystem {
         }
         let info = try File.info(self.source)
         return info.isSocket
+    }
+}
+
+extension Filesystem.CacheMode {
+    static let vzRuntimeOptionKey = "vzDiskImageCachingMode"
+
+    var asVZRuntimeOption: String {
+        switch self {
+        case .on: "cached"
+        case .off: "uncached"
+        case .auto: "automatic"
+        }
+    }
+}
+
+extension Filesystem.SyncMode {
+    static let vzRuntimeOptionKey = "vzDiskImageSynchronizationMode"
+
+    var asVZRuntimeOption: String {
+        switch self {
+        case .full: "full"
+        case .fsync: "fsync"
+        case .nosync: "none"
+        }
     }
 }
 
@@ -1134,7 +1211,7 @@ extension SandboxService {
 
     private func setUnderlyingProcess(_ id: String, _ process: LinuxProcess) throws {
         guard var info = self.processes[id] else {
-            throw ContainerizationError(.invalidState, message: "Process \(id) not found")
+            throw ContainerizationError(.invalidState, message: "process \(id) not found")
         }
         info.process = process
         self.processes[id] = info
@@ -1142,7 +1219,7 @@ extension SandboxService {
 
     private func setProcessState(id: String, state: State) throws {
         guard var info = self.processes[id] else {
-            throw ContainerizationError(.invalidState, message: "Process \(id) not found")
+            throw ContainerizationError(.invalidState, message: "process \(id) not found")
         }
         info.state = state
         self.processes[id] = info

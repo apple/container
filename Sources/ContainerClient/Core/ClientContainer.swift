@@ -277,7 +277,7 @@ extension ClientContainer {
             guard let fds else {
                 throw ContainerizationError(
                     .internalError,
-                    message: "No log fds returned"
+                    message: "no log fds returned"
                 )
             }
             return fds
@@ -313,5 +313,28 @@ extension ClientContainer {
             )
         }
         return fh
+    }
+
+    public func stats() async throws -> ContainerStats {
+        let request = XPCMessage(route: .containerStats)
+        request.set(key: .id, value: self.id)
+
+        let client = Self.newXPCClient()
+        do {
+            let response = try await client.send(request)
+            guard let data = response.dataNoCopy(key: .statistics) else {
+                throw ContainerizationError(
+                    .internalError,
+                    message: "no statistics data returned"
+                )
+            }
+            return try JSONDecoder().decode(ContainerStats.self, from: data)
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to get statistics for container \(self.id)",
+                cause: error
+            )
+        }
     }
 }

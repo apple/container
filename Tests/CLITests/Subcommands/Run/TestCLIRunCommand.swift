@@ -513,13 +513,14 @@ class TestCLIRunCommand: CLITest {
                     let response = try await client.execute(request, timeout: .seconds(retryDelaySeconds))
                     try #require(response.status == .ok)
                     success = true
+                    print("request to \(url) succeeded")
                 } catch {
                     print("request to \(url) failed, error \(error)")
                     try await Task.sleep(for: .seconds(retryDelaySeconds))
                 }
                 retriesRemaining -= 1
             }
-            #expect(success, "Request to \(url) failed after \(retries - retriesRemaining) retries")
+            try #require(success, "Request to \(url) failed after \(retries - retriesRemaining) retries")
             try doStop(name: name)
         } catch {
             Issue.record("failed to run container \(error)")
@@ -527,8 +528,58 @@ class TestCLIRunCommand: CLITest {
         }
     }
 
+    @Test func testForwardTCPPortRange() async throws {
+        let range = UInt16(10)
+        for portOffset in 0..<range {
+            let retries = 10
+            let retryDelaySeconds = Int64(3)
+            do {
+                let name = getLowercasedTestName()
+                let proxyIp = "127.0.0.1"
+                let proxyPortStart = UInt16.random(in: 50000..<55000)
+                let serverPortStart = UInt16.random(in: 55000..<60000)
+                let proxyPortEnd = proxyPortStart + range
+                let serverPortEnd = serverPortStart + range
+                try doLongRun(
+                    name: name,
+                    image: "docker.io/library/python:alpine",
+                    args: ["--publish", "\(proxyIp):\(proxyPortStart)-\(proxyPortEnd):\(serverPortStart)-\(serverPortEnd)/tcp"],
+                    containerArgs: ["python3", "-m", "http.server", "--bind", "0.0.0.0", "\(serverPortStart + portOffset)"])
+                defer {
+                    try? doStop(name: name)
+                }
+
+                let url = "http://\(proxyIp):\(proxyPortStart + portOffset)"
+                var request = HTTPClientRequest(url: url)
+                request.method = .GET
+                let config = HTTPClient.Configuration(proxy: nil)
+                let client = HTTPClient(eventLoopGroupProvider: .singleton, configuration: config)
+                defer { _ = client.shutdown() }
+                var retriesRemaining = retries
+                var success = false
+                while !success && retriesRemaining > 0 {
+                    do {
+                        let response = try await client.execute(request, timeout: .seconds(retryDelaySeconds))
+                        try #require(response.status == .ok)
+                        success = true
+                        print("request to \(url) succeeded")
+                    } catch {
+                        print("request to \(url) failed, error: \(error)")
+                        try await Task.sleep(for: .seconds(retryDelaySeconds))
+                    }
+                    retriesRemaining -= 1
+                }
+                try #require(success, "Request to \(url) failed after \(retries - retriesRemaining) retries")
+                try doStop(name: name)
+            } catch {
+                Issue.record("failed to run container \(error)")
+                return
+            }
+        }
+    }
+
     func getDefaultDomain() throws -> String? {
-        let (output, err, status) = try run(arguments: ["system", "property", "get", "dns.domain"])
+        let (_, output, err, status) = try run(arguments: ["system", "property", "get", "dns.domain"])
         try #require(status == 0, "default DNS domain retrieval returned status \(status): \(err)")
         let trimmedOutput = output.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedOutput == "" {

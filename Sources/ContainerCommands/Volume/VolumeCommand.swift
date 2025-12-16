@@ -26,6 +26,7 @@ extension Application {
                 VolumeDelete.self,
                 VolumeList.self,
                 VolumeInspect.self,
+                VolumePrune.self,
             ],
             aliases: ["v"]
         )

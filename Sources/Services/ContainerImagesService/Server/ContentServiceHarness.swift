@@ -58,7 +58,7 @@ public struct ContentServiceHarness: Sendable {
         let d = try JSONEncoder().encode(deleted)
         let reply = message.reply()
         reply.set(key: .digests, value: d)
-        reply.set(key: .size, value: size)
+        reply.set(key: .imageSize, value: size)
         return reply
     }
 
@@ -73,7 +73,7 @@ public struct ContentServiceHarness: Sendable {
         let d = try JSONEncoder().encode(deleted)
         let reply = message.reply()
         reply.set(key: .digests, value: d)
-        reply.set(key: .size, value: size)
+        reply.set(key: .imageSize, value: size)
         return reply
     }
 

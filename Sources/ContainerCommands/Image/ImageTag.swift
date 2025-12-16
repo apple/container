@@ -24,10 +24,10 @@ extension Application {
             commandName: "tag",
             abstract: "Create a new reference for an existing image")
 
-        @Argument(help: "the existing image reference (format: image-name[:tag])")
+        @Argument(help: "The existing image reference (format: image-name[:tag])")
         var source: String
 
-        @Argument(help: "the new image reference")
+        @Argument(help: "The new image reference")
         var target: String
 
         @OptionGroup

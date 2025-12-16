@@ -74,7 +74,7 @@ extension ClientKernel {
         do {
             let reply = try await client.send(message)
             guard let kData = reply.dataNoCopy(key: .kernel) else {
-                throw ContainerizationError(.internalError, message: "Missing kernel data from XPC response")
+                throw ContainerizationError(.internalError, message: "missing kernel data from XPC response")
             }
 
             let kernel = try JSONDecoder().decode(Kernel.self, from: kData)
@@ -84,7 +84,7 @@ extension ClientKernel {
                 throw err
             }
             throw ContainerizationError(
-                .notFound, message: "Default kernel not configured for architecture \(platform.architecture). Please use the `container system kernel set` command to configure it")
+                .notFound, message: "default kernel not configured for architecture \(platform.architecture), please use the `container system kernel set` command to configure it")
         }
     }
 }
@@ -97,7 +97,7 @@ extension SystemPlatform {
         case "amd64":
             return .linuxAmd
         default:
-            fatalError("Unknown architecture")
+            fatalError("unknown architecture")
         }
     }
 }

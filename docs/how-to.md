@@ -1,5 +1,10 @@
 # How-to
 
+> [!IMPORTANT]
+> This file contains documentation for the CURRENT BRANCH. To find documentation for official releases, find the target release on the [Release Page](https://github.com/apple/container/releases) and click the tag corresponding to your release version. 
+>
+> Example: [release 0.4.1 tag](https://github.com/apple/container/tree/0.4.1)
+
 How to use the features of `container`.
 
 ## Configure memory and CPUs for your containers
@@ -196,6 +201,30 @@ A `curl` to `localhost:8000` outputs:
 </html>
 ```
 
+## Set a custom MAC address for your container
+
+Use the `mac` option to specify a custom MAC address for your container's network interface. This is useful for:
+- Network testing scenarios requiring predictable MAC addresses
+- Consistent network configuration across container restarts
+
+The MAC address must be in the format `XX:XX:XX:XX:XX:XX` (with colons or hyphens as separators):
+
+```bash
+container run --network default,mac=02:42:ac:11:00:02 ubuntu:latest
+```
+
+To verify the MAC address is set correctly, run `ip addr show` inside the container:
+
+```console
+% container run --rm --mac-address 02:42:ac:11:00:02 ubuntu:latest ip addr show eth0
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+    link/ether 02:42:ac:11:00:02 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.64.2/24 brd 192.168.64.255 scope global eth0
+       valid_lft forever preferred_lft forever
+```
+
+If you don't specify a MAC address, the system will auto-generate one for you.
+
 ## Mount your host SSH authentication socket in your container
 
 Use the `--ssh` option to mount the macOS SSH authentication socket into your container, so that you can clone private git repositories and perform other tasks requiring passwordless SSH authentication.
@@ -332,6 +361,64 @@ Use the `--boot` option to see the logs for the virtual machine boot and init pr
 %
 </pre>
 
+## Monitor container resource usage
+
+The `container stats` command displays real-time resource usage statistics for your running containers, similar to the `top` command for processes. This is useful for:
+- Monitoring CPU and memory consumption
+- Tracking network and disk I/O
+- Identifying resource-intensive containers
+- Verifying container resource limits are appropriate
+
+By default, `container stats` shows live statistics for all running containers in an interactive display:
+
+```console
+% container stats
+Container ID    Cpu %    Memory Usage           Net Rx/Tx              Block I/O               Pids
+my-web-server   2.45%    45.23 MiB / 1.00 GiB   1.23 MiB / 856.00 KiB  4.50 MiB / 2.10 MiB     3
+db              125.12%  512.50 MiB / 2.00 GiB  5.67 MiB / 3.21 MiB    125.00 MiB / 89.00 MiB  12
+```
+
+To monitor specific containers, provide their names or IDs:
+
+```console
+% container stats my-web-server db
+```
+
+For a single snapshot (non-interactive), use the `--no-stream` flag:
+
+```console
+% container stats --no-stream my-web-server
+Container ID    Cpu %    Memory Usage          Net Rx/Tx              Block I/O              Pids
+my-web-server   30.45%    45.23 MiB / 1.00 GiB  1.23 MiB / 856.00 KiB  4.50 MiB / 2.10 MiB    3
+```
+
+You can also output statistics in JSON format for scripting:
+
+```console
+% container stats --format json --no-stream my-web-server | jq
+[
+  {
+    "id": "my-web-server",
+    "memoryUsageBytes": 47431680,
+    "memoryLimitBytes": 1073741824,
+    "cpuUsageUsec": 1234567,
+    "networkRxBytes": 1289011,
+    "networkTxBytes": 876544,
+    "blockReadBytes": 4718592,
+    "blockWriteBytes": 2202009,
+    "numProcesses": 3
+  }
+]
+```
+
+**Understanding the metrics:**
+
+- **Cpu %**: Percentage of CPU usage. ~100% = one fully utilized core. A multi-core container can show > 100%.
+- **Memory Usage**: Current memory usage vs. the container's memory limit.
+- **Net Rx/Tx**: Network bytes received and transmitted.
+- **Block I/O**: Disk bytes read and written.
+- **Pids**: Number of processes running in the container.
+
 ## Expose virtualization capabilities to a container
 
 > [!NOTE]
@@ -403,8 +490,73 @@ The `container system logs` command allows you to look at the log messages that 
 %
 </pre>
 
-## Setup shell completion
+## Generating and installing completion scripts
 
-The `container --generate-completion-script [zsh|bash|fish]` command generates completion scripts for the provided shell. 
+### Overview
 
-A detailed guide on how to install the completion scripts can be found [here](https://swiftpackageindex.com/apple/swift-argument-parser/1.5.1/documentation/argumentparser/installingcompletionscripts)
+The `container --generate-completion-script [zsh|bash|fish]` command generates completion scripts for the provided shell. Below is a detailed guide on how to install the completion scripts.
+
+> [!NOTE]
+> See the [swift-argument-parser documentation](https://apple.github.io/swift-argument-parser/documentation/argumentparser/installingcompletionscripts/#Installing-Zsh-Completions) for more information about generating and installing shell completion scripts.
+
+### Installing `zsh` completions
+
+If you have [oh-my-zsh](https://ohmyz.sh/) installed, you already have a directory of automatically loaded completion scripts — `.oh-my-zsh/completions`. Copy your new completion script to that directory. If the `completions` directory does not exist, simply make it.
+
+```zsh
+mkdir -p ~/.oh-my-zsh/completions
+container --generate-completion-script zsh > ~/.oh-my-zsh/completions/_container
+source ~/.oh-my-zsh/completions/_container
+```
+
+> [!NOTE]
+> Your completion script must have the filename `_container`.
+
+Without oh-my-zsh, you’ll need to add a path for completion scripts to your function path, and turn on completion script autoloading. First, add these lines to your `~/.zshrc` file:
+
+```bash
+fpath=(~/.zsh/completion $fpath)
+autoload -U compinit
+compinit
+```
+
+Next, create a directory at `~/.zsh/completion` and copy the completion script to the new directory.
+
+```zsh
+mkdir -p ~/.zsh/completion
+container --generate-completion-script zsh > ~/.zsh/completion/_container
+source ~/.zshrc
+```
+
+### Installing `bash` completions
+
+If you have [bash-completion](https://github.com/scop/bash-completion) installed, you can just copy your new completion script to the `bash_completion.d` directory.
+
+> [!NOTE]
+> The path to the directory is dependent on how bash-completion was installed. Find the correct path and then copy the completion script there. For example, if you used homebrew to install `bash-completion`:
+>  ```bash
+>  container --generate-completion-script bash > /opt/homebrew/etc/bash_completion.d/container
+>  source /opt/homebrew/etc/bash_completion.d/container
+>  ```
+
+Without bash-completion, you’ll need to source the completion script directly. Create and copy it to a directory such as `~/.bash_completions`. 
+
+```bash
+mkdir -p ~/.bash_completions
+container --generate-completion-script bash >  ~/.bash_completions/container
+source /opt/homebrew/etc/bash_completion.d/container
+```
+
+Furthermore, you can add the following line to `~/.bash_profile` or `~/.bashrc`, in order for every new bash session to have autocompletion ready.
+
+```bash
+source ~/.bash_completions/container
+```
+
+### Installing `fish` completions
+
+Copy the completion script to any path listed in the environment variable `$fish_completion_path`.
+
+```bash
+container --generate-completion-script fish > ~/.config/fish/completions/container.fish
+```
