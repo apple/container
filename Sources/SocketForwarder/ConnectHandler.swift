@@ -83,7 +83,7 @@ extension ConnectHandler {
                 case .success(let channel):
                     guard context.channel.isActive else {
                         self.log?.trace("backend - frontend channel closed, closing backend connection")
-                        channel.close(promise: nil)
+                        context.channel.close(promise: nil)
                         return
                     }
                     self.log?.trace("backend - connected")

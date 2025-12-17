@@ -14,21 +14,45 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationExtras
 import Foundation
 
 public struct NetworkStatus: Codable, Sendable {
     /// The address allocated for the network if no subnet was specified at
     /// creation time; otherwise, the subnet from the configuration.
-    public let address: String
+    public let ipv4Subnet: CIDRv4
     /// The gateway IPv4 address.
-    public let gateway: String
+    public let ipv4Gateway: IPv4Address
 
     public init(
-        address: String,
-        gateway: String
+        ipv4Subnet: CIDRv4,
+        ipv4Gateway: IPv4Address
     ) {
-        self.address = address
-        self.gateway = gateway
+        self.ipv4Subnet = ipv4Subnet
+        self.ipv4Gateway = ipv4Gateway
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case ipv4Subnet
+        case ipv4Gateway
+    }
+
+    /// Create a network status from the supplied Decoder.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        let addressText = try container.decode(String.self, forKey: .ipv4Subnet)
+        ipv4Subnet = try CIDRv4(addressText)
+        let gatewayText = try container.decode(String.self, forKey: .ipv4Gateway)
+        ipv4Gateway = try IPv4Address(gatewayText)
+    }
+
+    /// Encode the network status to the supplied Encoder.
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        try container.encode(ipv4Subnet.description, forKey: .ipv4Subnet)
+        try container.encode(ipv4Gateway.description, forKey: .ipv4Gateway)
     }
 
 }

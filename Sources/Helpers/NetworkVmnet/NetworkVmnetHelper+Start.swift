@@ -50,8 +50,8 @@ extension NetworkVmnetHelper {
 
             do {
                 log.info("configuring XPC server")
-                let subnet = try self.subnet.map { try CIDRAddress($0) }
-                let configuration = try NetworkConfiguration(id: id, mode: .nat, subnet: subnet?.description)
+                let ipv4Subnet = try self.subnet.map { try CIDRv4($0) }
+                let configuration = try NetworkConfiguration(id: id, mode: .nat, ipv4Subnet: ipv4Subnet)
                 let network = try Self.createNetwork(configuration: configuration, log: log)
                 try await network.start()
                 let server = try await NetworkService(network: network, log: log)

@@ -400,9 +400,8 @@ class TestCLIRunCommand: CLITest {
                 .map { $0.joined(separator: " ") }
 
             let inspectOutput = try inspectContainer(name)
-            let ip = String(inspectOutput.networks[0].address.split(separator: "/")[0])
-            let ipv4Address = try IPv4Address(ip)
-            let expectedNameserver = IPv4Address(fromValue: ipv4Address.prefix(prefixLength: 24).value + 1).description
+            let ip = inspectOutput.networks[0].ipv4Address.address
+            let expectedNameserver = IPv4Address((ip.value & Prefix(length: 24)!.prefixMask32) + 1).description
             let defaultDomain = try getDefaultDomain()
             let expectedLines: [String] = [
                 "nameserver \(expectedNameserver)",
@@ -463,12 +462,12 @@ class TestCLIRunCommand: CLITest {
             }
 
             let inspectOutput = try inspectContainer(name)
-            let ip = String(inspectOutput.networks[0].address.split(separator: "/")[0])
+            let ip = inspectOutput.networks[0].ipv4Address.address
 
             let output = try doExec(name: name, cmd: ["cat", "/etc/hosts"])
             let lines = output.split(separator: "\n")
 
-            let expectedEntries = [("127.0.0.1", "localhost"), (ip, name)]
+            let expectedEntries = [("127.0.0.1", "localhost"), (ip.description, name)]
 
             for (i, line) in lines.enumerated() {
                 let words = line.split(separator: " ").map { String($0) }

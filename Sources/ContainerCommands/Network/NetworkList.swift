@@ -83,7 +83,7 @@ extension NetworkState {
         case .created(_):
             return [self.id, self.state, "none"]
         case .running(_, let status):
-            return [self.id, self.state, status.address]
+            return [self.id, self.state, status.ipv4Subnet.description]
         }
     }
 }

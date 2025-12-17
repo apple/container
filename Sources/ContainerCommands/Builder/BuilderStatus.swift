@@ -94,7 +94,7 @@ extension ClientContainer {
             self.id,
             self.configuration.image.reference,
             self.status.rawValue,
-            self.networks.compactMap { try? CIDRAddress($0.address).address.description }.joined(separator: ","),
+            self.networks.compactMap { $0.ipv4Address.description }.joined(separator: ","),
             "\(self.configuration.resources.cpus)",
             "\(self.configuration.resources.memoryInBytes / (1024 * 1024)) MB",
         ]
