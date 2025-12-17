@@ -125,6 +125,7 @@ class TestCLINoParallelCases: CLITest {
         #expect(alpineStillPresent, "expected image \(alpine) to remain")
     }
 
+    @available(macOS 26, *)
     @Test func testNetworkPruneNoNetworks() throws {
         // Ensure the testnetworkcreateanduse network is deleted
         // Clean up is necessary for testing prune with no networks
@@ -141,6 +142,7 @@ class TestCLINoParallelCases: CLITest {
         #expect(output.isEmpty, "should show no networks pruned")
     }
 
+    @available(macOS 26, *)
     @Test func testNetworkPruneUnusedNetworks() throws {
         let name = getTestName()
         let network1 = "\(name)_1"
@@ -180,6 +182,7 @@ class TestCLINoParallelCases: CLITest {
         #expect(!listAfter.contains(network2), "network2 should be pruned")
     }
 
+    @available(macOS 26, *)
     @Test(.disabled("https://github.com/apple/container/issues/953"))
     func testNetworkPruneSkipsNetworksInUse() throws {
         let name = getTestName()
@@ -234,6 +237,7 @@ class TestCLINoParallelCases: CLITest {
         #expect(!listAfter.contains(networkUnused), "unused network should be pruned")
     }
 
+    @available(macOS 26, *)
     @Test(.disabled("https://github.com/apple/container/issues/953"))
     func testNetworkPruneSkipsNetworkAttachedToStoppedContainer() async throws {
         let name = getTestName()
