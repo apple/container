@@ -348,6 +348,14 @@ let package = Package(
             dependencies: ["SocketForwarder"]
         ),
         .testTarget(
+            name: "ContainerCommandsTests",
+            dependencies: [
+                "ContainerCommands",
+                "ContainerClient",
+                .product(name: "ContainerizationError", package: "containerization"),
+            ]
+        ),
+        .testTarget(
             name: "CLITests",
             dependencies: [
                 .product(name: "AsyncHTTPClient", package: "async-http-client"),

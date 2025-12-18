@@ -50,21 +50,18 @@ extension Application {
         }
 
         public mutating func run() async throws {
-            let set = Set<String>(containerIds)
+            let allContainers = try await ClientContainer.list()
 
-            var containers = try await ClientContainer.list().filter { c in
-                c.status == .running
-            }
-            if !self.all {
-                containers = containers.filter { c in
-                    set.contains(c.id)
-                }
-            }
+            let containersToSignal = try self.all
+                ? allContainers.filter { $0.status == .running }
+                : ContainerStop.containers(matching: containerIds, in: allContainers)
+
+            let runningContainers = containersToSignal.filter { $0.status == .running }
 
             let signalNumber = try Signals.parseSignal(signal)
 
             var failed: [String] = []
-            for container in containers {
+            for container in runningContainers {
                 do {
                     try await container.kill(signalNumber)
                     print(container.id)
