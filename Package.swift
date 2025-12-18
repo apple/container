@@ -352,7 +352,7 @@ let package = Package(
             dependencies: [
                 "ContainerCommands",
                 "ContainerClient",
-                .product(name: "ContainerizationError", package: "containerization"),
+                .product(name: "Containerization", package: "containerization"),
             ]
         ),
         .testTarget(

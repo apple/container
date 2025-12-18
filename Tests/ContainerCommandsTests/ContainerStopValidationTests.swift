@@ -55,7 +55,7 @@ struct ContainerStopValidationTests {
             guard let error = error as? ContainerizationError else {
                 return false
             }
-            return error.kind == .notFound
+            return error.code == .notFound
         }
     }
 }
