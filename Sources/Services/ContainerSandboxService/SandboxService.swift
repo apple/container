@@ -120,8 +120,10 @@ public actor SandboxService {
 
             var config = try bundle.configuration
 
+            var kernel = try bundle.kernel
+            kernel.commandLine.kernelArgs.append("oops=panic")
             let vmm = VZVirtualMachineManager(
-                kernel: try bundle.kernel,
+                kernel: kernel,
                 initialFilesystem: bundle.initialFilesystem.asMount,
                 rosetta: config.rosetta,
                 logger: self.log
