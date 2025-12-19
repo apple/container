@@ -18,6 +18,7 @@ import ArgumentParser
 import ContainerClient
 import ContainerNetworkService
 import ContainerizationError
+import ContainerizationExtras
 import Foundation
 import TerminalProgress
 
@@ -43,7 +44,8 @@ extension Application {
 
         public func run() async throws {
             let parsedLabels = Utility.parseKeyValuePairs(labels)
-            let config = try NetworkConfiguration(id: self.name, mode: .nat, subnet: subnet, labels: parsedLabels)
+            let ipv4Subnet = try subnet.map { try CIDRv4($0) }
+            let config = try NetworkConfiguration(id: self.name, mode: .nat, ipv4Subnet: ipv4Subnet, labels: parsedLabels)
             let state = try await ClientNetwork.create(configuration: config)
             print(state.id)
         }

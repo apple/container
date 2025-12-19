@@ -24,7 +24,7 @@ import Containerization
 /// works for macOS Sequoia.
 struct IsolatedInterfaceStrategy: InterfaceStrategy {
     public func toInterface(attachment: Attachment, interfaceIndex: Int, additionalData: XPCMessage?) -> Interface {
-        let gateway = interfaceIndex == 0 ? attachment.gateway : nil
-        return NATInterface(address: attachment.address, gateway: gateway, macAddress: attachment.macAddress)
+        let ipv4Gateway = interfaceIndex == 0 ? attachment.ipv4Gateway : nil
+        return NATInterface(ipv4Address: attachment.ipv4Address, ipv4Gateway: ipv4Gateway, macAddress: attachment.macAddress)
     }
 }

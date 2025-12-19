@@ -283,19 +283,24 @@ public actor NetworksService {
             serviceIdentifier,
         ]
 
-        if let subnet = (try configuration.subnet.map { try CIDRAddress($0) }) {
-            var existingCidrs: [CIDRAddress] = []
+        if let ipv4Subnet = (configuration.ipv4Subnet.map { $0 }) {
+            var existingCidrs: [CIDRv4] = []
             for networkState in networkStates.values {
                 if case .running(_, let status) = networkState {
-                    existingCidrs.append(try CIDRAddress(status.address))
+                    existingCidrs.append(status.ipv4Subnet)
                 }
             }
-            let overlap = existingCidrs.first { $0.overlaps(cidr: subnet) }
+            let overlap = existingCidrs.first {
+                $0.contains(ipv4Subnet.lower)
+                    || $0.contains(ipv4Subnet.upper)
+                    || ipv4Subnet.contains($0.lower)
+                    || ipv4Subnet.contains($0.upper)
+            }
             if let overlap {
-                throw ContainerizationError(.exists, message: "subnet \(subnet) overlaps an existing network with subnet \(overlap)")
+                throw ContainerizationError(.exists, message: "IPv4 subnet \(ipv4Subnet) overlaps an existing network with subnet \(overlap)")
             }
 
-            args += ["--subnet", subnet.description]
+            args += ["--subnet", ipv4Subnet.description]
         }
 
         try await pluginLoader.registerWithLaunchd(

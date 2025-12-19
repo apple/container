@@ -37,8 +37,8 @@ public final class ReservedVmnetNetwork: Network {
 
     private struct NetworkInfo {
         let network: vmnet_network_ref
-        let subnet: CIDRAddress
-        let gateway: IPv4Address
+        let ipv4Subnet: CIDRv4
+        let ipv4Gateway: IPv4Address
     }
 
     private let stateMutex: Mutex<State>
@@ -79,7 +79,7 @@ public final class ReservedVmnetNetwork: Network {
 
             let networkInfo = try startNetwork(configuration: configuration, log: log)
 
-            let networkStatus = NetworkStatus(address: networkInfo.subnet.description, gateway: networkInfo.gateway.description)
+            let networkStatus = NetworkStatus(ipv4Subnet: networkInfo.ipv4Subnet, ipv4Gateway: networkInfo.ipv4Gateway)
             state.networkState = NetworkState.running(configuration, networkStatus)
             state.network = networkInfo.network
         }
@@ -101,10 +101,10 @@ public final class ReservedVmnetNetwork: Network {
                 "mode": "\(configuration.mode)",
             ]
         )
-        let subnetText = configuration.subnet ?? DefaultsStore.getOptional(key: .defaultSubnet)
 
         // with the reservation API, subnet priority is CLI argument, UserDefault, auto
-        let subnet = try subnetText.map { try CIDRAddress($0) }
+        let defaultSubnet = try DefaultsStore.getOptional(key: .defaultSubnet).map { try CIDRv4($0) }
+        let subnet = configuration.ipv4Subnet ?? defaultSubnet
 
         // set up the vmnet configuration
         var status: vmnet_return_t = .VMNET_SUCCESS
@@ -116,10 +116,10 @@ public final class ReservedVmnetNetwork: Network {
 
         // set the subnet if the caller provided one
         if let subnet {
-            let gateway = IPv4Address(fromValue: subnet.lower.value + 1)
+            let gateway = IPv4Address(subnet.lower.value + 1)
             var gatewayAddr = in_addr()
             inet_pton(AF_INET, gateway.description, &gatewayAddr)
-            let mask = IPv4Address(fromValue: subnet.prefixLength.prefixMask32)
+            let mask = IPv4Address(subnet.prefix.prefixMask32)
             var maskAddr = in_addr()
             inet_pton(AF_INET, mask.description, &maskAddr)
             log.info(
@@ -143,10 +143,10 @@ public final class ReservedVmnetNetwork: Network {
         vmnet_network_get_ipv4_subnet(network, &subnetAddr, &maskAddr)
         let subnetValue = UInt32(bigEndian: subnetAddr.s_addr)
         let maskValue = UInt32(bigEndian: maskAddr.s_addr)
-        let lower = IPv4Address(fromValue: subnetValue & maskValue)
-        let upper = IPv4Address(fromValue: lower.value + ~maskValue)
-        let runningSubnet = try CIDRAddress(lower: lower, upper: upper)
-        let runningGateway = IPv4Address(fromValue: runningSubnet.lower.value + 1)
+        let lower = IPv4Address(subnetValue & maskValue)
+        let upper = IPv4Address(lower.value + ~maskValue)
+        let runningSubnet = try CIDRv4(lower: lower, upper: upper)
+        let runningGateway = IPv4Address(runningSubnet.lower.value + 1)
 
         log.info(
             "started vmnet network",
@@ -157,6 +157,6 @@ public final class ReservedVmnetNetwork: Network {
             ]
         )
 
-        return NetworkInfo(network: network, subnet: runningSubnet, gateway: runningGateway)
+        return NetworkInfo(network: network, ipv4Subnet: runningSubnet, ipv4Gateway: runningGateway)
     }
 }

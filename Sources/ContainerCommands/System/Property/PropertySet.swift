@@ -70,7 +70,7 @@ extension Application {
                 DefaultsStore.set(value: value, key: key)
                 return
             case .defaultSubnet:
-                guard (try? CIDRAddress(value)) != nil else {
+                guard (try? CIDRv4(value)) != nil else {
                     throw ContainerizationError(.invalidArgument, message: "invalid CIDRv4 address: \(value)")
                 }
                 DefaultsStore.set(value: value, key: key)
