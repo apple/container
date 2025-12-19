@@ -94,15 +94,9 @@ struct ContainerDNSHandler: DNSHandler {
         guard let ipAllocation = try await networkService.lookup(hostname: question.name) else {
             return nil
         }
-
-        let components = ipAllocation.address.split(separator: "/")
-        guard !components.isEmpty else {
-            throw DNSResolverError.serverError("invalid IP format: empty address")
-        }
-
-        let ipString = String(components[0])
-        guard let ip = IPv4(ipString) else {
-            throw DNSResolverError.serverError("failed to parse IP address: \(ipString)")
+        let ipv4 = ipAllocation.ipv4Address.address.description
+        guard let ip = IPv4(ipv4) else {
+            throw DNSResolverError.serverError("failed to parse IP address: \(ipv4)")
         }
 
         return HostRecord<IPv4>(name: question.name, ttl: ttl, ip: ip)
