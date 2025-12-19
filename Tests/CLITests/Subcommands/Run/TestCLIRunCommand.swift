@@ -578,6 +578,68 @@ class TestCLIRunCommand: CLITest {
         }
     }
 
+    @Test func testRunCommandEnvFileFromNamedPipe() throws {
+        do {
+            let name = getTestName()
+            let pipePath = FileManager.default.temporaryDirectory.appendingPathComponent("envfile-pipe\(UUID().uuidString)")
+
+            // create pipe
+            let result = mkfifo(pipePath.path(), 0o600)
+            guard result == 0 else {
+                Issue.record("failed to create named pipe: \(String(cString: strerror(errno)))")
+                return
+            }
+
+            defer {
+                try? FileManager.default.removeItem(at: pipePath)
+            }
+
+            let content = """
+                FOO=bar
+                BAR=baz
+                """
+
+            let group = DispatchGroup()
+
+            group.enter()
+            DispatchQueue.global().async {
+                do {
+                    let handle = try FileHandle(forWritingTo: pipePath)
+                    try handle.write(contentsOf: Data(content.utf8))
+                    try handle.close()
+                } catch {
+                    Issue.record(error)
+                    return
+                }
+
+                group.leave()
+            }
+
+            try doLongRun(name: name, args: ["--env-file", pipePath.path()])
+            defer {
+                try? doStop(name: name)
+            }
+
+            group.wait()
+
+            let inspectResult = try inspectContainer(name)
+            let expected = [
+                "FOO=bar",
+                "BAR=baz",
+            ]
+
+            for item in expected {
+                #expect(
+                    inspectResult.configuration.initProcess.environment.contains(item),
+                    "expected environment variable \(item) not found"
+                )
+            }
+            try doStop(name: name)
+        } catch {
+            Issue.record(error)
+        }
+    }
+
     func getDefaultDomain() throws -> String? {
         let (_, output, err, status) = try run(arguments: ["system", "property", "get", "dns.domain"])
         try #require(status == 0, "default DNS domain retrieval returned status \(status): \(err)")
