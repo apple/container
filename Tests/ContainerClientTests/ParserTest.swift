@@ -493,10 +493,12 @@ struct ParserTest {
         #expect {
             _ = try Parser.envFile(path: "/nonexistent/foo_bar_baz")
         } throws: { error in
-            guard let error = error as? ContainerizationError else {
+            guard let error = error as? ContainerizationError,
+                let cause = error.cause
+            else {
                 return false
             }
-            return error.description.contains("not found")
+            return String(describing: cause).contains("No such file or directory")
         }
     }
 
@@ -577,6 +579,41 @@ struct ParserTest {
             }
             return error.description.contains("no variable name")
         }
+    }
+
+    @Test
+    func testParseEnvFileFromNamedPipe() throws {
+        let pipePath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("envfile-pipe-\(UUID().uuidString)")
+
+        // Create a named pipe (FIFO)
+        let result = mkfifo(pipePath.path, 0o600)
+        guard result == 0 else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EPERM)
+        }
+        defer { try? FileManager.default.removeItem(at: pipePath) }
+
+        let group = DispatchGroup()
+
+        group.enter()
+        DispatchQueue.global().async {
+            do {
+                let handle = try FileHandle(forWritingTo: pipePath)
+                try handle.write(contentsOf: "SECRET_KEY=value123\n".data(using: .utf8)!)
+                try handle.close()
+            } catch {
+                Issue.record(error)
+            }
+            group.leave()
+        }
+
+        // Read from pipe (blocks until writer connects)
+        let lines = try Parser.envFile(path: pipePath.path)
+
+        // Wait for write to complete
+        group.wait()
+
+        #expect(lines == ["SECRET_KEY=value123"])
     }
 
     // MARK: Network Parser Tests

@@ -110,17 +110,19 @@ public struct Parser {
         // This is a somewhat faithful Go->Swift port of Moby's envfile
         // parsing in the cli:
         // https://github.com/docker/cli/blob/f5a7a3c72eb35fc5ba9c4d65a2a0e2e1bd216bf2/pkg/kvfile/kvfile.go#L81
-        guard FileManager.default.fileExists(atPath: path) else {
-            throw ContainerizationError(
-                .notFound,
-                message: "envfile at \(path) not found"
-            )
-        }
 
-        guard let data = FileManager.default.contents(atPath: path) else {
+        let data: Data
+        do {
+            // Use FileHandle to support named pipes (FIFOs) and process substitutions
+            // like --env-file <(echo "KEY=value")
+            let fileHandle = try FileHandle(forReadingFrom: URL(fileURLWithPath: path))
+            defer { try? fileHandle.close() }
+            data = try fileHandle.readToEnd() ?? Data()
+        } catch {
             throw ContainerizationError(
                 .invalidArgument,
-                message: "failed to read envfile at \(path)"
+                message: "failed to read envfile at \(path)",
+                cause: error
             )
         }
 
