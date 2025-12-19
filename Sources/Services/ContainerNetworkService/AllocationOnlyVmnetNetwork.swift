@@ -35,8 +35,8 @@ public actor AllocationOnlyVmnetNetwork: Network {
             throw ContainerizationError(.unsupported, message: "invalid network mode \(configuration.mode)")
         }
 
-        guard configuration.subnet == nil else {
-            throw ContainerizationError(.unsupported, message: "subnet assignment is not yet implemented")
+        guard configuration.ipv4Subnet == nil else {
+            throw ContainerizationError(.unsupported, message: "IPv4 subnet assignment is not yet implemented")
         }
 
         self.log = log
@@ -65,9 +65,9 @@ public actor AllocationOnlyVmnetNetwork: Network {
         )
 
         let subnet = DefaultsStore.get(key: .defaultSubnet)
-        let subnetCIDR = try CIDRAddress(subnet)
-        let gateway = IPv4Address(fromValue: subnetCIDR.lower.value + 1)
-        self._state = .running(configuration, NetworkStatus(address: subnetCIDR.description, gateway: gateway.description))
+        let subnetCIDR = try CIDRv4(subnet)
+        let gateway = IPv4Address(subnetCIDR.lower.value + 1)
+        self._state = .running(configuration, NetworkStatus(ipv4Subnet: subnetCIDR, ipv4Gateway: gateway))
         log.info(
             "started allocation-only network",
             metadata: [
