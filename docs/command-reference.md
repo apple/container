@@ -653,7 +653,7 @@ Creates a new network with the given name.
 **Usage**
 
 ```bash
-container network create [--label <label> ...] [--debug] <name>
+container network create [--label <label> ...] [--subnet <subnet>] [--subnet-v6 <subnet-v6>] [--debug] <name>
 ```
 
 **Arguments**
@@ -663,6 +663,8 @@ container network create [--label <label> ...] [--debug] <name>
 **Options**
 
 *   `--label <label>`: Set metadata for a network
+*   `--subnet <subnet>`: Set the IPv4 subnet for a network (CIDR format, e.g., 192.168.100.0/24)
+*   `--subnet-v6 <subnet-v6>`: Set the IPv6 prefix for a network (CIDR format, e.g., fd00:1234::/64)
 
 ### `container network delete (rm)`
 

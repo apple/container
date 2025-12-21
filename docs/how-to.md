@@ -286,6 +286,12 @@ This command creates a network named `foo`:
 container network create foo
 ```
 
+You can also specify custom IPv4 and IPv6 subnets when creating a network:
+
+```bash
+container network create foo --subnet 192.168.100.0/24 --subnet-v6 fd00:1234::/64
+```
+
 The `foo` network, the default network, and any other networks you create are isolated from one another. A container on one network has no connectivity to containers on other networks.
 
 Run `container network list` to see the networks that exist:
@@ -318,6 +324,26 @@ You can delete networks that you create once no containers are attached:
 container stop my-web-server
 container network delete foo
 ```
+
+Networks support both IPv4 and IPv6. When creating a network without explicit subnet options, the system uses default values if configured via system properties (see below), or automatically allocates subnets. The system validates that custom subnets don't overlap with existing networks.
+
+## Configure default network subnets
+
+You can customize the default IPv4 and IPv6 subnets used for new networks using system properties.
+
+### Set default IPv4 subnet
+
+```bash
+container system property set network.subnet 192.168.100.1/24
+```
+
+### Set default IPv6 prefix
+
+```bash
+container system property set network.subnetv6 fd00:abcd::/64
+```
+
+These settings apply to networks created without explicit `--subnet` or `--subnet-v6` options.
 
 ## View container logs
 
@@ -460,7 +486,8 @@ image.builder      String  ghcr.io/apple/container-builder-shim/...  The image r
 image.init         String  ghcr.io/apple/containerization/vminit...  The image reference for the default initial filesystem image.
 kernel.binaryPath  String  opt/kata/share/kata-containers/vmlinu...  If the kernel URL is for an archive, the archive member pathname for the kernel file.
 kernel.url         String  https://github.com/kata-containers/ka...  The URL for the kernel file to install, or the URL for an archive containing the kernel file.
-network.subnet     String  *undefined*                               Default subnet for IP allocation (used on macOS 15 only).
+network.subnet     String  *undefined*                               Default subnet for IPv4 allocation.
+network.subnetv6   String  *undefined*                               Default IPv6 network prefix.
 ```
 
 ### Example: Disable Rosetta for builds
