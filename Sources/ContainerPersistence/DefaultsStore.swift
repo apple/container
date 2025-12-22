@@ -30,7 +30,7 @@ public enum DefaultsStore {
         case defaultKernelBinaryPath = "kernel.binaryPath"
         case defaultKernelURL = "kernel.url"
         case defaultSubnet = "network.subnet"
-        case defaultIpv6Subnet = "network.subnetv6"
+        case defaultIPv6Subnet = "network.subnetv6"
         case defaultRegistryDomain = "registry.domain"
     }
 
@@ -74,7 +74,7 @@ public enum DefaultsStore {
             (.defaultKernelBinaryPath, { Self.get(key: $0) }),
             (.defaultKernelURL, { Self.get(key: $0) }),
             (.defaultSubnet, { Self.getOptional(key: $0) }),
-            (.defaultIpv6Subnet, { Self.getOptional(key: $0) }),
+            (.defaultIPv6Subnet, { Self.getOptional(key: $0) }),
             (.defaultDNSDomain, { Self.getOptional(key: $0) }),
             (.defaultRegistryDomain, { Self.get(key: $0) }),
         ]
@@ -134,7 +134,7 @@ extension DefaultsStore.Keys {
             return "The URL for the kernel file to install, or the URL for an archive containing the kernel file."
         case .defaultSubnet:
             return "Default subnet for IPv4 allocation."
-        case .defaultIpv6Subnet:
+        case .defaultIPv6Subnet:
             return "Default IPv6 network prefix."
         case .defaultRegistryDomain:
             return "The default registry to use for image references that do not specify a registry."
@@ -157,7 +157,7 @@ extension DefaultsStore.Keys {
             return String.self
         case .defaultSubnet:
             return String.self
-        case .defaultIpv6Subnet:
+        case .defaultIPv6Subnet:
             return String.self
         case .defaultRegistryDomain:
             return String.self
@@ -186,7 +186,7 @@ extension DefaultsStore.Keys {
             return "https://github.com/kata-containers/kata-containers/releases/download/3.17.0/kata-static-3.17.0-arm64.tar.xz"
         case .defaultSubnet:
             return "192.168.64.1/24"
-        case .defaultIpv6Subnet:
+        case .defaultIPv6Subnet:
             return "fd00::/64"
         case .defaultRegistryDomain:
             return "docker.io"

@@ -306,8 +306,8 @@ public actor NetworksService {
         if let ipv6Subnet = configuration.ipv6Subnet {
             var existingCidrs: [CIDRv6] = []
             for networkState in networkStates.values {
-                if case .running(_, let status) = networkState, let otherIpv6Subnet = status.ipv6Subnet {
-                    existingCidrs.append(otherIpv6Subnet)
+                if case .running(_, let status) = networkState, let otherIPv6Subnet = status.ipv6Subnet {
+                    existingCidrs.append(otherIPv6Subnet)
                 }
             }
             let overlap = existingCidrs.first {

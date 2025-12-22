@@ -118,7 +118,7 @@ public final class ReservedVmnetNetwork: Network {
         // subnet priority is CLI argument, UserDefault, auto
         let defaultIpv4Subnet = try DefaultsStore.getOptional(key: .defaultSubnet).map { try CIDRv4($0) }
         let ipv4Subnet = configuration.ipv4Subnet ?? defaultIpv4Subnet
-        let defaultIpv6Subnet = try DefaultsStore.getOptional(key: .defaultIpv6Subnet).map { try CIDRv6($0) }
+        let defaultIpv6Subnet = try DefaultsStore.getOptional(key: .defaultIPv6Subnet).map { try CIDRv6($0) }
         let ipv6Subnet = configuration.ipv6Subnet ?? defaultIpv6Subnet
 
         // set the IPv4 subnet if the caller provided one
@@ -130,7 +130,7 @@ public final class ReservedVmnetNetwork: Network {
             var maskAddr = in_addr()
             inet_pton(AF_INET, mask.description, &maskAddr)
             log.info(
-                "configuring vmnet subnet",
+                "configuring vmnet IPv4 subnet",
                 metadata: ["cidr": "\(ipv4Subnet)"]
             )
             let status = vmnet_network_configuration_set_ipv4_subnet(vmnetConfiguration, &gatewayAddr, &maskAddr)
@@ -139,12 +139,13 @@ public final class ReservedVmnetNetwork: Network {
             }
         }
 
+        // set the IPv6 network prefix if the caller provided one
         if let ipv6Subnet {
             let gateway = IPv6Address(ipv6Subnet.lower.value + 1)
             var gatewayAddr = in6_addr()
             inet_pton(AF_INET6, gateway.description, &gatewayAddr)
             log.info(
-                "configuring vmnet subnet",
+                "configuring vmnet IPv6 prefix",
                 metadata: ["cidr": "\(ipv6Subnet)"]
             )
             let status = vmnet_network_configuration_set_ipv6_prefix(vmnetConfiguration, &gatewayAddr, ipv6Subnet.prefix.length)
