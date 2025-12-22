@@ -284,7 +284,7 @@ Push your image to a container registry, publishing it so that you and others ca
 
 ### Publish the web server image
 
-To publish your image, you need push images to a registry service that stores the image for future use. Typically, you need to authenticate with a registry to push an image. This example assumes that you have an account at a hypothetical registry named `some-registry.example.com` with username `fido` and a password or token `my-secret`, and that your personal repository name is the same as your username.
+To publish your image, you need to push images to a registry service that stores the image for future use. Typically, you need to authenticate with a registry to push an image. This example assumes that you have an account at a hypothetical registry named `some-registry.example.com` with username `fido` and a password or token `my-secret`, and that your personal repository name is the same as your username.
 
 To sign into a secure registry with your login credentials, enter your username and password at the prompts after running:
 
