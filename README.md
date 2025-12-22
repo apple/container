@@ -37,16 +37,16 @@ container system start
 
 ### Uninstall
 
-Use the `uninstall-container.sh` script to remove `container` from your system. To remove your user data along with the tool, run:
+Use the `uninstall-container.sh` script (installed to `/usr/local/bin`) to remove `container` from your system. To remove your user data along with the tool, run:
 
 ```bash
-uninstall-container.sh -d
+/usr/local/bin/uninstall-container.sh -d
 ```
 
 To retain your user data so that it is available should you reinstall later, run:
 
 ```bash
-uninstall-container.sh -k
+/usr/local/bin/uninstall-container.sh -k
 ```
 
 ## Next steps
