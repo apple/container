@@ -571,7 +571,7 @@ Without bash-completion, you’ll need to source the completion script directly.
 ```bash
 mkdir -p ~/.bash_completions
 container --generate-completion-script bash >  ~/.bash_completions/container
-source /opt/homebrew/etc/bash_completion.d/container
+source ~/.bash_completions/container
 ```
 
 Furthermore, you can add the following line to `~/.bash_profile` or `~/.bashrc`, in order for every new bash session to have autocompletion ready.
