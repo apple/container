@@ -22,7 +22,7 @@ If you're upgrading, first stop and uninstall your existing `container` (the `-k
 
 ```bash
 container system stop
-uninstall-container.sh -k
+/usr/local/bin/uninstall-container.sh -k
 ```
 
 Download the latest signed installer package for `container` from the [GitHub release page](https://github.com/apple/container/releases).
