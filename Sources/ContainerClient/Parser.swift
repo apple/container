@@ -248,16 +248,45 @@ public struct Parser {
             var hasEntrypointOverride: Bool = false
             // ensure the entrypoint is honored if it has been explicitly set by the user
             if let entrypoint = managementFlags.entrypoint, !entrypoint.isEmpty {
-                result = [entrypoint]
+                if entrypoint.hasPrefix("/") {
+                    result = [entrypoint]
+                } else {
+                    let resolved = URL(fileURLWithPath: workingDir)
+                        .appendingPathComponent(entrypoint)
+                        .standardized
+                        .path
+                    result = [resolved]
+                }
                 hasEntrypointOverride = true
             } else if let entrypoint = config?.entrypoint, !entrypoint.isEmpty {
-                result = entrypoint
+                if let first = entrypoint.first, !first.hasPrefix("/") {
+                    var resolved = entrypoint
+                    resolved[0] =
+                        URL(fileURLWithPath: workingDir)
+                        .appendingPathComponent(first)
+                        .standardized
+                        .path
+                    result = resolved
+                } else {
+                    result = entrypoint
+                }
             }
+
             if !arguments.isEmpty {
                 result.append(contentsOf: arguments)
             } else {
                 if let cmd = config?.cmd, !hasEntrypointOverride, !cmd.isEmpty {
-                    result.append(contentsOf: cmd)
+                    if let first = cmd.first, !first.hasPrefix("/") {
+                        var resolved = cmd
+                        resolved[0] =
+                            URL(fileURLWithPath: workingDir)
+                            .appendingPathComponent(first)
+                            .standardized
+                            .path
+                        result.append(contentsOf: resolved)
+                    } else {
+                        result.append(contentsOf: cmd)
+                    }
                 }
             }
             return result.count > 0 ? result : nil
