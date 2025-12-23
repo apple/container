@@ -310,15 +310,6 @@ public actor SandboxService {
             case .created, .stopped(_), .stopping:
                 await self.setState(.shuttingDown)
 
-                Task {
-                    do {
-                        try await Task.sleep(for: .seconds(5))
-                    } catch {
-                        self.log.error("failed to sleep before shutting down SandboxService: \(error)")
-                    }
-                    self.log.info("Shutting down SandboxService")
-                    exit(0)
-                }
             default:
                 throw ContainerizationError(
                     .invalidState,
