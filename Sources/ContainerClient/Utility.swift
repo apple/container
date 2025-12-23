@@ -95,7 +95,7 @@ public struct Utility {
         registry: Flags.Registry,
         imageFetch: Flags.ImageFetch,
         progressUpdate: @escaping ProgressUpdateHandler
-    ) async throws -> (ContainerConfiguration, Kernel) {
+    ) async throws -> (ContainerConfiguration, Kernel, String?) {
         var requestedPlatform = Parser.platform(os: management.os, arch: management.arch)
         // Prefer --platform
         if let platform = management.platform {
@@ -251,7 +251,7 @@ public struct Utility {
 
         config.ssh = management.ssh
 
-        return (config, kernel)
+        return (config, kernel, management.initImage)
     }
 
     static func getAttachmentConfigurations(containerId: String, networks: [Parser.ParsedNetwork]) throws -> [AttachmentConfiguration] {
