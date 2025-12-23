@@ -14,7 +14,9 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ArgumentParser
 import ContainerizationError
+import ContainerizationOCI
 import Foundation
 import Testing
 
@@ -697,5 +699,135 @@ struct ParserTest {
             }
             return error.description.contains("invalid property format")
         }
+    }
+
+    @Test
+    func testProcessEntrypointRelativePathWithDotSlash() throws {
+        let processFlags = try Flags.Process.parse(["--cwd", "/usr/local/cargo/bin"])
+        let managementFlags = try Flags.Management.parse(["--entrypoint", "./rustc"])
+
+        let result = try Parser.process(
+            arguments: ["--version"],
+            processFlags: processFlags,
+            managementFlags: managementFlags,
+            config: nil
+        )
+
+        #expect(result.executable == "/usr/local/cargo/bin/rustc")
+        #expect(result.arguments == ["--version"])
+        #expect(result.workingDirectory == "/usr/local/cargo/bin")
+    }
+
+    @Test
+    func testProcessEntrypointRelativePathWithoutPrefix() throws {
+        let processFlags = try Flags.Process.parse(["--cwd", "/usr/bin"])
+        let managementFlags = try Flags.Management.parse(["--entrypoint", "python3"])
+
+        let result = try Parser.process(
+            arguments: ["-c", "print('hello')"],
+            processFlags: processFlags,
+            managementFlags: managementFlags,
+            config: nil
+        )
+
+        #expect(result.executable == "/usr/bin/python3")
+        #expect(result.arguments == ["-c", "print('hello')"])
+    }
+
+    @Test
+    func testProcessEntrypointAbsolutePathUnchanged() throws {
+        let processFlags = try Flags.Process.parse(["--cwd", "/home/user"])
+        let managementFlags = try Flags.Management.parse(["--entrypoint", "/bin/bash"])
+
+        let result = try Parser.process(
+            arguments: ["-c", "echo hello"],
+            processFlags: processFlags,
+            managementFlags: managementFlags,
+            config: nil
+        )
+
+        #expect(result.executable == "/bin/bash")
+        #expect(result.arguments == ["-c", "echo hello"])
+    }
+
+    @Test
+    func testProcessEntrypointRelativePathNormalization() throws {
+        let processFlags = try Flags.Process.parse(["--cwd", "/usr/local/bin"])
+        let managementFlags = try Flags.Management.parse(["--entrypoint", "../lib/node"])
+
+        let result = try Parser.process(
+            arguments: ["--version"],
+            processFlags: processFlags,
+            managementFlags: managementFlags,
+            config: nil
+        )
+
+        #expect(result.executable == "/usr/local/lib/node")
+    }
+
+    @Test
+    func testProcessEntrypointRelativePathWithDefaultWorkdir() throws {
+        let processFlags = try Flags.Process.parse([])
+        let managementFlags = try Flags.Management.parse(["--entrypoint", "./app"])
+
+        let result = try Parser.process(
+            arguments: [],
+            processFlags: processFlags,
+            managementFlags: managementFlags,
+            config: nil
+        )
+
+        #expect(result.executable == "/app")
+    }
+
+    @Test
+    func testProcessEntrypointRelativePathWithComplexPath() throws {
+        let processFlags = try Flags.Process.parse(["--cwd", "/home/user/project"])
+        let managementFlags = try Flags.Management.parse(["--entrypoint", "./bin/../scripts/./run.sh"])
+
+        let result = try Parser.process(
+            arguments: [],
+            processFlags: processFlags,
+            managementFlags: managementFlags,
+            config: nil
+        )
+
+        #expect(result.executable == "/home/user/project/scripts/run.sh")
+    }
+
+    @Test
+    func testProcessRelativeEntrypointInImageConfig() throws {
+        let config = ContainerizationOCI.ImageConfig(
+            entrypoint: ["./start.sh"],
+            workingDir: "/app"
+        )
+
+        let result = try Parser.process(
+            arguments: [],
+            processFlags: try Flags.Process.parse([]),
+            managementFlags: try Flags.Management.parse([]),
+            config: config
+        )
+
+        #expect(result.executable == "/app/start.sh")
+    }
+
+    @Test
+    func testProcessRelativeCmdInImageConfig() throws {
+        let config = ContainerizationOCI.ImageConfig(
+            entrypoint: nil,
+            cmd: ["./run.py", "--fast"],
+            workingDir: "/scripts"
+        )
+
+        let result = try Parser.process(
+            arguments: [],
+            processFlags: try Flags.Process.parse([]),
+            managementFlags: try Flags.Management.parse([]),
+            config: config
+        )
+
+        #expect(result.executable == "/scripts/run.py")
+        #expect(result.arguments == ["--fast"])
     }
 }
