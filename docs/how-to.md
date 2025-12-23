@@ -445,6 +445,32 @@ You can also output statistics in JSON format for scripting:
 - **Block I/O**: Disk bytes read and written.
 - **Pids**: Number of processes running in the container.
 
+### Detailed I/O Performance Statistics
+
+For database workloads, build systems, or performance-sensitive applications, use the `--io` flag to display detailed I/O metrics:
+
+```console
+% container stats --io --no-stream postgres
+CONTAINER  READ/s   WRITE/s  LAT(ms)  FSYNC(ms)  QD   DIRTY   BACKEND
+postgres   280MB    195MB    4.8      1.4        1    2.1%    virtio
+```
+
+This mode provides:
+
+- **READ/s / WRITE/s**: Read and write throughput per second
+- **LAT(ms)**: Average I/O latency in milliseconds (helps identify slow disk operations)
+- **FSYNC(ms)**: Average fsync latency (critical for database durability)
+- **QD**: I/O queue depth (indicates I/O concurrency)
+- **DIRTY**: Percentage of dirty pages waiting to be written
+- **BACKEND**: Storage backend type (virtio, apfs, ext4, etc.)
+
+**Use cases for I/O statistics:**
+
+- **Database performance tuning**: Monitor fsync latency and queue depth for Postgres, MySQL, MongoDB
+- **Build system optimization**: Track I/O patterns during Docker builds or compilation
+- **Diagnosing bottlenecks**: Identify whether slowness is due to CPU, memory, or disk I/O
+- **Capacity planning**: Understand actual I/O requirements for workload sizing
+
 ## Expose virtualization capabilities to a container
 
 > [!NOTE]

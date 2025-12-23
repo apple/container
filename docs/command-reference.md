@@ -383,10 +383,12 @@ No options.
 
 Displays real-time resource usage statistics for containers. Shows CPU percentage, memory usage, network I/O, block I/O, and process count. By default, continuously updates statistics in an interactive display (like `top`). Use `--no-stream` for a single snapshot.
 
+With the `--io` flag, displays detailed I/O performance metrics including IOPS, latency, fsync performance, queue depth, dirty pages, and storage backend type - useful for diagnosing database workloads and I/O bottlenecks.
+
 **Usage**
 
 ```bash
-container stats [--format <format>] [--no-stream] [--debug] [<container-ids> ...]
+container stats [--format <format>] [--no-stream] [--io] [--debug] [<container-ids> ...]
 ```
 
 **Arguments**
@@ -397,6 +399,7 @@ container stats [--format <format>] [--no-stream] [--debug] [<container-ids> ...
 
 *   `--format <format>`: Format of the output (values: json, table; default: table)
 *   `--no-stream`: Disable streaming stats and only pull the first result
+*   `--io`: Display detailed I/O statistics (IOPS, latency, fsync, queue depth)
 
 **Examples**
 
@@ -409,6 +412,9 @@ container stats web db cache
 
 # get a single snapshot of stats (non-interactive)
 container stats --no-stream web
+
+# display detailed I/O statistics for database workload analysis
+container stats --io --no-stream postgres
 
 # output stats as JSON
 container stats --format json --no-stream web
