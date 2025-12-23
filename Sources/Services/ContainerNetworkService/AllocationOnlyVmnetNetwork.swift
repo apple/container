@@ -67,7 +67,12 @@ public actor AllocationOnlyVmnetNetwork: Network {
         let subnet = DefaultsStore.get(key: .defaultSubnet)
         let subnetCIDR = try CIDRv4(subnet)
         let gateway = IPv4Address(subnetCIDR.lower.value + 1)
-        self._state = .running(configuration, NetworkStatus(ipv4Subnet: subnetCIDR, ipv4Gateway: gateway))
+        let status = NetworkStatus(
+            ipv4Subnet: subnetCIDR,
+            ipv4Gateway: gateway,
+            ipv6Subnet: nil,
+        )
+        self._state = .running(configuration, status)
         log.info(
             "started allocation-only network",
             metadata: [

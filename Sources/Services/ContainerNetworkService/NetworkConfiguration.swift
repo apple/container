@@ -32,6 +32,9 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     /// The preferred CIDR address for the IPv4 subnet, if specified
     public let ipv4Subnet: CIDRv4?
 
+    /// The preferred CIDR address for the IPv6 subnet, if specified
+    public let ipv6Subnet: CIDRv6?
+
     /// Key-value labels for the network.
     public var labels: [String: String] = [:]
 
@@ -40,12 +43,14 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         id: String,
         mode: NetworkMode,
         ipv4Subnet: CIDRv4? = nil,
+        ipv6Subnet: CIDRv6? = nil,
         labels: [String: String] = [:]
     ) throws {
         self.id = id
         self.creationDate = Date()
         self.mode = mode
         self.ipv4Subnet = ipv4Subnet
+        self.ipv6Subnet = ipv6Subnet
         self.labels = labels
         try validate()
     }
@@ -55,6 +60,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         case creationDate
         case mode
         case ipv4Subnet
+        case ipv6Subnet
         case labels
         // TODO: retain for deserialization compatability for now, remove later
         case subnet
@@ -72,6 +78,8 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
             try container.decodeIfPresent(String.self, forKey: .ipv4Subnet)
             ?? container.decodeIfPresent(String.self, forKey: .subnet)
         ipv4Subnet = try subnetText.map { try CIDRv4($0) }
+        ipv6Subnet = try container.decodeIfPresent(String.self, forKey: .ipv6Subnet)
+            .map { try CIDRv6($0) }
         labels = try container.decodeIfPresent([String: String].self, forKey: .labels) ?? [:]
         try validate()
     }
@@ -83,7 +91,8 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         try container.encode(id, forKey: .id)
         try container.encode(creationDate, forKey: .creationDate)
         try container.encode(mode, forKey: .mode)
-        try container.encodeIfPresent(ipv4Subnet?.description, forKey: .ipv4Subnet)
+        try container.encodeIfPresent(ipv4Subnet, forKey: .ipv4Subnet)
+        try container.encodeIfPresent(ipv6Subnet, forKey: .ipv6Subnet)
         try container.encode(labels, forKey: .labels)
     }
 

@@ -131,9 +131,10 @@ public actor SandboxService {
 
             // Dynamically configure the DNS nameserver from a network if no explicit configuration
             if let dns = config.dns, dns.nameservers.isEmpty {
-                if let nameserver = try await self.getDefaultNameserver(attachmentConfigurations: config.networks) {
+                let defaultNameservers = try await self.getDefaultNameservers(attachmentConfigurations: config.networks)
+                if !defaultNameservers.isEmpty {
                     config.dns = ContainerConfiguration.DNSConfiguration(
-                        nameservers: [nameserver],
+                        nameservers: defaultNameservers,
                         domain: dns.domain,
                         searchDomains: dns.searchDomains,
                         options: dns.options
@@ -859,17 +860,17 @@ public actor SandboxService {
         Self.configureInitialProcess(czConfig: &czConfig, config: config)
     }
 
-    private func getDefaultNameserver(attachmentConfigurations: [AttachmentConfiguration]) async throws -> String? {
+    private func getDefaultNameservers(attachmentConfigurations: [AttachmentConfiguration]) async throws -> [String] {
         for attachmentConfiguration in attachmentConfigurations {
             let client = NetworkClient(id: attachmentConfiguration.network)
             let state = try await client.state()
             guard case .running(_, let status) = state else {
                 continue
             }
-            return status.ipv4Gateway.description
+            return [status.ipv4Gateway.description]
         }
 
-        return nil
+        return []
     }
 
     private static func configureInitialProcess(

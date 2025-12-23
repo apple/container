@@ -283,7 +283,7 @@ public actor NetworksService {
             serviceIdentifier,
         ]
 
-        if let ipv4Subnet = (configuration.ipv4Subnet.map { $0 }) {
+        if let ipv4Subnet = configuration.ipv4Subnet {
             var existingCidrs: [CIDRv4] = []
             for networkState in networkStates.values {
                 if case .running(_, let status) = networkState {
@@ -301,6 +301,26 @@ public actor NetworksService {
             }
 
             args += ["--subnet", ipv4Subnet.description]
+        }
+
+        if let ipv6Subnet = configuration.ipv6Subnet {
+            var existingCidrs: [CIDRv6] = []
+            for networkState in networkStates.values {
+                if case .running(_, let status) = networkState, let otherIPv6Subnet = status.ipv6Subnet {
+                    existingCidrs.append(otherIPv6Subnet)
+                }
+            }
+            let overlap = existingCidrs.first {
+                $0.contains(ipv6Subnet.lower)
+                    || $0.contains(ipv6Subnet.upper)
+                    || ipv6Subnet.contains($0.lower)
+                    || ipv6Subnet.contains($0.upper)
+            }
+            if let overlap {
+                throw ContainerizationError(.exists, message: "IPv6 subnet \(ipv6Subnet) overlaps an existing network with subnet \(overlap)")
+            }
+
+            args += ["--subnet-v6", ipv6Subnet.description]
         }
 
         try await pluginLoader.registerWithLaunchd(
