@@ -420,6 +420,17 @@ extension ClientImage {
         return fs
     }
 
+    public func getSnapshotSize(platform: Platform) async throws -> UInt64 {
+        let client = Self.newXPCClient()
+        let request = Self.newRequest(.snapshotSize)
+
+        try request.set(description: description)
+        try request.set(platform: platform)
+
+        let response = try await client.send(request)
+        return response.uint64(key: .imageSize)
+    }
+
     @discardableResult
     public func getCreateSnapshot(platform: Platform, progressUpdate: ProgressUpdateHandler? = nil) async throws -> Filesystem {
         do {

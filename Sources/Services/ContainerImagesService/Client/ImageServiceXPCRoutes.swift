@@ -40,6 +40,7 @@ public enum ImagesServiceXPCRoute: String {
     case imageUnpack
     case snapshotDelete
     case snapshotGet
+    case snapshotSize
 }
 
 extension XPCMessage {

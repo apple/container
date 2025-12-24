@@ -102,6 +102,7 @@ extension ImagesHelper {
             routes[ImagesServiceXPCRoute.imageDiskUsage.rawValue] = harness.calculateDiskUsage
             routes[ImagesServiceXPCRoute.snapshotDelete.rawValue] = harness.deleteSnapshot
             routes[ImagesServiceXPCRoute.snapshotGet.rawValue] = harness.getSnapshot
+            routes[ImagesServiceXPCRoute.snapshotSize.rawValue] = harness.getSnapshotSize
         }
 
         private func initializeContentService(root: URL, log: Logger, routes: inout [String: XPCServer.RouteHandler]) throws {
