@@ -51,7 +51,7 @@ struct SnapshotStoreTests {
         )
 
         let size = try await snapshotStore.getSnapshotSize(descriptor: descriptor)
-        
+
         #expect(size == 0, "Expected size to be 0 when snapshot doesn't exist, got \(size)")
     }
 
@@ -174,7 +174,6 @@ struct SnapshotStoreTests {
             .appendingPathComponent("snapshots", isDirectory: true)
             .appendingPathComponent(descriptor.digest.trimmingDigestPrefix, isDirectory: true)
         try FileManager.default.createDirectory(at: snapshotDir, withIntermediateDirectories: true)
-
 
         let size = try await snapshotStore.getSnapshotSize(descriptor: descriptor)
 
