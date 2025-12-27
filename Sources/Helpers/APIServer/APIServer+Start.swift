@@ -240,12 +240,13 @@ extension APIServer {
                 log: log
             )
 
+            // Check for default network - don't block on creation during startup
+            // to avoid blocking if vmnet plugin fails. Users can create networks on-demand.
             let defaultNetwork = try await service.list()
                 .filter { $0.id == ClientNetwork.defaultNetworkName }
                 .first
             if defaultNetwork == nil {
-                let config = try NetworkConfiguration(id: ClientNetwork.defaultNetworkName, mode: .nat)
-                _ = try await service.create(configuration: config)
+                log.info("default network not present, can be created with 'container network create'")
             }
 
             let harness = NetworksHarness(service: service, log: log)

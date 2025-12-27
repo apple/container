@@ -65,14 +65,17 @@ extension XPCClient {
     /// Send the provided message to the service.
     @discardableResult
     public func send(_ message: XPCMessage, responseTimeout: Duration? = nil) async throws -> XPCMessage {
-        try await withThrowingTaskGroup(of: XPCMessage.self, returning: XPCMessage.self) { group in
+        // Use a more robust timeout that cancels the XPC connection if it hangs
+        return try await withThrowingTaskGroup(of: XPCMessage.self, returning: XPCMessage.self) { group in
             if let responseTimeout {
                 group.addTask {
                     try await Task.sleep(for: responseTimeout)
+                    // Cancel the connection to unblock the XPC call
+                    xpc_connection_cancel(self.connection)
                     let route = message.string(key: XPCMessage.routeKey) ?? "nil"
                     throw ContainerizationError(
-                        .internalError,
-                        message: "XPC timeout for request to \(self.service)/\(route)"
+                        .timeout,
+                        message: "XPC timeout after \(Int(responseTimeout.components.seconds))s for \(self.service)/\(route). Is the apiserver running? Try: container system start"
                     )
                 }
             }
