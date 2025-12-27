@@ -14,12 +14,16 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-/// Protocol for implementing custom DNS handlers.
-public protocol DNSHandler: Sendable {
-    /// Attempt to answer a DNS query
-    /// - Parameter query: the query message
-    /// - Throws: a server failure occurred during the query
-    /// - Returns: The response message for the query, or nil if the request
-    ///   is not within the scope of the handler.
-    func answer(query: Message) async throws -> Message?
+import ContainerizationExtras
+
+/// Protocol for receiving notifications when networks start or stop.
+/// Used to dynamically bind/unbind DNS listeners to network gateway addresses.
+public protocol NetworkDNSDelegate: Sendable {
+    /// Called when a network starts and its gateway IP becomes available.
+    /// - Parameter gateway: The IPv4 gateway address of the network
+    func networkDidStart(gateway: IPv4Address) async
+
+    /// Called when a network stops and its gateway IP is no longer available.
+    /// - Parameter gateway: The IPv4 gateway address of the network
+    func networkDidStop(gateway: IPv4Address) async
 }

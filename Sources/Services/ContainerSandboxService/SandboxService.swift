@@ -129,14 +129,17 @@ public actor SandboxService {
                 logger: self.log
             )
 
-            // Dynamically configure the DNS nameserver from a network if no explicit configuration
+            // Dynamically configure DNS from network if no explicit configuration
             if let dns = config.dns, dns.nameservers.isEmpty {
                 let defaultNameservers = try await self.getDefaultNameservers(attachmentConfigurations: config.networks)
                 if !defaultNameservers.isEmpty {
+                    let searchDomains = dns.searchDomains.isEmpty
+                        ? HostDNSResolver.getHostSearchDomains()
+                        : dns.searchDomains
                     config.dns = ContainerConfiguration.DNSConfiguration(
                         nameservers: defaultNameservers,
                         domain: dns.domain,
-                        searchDomains: dns.searchDomains,
+                        searchDomains: searchDomains,
                         options: dns.options
                     )
                 }

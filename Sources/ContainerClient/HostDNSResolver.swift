@@ -95,6 +95,27 @@ public struct HostDNSResolver {
             .sorted()
     }
 
+    /// Returns the host system's DNS search domains from /etc/resolv.conf.
+    public static func getHostSearchDomains() -> [String] {
+        let resolvConfPath = "/etc/resolv.conf"
+        guard let content = try? String(contentsOfFile: resolvConfPath, encoding: .utf8) else {
+            return []
+        }
+
+        var searchDomains: [String] = []
+        for line in content.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.hasPrefix("#") else { continue }
+
+            if trimmed.hasPrefix("search ") {
+                let domains = trimmed.dropFirst(7).split(whereSeparator: { $0.isWhitespace })
+                searchDomains.append(contentsOf: domains.map { String($0) })
+            }
+        }
+
+        return searchDomains
+    }
+
     /// Reinitializes the macOS DNS daemon.
     public static func reinitialize() throws {
         do {

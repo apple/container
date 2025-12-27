@@ -30,6 +30,7 @@ public actor NetworksService {
     private let resourceRoot: URL
     private let containersService: ContainersService
     private let log: Logger
+    private var dnsDelegate: NetworkDNSDelegate?
 
     private let store: FilesystemEntityStore<NetworkConfiguration>
     private let networkPlugin: Plugin
@@ -100,6 +101,20 @@ public actor NetworksService {
         }
     }
 
+    /// Sets the delegate for DNS binding notifications.
+    public func setDNSDelegate(_ delegate: NetworkDNSDelegate) {
+        self.dnsDelegate = delegate
+    }
+
+    /// Notifies the DNS delegate about all currently running networks.
+    public func notifyDNSDelegateOfRunningNetworks() async {
+        for (_, state) in networkStates {
+            if case .running(_, let status) = state {
+                await dnsDelegate?.networkDidStart(gateway: status.ipv4Gateway)
+            }
+        }
+    }
+
     /// List all networks registered with the service.
     public func list() async throws -> [NetworkState] {
         log.info("network service: list")
@@ -146,6 +161,9 @@ public actor NetworksService {
         }
         let networkState: NetworkState = .running(configuration, status)
         networkStates[configuration.id] = networkState
+
+        // Notify DNS delegate of new network gateway
+        await dnsDelegate?.networkDidStart(gateway: status.ipv4Gateway)
 
         // Persist the configuration data.
         do {
@@ -194,9 +212,11 @@ public actor NetworksService {
             throw ContainerizationError(.notFound, message: "no network for id \(id)")
         }
 
-        guard case .running = networkState else {
+        guard case .running(_, let status) = networkState else {
             throw ContainerizationError(.invalidState, message: "cannot delete subnet \(id) in state \(networkState.state)")
         }
+
+        let gatewayToRemove = status.ipv4Gateway
 
         // prevent container operations while we atomically check and delete
         try await containersService.withContainerList { containers in
@@ -253,6 +273,7 @@ public actor NetworksService {
 
         // having deleted successfully, remove the runtime state
         self.networkStates.removeValue(forKey: id)
+        await dnsDelegate?.networkDidStop(gateway: gatewayToRemove)
     }
 
     /// Perform a hostname lookup on all networks.
