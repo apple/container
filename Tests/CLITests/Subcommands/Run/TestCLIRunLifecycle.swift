@@ -83,4 +83,40 @@ class TestCLIRunLifecycle: CLITest {
             try self.doStop(name: name)
         }
     }
+
+    /// Test that rapid stop+start doesn't auto-delete the container (issue #833)
+    @Test func testRapidStopStartDoesNotDeleteContainer() throws {
+        let name = getTestName()
+
+        // Create container without autoRemove so it persists after stop
+        try self.doLongRun(name: name, args: [], autoRemove: false)
+        defer {
+            try? self.doStop(name: name)
+            try? self.doRemove(name: name, force: true)
+        }
+        try self.waitForContainerRunning(name)
+
+        // Issue stop and start in rapid succession - this used to delete the container
+        // because the sandbox was still shutting down when start was called
+        let stopProcess = Process()
+        stopProcess.executableURL = try executablePath
+        stopProcess.arguments = ["stop", "-s", "SIGKILL", name]
+        try stopProcess.run()
+        // Don't wait for stop to complete - immediately try to start
+
+        let (_, output, error, status) = try self.run(arguments: ["start", name])
+
+        // The container should either start successfully (after waiting for shutdown)
+        // or fail gracefully - but it should NOT be deleted
+        if status != 0 {
+            // If start failed, the container should still exist
+            let inspectResult = try? self.inspectContainer(name)
+            #expect(inspectResult != nil, "container should still exist after failed rapid start: \(error)")
+        } else {
+            #expect(output.trimmingCharacters(in: .whitespacesAndNewlines) == name, "start should output container name")
+            // Verify container is running
+            let containerStatus = try self.getContainerStatus(name)
+            #expect(containerStatus == "running", "container should be running after rapid stop+start")
+        }
+    }
 }
