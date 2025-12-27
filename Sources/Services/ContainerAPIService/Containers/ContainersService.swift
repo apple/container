@@ -308,13 +308,22 @@ public actor ContainersService {
                 state.client = sandboxClient
                 await self.setContainerState(id, state, context: context)
             }
-        } catch {
-            do {
-                try await _cleanup(id: id)
-            } catch {
-                self.log.error("failed to cleanup container \(id) after bootstrap failure: \(error)")
+        } catch let bootstrapError {
+            // Don't cleanup (delete) the container if bootstrap failed because the sandbox
+            // is still shutting down from a previous stop. This handles rapid stop+start.
+            let errorString = String(describing: bootstrapError)
+            let errorMessage = (bootstrapError as? ContainerizationError)?.message ?? ""
+            let isShuttingDown = errorMessage.contains("shuttingDown") || errorString.contains("shuttingDown")
+            if !isShuttingDown {
+                do {
+                    try await _cleanup(id: id)
+                } catch {
+                    self.log.error("failed to cleanup container \(id) after bootstrap failure: \(error)")
+                }
+            } else {
+                self.log.info("bootstrap failed because sandbox is shutting down, not deleting container \(id)")
             }
-            throw error
+            throw bootstrapError
         }
     }
 

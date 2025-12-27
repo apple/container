@@ -53,7 +53,25 @@ extension Application {
             progress.start()
 
             let detach = !self.attach && !self.interactive
-            let container = try await ClientContainer.get(id: containerId)
+            var container = try await ClientContainer.get(id: containerId)
+
+            // If container is stopping, wait for it to fully stop before proceeding.
+            // This handles the case where stop+start are called in rapid succession.
+            if container.status == .stopping {
+                for _ in 0..<60 {  // Wait up to 30 seconds (60 * 0.5s)
+                    try await Task.sleep(for: .milliseconds(500))
+                    container = try await ClientContainer.get(id: containerId)
+                    if container.status != .stopping {
+                        break
+                    }
+                }
+                if container.status == .stopping {
+                    throw ContainerizationError(
+                        .invalidState,
+                        message: "container is still stopping after timeout"
+                    )
+                }
+            }
 
             // Bootstrap and process start are both idempotent and don't fail the second time
             // around, however not doing an rpc is always faster :). The other bit is we don't
