@@ -37,11 +37,14 @@ public struct NetworkClient: Sendable {
 
 // Runtime Methods
 extension NetworkClient {
+    /// Default timeout for network XPC calls.
+    private static let xpcTimeout: Duration = .seconds(5)
+
     public func state() async throws -> NetworkState {
         let request = XPCMessage(route: NetworkRoutes.state.rawValue)
         let client = createClient()
 
-        let response = try await client.send(request)
+        let response = try await client.send(request, responseTimeout: Self.xpcTimeout)
         let state = try response.state()
         return state
     }
@@ -55,7 +58,7 @@ extension NetworkClient {
 
         let client = createClient()
 
-        let response = try await client.send(request)
+        let response = try await client.send(request, responseTimeout: Self.xpcTimeout)
         let attachment = try response.attachment()
         let additionalData = response.additionalData()
         return (attachment, additionalData)
@@ -66,7 +69,7 @@ extension NetworkClient {
         request.set(key: NetworkKeys.hostname.rawValue, value: hostname)
 
         let client = createClient()
-        try await client.send(request)
+        try await client.send(request, responseTimeout: Self.xpcTimeout)
     }
 
     public func lookup(hostname: String) async throws -> Attachment? {
@@ -75,7 +78,7 @@ extension NetworkClient {
 
         let client = createClient()
 
-        let response = try await client.send(request)
+        let response = try await client.send(request, responseTimeout: Self.xpcTimeout)
         return try response.dataNoCopy(key: NetworkKeys.attachment.rawValue).map {
             try JSONDecoder().decode(Attachment.self, from: $0)
         }
@@ -86,7 +89,7 @@ extension NetworkClient {
 
         let client = createClient()
 
-        let response = try await client.send(request)
+        let response = try await client.send(request, responseTimeout: Self.xpcTimeout)
         return try response.allocatorDisabled()
     }
 
