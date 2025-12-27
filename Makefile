@@ -56,6 +56,9 @@ build:
 	@echo Building container binaries...
 	@$(SWIFT) --version
 	@$(SWIFT) build -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION)
+	@echo Signing binaries with required entitlements...
+	@codesign $(CODESIGN_OPTS) --entitlements=signing/container-runtime-linux.entitlements "$(BUILD_BIN_DIR)/container-runtime-linux"
+	@codesign $(CODESIGN_OPTS) --entitlements=signing/container-network-vmnet.entitlements "$(BUILD_BIN_DIR)/container-network-vmnet"
 
 .PHONY: container
 # Install binaries under project directory
