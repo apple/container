@@ -243,7 +243,7 @@ public actor ContainersService {
             do {
                 let containerImage = ClientImage(description: configuration.image)
                 let imageFs = try await containerImage.getCreateSnapshot(platform: configuration.platform)
-                try bundle.setContainerRootFs(cloning: imageFs)
+                try bundle.setContainerRootFs(cloning: imageFs, readonly: configuration.readOnly)
                 try bundle.write(filename: "options.json", value: options)
 
                 let snapshot = ContainerSnapshot(

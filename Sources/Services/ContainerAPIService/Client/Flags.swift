@@ -202,6 +202,9 @@ public struct Flags {
                 "Expose virtualization capabilities to the container (requires host and guest support)"
         )
         public var virtualization: Bool = false
+
+        @Flag(name: .long, help: "Mount the container's root filesystem as read-only")
+        public var readOnly = false
     }
 
     public struct Progress: ParsableArguments {

@@ -49,6 +49,8 @@ public struct ContainerConfiguration: Sendable, Codable {
     public var virtualization: Bool = false
     /// Enable SSH agent socket forwarding from host to container.
     public var ssh: Bool = false
+    /// Whether to mount the rootfs as read-only.
+    public var readOnly: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -67,6 +69,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         case runtimeHandler
         case virtualization
         case ssh
+        case readOnly
     }
 
     /// Create a configuration from the supplied Decoder, initializing missing
@@ -96,6 +99,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         runtimeHandler = try container.decodeIfPresent(String.self, forKey: .runtimeHandler) ?? "container-runtime-linux"
         virtualization = try container.decodeIfPresent(Bool.self, forKey: .virtualization) ?? false
         ssh = try container.decodeIfPresent(Bool.self, forKey: .ssh) ?? false
+        readOnly = try container.decodeIfPresent(Bool.self, forKey: .readOnly) ?? false
     }
 
     public struct DNSConfiguration: Sendable, Codable {

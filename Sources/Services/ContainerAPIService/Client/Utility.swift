@@ -239,6 +239,7 @@ public struct Utility {
         config.publishedSockets = try Parser.publishSockets(management.publishSockets)
 
         config.ssh = management.ssh
+        config.readOnly = management.readOnly
 
         return (config, kernel)
     }

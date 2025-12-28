@@ -639,6 +639,23 @@ class TestCLIRunCommand: CLITest {
         }
     }
 
+    @Test func testRunCommandReadOnly() throws {
+        do {
+            let name = getTestName()
+            try doLongRun(name: name, args: ["--read-only"])
+            defer {
+                try? doStop(name: name)
+            }
+            // Attempt to touch a file on the read-only rootfs should fail
+            #expect(throws: (any Error).self) {
+                try doExec(name: name, cmd: ["touch", "/testfile"])
+            }
+        } catch {
+            Issue.record("failed to run container \(error)")
+            return
+        }
+    }
+
     func getDefaultDomain() throws -> String? {
         let (_, output, err, status) = try run(arguments: ["system", "property", "get", "dns.domain"])
         try #require(status == 0, "default DNS domain retrieval returned status \(status): \(err)")
