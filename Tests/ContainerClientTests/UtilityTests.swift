@@ -116,4 +116,16 @@ struct UtilityTests {
         }
 
     }
+
+    @Test
+    func testPublishPortsSamePortDifferentProtocols() throws {
+        let result = try Parser.publishPorts([
+            "8080:8080/tcp",
+            "8080:8080/udp",
+            "1024-2048:1024-2048/tcp",
+            "1024-2048:1024-2048/udp",
+        ])
+        #expect(result.count == 4)
+        try Utility.validPublishPorts(result)
+    }
 }
