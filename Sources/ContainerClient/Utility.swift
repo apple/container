@@ -76,7 +76,7 @@ public struct Utility {
         var hostPorts = Set<String>()
         for publishPort in publishPorts {
             for index in publishPort.hostPort..<(publishPort.hostPort + publishPort.count) {
-                let hostPortKey = "\(index)/\(publishPort.protocol.rawValue)"
+                let hostPortKey = "\(index)/\(publishPort.proto.rawValue)"
                 guard !hostPorts.contains(hostPortKey) else {
                     throw ContainerizationError(.invalidArgument, message: "host ports for different publish port specs may not overlap")
                 }

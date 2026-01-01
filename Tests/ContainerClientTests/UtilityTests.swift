@@ -124,6 +124,8 @@ struct UtilityTests {
             "8080:8080/udp",
             "1024-2048:1024-2048/tcp",
             "1024-2048:1024-2048/udp",
+            "8081:8081",
+            "8081:8081/udp",
         ])
         #expect(result.count == 4)
         try Utility.validPublishPorts(result)
