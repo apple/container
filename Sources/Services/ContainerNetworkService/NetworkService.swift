@@ -35,7 +35,7 @@ public actor NetworkService: Sendable {
             throw ContainerizationError(.invalidState, message: "invalid network state - network \(state.id) must be running")
         }
 
-        let subnet = try CIDRAddress(status.address)
+        let subnet = status.ipv4Subnet
 
         let size = Int(subnet.upper.value - subnet.lower.value - 3)
         self.allocator = try AttachmentAllocator(lower: subnet.lower.value + 2, size: size)
@@ -61,21 +61,21 @@ public actor NetworkService: Sendable {
         let hostname = try message.hostname()
         let macAddress = message.string(key: NetworkKeys.macAddress.rawValue)
         let index = try await allocator.allocate(hostname: hostname)
-        let subnet = try CIDRAddress(status.address)
-        let ip = IPv4Address(fromValue: index)
+        let subnet = status.ipv4Subnet
+        let ip = IPv4Address(index)
         let attachment = Attachment(
             network: state.id,
             hostname: hostname,
-            address: try CIDRAddress(ip, prefixLength: subnet.prefixLength).description,
-            gateway: status.gateway,
+            ipv4Address: try CIDRv4(ip, prefix: subnet.prefix),
+            ipv4Gateway: status.ipv4Gateway,
             macAddress: macAddress
         )
         log?.info(
             "allocated attachment",
             metadata: [
                 "hostname": "\(hostname)",
-                "address": "\(attachment.address)",
-                "gateway": "\(attachment.gateway)",
+                "ipv4Address": "\(attachment.ipv4Address)",
+                "ipv4Gateway": "\(attachment.ipv4Gateway)",
                 "macAddress": "\(macAddress ?? "auto")",
             ])
         let reply = message.reply()
@@ -110,13 +110,13 @@ public actor NetworkService: Sendable {
             return reply
         }
 
-        let address = IPv4Address(fromValue: index)
-        let subnet = try CIDRAddress(status.address)
+        let address = IPv4Address(index)
+        let subnet = status.ipv4Subnet
         let attachment = Attachment(
             network: state.id,
             hostname: hostname,
-            address: try CIDRAddress(address, prefixLength: subnet.prefixLength).description,
-            gateway: status.gateway
+            ipv4Address: try CIDRv4(address, prefix: subnet.prefix),
+            ipv4Gateway: status.ipv4Gateway
         )
         log?.debug(
             "lookup attachment",

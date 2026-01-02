@@ -77,7 +77,7 @@ public struct RemoteContentStoreClient: ContentStore {
 
         let decoder = JSONDecoder()
         let deleted = try decoder.decode([String].self, from: data)
-        let size = response.uint64(key: .size)
+        let size = response.uint64(key: .imageSize)
         return (deleted, size)
     }
 
@@ -96,7 +96,7 @@ public struct RemoteContentStoreClient: ContentStore {
 
         let decoder = JSONDecoder()
         let deleted = try decoder.decode([String].self, from: data)
-        let size = response.uint64(key: .size)
+        let size = response.uint64(key: .imageSize)
         return (deleted, size)
     }
 

@@ -1,0 +1,26 @@
+name: PR Label Analysis
+
+on:
+  pull_request:
+    types: [opened]
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze PR for labeling
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Save PR metadata
+        run: |
+          mkdir -p ./pr-metadata
+          echo "${{ github.event.pull_request.number }}" > ./pr-metadata/pr-number.txt
+      
+      - name: Upload PR metadata as artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: pr-metadata-${{ github.event.pull_request.number }}
+          path: pr-metadata/
+          retention-days: 1

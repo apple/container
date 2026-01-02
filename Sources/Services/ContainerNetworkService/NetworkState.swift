@@ -14,23 +14,30 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationExtras
 import Foundation
 
 public struct NetworkStatus: Codable, Sendable {
     /// The address allocated for the network if no subnet was specified at
     /// creation time; otherwise, the subnet from the configuration.
-    public let address: String
+    public let ipv4Subnet: CIDRv4
+
     /// The gateway IPv4 address.
-    public let gateway: String
+    public let ipv4Gateway: IPv4Address
+
+    /// The address allocated for the IPv6 network if no subnet was specified at
+    /// creation time; otherwise, the IPv6 subnet from the configuration.
+    public let ipv6Subnet: CIDRv6?
 
     public init(
-        address: String,
-        gateway: String
+        ipv4Subnet: CIDRv4,
+        ipv4Gateway: IPv4Address,
+        ipv6Subnet: CIDRv6?,
     ) {
-        self.address = address
-        self.gateway = gateway
+        self.ipv4Subnet = ipv4Subnet
+        self.ipv4Gateway = ipv4Gateway
+        self.ipv6Subnet = ipv6Subnet
     }
-
 }
 
 /// The configuration and runtime attributes for a network.
@@ -51,6 +58,13 @@ public enum NetworkState: Codable, Sendable {
         switch self {
         case .created(let configuration): configuration.id
         case .running(let configuration, _): configuration.id
+        }
+    }
+
+    public var creationDate: Date {
+        switch self {
+        case .created(let configuration): configuration.creationDate
+        case .running(let configuration, _): configuration.creationDate
         }
     }
 }

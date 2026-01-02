@@ -228,7 +228,7 @@ public final class BufferedCopyReader: AsyncSequence {
         throw CocoaError(
             .fileReadUnsupportedScheme,
             userInfo: [
-                NSLocalizedDescriptionKey: "Reset not supported with InputStream-based implementation"
+                NSLocalizedDescriptionKey: "reset not supported with InputStream-based implementation"
             ])
     }
 
@@ -240,7 +240,7 @@ public final class BufferedCopyReader: AsyncSequence {
         throw CocoaError(
             .fileReadUnsupportedScheme,
             userInfo: [
-                NSLocalizedDescriptionKey: "Offset tracking not supported with InputStream-based implementation"
+                NSLocalizedDescriptionKey: "offset tracking not supported with InputStream-based implementation"
             ])
     }
 
@@ -252,7 +252,7 @@ public final class BufferedCopyReader: AsyncSequence {
         throw CocoaError(
             .fileReadUnsupportedScheme,
             userInfo: [
-                NSLocalizedDescriptionKey: "Seeking not supported with InputStream-based implementation"
+                NSLocalizedDescriptionKey: "seeking not supported with InputStream-based implementation"
             ])
     }
 

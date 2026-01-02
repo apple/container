@@ -41,7 +41,7 @@ public struct ClientVolume {
         let reply = try await client.send(message)
 
         guard let responseData = reply.dataNoCopy(key: .volume) else {
-            throw VolumeError.storageError("Invalid response from server")
+            throw VolumeError.storageError("invalid response from server")
         }
 
         return try JSONDecoder().decode(Volume.self, from: responseData)
@@ -81,18 +81,13 @@ public struct ClientVolume {
         return try JSONDecoder().decode(Volume.self, from: responseData)
     }
 
-    public static func prune() async throws -> ([String], UInt64) {
+    public static func volumeDiskUsage(name: String) async throws -> UInt64 {
         let client = XPCClient(service: serviceIdentifier)
-        let message = XPCMessage(route: .volumePrune)
+        let message = XPCMessage(route: .volumeDiskUsage)
+        message.set(key: .volumeName, value: name)
         let reply = try await client.send(message)
 
-        guard let responseData = reply.dataNoCopy(key: .volumes) else {
-            return ([], 0)
-        }
-
-        let volumeNames = try JSONDecoder().decode([String].self, from: responseData)
-        let size = reply.uint64(key: .size)
-        return (volumeNames, size)
+        let size = reply.uint64(key: .volumeSize)
+        return size
     }
-
 }

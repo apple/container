@@ -29,19 +29,43 @@ extension Application.VolumeCommand {
         var global: Flags.Global
 
         public func run() async throws {
-            let (volumeNames, size) = try await ClientVolume.prune()
-            let formatter = ByteCountFormatter()
-            let freed = formatter.string(fromByteCount: Int64(size))
+            let allVolumes = try await ClientVolume.list()
 
-            if volumeNames.isEmpty {
-                print("No volumes to prune")
-            } else {
-                print("Pruned volumes:")
-                for name in volumeNames {
-                    print(name)
+            // Find all volumes not used by any container
+            let containers = try await ClientContainer.list()
+            var volumesInUse = Set<String>()
+            for container in containers {
+                for mount in container.configuration.mounts {
+                    if mount.isVolume, let volumeName = mount.volumeName {
+                        volumesInUse.insert(volumeName)
+                    }
                 }
-                print()
             }
+
+            let volumesToPrune = allVolumes.filter { volume in
+                !volumesInUse.contains(volume.name)
+            }
+
+            var prunedVolumes = [String]()
+            var totalSize: UInt64 = 0
+
+            for volume in volumesToPrune {
+                do {
+                    let actualSize = try await ClientVolume.volumeDiskUsage(name: volume.name)
+                    totalSize += actualSize
+                    try await ClientVolume.delete(name: volume.name)
+                    prunedVolumes.append(volume.name)
+                } catch {
+                    log.error("Failed to prune volume \(volume.name): \(error)")
+                }
+            }
+
+            for name in prunedVolumes {
+                print(name)
+            }
+
+            let formatter = ByteCountFormatter()
+            let freed = formatter.string(fromByteCount: Int64(totalSize))
             print("Reclaimed \(freed) in disk space")
         }
     }

@@ -1,0 +1,3 @@
+# Maintainers
+
+See [MAINTAINERS](https://github.com/apple/containerization/blob/main/MAINTAINERS.txt) for the list of current and former maintainers of this project. Thank you for all your contributions!

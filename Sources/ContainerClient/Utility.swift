@@ -24,6 +24,8 @@ import Foundation
 import TerminalProgress
 
 public struct Utility {
+    static let publishedPortCountLimit = 64
+
     private static let infraImages = [
         DefaultsStore.get(key: .defaultBuilderImage),
         DefaultsStore.get(key: .defaultInitImage),
@@ -70,6 +72,19 @@ public struct Utility {
         }
     }
 
+    public static func validPublishPorts(_ publishPorts: [PublishPort]) throws {
+        var hostPorts = Set<UInt16>()
+        for publishPort in publishPorts {
+            for index in 0..<publishPort.count {
+                let hostPort = publishPort.hostPort + index
+                guard !hostPorts.contains(hostPort) else {
+                    throw ContainerizationError(.invalidArgument, message: "host ports for different publish port specs may not overlap")
+                }
+                hostPorts.insert(hostPort)
+            }
+        }
+    }
+
     public static func containerConfigFromFlags(
         id: String,
         image: String,
@@ -78,6 +93,7 @@ public struct Utility {
         management: Flags.Management,
         resource: Flags.Resource,
         registry: Flags.Registry,
+        imageFetch: Flags.ImageFetch,
         progressUpdate: @escaping ProgressUpdateHandler
     ) async throws -> (ContainerConfiguration, Kernel) {
         var requestedPlatform = Parser.platform(os: management.os, arch: management.arch)
@@ -97,7 +113,8 @@ public struct Utility {
             reference: image,
             platform: requestedPlatform,
             scheme: scheme,
-            progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progressUpdate)
+            progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progressUpdate),
+            maxConcurrentDownloads: imageFetch.maxConcurrentDownloads
         )
 
         // Unpack a fetched image before use
@@ -125,7 +142,8 @@ public struct Utility {
         let fetchInitTask = await taskManager.startTask()
         let initImage = try await ClientImage.fetch(
             reference: ClientImage.initImageRef, platform: .current, scheme: scheme,
-            progressUpdate: ProgressTaskCoordinator.handler(for: fetchInitTask, from: progressUpdate))
+            progressUpdate: ProgressTaskCoordinator.handler(for: fetchInitTask, from: progressUpdate),
+            maxConcurrentDownloads: imageFetch.maxConcurrentDownloads)
 
         await progressUpdate([
             .setDescription("Unpacking init image"),
@@ -222,6 +240,10 @@ public struct Utility {
         config.labels = try Parser.labels(management.labels)
 
         config.publishedPorts = try Parser.publishPorts(management.publishPorts)
+        guard config.publishedPorts.count <= publishedPortCountLimit else {
+            throw ContainerizationError(.invalidArgument, message: "cannot exceed more than \(publishedPortCountLimit) port publish descriptors")
+        }
+        try validPublishPorts(config.publishedPorts)
 
         // Parse --publish-socket arguments and add to container configuration
         // to enable socket forwarding from container to host.

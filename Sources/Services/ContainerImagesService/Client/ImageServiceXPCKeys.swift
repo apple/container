@@ -35,14 +35,21 @@ public enum ImagesServiceXPCKeys: String {
     case ociPlatform
     case insecureFlag
     case garbageCollect
+    case maxConcurrentDownloads
 
     /// ContentStore
     case digest
     case digests
     case directory
     case contentPath
-    case size
+    case imageSize
     case ingestSessionId
+
+    /// Disk Usage
+    case activeImageReferences
+    case totalCount
+    case activeCount
+    case reclaimableSize
 }
 
 extension XPCMessage {
@@ -62,6 +69,10 @@ extension XPCMessage {
         self.set(key: key.rawValue, value: value)
     }
 
+    public func set(key: ImagesServiceXPCKeys, value: Int64) {
+        self.set(key: key.rawValue, value: value)
+    }
+
     public func string(key: ImagesServiceXPCKeys) -> String? {
         self.string(key: key.rawValue)
     }
@@ -76,6 +87,10 @@ extension XPCMessage {
 
     public func uint64(key: ImagesServiceXPCKeys) -> UInt64 {
         self.uint64(key: key.rawValue)
+    }
+
+    public func int64(key: ImagesServiceXPCKeys) -> Int64 {
+        self.int64(key: key.rawValue)
     }
 
     public func bool(key: ImagesServiceXPCKeys) -> Bool {

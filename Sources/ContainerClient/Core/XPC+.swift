@@ -63,6 +63,8 @@ public enum XPCKeys: String {
     case installRoot
     case apiServerVersion
     case apiServerCommit
+    case apiServerBuild
+    case apiServerAppName
 
     /// Process request keys.
     case signal
@@ -115,6 +117,13 @@ public enum XPCKeys: String {
     case volumeLabels
     case volumeReadonly
     case volumeContainerId
+
+    /// Container statistics
+    case statistics
+    case volumeSize
+
+    /// Disk usage
+    case diskUsageStats
 }
 
 public enum XPCRoute: String {
@@ -132,6 +141,7 @@ public enum XPCRoute: String {
     case containerState
     case containerLogs
     case containerEvent
+    case containerStats
 
     case pluginLoad
     case pluginGet
@@ -147,7 +157,9 @@ public enum XPCRoute: String {
     case volumeDelete
     case volumeList
     case volumeInspect
-    case volumePrune
+
+    case volumeDiskUsage
+    case systemDiskUsage
 
     case ping
 

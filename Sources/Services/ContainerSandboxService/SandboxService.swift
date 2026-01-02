@@ -119,8 +119,11 @@ public actor SandboxService {
             try bundle.createLogFile()
 
             var config = try bundle.configuration
+
+            var kernel = try bundle.kernel
+            kernel.commandLine.kernelArgs.append("oops=panic")
             let vmm = VZVirtualMachineManager(
-                kernel: try bundle.kernel,
+                kernel: kernel,
                 initialFilesystem: bundle.initialFilesystem.asMount,
                 rosetta: config.rosetta,
                 logger: self.log
@@ -128,9 +131,10 @@ public actor SandboxService {
 
             // Dynamically configure the DNS nameserver from a network if no explicit configuration
             if let dns = config.dns, dns.nameservers.isEmpty {
-                if let nameserver = try await self.getDefaultNameserver(attachmentConfigurations: config.networks) {
+                let defaultNameservers = try await self.getDefaultNameservers(attachmentConfigurations: config.networks)
+                if !defaultNameservers.isEmpty {
                     config.dns = ContainerConfiguration.DNSConfiguration(
-                        nameservers: [nameserver],
+                        nameservers: defaultNameservers,
                         domain: dns.domain,
                         searchDomains: dns.searchDomains,
                         options: dns.options
@@ -189,39 +193,38 @@ public actor SandboxService {
                 // a default /etc/hosts.
                 var hostsEntries = [Hosts.Entry.localHostIPV4()]
                 if !interfaces.isEmpty {
-                    let primaryIfaceAddr = interfaces[0].address
-                    let ip = primaryIfaceAddr.split(separator: "/")
+                    let primaryIfaceAddr = interfaces[0].ipv4Address
                     hostsEntries.append(
                         Hosts.Entry(
-                            ipAddress: String(ip[0]),
+                            ipAddress: primaryIfaceAddr.address.description,
                             hostnames: [czConfig.hostname],
                         ))
                 }
                 czConfig.hosts = Hosts(entries: hostsEntries)
-                czConfig.bootlog = bundle.bootlog
+                czConfig.bootLog = BootLog.file(path: bundle.bootlog, append: true)
             }
 
-            await self.setContainer(
-                ContainerInfo(
-                    container: container,
-                    config: config,
-                    attachments: attachments,
-                    bundle: bundle,
-                    io: (in: stdin, out: stdout, err: stderr)
-                ))
+            let ctrInfo = ContainerInfo(
+                container: container,
+                config: config,
+                attachments: attachments,
+                bundle: bundle,
+                io: (in: stdin, out: stdout, err: stderr)
+            )
+            await self.setContainer(ctrInfo)
 
             do {
                 try await container.create()
                 try await self.monitor.registerProcess(id: config.id, onExit: self.onContainerExit)
                 if !container.interfaces.isEmpty {
-                    let firstCidr = try CIDRAddress(container.interfaces[0].address)
+                    let firstCidr = container.interfaces[0].ipv4Address
                     let ipAddress = firstCidr.address.description
                     try await self.startSocketForwarders(containerIpAddress: ipAddress, publishedPorts: config.publishedPorts)
                 }
                 await self.setState(.booted)
             } catch {
                 do {
-                    try await self.cleanupContainer()
+                    try await self.cleanupContainer(containerInfo: ctrInfo)
                     await self.setState(.created)
                 } catch {
                     self.log.error("failed to cleanup container: \(error)")
@@ -257,6 +260,41 @@ public actor SandboxService {
         }
     }
 
+    /// Get statistics for the container.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with the following parameters:
+    ///     - id: A client identifier for the process.
+    ///     - stdio: An array of file handles for standard input, output, and error.
+    ///
+    /// - Returns: An XPC message with the following parameters:
+    ///   - statistics: JSON serialization of the `ContainerStats`.
+    @Sendable
+    public func statistics(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`statistics` xpc handler")
+        return try await self.lock.withLock { lock in
+            let containerInfo = try await self.getContainer()
+            let stats = try await containerInfo.container.statistics()
+
+            let containerStats = ContainerStats(
+                id: stats.id,
+                memoryUsageBytes: stats.memory.usageBytes,
+                memoryLimitBytes: stats.memory.limitBytes,
+                cpuUsageUsec: stats.cpu.usageUsec,
+                networkRxBytes: stats.networks.reduce(0) { $0 + $1.receivedBytes },
+                networkTxBytes: stats.networks.reduce(0) { $0 + $1.transmittedBytes },
+                blockReadBytes: stats.blockIO.devices.reduce(0) { $0 + $1.readBytes },
+                blockWriteBytes: stats.blockIO.devices.reduce(0) { $0 + $1.writeBytes },
+                numProcesses: stats.process.current
+            )
+
+            let reply = message.reply()
+            let data = try JSONEncoder().encode(containerStats)
+            reply.set(key: .statistics, value: data)
+            return reply
+        }
+    }
+
     /// Shutdown the SandboxService.
     ///
     /// - Parameters:
@@ -272,15 +310,6 @@ public actor SandboxService {
             case .created, .stopped(_), .stopping:
                 await self.setState(.shuttingDown)
 
-                Task {
-                    do {
-                        try await Task.sleep(for: .seconds(5))
-                    } catch {
-                        self.log.error("failed to sleep before shutting down SandboxService: \(error)")
-                    }
-                    self.log.info("Shutting down SandboxService")
-                    exit(0)
-                }
             default:
                 throw ContainerizationError(
                     .invalidState,
@@ -415,7 +444,7 @@ public actor SandboxService {
                     if case .stopped(_) = await self.state {
                         return message.reply()
                     }
-                    try await self.cleanupContainer()
+                    try await self.cleanupContainer(containerInfo: ctr, exitStatus: exitStatus)
                 } catch {
                     self.log.error("failed to cleanup container: \(error)")
                 }
@@ -640,7 +669,7 @@ public actor SandboxService {
             }
             try await self.monitor.track(id: id, waitingOn: waitFunc)
         } catch {
-            try? await self.cleanupContainer()
+            try? await self.cleanupContainer(containerInfo: info)
             self.setState(.created)
             throw error
         }
@@ -676,36 +705,39 @@ public actor SandboxService {
 
     private func startSocketForwarders(containerIpAddress: String, publishedPorts: [PublishPort]) async throws {
         var forwarders: [SocketForwarderResult] = []
+        try Utility.validPublishPorts(publishedPorts)
         try await withThrowingTaskGroup(of: SocketForwarderResult.self) { group in
             for publishedPort in publishedPorts {
-                let proxyAddress = try SocketAddress(ipAddress: publishedPort.hostAddress, port: Int(publishedPort.hostPort))
-                let serverAddress = try SocketAddress(ipAddress: containerIpAddress, port: Int(publishedPort.containerPort))
-                log.info(
-                    "creating forwarder for",
-                    metadata: [
-                        "proxy": "\(proxyAddress)",
-                        "server": "\(serverAddress)",
-                        "protocol": "\(publishedPort.proto)",
-                    ])
-                group.addTask {
-                    let forwarder: SocketForwarder
-                    switch publishedPort.proto {
-                    case .tcp:
-                        forwarder = try TCPForwarder(
-                            proxyAddress: proxyAddress,
-                            serverAddress: serverAddress,
-                            eventLoopGroup: self.eventLoopGroup,
-                            log: self.log
-                        )
-                    case .udp:
-                        forwarder = try UDPForwarder(
-                            proxyAddress: proxyAddress,
-                            serverAddress: serverAddress,
-                            eventLoopGroup: self.eventLoopGroup,
-                            log: self.log
-                        )
+                for index in 0..<publishedPort.count {
+                    let proxyAddress = try SocketAddress(ipAddress: publishedPort.hostAddress, port: Int(publishedPort.hostPort + index))
+                    let serverAddress = try SocketAddress(ipAddress: containerIpAddress, port: Int(publishedPort.containerPort + index))
+                    log.info(
+                        "creating forwarder for",
+                        metadata: [
+                            "proxy": "\(proxyAddress)",
+                            "server": "\(serverAddress)",
+                            "protocol": "\(publishedPort.proto)",
+                        ])
+                    group.addTask {
+                        let forwarder: SocketForwarder
+                        switch publishedPort.proto {
+                        case .tcp:
+                            forwarder = try TCPForwarder(
+                                proxyAddress: proxyAddress,
+                                serverAddress: serverAddress,
+                                eventLoopGroup: self.eventLoopGroup,
+                                log: self.log
+                            )
+                        case .udp:
+                            forwarder = try UDPForwarder(
+                                proxyAddress: proxyAddress,
+                                serverAddress: serverAddress,
+                                eventLoopGroup: self.eventLoopGroup,
+                                log: self.log
+                            )
+                        }
+                        return try await forwarder.run().get()
                     }
-                    return try await forwarder.run().get()
                 }
             }
             for try await result in group {
@@ -730,7 +762,6 @@ public actor SandboxService {
 
         try await self.lock.withLock { [self] _ in
             let ctrInfo = try await getContainer()
-            let ctr = ctrInfo.container
 
             switch await self.state {
             case .stopped(_), .stopping:
@@ -740,23 +771,11 @@ public actor SandboxService {
             }
 
             do {
-                try await ctr.stop()
-            } catch {
-                self.log.notice("failed to stop sandbox gracefully: \(error)")
-            }
-
-            do {
-                try await cleanupContainer()
+                try await cleanupContainer(containerInfo: ctrInfo, exitStatus: exitStatus)
             } catch {
                 self.log.error("failed to cleanup container: \(error)")
             }
             await setState(.stopped(exitStatus.exitCode))
-
-            let waiters = await self.waiters[id] ?? []
-            for cc in waiters {
-                cc.resume(returning: exitStatus)
-            }
-            await self.removeWaiters(for: id)
         }
     }
 
@@ -819,17 +838,17 @@ public actor SandboxService {
         Self.configureInitialProcess(czConfig: &czConfig, config: config)
     }
 
-    private func getDefaultNameserver(attachmentConfigurations: [AttachmentConfiguration]) async throws -> String? {
+    private func getDefaultNameservers(attachmentConfigurations: [AttachmentConfiguration]) async throws -> [String] {
         for attachmentConfiguration in attachmentConfigurations {
             let client = NetworkClient(id: attachmentConfiguration.network)
             let state = try await client.state()
             guard case .running(_, let status) = state else {
                 continue
             }
-            return status.gateway
+            return [status.ipv4Gateway.description]
         }
 
-        return nil
+        return []
     }
 
     private static func configureInitialProcess(
@@ -965,21 +984,37 @@ public actor SandboxService {
 
         // Now actually bring down the vm.
         try await lc.stop()
+
         return code
     }
 
-    private func cleanupContainer() async throws {
+    private func cleanupContainer(containerInfo: ContainerInfo, exitStatus: ExitStatus? = nil) async throws {
+        let container = containerInfo.container
+        let id = container.id
+
+        do {
+            try await container.stop()
+        } catch {
+            self.log.error("failed to stop container during cleanup: \(error)")
+        }
+
         // Give back our lovely IP(s)
         await self.stopSocketForwarders()
-        let containerInfo = try self.getContainer()
         for attachment in containerInfo.attachments {
             let client = NetworkClient(id: attachment.network)
             do {
                 try await client.deallocate(hostname: attachment.hostname)
             } catch {
-                self.log.error("failed to deallocate hostname \(attachment.hostname) on network \(attachment.network): \(error)")
+                self.log.error("failed to deallocate hostname \(attachment.hostname) on network \(attachment.network) during cleanup: \(error)")
             }
         }
+
+        let status = exitStatus ?? ExitStatus(exitCode: 255)
+        let waiters = self.waiters[id] ?? []
+        for cc in waiters {
+            cc.resume(returning: status)
+        }
+        self.removeWaiters(for: id)
     }
 }
 

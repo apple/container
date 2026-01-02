@@ -80,17 +80,17 @@ public enum VolumeError: Error, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .volumeNotFound(let name):
-            return "Volume '\(name)' not found"
+            return "volume '\(name)' not found"
         case .volumeAlreadyExists(let name):
-            return "Volume '\(name)' already exists"
+            return "volume '\(name)' already exists"
         case .volumeInUse(let name):
-            return "Volume '\(name)' is currently in use and cannot be accessed by another container, or deleted."
+            return "volume '\(name)' is currently in use and cannot be accessed by another container, or deleted"
         case .invalidVolumeName(let name):
-            return "Invalid volume name '\(name)'"
+            return "invalid volume name '\(name)'"
         case .driverNotSupported(let driver):
-            return "Volume driver '\(driver)' is not supported"
+            return "volume driver '\(driver)' is not supported"
         case .storageError(let message):
-            return "Storage error: \(message)"
+            return "storage error: \(message)"
         }
     }
 }

@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationError
 import Foundation
 import Testing
 
@@ -86,5 +87,33 @@ struct UtilityTests {
         #expect(throws: Error.self) {
             try Utility.validMACAddress("02.42.ac.11.00.02")  // Wrong separator
         }
+    }
+
+    @Test
+    func testPublishPortsNonOverlapping() throws {
+        let result = try Parser.publishPorts([
+            "8080-8179:9000-9099/tcp",
+            "8180-8279:9100-9199/tcp",
+        ])
+        #expect(result.count == 2)
+        try Utility.validPublishPorts(result)
+    }
+
+    @Test
+    func testPublishPortsOverlapping() throws {
+        let result = try Parser.publishPorts([
+            "9000-9100:8080-8180/tcp",
+            "9100-9199:8180-8279/tcp",
+        ])
+        #expect(result.count == 2)
+        #expect {
+            try Utility.validPublishPorts(result)
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("port specs may not overlap")
+        }
+
     }
 }

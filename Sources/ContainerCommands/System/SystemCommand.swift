@@ -23,6 +23,7 @@ extension Application {
             commandName: "system",
             abstract: "Manage system components",
             subcommands: [
+                SystemDF.self,
                 SystemDNS.self,
                 SystemKernel.self,
                 SystemLogs.self,
@@ -30,6 +31,7 @@ extension Application {
                 SystemStart.self,
                 SystemStatus.self,
                 SystemStop.self,
+                SystemVersion.self,
             ],
             aliases: ["s"]
         )
