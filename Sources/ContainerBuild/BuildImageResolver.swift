@@ -75,7 +75,7 @@ struct BuildImageResolver: BuildPipelineHandler {
             progress.start()
 
             if self.pull {
-                return try await ClientImage.pull(reference: ref, platform: platform)
+                return try await ClientImage.pull(reference: ref, platform: platform, progressUpdate: progress.handler)
             }
             // Use fetch() which checks cache first, then pulls if needed
             return try await ClientImage.fetch(reference: ref, platform: platform, progressUpdate: progress.handler)
