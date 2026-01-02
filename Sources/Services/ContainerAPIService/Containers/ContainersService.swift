@@ -361,7 +361,7 @@ public actor ContainersService {
                     let waitFunc: ExitMonitor.WaitHandler = {
                         log.info("registering container \(id) with exit monitor")
                         let code = try await client.wait(id)
-                        log.info("container \(id) finished in exit monitor")
+                        log.info("container \(id) finished in exit monitor, exit code \(code)")
 
                         return code
                     }

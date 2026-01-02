@@ -216,7 +216,7 @@ container run --network default,mac=02:42:ac:11:00:02 ubuntu:latest
 To verify the MAC address is set correctly, run `ip addr show` inside the container:
 
 ```console
-% container run --rm --mac-address 02:42:ac:11:00:02 ubuntu:latest ip addr show eth0
+% container run --rm --network default,mac=02:42:ac:11:00:02 ubuntu:latest ip addr show eth0
 2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
     link/ether 02:42:ac:11:00:02 brd ff:ff:ff:ff:ff:ff
     inet 192.168.64.2/24 brd 192.168.64.255 scope global eth0
@@ -571,7 +571,7 @@ Without bash-completion, you’ll need to source the completion script directly.
 ```bash
 mkdir -p ~/.bash_completions
 container --generate-completion-script bash >  ~/.bash_completions/container
-source /opt/homebrew/etc/bash_completion.d/container
+source ~/.bash_completions/container
 ```
 
 Furthermore, you can add the following line to `~/.bash_profile` or `~/.bashrc`, in order for every new bash session to have autocompletion ready.
