@@ -127,7 +127,7 @@ struct UtilityTests {
             "8081:8081",
             "8081:8081/udp",
         ])
-        #expect(result.count == 4)
+        #expect(result.count == 6)
         try Utility.validPublishPorts(result)
     }
 }
