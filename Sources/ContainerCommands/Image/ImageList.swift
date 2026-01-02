@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -133,7 +133,12 @@ extension Application {
             for image in images {
                 let processedReferenceString = try ClientImage.denormalizeReference(image.reference)
                 let reference = try ContainerizationOCI.Reference.parse(processedReferenceString)
-                let digest = try await image.resolved().digest
+                let digest: String
+                do {
+                    digest = try await image.resolved().digest
+                } catch {
+                    continue
+                }
                 rows.append([
                     reference.name,
                     reference.tag ?? "<none>",
