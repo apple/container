@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -204,14 +204,14 @@ public actor SandboxService {
                 czConfig.bootLog = BootLog.file(path: bundle.bootlog, append: true)
             }
 
-            await self.setContainer(
-                ContainerInfo(
-                    container: container,
-                    config: config,
-                    attachments: attachments,
-                    bundle: bundle,
-                    io: (in: stdin, out: stdout, err: stderr)
-                ))
+            let ctrInfo = ContainerInfo(
+                container: container,
+                config: config,
+                attachments: attachments,
+                bundle: bundle,
+                io: (in: stdin, out: stdout, err: stderr)
+            )
+            await self.setContainer(ctrInfo)
 
             do {
                 try await container.create()
@@ -224,7 +224,7 @@ public actor SandboxService {
                 await self.setState(.booted)
             } catch {
                 do {
-                    try await self.cleanupContainer()
+                    try await self.cleanupContainer(containerInfo: ctrInfo)
                     await self.setState(.created)
                 } catch {
                     self.log.error("failed to cleanup container: \(error)")
@@ -310,15 +310,6 @@ public actor SandboxService {
             case .created, .stopped(_), .stopping:
                 await self.setState(.shuttingDown)
 
-                Task {
-                    do {
-                        try await Task.sleep(for: .seconds(5))
-                    } catch {
-                        self.log.error("failed to sleep before shutting down SandboxService: \(error)")
-                    }
-                    self.log.info("Shutting down SandboxService")
-                    exit(0)
-                }
             default:
                 throw ContainerizationError(
                     .invalidState,
@@ -453,7 +444,7 @@ public actor SandboxService {
                     if case .stopped(_) = await self.state {
                         return message.reply()
                     }
-                    try await self.cleanupContainer()
+                    try await self.cleanupContainer(containerInfo: ctr, exitStatus: exitStatus)
                 } catch {
                     self.log.error("failed to cleanup container: \(error)")
                 }
@@ -678,7 +669,7 @@ public actor SandboxService {
             }
             try await self.monitor.track(id: id, waitingOn: waitFunc)
         } catch {
-            try? await self.cleanupContainer()
+            try? await self.cleanupContainer(containerInfo: info)
             self.setState(.created)
             throw error
         }
@@ -771,7 +762,6 @@ public actor SandboxService {
 
         try await self.lock.withLock { [self] _ in
             let ctrInfo = try await getContainer()
-            let ctr = ctrInfo.container
 
             switch await self.state {
             case .stopped(_), .stopping:
@@ -781,23 +771,11 @@ public actor SandboxService {
             }
 
             do {
-                try await ctr.stop()
-            } catch {
-                self.log.notice("failed to stop sandbox gracefully: \(error)")
-            }
-
-            do {
-                try await cleanupContainer()
+                try await cleanupContainer(containerInfo: ctrInfo, exitStatus: exitStatus)
             } catch {
                 self.log.error("failed to cleanup container: \(error)")
             }
             await setState(.stopped(exitStatus.exitCode))
-
-            let waiters = await self.waiters[id] ?? []
-            for cc in waiters {
-                cc.resume(returning: exitStatus)
-            }
-            await self.removeWaiters(for: id)
         }
     }
 
@@ -1006,21 +984,37 @@ public actor SandboxService {
 
         // Now actually bring down the vm.
         try await lc.stop()
+
         return code
     }
 
-    private func cleanupContainer() async throws {
+    private func cleanupContainer(containerInfo: ContainerInfo, exitStatus: ExitStatus? = nil) async throws {
+        let container = containerInfo.container
+        let id = container.id
+
+        do {
+            try await container.stop()
+        } catch {
+            self.log.error("failed to stop container during cleanup: \(error)")
+        }
+
         // Give back our lovely IP(s)
         await self.stopSocketForwarders()
-        let containerInfo = try self.getContainer()
         for attachment in containerInfo.attachments {
             let client = NetworkClient(id: attachment.network)
             do {
                 try await client.deallocate(hostname: attachment.hostname)
             } catch {
-                self.log.error("failed to deallocate hostname \(attachment.hostname) on network \(attachment.network): \(error)")
+                self.log.error("failed to deallocate hostname \(attachment.hostname) on network \(attachment.network) during cleanup: \(error)")
             }
         }
+
+        let status = exitStatus ?? ExitStatus(exitCode: 255)
+        let waiters = self.waiters[id] ?? []
+        for cc in waiters {
+            cc.resume(returning: status)
+        }
+        self.removeWaiters(for: id)
     }
 }
 
