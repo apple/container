@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -421,6 +421,50 @@ struct ParserTest {
         for name in names {
             #expect(!Parser.isValidDomainName(name))
         }
+    }
+
+    // MARK: - Environment Variable Tests
+
+    @Test
+    func testEnvExplicitValue() throws {
+        let result = Parser.env(envList: ["FOO=bar", "BAZ=qux"])
+        #expect(result == ["FOO=bar", "BAZ=qux"])
+    }
+
+    @Test
+    func testEnvImplicitInheritance() throws {
+        guard let homeValue = ProcessInfo.processInfo.environment["PATH"] else {
+            Issue.record("PATH environment variable not set")
+            return
+        }
+
+        let result = Parser.env(envList: ["PATH"])
+        #expect(result == ["PATH=\(homeValue)"])
+    }
+
+    @Test
+    func testEnvImplicitUndefinedVariable() throws {
+        // A variable that doesn't exist should be silently skipped
+        let result = Parser.env(envList: ["THIS_VAR_DEFINITELY_DOES_NOT_EXIST_12345"])
+        #expect(result.isEmpty)
+    }
+
+    @Test
+    func testEnvMixedExplicitAndImplicit() throws {
+        guard let homeValue = ProcessInfo.processInfo.environment["HOME"] else {
+            Issue.record("HOME environment variable not set")
+            return
+        }
+
+        let result = Parser.env(envList: ["FOO=bar", "HOME", "BAZ=qux"])
+        #expect(result == ["FOO=bar", "HOME=\(homeValue)", "BAZ=qux"])
+    }
+
+    @Test
+    func testEnvEmptyValue() throws {
+        // Explicit empty value should be preserved
+        let result = Parser.env(envList: ["EMPTY="])
+        #expect(result == ["EMPTY="])
     }
 
     private func tmpFileWithContent(_ content: String) throws -> URL {

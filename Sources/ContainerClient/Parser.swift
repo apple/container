@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -192,8 +192,9 @@ public struct Parser {
         var envVar: [String] = []
         for env in envList {
             var env = env
-            let parts = env.split(separator: "=", maxSplits: 2)
-            if parts.count == 1 {
+            // Only inherit from host if no "=" is present (e.g., "--env VAR")
+            // "VAR=" should set an explicit empty value, not inherit.
+            if !env.contains("=") {
                 guard let val = ProcessInfo.processInfo.environment[env] else {
                     continue
                 }

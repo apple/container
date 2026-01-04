@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ public struct Flags {
     public struct Process: ParsableArguments {
         public init() {}
 
-        @Option(name: .shortAndLong, help: "Set environment variables (format: key=value)")
+        @Option(name: .shortAndLong, help: "Set environment variables (key=value, or just key to inherit from host)")
         public var env: [String] = []
 
         @Option(
