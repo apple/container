@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -379,6 +379,61 @@ struct ParserTest {
                 return false
             }
             return error.description.contains("path") && error.description.contains("is not a directory")
+        }
+    }
+
+    @Test
+    func testVolumeRelativePath() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("test-volume-rel-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        let originalDir = FileManager.default.currentDirectoryPath
+        FileManager.default.changeCurrentDirectoryPath(tempDir.path)
+        defer {
+            FileManager.default.changeCurrentDirectoryPath(originalDir)
+        }
+
+        let result = try Parser.volume("./:/foo")
+
+        switch result {
+        case .filesystem(let fs):
+            let expectedPath = URL(filePath: ".").absoluteURL.path
+            // Normalize trailing slashes for comparison
+            #expect(fs.source.trimmingCharacters(in: CharacterSet(charactersIn: "/")) == expectedPath.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
+            #expect(fs.destination == "/foo")
+        case .volume:
+            #expect(Bool(false), "Expected filesystem mount, got volume")
+        }
+    }
+
+    @Test
+    func testVolumeRelativePathNested() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("test-volume-rel-nested-\(UUID().uuidString)")
+        let nestedDir = tempDir.appendingPathComponent("subdir")
+        try FileManager.default.createDirectory(at: nestedDir, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        let originalDir = FileManager.default.currentDirectoryPath
+        FileManager.default.changeCurrentDirectoryPath(tempDir.path)
+        defer {
+            FileManager.default.changeCurrentDirectoryPath(originalDir)
+        }
+
+        let result = try Parser.volume("./subdir:/foo")
+
+        switch result {
+        case .filesystem(let fs):
+            let expectedPath = URL(filePath: "./subdir").absoluteURL.path
+            // Normalize trailing slashes for comparison
+            #expect(fs.source.trimmingCharacters(in: CharacterSet(charactersIn: "/")) == expectedPath.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
+            #expect(fs.destination == "/foo")
+        case .volume:
+            #expect(Bool(false), "Expected filesystem mount, got volume")
         }
     }
 

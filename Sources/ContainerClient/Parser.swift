@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -486,8 +486,8 @@ public struct Parser {
             let src = String(parts[0])
             let dst = String(parts[1])
 
-            // Check if it's an absolute directory path first
-            guard src.hasPrefix("/") else {
+            // Check if it's a filesystem path
+            guard src.contains("/") else {
                 // Named volume - validate name syntax only
                 guard VolumeStorage.isValidVolumeName(src) else {
                     throw ContainerizationError(.invalidArgument, message: "invalid volume name '\(src)': must match \(VolumeStorage.volumeNamePattern)")
