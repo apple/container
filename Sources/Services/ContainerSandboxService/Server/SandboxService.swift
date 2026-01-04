@@ -849,7 +849,11 @@ public actor SandboxService {
             czConfig.sockets.append(socketConfig)
         }
 
-        czConfig.hostname = config.id
+        let containerId = config.id
+        czConfig.hostname =
+            containerId.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: true)
+            .first
+            .map { String($0) } ?? containerId
 
         if let dns = config.dns {
             czConfig.dns = DNS(
