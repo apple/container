@@ -14,6 +14,8 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import Foundation
+
 /// A snapshot of a container along with its configuration
 /// and any runtime state information.
 public struct ContainerSnapshot: Codable, Sendable {
@@ -23,14 +25,18 @@ public struct ContainerSnapshot: Codable, Sendable {
     public var status: RuntimeStatus
     /// Network interfaces attached to the sandbox that are provided to the container.
     public var networks: [Attachment]
+    /// When the container was started.
+    public var startedDate: Date?
 
     public init(
         configuration: ContainerConfiguration,
         status: RuntimeStatus,
-        networks: [Attachment]
+        networks: [Attachment],
+        startedDate: Date? = nil
     ) {
         self.configuration = configuration
         self.status = status
         self.networks = networks
+        self.startedDate = startedDate
     }
 }

@@ -43,16 +43,21 @@ public struct ClientContainer: Sendable, Codable {
     /// Network allocated to the container.
     public let networks: [Attachment]
 
+    /// When the container was started.
+    public let startedDate: Date?
+
     package init(configuration: ContainerConfiguration) {
         self.configuration = configuration
         self.status = .stopped
         self.networks = []
+        self.startedDate = nil
     }
 
     init(snapshot: ContainerSnapshot) {
         self.configuration = snapshot.configuration
         self.status = snapshot.status
         self.networks = snapshot.networks
+        self.startedDate = snapshot.startedDate
     }
 }
 

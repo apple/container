@@ -87,7 +87,8 @@ public actor ContainersService {
                     snapshot: .init(
                         configuration: config,
                         status: .stopped,
-                        networks: []
+                        networks: [],
+                        startedDate: nil
                     )
                 )
                 results[config.id] = state
@@ -249,7 +250,8 @@ public actor ContainersService {
                 let snapshot = ContainerSnapshot(
                     configuration: configuration,
                     status: .stopped,
-                    networks: []
+                    networks: [],
+                    startedDate: nil
                 )
                 await self.setContainerState(configuration.id, ContainerState(snapshot: snapshot), context: context)
             } catch {
@@ -371,6 +373,7 @@ public actor ContainersService {
                     let sandboxSnapshot = try await client.state()
                     state.snapshot.status = .running
                     state.snapshot.networks = sandboxSnapshot.networks
+                    state.snapshot.startedDate = Date()
                     await self.setContainerState(id, state, context: context)
                 }
             }

@@ -48,7 +48,7 @@ extension Application {
         }
 
         private func createHeader() -> [[String]] {
-            [["ID", "IMAGE", "OS", "ARCH", "STATE", "ADDR", "CPUS", "MEMORY"]]
+            [["ID", "IMAGE", "OS", "ARCH", "STATE", "ADDR", "CPUS", "MEMORY", "STARTED"]]
         }
 
         private func printContainers(containers: [ClientContainer], format: ListFormat) throws {
@@ -97,6 +97,7 @@ extension ClientContainer {
             self.networks.compactMap { $0.ipv4Address.description }.joined(separator: ","),
             "\(self.configuration.resources.cpus)",
             "\(self.configuration.resources.memoryInBytes / (1024 * 1024)) MB",
+            self.startedDate.map { ISO8601DateFormatter().string(from: $0) } ?? "",
         ]
     }
 }
@@ -105,10 +106,12 @@ struct PrintableContainer: Codable {
     let status: RuntimeStatus
     let configuration: ContainerConfiguration
     let networks: [Attachment]
+    let startedDate: Date?
 
     init(_ container: ClientContainer) {
         self.status = container.status
         self.configuration = container.configuration
         self.networks = container.networks
+        self.startedDate = container.startedDate
     }
 }
