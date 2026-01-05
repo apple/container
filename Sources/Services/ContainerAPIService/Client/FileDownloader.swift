@@ -19,6 +19,7 @@ import ContainerizationError
 import ContainerizationExtras
 import Foundation
 import TerminalProgress
+import NIOSSL
 
 public struct FileDownloader {
     public static func downloadFile(url: URL, to destination: URL, progressUpdate: ProgressUpdateHandler? = nil) async throws {
@@ -49,7 +50,7 @@ public struct FileDownloader {
                 }
             })
 
-        let client = FileDownloader.createClient(url: url)
+        let client = try FileDownloader.createClient(url: url)
         do {
             _ = try await client.execute(request: request, delegate: delegate).get()
         } catch {
@@ -59,7 +60,7 @@ public struct FileDownloader {
         try await client.shutdown()
     }
 
-    private static func createClient(url: URL) -> HTTPClient {
+    private static func createClient(url: URL) throws -> HTTPClient {
         var httpConfiguration = HTTPClient.Configuration()
         // for large file downloads we keep a generous connect timeout, and
         // no read timeout since download durations can vary
@@ -67,6 +68,8 @@ public struct FileDownloader {
             connect: .seconds(30),
             read: .none
         )
+
+        httpConfiguration.tlsConfiguration = try makeEnvironmentAwareTLSConfiguration()
         if let host = url.host {
             let proxyURL = ProxyUtils.proxyFromEnvironment(scheme: url.scheme, host: host)
             if let proxyURL, let proxyHost = proxyURL.host {
@@ -76,4 +79,20 @@ public struct FileDownloader {
 
         return HTTPClient(eventLoopGroupProvider: .singleton, configuration: httpConfiguration)
     }
+
+    private static func makeEnvironmentAwareTLSConfiguration() throws -> TLSConfiguration {
+    var tlsConfig = TLSConfiguration.makeClientConfiguration()
+
+    // Check standard SSL environment variables in priority order
+    let customCAPath = ProcessInfo.processInfo.environment["SSL_CERT_FILE"]
+        ?? ProcessInfo.processInfo.environment["CURL_CA_BUNDLE"]
+        ?? ProcessInfo.processInfo.environment["REQUESTS_CA_BUNDLE"]
+
+    if let caPath = customCAPath {
+        tlsConfig.trustRoots = .file(caPath)
+    }
+    // else: use .default
+
+    return tlsConfig
+}
 }
