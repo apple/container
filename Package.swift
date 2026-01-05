@@ -55,9 +55,7 @@ let package = Package(
         .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.20.1"),
         .package(url: "https://github.com/orlandos-nl/DNSClient.git", from: "2.4.1"),
         .package(url: "https://github.com/Bouke/DNS.git", from: "1.2.0"),
-        // FIXME: Rever the package URL to the main branch
-        .package(url: "https://github.com/sebimarkgraf/containerization.git", branch: "sm/add-ssl-custom-ca"),
-        .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.36.0"),
+        .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion)),
     ],
     targets: [
         .executableTarget(
