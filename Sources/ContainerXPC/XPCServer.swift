@@ -52,7 +52,7 @@ public struct XPCServer: Sendable {
 
     public func listen() async throws {
         let connections = AsyncStream<xpc_connection_t> { cont in
-            lock.withLock {
+            self.lock.withLock {
                 xpc_connection_set_event_handler(self.connection) { object in
                     switch xpc_get_type(object) {
                     case XPC_TYPE_CONNECTION:

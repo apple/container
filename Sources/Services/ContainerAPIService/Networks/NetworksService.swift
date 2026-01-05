@@ -95,7 +95,7 @@ public actor NetworksService {
                         "id": "\(configuration.id)",
                         "state": "\(networkState.state)",
                     ])
-                return
+                continue
             }
         }
     }
