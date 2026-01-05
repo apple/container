@@ -69,7 +69,7 @@ public struct FileDownloader {
             read: .none
         )
 
-        httpConfiguration.tlsConfiguration = try makeEnvironmentAwareTLSConfiguration()
+        httpConfiguration.tlsConfiguration = TLSUtils.makeEnvironmentAwareTLSConfiguration()
         if let host = url.host {
             let proxyURL = ProxyUtils.proxyFromEnvironment(scheme: url.scheme, host: host)
             if let proxyURL, let proxyHost = proxyURL.host {
@@ -80,19 +80,4 @@ public struct FileDownloader {
         return HTTPClient(eventLoopGroupProvider: .singleton, configuration: httpConfiguration)
     }
 
-    private static func makeEnvironmentAwareTLSConfiguration() throws -> TLSConfiguration {
-    var tlsConfig = TLSConfiguration.makeClientConfiguration()
-
-    // Check standard SSL environment variables in priority order
-    let customCAPath = ProcessInfo.processInfo.environment["SSL_CERT_FILE"]
-        ?? ProcessInfo.processInfo.environment["CURL_CA_BUNDLE"]
-        ?? ProcessInfo.processInfo.environment["REQUESTS_CA_BUNDLE"]
-
-    if let caPath = customCAPath {
-        tlsConfig.trustRoots = .file(caPath)
-    }
-    // else: use .default
-
-    return tlsConfig
-}
 }
