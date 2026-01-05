@@ -72,7 +72,7 @@ extension Application {
 
             var env = PluginLoader.filterEnvironment(
                 env: ProcessInfo.processInfo.environment,
-                    additionalAllowKeys: ["SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"],
+                additionalAllowKeys: ["SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"],
             )
             env[ApplicationRoot.environmentName] = appRoot.path(percentEncoded: false)
             env[InstallRoot.environmentName] = installRoot.path(percentEncoded: false)

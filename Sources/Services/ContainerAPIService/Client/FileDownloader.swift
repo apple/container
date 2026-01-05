@@ -18,8 +18,8 @@ import AsyncHTTPClient
 import ContainerizationError
 import ContainerizationExtras
 import Foundation
-import TerminalProgress
 import NIOSSL
+import TerminalProgress
 
 public struct FileDownloader {
     public static func downloadFile(url: URL, to destination: URL, progressUpdate: ProgressUpdateHandler? = nil) async throws {
@@ -79,5 +79,4 @@ public struct FileDownloader {
 
         return HTTPClient(eventLoopGroupProvider: .singleton, configuration: httpConfiguration)
     }
-
 }
