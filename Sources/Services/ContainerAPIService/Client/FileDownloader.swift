@@ -50,7 +50,7 @@ public struct FileDownloader {
                 }
             })
 
-        let client = try FileDownloader.createClient(url: url)
+        let client = FileDownloader.createClient(url: url)
         do {
             _ = try await client.execute(request: request, delegate: delegate).get()
         } catch {
@@ -60,7 +60,7 @@ public struct FileDownloader {
         try await client.shutdown()
     }
 
-    private static func createClient(url: URL) throws -> HTTPClient {
+    private static func createClient(url: URL) -> HTTPClient {
         var httpConfiguration = HTTPClient.Configuration()
         // for large file downloads we keep a generous connect timeout, and
         // no read timeout since download durations can vary
