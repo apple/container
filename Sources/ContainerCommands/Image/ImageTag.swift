@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
 
 extension Application {
     public struct ImageTag: AsyncParsableCommand {

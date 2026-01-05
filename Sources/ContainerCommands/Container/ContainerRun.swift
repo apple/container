@@ -15,7 +15,8 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
+import ContainerResource
 import Containerization
 import ContainerizationError
 import ContainerizationExtras

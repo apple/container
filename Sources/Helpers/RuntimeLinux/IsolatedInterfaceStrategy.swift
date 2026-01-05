@@ -14,7 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerNetworkService
+import ContainerResource
 import ContainerSandboxService
 import ContainerXPC
 import Containerization

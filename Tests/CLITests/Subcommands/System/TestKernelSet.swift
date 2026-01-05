@@ -14,7 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerClient
+import ContainerAPIClient
 import ContainerPersistence
 import ContainerizationArchive
 import Foundation
@@ -81,7 +81,7 @@ class TestCLIKernelSet: CLITest {
         try await withTempDir { tempDir in
             // manually download the tar file
             let localTarPath = tempDir.appending(path: remoteTar.lastPathComponent)
-            try await ContainerClient.FileDownloader.downloadFile(url: remoteTar, to: localTarPath)
+            try await ContainerAPIClient.FileDownloader.downloadFile(url: remoteTar, to: localTarPath)
 
             let extraArgs: [String] = [
                 "--tar",
@@ -113,7 +113,7 @@ class TestCLIKernelSet: CLITest {
         try await withTempDir { tempDir in
             // manually download the tar file
             let localTarPath = tempDir.appending(path: remoteTar.lastPathComponent)
-            try await ContainerClient.FileDownloader.downloadFile(url: remoteTar, to: localTarPath)
+            try await ContainerAPIClient.FileDownloader.downloadFile(url: remoteTar, to: localTarPath)
 
             // extract just the file we want
             let targetPath = tempDir.appending(path: URL(string: defaultBinaryPath)!.lastPathComponent)

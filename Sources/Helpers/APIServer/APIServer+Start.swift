@@ -15,10 +15,11 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerAPIClient
 import ContainerAPIService
-import ContainerClient
 import ContainerNetworkService
 import ContainerPlugin
+import ContainerResource
 import ContainerXPC
 import DNSServer
 import Foundation

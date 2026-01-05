@@ -15,7 +15,8 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
+import ContainerResource
 import ContainerizationError
 import ContainerizationExtras
 import Foundation
@@ -148,8 +149,8 @@ extension Application {
 
         private struct StatsSnapshot {
             let container: ClientContainer
-            let stats1: ContainerClient.ContainerStats
-            let stats2: ContainerClient.ContainerStats
+            let stats1: ContainerResource.ContainerStats
+            let stats2: ContainerResource.ContainerStats
         }
 
         private func collectStats(for containers: [ClientContainer]) async throws -> [StatsSnapshot] {

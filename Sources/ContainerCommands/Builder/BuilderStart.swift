@@ -15,10 +15,10 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerAPIClient
 import ContainerBuild
-import ContainerClient
-import ContainerNetworkService
 import ContainerPersistence
+import ContainerResource
 import Containerization
 import ContainerizationError
 import ContainerizationExtras
@@ -164,7 +164,7 @@ extension Application {
             ].compactMap { $0 }
 
             let id = "buildkit"
-            try ContainerClient.Utility.validEntityName(id)
+            try ContainerAPIClient.Utility.validEntityName(id)
 
             let image = try await ClientImage.fetch(
                 reference: builderImage,

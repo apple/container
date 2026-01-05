@@ -15,8 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
-import ContainerNetworkService
+import ContainerAPIClient
 import Foundation
 import SwiftProtobuf
 

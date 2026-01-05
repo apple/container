@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import AsyncHTTPClient
-import ContainerClient
+import ContainerAPIClient
 import ContainerizationExtras
 import ContainerizationOS
 import Foundation

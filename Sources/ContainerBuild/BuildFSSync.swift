@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import Collections
-import ContainerClient
+import ContainerAPIClient
 import ContainerizationArchive
 import ContainerizationOCI
 import Foundation

@@ -15,9 +15,10 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
 import ContainerLog
+import ContainerResource
 import ContainerSandboxService
+import ContainerSandboxServiceClient
 import ContainerXPC
 import Foundation
 import Logging

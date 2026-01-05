@@ -16,6 +16,8 @@
 
 import ArgumentParser
 import ContainerNetworkService
+import ContainerNetworkServiceClient
+import ContainerResource
 import ContainerXPC
 import ContainerizationExtras
 import Foundation
