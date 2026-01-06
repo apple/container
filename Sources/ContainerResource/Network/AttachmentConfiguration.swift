@@ -14,6 +14,8 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationExtras
+
 /// Configuration information for attaching a container network interface to a network.
 public struct AttachmentConfiguration: Codable, Sendable {
     /// The network ID associated with the attachment.
@@ -34,9 +36,9 @@ public struct AttachmentOptions: Codable, Sendable {
     public let hostname: String
 
     /// The MAC address associated with the attachment (optional).
-    public let macAddress: String?
+    public let macAddress: MACAddress?
 
-    public init(hostname: String, macAddress: String? = nil) {
+    public init(hostname: String, macAddress: MACAddress? = nil) {
         self.hostname = hostname
         self.macAddress = macAddress
     }

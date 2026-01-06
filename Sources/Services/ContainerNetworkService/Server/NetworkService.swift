@@ -26,6 +26,7 @@ public actor NetworkService: Sendable {
     private let network: any Network
     private let log: Logger?
     private var allocator: AttachmentAllocator
+    private var macAddresses: [UInt32: MACAddress]
 
     /// Set up a network service for the specified network.
     public init(
@@ -41,6 +42,7 @@ public actor NetworkService: Sendable {
 
         let size = Int(subnet.upper.value - subnet.lower.value - 3)
         self.allocator = try AttachmentAllocator(lower: subnet.lower.value + 2, size: size)
+        self.macAddresses = [:]
         self.network = network
         self.log = log
     }
@@ -61,16 +63,20 @@ public actor NetworkService: Sendable {
         }
 
         let hostname = try message.hostname()
-        let macAddress = try message.string(key: NetworkKeys.macAddress.rawValue)
+        let macAddress =
+            try message.string(key: NetworkKeys.macAddress.rawValue)
             .map { try MACAddress($0) }
+            ?? MACAddress((UInt64.random(in: 0...UInt64.max) & 0x0cff_ffff_ffff) | 0xf200_0000_0000)
         let index = try await allocator.allocate(hostname: hostname)
-        let subnet = status.ipv4Subnet
+        let ipv6Address = try status.ipv6Subnet
+            .map { try CIDRv6(macAddress.ipv6Address(network: $0.lower), prefix: $0.prefix) }
         let ip = IPv4Address(index)
         let attachment = Attachment(
             network: state.id,
             hostname: hostname,
-            ipv4Address: try CIDRv4(ip, prefix: subnet.prefix),
+            ipv4Address: try CIDRv4(ip, prefix: status.ipv4Subnet.prefix),
             ipv4Gateway: status.ipv4Gateway,
+            ipv6Address: ipv6Address,
             macAddress: macAddress
         )
         log?.info(
@@ -79,7 +85,8 @@ public actor NetworkService: Sendable {
                 "hostname": "\(hostname)",
                 "ipv4Address": "\(attachment.ipv4Address)",
                 "ipv4Gateway": "\(attachment.ipv4Gateway)",
-                "macAddress": "\(macAddress?.description ?? "unspecified")",
+                "ipv6Address": "\(attachment.ipv6Address?.description ?? "unavailable")",
+                "macAddress": "\(attachment.macAddress?.description ?? "unspecified")",
             ])
         let reply = message.reply()
         try reply.setAttachment(attachment)
@@ -88,13 +95,16 @@ public actor NetworkService: Sendable {
                 try reply.setAdditionalData(additionalData.underlying)
             }
         }
+        macAddresses[index] = macAddress
         return reply
     }
 
     @Sendable
     public func deallocate(_ message: XPCMessage) async throws -> XPCMessage {
         let hostname = try message.hostname()
-        try await allocator.deallocate(hostname: hostname)
+        if let index = try await allocator.deallocate(hostname: hostname) {
+            macAddresses.removeValue(forKey: index)
+        }
         log?.info("released attachments", metadata: ["hostname": "\(hostname)"])
         return message.reply()
     }
@@ -112,14 +122,21 @@ public actor NetworkService: Sendable {
         guard let index else {
             return reply
         }
-
+        guard let macAddress = macAddresses[index] else {
+            return reply
+        }
         let address = IPv4Address(index)
         let subnet = status.ipv4Subnet
+        let ipv4Address = try CIDRv4(address, prefix: subnet.prefix)
+        let ipv6Address = try status.ipv6Subnet
+            .map { try CIDRv6(macAddress.ipv6Address(network: $0.lower), prefix: $0.prefix) }
         let attachment = Attachment(
             network: state.id,
             hostname: hostname,
-            ipv4Address: try CIDRv4(address, prefix: subnet.prefix),
-            ipv4Gateway: status.ipv4Gateway
+            ipv4Address: ipv4Address,
+            ipv4Gateway: status.ipv4Gateway,
+            ipv6Address: ipv6Address,
+            macAddress: macAddress
         )
         log?.debug(
             "lookup attachment",

@@ -31,11 +31,19 @@ extension Application {
         @Option(name: .customLong("label"), help: "Set metadata for a network")
         var labels: [String] = []
 
-        @Option(name: .customLong("subnet"), help: "Set subnet for a network")
-        var ipv4Subnet: String? = nil
+        @Option(
+            name: .customLong("subnet"), help: "Set subnet for a network",
+            transform: {
+                try CIDRv4($0)
+            })
+        var ipv4Subnet: CIDRv4? = nil
 
-        @Option(name: .customLong("subnet-v6"), help: "Set the IPv6 prefix for a network")
-        var ipv6Subnet: String? = nil
+        @Option(
+            name: .customLong("subnet-v6"), help: "Set the IPv6 prefix for a network",
+            transform: {
+                try CIDRv6($0)
+            })
+        var ipv6Subnet: CIDRv6? = nil
 
         @OptionGroup
         var global: Flags.Global
@@ -47,9 +55,13 @@ extension Application {
 
         public func run() async throws {
             let parsedLabels = Utility.parseKeyValuePairs(labels)
-            let ipv4Subnet = try ipv4Subnet.map { try CIDRv4($0) }
-            let ipv6Subnet = try ipv6Subnet.map { try CIDRv6($0) }
-            let config = try NetworkConfiguration(id: self.name, mode: .nat, ipv4Subnet: ipv4Subnet, ipv6Subnet: ipv6Subnet, labels: parsedLabels)
+            let config = try NetworkConfiguration(
+                id: self.name,
+                mode: .nat,
+                ipv4Subnet: ipv4Subnet,
+                ipv6Subnet: ipv6Subnet,
+                labels: parsedLabels
+            )
             let state = try await ClientNetwork.create(configuration: config)
             print(state.id)
         }

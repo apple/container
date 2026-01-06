@@ -91,6 +91,7 @@ let package = Package(
                 "ContainerBuild",
                 "ContainerAPIClient",
                 "ContainerLog",
+                "ContainerNetworkService",
                 "ContainerPersistence",
                 "ContainerPlugin",
                 "ContainerResource",
@@ -262,6 +263,14 @@ let package = Package(
                 "ContainerXPC",
             ],
             path: "Sources/Services/ContainerNetworkService/Server"
+        ),
+        .testTarget(
+            name: "ContainerNetworkServiceTests",
+            dependencies: [
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                "ContainerNetworkService",
+            ]
         ),
         .target(
             name: "ContainerNetworkServiceClient",

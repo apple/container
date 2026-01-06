@@ -26,22 +26,25 @@ public struct Attachment: Codable, Sendable {
     public let ipv4Address: CIDRv4
     /// The IPv4 gateway address.
     public let ipv4Gateway: IPv4Address
+    /// The CIDR address describing the interface IPv6 address, with the prefix length of the subnet.
+    /// The address is nil if the IPv6 subnet could not be determined at network creation time.
+    public let ipv6Address: CIDRv6?
     /// The MAC address associated with the attachment (optional).
     public let macAddress: MACAddress?
 
-    public init(network: String, hostname: String, ipv4Address: CIDRv4, ipv4Gateway: IPv4Address, macAddress: MACAddress? = nil) {
+    public init(
+        network: String,
+        hostname: String,
+        ipv4Address: CIDRv4,
+        ipv4Gateway: IPv4Address,
+        ipv6Address: CIDRv6?,
+        macAddress: MACAddress?
+    ) {
         self.network = network
         self.hostname = hostname
         self.ipv4Address = ipv4Address
         self.ipv4Gateway = ipv4Gateway
+        self.ipv6Address = ipv6Address
         self.macAddress = macAddress
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case network
-        case hostname
-        case ipv4Address
-        case ipv4Gateway
-        case macAddress
     }
 }

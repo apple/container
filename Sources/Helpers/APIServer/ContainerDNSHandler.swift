@@ -35,11 +35,12 @@ struct ContainerDNSHandler: DNSHandler {
         case ResourceRecordType.host:
             record = try await answerHost(question: question)
         case ResourceRecordType.host6:
-            // Return NODATA (noError with empty answers) for AAAA queries ONLY if A record exists.
-            // This is required because musl libc has issues when A record exists but AAAA returns NXDOMAIN.
-            // musl treats NXDOMAIN on AAAA as "domain doesn't exist" and fails DNS resolution entirely.
-            // NODATA correctly indicates "no IPv6 address available, but domain exists".
-            if try await networkService.lookup(hostname: question.name) != nil {
+            let result = try await answerHost6(question: question)
+            if result.record == nil && result.hostnameExists {
+                // Return NODATA (noError with empty answers) when hostname exists but has no IPv6.
+                // This is required because musl libc has issues when A record exists but AAAA returns NXDOMAIN.
+                // musl treats NXDOMAIN on AAAA as "domain doesn't exist" and fails DNS resolution entirely.
+                // NODATA correctly indicates "no IPv6 address available, but domain exists".
                 return Message(
                     id: query.id,
                     type: .response,
@@ -48,8 +49,7 @@ struct ContainerDNSHandler: DNSHandler {
                     answers: []
                 )
             }
-            // If hostname doesn't exist, return nil which will become NXDOMAIN
-            return nil
+            record = result.record
         case ResourceRecordType.nameServer,
             ResourceRecordType.alias,
             ResourceRecordType.startOfAuthority,
@@ -100,5 +100,20 @@ struct ContainerDNSHandler: DNSHandler {
         }
 
         return HostRecord<IPv4>(name: question.name, ttl: ttl, ip: ip)
+    }
+
+    private func answerHost6(question: Question) async throws -> (record: ResourceRecord?, hostnameExists: Bool) {
+        guard let ipAllocation = try await networkService.lookup(hostname: question.name) else {
+            return (nil, false)
+        }
+        guard let ipv6Address = ipAllocation.ipv6Address else {
+            return (nil, true)
+        }
+        let ipv6 = ipv6Address.address.description
+        guard let ip = IPv6(ipv6) else {
+            throw DNSResolverError.serverError("failed to parse IPv6 address: \(ipv6)")
+        }
+
+        return (HostRecord<IPv6>(name: question.name, ttl: ttl, ip: ip), true)
     }
 }

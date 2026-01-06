@@ -207,7 +207,7 @@ Use the `mac` option to specify a custom MAC address for your container's networ
 - Network testing scenarios requiring predictable MAC addresses
 - Consistent network configuration across container restarts
 
-The MAC address must be in the format `XX:XX:XX:XX:XX:XX` (with colons or hyphens as separators):
+The MAC address must be in the format `XX:XX:XX:XX:XX:XX` (with colons or hyphens as separators). Set the two least significant bits of the first octet to `10` (locally signed, unicast address). 
 
 ```bash
 container run --network default,mac=02:42:ac:11:00:02 ubuntu:latest
@@ -223,7 +223,7 @@ To verify the MAC address is set correctly, run `ip addr show` inside the contai
        valid_lft forever preferred_lft forever
 ```
 
-If you don't specify a MAC address, the system will auto-generate one for you.
+If you don't specify a MAC address, `container` will generate one for you. The generated address has a first nibble set to hexadecimal `f` (`fX:XX:XX:XX:XX:XX`) in case you want to minimize the very small chance of conflict between your MAC address and generated addresses. 
 
 ## Mount your host SSH authentication socket in your container
 

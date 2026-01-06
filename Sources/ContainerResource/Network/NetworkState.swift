@@ -27,6 +27,7 @@ public struct NetworkStatus: Codable, Sendable {
 
     /// The address allocated for the IPv6 network if no subnet was specified at
     /// creation time; otherwise, the IPv6 subnet from the configuration.
+    /// The value is nil if the IPv6 subnet cannot be determined at creation time.
     public let ipv6Subnet: CIDRv6?
 
     public init(

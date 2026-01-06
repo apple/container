@@ -42,10 +42,14 @@ actor AttachmentAllocator {
     }
 
     /// Free an allocated network address by hostname.
-    func deallocate(hostname: String) async throws {
-        if let index = hostnames.removeValue(forKey: hostname) {
-            try allocator.release(index)
+    @discardableResult
+    func deallocate(hostname: String) async throws -> UInt32? {
+        guard let index = hostnames.removeValue(forKey: hostname) else {
+            return nil
         }
+
+        try allocator.release(index)
+        return index
     }
 
     /// If no addresses are allocated, prevent future allocations and return true.
