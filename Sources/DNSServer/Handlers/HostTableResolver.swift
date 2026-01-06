@@ -14,10 +14,10 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import DNS
+@preconcurrency import DNS
 
 /// Handler that uses table lookup to resolve hostnames.
-public struct HostTableResolver: DNSHandler {
+public struct HostTableResolver: DNSHandler, @unchecked Sendable {
     public let hosts4: [String: IPv4]
     private let ttl: UInt32
 

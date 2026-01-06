@@ -75,6 +75,23 @@ extension APIServer {
                     routes: &routes
                 )
 
+                // Set up DNS server manager with dynamic binding support
+                let hostsResolver = ContainerDNSHandler(networkService: networkService)
+                let nxDomainResolver = NxDomainResolver()
+                let compositeResolver = CompositeResolver(handlers: [hostsResolver, nxDomainResolver])
+                let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
+                let dnsManager = DNSServerManager(handler: hostsQueryValidator, port: Self.dnsPort, log: log)
+
+                // Connect NetworksService to DNS manager for dynamic binding
+                let dnsBindingAdapter = DNSBindingAdapter(dnsManager: dnsManager, log: log)
+                await networkService.setDNSDelegate(dnsBindingAdapter)
+
+                // Start listening on localhost for /etc/resolver lookups
+                try await dnsManager.addListener(host: Self.listenAddress)
+
+                // Bind to gateway IPs of any networks that started during init
+                await networkService.notifyDNSDelegateOfRunningNetworks()
+
                 let server = XPCServer(
                     identifier: "com.apple.container.apiserver",
                     routes: routes.reduce(
@@ -88,21 +105,8 @@ extension APIServer {
                         log.info("starting XPC server")
                         try await server.listen()
                     }
-                    // start up host table DNS
                     group.addTask {
-                        let hostsResolver = ContainerDNSHandler(networkService: networkService)
-                        let nxDomainResolver = NxDomainResolver()
-                        let compositeResolver = CompositeResolver(handlers: [hostsResolver, nxDomainResolver])
-                        let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
-                        let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
-                        log.info(
-                            "starting DNS host query resolver",
-                            metadata: [
-                                "host": "\(Self.listenAddress)",
-                                "port": "\(Self.dnsPort)",
-                            ]
-                        )
-                        try await dnsServer.run(host: Self.listenAddress, port: Self.dnsPort)
+                        await dnsManager.waitForAll()
                     }
                 }
             } catch {

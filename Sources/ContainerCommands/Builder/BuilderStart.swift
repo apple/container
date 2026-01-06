@@ -44,6 +44,9 @@ extension Application {
         )
         var memory: String = "2048MB"
 
+        @Flag(name: .long, help: "Force DNS queries to use TCP instead of UDP")
+        var dnsTcp: Bool = false
+
         @OptionGroup
         var global: Flags.Global
 
@@ -60,11 +63,11 @@ extension Application {
                 progress.finish()
             }
             progress.start()
-            try await Self.start(cpus: self.cpus, memory: self.memory, progressUpdate: progress.handler)
+            try await Self.start(cpus: self.cpus, memory: self.memory, dnsTcp: self.dnsTcp, progressUpdate: progress.handler)
             progress.finish()
         }
 
-        static func start(cpus: Int64?, memory: String?, progressUpdate: @escaping ProgressUpdateHandler) async throws {
+        static func start(cpus: Int64?, memory: String?, dnsTcp: Bool = false, progressUpdate: @escaping ProgressUpdateHandler) async throws {
             await progressUpdate([
                 .setDescription("Fetching BuildKit image"),
                 .setItemsName("blobs"),
@@ -97,6 +100,12 @@ extension Application {
             }
             targetEnvVars.sort()
 
+            let network = try await ClientNetwork.get(id: ClientNetwork.defaultNetworkName)
+            guard case .running(_, let networkStatus) = network else {
+                throw ContainerizationError(.invalidState, message: "default network is not running")
+            }
+            let gatewayNameserver = IPv4Address(networkStatus.ipv4Subnet.lower.value + 1).description
+
             let existingContainer = try? await ClientContainer.get(id: "buildkit")
             if let existingContainer {
                 let existingImage = existingContainer.configuration.image.reference
@@ -109,7 +118,6 @@ extension Application {
 
                 let envChanged = existingManagedEnv != targetEnvVars
 
-                // Check if we need to recreate the builder due to different image
                 let imageChanged = existingImage != builderImage
                 let cpuChanged = {
                     if let cpus {
@@ -129,19 +137,19 @@ extension Application {
                     return false
                 }()
 
+                let existingNameserver = existingContainer.configuration.dns?.nameservers.first
+                let existingTcpEnabled = existingContainer.configuration.dns?.options.contains("use-vc") ?? false
+                let dnsChanged = existingNameserver != gatewayNameserver || existingTcpEnabled != dnsTcp
+
                 switch existingContainer.status {
                 case .running:
-                    guard imageChanged || cpuChanged || memChanged || envChanged else {
-                        // If image, mem and cpu are the same, continue using the existing builder
+                    guard imageChanged || cpuChanged || memChanged || envChanged || dnsChanged else {
                         return
                     }
-                    // If they changed, stop and delete the existing builder
                     try await existingContainer.stop()
                     try await existingContainer.delete()
                 case .stopped:
-                    // If the builder is stopped and matches our requirements, start it
-                    // Otherwise, delete it and create a new one
-                    guard imageChanged || cpuChanged || memChanged || envChanged else {
+                    guard imageChanged || cpuChanged || memChanged || envChanged || dnsChanged else {
                         try await existingContainer.startBuildKit(progressUpdate, nil)
                         return
                     }
@@ -225,15 +233,14 @@ extension Application {
             // Enable Rosetta only if the user didn't ask to disable it
             config.rosetta = useRosetta
 
-            let network = try await ClientNetwork.get(id: ClientNetwork.defaultNetworkName)
-            guard case .running(_, let networkStatus) = network else {
-                throw ContainerizationError(.invalidState, message: "default network is not running")
-            }
             config.networks = [AttachmentConfiguration(network: network.id, options: AttachmentOptions(hostname: id))]
-            let subnet = networkStatus.ipv4Subnet
-            let nameserver = IPv4Address(subnet.lower.value + 1).description
-            let nameservers = [nameserver]
-            config.dns = ContainerConfiguration.DNSConfiguration(nameservers: nameservers)
+            let dnsOptions = dnsTcp ? ["use-vc"] : []
+            let hostSearchDomains = HostDNSResolver.getHostSearchDomains()
+            config.dns = ContainerConfiguration.DNSConfiguration(
+                nameservers: [gatewayNameserver],
+                searchDomains: hostSearchDomains,
+                options: dnsOptions
+            )
 
             let kernel = try await {
                 await progressUpdate([
