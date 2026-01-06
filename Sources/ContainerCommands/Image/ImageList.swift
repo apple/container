@@ -41,11 +41,11 @@ extension Application {
 
     struct ListImageImplementation {
         static func createHeader() -> [[String]] {
-            [["NAME", "TAG", "DIGEST"]]
+            [["NAME", "TAG", "INDEX PREFIX"]]
         }
 
         static func createVerboseHeader() -> [[String]] {
-            [["NAME", "TAG", "INDEX DIGEST", "OS", "ARCH", "VARIANT", "SIZE", "CREATED", "MANIFEST DIGEST"]]
+            [["NAME", "TAG", "INDEX PREFIX", "OS", "ARCH", "VARIANT", "SIZE", "CREATED", "MANIFEST PREFIX"]]
         }
 
         static func printImagesVerbose(images: [ClientImage]) async throws {
@@ -88,13 +88,13 @@ extension Application {
                     let row = [
                         reference.name,
                         reference.tag ?? "<none>",
-                        Utility.trimDigest(digest: imageDigest),
+                        String(Utility.trimDigest(digest: imageDigest).dropLast(3)),
                         os,
                         arch,
                         variant,
                         formattedSize,
                         created,
-                        Utility.trimDigest(digest: descriptor.digest),
+                        String(Utility.trimDigest(digest: descriptor.digest).dropLast(3)),
                     ]
                     rows.append(row)
                 }
@@ -137,7 +137,7 @@ extension Application {
                 rows.append([
                     reference.name,
                     reference.tag ?? "<none>",
-                    Utility.trimDigest(digest: digest),
+                    String(Utility.trimDigest(digest: digest).dropLast(3)),
                 ])
             }
             let formatter = TableOutput(rows: rows)

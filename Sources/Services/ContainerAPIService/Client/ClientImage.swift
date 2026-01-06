@@ -174,11 +174,17 @@ extension ClientImage {
         var found: [ClientImage] = []
         for name in names {
             do {
-                guard let img = try Self._search(reference: name, in: all) else {
-                    errors.append(name)
+                // Try normal search
+                if let img = try Self._search(reference: name, in: all) {
+                    found.append(img)
                     continue
                 }
-                found.append(img)
+
+                // Try prefix search
+                if let img = try Self._searchByPrefix(reference: name, in: all) {
+                    found.append(img)
+                    continue
+                }
             } catch {
                 errors.append(name)
             }
@@ -188,10 +194,18 @@ extension ClientImage {
 
     public static func get(reference: String) async throws -> ClientImage {
         let all = try await self.list()
-        guard let found = try self._search(reference: reference, in: all) else {
-            throw ContainerizationError(.notFound, message: "image with reference \(reference)")
+
+        // Try normal search first
+        if let found = try self._search(reference: reference, in: all) {
+            return found
         }
-        return found
+
+        // Try prefix search
+        if let found = try self._searchByPrefix(reference: reference, in: all) {
+            return found
+        }
+        
+        throw ContainerizationError(.notFound, message: "image with reference \(reference)")
     }
 
     private static func _search(reference: String, in all: [ClientImage]) throws -> ClientImage? {
@@ -219,6 +233,29 @@ extension ClientImage {
         return all.first(where: { image in
             image.reference == reference || image.reference == normalizedReference
         })
+    }
+
+    public static func _searchByPrefix(reference: String, in all: [ClientImage]) throws -> ClientImage? {
+        // Collect all prefix matches
+        let prefixMatches = all.filter { image in
+            let trimmedDigest = Utility.trimDigest(digest: image.digest)
+            return trimmedDigest.hasPrefix(reference)
+        }
+
+        switch prefixMatches.count {
+        case 0:
+            throw ContainerizationError(
+                .notFound,
+                message: "no image found with digest prefix \"\(reference)\""
+            )
+        case 1:
+            return prefixMatches[0]
+        default:
+            throw ContainerizationError(
+                .notFound,
+                message: "ambiguous digest prefix \"\(reference)\" matches multiple images"
+            )
+        }
     }
 
     public static func pull(
