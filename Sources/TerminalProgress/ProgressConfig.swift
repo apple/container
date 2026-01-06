@@ -18,6 +18,17 @@ import Foundation
 
 /// A configuration for displaying a progress bar.
 public struct ProgressConfig: Sendable {
+    /// The output mode for progress display.
+    public enum OutputMode: Sendable {
+        /// No progress output.
+        case none
+        /// ANSI control sequences without color (default).
+        case ansi
+        /// Plain text output, one line per update.
+        case plain
+        /// ANSI control sequences with color.
+        case color
+    }
     /// The file handle for progress updates.
     let terminal: FileHandle
     /// The initial description of the progress bar.
@@ -63,8 +74,8 @@ public struct ProgressConfig: Sendable {
     public let theme: ProgressTheme
     /// The flag indicating whether to clear the progress bar before resetting the cursor.
     public let clearOnFinish: Bool
-    /// The flag indicating whether to update the progress bar.
-    public let disableProgressUpdates: Bool
+    /// The output mode for progress display.
+    public let outputMode: OutputMode
     /// Creates a new instance of `ProgressConfig`.
     /// - Parameters:
     ///   - terminal: The file handle for progress updates. The default value is `FileHandle.standardError`.
@@ -87,7 +98,7 @@ public struct ProgressConfig: Sendable {
     ///   - width: The width of the progress bar in characters. The default value is `120`.
     ///   - theme: The theme of the progress bar. The default value is `nil`.
     ///   - clearOnFinish: The flag indicating whether to clear the progress bar before resetting the cursor. The default is `true`.
-    ///   - disableProgressUpdates: The flag indicating whether to update the progress bar. The default is `false`.
+    ///   - outputMode: The output mode for progress display. The default value is `.ansi`.
     public init(
         terminal: FileHandle = .standardError,
         description: String = "",
@@ -109,7 +120,7 @@ public struct ProgressConfig: Sendable {
         width: Int = 120,
         theme: ProgressTheme? = nil,
         clearOnFinish: Bool = true,
-        disableProgressUpdates: Bool = false
+        outputMode: OutputMode = .ansi
     ) throws {
         if let totalTasks {
             guard totalTasks > 0 else {
@@ -132,11 +143,11 @@ public struct ProgressConfig: Sendable {
         self.initialSubDescription = subDescription
         self.initialItemsName = itemsName
 
-        self.showSpinner = showSpinner
+        self.showSpinner = (outputMode == .plain || outputMode == .none) ? false : showSpinner
         self.showTasks = showTasks
         self.showDescription = showDescription
         self.showPercent = showPercent
-        self.showProgressBar = showProgressBar
+        self.showProgressBar = (outputMode == .plain || outputMode == .none) ? false : showProgressBar
         self.showItems = showItems
         self.showSize = showSize
         self.showSpeed = showSpeed
@@ -150,7 +161,7 @@ public struct ProgressConfig: Sendable {
         self.width = width
         self.theme = theme ?? DefaultProgressTheme()
         self.clearOnFinish = clearOnFinish
-        self.disableProgressUpdates = disableProgressUpdates
+        self.outputMode = outputMode
     }
 }
 
