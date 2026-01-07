@@ -1,0 +1,55 @@
+name: PR Label Apply
+
+on:
+  workflow_run:
+    workflows: ["PR Label Analysis"]
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+jobs:
+  apply-labels:
+    name: Apply labels to PR
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: read
+      pull-requests: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - name: Download PR metadata artifact
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+          pattern: pr-metadata-*
+          merge-multiple: false
+        continue-on-error: true
+        id: download-artifact
+      
+      - name: Read PR number
+        id: pr-number
+        run: |
+          METADATA_DIR=$(find . -type d -name "pr-metadata-*" 2>/dev/null | head -n 1)
+          
+          if [ -z "$METADATA_DIR" ]; then
+            echo "No metadata found"
+            exit 1
+          fi
+          
+          PR_NUMBER=$(cat "${METADATA_DIR}/pr-number.txt")
+          echo "number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+          echo "PR Number: ${PR_NUMBER}"
+      
+      - name: Apply labels using labeler
+        uses: actions/labeler@634933edcd8ababfe52f92936142cc22ac488b1b # v6
+        with:
+          pr-number: ${{ steps.pr-number.outputs.number }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler.yml
+          sync-labels: true

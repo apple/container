@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
 import Containerization
 import ContainerizationError
 import ContainerizationOCI
@@ -146,11 +146,11 @@ extension Application {
 
         static func validate(options: ListImageOptions) throws {
             if options.quiet && options.verbose {
-                throw ContainerizationError(.invalidArgument, message: "cannot use flag --quite and --verbose together")
+                throw ContainerizationError(.invalidArgument, message: "cannot use flag --quiet and --verbose together")
             }
             let modifier = options.quiet || options.verbose
             if modifier && options.format == .json {
-                throw ContainerizationError(.invalidArgument, message: "cannot use flag --quite or --verbose along with --format json")
+                throw ContainerizationError(.invalidArgument, message: "cannot use flag --quiet or --verbose along with --format json")
             }
         }
 

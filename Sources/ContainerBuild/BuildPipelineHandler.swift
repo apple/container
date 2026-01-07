@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ public actor BuildPipeline {
             [
                 try BuildFSSync(URL(filePath: config.contextDir)),
                 try BuildRemoteContentProxy(config.contentStore),
-                try BuildImageResolver(config.contentStore),
+                try BuildImageResolver(config.contentStore, quiet: config.quiet, output: config.terminal?.handle ?? FileHandle.standardError),
                 try BuildStdio(quiet: config.quiet, output: config.terminal?.handle ?? FileHandle.standardError),
             ]
     }
@@ -105,7 +105,7 @@ public actor BuildPipeline {
             throw NSError(
                 domain: "untilFirstError",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Failed to initialize task continuation"])
+                userInfo: [NSLocalizedDescriptionKey: "failed to initialize task continuation"])
         }
         defer { taskContinuation.finish() }
         let stream = AsyncStream<Error> { continuation in

@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,18 +14,23 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerClient
+import ContainerAPIClient
 import Containerization
 import ContainerizationOCI
 import Foundation
 import GRPC
 import Logging
+import TerminalProgress
 
 struct BuildImageResolver: BuildPipelineHandler {
     let contentStore: ContentStore
+    let quiet: Bool
+    let output: FileHandle
 
-    public init(_ contentStore: ContentStore) throws {
+    public init(_ contentStore: ContentStore, quiet: Bool = false, output: FileHandle = FileHandle.standardError) throws {
         self.contentStore = contentStore
+        self.quiet = quiet
+        self.output = output
     }
 
     func accept(_ packet: ServerStream) throws -> Bool {
@@ -54,10 +59,21 @@ struct BuildImageResolver: BuildPipelineHandler {
         }
 
         let img = try await {
-            guard let img = try? await ClientImage.pull(reference: ref, platform: platform) else {
-                return try await ClientImage.fetch(reference: ref, platform: platform)
-            }
-            return img
+            let progressConfig = try ProgressConfig(
+                terminal: self.output,
+                description: "Pulling \(ref)",
+                showPercent: true,
+                showProgressBar: true,
+                showSize: true,
+                showSpeed: true,
+                disableProgressUpdates: self.quiet
+            )
+            let progress = ProgressBar(config: progressConfig)
+            defer { progress.finish() }
+            progress.start()
+
+            // Use fetch() which checks cache first, then pulls if needed
+            return try await ClientImage.fetch(reference: ref, platform: platform, progressUpdate: progress.handler)
         }()
 
         let index: Index = try await img.index()

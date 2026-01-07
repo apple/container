@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,14 +15,14 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
 import Foundation
 
 extension Application.VolumeCommand {
     public struct VolumeCreate: AsyncParsableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "create",
-            abstract: "Create a volume"
+            abstract: "Create a new volume"
         )
 
         @Option(name: .customLong("label"), help: "Set metadata for a volume")

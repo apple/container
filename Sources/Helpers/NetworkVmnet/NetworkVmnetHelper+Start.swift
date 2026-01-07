@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 import ArgumentParser
 import ContainerNetworkService
+import ContainerNetworkServiceClient
+import ContainerResource
 import ContainerXPC
 import ContainerizationExtras
 import Foundation
@@ -37,8 +39,11 @@ extension NetworkVmnetHelper {
         @Option(name: .shortAndLong, help: "Network identifier")
         var id: String
 
-        @Option(name: .shortAndLong, help: "CIDR address for the subnet")
-        var subnet: String?
+        @Option(name: .customLong("subnet"), help: "CIDR address for the IPv4 subnet")
+        var ipv4Subnet: String?
+
+        @Option(name: .customLong("subnet-v6"), help: "CIDR address for the IPv6 prefix")
+        var ipv6Subnet: String?
 
         func run() async throws {
             let commandName = NetworkVmnetHelper._commandName
@@ -50,8 +55,14 @@ extension NetworkVmnetHelper {
 
             do {
                 log.info("configuring XPC server")
-                let subnet = try self.subnet.map { try CIDRAddress($0) }
-                let configuration = try NetworkConfiguration(id: id, mode: .nat, subnet: subnet?.description)
+                let ipv4Subnet = try self.ipv4Subnet.map { try CIDRv4($0) }
+                let ipv6Subnet = try self.ipv6Subnet.map { try CIDRv6($0) }
+                let configuration = try NetworkConfiguration(
+                    id: id,
+                    mode: .nat,
+                    ipv4Subnet: ipv4Subnet,
+                    ipv6Subnet: ipv6Subnet,
+                )
                 let network = try Self.createNetwork(configuration: configuration, log: log)
                 try await network.start()
                 let server = try await NetworkService(network: network, log: log)

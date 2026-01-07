@@ -1,0 +1,5 @@
+cli:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Sources/CLI/**'
+      - 'Sources/ContainerCommands/**'

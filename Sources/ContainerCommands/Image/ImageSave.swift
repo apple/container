@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,8 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
+import ContainerResource
 import Containerization
 import ContainerizationError
 import ContainerizationOCI
@@ -27,11 +28,11 @@ extension Application {
         public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "save",
-            abstract: "Save an image as an OCI compatible tar archive"
+            abstract: "Save one or more images as an OCI compatible tar archive"
         )
 
         @Option(
-            name: [.customLong("arch"), .customShort("a")],
+            name: .shortAndLong,
             help: "Architecture for the saved image"
         )
         var arch: String?
@@ -46,7 +47,7 @@ extension Application {
             transform: { str in
                 URL(fileURLWithPath: str, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false)
             })
-        var output: String
+        var output: String?
 
         @Option(
             help: "Platform for the saved image (format: os/arch[/variant], takes precedence over --os and --arch)"
@@ -88,9 +89,35 @@ extension Application {
 
             guard images.count == references.count else {
                 throw ContainerizationError(.invalidArgument, message: "failed to save image(s)")
-
             }
-            try await ClientImage.save(references: references, out: output, platform: p)
+
+            // Write to stdout; otherwise write to the output file
+            if output == nil {
+                let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).tar")
+                defer {
+                    try? FileManager.default.removeItem(at: tempFile)
+                }
+
+                guard FileManager.default.createFile(atPath: tempFile.path(), contents: nil) else {
+                    throw ContainerizationError(.internalError, message: "unable to create temporary file")
+                }
+
+                try await ClientImage.save(references: references, out: tempFile.path(), platform: p)
+
+                guard let fileHandle = try? FileHandle(forReadingFrom: tempFile) else {
+                    throw ContainerizationError(.internalError, message: "unable to open temporary file for reading")
+                }
+
+                let bufferSize = 4096
+                while true {
+                    let chunk = fileHandle.readData(ofLength: bufferSize)
+                    if chunk.isEmpty { break }
+                    FileHandle.standardOutput.write(chunk)
+                }
+                try fileHandle.close()
+            } else {
+                try await ClientImage.save(references: references, out: output!, platform: p)
+            }
 
             progress.finish()
             for reference in references {

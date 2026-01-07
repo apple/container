@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
 import ContainerizationError
 import ContainerizationExtras
 import Foundation
@@ -94,7 +94,7 @@ extension ClientContainer {
             self.id,
             self.configuration.image.reference,
             self.status.rawValue,
-            self.networks.compactMap { try? CIDRAddress($0.address).address.description }.joined(separator: ","),
+            self.networks.compactMap { $0.ipv4Address.description }.joined(separator: ","),
             "\(self.configuration.resources.cpus)",
             "\(self.configuration.resources.memoryInBytes / (1024 * 1024)) MB",
         ]

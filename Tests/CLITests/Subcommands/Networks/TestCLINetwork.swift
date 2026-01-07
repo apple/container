@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import AsyncHTTPClient
-import ContainerClient
+import ContainerAPIClient
 import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOS
@@ -61,7 +61,7 @@ class TestCLINetwork: CLITest {
 
             let container = try inspectContainer(name)
             #expect(container.networks.count > 0)
-            let cidrAddress = try CIDRAddress(container.networks[0].address)
+            let cidrAddress = container.networks[0].ipv4Address
             let url = "http://\(cidrAddress.address):\(port)"
             var request = HTTPClientRequest(url: url)
             request.method = .GET

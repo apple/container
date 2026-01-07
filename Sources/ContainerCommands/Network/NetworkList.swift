@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,8 +15,8 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
-import ContainerNetworkService
+import ContainerAPIClient
+import ContainerResource
 import ContainerizationExtras
 import Foundation
 import SwiftProtobuf
@@ -83,7 +83,7 @@ extension NetworkState {
         case .created(_):
             return [self.id, self.state, "none"]
         case .running(_, let status):
-            return [self.id, self.state, status.address]
+            return [self.id, self.state, status.ipv4Subnet.description]
         }
     }
 }

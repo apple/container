@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,10 +15,11 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerAPIClient
 import ContainerAPIService
-import ContainerClient
 import ContainerNetworkService
 import ContainerPlugin
+import ContainerResource
 import ContainerXPC
 import DNSServer
 import Foundation
@@ -67,7 +68,13 @@ extension APIServer {
                 )
                 initializeHealthCheckService(log: log, routes: &routes)
                 try initializeKernelService(log: log, routes: &routes)
-                try initializeVolumeService(containersService: containersService, log: log, routes: &routes)
+                let volumesService = try initializeVolumeService(containersService: containersService, log: log, routes: &routes)
+                try initializeDiskUsageService(
+                    containersService: containersService,
+                    volumesService: volumesService,
+                    log: log,
+                    routes: &routes
+                )
 
                 let server = XPCServer(
                     identifier: "com.apple.container.apiserver",
@@ -213,6 +220,7 @@ extension APIServer {
             routes[XPCRoute.containerResize] = harness.resize
             routes[XPCRoute.containerWait] = harness.wait
             routes[XPCRoute.containerKill] = harness.kill
+            routes[XPCRoute.containerStats] = harness.stats
 
             return service
         }
@@ -253,7 +261,7 @@ extension APIServer {
             containersService: ContainersService,
             log: Logger,
             routes: inout [XPCRoute: XPCServer.RouteHandler]
-        ) throws {
+        ) throws -> VolumesService {
             log.info("initializing volume service")
 
             let resourceRoot = appRoot.appendingPathComponent("volumes")
@@ -264,7 +272,27 @@ extension APIServer {
             routes[XPCRoute.volumeDelete] = harness.delete
             routes[XPCRoute.volumeList] = harness.list
             routes[XPCRoute.volumeInspect] = harness.inspect
-            routes[XPCRoute.volumePrune] = harness.prune
+            routes[XPCRoute.volumeDiskUsage] = harness.diskUsage
+
+            return service
+        }
+
+        private func initializeDiskUsageService(
+            containersService: ContainersService,
+            volumesService: VolumesService,
+            log: Logger,
+            routes: inout [XPCRoute: XPCServer.RouteHandler]
+        ) throws {
+            log.info("initializing disk usage service")
+
+            let service = DiskUsageService(
+                containersService: containersService,
+                volumesService: volumesService,
+                log: log
+            )
+            let harness = DiskUsageHarness(service: service, log: log)
+
+            routes[XPCRoute.systemDiskUsage] = harness.get
         }
     }
 }

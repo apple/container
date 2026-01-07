@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
 import ContainerPersistence
 import Containerization
 import ContainerizationError
@@ -67,7 +67,7 @@ extension Application {
 
         private func setKernelFromBinary() async throws {
             guard let binaryPath else {
-                throw ArgumentParser.ValidationError("Missing argument '--binary'")
+                throw ArgumentParser.ValidationError("missing argument '--binary'")
             }
             let absolutePath = URL(fileURLWithPath: binaryPath, relativeTo: .currentDirectory()).absoluteURL.absoluteString
             let platform = try getSystemPlatform()
@@ -76,10 +76,10 @@ extension Application {
 
         private func setKernelFromTar() async throws {
             guard let binaryPath else {
-                throw ArgumentParser.ValidationError("Missing argument '--binary'")
+                throw ArgumentParser.ValidationError("missing argument '--binary'")
             }
             guard let tarPath else {
-                throw ArgumentParser.ValidationError("Missing argument '--tar")
+                throw ArgumentParser.ValidationError("missing argument '--tar")
             }
             let platform = try getSystemPlatform()
             let localTarPath = URL(fileURLWithPath: tarPath, relativeTo: .currentDirectory()).path

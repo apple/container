@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
 import Containerization
 import ContainerizationError
 import Foundation
@@ -24,7 +24,7 @@ extension Application {
     public struct RemoveImageOptions: ParsableArguments {
         public init() {}
 
-        @Flag(name: .shortAndLong, help: "Remove all images")
+        @Flag(name: .shortAndLong, help: "Delete all images")
         var all: Bool = false
 
         @OptionGroup
@@ -37,7 +37,7 @@ extension Application {
     struct DeleteImageImplementation {
         static func validate(options: RemoveImageOptions) throws {
             if options.images.count == 0 && !options.all {
-                throw ContainerizationError(.invalidArgument, message: "no image specified and --all not supplied")
+                throw ContainerizationError(.invalidArgument, message: "no images specified and --all not supplied")
             }
             if options.images.count > 0 && options.all {
                 throw ContainerizationError(.invalidArgument, message: "explicitly supplied images conflict with the --all flag")
@@ -64,11 +64,11 @@ extension Application {
                     print(image.reference)
                     didDeleteAnyImage = true
                 } catch {
-                    log.error("failed to remove \(image.reference): \(error)")
+                    log.error("failed to delete \(image.reference): \(error)")
                     failures.append(image.reference)
                 }
             }
-            let (_, size) = try await ClientImage.pruneImages()
+            let (_, size) = try await ClientImage.cleanupOrphanedBlobs()
             let formatter = ByteCountFormatter()
             let freed = formatter.string(fromByteCount: Int64(size))
 
@@ -87,7 +87,7 @@ extension Application {
 
         public static let configuration = CommandConfiguration(
             commandName: "delete",
-            abstract: "Remove one or more images",
+            abstract: "Delete one or more images",
             aliases: ["rm"])
 
         public init() {}

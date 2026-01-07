@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ struct TestCLIPluginErrors {
         // without the APIServer started, so DefaultCommand will fail to create
         // a PluginLoader and emit the improved guidance.
         let cli = try CLITest()
-        let (_, stderr, status) = try cli.run(arguments: ["nosuchplugin"])  // non-existent plugin name
+        let (_, _, stderr, status) = try cli.run(arguments: ["nosuchplugin"])  // non-existent plugin name
 
         #expect(status != 0)
         #expect(stderr.contains("container system start"))

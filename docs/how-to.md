@@ -1,5 +1,10 @@
 # How-to
 
+> [!IMPORTANT]
+> This file contains documentation for the CURRENT BRANCH. To find documentation for official releases, find the target release on the [Release Page](https://github.com/apple/container/releases) and click the tag corresponding to your release version. 
+>
+> Example: [release 0.4.1 tag](https://github.com/apple/container/tree/0.4.1)
+
 How to use the features of `container`.
 
 ## Configure memory and CPUs for your containers
@@ -211,7 +216,7 @@ container run --network default,mac=02:42:ac:11:00:02 ubuntu:latest
 To verify the MAC address is set correctly, run `ip addr show` inside the container:
 
 ```console
-% container run --rm --mac-address 02:42:ac:11:00:02 ubuntu:latest ip addr show eth0
+% container run --rm --network default,mac=02:42:ac:11:00:02 ubuntu:latest ip addr show eth0
 2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
     link/ether 02:42:ac:11:00:02 brd ff:ff:ff:ff:ff:ff
     inet 192.168.64.2/24 brd 192.168.64.255 scope global eth0
@@ -281,6 +286,12 @@ This command creates a network named `foo`:
 container network create foo
 ```
 
+You can also specify custom IPv4 and IPv6 subnets when creating a network:
+
+```bash
+container network create foo --subnet 192.168.100.0/24 --subnet-v6 fd00:1234::/64
+```
+
 The `foo` network, the default network, and any other networks you create are isolated from one another. A container on one network has no connectivity to containers on other networks.
 
 Run `container network list` to see the networks that exist:
@@ -313,6 +324,26 @@ You can delete networks that you create once no containers are attached:
 container stop my-web-server
 container network delete foo
 ```
+
+Networks support both IPv4 and IPv6. When creating a network without explicit subnet options, the system uses default values if configured via system properties (see below), or automatically allocates subnets. The system validates that custom subnets don't overlap with existing networks.
+
+## Configure default network subnets
+
+You can customize the default IPv4 and IPv6 subnets used for new networks using system properties.
+
+### Set default IPv4 subnet
+
+```bash
+container system property set network.subnet 192.168.100.1/24
+```
+
+### Set default IPv6 prefix
+
+```bash
+container system property set network.subnetv6 fd00:abcd::/64
+```
+
+These settings apply to networks created without explicit `--subnet` or `--subnet-v6` options.
 
 ## View container logs
 
@@ -356,6 +387,64 @@ Use the `--boot` option to see the logs for the virtual machine boot and init pr
 %
 </pre>
 
+## Monitor container resource usage
+
+The `container stats` command displays real-time resource usage statistics for your running containers, similar to the `top` command for processes. This is useful for:
+- Monitoring CPU and memory consumption
+- Tracking network and disk I/O
+- Identifying resource-intensive containers
+- Verifying container resource limits are appropriate
+
+By default, `container stats` shows live statistics for all running containers in an interactive display:
+
+```console
+% container stats
+Container ID    Cpu %    Memory Usage           Net Rx/Tx              Block I/O               Pids
+my-web-server   2.45%    45.23 MiB / 1.00 GiB   1.23 MiB / 856.00 KiB  4.50 MiB / 2.10 MiB     3
+db              125.12%  512.50 MiB / 2.00 GiB  5.67 MiB / 3.21 MiB    125.00 MiB / 89.00 MiB  12
+```
+
+To monitor specific containers, provide their names or IDs:
+
+```console
+% container stats my-web-server db
+```
+
+For a single snapshot (non-interactive), use the `--no-stream` flag:
+
+```console
+% container stats --no-stream my-web-server
+Container ID    Cpu %    Memory Usage          Net Rx/Tx              Block I/O              Pids
+my-web-server   30.45%    45.23 MiB / 1.00 GiB  1.23 MiB / 856.00 KiB  4.50 MiB / 2.10 MiB    3
+```
+
+You can also output statistics in JSON format for scripting:
+
+```console
+% container stats --format json --no-stream my-web-server | jq
+[
+  {
+    "id": "my-web-server",
+    "memoryUsageBytes": 47431680,
+    "memoryLimitBytes": 1073741824,
+    "cpuUsageUsec": 1234567,
+    "networkRxBytes": 1289011,
+    "networkTxBytes": 876544,
+    "blockReadBytes": 4718592,
+    "blockWriteBytes": 2202009,
+    "numProcesses": 3
+  }
+]
+```
+
+**Understanding the metrics:**
+
+- **Cpu %**: Percentage of CPU usage. ~100% = one fully utilized core. A multi-core container can show > 100%.
+- **Memory Usage**: Current memory usage vs. the container's memory limit.
+- **Net Rx/Tx**: Network bytes received and transmitted.
+- **Block I/O**: Disk bytes read and written.
+- **Pids**: Number of processes running in the container.
+
 ## Expose virtualization capabilities to a container
 
 > [!NOTE]
@@ -397,7 +486,8 @@ image.builder      String  ghcr.io/apple/container-builder-shim/...  The image r
 image.init         String  ghcr.io/apple/containerization/vminit...  The image reference for the default initial filesystem image.
 kernel.binaryPath  String  opt/kata/share/kata-containers/vmlinu...  If the kernel URL is for an archive, the archive member pathname for the kernel file.
 kernel.url         String  https://github.com/kata-containers/ka...  The URL for the kernel file to install, or the URL for an archive containing the kernel file.
-network.subnet     String  *undefined*                               Default subnet for IP allocation (used on macOS 15 only).
+network.subnet     String  *undefined*                               Default subnet for IPv4 allocation.
+network.subnetv6   String  *undefined*                               Default IPv6 network prefix.
 ```
 
 ### Example: Disable Rosetta for builds
@@ -481,7 +571,7 @@ Without bash-completion, you’ll need to source the completion script directly.
 ```bash
 mkdir -p ~/.bash_completions
 container --generate-completion-script bash >  ~/.bash_completions/container
-source /opt/homebrew/etc/bash_completion.d/container
+source ~/.bash_completions/container
 ```
 
 Furthermore, you can add the following line to `~/.bash_profile` or `~/.bashrc`, in order for every new bash session to have autocompletion ready.

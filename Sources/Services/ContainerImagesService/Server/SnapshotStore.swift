@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,8 +14,9 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerClient
+import ContainerAPIClient
 import ContainerPersistence
+import ContainerResource
 import Containerization
 import ContainerizationError
 import ContainerizationExtras
@@ -84,7 +85,7 @@ public actor SnapshotStore {
                 throw ContainerizationError(.internalError, message: "missing platform for descriptor \(desc.digest)")
             }
             guard let unpacker = try await self.unpackStrategy(image, platform) else {
-                self.log?.warning("Skipping unpack for \(image.reference) for platform \(platform.description). No unpacker configured.")
+                self.log?.warning("no unpacker configured, skipping unpack for \(image.reference) for platform \(platform.description)")
                 continue
             }
             let currentSubTask = await taskManager.startTask()
@@ -209,21 +210,40 @@ public actor SnapshotStore {
         try self.fm.createDirectory(at: uniqueDirectoryURL, withIntermediateDirectories: true, attributes: nil)
         return uniqueDirectoryURL
     }
+
+    /// Get the disk size for a specific snapshot descriptor
+    public func getSnapshotSize(descriptor: Descriptor) throws -> UInt64 {
+        let snapshotPath = self.snapshotDir(descriptor)
+        guard self.fm.fileExists(atPath: snapshotPath.path) else {
+            return 0
+        }
+        return try self.fm.directorySize(dir: snapshotPath)
+    }
 }
 
 extension FileManager {
     fileprivate func directorySize(dir: URL) throws -> UInt64 {
-        var size = 0
-        let resourceKeys: [URLResourceKey] = [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey]
-        let contents = try self.contentsOfDirectory(
-            at: dir,
-            includingPropertiesForKeys: resourceKeys)
+        var size: UInt64 = 0
+        let resourceKeys: [URLResourceKey] = [.totalFileAllocatedSizeKey]
 
-        for p in contents {
-            let val = try p.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey])
-            size += val.totalFileAllocatedSize ?? val.fileAllocatedSize ?? 0
+        guard
+            let enumerator = self.enumerator(
+                at: dir,
+                includingPropertiesForKeys: resourceKeys,
+                options: [.skipsHiddenFiles]
+            )
+        else {
+            return 0
         }
-        return UInt64(size)
+
+        for case let fileURL as URL in enumerator {
+            if let resourceValues = try? fileURL.resourceValues(forKeys: [.totalFileAllocatedSizeKey]),
+                let fileSize = resourceValues.totalFileAllocatedSize
+            {
+                size += UInt64(fileSize)
+            }
+        }
+        return size
     }
 }
 

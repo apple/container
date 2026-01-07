@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,8 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
+import ContainerResource
 import ContainerizationError
 import ContainerizationOS
 import Foundation
@@ -31,7 +32,7 @@ extension Application {
         @Flag(name: .shortAndLong, help: "Stop all running containers")
         var all = false
 
-        @Option(name: .shortAndLong, help: "Signal to send the containers")
+        @Option(name: .shortAndLong, help: "Signal to send to the containers")
         var signal: String = "SIGTERM"
 
         @Option(name: .shortAndLong, help: "Seconds to wait before killing the containers")
@@ -49,7 +50,7 @@ extension Application {
             }
             if containerIds.count > 0 && all {
                 throw ContainerizationError(
-                    .invalidArgument, message: "explicitly supplied container IDs conflicts with the --all flag")
+                    .invalidArgument, message: "explicitly supplied container IDs conflict with the --all flag")
             }
         }
 

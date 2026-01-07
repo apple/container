@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -94,15 +94,9 @@ struct ContainerDNSHandler: DNSHandler {
         guard let ipAllocation = try await networkService.lookup(hostname: question.name) else {
             return nil
         }
-
-        let components = ipAllocation.address.split(separator: "/")
-        guard !components.isEmpty else {
-            throw DNSResolverError.serverError("Invalid IP format: empty address")
-        }
-
-        let ipString = String(components[0])
-        guard let ip = IPv4(ipString) else {
-            throw DNSResolverError.serverError("Failed to parse IP address: \(ipString)")
+        let ipv4 = ipAllocation.ipv4Address.address.description
+        guard let ip = IPv4(ipv4) else {
+            throw DNSResolverError.serverError("failed to parse IP address: \(ipv4)")
         }
 
         return HostRecord<IPv4>(name: question.name, ttl: ttl, ip: ip)

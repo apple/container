@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ class TestCLIRunLifecycle: CLITest {
             }
             try self.waitForContainerRunning(name)
 
-            let (output, _, status) = try self.run(arguments: ["start", name])
+            let (_, output, _, status) = try self.run(arguments: ["start", name])
             #expect(status == 0, "expected start to succeed on already running container")
             #expect(output.trimmingCharacters(in: .whitespacesAndNewlines) == name, "expected output to be container name")
 
@@ -76,7 +76,7 @@ class TestCLIRunLifecycle: CLITest {
             }
             try self.waitForContainerRunning(name)
 
-            let (_, error, status) = try self.run(arguments: ["start", "-a", name])
+            let (_, _, error, status) = try self.run(arguments: ["start", "-a", name])
             #expect(status != 0, "expected start with attach to fail on already running container")
             #expect(error.contains("attach is currently unsupported on already running containers"), "expected error message about attach not supported")
 
