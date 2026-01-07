@@ -43,7 +43,10 @@ class TestCLICreateCommand: CLITest {
             try waitForContainerRunning(name)
             let inspectResp = try inspectContainer(name)
             #expect(inspectResp.networks.count > 0, "expected at least one network attachment")
-            #expect(inspectResp.networks[0].macAddress == expectedMAC, "expected MAC address \(expectedMAC), got \(inspectResp.networks[0].macAddress ?? "nil")")
+            #expect(
+                inspectResp.networks[0].macAddress?.description == expectedMAC,
+                "expected MAC address \(expectedMAC), got \(inspectResp.networks[0].macAddress?.description ?? "nil")"
+            )
         }
     }
 

@@ -27,9 +27,9 @@ public struct Attachment: Codable, Sendable {
     /// The IPv4 gateway address.
     public let ipv4Gateway: IPv4Address
     /// The MAC address associated with the attachment (optional).
-    public let macAddress: String?
+    public let macAddress: MACAddress?
 
-    public init(network: String, hostname: String, ipv4Address: CIDRv4, ipv4Gateway: IPv4Address, macAddress: String? = nil) {
+    public init(network: String, hostname: String, ipv4Address: CIDRv4, ipv4Gateway: IPv4Address, macAddress: MACAddress? = nil) {
         self.network = network
         self.hostname = hostname
         self.ipv4Address = ipv4Address
@@ -43,29 +43,5 @@ public struct Attachment: Codable, Sendable {
         case ipv4Address
         case ipv4Gateway
         case macAddress
-    }
-
-    /// Create an attachment from the supplied Decoder.
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-
-        network = try container.decode(String.self, forKey: .network)
-        hostname = try container.decode(String.self, forKey: .hostname)
-        let addressText = try container.decode(String.self, forKey: .ipv4Address)
-        ipv4Address = try CIDRv4(addressText)
-        let gatewayText = try container.decode(String.self, forKey: .ipv4Gateway)
-        ipv4Gateway = try IPv4Address(gatewayText)
-        macAddress = try container.decodeIfPresent(String.self, forKey: .macAddress)
-    }
-
-    /// Encode the attachment to the supplied Encoder.
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-
-        try container.encode(network, forKey: .network)
-        try container.encode(hostname, forKey: .hostname)
-        try container.encode(ipv4Address.description, forKey: .ipv4Address)
-        try container.encode(ipv4Gateway.description, forKey: .ipv4Gateway)
-        try container.encodeIfPresent(macAddress, forKey: .macAddress)
     }
 }

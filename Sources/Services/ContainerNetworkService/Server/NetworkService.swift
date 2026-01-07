@@ -61,7 +61,8 @@ public actor NetworkService: Sendable {
         }
 
         let hostname = try message.hostname()
-        let macAddress = message.string(key: NetworkKeys.macAddress.rawValue)
+        let macAddress = try message.string(key: NetworkKeys.macAddress.rawValue)
+            .map { try MACAddress($0) }
         let index = try await allocator.allocate(hostname: hostname)
         let subnet = status.ipv4Subnet
         let ip = IPv4Address(index)
@@ -78,7 +79,7 @@ public actor NetworkService: Sendable {
                 "hostname": "\(hostname)",
                 "ipv4Address": "\(attachment.ipv4Address)",
                 "ipv4Gateway": "\(attachment.ipv4Gateway)",
-                "macAddress": "\(macAddress ?? "auto")",
+                "macAddress": "\(macAddress?.description ?? "unspecified")",
             ])
         let reply = message.reply()
         try reply.setAttachment(attachment)
