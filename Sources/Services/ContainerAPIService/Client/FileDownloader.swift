@@ -18,7 +18,6 @@ import AsyncHTTPClient
 import ContainerizationError
 import ContainerizationExtras
 import Foundation
-import NIOSSL
 import TerminalProgress
 
 public struct FileDownloader {
