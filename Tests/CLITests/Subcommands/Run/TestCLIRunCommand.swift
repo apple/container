@@ -722,7 +722,7 @@ class TestCLIRunCommand: CLITest {
             "run",
             "--name", name,
             "--publish", "127.0.0.1:\(privilegedPort):80",
-            alpine
+            alpine,
         ])
         defer {
             try? doRemove(name: name, force: true)
