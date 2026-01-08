@@ -748,7 +748,17 @@ public actor SandboxService {
                                 log: self.log
                             )
                         }
-                        return try await forwarder.run().get()
+                        do {
+                            return try await forwarder.run().get()
+                        } catch let error as IOError where error.errnoCode == EACCES {
+                            if let port = proxyAddress.port, port < 1024 {
+                                throw ContainerizationError(
+                                    .invalidArgument,
+                                    message: "Permission denied while binding to host port \(port). Binding to ports below 1024 requires root privileges."
+                                )
+                            }
+                            throw error
+                        }
                     }
                 }
             }
