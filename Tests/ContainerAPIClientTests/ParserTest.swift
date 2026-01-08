@@ -157,7 +157,12 @@ struct ParserTest {
     @Test
     func testPublishInvalidIPv6Address() throws {
         #expect {
-            _ = try Parser.publishPorts(["[1234:5678]:8080:8000"])
+            _ = try Parser.publishPorts([
+                "[1234:5678]:8080:8000",
+                "[2001::db8::1]:8080:8080",
+                "[2001:db8:85a3::8a2e:370g:7334]:8080:8080",
+                "[2001:db8:85a3::][8a2e::7334]:8080:8080",
+            ])
         } throws: { error in
             guard let error = error as? ContainerizationError else {
                 return false
