@@ -17,6 +17,7 @@
 import ContainerResource
 import Containerization
 import ContainerizationError
+import ContainerizationExtras
 import ContainerizationOCI
 import ContainerizationOS
 import Foundation
@@ -576,41 +577,39 @@ public struct Parser {
 
     // Parse a single `--publish-port` argument into a `PublishPort`.
     public static func publishPort(_ portText: String) throws -> PublishPort {
-        let protoSplit = portText.split(separator: "/")
-        let proto: PublishProtocol
-        let addressAndPortText: String
-        switch protoSplit.count {
-        case 1:
-            addressAndPortText = String(protoSplit[0])
-            proto = .tcp
-        case 2:
-            addressAndPortText = String(protoSplit[0])
-            let protoText = String(protoSplit[1])
-            guard let parsedProto = PublishProtocol(protoText) else {
-                throw ContainerizationError(.invalidArgument, message: "invalid publish protocol: \(protoText)")
-            }
-            proto = parsedProto
-        default:
+        let publishPortRegex = #/((\[(?<ipv6>[^\]]*)\]|(?<ipv4>[^:].*)):)?(?<hostPort>[^:].*):(?<containerPort>[^:/]*)(/(?<proto>.*))?/#
+        guard let match = try publishPortRegex.wholeMatch(in: portText) else {
             throw ContainerizationError(.invalidArgument, message: "invalid publish value: \(portText)")
         }
 
-        let hostAddress: String
-        let hostPortText: String
-        let containerPortText: String
-        let parts = addressAndPortText.split(separator: ":")
-        switch parts.count {
-        case 2:
-            hostAddress = "0.0.0.0"
-            hostPortText = String(parts[0])
-            containerPortText = String(parts[1])
-        case 3:
-            hostAddress = String(parts[0])
-            hostPortText = String(parts[1])
-            containerPortText = String(parts[2])
+        let proto: PublishProtocol
+        let protoText = match.proto?.lowercased() ?? "tcp"
+        switch protoText {
+        case "tcp":
+            proto = .tcp
+        case "udp":
+            proto = .udp
         default:
-            throw ContainerizationError(.invalidArgument, message: "invalid publish address: \(portText)")
+            throw ContainerizationError(.invalidArgument, message: "invalid publish protocol: \(protoText)")
         }
 
+        let hostAddress: IPAddress
+        if let ipv6 = match.ipv6, !ipv6.isEmpty {
+            guard let address = try? IPAddress(String(ipv6)), case .v6 = address else {
+                throw ContainerizationError(.invalidArgument, message: "invalid publish IPv6 address: \(portText)")
+            }
+            hostAddress = address
+        } else if let ipv4 = match.ipv4, !ipv4.isEmpty {
+            guard let address = try? IPAddress(String(ipv4)), case .v4 = address else {
+                throw ContainerizationError(.invalidArgument, message: "invalid publish IPv4 address: \(portText)")
+            }
+            hostAddress = address
+        } else {
+            hostAddress = try IPAddress("0.0.0.0")
+        }
+
+        let hostPortText = match.hostPort
+        let containerPortText = match.containerPort
         let hostPortRangeStart: UInt16
         let hostPortRangeEnd: UInt16
         let containerPortRangeStart: UInt16
@@ -679,7 +678,7 @@ public struct Parser {
         let containerCount = containerPortRangeEnd - containerPortRangeStart + 1
 
         guard hostCount == containerCount else {
-            throw ContainerizationError(.invalidArgument, message: "publish host and container port counts are not equal: \(addressAndPortText)")
+            throw ContainerizationError(.invalidArgument, message: "publish host and container port counts are not equal: \(hostPortText):\(containerPortText)")
         }
 
         return PublishPort(

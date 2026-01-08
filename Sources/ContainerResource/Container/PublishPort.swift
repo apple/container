@@ -14,6 +14,8 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationExtras
+
 /// The network protocols available for port forwarding.
 public enum PublishProtocol: String, Sendable, Codable {
     case tcp = "tcp"
@@ -37,7 +39,7 @@ public enum PublishProtocol: String, Sendable, Codable {
 /// Specifies internet port forwarding from host to container.
 public struct PublishPort: Sendable, Codable {
     /// The IP address of the proxy listener on the host
-    public let hostAddress: String
+    public let hostAddress: IPAddress
 
     /// The port number of the proxy listener on the host
     public let hostPort: UInt16
@@ -52,7 +54,7 @@ public struct PublishPort: Sendable, Codable {
     public let count: UInt16
 
     /// Creates a new port forwarding specification.
-    public init(hostAddress: String, hostPort: UInt16, containerPort: UInt16, proto: PublishProtocol, count: UInt16) {
+    public init(hostAddress: IPAddress, hostPort: UInt16, containerPort: UInt16, proto: PublishProtocol, count: UInt16) {
         self.hostAddress = hostAddress
         self.hostPort = hostPort
         self.containerPort = containerPort
@@ -65,7 +67,7 @@ public struct PublishPort: Sendable, Codable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
-        hostAddress = try container.decode(String.self, forKey: .hostAddress)
+        hostAddress = try container.decode(IPAddress.self, forKey: .hostAddress)
         hostPort = try container.decode(UInt16.self, forKey: .hostPort)
         containerPort = try container.decode(UInt16.self, forKey: .containerPort)
         proto = try container.decode(PublishProtocol.self, forKey: .proto)

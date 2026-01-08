@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerizationError
+import ContainerizationExtras
 import Foundation
 import Testing
 
@@ -25,7 +26,8 @@ struct ParserTest {
     func testPublishPortParserTcp() throws {
         let result = try Parser.publishPorts(["127.0.0.1:8080:8000/tcp"])
         #expect(result.count == 1)
-        #expect(result[0].hostAddress == "127.0.0.1")
+        let expectedAddress = try IPAddress("127.0.0.1")
+        #expect(result[0].hostAddress == expectedAddress)
         #expect(result[0].hostPort == UInt16(8080))
         #expect(result[0].containerPort == UInt16(8000))
         #expect(result[0].proto == .tcp)
@@ -36,7 +38,8 @@ struct ParserTest {
     func testPublishPortParserUdp() throws {
         let result = try Parser.publishPorts(["192.168.32.36:8000:8080/UDP"])
         #expect(result.count == 1)
-        #expect(result[0].hostAddress == "192.168.32.36")
+        let expectedAddress = try IPAddress("192.168.32.36")
+        #expect(result[0].hostAddress == expectedAddress)
         #expect(result[0].hostPort == UInt16(8000))
         #expect(result[0].containerPort == UInt16(8080))
         #expect(result[0].proto == .udp)
@@ -47,7 +50,8 @@ struct ParserTest {
     func testPublishPortRange() throws {
         let result = try Parser.publishPorts(["127.0.0.1:8080-8179:9000-9099/tcp"])
         #expect(result.count == 1)
-        #expect(result[0].hostAddress == "127.0.0.1")
+        let expectedAddress = try IPAddress("127.0.0.1")
+        #expect(result[0].hostAddress == expectedAddress)
         #expect(result[0].hostPort == UInt16(8080))
         #expect(result[0].containerPort == UInt16(9000))
         #expect(result[0].proto == .tcp)
@@ -58,7 +62,8 @@ struct ParserTest {
     func testPublishPortRangeSingle() throws {
         let result = try Parser.publishPorts(["127.0.0.1:8080-8080:9000-9000/tcp"])
         #expect(result.count == 1)
-        #expect(result[0].hostAddress == "127.0.0.1")
+        let expectedAddress = try IPAddress("127.0.0.1")
+        #expect(result[0].hostAddress == expectedAddress)
         #expect(result[0].hostPort == UInt16(8080))
         #expect(result[0].containerPort == UInt16(9000))
         #expect(result[0].proto == .tcp)
@@ -69,7 +74,8 @@ struct ParserTest {
     func testPublishPortNoHostAddress() throws {
         let result = try Parser.publishPorts(["8080:8000/tcp"])
         #expect(result.count == 1)
-        #expect(result[0].hostAddress == "0.0.0.0")
+        let expectedAddress = try IPAddress("0.0.0.0")
+        #expect(result[0].hostAddress == expectedAddress)
         #expect(result[0].hostPort == UInt16(8080))
         #expect(result[0].containerPort == UInt16(8000))
         #expect(result[0].proto == .tcp)
@@ -80,7 +86,20 @@ struct ParserTest {
     func testPublishPortNoProtocol() throws {
         let result = try Parser.publishPorts(["8080:8000"])
         #expect(result.count == 1)
-        #expect(result[0].hostAddress == "0.0.0.0")
+        let expectedAddress = try IPAddress("0.0.0.0")
+        #expect(result[0].hostAddress == expectedAddress)
+        #expect(result[0].hostPort == UInt16(8080))
+        #expect(result[0].containerPort == UInt16(8000))
+        #expect(result[0].proto == .tcp)
+        #expect(result[0].count == 1)
+    }
+
+    @Test
+    func testPublishPortParserIPv6() throws {
+        let result = try Parser.publishPorts(["[fe80::36f3:5e50:ed71:1bb]:8080:8000/tcp"])
+        #expect(result.count == 1)
+        let expectedAddress = try IPAddress("fe80::36f3:5e50:ed71:1bb")
+        #expect(result[0].hostAddress == expectedAddress)
         #expect(result[0].hostPort == UInt16(8080))
         #expect(result[0].containerPort == UInt16(8000))
         #expect(result[0].proto == .tcp)
@@ -112,14 +131,38 @@ struct ParserTest {
     }
 
     @Test
-    func testPublishPortInvalidAddress() throws {
+    func testPublishPortMissingPort() throws {
         #expect {
             _ = try Parser.publishPorts(["1234"])
         } throws: { error in
             guard let error = error as? ContainerizationError else {
                 return false
             }
-            return error.description.contains("invalid publish address")
+            return error.description.contains("invalid publish value")
+        }
+    }
+
+    @Test
+    func testPublishInvalidIPv4Address() throws {
+        #expect {
+            _ = try Parser.publishPorts(["1234:8080:8000"])
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid publish IPv4 address")
+        }
+    }
+
+    @Test
+    func testPublishInvalidIPv6Address() throws {
+        #expect {
+            _ = try Parser.publishPorts(["[1234:5678]:8080:8000"])
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid publish IPv6 address")
         }
     }
 

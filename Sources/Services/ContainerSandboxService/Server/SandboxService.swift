@@ -218,9 +218,7 @@ public actor SandboxService {
                 try await container.create()
                 try await self.monitor.registerProcess(id: config.id, onExit: self.onContainerExit)
                 if !container.interfaces.isEmpty {
-                    let firstCidr = container.interfaces[0].ipv4Address
-                    let ipAddress = firstCidr.address.description
-                    try await self.startSocketForwarders(containerIpAddress: ipAddress, publishedPorts: config.publishedPorts)
+                    try await self.startSocketForwarders(attachment: attachments[0], publishedPorts: config.publishedPorts)
                 }
                 await self.setState(.booted)
             } catch {
@@ -704,7 +702,7 @@ public actor SandboxService {
         try await self.monitor.track(id: id, waitingOn: waitFunc)
     }
 
-    private func startSocketForwarders(containerIpAddress: String, publishedPorts: [PublishPort]) async throws {
+    private func startSocketForwarders(attachment: Attachment, publishedPorts: [PublishPort]) async throws {
         var forwarders: [SocketForwarderResult] = []
         guard !publishedPorts.hasOverlaps() else {
             throw ContainerizationError(.invalidArgument, message: "host ports for different publish port specs may not overlap")
@@ -713,8 +711,18 @@ public actor SandboxService {
         try await withThrowingTaskGroup(of: SocketForwarderResult.self) { group in
             for publishedPort in publishedPorts {
                 for index in 0..<publishedPort.count {
-                    let proxyAddress = try SocketAddress(ipAddress: publishedPort.hostAddress, port: Int(publishedPort.hostPort + index))
-                    let serverAddress = try SocketAddress(ipAddress: containerIpAddress, port: Int(publishedPort.containerPort + index))
+                    let proxyAddress = try SocketAddress(ipAddress: publishedPort.hostAddress.description, port: Int(publishedPort.hostPort + index))
+                    let containerIPAddress: String
+                    switch publishedPort.hostAddress {
+                    case .v4(_):
+                        containerIPAddress = attachment.ipv4Address.address.description
+                    case .v6(_):
+                        guard let ipv6Address = attachment.ipv6Address else {
+                            throw ContainerizationError(.invalidState, message: "cannot configure IPv6 port forwarding for container with unknown IPv6 address")
+                        }
+                        containerIPAddress = ipv6Address.address.description
+                    }
+                    let serverAddress = try SocketAddress(ipAddress: containerIPAddress, port: Int(publishedPort.containerPort + index))
                     log.info(
                         "creating forwarder for",
                         metadata: [

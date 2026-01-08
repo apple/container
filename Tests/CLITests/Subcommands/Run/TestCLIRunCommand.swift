@@ -577,6 +577,52 @@ class TestCLIRunCommand: CLITest {
         }
     }
 
+    @available(macOS 26, *)
+    @Test func testForwardTCPv6() async throws {
+        let retries = 10
+        let retryDelaySeconds = Int64(3)
+        do {
+            let name = getLowercasedTestName()
+            let proxyIp = "[::1]"
+            let proxyPort = UInt16.random(in: 50000..<55000)
+            let serverPort = UInt16.random(in: 55000..<60000)
+            try doLongRun(
+                name: name,
+                image: "docker.io/library/node:alpine",
+                args: ["--publish", "\(proxyIp):\(proxyPort):\(serverPort)/tcp"],
+                containerArgs: ["npx", "http-server", "-a", "::", "-p", "\(serverPort)"])
+            defer {
+                try? doStop(name: name)
+            }
+
+            let url = "http://\(proxyIp):\(proxyPort)"
+            var request = HTTPClientRequest(url: url)
+            request.method = .GET
+            let config = HTTPClient.Configuration(proxy: nil)
+            let client = HTTPClient(eventLoopGroupProvider: .singleton, configuration: config)
+            defer { _ = client.shutdown() }
+            var retriesRemaining = retries
+            var success = false
+            while !success && retriesRemaining > 0 {
+                do {
+                    let response = try await client.execute(request, timeout: .seconds(retryDelaySeconds))
+                    try #require(response.status == .ok)
+                    success = true
+                    print("request to \(url) succeeded")
+                } catch {
+                    print("request to \(url) failed, error \(error)")
+                    try await Task.sleep(for: .seconds(retryDelaySeconds))
+                }
+                retriesRemaining -= 1
+            }
+            try #require(success, "Request to \(url) failed after \(retries - retriesRemaining) retries")
+            try doStop(name: name)
+        } catch {
+            Issue.record("failed to run container \(error)")
+            return
+        }
+    }
+
     @Test func testRunCommandEnvFileFromNamedPipe() throws {
         do {
             let name = getTestName()

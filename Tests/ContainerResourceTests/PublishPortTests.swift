@@ -14,17 +14,18 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationExtras
 import Foundation
 import Testing
 
 @testable import ContainerResource
 
-struct PublshPortTests {
+struct PublishPortTests {
     @Test
     func testPublishPortsNonOverlapping() throws {
         let ports = [
-            PublishPort(hostAddress: "0.0.0.0", hostPort: 9000, containerPort: 8080, proto: .tcp, count: 100),
-            PublishPort(hostAddress: "0.0.0.0", hostPort: 9100, containerPort: 8180, proto: .tcp, count: 100),
+            PublishPort(hostAddress: try IPAddress("0.0.0.0"), hostPort: 9000, containerPort: 8080, proto: .tcp, count: 100),
+            PublishPort(hostAddress: try IPAddress("0.0.0.0"), hostPort: 9100, containerPort: 8180, proto: .tcp, count: 100),
         ]
         #expect(!ports.hasOverlaps())
     }
@@ -32,8 +33,8 @@ struct PublshPortTests {
     @Test
     func testPublishPortsOverlapping() throws {
         let ports = [
-            PublishPort(hostAddress: "0.0.0.0", hostPort: 9000, containerPort: 8080, proto: .tcp, count: 101),
-            PublishPort(hostAddress: "0.0.0.0", hostPort: 9100, containerPort: 8180, proto: .tcp, count: 100),
+            PublishPort(hostAddress: try IPAddress("0.0.0.0"), hostPort: 9000, containerPort: 8080, proto: .tcp, count: 101),
+            PublishPort(hostAddress: try IPAddress("0.0.0.0"), hostPort: 9100, containerPort: 8180, proto: .tcp, count: 100),
         ]
         #expect(ports.hasOverlaps())
     }
@@ -41,10 +42,10 @@ struct PublshPortTests {
     @Test
     func testPublishPortsSamePortDifferentProtocols() throws {
         let ports = [
-            PublishPort(hostAddress: "0.0.0.0", hostPort: 8080, containerPort: 8080, proto: .tcp, count: 1),
-            PublishPort(hostAddress: "0.0.0.0", hostPort: 8080, containerPort: 8080, proto: .udp, count: 1),
-            PublishPort(hostAddress: "0.0.0.0", hostPort: 1024, containerPort: 1024, proto: .tcp, count: 1025),
-            PublishPort(hostAddress: "0.0.0.0", hostPort: 1024, containerPort: 1024, proto: .udp, count: 1025),
+            PublishPort(hostAddress: try IPAddress("0.0.0.0"), hostPort: 8080, containerPort: 8080, proto: .tcp, count: 1),
+            PublishPort(hostAddress: try IPAddress("0.0.0.0"), hostPort: 8080, containerPort: 8080, proto: .udp, count: 1),
+            PublishPort(hostAddress: try IPAddress("0.0.0.0"), hostPort: 1024, containerPort: 1024, proto: .tcp, count: 1025),
+            PublishPort(hostAddress: try IPAddress("0.0.0.0"), hostPort: 1024, containerPort: 1024, proto: .udp, count: 1025),
         ]
         #expect(!ports.hasOverlaps())
     }

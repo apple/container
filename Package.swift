@@ -335,6 +335,7 @@ let package = Package(
             name: "ContainerResourceTests",
             dependencies: [
                 .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
                 "ContainerResource",
             ]
         ),
