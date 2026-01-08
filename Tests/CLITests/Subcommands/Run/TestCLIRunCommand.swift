@@ -712,4 +712,28 @@ class TestCLIRunCommand: CLITest {
 
         return trimmedOutput
     }
+    @Test func testPrivilegedPortError() throws {
+        try #require(geteuid() != 0)
+
+        let name = getTestName()
+        let privilegedPort = 80
+        let (_, _, error, status) = try run(arguments: [
+            "run",
+            "--name", name,
+            "--publish", "127.0.0.1:\(privilegedPort):80",
+            alpine
+        ])
+        defer {
+            try? doRemove(name: name, force: true)
+        }
+        #expect(status != 0, "Command should have failed")
+        #expect(
+            error.contains("Permission denied while binding to host port \(privilegedPort)"),
+            "Error message should mention permission denied for the port. Got: \(error)"
+        )
+        #expect(
+            error.contains("root privileges"),
+            "Error message should mention root privileges requirement. Got: \(error)"
+        )
+    }
 }
