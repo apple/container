@@ -174,17 +174,11 @@ extension ClientImage {
         var found: [ClientImage] = []
         for name in names {
             do {
-                // Try normal search
-                if let img = try Self._search(reference: name, in: all) {
-                    found.append(img)
+                guard let img = try Self._search(reference: name, in: all) else {
+                    errors.append(name)
                     continue
                 }
-
-                // Try prefix search
-                if let img = try Self._searchByPrefix(reference: name, in: all) {
-                    found.append(img)
-                    continue
-                }
+                found.append(img)
             } catch {
                 errors.append(name)
             }
@@ -192,20 +186,39 @@ extension ClientImage {
         return (found, errors)
     }
 
+    public static func getByPrefix(names: [String]) async throws -> (images: [ClientImage], error: [String]) {
+        let all = try await self.list()
+        var errors: [String] = []
+        var found: [ClientImage] = []
+        for name in names {
+            do {
+                guard let img = try Self._searchByPrefix(reference: name, in: all) else {
+                    errors.append(name)
+                    continue
+                }
+                found.append(img)
+            } catch {
+                errors.append(name)
+            }
+        }
+
+        return (found, errors)
+    }
+
     public static func get(reference: String) async throws -> ClientImage {
         let all = try await self.list()
-
-        // Try normal search first
-        if let found = try self._search(reference: reference, in: all) {
-            return found
+        guard let found = try self._search(reference: reference, in: all) else {
+            throw ContainerizationError(.notFound, message: "image with reference \(reference)")
         }
+        return found
+    }
 
-        // Try prefix search
-        if let found = try self._searchByPrefix(reference: reference, in: all) {
-            return found
+    public static func getByPrefix(reference: String) async throws -> ClientImage {
+        let all = try await self.list()
+        guard let found = try self._searchByPrefix(reference: reference, in: all) else {
+            throw ContainerizationError(.notFound, message: "image with digest prefix  \(reference)")
         }
-        
-        throw ContainerizationError(.notFound, message: "image with reference \(reference)")
+        return found
     }
 
     private static func _search(reference: String, in all: [ClientImage]) throws -> ClientImage? {

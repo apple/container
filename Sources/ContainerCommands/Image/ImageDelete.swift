@@ -51,7 +51,13 @@ extension Application {
                     let notFound: [String] = []
                     return (found, notFound)
                 }
-                return try await ClientImage.get(names: options.images)
+
+                let (found, notFound) = try await ClientImage.get(names: options.images)
+
+                if !notFound.isEmpty {
+                    return try await ClientImage.getByPrefix(names: options.images)
+                }
+                return (found, notFound)
             }()
             var failures: [String] = notFound
             var didDeleteAnyImage = false
