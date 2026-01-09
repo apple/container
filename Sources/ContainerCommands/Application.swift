@@ -61,6 +61,7 @@ public struct Application: AsyncParsableCommand {
                     ContainerStart.self,
                     ContainerStats.self,
                     ContainerStop.self,
+                    ContainerPrune.self,
                 ]
             ),
             CommandGroup(

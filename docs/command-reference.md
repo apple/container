@@ -414,6 +414,20 @@ container stats --no-stream web
 container stats --format json --no-stream web
 ```
 
+### `container prune`
+
+Removes stopped containers to reclaim disk space. The command outputs the amount of space freed after deletion.
+
+**Usage**
+
+```bash
+container prune [--debug]
+```
+
+**Options**
+
+No options.
+
 ## Image Management
 
 ### `container image list (ls)`

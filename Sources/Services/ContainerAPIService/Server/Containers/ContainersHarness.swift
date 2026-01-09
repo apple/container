@@ -257,6 +257,19 @@ public struct ContainersHarness: Sendable {
     }
 
     @Sendable
+    public func diskUsage(_ message: XPCMessage) async throws -> XPCMessage {
+        guard let containerId = message.string(key: .id) else {
+            throw ContainerizationError(.invalidArgument, message: "id cannot be empty")
+        }
+
+        let size = try await service.containerDiskUsage(id: containerId)
+
+        let reply = message.reply()
+        reply.set(key: .containerSize, value: size)
+        return reply
+    }
+
+    @Sendable
     public func logs(_ message: XPCMessage) async throws -> XPCMessage {
         let id = message.string(key: .id)
         guard let id else {
