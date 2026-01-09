@@ -58,7 +58,7 @@ to prepare your build environment.
     bin/container system stop
     ```
 
-4. Use the Swift package manager to configure use your local `containerization` package and update your `Package.resolved` file.
+4. Reconfigure the Swift project to use your local `containerization` package and update your `Package.resolved` file.
 
     ```bash
     /usr/bin/swift package edit --path ../containerization containerization
