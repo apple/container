@@ -131,8 +131,9 @@ public actor SandboxService {
             )
 
             // Dynamically configure the DNS nameserver from a network if no explicit configuration
+            let configureIpv6DNS: Bool
             if let dns = config.dns, dns.nameservers.isEmpty {
-                let defaultNameservers = try await self.getDefaultNameservers(attachmentConfigurations: config.networks)
+                let defaultNameservers = await self.getDefaultNameservers(attachmentConfigurations: config.networks)
                 if !defaultNameservers.isEmpty {
                     config.dns = ContainerConfiguration.DNSConfiguration(
                         nameservers: defaultNameservers,
@@ -141,6 +142,9 @@ public actor SandboxService {
                         options: dns.options
                     )
                 }
+                configureIpv6DNS = true
+            } else {
+                configureIpv6DNS = false
             }
 
             var attachments: [Attachment] = []
@@ -216,11 +220,30 @@ public actor SandboxService {
 
             do {
                 try await container.create()
-                try await self.monitor.registerProcess(id: config.id, onExit: self.onContainerExit)
-                if !container.interfaces.isEmpty {
-                    try await self.startSocketForwarders(attachment: attachments[0], publishedPorts: config.publishedPorts)
+                let dnsUpdateTask = Task { [config] in
+                    guard configureIpv6DNS else {
+                        return
+                    }
+                    guard let proxyAddress = try await self.getDNSProxyAddress(attachmentConfigurations: config.networks) else {
+                        return
+                    }
+                    self.log.info(
+                        "confguring IPv6 proxy DNS server",
+                        metadata: [
+                            "ipv6Address": "\(proxyAddress)"
+                        ]
+                    )
                 }
-                await self.setState(.booted)
+                do {
+                    try await self.monitor.registerProcess(id: config.id, onExit: self.onContainerExit)
+                    if !container.interfaces.isEmpty {
+                        try await self.startSocketForwarders(attachment: attachments[0], publishedPorts: config.publishedPorts)
+                    }
+                    await self.setState(.booted)
+                } catch {
+                    dnsUpdateTask.cancel()
+                    throw error
+                }
             } catch {
                 do {
                     try await self.cleanupContainer(containerInfo: ctrInfo)
@@ -864,17 +887,72 @@ public actor SandboxService {
         Self.configureInitialProcess(czConfig: &czConfig, config: config)
     }
 
-    private func getDefaultNameservers(attachmentConfigurations: [AttachmentConfiguration]) async throws -> [String] {
+    private func getDefaultNameservers(attachmentConfigurations: [AttachmentConfiguration]) async -> [String] {
         for attachmentConfiguration in attachmentConfigurations {
             let client = NetworkClient(id: attachmentConfiguration.network)
-            let state = try await client.state()
+            guard let state = try? await client.state() else {
+                log.warning(
+                    "failed to get state for network while getting default nameservers",
+                    metadata: [
+                        "network": "\(attachmentConfiguration.network)"
+                    ])
+                continue
+            }
             guard case .running(_, let status) = state else {
+                log.warning(
+                    "unexpected state for network while getting default nameservers",
+                    metadata: [
+                        "network": "\(attachmentConfiguration.network)",
+                        "state": "\(state)",
+                    ])
                 continue
             }
             return [status.ipv4Gateway.description]
         }
 
         return []
+    }
+
+    private func getDNSProxyAddress(attachmentConfigurations: [AttachmentConfiguration]) async throws -> IPv6Address? {
+        for attachmentConfiguration in attachmentConfigurations {
+            let client = NetworkClient(id: attachmentConfiguration.network)
+            guard let state = try? await client.state() else {
+                log.warning(
+                    "failed to get state for network while getting default nameservers",
+                    metadata: [
+                        "network": "\(attachmentConfiguration.network)"
+                    ])
+                continue
+            }
+            guard case .running(_, let status) = state else {
+                log.warning(
+                    "unexpected state for network while getting default nameservers",
+                    metadata: [
+                        "network": "\(attachmentConfiguration.network)",
+                        "state": "\(state)",
+                    ])
+                continue
+            }
+            guard let ipv6Prefix = status.ipv6Subnet else {
+                continue
+            }
+
+            self.log.info("starting DNS proxy search", metadata: ["ipv6Prefix": "\(ipv6Prefix)"])
+            let keyPatterns = ["State:/Network/Interface/.*/IPv6"]
+            let monitor = try SystemConfigurationMonitor(keys: keyPatterns, log: self.log)
+            let initialProperties = monitor.get(keyPatterns: keyPatterns)
+            if let dnsAddress = IPv6DNSProxyLocator.findDNSProxy(scProperties: initialProperties, ipv6Prefix: ipv6Prefix, log: self.log) {
+                return dnsAddress
+            }
+            for await keys in monitor {
+                let properties = monitor.get(keyPatterns: keys)
+                if let dnsAddress = IPv6DNSProxyLocator.findDNSProxy(scProperties: properties, ipv6Prefix: ipv6Prefix, log: self.log) {
+                    return dnsAddress
+                }
+            }
+        }
+
+        return nil
     }
 
     private static func configureInitialProcess(
