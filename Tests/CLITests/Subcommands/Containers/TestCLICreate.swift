@@ -101,7 +101,7 @@ class TestCLICreateCommand: CLITest {
         let name = "test.example.com"
         let expectedHostname = "test"
         #expect(throws: Never.self, "expected container create with FQDN name to succeed") {
-            try doCreate(name: name, args: ["echo", "hello"])
+            try doCreate(name: name)
             try doStart(name: name)
             defer {
                 try? doStop(name: name)
