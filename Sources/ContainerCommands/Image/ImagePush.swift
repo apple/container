@@ -65,7 +65,13 @@ extension Application {
             }
 
             let scheme = try RequestScheme(registry.scheme)
-            let image = try await ClientImage.get(reference: reference)
+            let image = try await {
+                do {
+                    return try await ClientImage.get(reference: reference)
+                } catch {
+                    return try await ClientImage.getByPrefix(reference: reference)
+                }
+            }()
 
             var progressConfig: ProgressConfig
             switch self.progressFlags.progress {

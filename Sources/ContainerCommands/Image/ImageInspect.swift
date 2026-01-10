@@ -36,7 +36,10 @@ extension Application {
 
         public func run() async throws {
             var printable = [any Codable]()
-            let result = try await ClientImage.get(names: images)
+            var result = try await ClientImage.get(names: images)
+            if !result.error.isEmpty {
+                result = try await ClientImage.getByPrefix(names: images)
+            }
             let notFound = result.error
             for image in result.images {
                 guard !Utility.isInfraImage(name: image.reference) else {

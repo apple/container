@@ -34,7 +34,13 @@ extension Application {
         var global: Flags.Global
 
         public func run() async throws {
-            let existing = try await ClientImage.get(reference: source)
+            let existing = try await {
+                do {
+                    return try await ClientImage.get(reference: source)
+                } catch {
+                    return try await ClientImage.getByPrefix(reference: source)
+                }
+            }()
             let targetReference = try ClientImage.normalizeReference(target)
             try await existing.tag(new: targetReference)
             print(target)
