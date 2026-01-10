@@ -845,4 +845,22 @@ struct ParserTest {
             return error.description.contains("invalid property format")
         }
     }
+
+    // MARK: - Relative Path Passthrough Tests
+
+    @Test
+    func testProcessEntrypointRelativePathPassthrough() throws {
+        let processFlags = try Flags.Process.parse(["--cwd", "/bin"])
+        let managementFlags = try Flags.Management.parse(["--entrypoint", "./uname"])
+
+        let result = try Parser.process(
+            arguments: [],
+            processFlags: processFlags,
+            managementFlags: managementFlags,
+            config: nil
+        )
+
+        #expect(result.executable == "./uname")
+        #expect(result.workingDirectory == "/bin")
+    }
 }
