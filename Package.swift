@@ -75,6 +75,7 @@ let package = Package(
                 .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
                 "ContainerBuild",
+                "ContainerCommands",
                 "ContainerResource",
             ],
             path: "Tests/CLITests"

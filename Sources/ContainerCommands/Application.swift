@@ -50,6 +50,7 @@ public struct Application: AsyncParsableCommand {
             CommandGroup(
                 name: "Container",
                 subcommands: [
+                    ContainerCopy.self,
                     ContainerCreate.self,
                     ContainerDelete.self,
                     ContainerExec.self,
