@@ -136,6 +136,18 @@ actor BuildFSSync: BuildPipelineHandler {
         var entries: [String: Set<DirEntry>] = [:]
         let followPaths: [String] = packet.followPaths() ?? []
 
+        // Load .dockerignore if present
+        let dockerignorePath = contextDir.appendingPathComponent(".dockerignore")
+        let ignoreSpec: IgnoreSpec? = {
+            guard FileManager.default.fileExists(atPath: dockerignorePath.path) else {
+                return nil
+            }
+            guard let data = try? Data(contentsOf: dockerignorePath) else {
+                return nil
+            }
+            return IgnoreSpec(data)
+        }()
+
         let followPathsWalked = try walk(root: self.contextDir, includePatterns: followPaths)
         for url in followPathsWalked {
             guard self.contextDir.absoluteURL.cleanPath != url.absoluteURL.cleanPath else {
@@ -146,6 +158,12 @@ actor BuildFSSync: BuildPipelineHandler {
             }
 
             let relPath = try url.relativeChildPath(to: contextDir)
+
+            // Check if the file should be ignored
+            if let ignoreSpec = ignoreSpec, try ignoreSpec.shouldIgnore(relPath: relPath, isDirectory: url.hasDirectoryPath) {
+                continue
+            }
+
             let parentPath = try url.deletingLastPathComponent().relativeChildPath(to: contextDir)
             let entry = DirEntry(url: url, isDirectory: url.hasDirectoryPath, relativePath: relPath)
             entries[parentPath, default: []].insert(entry)
