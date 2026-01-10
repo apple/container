@@ -44,24 +44,42 @@ extension Application {
         @Argument(help: "Container IDs")
         var containerIds: [String] = []
 
+        package struct StopError: Error {
+            let succeeded: [String]
+            let failed: [(String, Error)]
+        }
+
         public func validate() throws {
             if containerIds.count == 0 && !all {
-                throw ContainerizationError(.invalidArgument, message: "no containers specified and --all not supplied")
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no containers specified and --all not supplied"
+                )
             }
             if containerIds.count > 0 && all {
                 throw ContainerizationError(
-                    .invalidArgument, message: "explicitly supplied container IDs conflict with the --all flag")
+                    .invalidArgument,
+                    message: "explicitly supplied container IDs conflict with the --all flag"
+                )
             }
         }
 
         public mutating func run() async throws {
-            let set = Set<String>(containerIds)
             var containers = [ClientContainer]()
+            var allErrors: [String] = []
+
             if self.all {
                 containers = try await ClientContainer.list()
             } else {
-                containers = try await ClientContainer.list().filter { c in
-                    set.contains(c.id)
+                let allContainers = try await ClientContainer.list()
+                let containerMap = Dictionary(uniqueKeysWithValues: allContainers.map { ($0.id, $0) })
+
+                for id in containerIds {
+                    if let container = containerMap[id] {
+                        containers.append(container)
+                    } else {
+                        allErrors.append("Error: No such container: \(id)")
+                    }
                 }
             }
 
@@ -69,40 +87,58 @@ extension Application {
                 timeoutInSeconds: self.time,
                 signal: try Signals.parseSignal(self.signal)
             )
-            let failed = try await Self.stopContainers(containers: containers, stopOptions: opts)
-            if failed.count > 0 {
-                throw ContainerizationError(
-                    .internalError,
-                    message: "stop failed for one or more containers \(failed.joined(separator: ","))"
-                )
+
+            do {
+                try await Self.stopContainers(containers: containers, stopOptions: opts)
+                for container in containers {
+                    print(container.id)
+                }
+            } catch let error as ContainerStop.StopError {
+                for id in error.succeeded {
+                    print(id)
+                }
+
+                for (_, err) in error.failed {
+                    allErrors.append("Error from APIServer: \(err)")
+                }
+            }
+
+            if !allErrors.isEmpty {
+                var stderr = StandardError()
+                for err in allErrors {
+                    print(err, to: &stderr)
+                }
+                throw ExitCode(1)
             }
         }
 
-        static func stopContainers(containers: [ClientContainer], stopOptions: ContainerStopOptions) async throws -> [String] {
-            var failed: [String] = []
-            try await withThrowingTaskGroup(of: ClientContainer?.self) { group in
+        static func stopContainers(containers: [ClientContainer], stopOptions: ContainerStopOptions) async throws {
+            var succeeded: [String] = []
+            var failed: [(String, Error)] = []
+            try await withThrowingTaskGroup(of: (String, Error?).self) { group in
                 for container in containers {
                     group.addTask {
                         do {
                             try await container.stop(opts: stopOptions)
-                            print(container.id)
-                            return nil
+                            return (container.id, nil)
                         } catch {
-                            log.error("failed to stop container \(container.id): \(error)")
-                            return container
+                            return (container.id, error)
                         }
                     }
                 }
 
-                for try await ctr in group {
-                    guard let ctr else {
-                        continue
+                for try await (id, error) in group {
+                    if let error = error {
+                        failed.append((id, error))
+                    } else {
+                        succeeded.append(id)
                     }
-                    failed.append(ctr.id)
                 }
             }
 
-            return failed
+            if !failed.isEmpty {
+                throw StopError(succeeded: succeeded, failed: failed)
+            }
         }
     }
 }
