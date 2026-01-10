@@ -67,6 +67,8 @@ extension Application {
                 p = try Platform(from: "\(os ?? "linux")/\(arch)")
             } else if let os {
                 p = try Platform(from: "\(os)/\(arch ?? Arch.hostArchitecture().rawValue)")
+            } else {
+                p = Platform.current
             }
 
             let progressConfig = try ProgressConfig(
