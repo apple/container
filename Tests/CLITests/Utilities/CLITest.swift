@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,8 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import AsyncHTTPClient
-import ContainerClient
-import ContainerNetworkService
+import ContainerResource
 import Containerization
 import ContainerizationOS
 import Foundation
@@ -305,7 +304,7 @@ class CLITest {
     struct inspectOutput: Codable {
         let status: String
         let configuration: ContainerConfiguration
-        let networks: [ContainerNetworkService.Attachment]
+        let networks: [ContainerResource.Attachment]
     }
 
     func getContainerStatus(_ name: String) throws -> String {

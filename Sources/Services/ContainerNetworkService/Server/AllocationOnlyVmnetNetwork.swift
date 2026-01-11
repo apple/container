@@ -1,0 +1,86 @@
+//===----------------------------------------------------------------------===//
+// Copyright © 2026 Apple Inc. and the container project authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//===----------------------------------------------------------------------===//
+
+import ContainerPersistence
+import ContainerResource
+import ContainerXPC
+import ContainerizationError
+import ContainerizationExtras
+import Foundation
+import Logging
+
+public actor AllocationOnlyVmnetNetwork: Network {
+    private let log: Logger
+    private var _state: NetworkState
+
+    /// Configure a bridge network that allows external system access using
+    /// network address translation.
+    public init(
+        configuration: NetworkConfiguration,
+        log: Logger
+    ) throws {
+        guard configuration.mode == .nat else {
+            throw ContainerizationError(.unsupported, message: "invalid network mode \(configuration.mode)")
+        }
+
+        guard configuration.ipv4Subnet == nil else {
+            throw ContainerizationError(.unsupported, message: "IPv4 subnet assignment is not yet implemented")
+        }
+
+        self.log = log
+        self._state = .created(configuration)
+    }
+
+    public var state: NetworkState {
+        self._state
+    }
+
+    public nonisolated func withAdditionalData(_ handler: (XPCMessage?) throws -> Void) throws {
+        try handler(nil)
+    }
+
+    public func start() async throws {
+        guard case .created(let configuration) = _state else {
+            throw ContainerizationError(.invalidState, message: "cannot start network \(_state.id) in \(_state.state) state")
+        }
+
+        log.info(
+            "starting allocation-only network",
+            metadata: [
+                "id": "\(configuration.id)",
+                "mode": "\(NetworkMode.nat.rawValue)",
+            ]
+        )
+
+        let subnet = DefaultsStore.get(key: .defaultSubnet)
+        let subnetCIDR = try CIDRv4(subnet)
+        let gateway = IPv4Address(subnetCIDR.lower.value + 1)
+        let status = NetworkStatus(
+            ipv4Subnet: subnetCIDR,
+            ipv4Gateway: gateway,
+            ipv6Subnet: nil,
+        )
+        self._state = .running(configuration, status)
+        log.info(
+            "started allocation-only network",
+            metadata: [
+                "id": "\(configuration.id)",
+                "mode": "\(configuration.mode)",
+                "cidr": "\(subnet)",
+            ]
+        )
+    }
+}
