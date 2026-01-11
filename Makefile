@@ -85,7 +85,7 @@ install: installer-pkg
 	@if [ -z "$(SUDO)" ] ; then \
 		temp_dir=$$(mktemp -d) ; \
 		xar -xf $(PKG_PATH) -C $${temp_dir} ; \
-		(cd $${temp_dir} && tar -xf Payload -C "$(DEST_DIR)") ; \
+		(cd "$(DEST_DIR)" && pax -rz -f $${temp_dir}/Payload) ; \
 		rm -rf $${temp_dir} ; \
 	else \
 		$(SUDO) installer -pkg $(PKG_PATH) -target / ; \
