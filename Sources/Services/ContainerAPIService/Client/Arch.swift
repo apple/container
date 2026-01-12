@@ -19,7 +19,7 @@ public enum Arch: String {
 
     public init?(rawValue: String) {
         switch rawValue.lowercased() {
-        case "arm64":
+        case "arm64", "aarch64":
             self = .arm64
         case "amd64", "x86_64", "x86-64":
             self = .amd64

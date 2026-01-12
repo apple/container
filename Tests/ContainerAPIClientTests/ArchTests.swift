@@ -44,10 +44,17 @@ struct ArchTests {
         #expect(arch == .arm64)
     }
 
+    @Test func testAarch64Alias() throws {
+        let arch = Arch(rawValue: "aarch64")
+        #expect(arch != nil)
+        #expect(arch == .arm64)
+    }
+
     @Test func testCaseInsensitive() throws {
         #expect(Arch(rawValue: "AMD64") == .amd64)
         #expect(Arch(rawValue: "X86_64") == .amd64)
         #expect(Arch(rawValue: "ARM64") == .arm64)
+        #expect(Arch(rawValue: "AARCH64") == .arm64)
         #expect(Arch(rawValue: "Amd64") == .amd64)
     }
 
