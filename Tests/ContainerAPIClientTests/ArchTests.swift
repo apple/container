@@ -14,51 +14,52 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import XCTest
+import Testing
+
 @testable import ContainerAPIClient
 
-final class ArchTests: XCTestCase {
+struct ArchTests {
 
-    func testAmd64Initialization() throws {
+    @Test func testAmd64Initialization() throws {
         let arch = Arch(rawValue: "amd64")
-        XCTAssertNotNil(arch)
-        XCTAssertEqual(arch, .amd64)
+        #expect(arch != nil)
+        #expect(arch == .amd64)
     }
 
-    func testX86_64Alias() throws {
+    @Test func testX86_64Alias() throws {
         let arch = Arch(rawValue: "x86_64")
-        XCTAssertNotNil(arch)
-        XCTAssertEqual(arch, .amd64)
+        #expect(arch != nil)
+        #expect(arch == .amd64)
     }
 
-    func testX86_64WithDashAlias() throws {
+    @Test func testX86_64WithDashAlias() throws {
         let arch = Arch(rawValue: "x86-64")
-        XCTAssertNotNil(arch)
-        XCTAssertEqual(arch, .amd64)
+        #expect(arch != nil)
+        #expect(arch == .amd64)
     }
 
-    func testArm64Initialization() throws {
+    @Test func testArm64Initialization() throws {
         let arch = Arch(rawValue: "arm64")
-        XCTAssertNotNil(arch)
-        XCTAssertEqual(arch, .arm64)
+        #expect(arch != nil)
+        #expect(arch == .arm64)
     }
 
-    func testCaseInsensitive() throws {
-        XCTAssertEqual(Arch(rawValue: "AMD64"), .amd64)
-        XCTAssertEqual(Arch(rawValue: "X86_64"), .amd64)
-        XCTAssertEqual(Arch(rawValue: "ARM64"), .arm64)
-        XCTAssertEqual(Arch(rawValue: "Amd64"), .amd64)
+    @Test func testCaseInsensitive() throws {
+        #expect(Arch(rawValue: "AMD64") == .amd64)
+        #expect(Arch(rawValue: "X86_64") == .amd64)
+        #expect(Arch(rawValue: "ARM64") == .arm64)
+        #expect(Arch(rawValue: "Amd64") == .amd64)
     }
 
-    func testInvalidArchitecture() throws {
-        XCTAssertNil(Arch(rawValue: "invalid"))
-        XCTAssertNil(Arch(rawValue: "i386"))
-        XCTAssertNil(Arch(rawValue: "powerpc"))
-        XCTAssertNil(Arch(rawValue: ""))
+    @Test func testInvalidArchitecture() throws {
+        #expect(Arch(rawValue: "invalid") == nil)
+        #expect(Arch(rawValue: "i386") == nil)
+        #expect(Arch(rawValue: "powerpc") == nil)
+        #expect(Arch(rawValue: "") == nil)
     }
 
-    func testRawValueRoundTrip() throws {
-        XCTAssertEqual(Arch.amd64.rawValue, "amd64")
-        XCTAssertEqual(Arch.arm64.rawValue, "arm64")
+    @Test func testRawValueRoundTrip() throws {
+        #expect(Arch.amd64.rawValue == "amd64")
+        #expect(Arch.arm64.rawValue == "arm64")
     }
 }
