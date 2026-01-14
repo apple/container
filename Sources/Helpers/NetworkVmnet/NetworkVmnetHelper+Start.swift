@@ -39,6 +39,9 @@ extension NetworkVmnetHelper {
         @Option(name: .shortAndLong, help: "Network identifier")
         var id: String
 
+        @Flag(name: .long, help: "Restrict external access to the network")
+        var hostOnly: Bool = false
+
         @Option(name: .customLong("subnet"), help: "CIDR address for the IPv4 subnet")
         var ipv4Subnet: String?
 
@@ -60,6 +63,7 @@ extension NetworkVmnetHelper {
                 let configuration = try NetworkConfiguration(
                     id: id,
                     mode: .nat,
+                    hostOnly: hostOnly,
                     ipv4Subnet: ipv4Subnet,
                     ipv6Subnet: ipv6Subnet,
                 )

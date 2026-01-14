@@ -31,6 +31,9 @@ extension Application {
         @Option(name: .customLong("label"), help: "Set metadata for a network")
         var labels: [String] = []
 
+        @Flag(name: .customLong("internal"), help: "Restrict external access to the network")
+        var hostOnly: Bool = false
+
         @Option(
             name: .customLong("subnet"), help: "Set subnet for a network",
             transform: {
@@ -58,6 +61,7 @@ extension Application {
             let config = try NetworkConfiguration(
                 id: self.name,
                 mode: .nat,
+                hostOnly: hostOnly,
                 ipv4Subnet: ipv4Subnet,
                 ipv6Subnet: ipv6Subnet,
                 labels: parsedLabels

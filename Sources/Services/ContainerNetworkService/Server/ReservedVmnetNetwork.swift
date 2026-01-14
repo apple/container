@@ -110,7 +110,8 @@ public final class ReservedVmnetNetwork: Network {
 
         // set up the vmnet configuration
         var status: vmnet_return_t = .VMNET_SUCCESS
-        guard let vmnetConfiguration = vmnet_network_configuration_create(vmnet.operating_modes_t.VMNET_SHARED_MODE, &status), status == .VMNET_SUCCESS else {
+        let mode: vmnet.operating_modes_t = configuration.hostOnly ? .VMNET_HOST_MODE : .VMNET_SHARED_MODE
+        guard let vmnetConfiguration = vmnet_network_configuration_create(mode, &status), status == .VMNET_SUCCESS else {
             throw ContainerizationError(.unsupported, message: "failed to create vmnet config with status \(status)")
         }
 

@@ -284,6 +284,10 @@ public actor NetworksService {
             serviceIdentifier,
         ]
 
+        if configuration.hostOnly {
+            args += ["--host-only"]
+        }
+
         if let ipv4Subnet = configuration.ipv4Subnet {
             var existingCidrs: [CIDRv4] = []
             for networkState in networkStates.values {

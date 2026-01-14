@@ -26,6 +26,9 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     /// The network type
     public let mode: NetworkMode
 
+    /// Restricted to external access
+    public let hostOnly: Bool
+
     /// When the network was created.
     public let creationDate: Date
 
@@ -42,6 +45,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     public init(
         id: String,
         mode: NetworkMode,
+        hostOnly: Bool,
         ipv4Subnet: CIDRv4? = nil,
         ipv6Subnet: CIDRv6? = nil,
         labels: [String: String] = [:]
@@ -49,6 +53,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         self.id = id
         self.creationDate = Date()
         self.mode = mode
+        self.hostOnly = hostOnly
         self.ipv4Subnet = ipv4Subnet
         self.ipv6Subnet = ipv6Subnet
         self.labels = labels
@@ -59,6 +64,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         case id
         case creationDate
         case mode
+        case hostOnly
         case ipv4Subnet
         case ipv6Subnet
         case labels
@@ -74,6 +80,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         id = try container.decode(String.self, forKey: .id)
         creationDate = try container.decodeIfPresent(Date.self, forKey: .creationDate) ?? Date(timeIntervalSince1970: 0)
         mode = try container.decode(NetworkMode.self, forKey: .mode)
+        hostOnly = try container.decode(Bool.self, forKey: .hostOnly)
         let subnetText =
             try container.decodeIfPresent(String.self, forKey: .ipv4Subnet)
             ?? container.decodeIfPresent(String.self, forKey: .subnet)
@@ -91,6 +98,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         try container.encode(id, forKey: .id)
         try container.encode(creationDate, forKey: .creationDate)
         try container.encode(mode, forKey: .mode)
+        try container.encode(hostOnly, forKey: .hostOnly)
         try container.encodeIfPresent(ipv4Subnet, forKey: .ipv4Subnet)
         try container.encodeIfPresent(ipv6Subnet, forKey: .ipv6Subnet)
         try container.encode(labels, forKey: .labels)
