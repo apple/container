@@ -113,10 +113,19 @@ extension Application {
         ) throws -> [C] {
             var matched: [C] = []
             for containerId in containerIds {
-                guard let container = allContainers.first(where: { $0.id == containerId || $0.id.starts(with: containerId) }) else {
+                if let exact = allContainers.first(where: { $0.id == containerId }) {
+                    matched.append(exact)
+                    continue
+                }
+
+                let prefixMatches = allContainers.filter { $0.id.starts(with: containerId) }
+                guard !prefixMatches.isEmpty else {
                     throw ContainerizationError(.notFound, message: "no such container: \(containerId)")
                 }
-                matched.append(container)
+                if prefixMatches.count > 1 {
+                    throw ContainerizationError(.invalidArgument, message: "ambiguous container ID prefix: \(containerId)")
+                }
+                matched.append(prefixMatches[0])
             }
             return matched
         }

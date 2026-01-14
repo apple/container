@@ -47,6 +47,33 @@ struct ContainerStopValidationTests {
     }
 
     @Test
+    func prefersExactIdOverPrefixMatches() throws {
+        let containers = [
+            StubContainer(id: "abc", status: .running),
+            StubContainer(id: "abcdef", status: .running),
+        ]
+        let matched = try Application.ContainerStop.containers(matching: ["abc"], in: containers)
+        #expect(matched.count == 1)
+        #expect(matched.first?.id == "abc")
+    }
+
+    @Test
+    func throwsForAmbiguousPrefixes() throws {
+        let containers = [
+            StubContainer(id: "abc123", status: .running),
+            StubContainer(id: "abcd99", status: .running),
+        ]
+        #expect {
+            _ = try Application.ContainerStop.containers(matching: ["abc"], in: containers)
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.code == .invalidArgument
+        }
+    }
+
+    @Test
     func throwsForMissingContainers() throws {
         let containers = [StubContainer(id: "abcdef", status: .running)]
         #expect {
