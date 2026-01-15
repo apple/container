@@ -17,48 +17,53 @@
 import Foundation
 
 /// A named or anonymous volume that can be mounted in containers.
-public struct Volume: Sendable, Codable, Equatable, Identifiable {
+public struct VolumeResource: ManagedResource {
     // id of the volume.
     public var id: String { name }
+    // id of the resource.
+    public var qualifiedId: String { "volume/\(name)" }
     // Name of the volume.
-    public var name: String
+    public let name: String
+    // Name of the volume.
+    public let hexId: String
     // Driver used to create the volume.
-    public var driver: String
+    public let driver: String
     // Filesystem format of the volume.
-    public var format: String
+    public let format: String
     // The mount point of the volume on the host.
-    public var source: String
+    public let source: String
     // Timestamp when the volume was created.
-    public var createdAt: Date
+    public let creationDate: Date
     // User-defined key/value metadata.
-    public var labels: [String: String]
+    public let labels: [String: String]
     // Driver-specific options.
-    public var options: [String: String]
+    public let options: [String: String]
     // Size of the volume in bytes (optional).
-    public var sizeInBytes: UInt64?
+    public let sizeInBytes: UInt64?
 
     public init(
-        name: String,
+        name: String?,
         driver: String = "local",
         format: String = "ext4",
         source: String,
-        createdAt: Date = Date(),
+        creationDate: Date,
         labels: [String: String] = [:],
         options: [String: String] = [:],
         sizeInBytes: UInt64? = nil
     ) {
-        self.name = name
+        self.hexId = HexId.random()
+        self.name = name ?? self.hexId
         self.driver = driver
         self.format = format
         self.source = source
-        self.createdAt = createdAt
+        self.creationDate = creationDate
         self.labels = labels
         self.options = options
         self.sizeInBytes = sizeInBytes
     }
 }
 
-extension Volume {
+extension VolumeResource {
     /// Reserved label key for marking anonymous volumes
     public static let anonymousLabel = "com.apple.container.resource.anonymous"
 

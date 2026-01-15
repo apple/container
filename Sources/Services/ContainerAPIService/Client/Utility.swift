@@ -330,12 +330,12 @@ public struct Utility {
 
     /// Gets an existing volume or creates it if it doesn't exist.
     /// Shows a warning for named volumes when auto-creating.
-    private static func getOrCreateVolume(parsed: ParsedVolume) async throws -> Volume {
-        let labels = parsed.isAnonymous ? [Volume.anonymousLabel: ""] : [:]
+    private static func getOrCreateVolume(parsed: ParsedVolume) async throws -> VolumeResource {
+        let labels = parsed.isAnonymous ? [VolumeResource.anonymousLabel: ""] : [:]
 
-        let volume: Volume
+        let volume: VolumeResource
         do {
-            volume = try await ClientVolume.create(
+            volume = try await VolumeClient.create(
                 name: parsed.name,
                 driver: "local",
                 driverOpts: [:],
@@ -346,13 +346,13 @@ public struct Utility {
                 throw error
             }
             // Volume already exists, just inspect it
-            volume = try await ClientVolume.inspect(parsed.name)
+            volume = try await VolumeClient.inspect(parsed.name)
         } catch let error as ContainerizationError {
             // Handle XPC-wrapped volumeAlreadyExists error
             guard error.message.contains("already exists") else {
                 throw error
             }
-            volume = try await ClientVolume.inspect(parsed.name)
+            volume = try await VolumeClient.inspect(parsed.name)
         }
 
         // TODO: Warn user if named volume was auto-created
