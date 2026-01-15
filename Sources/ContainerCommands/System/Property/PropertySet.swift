@@ -79,6 +79,20 @@ extension Application {
                     throw ContainerizationError(.invalidArgument, message: "invalid CIDRv6 address: \(value)")
                 }
                 DefaultsStore.set(value: value, key: key)
+            case .defaultRealhost:
+                guard let addr = try? IPv4Address(value) else {
+                    throw ContainerizationError(.invalidArgument, message: "invalid IPv4 address: \(value)")
+                }
+                // TODO: update packet filter rule
+
+                DefaultsStore.set(value: addr.description, key: key)
+            case .defaultIPv6Realhost:
+                guard let addr = try? IPv6Address(value) else {
+                    throw ContainerizationError(.invalidArgument, message: "invalid IPv6 address: \(value)")
+                }
+                // TODO: update packet filter rule
+
+                DefaultsStore.set(value: addr.description, key: key)
             }
         }
     }

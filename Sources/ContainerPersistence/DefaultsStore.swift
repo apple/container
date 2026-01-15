@@ -31,6 +31,8 @@ public enum DefaultsStore {
         case defaultKernelURL = "kernel.url"
         case defaultSubnet = "network.subnet"
         case defaultIPv6Subnet = "network.subnetv6"
+        case defaultRealhost = "network.realhost"
+        case defaultIPv6Realhost = "network.realhostv6"
         case defaultRegistryDomain = "registry.domain"
     }
 
@@ -136,6 +138,10 @@ extension DefaultsStore.Keys {
             return "Default subnet for IPv4 allocation."
         case .defaultIPv6Subnet:
             return "Default IPv6 network prefix."
+        case .defaultRealhost:
+            return "Default IPv4 address packets to which are redirected to real host"
+        case .defaultIPv6Realhost:
+            return "default IPv6 address packets to which are redirected to real host"
         case .defaultRegistryDomain:
             return "The default registry to use for image references that do not specify a registry."
         }
@@ -158,6 +164,10 @@ extension DefaultsStore.Keys {
         case .defaultSubnet:
             return String.self
         case .defaultIPv6Subnet:
+            return String.self
+        case .defaultRealhost:
+            return String.self
+        case .defaultIPv6Realhost:
             return String.self
         case .defaultRegistryDomain:
             return String.self
@@ -188,6 +198,10 @@ extension DefaultsStore.Keys {
             return "192.168.64.1/24"
         case .defaultIPv6Subnet:
             return "fd00::/64"
+        case .defaultRealhost:
+            return "203.0.113.113"
+        case .defaultIPv6Realhost:
+            return "2001:db8::1"
         case .defaultRegistryDomain:
             return "docker.io"
         }
