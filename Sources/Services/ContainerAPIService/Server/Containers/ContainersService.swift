@@ -363,10 +363,16 @@ public actor ContainersService {
                     let log = self.log
                     let waitFunc: ExitMonitor.WaitHandler = {
                         log.info("registering container \(id) with exit monitor")
-                        let code = try await client.wait(id)
-                        log.info("container \(id) finished in exit monitor, exit code \(code)")
-
-                        return code
+                        do {
+                            let code = try await client.wait(id)
+                            log.info("container \(id) finished in exit monitor, exit code \(code)")
+                            return code
+                        } catch let err as ContainerizationError where err.code == .interrupted {
+                            // XPC connection was lost (e.g., container killed externally).
+                            // Treat this as a container exit so cleanup can proceed.
+                            log.warning("container \(id) XPC connection lost, treating as external termination")
+                            return ExitStatus(exitCode: 137)  // SIGKILL
+                        }
                     }
                     try await self.exitMonitor.track(id: id, waitingOn: waitFunc)
 
