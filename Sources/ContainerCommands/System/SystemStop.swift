@@ -66,9 +66,13 @@ extension Application {
                     let containers = try await ClientContainer.list()
                     let signal = try Signals.parseSignal("SIGTERM")
                     let opts = ContainerStopOptions(timeoutInSeconds: Self.stopTimeoutSeconds, signal: signal)
-                    let failed = try await ContainerStop.stopContainers(containers: containers, stopOptions: opts)
-                    if !failed.isEmpty {
-                        log.warning("some containers could not be stopped gracefully", metadata: ["ids": "\(failed)"])
+
+                    do {
+                        try await ContainerStop.stopContainers(containers: containers, stopOptions: opts)
+                    } catch let error as ContainerStop.StopError {
+                        for (id, error) in error.failed {
+                            log.warning("container \(id) failed to stop: \(error)")
+                        }
                     }
                 } catch {
                     log.warning("failed to stop all containers", metadata: ["error": "\(error)"])

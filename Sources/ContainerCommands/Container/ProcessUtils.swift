@@ -20,6 +20,14 @@ import ContainerizationError
 import ContainerizationOS
 import Foundation
 
+struct StandardError: TextOutputStream, Sendable {
+    private static let handle = FileHandle.standardError
+
+    public func write(_ string: String) {
+        Self.handle.write(Data(string.utf8))
+    }
+}
+
 extension Application {
     static func ensureRunning(container: ClientContainer) throws {
         if container.status != .running {
