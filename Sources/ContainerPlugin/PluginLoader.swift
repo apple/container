@@ -225,7 +225,7 @@ extension PluginLoader {
 
         let plist = LaunchPlist(
             label: id,
-            arguments: [plugin.binaryURL.path] + (args ?? serviceConfig.defaultArguments),
+            arguments: [plugin.binaryURL.path] + (args ?? ["start"]) + serviceConfig.defaultArguments,
             environment: env,
             limitLoadToSessionType: [.Aqua, .Background, .System],
             runAtLoad: serviceConfig.runAtLoad,
