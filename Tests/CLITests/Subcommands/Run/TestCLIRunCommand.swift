@@ -401,6 +401,16 @@ class TestCLIRunCommand2: CLITest {
             return
         }
     }
+}
+
+class TestCLIRunCommand3: CLITest {
+    func getTestName() -> String {
+        Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
+    }
+
+    func getLowercasedTestName() -> String {
+        getTestName().lowercased()
+    }
 
     @Test func testRunCommandDefaultResolvConf() throws {
         do {
