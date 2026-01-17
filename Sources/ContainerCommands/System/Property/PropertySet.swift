@@ -85,9 +85,12 @@ extension Application {
                 }
                 let pf = PacketFilter()
                 let localhost = try! IPAddress("127.0.0.1")
-                let oldAddr = try! IPAddress(DefaultsStore.get(key: .defaultRealhost))
 
                 do {
+                    try setEUID(uid: try getOriginalUID())
+                    let oldAddr = try! IPAddress(DefaultsStore.get(key: .defaultRealhost))
+                    try setEUID(uid: 0)
+
                     try pf.removeRedirectRule(from: oldAddr, to: localhost)
                     try pf.createRedirectRule(from: addr, to: localhost)
                     try pf.updateConfig()
@@ -102,7 +105,7 @@ extension Application {
                     throw ContainerizationError(.invalidState, message: "\(error.localizedDescription) (try sudo?)")
                 }
 
-                try setUID(uid: try getOriginalUID())
+                try setEUID(uid: try getOriginalUID())
                 DefaultsStore.set(value: addr.description, key: key)
             case .defaultIPv6Realhost:
                 guard let addr = try? IPAddress(value), case .v6(_) = addr else {
@@ -110,9 +113,12 @@ extension Application {
                 }
                 let pf = PacketFilter()
                 let localhost = try! IPAddress("::1")
-                let oldAddr = try! IPAddress(DefaultsStore.get(key: .defaultRealhost))
 
                 do {
+                    try setEUID(uid: try getOriginalUID())
+                    let oldAddr = try! IPAddress(DefaultsStore.get(key: .defaultIPv6Realhost))
+                    try setEUID(uid: 0)
+
                     try pf.removeRedirectRule(from: oldAddr, to: localhost)
                     try pf.createRedirectRule(from: addr, to: localhost)
                     try pf.updateConfig()
@@ -127,7 +133,7 @@ extension Application {
                     throw ContainerizationError(.invalidState, message: "\(error.localizedDescription) (try sudo?)")
                 }
 
-                try setUID(uid: try getOriginalUID())
+                try setEUID(uid: try getOriginalUID())
                 DefaultsStore.set(value: addr.description, key: key)
             }
         }

@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerPersistence
 import ContainerizationError
 import ContainerizationExtras
 import Foundation
@@ -30,15 +31,44 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
 
+        @Flag
+        var localhost: Bool = false
+
         @Argument(help: "The local domain name")
         var domainName: String
 
         public init() {}
 
         public func run() async throws {
+            if localhost {
+                let from: String
+                do {
+                    try setEUID(uid: try getOriginalUID())
+                    from = DefaultsStore.get(key: .defaultRealhost)
+                    try setEUID(uid: 0)
+                } catch let error as ContainerizationError {
+                    throw ContainerizationError(.invalidState, message: "\(error.message) (try sudo?)")
+                }
+
+                let pf = PacketFilter()
+                do {
+                    let fromIpAddress = try! IPAddress(from)
+                    let toIpAddress: IPAddress
+                    if case .v4(_) = fromIpAddress {
+                        toIpAddress = try! IPAddress("127.0.0.1")
+                    } else {
+                        toIpAddress = try! IPAddress("::1")
+                    }
+
+                    try pf.createRedirectRule(from: fromIpAddress, to: toIpAddress)
+                    try pf.updateConfig()
+                    try pf.reinitialize()
+                }
+            }
+
             let resolver: HostDNSResolver = HostDNSResolver()
             do {
-                try resolver.createDomain(name: domainName)
+                try resolver.createDomain(name: domainName, localhost: localhost)
                 print(domainName)
             } catch let error as ContainerizationError {
                 throw error

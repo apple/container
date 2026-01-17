@@ -40,8 +40,11 @@ public struct PacketFilter {
 
         let anchorURL = self.anchorsURL.appending(path: Self.anchor)
 
-        // let inet = from is IPv4 ? "inet" : "int6"
-        let inet = "inet"
+        let inet: String
+        switch from {
+        case .v4: inet = "inet"
+        case .v6: inet = "inet6"
+        }
         let redirectRule = "rdr \(inet) from any to \(from.description) -> \(to.description)"
 
         var content = ""
@@ -53,6 +56,8 @@ public struct PacketFilter {
 
         if !content.contains(redirectRule) {
             lines.append(redirectRule + "\n")
+        } else {
+            lines.append("")
         }
 
         do {
@@ -71,8 +76,11 @@ public struct PacketFilter {
 
         let anchorURL = self.anchorsURL.appending(path: Self.anchor)
 
-        // let inet = from is IPv4 ? "inet" : "int6"
-        let inet = "inet"
+        let inet: String
+        switch from {
+        case .v4: inet = "inet"
+        case .v6: inet = "inet6"
+        }
         let redirectRule = "rdr \(inet) from any to \(from.description) -> \(to.description)"
 
         guard fm.fileExists(atPath: anchorURL.path) else {
@@ -80,11 +88,12 @@ public struct PacketFilter {
         }
 
         let content = try String(contentsOfFile: anchorURL.path, encoding: .utf8)
-        let lines = content.components(separatedBy: .newlines)
+        let lines = content.components(separatedBy: .newlines).filter { !$0.isEmpty }
 
-        let removedLines = lines.filter { l in
+        var removedLines = lines.filter { l in
             l != redirectRule
         }
+        removedLines.append("")
 
         do {
             try removedLines.joined(separator: "\n").write(toFile: anchorURL.path, atomically: true, encoding: .utf8)

@@ -39,10 +39,10 @@ extension Application {
         return passwdStructPointer.pointee.pw_uid
     }
 
-    static func setUID(uid: uid_t) throws {
-        let ret = setuid(uid)
+    static func setEUID(uid: uid_t) throws {
+        let ret = seteuid(uid)
         guard ret == 0 else {
-            throw ContainerizationError(.invalidState, message: "failed to set uid to \(uid)))")
+            throw ContainerizationError(.invalidState, message: "failed to set euid to \(uid)))")
         }
     }
 }

@@ -31,7 +31,7 @@ public struct HostDNSResolver {
     }
 
     /// Creates a DNS resolver configuration file for domain resolved by the application.
-    public func createDomain(name: String) throws {
+    public func createDomain(name: String, localhost: Bool) throws {
         let path = self.configURL.appending(path: "\(Self.containerizationPrefix)\(name)").path
         let fm: FileManager = FileManager.default
 
@@ -47,11 +47,13 @@ public struct HostDNSResolver {
             throw ContainerizationError(.exists, message: "domain \(name) already exists")
         }
 
+        let dnsPort = localhost ? "1053" : "2053"
+
         let resolverText = """
             domain \(name)
             search \(name)
             nameserver 127.0.0.1
-            port 2053
+            port \(dnsPort)
             """
 
         do {
