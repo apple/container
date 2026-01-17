@@ -26,4 +26,23 @@ extension Application {
             throw ContainerizationError(.invalidState, message: "container \(container.id) is not running")
         }
     }
+
+    static func getOriginalUID() throws -> uid_t {
+        guard let originalUser: UnsafeMutablePointer<CChar> = getenv("SUDO_USER") else {
+            throw ContainerizationError(.invalidState, message: "failed to get original user name")
+        }
+
+        guard let passwdStructPointer = getpwnam(originalUser) else {
+            throw ContainerizationError(.invalidState, message: "failed to uid of \(originalUser)))")
+        }
+
+        return passwdStructPointer.pointee.pw_uid
+    }
+
+    static func setUID(uid: uid_t) throws {
+        let ret = setuid(uid)
+        guard ret == 0 else {
+            throw ContainerizationError(.invalidState, message: "failed to set uid to \(uid)))")
+        }
+    }
 }

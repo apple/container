@@ -80,18 +80,54 @@ extension Application {
                 }
                 DefaultsStore.set(value: value, key: key)
             case .defaultRealhost:
-                guard let addr = try? IPv4Address(value) else {
+                guard let addr = try? IPAddress(value), case .v4(_) = addr else {
                     throw ContainerizationError(.invalidArgument, message: "invalid IPv4 address: \(value)")
                 }
-                // TODO: update packet filter rule
+                let pf = PacketFilter()
+                let localhost = try! IPAddress("127.0.0.1")
+                let oldAddr = try! IPAddress(DefaultsStore.get(key: .defaultRealhost))
 
+                do {
+                    try pf.removeRedirectRule(from: oldAddr, to: localhost)
+                    try pf.createRedirectRule(from: addr, to: localhost)
+                    try pf.updateConfig()
+                    try pf.reinitialize()
+
+                    print("'\(addr.description)' -> '\(localhost.description)'")
+                } catch let error as ContainerizationError where error.isCode(.invalidState) {
+                    throw ContainerizationError(.invalidState, message: "\(error.message) (try sudo?)")
+                } catch let error as ContainerizationError {
+                    throw error
+                } catch {
+                    throw ContainerizationError(.invalidState, message: "\(error.localizedDescription) (try sudo?)")
+                }
+
+                try setUID(uid: try getOriginalUID())
                 DefaultsStore.set(value: addr.description, key: key)
             case .defaultIPv6Realhost:
-                guard let addr = try? IPv6Address(value) else {
+                guard let addr = try? IPAddress(value), case .v6(_) = addr else {
                     throw ContainerizationError(.invalidArgument, message: "invalid IPv6 address: \(value)")
                 }
-                // TODO: update packet filter rule
+                let pf = PacketFilter()
+                let localhost = try! IPAddress("::1")
+                let oldAddr = try! IPAddress(DefaultsStore.get(key: .defaultRealhost))
 
+                do {
+                    try pf.removeRedirectRule(from: oldAddr, to: localhost)
+                    try pf.createRedirectRule(from: addr, to: localhost)
+                    try pf.updateConfig()
+                    try pf.reinitialize()
+
+                    print("'\(addr.description)' -> '\(localhost.description)'")
+                } catch let error as ContainerizationError where error.isCode(.invalidState) {
+                    throw ContainerizationError(.invalidState, message: "\(error.message) (try sudo?)")
+                } catch let error as ContainerizationError {
+                    throw error
+                } catch {
+                    throw ContainerizationError(.invalidState, message: "\(error.localizedDescription) (try sudo?)")
+                }
+
+                try setUID(uid: try getOriginalUID())
                 DefaultsStore.set(value: addr.description, key: key)
             }
         }

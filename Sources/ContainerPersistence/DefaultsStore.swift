@@ -77,6 +77,8 @@ public enum DefaultsStore {
             (.defaultKernelURL, { Self.get(key: $0) }),
             (.defaultSubnet, { Self.getOptional(key: $0) }),
             (.defaultIPv6Subnet, { Self.getOptional(key: $0) }),
+            (.defaultRealhost, { Self.get(key: $0) }),
+            (.defaultIPv6Realhost, { Self.get(key: $0) }),
             (.defaultDNSDomain, { Self.getOptional(key: $0) }),
             (.defaultRegistryDomain, { Self.get(key: $0) }),
         ]
