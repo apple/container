@@ -544,12 +544,26 @@ public actor ContainersService {
             instanceId: id
         )
 
-        let client = try state.getClient()
-        try await client.shutdown()
+        // Try to shutdown the client gracefully, but if the sandbox service
+        // is already dead (e.g., killed externally), we should still continue
+        // with state cleanup.
+        if let client = state.client {
+            do {
+                try await client.shutdown()
+            } catch {
+                self.log.error("Failed to shutdown sandbox service for \(id): \(error)")
+            }
+        }
 
-        // Deregister the service, launchd will terminate the process
-        try ServiceManager.deregister(fullServiceLabel: label)
-        self.log.info("Deregistered sandbox service for \(id)")
+        // Deregister the service, launchd will terminate the process.
+        // This may also fail if the service was already deregistered or
+        // the process was killed externally.
+        do {
+            try ServiceManager.deregister(fullServiceLabel: label)
+            self.log.info("Deregistered sandbox service for \(id)")
+        } catch {
+            self.log.error("Failed to deregister sandbox service for \(id): \(error)")
+        }
 
         state.snapshot.status = .stopped
         state.snapshot.networks = []
