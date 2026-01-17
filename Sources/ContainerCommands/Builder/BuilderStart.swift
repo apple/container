@@ -44,6 +44,12 @@ extension Application {
         )
         var memory: String = "2048MB"
 
+        @Option(
+            name: .customLong("dns"),
+            help: .init("DNS nameserver IP address for builder container", valueName: "ip")
+        )
+        var dnsNameservers: [String] = []
+
         @OptionGroup
         var global: Flags.Global
 
@@ -60,11 +66,11 @@ extension Application {
                 progress.finish()
             }
             progress.start()
-            try await Self.start(cpus: self.cpus, memory: self.memory, progressUpdate: progress.handler)
+            try await Self.start(cpus: self.cpus, memory: self.memory, dnsNameservers: self.dnsNameservers, progressUpdate: progress.handler)
             progress.finish()
         }
 
-        static func start(cpus: Int64?, memory: String?, progressUpdate: @escaping ProgressUpdateHandler) async throws {
+        static func start(cpus: Int64?, memory: String?, dnsNameservers: [String] = [], progressUpdate: @escaping ProgressUpdateHandler) async throws {
             await progressUpdate([
                 .setDescription("Fetching BuildKit image"),
                 .setItemsName("blobs"),
@@ -102,6 +108,7 @@ extension Application {
                 let existingImage = existingContainer.configuration.image.reference
                 let existingResources = existingContainer.configuration.resources
                 let existingEnv = existingContainer.configuration.initProcess.environment
+                let existingDNS = existingContainer.configuration.dns?.nameservers ?? []
 
                 let existingManagedEnv = existingEnv.filter { envVar in
                     envVar.hasPrefix("BUILDKIT_COLORS=") || envVar.hasPrefix("NO_COLOR=")
@@ -128,11 +135,12 @@ extension Application {
                     }
                     return false
                 }()
+                let dnsChanged = !dnsNameservers.isEmpty && existingDNS != dnsNameservers
 
                 switch existingContainer.status {
                 case .running:
-                    guard imageChanged || cpuChanged || memChanged || envChanged else {
-                        // If image, mem and cpu are the same, continue using the existing builder
+                    guard imageChanged || cpuChanged || memChanged || envChanged || dnsChanged else {
+                        // If image, mem, cpu, env, and DNS are the same, continue using the existing builder
                         return
                     }
                     // If they changed, stop and delete the existing builder
@@ -141,7 +149,7 @@ extension Application {
                 case .stopped:
                     // If the builder is stopped and matches our requirements, start it
                     // Otherwise, delete it and create a new one
-                    guard imageChanged || cpuChanged || memChanged || envChanged else {
+                    guard imageChanged || cpuChanged || memChanged || envChanged || dnsChanged else {
                         try await existingContainer.startBuildKit(progressUpdate, nil)
                         return
                     }
@@ -232,7 +240,7 @@ extension Application {
             config.networks = [AttachmentConfiguration(network: network.id, options: AttachmentOptions(hostname: id))]
             let subnet = networkStatus.ipv4Subnet
             let nameserver = IPv4Address(subnet.lower.value + 1).description
-            let nameservers = [nameserver]
+            let nameservers = dnsNameservers.isEmpty ? [nameserver] : dnsNameservers
             config.dns = ContainerConfiguration.DNSConfiguration(nameservers: nameservers)
 
             let kernel = try await {
