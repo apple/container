@@ -21,7 +21,7 @@ import ContainerizationOS
 import TerminalProgress
 
 extension Application {
-    public struct ContainerStart: AsyncParsableCommand {
+    public struct ContainerStart: AsyncLoggableCommand {
         public init() {}
 
         public static let configuration = CommandConfiguration(
@@ -35,7 +35,7 @@ extension Application {
         var interactive = false
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "Container ID")
         var containerId: String

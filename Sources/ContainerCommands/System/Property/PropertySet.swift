@@ -23,14 +23,14 @@ import ContainerizationOCI
 import Foundation
 
 extension Application {
-    public struct PropertySet: AsyncParsableCommand {
+    public struct PropertySet: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "set",
             abstract: "Set a property value"
         )
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "The property ID")
         var id: String

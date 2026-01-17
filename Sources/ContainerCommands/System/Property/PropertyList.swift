@@ -20,7 +20,7 @@ import ContainerPersistence
 import Foundation
 
 extension Application {
-    public struct PropertyList: AsyncParsableCommand {
+    public struct PropertyList: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "list",
             abstract: "List system properties",
@@ -34,7 +34,7 @@ extension Application {
         var quiet = false
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         public init() {}
 
