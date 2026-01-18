@@ -116,7 +116,7 @@ public struct Application: AsyncLoggableCommand {
         } catch {
             // Regular ol `command` with no args will get caught by DefaultCommand. --help
             // on the root command will land here.
-            let containsHelp = fullArgs.contains("-h") || fullArgs.contains("--help")
+            let containsHelp = fullArgs.contains("-h") || fullArgs.contains("--help") || fullArgs.contains("help")
             if fullArgs.count <= 2 && containsHelp {
                 let pluginLoader = try? await createPluginLoader()
                 await Self.printModifiedHelpText(pluginLoader: pluginLoader)
