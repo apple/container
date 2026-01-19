@@ -47,8 +47,10 @@ class TestCLIStatsCommand: CLITest {
 
             #expect(stats.count == 1, "expected stats for one container")
             #expect(stats[0].id == name, "container ID should match")
-            #expect(stats[0].memoryUsageBytes > 0, "memory usage should be non-zero")
-            #expect(stats[0].numProcesses >= 1, "should have at least one process")
+            let memoryUsageBytes = try #require(stats[0].memoryUsageBytes)
+            let numProcesses = try #require(stats[0].numProcesses)
+            #expect(memoryUsageBytes > 0, "memory usage should be non-zero")
+            #expect(numProcesses >= 1, "should have at least one process")
         }
     }
 

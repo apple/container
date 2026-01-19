@@ -277,14 +277,14 @@ public actor SandboxService {
 
             let containerStats = ContainerStats(
                 id: stats.id,
-                memoryUsageBytes: stats.memory.usageBytes,
-                memoryLimitBytes: stats.memory.limitBytes,
-                cpuUsageUsec: stats.cpu.usageUsec,
-                networkRxBytes: stats.networks.reduce(0) { $0 + $1.receivedBytes },
-                networkTxBytes: stats.networks.reduce(0) { $0 + $1.transmittedBytes },
-                blockReadBytes: stats.blockIO.devices.reduce(0) { $0 + $1.readBytes },
-                blockWriteBytes: stats.blockIO.devices.reduce(0) { $0 + $1.writeBytes },
-                numProcesses: stats.process.current
+                memoryUsageBytes: stats.memory?.usageBytes,
+                memoryLimitBytes: stats.memory?.limitBytes,
+                cpuUsageUsec: stats.cpu?.usageUsec,
+                networkRxBytes: stats.networks?.reduce(0) { $0 + $1.receivedBytes },
+                networkTxBytes: stats.networks?.reduce(0) { $0 + $1.transmittedBytes },
+                blockReadBytes: stats.blockIO?.devices.reduce(0) { $0 + $1.readBytes },
+                blockWriteBytes: stats.blockIO?.devices.reduce(0) { $0 + $1.writeBytes },
+                numProcesses: stats.process?.current
             )
 
             let reply = message.reply()

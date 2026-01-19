@@ -21,12 +21,19 @@ import ContainerizationOS
 import Foundation
 import Testing
 
-class TestCLIRunCommand: CLITest {
-    private func getTestName() -> String {
+// FIXME: We've split the tests into two suites to prevent swamping
+// the API server with so many run commands that all wind up pulling
+// images.
+//
+// When https://github.com/swiftlang/swift-testing/pull/1390 lands
+// and is available on the CI runners, we can try setting the
+// environment variable to limit concurrency and rejoin these suites.
+class TestCLIRunCommand1: CLITest {
+    func getTestName() -> String {
         Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
     }
 
-    private func getLowercasedTestName() -> String {
+    func getLowercasedTestName() -> String {
         getTestName().lowercased()
     }
 
@@ -193,6 +200,16 @@ class TestCLIRunCommand: CLITest {
             Issue.record("failed to run container \(error)")
             return
         }
+    }
+}
+
+class TestCLIRunCommand2: CLITest {
+    func getTestName() -> String {
+        Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
+    }
+
+    func getLowercasedTestName() -> String {
+        getTestName().lowercased()
     }
 
     @Test func testRunCommandMount() throws {
@@ -383,6 +400,16 @@ class TestCLIRunCommand: CLITest {
             Issue.record("failed to run container \(error)")
             return
         }
+    }
+}
+
+class TestCLIRunCommand3: CLITest {
+    func getTestName() -> String {
+        Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
+    }
+
+    func getLowercasedTestName() -> String {
+        getTestName().lowercased()
     }
 
     @Test func testRunCommandDefaultResolvConf() throws {
