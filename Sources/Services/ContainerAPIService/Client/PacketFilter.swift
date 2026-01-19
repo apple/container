@@ -134,7 +134,7 @@ public struct PacketFilter {
         }
 
         if !content.contains(loadAnchorText) {
-            lines.insert(loadAnchorText + "\n", at: lines.endIndex)
+            lines.append(loadAnchorText + "\n")
         }
 
         do {

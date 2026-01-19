@@ -98,7 +98,7 @@ extension APIServer {
                         let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
                         let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
                         log.info(
-                            "starting DNS host query resolver for containers",
+                            "starting DNS resolver for container hostnames",
                             metadata: [
                                 "host": "\(Self.listenAddress)",
                                 "port": "\(Self.dnsPort)",
@@ -114,7 +114,7 @@ extension APIServer {
                         let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
                         let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
                         log.info(
-                            "starting DNS host query resolver for real host",
+                            "starting DNS resolver for real host",
                             metadata: [
                                 "host": "\(Self.listenAddress)",
                                 "port": "\(Self.realhostDNSPort)",
