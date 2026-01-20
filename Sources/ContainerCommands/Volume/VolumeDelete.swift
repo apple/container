@@ -41,12 +41,12 @@ extension Application.VolumeCommand {
 
         public func run() async throws {
             let uniqueVolumeNames = Set<String>(names)
-            let volumes: [Volume]
+            let volumes: [VolumeResource]
 
             if all {
-                volumes = try await ClientVolume.list()
+                volumes = try await VolumeClient.list()
             } else {
-                volumes = try await ClientVolume.list()
+                volumes = try await VolumeClient.list()
                     .filter { v in
                         uniqueVolumeNames.contains(v.id)
                     }
@@ -68,11 +68,11 @@ extension Application.VolumeCommand {
             }
 
             var failed = [String]()
-            try await withThrowingTaskGroup(of: Volume?.self) { group in
+            try await withThrowingTaskGroup(of: VolumeResource?.self) { group in
                 for volume in volumes {
                     group.addTask {
                         do {
-                            try await ClientVolume.delete(name: volume.id)
+                            try await VolumeClient.delete(name: volume.id)
                             print(volume.id)
                             return nil
                         } catch {

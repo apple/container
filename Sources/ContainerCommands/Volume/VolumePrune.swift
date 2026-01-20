@@ -29,7 +29,7 @@ extension Application.VolumeCommand {
         var global: Flags.Global
 
         public func run() async throws {
-            let allVolumes = try await ClientVolume.list()
+            let allVolumes = try await VolumeClient.list()
 
             // Find all volumes not used by any container
             let containers = try await ClientContainer.list()
@@ -51,9 +51,9 @@ extension Application.VolumeCommand {
 
             for volume in volumesToPrune {
                 do {
-                    let actualSize = try await ClientVolume.volumeDiskUsage(name: volume.name)
+                    let actualSize = try await VolumeClient.volumeDiskUsage(name: volume.name)
                     totalSize += actualSize
-                    try await ClientVolume.delete(name: volume.name)
+                    try await VolumeClient.delete(name: volume.name)
                     prunedVolumes.append(volume.name)
                 } catch {
                     log.error("Failed to prune volume \(volume.name): \(error)")

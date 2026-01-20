@@ -35,10 +35,10 @@ extension Application.VolumeCommand {
         public init() {}
 
         public func run() async throws {
-            var volumes: [Volume] = []
+            var volumes: [VolumeResource] = []
 
             for name in names {
-                let volume = try await ClientVolume.inspect(name)
+                let volume = try await VolumeClient.inspect(name)
                 volumes.append(volume)
             }
 

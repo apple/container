@@ -19,7 +19,7 @@ import ContainerXPC
 import Containerization
 import Foundation
 
-public struct ClientVolume {
+public struct VolumeClient {
     static let serviceIdentifier = "com.apple.container.apiserver"
 
     public static func create(
@@ -27,7 +27,7 @@ public struct ClientVolume {
         driver: String = "local",
         driverOpts: [String: String] = [:],
         labels: [String: String] = [:]
-    ) async throws -> Volume {
+    ) async throws -> VolumeResource {
         let client = XPCClient(service: serviceIdentifier)
         let message = XPCMessage(route: .volumeCreate)
         message.set(key: .volumeName, value: name)
@@ -45,7 +45,7 @@ public struct ClientVolume {
             throw VolumeError.storageError("invalid response from server")
         }
 
-        return try JSONDecoder().decode(Volume.self, from: responseData)
+        return try JSONDecoder().decode(VolumeResource.self, from: responseData)
     }
 
     public static func delete(name: String) async throws {
@@ -56,7 +56,7 @@ public struct ClientVolume {
         _ = try await client.send(message)
     }
 
-    public static func list() async throws -> [Volume] {
+    public static func list() async throws -> [VolumeResource] {
         let client = XPCClient(service: serviceIdentifier)
         let message = XPCMessage(route: .volumeList)
         let reply = try await client.send(message)
@@ -65,10 +65,10 @@ public struct ClientVolume {
             return []
         }
 
-        return try JSONDecoder().decode([Volume].self, from: responseData)
+        return try JSONDecoder().decode([VolumeResource].self, from: responseData)
     }
 
-    public static func inspect(_ name: String) async throws -> Volume {
+    public static func inspect(_ name: String) async throws -> VolumeResource {
         let client = XPCClient(service: serviceIdentifier)
         let message = XPCMessage(route: .volumeInspect)
         message.set(key: .volumeName, value: name)
@@ -79,7 +79,7 @@ public struct ClientVolume {
             throw VolumeError.volumeNotFound(name)
         }
 
-        return try JSONDecoder().decode(Volume.self, from: responseData)
+        return try JSONDecoder().decode(VolumeResource.self, from: responseData)
     }
 
     public static func volumeDiskUsage(name: String) async throws -> UInt64 {
