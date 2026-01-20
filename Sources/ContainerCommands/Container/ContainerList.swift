@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,8 +15,8 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
-import ContainerNetworkService
+import ContainerAPIClient
+import ContainerResource
 import ContainerizationExtras
 import Foundation
 import SwiftProtobuf
@@ -48,7 +48,7 @@ extension Application {
         }
 
         private func createHeader() -> [[String]] {
-            [["ID", "IMAGE", "OS", "ARCH", "STATE", "ADDR", "CPUS", "MEMORY"]]
+            [["ID", "IMAGE", "OS", "ARCH", "STATE", "ADDR", "CPUS", "MEMORY", "STARTED"]]
         }
 
         private func printContainers(containers: [ClientContainer], format: ListFormat) throws {
@@ -94,9 +94,10 @@ extension ClientContainer {
             self.configuration.platform.os,
             self.configuration.platform.architecture,
             self.status.rawValue,
-            self.networks.compactMap { try? CIDRAddress($0.address).address.description }.joined(separator: ","),
+            self.networks.compactMap { $0.ipv4Address.description }.joined(separator: ","),
             "\(self.configuration.resources.cpus)",
             "\(self.configuration.resources.memoryInBytes / (1024 * 1024)) MB",
+            self.startedDate.map { ISO8601DateFormatter().string(from: $0) } ?? "",
         ]
     }
 }
@@ -105,10 +106,12 @@ struct PrintableContainer: Codable {
     let status: RuntimeStatus
     let configuration: ContainerConfiguration
     let networks: [Attachment]
+    let startedDate: Date?
 
     init(_ container: ClientContainer) {
         self.status = container.status
         self.configuration = container.configuration
         self.networks = container.networks
+        self.startedDate = container.startedDate
     }
 }

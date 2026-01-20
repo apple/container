@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
 import ContainerizationError
 import Foundation
 
@@ -44,7 +44,7 @@ extension Application {
                 guard let jsonString = String(data: data, encoding: .utf8) else {
                     throw ContainerizationError(
                         .internalError,
-                        message: "Failed to encode JSON output"
+                        message: "failed to encode JSON output"
                     )
                 }
                 print(jsonString)

@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
 import ContainerPersistence
 import ContainerizationError
 import ContainerizationExtras
@@ -70,8 +70,13 @@ extension Application {
                 DefaultsStore.set(value: value, key: key)
                 return
             case .defaultSubnet:
-                guard (try? CIDRAddress(value)) != nil else {
+                guard (try? CIDRv4(value)) != nil else {
                     throw ContainerizationError(.invalidArgument, message: "invalid CIDRv4 address: \(value)")
+                }
+                DefaultsStore.set(value: value, key: key)
+            case .defaultIPv6Subnet:
+                guard (try? CIDRv6(value)) != nil else {
+                    throw ContainerizationError(.invalidArgument, message: "invalid CIDRv6 address: \(value)")
                 }
                 DefaultsStore.set(value: value, key: key)
             }

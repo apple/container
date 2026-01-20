@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -81,6 +81,11 @@ extension ConnectHandler {
             .whenComplete { result in
                 switch result {
                 case .success(let channel):
+                    guard context.channel.isActive else {
+                        self.log?.trace("backend - frontend channel closed, closing backend connection")
+                        context.channel.close(promise: nil)
+                        return
+                    }
                     self.log?.trace("backend - connected")
                     self.glue(channel, context: context)
                 case .failure(let error):

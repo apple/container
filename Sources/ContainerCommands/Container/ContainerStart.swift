@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,9 +15,10 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
 import ContainerizationError
 import ContainerizationOS
+import Foundation
 import TerminalProgress
 
 extension Application {
@@ -67,6 +68,12 @@ extension Application {
                 }
                 print(containerId)
                 return
+            }
+
+            for mount in container.configuration.mounts where mount.isVirtiofs {
+                if !FileManager.default.fileExists(atPath: mount.source) {
+                    throw ContainerizationError(.invalidState, message: "path '\(mount.source)' is not a directory")
+                }
             }
 
             do {

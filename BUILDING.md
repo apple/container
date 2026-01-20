@@ -71,13 +71,20 @@ to prepare your build environment.
     >    ```swift
     >    .package(path: "../containerization"),
     >    ```
-5. Build `container`.
+
+5. If you want `container` to use any changes you made in the `vminit` subproject of Containerization, update the system property to use the locally built init filesystem image:
+
+    ```bash
+    container system property set image.init vminit:latest 
+    ```
+
+6. Build `container`.
 
     ```
     make clean all
     ```
 
-6. Restart the `container` services.
+7. Restart the `container` services.
 
     ```
     bin/container system stop
@@ -86,22 +93,32 @@ to prepare your build environment.
 
 To revert to using the Containerization dependency from your `Package.swift`:
 
-1. Use the Swift package manager to restore the normal `containerization` dependency and update your `Package.resolved` file. If you are using Xcode, revert your `Package.swift` change instead of using `swift package unedit`.
+1. If you were using the local init filesystem, revert the system property to its default value:
+
+    ```bash
+    container system property clear image.init
+    ```
+
+2. Use the Swift package manager to restore the normal `containerization` dependency and update your `Package.resolved` file. If you are using Xcode, revert your `Package.swift` change instead of using `swift package unedit`.
 
     ```bash
     /usr/bin/swift package unedit containerization
     /usr/bin/swift package update containerization
     ```
 
-2. Rebuild `container`.
+3. Rebuild `container`.
 
     ```bash
     make clean all
     ```
 
-3. Restart the `container` services.
+4. Restart the `container` services.
 
     ```bash
     bin/container system stop
     bin/container system start
     ```
+
+## Pre-commit hook
+
+Run `make pre-commit` to install a pre-commit hook that ensures that your changes have correct formatting and license headers when you run `git commit`.

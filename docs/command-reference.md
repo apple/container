@@ -504,12 +504,13 @@ Loads images from a tar archive created by `image save`. The tar file must be sp
 **Usage**
 
 ```bash
-container image load --input <input> [--debug]
+container image load --input <input> [--force] [--debug]
 ```
 
 **Options**
 
 *   `-i, --input <input>`: Path to the image tar archive
+*   `-f, --force`: Load images even if invalid member files are detected
 
 ### `container image tag`
 
@@ -653,7 +654,7 @@ Creates a new network with the given name.
 **Usage**
 
 ```bash
-container network create [--label <label> ...] [--debug] <name>
+container network create [--label <label> ...] [--subnet <subnet>] [--subnet-v6 <subnet-v6>] [--debug] <name>
 ```
 
 **Arguments**
@@ -663,6 +664,8 @@ container network create [--label <label> ...] [--debug] <name>
 **Options**
 
 *   `--label <label>`: Set metadata for a network
+*   `--subnet <subnet>`: Set the IPv4 subnet for a network (CIDR format, e.g., 192.168.100.0/24)
+*   `--subnet-v6 <subnet-v6>`: Set the IPv6 prefix for a network (CIDR format, e.g., fd00:1234::/64)
 
 ### `container network delete (rm)`
 
@@ -681,6 +684,20 @@ container network delete [--all] [--debug] [<network-names> ...]
 **Options**
 
 *   `-a, --all`: Delete all networks
+
+### `container network prune`
+
+Removes networks not connected to any containers. However, default and system networks are preserved.
+
+**Usage**
+
+```bash
+container network prune [--debug]
+```
+
+**Options**
+
+No options.
 
 ### `container network list (ls)`
 
@@ -924,6 +941,55 @@ container system status [--prefix <prefix>] [--debug]
 **Options**
 
 *   `-p, --prefix <prefix>`: Launchd prefix for services (default: com.apple.container.)
+
+### `container system version`
+
+Shows version information for the CLI and, if available, the API server. The table format is consistent with other list outputs and includes a header. If the API server responds to a health check, a second row for the server is added.
+
+**Usage**
+
+```bash
+container system version [--format <format>]
+```
+
+**Options**
+
+*   `--format <format>`: Output format (values: json, table; default: table)
+
+**Table Output**
+
+Columns: `COMPONENT`, `VERSION`, `BUILD`, `COMMIT`.
+
+Example:
+
+```bash
+container system version
+```
+
+```
+COMPONENT   VERSION                         BUILD   COMMIT
+CLI         1.2.3                           debug   abcdef1
+API Server  container-apiserver 1.2.3       release 1234abc
+```
+
+**JSON Output**
+
+Backward-compatible with previous CLI-only output. Top-level fields describe the CLI. When available, a `server` object is included with the same fields.
+
+```json
+{
+  "version": "1.2.3",
+  "buildType": "debug",
+  "commit": "abcdef1",
+  "appName": "container CLI",
+  "server": {
+    "version": "container-apiserver 1.2.3",
+    "buildType": "release",
+    "commit": "1234abc",
+    "appName": "container API Server"
+  }
+}
+```
 
 ### `container system logs`
 

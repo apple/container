@@ -156,49 +156,46 @@ Use the `--publish` option to forward TCP or UDP traffic from your loopback IP t
 
 If your container attaches to multiple networks, the ports you publish forward to the IP address of the interface attached to the first network.
 
-To forward requests from `localhost:8080` to a Python webserver on container port 8000, run:
+To forward requests from port 8080 on the IPv4 loopback IP to a NodeJS webserver on container port 8000, run:
 
 ```bash
-container run -d --rm -p 127.0.0.1:8080:8000 python:slim python3 -m http.server --bind 0.0.0.0 8000
+container run -d --rm -p 127.0.0.1:8080:8000 node:latest npx http-server -a :: -p 8000
 ```
 
-A `curl` to `localhost:8000` outputs:
+Test access using `curl`:
 
 ```console
-% curl http://localhost:8080                                                                                    
-<!DOCTYPE HTML>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>Directory listing for /</title>
-</head>
-<body>
-<h1>Directory listing for /</h1>
-<hr>
-<ul>
-<li><a href="bin/">bin@</a></li>
-<li><a href="boot/">boot/</a></li>
-<li><a href="dev/">dev/</a></li>
-<li><a href="etc/">etc/</a></li>
-<li><a href="home/">home/</a></li>
-<li><a href="lib/">lib@</a></li>
-<li><a href="lost%2Bfound/">lost+found/</a></li>
-<li><a href="media/">media/</a></li>
-<li><a href="mnt/">mnt/</a></li>
-<li><a href="opt/">opt/</a></li>
-<li><a href="proc/">proc/</a></li>
-<li><a href="root/">root/</a></li>
-<li><a href="run/">run/</a></li>
-<li><a href="sbin/">sbin@</a></li>
-<li><a href="srv/">srv/</a></li>
-<li><a href="sys/">sys/</a></li>
-<li><a href="tmp/">tmp/</a></li>
-<li><a href="usr/">usr/</a></li>
-<li><a href="var/">var/</a></li>
-</ul>
-<hr>
-</body>
-</html>
+% curl http://127.0.0.1:8080
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Index of /</title>
+...
+<br><address>Node.js v25.2.1/ <a href="https://github.com/http-party/http-server">http-server</a> server running @ 127.0.0.1:8080</address>
+</body></html>
+```
+
+To forward requests from port 8080 on the IPv6 loopback IP to a NodeJS webserver on container port 8000, run:
+
+```bash
+container run -d --rm -p '[::1]:8080:8000' node:latest npx http-server -a :: -p 8000
+```
+
+Test access using `curl`:
+
+```console
+% curl -6 'http://[::1]:8080'
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Index of /</title>
+...
+<br><address>Node.js v25.2.1/ <a href="https://github.com/http-party/http-server">http-server</a> server running @ [::1]:8080</address>
+</body></html>
 ```
 
 ## Set a custom MAC address for your container
@@ -207,7 +204,7 @@ Use the `mac` option to specify a custom MAC address for your container's networ
 - Network testing scenarios requiring predictable MAC addresses
 - Consistent network configuration across container restarts
 
-The MAC address must be in the format `XX:XX:XX:XX:XX:XX` (with colons or hyphens as separators):
+The MAC address must be in the format `XX:XX:XX:XX:XX:XX` (with colons or hyphens as separators). Set the two least significant bits of the first octet to `10` (locally signed, unicast address). 
 
 ```bash
 container run --network default,mac=02:42:ac:11:00:02 ubuntu:latest
@@ -216,14 +213,14 @@ container run --network default,mac=02:42:ac:11:00:02 ubuntu:latest
 To verify the MAC address is set correctly, run `ip addr show` inside the container:
 
 ```console
-% container run --rm --mac-address 02:42:ac:11:00:02 ubuntu:latest ip addr show eth0
+% container run --rm --network default,mac=02:42:ac:11:00:02 ubuntu:latest ip addr show eth0
 2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
     link/ether 02:42:ac:11:00:02 brd ff:ff:ff:ff:ff:ff
     inet 192.168.64.2/24 brd 192.168.64.255 scope global eth0
        valid_lft forever preferred_lft forever
 ```
 
-If you don't specify a MAC address, the system will auto-generate one for you.
+If you don't specify a MAC address, `container` will generate one for you. The generated address has a first nibble set to hexadecimal `f` (`fX:XX:XX:XX:XX:XX`) in case you want to minimize the very small chance of conflict between your MAC address and generated addresses. 
 
 ## Mount your host SSH authentication socket in your container
 
@@ -286,6 +283,12 @@ This command creates a network named `foo`:
 container network create foo
 ```
 
+You can also specify custom IPv4 and IPv6 subnets when creating a network:
+
+```bash
+container network create foo --subnet 192.168.100.0/24 --subnet-v6 fd00:1234::/64
+```
+
 The `foo` network, the default network, and any other networks you create are isolated from one another. A container on one network has no connectivity to containers on other networks.
 
 Run `container network list` to see the networks that exist:
@@ -318,6 +321,26 @@ You can delete networks that you create once no containers are attached:
 container stop my-web-server
 container network delete foo
 ```
+
+Networks support both IPv4 and IPv6. When creating a network without explicit subnet options, the system uses default values if configured via system properties (see below), or automatically allocates subnets. The system validates that custom subnets don't overlap with existing networks.
+
+## Configure default network subnets
+
+You can customize the default IPv4 and IPv6 subnets used for new networks using system properties.
+
+### Set default IPv4 subnet
+
+```bash
+container system property set network.subnet 192.168.100.1/24
+```
+
+### Set default IPv6 prefix
+
+```bash
+container system property set network.subnetv6 fd00:abcd::/64
+```
+
+These settings apply to networks created without explicit `--subnet` or `--subnet-v6` options.
 
 ## View container logs
 
@@ -460,7 +483,8 @@ image.builder      String  ghcr.io/apple/container-builder-shim/...  The image r
 image.init         String  ghcr.io/apple/containerization/vminit...  The image reference for the default initial filesystem image.
 kernel.binaryPath  String  opt/kata/share/kata-containers/vmlinu...  If the kernel URL is for an archive, the archive member pathname for the kernel file.
 kernel.url         String  https://github.com/kata-containers/ka...  The URL for the kernel file to install, or the URL for an archive containing the kernel file.
-network.subnet     String  *undefined*                               Default subnet for IP allocation (used on macOS 15 only).
+network.subnet     String  *undefined*                               Default subnet for IPv4 allocation.
+network.subnetv6   String  *undefined*                               Default IPv6 network prefix.
 ```
 
 ### Example: Disable Rosetta for builds
@@ -544,7 +568,7 @@ Without bash-completion, you’ll need to source the completion script directly.
 ```bash
 mkdir -p ~/.bash_completions
 container --generate-completion-script bash >  ~/.bash_completions/container
-source /opt/homebrew/etc/bash_completion.d/container
+source ~/.bash_completions/container
 ```
 
 Furthermore, you can add the following line to `~/.bash_profile` or `~/.bashrc`, in order for every new bash session to have autocompletion ready.

@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,10 +21,11 @@ enum EscapeSequence {
     static let hideCursor = "\u{001B}[?25l"
     static let showCursor = "\u{001B}[?25h"
     static let moveUp = "\u{001B}[1A"
+    static let clearToEndOfLine = "\u{001B}[K"
 }
 
 extension ProgressBar {
-    private var terminalWidth: Int {
+    var termWidth: Int {
         guard
             let terminalHandle = term,
             let terminal = try? Terminal(descriptor: terminalHandle.fileDescriptor)
@@ -32,19 +33,27 @@ extension ProgressBar {
             return 0
         }
 
-        let terminalWidth = (try? Int(terminal.size.width)) ?? 0
-        return terminalWidth
+        return (try? Int(terminal.size.width)) ?? 0
     }
 
     /// Clears the progress bar and resets the cursor.
     public func clearAndResetCursor() {
-        clear()
-        resetCursor()
+        state.withLock { s in
+            clear(state: &s)
+            resetCursor()
+        }
     }
 
     /// Clears the progress bar.
     public func clear() {
-        displayText("")
+        state.withLock { s in
+            clear(state: &s)
+        }
+    }
+
+    /// Clears the progress bar (caller must hold state lock).
+    func clear(state: inout State) {
+        displayText("", state: &state)
     }
 
     /// Resets the cursor.
@@ -63,27 +72,24 @@ extension ProgressBar {
     }
 
     func displayText(_ text: String, terminating: String = "\r") {
-        var text = text
+        state.withLock { s in
+            displayText(text, state: &s, terminating: terminating)
+        }
+    }
 
-        // Clears previously printed characters if the new string is shorter.
-        printedWidth.withLock {
-            text += String(repeating: " ", count: max($0 - text.count, 0))
-            $0 = text.count
-        }
-        state.withLock {
-            $0.output = text
-        }
+    func displayText(_ text: String, state: inout State, terminating: String = "\r") {
+        state.output = text
 
         // Clears previously printed lines.
         var lines = ""
-        if terminating.hasSuffix("\r") && terminalWidth > 0 {
-            let lineCount = (text.count - 1) / terminalWidth
+        if terminating.hasSuffix("\r") && termWidth > 0 {
+            let lineCount = (text.count - 1) / termWidth
             for _ in 0..<lineCount {
                 lines += EscapeSequence.moveUp
             }
         }
 
-        text = "\(text)\(terminating)\(lines)"
-        display(text)
+        let output = "\(text)\(EscapeSequence.clearToEndOfLine)\(terminating)\(lines)"
+        display(output)
     }
 }

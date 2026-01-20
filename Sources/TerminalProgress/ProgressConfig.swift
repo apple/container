@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -163,7 +163,7 @@ extension ProgressConfig {
         public var description: String {
             switch self {
             case .invalid(let reason):
-                return "Failed to validate config (\(reason))"
+                return "failed to validate config (\(reason))"
             }
         }
     }

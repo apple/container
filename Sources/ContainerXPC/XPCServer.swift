@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -239,12 +239,12 @@ extension xpc_object_t {
     }
 
     var connectionError: Bool {
-        precondition(isError, "Not an error")
+        precondition(isError, "not an error")
         return xpc_equal(self, XPC_ERROR_CONNECTION_INVALID) || xpc_equal(self, XPC_ERROR_CONNECTION_INTERRUPTED)
     }
 
     var connectionClosed: Bool {
-        precondition(isError, "Not an error")
+        precondition(isError, "not an error")
         return xpc_equal(self, XPC_ERROR_CONNECTION_INVALID)
     }
 
@@ -253,7 +253,7 @@ extension xpc_object_t {
     }
 
     var errorDescription: String? {
-        precondition(isError, "Not an error")
+        precondition(isError, "not an error")
         let cstring = xpc_dictionary_get_string(self, XPC_ERROR_KEY_DESCRIPTION)
         guard let cstring else {
             return nil

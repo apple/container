@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerNetworkService
+import ContainerResource
 import ContainerSandboxService
 import ContainerXPC
 import Containerization
@@ -43,7 +43,7 @@ struct NonisolatedInterfaceStrategy: InterfaceStrategy {
         }
 
         log.info("creating NATNetworkInterface with network reference")
-        let gateway = interfaceIndex == 0 ? attachment.gateway : nil
-        return NATNetworkInterface(address: attachment.address, gateway: gateway, reference: networkRef, macAddress: attachment.macAddress)
+        let ipv4Gateway = interfaceIndex == 0 ? attachment.ipv4Gateway : nil
+        return NATNetworkInterface(ipv4Address: attachment.ipv4Address, ipv4Gateway: ipv4Gateway, reference: networkRef, macAddress: attachment.macAddress)
     }
 }

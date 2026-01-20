@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,9 +15,10 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
-import ContainerNetworkService
+import ContainerAPIClient
+import ContainerResource
 import ContainerizationError
+import ContainerizationExtras
 import Foundation
 import TerminalProgress
 
@@ -30,8 +31,19 @@ extension Application {
         @Option(name: .customLong("label"), help: "Set metadata for a network")
         var labels: [String] = []
 
-        @Option(name: .customLong("subnet"), help: "Set subnet for a network")
-        var subnet: String? = nil
+        @Option(
+            name: .customLong("subnet"), help: "Set subnet for a network",
+            transform: {
+                try CIDRv4($0)
+            })
+        var ipv4Subnet: CIDRv4? = nil
+
+        @Option(
+            name: .customLong("subnet-v6"), help: "Set the IPv6 prefix for a network",
+            transform: {
+                try CIDRv6($0)
+            })
+        var ipv6Subnet: CIDRv6? = nil
 
         @OptionGroup
         var global: Flags.Global
@@ -43,7 +55,13 @@ extension Application {
 
         public func run() async throws {
             let parsedLabels = Utility.parseKeyValuePairs(labels)
-            let config = try NetworkConfiguration(id: self.name, mode: .nat, subnet: subnet, labels: parsedLabels)
+            let config = try NetworkConfiguration(
+                id: self.name,
+                mode: .nat,
+                ipv4Subnet: ipv4Subnet,
+                ipv6Subnet: ipv6Subnet,
+                labels: parsedLabels
+            )
             let state = try await ClientNetwork.create(configuration: config)
             print(state.id)
         }

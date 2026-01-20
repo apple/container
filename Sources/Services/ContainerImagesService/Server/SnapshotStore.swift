@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,8 +14,9 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerClient
+import ContainerAPIClient
 import ContainerPersistence
+import ContainerResource
 import Containerization
 import ContainerizationError
 import ContainerizationExtras
@@ -84,7 +85,7 @@ public actor SnapshotStore {
                 throw ContainerizationError(.internalError, message: "missing platform for descriptor \(desc.digest)")
             }
             guard let unpacker = try await self.unpackStrategy(image, platform) else {
-                self.log?.warning("Skipping unpack for \(image.reference) for platform \(platform.description). No unpacker configured.")
+                self.log?.warning("no unpacker configured, skipping unpack for \(image.reference) for platform \(platform.description)")
                 continue
             }
             let currentSubTask = await taskManager.startTask()

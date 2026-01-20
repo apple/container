@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
 import ContainerLog
 import ContainerPlugin
 import ContainerVersion
@@ -91,7 +91,12 @@ public struct Application: AsyncParsableCommand {
 
         #if DEBUG
         let warning = "Running debug build. Performance may be degraded."
-        let formattedWarning = "\u{001B}[33mWarning!\u{001B}[0m \(warning)\n"
+        let formattedWarning: String
+        if isatty(FileHandle.standardError.fileDescriptor) == 1 {
+            formattedWarning = "\u{001B}[33mWarning!\u{001B}[0m \(warning)\n"
+        } else {
+            formattedWarning = "Warning! \(warning)\n"
+        }
         let warningData = Data(formattedWarning.utf8)
         FileHandle.standardError.write(warningData)
         #endif
