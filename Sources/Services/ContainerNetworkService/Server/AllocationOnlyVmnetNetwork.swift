@@ -65,11 +65,11 @@ public actor AllocationOnlyVmnetNetwork: Network {
             ]
         )
 
-        let subnet = DefaultsStore.get(key: .defaultSubnet)
-        let subnetCIDR = try CIDRv4(subnet)
-        let gateway = IPv4Address(subnetCIDR.lower.value + 1)
+        let defaultIPv4Subnet = try CIDRv4(DefaultsStore.get(key: .defaultSubnet))
+        let ipv4Subnet = configuration.ipv4Subnet ?? defaultIPv4Subnet
+        let gateway = IPv4Address(ipv4Subnet.lower.value + 1)
         let status = NetworkStatus(
-            ipv4Subnet: subnetCIDR,
+            ipv4Subnet: ipv4Subnet,
             ipv4Gateway: gateway,
             ipv6Subnet: nil,
         )
@@ -79,7 +79,7 @@ public actor AllocationOnlyVmnetNetwork: Network {
             metadata: [
                 "id": "\(configuration.id)",
                 "mode": "\(configuration.mode)",
-                "cidr": "\(subnet)",
+                "cidr": "\(ipv4Subnet)",
             ]
         )
     }
