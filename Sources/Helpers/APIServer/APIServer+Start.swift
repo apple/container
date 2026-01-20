@@ -245,7 +245,7 @@ extension APIServer {
                 .filter { $0.id == ClientNetwork.defaultNetworkName }
                 .first
             if defaultNetwork == nil {
-                let config = try NetworkConfiguration(id: ClientNetwork.defaultNetworkName, mode: .nat, hostOnly: false)
+                let config = try NetworkConfiguration(id: ClientNetwork.defaultNetworkName, mode: .nat)
                 _ = try await service.create(configuration: config)
             }
 

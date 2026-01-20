@@ -52,7 +52,7 @@ public final class ReservedVmnetNetwork: Network {
         configuration: NetworkConfiguration,
         log: Logger
     ) throws {
-        guard configuration.mode == .nat else {
+        guard configuration.mode == .nat || configuration.mode == .hostOnly else {
             throw ContainerizationError(.unsupported, message: "invalid network mode \(configuration.mode)")
         }
 
@@ -110,7 +110,7 @@ public final class ReservedVmnetNetwork: Network {
 
         // set up the vmnet configuration
         var status: vmnet_return_t = .VMNET_SUCCESS
-        let mode: vmnet.operating_modes_t = configuration.hostOnly ? .VMNET_HOST_MODE : .VMNET_SHARED_MODE
+        let mode: vmnet.operating_modes_t = configuration.mode == .hostOnly ? .VMNET_HOST_MODE : .VMNET_SHARED_MODE
         guard let vmnetConfiguration = vmnet_network_configuration_create(mode, &status), status == .VMNET_SUCCESS else {
             throw ContainerizationError(.unsupported, message: "failed to create vmnet config with status \(status)")
         }

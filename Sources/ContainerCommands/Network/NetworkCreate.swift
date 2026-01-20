@@ -58,10 +58,10 @@ extension Application {
 
         public func run() async throws {
             let parsedLabels = Utility.parseKeyValuePairs(labels)
+            let mode: NetworkMode = hostOnly ? .hostOnly : .nat
             let config = try NetworkConfiguration(
                 id: self.name,
-                mode: .nat,
-                hostOnly: hostOnly,
+                mode: mode,
                 ipv4Subnet: ipv4Subnet,
                 ipv6Subnet: ipv6Subnet,
                 labels: parsedLabels

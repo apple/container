@@ -20,6 +20,10 @@ public enum NetworkMode: String, Codable, Sendable {
     /// Containers do not have routable IPs, and the host performs network
     /// address translation to allow containers to reach external services.
     case nat = "nat"
+
+    /// Host only networking mode
+    /// Containers can talk with each other in the same subnet only.
+    case hostOnly = "hostOnly"
 }
 
 extension NetworkMode {
@@ -30,6 +34,7 @@ extension NetworkMode {
     public init?(_ value: String) {
         switch value.lowercased() {
         case "nat": self = .nat
+        case "hostOnly": self = .hostOnly
         default: return nil
         }
     }

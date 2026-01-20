@@ -269,7 +269,7 @@ public actor NetworksService {
     }
 
     private func registerService(configuration: NetworkConfiguration) async throws {
-        guard configuration.mode == .nat else {
+        guard configuration.mode == .nat || configuration.mode == .hostOnly else {
             throw ContainerizationError(.invalidArgument, message: "unsupported network mode \(configuration.mode.rawValue)")
         }
 
@@ -284,7 +284,7 @@ public actor NetworksService {
             serviceIdentifier,
         ]
 
-        if configuration.hostOnly {
+        if case .hostOnly = configuration.mode {
             args += ["--host-only"]
         }
 
