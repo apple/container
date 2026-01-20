@@ -28,16 +28,11 @@ struct RealhostDNSHandler: DNSHandler {
 
     public func answer(query: Message) async throws -> Message? {
         let question = query.questions[0]
-        let realhost: IP
-        let record: ResourceRecord?
+        // let record: ResourceRecord?
         switch question.type {
-        case ResourceRecordType.host:
-            realhost = IPv4(DefaultsStore.get(key: .defaultRealhost))!
-            record = HostRecord<IPv4>(name: question.name, ttl: ttl, ip: realhost as! IPv4)
-        case ResourceRecordType.host6:
-            realhost = IPv6(DefaultsStore.get(key: .defaultIPv6Realhost))!
-            record = HostRecord<IPv6>(name: question.name, ttl: ttl, ip: realhost as! IPv6)
-        case ResourceRecordType.nameServer,
+        case ResourceRecordType.host,
+            ResourceRecordType.host6,
+            ResourceRecordType.nameServer,
             ResourceRecordType.alias,
             ResourceRecordType.startOfAuthority,
             ResourceRecordType.pointer,
@@ -64,16 +59,16 @@ struct RealhostDNSHandler: DNSHandler {
             )
         }
 
-        guard let record else {
-            return nil
-        }
+        // guard let record else {
+        //     return nil
+        // }
 
-        return Message(
-            id: query.id,
-            type: .response,
-            returnCode: .noError,
-            questions: query.questions,
-            answers: [record]
-        )
+        // return Message(
+        //     id: query.id,
+        //     type: .response,
+        //     returnCode: .noError,
+        //     questions: query.questions,
+        //     answers: [record]
+        // )
     }
 }
