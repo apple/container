@@ -81,9 +81,15 @@ extension Application {
             var images: [ImageDescription] = []
             for reference in references {
                 do {
-                    images.append(try await ClientImage.get(reference: reference).description)
+                    let image = try await ClientImage.get(reference: reference)
+                    images.append(image.description)
                 } catch {
-                    print("failed to get image for reference \(reference): \(error)")
+                    do {
+                        let image = try await ClientImage.getByPrefix(reference: reference)
+                        images.append(image.description)
+                    } catch {
+                        print("failed to get image for reference \(reference): \(error)")
+                    }
                 }
             }
 
