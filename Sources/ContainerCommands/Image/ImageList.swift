@@ -33,9 +33,6 @@ extension Application {
         @Flag(name: .shortAndLong, help: "Verbose output")
         var verbose = false
 
-        @OptionGroup
-        var global: Flags.Global
-
         public init() {}
     }
 
@@ -164,7 +161,7 @@ extension Application {
         }
     }
 
-    public struct ImageList: AsyncParsableCommand {
+    public struct ImageList: AsyncLoggableCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "list",
@@ -173,6 +170,9 @@ extension Application {
 
         @OptionGroup
         var options: ListImageOptions
+
+        @OptionGroup
+        public var logOptions: Flags.Logging
 
         public mutating func run() async throws {
             try ListImageImplementation.validate(options: options)

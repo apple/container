@@ -21,7 +21,7 @@ import ContainerizationOCI
 import TerminalProgress
 
 extension Application {
-    public struct ImagePush: AsyncParsableCommand {
+    public struct ImagePush: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "push",
             abstract: "Push an image"
@@ -48,7 +48,7 @@ extension Application {
         var platform: String?
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument var reference: String
 

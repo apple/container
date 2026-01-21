@@ -20,14 +20,14 @@ import ContainerResource
 import Foundation
 
 extension Application.VolumeCommand {
-    public struct VolumeInspect: AsyncParsableCommand {
+    public struct VolumeInspect: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "inspect",
             abstract: "Display information about one or more volumes"
         )
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "Volumes to inspect")
         var names: [String]

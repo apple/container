@@ -22,7 +22,7 @@ import Foundation
 import OSLog
 
 extension Application {
-    public struct SystemLogs: AsyncParsableCommand {
+    public struct SystemLogs: AsyncLoggableCommand {
         public static let subsystem = "com.apple.container"
 
         public static let configuration = CommandConfiguration(
@@ -40,7 +40,7 @@ extension Application {
         var last: String = "5m"
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         public init() {}
 

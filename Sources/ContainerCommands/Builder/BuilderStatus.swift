@@ -21,7 +21,7 @@ import ContainerizationExtras
 import Foundation
 
 extension Application {
-    public struct BuilderStatus: AsyncParsableCommand {
+    public struct BuilderStatus: AsyncLoggableCommand {
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
             config.commandName = "status"
@@ -36,7 +36,7 @@ extension Application {
         var quiet = false
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         public init() {}
 

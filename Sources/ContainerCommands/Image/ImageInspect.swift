@@ -21,13 +21,13 @@ import Foundation
 import SwiftProtobuf
 
 extension Application {
-    public struct ImageInspect: AsyncParsableCommand {
+    public struct ImageInspect: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "inspect",
             abstract: "Display information about one or more images")
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "Images to inspect")
         var images: [String]
