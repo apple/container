@@ -33,7 +33,7 @@ extension APIServer {
         )
 
         static let listenAddress = "127.0.0.1"
-        static let realhostDNSPort = 1053
+        static let localhostDNSPort = 1053
         static let dnsPort = 2053
 
         @Flag(name: .long, help: "Enable debug logging")
@@ -105,22 +105,26 @@ extension APIServer {
                             ]
                         )
                         try await dnsServer.run(host: Self.listenAddress, port: Self.dnsPort)
+
                     }
+
                     // start up realhost DNS
                     group.addTask {
-                        let realhostResolver = RealhostDNSHandler()
+                        let localhostResolver = LocalhostDNSHandler(log: log)
+                        try localhostResolver.monitorResolvers()
+
                         let nxDomainResolver = NxDomainResolver()
-                        let compositeResolver = CompositeResolver(handlers: [realhostResolver, nxDomainResolver])
+                        let compositeResolver = CompositeResolver(handlers: [localhostResolver, nxDomainResolver])
                         let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
                         let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
                         log.info(
-                            "starting DNS resolver for real host",
+                            "starting DNS resolver for localhost",
                             metadata: [
                                 "host": "\(Self.listenAddress)",
-                                "port": "\(Self.realhostDNSPort)",
+                                "port": "\(Self.localhostDNSPort)",
                             ]
                         )
-                        try await dnsServer.run(host: Self.listenAddress, port: Self.realhostDNSPort)
+                        try await dnsServer.run(host: Self.listenAddress, port: Self.localhostDNSPort)
                     }
                 }
             } catch {

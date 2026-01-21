@@ -14,24 +14,55 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerAPIClient
 import ContainerPersistence
+import ContainerizationError
 import DNS
 import DNSServer
+import Foundation
 import Logging
 
-struct RealhostDNSHandler: DNSHandler {
+class LocalhostDNSHandler: DNSHandler {
     private let ttl: UInt32
+    private let watcher: DirectoryWatcher
 
-    public init(ttl: UInt32 = 5) {
+    private var dns: [String: IPv4]
+
+    public init(resolversURL: URL = HostDNSResolver.defaultConfigPath, ttl: UInt32 = 5, log: Logger) {
         self.ttl = ttl
+
+        self.watcher = DirectoryWatcher(directoryURL: resolversURL, log: log)
+        self.dns = [:]
+    }
+
+    public func monitorResolvers() throws {
+        try self.watcher.startWatching { fileURLs in
+            var dns: [String: IPv4] = [:]
+            let regex = try Regex(HostDNSResolver.localhostOptionsRegex)
+
+            for file in fileURLs.filter({ $0.lastPathComponent.starts(with: HostDNSResolver.containerizationPrefix) }) {
+                let content = try String(contentsOf: file, encoding: .utf8)
+
+                if let match = content.firstMatch(of: regex),
+                    let ipv4 = IPv4(String(match[1].substring ?? ""))
+                {
+                    let name = String(file.lastPathComponent.dropFirst(HostDNSResolver.containerizationPrefix.count))
+                    dns[name + "."] = ipv4
+                }
+            }
+            self.dns = dns
+        }
     }
 
     public func answer(query: Message) async throws -> Message? {
         let question = query.questions[0]
-        // let record: ResourceRecord?
+        var record: ResourceRecord?
         switch question.type {
-        case ResourceRecordType.host,
-            ResourceRecordType.host6,
+        case ResourceRecordType.host:
+            if let ip = dns[question.name] {
+                record = HostRecord<IPv4>(name: question.name, ttl: ttl, ip: ip)
+            }
+        case ResourceRecordType.host6,
             ResourceRecordType.nameServer,
             ResourceRecordType.alias,
             ResourceRecordType.startOfAuthority,
@@ -59,16 +90,16 @@ struct RealhostDNSHandler: DNSHandler {
             )
         }
 
-        // guard let record else {
-        //     return nil
-        // }
+        guard let record else {
+            return nil
+        }
 
-        // return Message(
-        //     id: query.id,
-        //     type: .response,
-        //     returnCode: .noError,
-        //     questions: query.questions,
-        //     answers: [record]
-        // )
+        return Message(
+            id: query.id,
+            type: .response,
+            returnCode: .noError,
+            questions: query.questions,
+            answers: [record]
+        )
     }
 }

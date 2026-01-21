@@ -23,7 +23,8 @@ public struct HostDNSResolver {
     public static let defaultConfigPath = URL(filePath: "/etc/resolver")
 
     // prefix used to mark our files as /etc/resolver/{prefix}{domainName}
-    private static let containerizationPrefix = "containerization."
+    public static let containerizationPrefix = "containerization."
+    public static let localhostOptionsRegex = #"options localhost:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"#
 
     private let configURL: URL
 
@@ -49,8 +50,11 @@ public struct HostDNSResolver {
         }
 
         let dnsPort = localhost == nil ? "2053" : "1053"
-        let options = localhost == nil ? "" : "options localhost:\(localhost!.description)"
-
+        let options =
+            localhost == nil
+            ? ""
+            : HostDNSResolver.localhostOptionsRegex.replacingOccurrences(
+                of: #"\((.*?)\)"#, with: localhost!.description, options: .regularExpression)
         let resolverText = """
             domain \(name)
             search \(name)
