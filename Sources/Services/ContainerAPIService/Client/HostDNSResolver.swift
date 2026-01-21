@@ -80,8 +80,8 @@ public struct HostDNSResolver {
 
         var localhost: IPAddress?
         let content = try String(contentsOfFile: path, encoding: .utf8)
-        if let match = content.firstMatch(of: /options\s+localhost:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/) {
-            localhost = try? IPAddress(String(match.1))
+        if let match = content.firstMatch(of: try Regex(HostDNSResolver.localhostOptionsRegex)) {
+            localhost = try? IPAddress(String(match[1].substring ?? ""))
         }
 
         do {
