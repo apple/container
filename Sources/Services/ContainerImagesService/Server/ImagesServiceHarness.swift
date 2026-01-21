@@ -162,16 +162,22 @@ public struct ImagesServiceHarness: Sendable {
     @Sendable
     public func load(_ message: XPCMessage) async throws -> XPCMessage {
         let input = message.string(key: .filePath)
+        let force = message.bool(key: .forceLoad)
         guard let input else {
             throw ContainerizationError(
                 .invalidArgument,
                 message: "missing input file path"
             )
         }
-        let images = try await service.load(from: URL(filePath: input))
-        let data = try JSONEncoder().encode(images)
+        let (images, rejectedMembers) = try await service.load(
+            from: URL(filePath: input),
+            force: force
+        )
         let reply = message.reply()
-        reply.set(key: .imageDescriptions, value: data)
+        let imagesData = try JSONEncoder().encode(images)
+        reply.set(key: .imageDescriptions, value: imagesData)
+        let rejectedData = try JSONEncoder().encode(rejectedMembers)
+        reply.set(key: .rejectedMembers, value: rejectedData)
         return reply
     }
 

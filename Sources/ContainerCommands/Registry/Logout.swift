@@ -20,13 +20,13 @@ import Containerization
 import ContainerizationOCI
 
 extension Application {
-    public struct Logout: AsyncParsableCommand {
+    public struct Logout: AsyncLoggableCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
             abstract: "Log out from a registry")
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "Registry server name")
         var registry: String

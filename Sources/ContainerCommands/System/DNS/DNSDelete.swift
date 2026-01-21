@@ -20,7 +20,7 @@ import ContainerizationError
 import Foundation
 
 extension Application {
-    public struct DNSDelete: AsyncParsableCommand {
+    public struct DNSDelete: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "delete",
             abstract: "Delete a local DNS domain (must run as an administrator)",
@@ -28,7 +28,7 @@ extension Application {
         )
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "The local domain name")
         var domainName: String

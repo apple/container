@@ -19,7 +19,7 @@ import ContainerizationError
 import Foundation
 
 public struct Flags {
-    public struct Global: ParsableArguments {
+    public struct Logging: ParsableArguments {
         public init() {}
 
         @Flag(name: .long, help: "Enable debug output [environment: CONTAINER_DEBUG]")

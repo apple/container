@@ -118,3 +118,7 @@ To revert to using the Containerization dependency from your `Package.swift`:
     bin/container system stop
     bin/container system start
     ```
+
+## Pre-commit hook
+
+Run `make pre-commit` to install a pre-commit hook that ensures that your changes have correct formatting and license headers when you run `git commit`.
