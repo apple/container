@@ -125,7 +125,7 @@ public struct PacketFilter {
             let idx = lines.firstIndex { l in
                 anchorKeywords[i...].map { k in l.starts(with: k) }.contains(true)
             }
-            lines.insert(anchorText, at: idx ?? lines.endIndex)
+            lines.insert(anchorText, at: idx ?? lines.endIndex - 1)
         }
 
         if !content.contains(loadAnchorText) {

@@ -33,7 +33,7 @@ public struct HostDNSResolver {
     }
 
     /// Creates a DNS resolver configuration file for domain resolved by the application.
-    public func createDomain(name: String, localhost: IPAddress?) throws {
+    public func createDomain(name: String, localhost: IPAddress? = nil) throws {
         let path = self.configURL.appending(path: "\(Self.containerizationPrefix)\(name)").path
         let fm: FileManager = FileManager.default
 

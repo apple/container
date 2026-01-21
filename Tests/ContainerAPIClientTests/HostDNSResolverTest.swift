@@ -86,7 +86,7 @@ struct HostDNSResolverTest {
 
         let resolver = HostDNSResolver(configURL: tempURL)
         try resolver.createDomain(name: "foo.bar")
-        try resolver.deleteDomain(name: "foo.bar")
+        _ = try resolver.deleteDomain(name: "foo.bar")
         let domains = resolver.listDomains()
         #expect(domains == [])
     }
@@ -105,7 +105,7 @@ struct HostDNSResolverTest {
         let resolver = HostDNSResolver(configURL: tempURL)
         try resolver.createDomain(name: "foo.bar")
         #expect {
-            try resolver.deleteDomain(name: "bar.foo")
+            _ = try resolver.deleteDomain(name: "bar.foo")
         } throws: { error in
             guard let error = error as? ContainerizationError, error.code == .notFound else {
                 return false
