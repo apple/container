@@ -18,7 +18,7 @@ import ArgumentParser
 import ContainerAPIClient
 
 extension Application {
-    public struct ImageTag: AsyncParsableCommand {
+    public struct ImageTag: AsyncLoggableCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "tag",
@@ -31,7 +31,7 @@ extension Application {
         var target: String
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         public func run() async throws {
             let existing = try await ClientImage.get(reference: source)

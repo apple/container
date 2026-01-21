@@ -21,7 +21,7 @@ import ContainerizationOS
 import Darwin
 
 extension Application {
-    public struct ContainerKill: AsyncParsableCommand {
+    public struct ContainerKill: AsyncLoggableCommand {
         public init() {}
 
         public static let configuration = CommandConfiguration(
@@ -35,7 +35,7 @@ extension Application {
         var signal: String = "KILL"
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "Container IDs")
         var containerIds: [String] = []

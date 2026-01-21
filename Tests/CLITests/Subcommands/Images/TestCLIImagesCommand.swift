@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
+import ContainerizationArchive
 import ContainerizationOCI
 import Foundation
 import Testing
@@ -310,6 +311,139 @@ class TestCLIImagesCommand: CLITest {
             "Expected validation error message in output")
     }
 
+    @Test func testImageLoadRejectsInvalidMembersWithoutForce() throws {
+        do {
+            // 0. Generate unique malicious filename for this test run
+            let maliciousFilename = "pwned-\(UUID().uuidString).txt"
+            let maliciousPath = "/tmp/\(maliciousFilename)"
+
+            // 1. Pull image
+            try doPull(imageName: alpine)
+
+            // 2. Tag image so we can safely remove later
+            let alpineRef: Reference = try Reference.parse(alpine)
+            let alpineTagged = "\(alpineRef.name):testImageLoadRejectsInvalidMembers"
+            try doImageTag(image: alpine, newName: alpineTagged)
+            let taggedImagePresent = try isImagePresent(targetImage: alpineTagged)
+            #expect(taggedImagePresent, "expected to see image \(alpineTagged) tagged")
+
+            // 3. Save the image as a tarball
+            let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer {
+                try? FileManager.default.removeItem(at: tempDir)
+            }
+            let tempFile = tempDir.appendingPathComponent(UUID().uuidString)
+            let saveArgs = [
+                "image",
+                "save",
+                alpineTagged,
+                "--output",
+                tempFile.path(),
+            ]
+            let (_, _, saveError, saveStatus) = try run(arguments: saveArgs)
+            if saveStatus != 0 {
+                throw CLIError.executionFailed("save command failed: \(saveError)")
+            }
+
+            // 4. Add malicious member to the tar
+            try addInvalidMemberToTar(tarPath: tempFile.path(), maliciousFilename: maliciousFilename)
+
+            // 5. Remove the image
+            try doRemoveImages(images: [alpineTagged])
+            let imageRemoved = try !isImagePresent(targetImage: alpineTagged)
+            #expect(imageRemoved, "expected image \(alpineTagged) to be removed")
+
+            // 6. Try to load the modified tar without force - should fail
+            let loadArgs = [
+                "image",
+                "load",
+                "-i",
+                tempFile.path(),
+            ]
+            let (_, _, loadError, loadStatus) = try run(arguments: loadArgs)
+            #expect(loadStatus != 0, "expected load to fail without force flag")
+            #expect(loadError.contains("rejected paths") || loadError.contains(maliciousFilename), "expected error about invalid member path")
+
+            // 7. Verify that malicious file was NOT created
+            let maliciousFileExists = FileManager.default.fileExists(atPath: maliciousPath)
+            #expect(!maliciousFileExists, "malicious file should not have been created at \(maliciousPath)")
+        } catch {
+            Issue.record("failed to test image load with invalid members: \(error)")
+            return
+        }
+    }
+
+    @Test func testImageLoadAcceptsInvalidMembersWithForce() throws {
+        do {
+            // 0. Generate unique malicious filename for this test run
+            let maliciousFilename = "pwned-\(UUID().uuidString).txt"
+            let maliciousPath = "/tmp/\(maliciousFilename)"
+
+            // 1. Pull image
+            try doPull(imageName: alpine)
+
+            // 2. Tag image so we can safely remove later
+            let alpineRef: Reference = try Reference.parse(alpine)
+            let alpineTagged = "\(alpineRef.name):testImageLoadAcceptsInvalidMembers"
+            try doImageTag(image: alpine, newName: alpineTagged)
+            let taggedImagePresent = try isImagePresent(targetImage: alpineTagged)
+            #expect(taggedImagePresent, "expected to see image \(alpineTagged) tagged")
+
+            // 3. Save the image as a tarball
+            let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer {
+                try? FileManager.default.removeItem(at: tempDir)
+            }
+            let tempFile = tempDir.appendingPathComponent(UUID().uuidString)
+            let saveArgs = [
+                "image",
+                "save",
+                alpineTagged,
+                "--output",
+                tempFile.path(),
+            ]
+            let (_, _, saveError, saveStatus) = try run(arguments: saveArgs)
+            if saveStatus != 0 {
+                throw CLIError.executionFailed("save command failed: \(saveError)")
+            }
+
+            // 4. Add malicious member to the tar
+            try addInvalidMemberToTar(tarPath: tempFile.path(), maliciousFilename: maliciousFilename)
+
+            // 5. Remove the image
+            try doRemoveImages(images: [alpineTagged])
+            let imageRemoved = try !isImagePresent(targetImage: alpineTagged)
+            #expect(imageRemoved, "expected image \(alpineTagged) to be removed")
+
+            // 6. Try to load the modified tar with force - should succeed with warning
+            let loadArgs = [
+                "image",
+                "load",
+                "-i",
+                tempFile.path(),
+                "--force",
+            ]
+            let (_, _, loadError, loadStatus) = try run(arguments: loadArgs)
+            #expect(loadStatus == 0, "expected load to succeed with force flag")
+
+            // Check that warning was logged about rejected member
+            #expect(loadError.contains("invalid members") || loadError.contains(maliciousFilename), "expected warning about rejected member path")
+
+            // 7. Verify image is loaded
+            let imageLoaded = try isImagePresent(targetImage: alpineTagged)
+            #expect(imageLoaded, "expected image \(alpineTagged) to be loaded")
+
+            // 8. Verify that malicious file was NOT created
+            let maliciousFileExists = FileManager.default.fileExists(atPath: maliciousPath)
+            #expect(!maliciousFileExists, "malicious file should not have been created at \(maliciousPath)")
+        } catch {
+            Issue.record("failed to test image load with force and invalid members: \(error)")
+            return
+        }
+    }
+
     @Test func testImageSaveAndLoadStdinStdout() throws {
         do {
             // 1. pull image
@@ -369,5 +503,42 @@ class TestCLIImagesCommand: CLITest {
             Issue.record("failed to save and load image \(error)")
             return
         }
+    }
+
+    private func addInvalidMemberToTar(tarPath: String, maliciousFilename: String) throws {
+        // Create a malicious entry with path traversal
+        let evilEntryName = "../../../../../../../../../../../tmp/\(maliciousFilename)"
+        let evilEntryContent = "pwned\n".data(using: .utf8)!
+
+        // Create a temporary file for the modified tar
+        let tempModifiedTar = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).tar")
+
+        // Open the modified tar for writing
+        let writer = try ArchiveWriter(format: .pax, filter: .none, file: tempModifiedTar)
+
+        // First, copy all existing members from the input tar
+        let reader = try ArchiveReader(file: URL(fileURLWithPath: tarPath))
+        for (entry, data) in reader {
+            if entry.fileType == .regular {
+                try writer.writeEntry(entry: entry, data: data)
+            } else {
+                try writer.writeEntry(entry: entry, data: nil)
+            }
+        }
+
+        // Now add the evil entry
+        let evilEntry = WriteEntry()
+        evilEntry.path = evilEntryName
+        evilEntry.size = Int64(evilEntryContent.count)
+        evilEntry.modificationDate = Date()
+        evilEntry.fileType = .regular
+        evilEntry.permissions = 0o644
+
+        try writer.writeEntry(entry: evilEntry, data: evilEntryContent)
+        try writer.finishEncoding()
+
+        // Replace the original tar with the modified one
+        try FileManager.default.removeItem(atPath: tarPath)
+        try FileManager.default.moveItem(at: tempModifiedTar, to: URL(fileURLWithPath: tarPath))
     }
 }

@@ -20,7 +20,7 @@ import Foundation
 import SwiftProtobuf
 
 extension Application {
-    public struct NetworkInspect: AsyncParsableCommand {
+    public struct NetworkInspect: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "inspect",
             abstract: "Display information about one or more networks")
@@ -29,7 +29,7 @@ extension Application {
         var networks: [String]
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         public init() {}
 

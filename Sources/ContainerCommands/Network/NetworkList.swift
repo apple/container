@@ -22,7 +22,7 @@ import Foundation
 import SwiftProtobuf
 
 extension Application {
-    public struct NetworkList: AsyncParsableCommand {
+    public struct NetworkList: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "list",
             abstract: "List networks",
@@ -35,7 +35,7 @@ extension Application {
         var quiet = false
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         public init() {}
 

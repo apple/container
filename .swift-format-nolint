@@ -1,0 +1,68 @@
+{
+  "fileScopedDeclarationPrivacy" : {
+    "accessLevel" : "private"
+  },
+  "indentation" : {
+    "spaces" : 4
+  },
+  "indentConditionalCompilationBlocks" : false,
+  "indentSwitchCaseLabels" : false,
+  "lineBreakAroundMultilineExpressionChainComponents" : false,
+  "lineBreakBeforeControlFlowKeywords" : false,
+  "lineBreakBeforeEachArgument" : false,
+  "lineBreakBeforeEachGenericRequirement" : false,
+  "lineLength" : 180,
+  "maximumBlankLines" : 1,
+  "multiElementCollectionTrailingCommas" : true,
+  "noAssignmentInExpressions" : {
+    "allowedFunctions" : [
+      "XCTAssertNoThrow"
+    ]
+  },
+  "prioritizeKeepingFunctionOutputTogether" : false,
+  "respectsExistingLineBreaks" : true,
+  "rules" : {
+    "AllPublicDeclarationsHaveDocumentation" : false,
+    "AlwaysUseLowerCamelCase" : false,
+    "AmbiguousTrailingClosureOverload" : false,
+    "BeginDocumentationCommentWithOneLineSummary" : false,
+    "DoNotUseSemicolons" : true,
+    "DontRepeatTypeInStaticProperties" : false,
+    "FileScopedDeclarationPrivacy" : false,
+    "FullyIndirectEnum" : false,
+    "GroupNumericLiterals" : false,
+    "IdentifiersMustBeASCII" : false,
+    "NeverForceUnwrap" : false,
+    "NeverUseForceTry" : false,
+    "NeverUseImplicitlyUnwrappedOptionals" : false,
+    "NoAccessLevelOnExtensionDeclaration" : false,
+    "NoAssignmentInExpressions" : false,
+    "NoBlockComments" : false,
+    "NoCasesWithOnlyFallthrough" : false,
+    "NoEmptyTrailingClosureParentheses" : true,
+    "NoLabelsInCasePatterns" : false,
+    "NoLeadingUnderscores" : false,
+    "NoParensAroundConditions" : true,
+    "NoPlaygroundLiterals" : false,
+    "NoVoidReturnOnFunctionSignature" : true,
+    "OmitExplicitReturns" : false,
+    "OneCasePerLine" : true,
+    "OneVariableDeclarationPerLine" : true,
+    "OnlyOneTrailingClosureArgument" : false,
+    "OrderedImports" : true,
+    "ReplaceForEachWithForLoop" : false,
+    "ReturnVoidInsteadOfEmptyTuple" : false,
+    "TypeNamesShouldBeCapitalized" : false,
+    "UseEarlyExits" : false,
+    "UseLetInEveryBoundCaseVariable" : false,
+    "UseShorthandTypeNames" : true,
+    "UseSingleLinePropertyGetter" : true,
+    "UseSynthesizedInitializer" : false,
+    "UseTripleSlashForDocumentationComments" : true,
+    "UseWhereClausesInForLoops" : false,
+    "ValidateDocumentationComments" : false
+  },
+  "spacesAroundRangeFormationOperators" : false,
+  "tabWidth" : 2,
+  "version" : 1
+}
