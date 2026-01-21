@@ -45,25 +45,26 @@ extension Application {
                 throw ContainerizationError(.invalidState, message: "cannot delete domain (try sudo?)")
             }
 
-            let pf = PacketFilter()
-            if let from = localhostIP {
-                try pf.removeRedirectRule(from: from, to: try! IPAddress("127.0.0.1"), domain: domainName)
-            }
-            print(domainName)
-
-            if localhostIP != nil {
-                do {
-                    try pf.reinitialize()
-                } catch {
-                    throw ContainerizationError(.invalidState, message: "failed loading pf rules, run `sudo pfctl -n -f /etc/pf.conf` to investigate")
-                }
-            }
-
             do {
                 try HostDNSResolver.reinitialize()
             } catch {
                 throw ContainerizationError(.invalidState, message: "mDNSResponder restart failed, run `sudo killall -HUP mDNSResponder` to deactivate domain")
             }
+
+            guard let localhostIP else {
+                print(domainName)
+                return
+            }
+
+            let pf = PacketFilter()
+            try pf.removeRedirectRule(from: localhostIP, to: try! IPAddress("127.0.0.1"), domain: domainName)
+
+            do {
+                try pf.reinitialize()
+            } catch {
+                throw ContainerizationError(.invalidState, message: "failed loading pf rules, run `sudo pfctl -n -f /etc/pf.conf` to investigate")
+            }
+            print(domainName)
         }
     }
 }
