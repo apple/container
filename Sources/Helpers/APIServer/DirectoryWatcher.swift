@@ -68,13 +68,11 @@ public class DirectoryWatcher {
         source?.resume()
     }
 
-    /// Deregister the handler of a directory
-    func stopWatching() throws {
+    deinit {
         guard let source else {
-            throw ContainerizationError(.invalidState, message: "already not watching on \(directoryURL.path)")
+            return
         }
 
         source.cancel()
-        self.source = nil
     }
 }
