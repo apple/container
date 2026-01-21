@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerizationError
+import ContainerizationExtras
 import Foundation
 
 /// Functions for managing local DNS domains for containers.
@@ -31,7 +32,7 @@ public struct HostDNSResolver {
     }
 
     /// Creates a DNS resolver configuration file for domain resolved by the application.
-    public func createDomain(name: String, localhost: Bool) throws {
+    public func createDomain(name: String, localhost: IPAddress?) throws {
         let path = self.configURL.appending(path: "\(Self.containerizationPrefix)\(name)").path
         let fm: FileManager = FileManager.default
 
@@ -47,13 +48,15 @@ public struct HostDNSResolver {
             throw ContainerizationError(.exists, message: "domain \(name) already exists")
         }
 
-        let dnsPort = localhost ? "1053" : "2053"
+        let dnsPort = localhost == nil ? "2053" : "1053"
+        let options = localhost == nil ? "" : "options localhost:\(localhost!.description)"
 
         let resolverText = """
             domain \(name)
             search \(name)
             nameserver 127.0.0.1
             port \(dnsPort)
+            \(options)
             """
 
         do {

@@ -31,8 +31,8 @@ extension Application {
         @OptionGroup
         var global: Flags.Global
 
-        @Flag
-        var localhost: Bool = false
+        @Option(name: .long, help: "Set the ip address to be redirected to localhost")
+        var localhost: String?
 
         @Argument(help: "The local domain name")
         var domainName: String
@@ -40,19 +40,40 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            if localhost {
+            var localhostIP: IPAddress? = nil
+            if let localhost {
+                localhostIP = try? IPAddress(localhost)
+                guard let localhostIP, case .v4(_) = localhostIP else {
+                    throw ContainerizationError(.invalidArgument, message: "invalid IPv4 address: \(localhost)")
+                }
             }
 
             let resolver: HostDNSResolver = HostDNSResolver()
             do {
-                try resolver.createDomain(name: domainName, localhost: localhost)
-                print(domainName)
+                try resolver.createDomain(name: domainName, localhost: localhostIP)
             } catch let error as ContainerizationError {
                 throw error
             } catch {
                 throw ContainerizationError(.invalidState, message: "cannot create domain (try sudo?)")
             }
 
+            let pf = PacketFilter()
+            if let from = localhostIP {
+                let to = try! IPAddress("127.0.0.1")
+                do {
+                    try pf.createRedirectRule(from: from, to: to)
+                } catch {
+                    try? resolver.deleteDomain(name: domainName)
+                    throw error
+                }
+            }
+            print(domainName)
+
+            do {
+                try pf.reinitialize()
+            } catch {
+                throw ContainerizationError(.invalidState, message: "loading pf rules failed, run `sudo pfctl -n -f /etc/pf.conf` to investigate")
+            }
             do {
                 try HostDNSResolver.reinitialize()
             } catch {

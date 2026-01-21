@@ -48,23 +48,18 @@ public struct PacketFilter {
         let redirectRule = "rdr \(inet) from any to \(from.description) -> \(to.description)"
 
         var content = ""
-        var lines: [String] = []
         if fm.fileExists(atPath: anchorURL.path) {
             content = try String(contentsOfFile: anchorURL.path, encoding: .utf8)
-            lines = content.components(separatedBy: .newlines).filter { !$0.isEmpty }
-        }
-
-        if !content.contains(redirectRule) {
-            lines.append(redirectRule + "\n")
         } else {
-            lines.append("")
+            try addAnchorToConfig()
         }
 
-        do {
-            try lines.joined(separator: "\n").write(toFile: anchorURL.path, atomically: true, encoding: .utf8)
-        } catch {
-            throw ContainerizationError(.invalidState, message: "failed to write \"\(anchorURL.path)\"")
+        var lines = content.components(separatedBy: .newlines)
+        if !content.contains(redirectRule) {
+            lines.insert(redirectRule, at: lines.endIndex - 1)
         }
+
+        try lines.joined(separator: "\n").write(toFile: anchorURL.path, atomically: true, encoding: .utf8)
     }
 
     public func removeRedirectRule(from: IPAddress, to: IPAddress) throws {
@@ -88,21 +83,21 @@ public struct PacketFilter {
         }
 
         let content = try String(contentsOfFile: anchorURL.path, encoding: .utf8)
-        let lines = content.components(separatedBy: .newlines).filter { !$0.isEmpty }
+        let lines = content.components(separatedBy: .newlines)
 
-        var removedLines = lines.filter { l in
+        let removedLines = lines.filter { l in
             l != redirectRule
         }
-        removedLines.append("")
 
-        do {
+        if removedLines.isEmpty {
+            try fm.removeItem(atPath: anchorURL.path)
+            try removeAnchorFromConfig()
+        } else {
             try removedLines.joined(separator: "\n").write(toFile: anchorURL.path, atomically: true, encoding: .utf8)
-        } catch {
-            throw ContainerizationError(.invalidState, message: "failed to write \"\(anchorURL.path)\"")
         }
     }
 
-    public func updateConfig() throws {
+    private func addAnchorToConfig() throws {
         let fm: FileManager = FileManager.default
 
         let anchorURL = self.anchorsURL.appending(path: Self.anchor)
@@ -141,6 +136,25 @@ public struct PacketFilter {
             try lines.joined(separator: "\n").write(toFile: self.configURL.path, atomically: true, encoding: .utf8)
         } catch {
             throw ContainerizationError(.invalidState, message: "failed to write \"\(self.configURL.path)\"")
+        }
+    }
+
+    private func removeAnchorFromConfig() throws {
+        let fm: FileManager = FileManager.default
+
+        guard fm.fileExists(atPath: configURL.path) else {
+            return
+        }
+
+        let content = try String(contentsOfFile: configURL.path, encoding: .utf8)
+        let lines = content.components(separatedBy: .newlines)
+
+        let removedLines = lines.filter { l in !l.contains(Self.anchor) }
+
+        do {
+            try removedLines.joined(separator: "\n").write(toFile: configURL.path, atomically: true, encoding: .utf8)
+        } catch {
+            throw ContainerizationError(.invalidState, message: "failed to write \"\(configURL.path)\"")
         }
     }
 
