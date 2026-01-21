@@ -61,19 +61,22 @@ extension Application {
             if let from = localhostIP {
                 let to = try! IPAddress("127.0.0.1")
                 do {
-                    try pf.createRedirectRule(from: from, to: to)
+                    try pf.createRedirectRule(from: from, to: to, domain: domainName)
                 } catch {
-                    try? resolver.deleteDomain(name: domainName)
+                    _ = try resolver.deleteDomain(name: domainName)
                     throw error
                 }
             }
             print(domainName)
 
-            do {
-                try pf.reinitialize()
-            } catch {
-                throw ContainerizationError(.invalidState, message: "loading pf rules failed, run `sudo pfctl -n -f /etc/pf.conf` to investigate")
+            if localhostIP != nil {
+                do {
+                    try pf.reinitialize()
+                } catch {
+                    throw ContainerizationError(.invalidState, message: "failed loading pf rules, run `sudo pfctl -n -f /etc/pf.conf` to investigate")
+                }
             }
+
             do {
                 try HostDNSResolver.reinitialize()
             } catch {

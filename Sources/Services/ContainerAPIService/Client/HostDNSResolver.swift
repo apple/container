@@ -67,11 +67,17 @@ public struct HostDNSResolver {
     }
 
     /// Removes a DNS resolver configuration file for domain resolved by the application.
-    public func deleteDomain(name: String) throws {
+    public func deleteDomain(name: String) throws -> IPAddress? {
         let path = self.configURL.appending(path: "\(Self.containerizationPrefix)\(name)").path
         let fm = FileManager.default
         guard fm.fileExists(atPath: path) else {
             throw ContainerizationError(.notFound, message: "domain \(name) at \(path) not found")
+        }
+
+        var localhost: IPAddress?
+        let content = try String(contentsOfFile: path, encoding: .utf8)
+        if let match = content.firstMatch(of: /options\s+localhost:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/) {
+            localhost = try? IPAddress(String(match.1))
         }
 
         do {
@@ -79,6 +85,8 @@ public struct HostDNSResolver {
         } catch {
             throw ContainerizationError(.invalidState, message: "cannot delete domain (try sudo?)")
         }
+
+        return localhost
     }
 
     /// Lists application-created local DNS domains.

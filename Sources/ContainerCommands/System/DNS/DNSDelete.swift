@@ -17,6 +17,7 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerizationError
+import ContainerizationExtras
 import Foundation
 
 extension Application {
@@ -37,11 +38,25 @@ extension Application {
 
         public func run() async throws {
             let resolver = HostDNSResolver()
+            var localhostIP: IPAddress?
             do {
-                try resolver.deleteDomain(name: domainName)
-                print(domainName)
+                localhostIP = try resolver.deleteDomain(name: domainName)
             } catch {
                 throw ContainerizationError(.invalidState, message: "cannot delete domain (try sudo?)")
+            }
+
+            let pf = PacketFilter()
+            if let from = localhostIP {
+                try pf.removeRedirectRule(from: from, to: try! IPAddress("127.0.0.1"), domain: domainName)
+            }
+            print(domainName)
+
+            if localhostIP != nil {
+                do {
+                    try pf.reinitialize()
+                } catch {
+                    throw ContainerizationError(.invalidState, message: "failed loading pf rules, run `sudo pfctl -n -f /etc/pf.conf` to investigate")
+                }
             }
 
             do {

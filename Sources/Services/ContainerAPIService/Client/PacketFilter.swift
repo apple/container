@@ -31,7 +31,7 @@ public struct PacketFilter {
         self.anchorsURL = anchorsURL
     }
 
-    public func createRedirectRule(from: IPAddress, to: IPAddress) throws {
+    public func createRedirectRule(from: IPAddress, to: IPAddress, domain: String) throws {
         guard type(of: from) == type(of: to) else {
             throw ContainerizationError(.invalidArgument, message: "protocol does not match: \(from) vs. \(to)")
         }
@@ -45,7 +45,7 @@ public struct PacketFilter {
         case .v4: inet = "inet"
         case .v6: inet = "inet6"
         }
-        let redirectRule = "rdr \(inet) from any to \(from.description) -> \(to.description)"
+        let redirectRule = "rdr \(inet) from any to \(from.description) -> \(to.description) # \(domain)"
 
         var content = ""
         if fm.fileExists(atPath: anchorURL.path) {
@@ -62,7 +62,7 @@ public struct PacketFilter {
         try lines.joined(separator: "\n").write(toFile: anchorURL.path, atomically: true, encoding: .utf8)
     }
 
-    public func removeRedirectRule(from: IPAddress, to: IPAddress) throws {
+    public func removeRedirectRule(from: IPAddress, to: IPAddress, domain: String) throws {
         guard type(of: from) == type(of: to) else {
             throw ContainerizationError(.invalidArgument, message: "protocol does not match: \(from) vs. \(to)")
         }
@@ -76,7 +76,7 @@ public struct PacketFilter {
         case .v4: inet = "inet"
         case .v6: inet = "inet6"
         }
-        let redirectRule = "rdr \(inet) from any to \(from.description) -> \(to.description)"
+        let redirectRule = "rdr \(inet) from any to \(from.description) -> \(to.description) # \(domain)"
 
         guard fm.fileExists(atPath: anchorURL.path) else {
             return
@@ -89,7 +89,7 @@ public struct PacketFilter {
             l != redirectRule
         }
 
-        if removedLines.isEmpty {
+        if removedLines == [""] {
             try fm.removeItem(atPath: anchorURL.path)
             try removeAnchorFromConfig()
         } else {
@@ -112,8 +112,8 @@ public struct PacketFilter {
         var lines: [String] = []
         if fm.fileExists(atPath: self.configURL.path) {
             content = try String(contentsOfFile: self.configURL.path, encoding: .utf8)
-            lines = content.components(separatedBy: .newlines)
         }
+        lines = content.components(separatedBy: .newlines)
 
         for (i, keyword) in anchorKeywords[..<(anchorKeywords.endIndex - 1)].enumerated() {
             let anchorText = "\(keyword) \"\(Self.anchor)\""
@@ -129,7 +129,7 @@ public struct PacketFilter {
         }
 
         if !content.contains(loadAnchorText) {
-            lines.append(loadAnchorText + "\n")
+            lines.insert(loadAnchorText, at: lines.endIndex - 1)
         }
 
         do {
