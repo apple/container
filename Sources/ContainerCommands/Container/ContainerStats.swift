@@ -22,7 +22,7 @@ import ContainerizationExtras
 import Foundation
 
 extension Application {
-    public struct ContainerStats: AsyncParsableCommand {
+    public struct ContainerStats: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "stats",
             abstract: "Display resource usage statistics for containers")
@@ -37,7 +37,7 @@ extension Application {
         var noStream = false
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         public init() {}
 

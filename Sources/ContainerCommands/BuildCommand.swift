@@ -27,7 +27,7 @@ import NIO
 import TerminalProgress
 
 extension Application {
-    public struct BuildCommand: AsyncParsableCommand {
+    public struct BuildCommand: AsyncLoggableCommand {
         public init() {}
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
@@ -122,6 +122,9 @@ extension Application {
         @Option(name: .long, help: ArgumentHelp("Builder shim vsock port", valueName: "port"))
         var vsockPort: UInt32 = 8088
 
+        @OptionGroup
+        public var logOptions: Flags.Logging
+
         @Option(
             name: .customLong("dns"),
             help: .init("DNS nameserver IP address for builder container", valueName: "ip")
@@ -151,7 +154,7 @@ extension Application {
                         group.cancelAll()
                     }
 
-                    group.addTask { [vsockPort, cpus, memory, dnsNameservers] in
+                    group.addTask { [vsockPort, cpus, memory, log, dnsNameservers] in
                         while true {
                             do {
                                 let container = try await ClientContainer.get(id: "buildkit")
@@ -172,6 +175,7 @@ extension Application {
                                 try await BuilderStart.start(
                                     cpus: cpus,
                                     memory: memory,
+                                    log: log,
                                     dnsNameservers: dnsNameservers,
                                     progressUpdate: progress.handler
                                 )

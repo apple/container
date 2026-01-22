@@ -20,9 +20,10 @@ import ContainerResource
 import ContainerizationError
 import ContainerizationOS
 import Foundation
+import Logging
 
 extension Application {
-    public struct ContainerStop: AsyncParsableCommand {
+    public struct ContainerStop: AsyncLoggableCommand {
         public init() {}
 
         public static let configuration = CommandConfiguration(
@@ -39,7 +40,7 @@ extension Application {
         var time: Int32 = 5
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "Container IDs")
         var containerIds: [String] = []
@@ -69,7 +70,7 @@ extension Application {
                 timeoutInSeconds: self.time,
                 signal: try Signals.parseSignal(self.signal)
             )
-            let failed = try await Self.stopContainers(containers: containers, stopOptions: opts)
+            let failed = try await Self.stopContainers(containers: containers, stopOptions: opts, log: log)
             if failed.count > 0 {
                 throw ContainerizationError(
                     .internalError,
@@ -78,7 +79,7 @@ extension Application {
             }
         }
 
-        static func stopContainers(containers: [ClientContainer], stopOptions: ContainerStopOptions) async throws -> [String] {
+        static func stopContainers(containers: [ClientContainer], stopOptions: ContainerStopOptions, log: Logger) async throws -> [String] {
             var failed: [String] = []
             try await withThrowingTaskGroup(of: ClientContainer?.self) { group in
                 for container in containers {

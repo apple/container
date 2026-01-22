@@ -15,9 +15,10 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerAPIClient
 
 extension Application {
-    public struct BuilderCommand: AsyncParsableCommand {
+    public struct BuilderCommand: AsyncLoggableCommand {
         public init() {}
 
         public static let builderResourceDir = "builder"
@@ -30,5 +31,8 @@ extension Application {
                 BuilderStop.self,
                 BuilderDelete.self,
             ])
+
+        @OptionGroup
+        public var logOptions: Flags.Logging
     }
 }

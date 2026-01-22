@@ -24,10 +24,11 @@ import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOCI
 import Foundation
+import Logging
 import TerminalProgress
 
 extension Application {
-    public struct BuilderStart: AsyncParsableCommand {
+    public struct BuilderStart: AsyncLoggableCommand {
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
             config.commandName = "start"
@@ -51,7 +52,7 @@ extension Application {
         var dnsNameservers: [String] = []
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         public init() {}
 
@@ -66,11 +67,11 @@ extension Application {
                 progress.finish()
             }
             progress.start()
-            try await Self.start(cpus: self.cpus, memory: self.memory, dnsNameservers: self.dnsNameservers, progressUpdate: progress.handler)
+            try await Self.start(cpus: self.cpus, memory: self.memory, log: log, dnsNameservers: self.dnsNameservers, progressUpdate: progress.handler)
             progress.finish()
         }
 
-        static func start(cpus: Int64?, memory: String?, dnsNameservers: [String] = [], progressUpdate: @escaping ProgressUpdateHandler) async throws {
+        static func start(cpus: Int64?, memory: String?, log: Logger, dnsNameservers: [String] = [], progressUpdate: @escaping ProgressUpdateHandler) async throws {
             await progressUpdate([
                 .setDescription("Fetching BuildKit image"),
                 .setItemsName("blobs"),
@@ -264,6 +265,7 @@ extension Application {
             )
 
             try await container.startBuildKit(progressUpdate, taskManager)
+            log.debug("starting BuildKit and BuildKit-shim")
         }
     }
 }
@@ -286,8 +288,6 @@ extension ClientContainer {
             try await process.start()
             await taskManager?.finish()
             try io.closeAfterStart()
-
-            log.debug("starting BuildKit and BuildKit-shim")
         } catch {
             try? await stop()
             try? await delete()

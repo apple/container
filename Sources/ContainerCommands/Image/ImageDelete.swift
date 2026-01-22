@@ -19,6 +19,7 @@ import ContainerAPIClient
 import Containerization
 import ContainerizationError
 import Foundation
+import Logging
 
 extension Application {
     public struct RemoveImageOptions: ParsableArguments {
@@ -26,9 +27,6 @@ extension Application {
 
         @Flag(name: .shortAndLong, help: "Delete all images")
         var all: Bool = false
-
-        @OptionGroup
-        var global: Flags.Global
 
         @Argument
         var images: [String] = []
@@ -44,7 +42,7 @@ extension Application {
             }
         }
 
-        static func removeImage(options: RemoveImageOptions) async throws {
+        static func removeImage(options: RemoveImageOptions, log: Logger) async throws {
             let (found, notFound) = try await {
                 if options.all {
                     let found = try await ClientImage.list()
@@ -81,9 +79,12 @@ extension Application {
         }
     }
 
-    public struct ImageDelete: AsyncParsableCommand {
+    public struct ImageDelete: AsyncLoggableCommand {
         @OptionGroup
         var options: RemoveImageOptions
+
+        @OptionGroup
+        public var logOptions: Flags.Logging
 
         public static let configuration = CommandConfiguration(
             commandName: "delete",
@@ -97,7 +98,7 @@ extension Application {
         }
 
         public mutating func run() async throws {
-            try await DeleteImageImplementation.removeImage(options: options)
+            try await DeleteImageImplementation.removeImage(options: options, log: log)
         }
     }
 }

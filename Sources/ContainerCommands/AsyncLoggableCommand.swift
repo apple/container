@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025-2026 Apple Inc. and the container project authors.
+// Copyright © 2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,22 +16,20 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerLog
+import Logging
 
-extension Application {
-    public struct RegistryCommand: AsyncLoggableCommand {
-        public static let configuration = CommandConfiguration(
-            commandName: "registry",
-            abstract: "Manage registry logins",
-            subcommands: [
-                Login.self,
-                Logout.self,
-            ],
-            aliases: ["r"]
-        )
+public protocol AsyncLoggableCommand: AsyncParsableCommand {
+    var logOptions: Flags.Logging { get }
+}
 
-        public init() {}
+extension AsyncLoggableCommand {
+    /// A shared logger instance configured based on the command's options
+    public var log: Logger {
+        var logger = Logger(label: "container", factory: { _ in StderrLogHandler() })
 
-        @OptionGroup
-        public var logOptions: Flags.Logging
+        logger.logLevel = logOptions.debug ? .debug : .info
+
+        return logger
     }
 }
