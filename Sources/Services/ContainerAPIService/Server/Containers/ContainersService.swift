@@ -324,21 +324,12 @@ public actor ContainersService {
         self.log.debug("\(#function)")
 
         let state = try self._getContainerState(id: id)
-        do {
-            let client = try state.getClient()
-            try await client.createProcess(
-                processID,
-                config: config,
-                stdio: stdio
-            )
-        } catch {
-            do {
-                try await _cleanup(id: id)
-            } catch {
-                self.log.error("failed to cleanup container \(id) after start failure: \(error)")
-            }
-            throw error
-        }
+        let client = try state.getClient()
+        try await client.createProcess(
+            processID,
+            config: config,
+            stdio: stdio
+        )
     }
 
     /// Start a process in a container. This can either be a process created via
@@ -347,11 +338,11 @@ public actor ContainersService {
     public func startProcess(id: String, processID: String) async throws {
         self.log.debug("\(#function)")
 
+        let isInit = Self.isInitProcess(id: id, processID: processID)
         do {
             try await self.lock.withLock { context in
                 var state = try await self.getContainerState(id: id, context: context)
 
-                let isInit = Self.isInitProcess(id: id, processID: processID)
                 if state.snapshot.status == .running && isInit {
                     return
                 }
@@ -378,10 +369,12 @@ public actor ContainersService {
                 }
             }
         } catch {
-            do {
-                try await _cleanup(id: id)
-            } catch {
-                self.log.error("failed to cleanup container \(id) after start failure: \(error)")
+            if isInit {
+                do {
+                    try await _cleanup(id: id)
+                } catch {
+                    self.log.error("failed to cleanup container \(id) after start failure: \(error)")
+                }
             }
             throw error
         }
