@@ -125,11 +125,8 @@ extension Application {
         @OptionGroup
         public var logOptions: Flags.Logging
 
-        @Option(
-            name: .customLong("dns"),
-            help: .init("DNS nameserver IP address for builder container", valueName: "ip")
-        )
-        var dnsNameservers: [String] = []
+        @OptionGroup
+        public var dns: Flags.DNS
 
         @Argument(help: "Build directory")
         var contextDir: String = "."
@@ -149,6 +146,7 @@ extension Application {
 
                 progress.set(description: "Dialing builder")
 
+                let dnsNameservers = self.dns.nameservers
                 let builder: Builder? = try await withThrowingTaskGroup(of: Builder.self) { [vsockPort, cpus, memory, dnsNameservers] group in
                     defer {
                         group.cancelAll()
@@ -367,9 +365,9 @@ extension Application {
                         }
                         let loaded = try await ClientImage.load(from: dest.absolutePath())
 
-                        for image in loaded {
+                        for image in loaded.images {
                             try Task.checkCancellation()
-                            try await image.unpack(platform: nil, progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: unpackProgress.handler))
+                            try await image.unpack(platform: .none, progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: unpackProgress.handler))
 
                             // Tag the unpacked image with all requested tags
                             for tagName in imageNames {

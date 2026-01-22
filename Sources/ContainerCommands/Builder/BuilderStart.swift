@@ -45,11 +45,8 @@ extension Application {
         )
         var memory: String = "2048MB"
 
-        @Option(
-            name: .customLong("dns"),
-            help: .init("DNS nameserver IP address for builder container", valueName: "ip")
-        )
-        var dnsNameservers: [String] = []
+        @OptionGroup
+        public var dns: Flags.DNS
 
         @OptionGroup
         public var logOptions: Flags.Logging
@@ -67,7 +64,7 @@ extension Application {
                 progress.finish()
             }
             progress.start()
-            try await Self.start(cpus: self.cpus, memory: self.memory, log: log, dnsNameservers: self.dnsNameservers, progressUpdate: progress.handler)
+            try await Self.start(cpus: self.cpus, memory: self.memory, log: log, dnsNameservers: self.dns.nameservers, progressUpdate: progress.handler)
             progress.finish()
         }
 
