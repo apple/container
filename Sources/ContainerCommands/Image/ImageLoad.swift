@@ -22,7 +22,7 @@ import Foundation
 import TerminalProgress
 
 extension Application {
-    public struct ImageLoad: AsyncParsableCommand {
+    public struct ImageLoad: AsyncLoggableCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "load",
@@ -40,7 +40,7 @@ extension Application {
         public var force = false
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         public func run() async throws {
             let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).tar")

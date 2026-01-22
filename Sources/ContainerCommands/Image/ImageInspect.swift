@@ -16,39 +16,59 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerLog
 import ContainerizationError
 import Foundation
+import Logging
 import SwiftProtobuf
 
 extension Application {
-    public struct ImageInspect: AsyncParsableCommand {
+    public struct ImageInspect: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "inspect",
             abstract: "Display information about one or more images")
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "Images to inspect")
         var images: [String]
 
         public init() {}
 
+        struct InspectError: Error {
+            let succeeded: [String]
+            let failed: [(String, Error)]
+        }
+
         public func run() async throws {
             var printable = [any Codable]()
+            var succeededImages: [String] = []
+            var allErrors: [(String, Error)] = []
+
             let result = try await ClientImage.get(names: images)
-            let notFound = result.error
+
             for image in result.images {
-                guard !Utility.isInfraImage(name: image.reference) else {
-                    continue
-                }
+                guard !Utility.isInfraImage(name: image.reference) else { continue }
                 printable.append(try await image.details())
+                succeededImages.append(image.reference)
             }
-            if printable.count > 0 {
+
+            for missing in result.error {
+                allErrors.append((missing, ContainerizationError(.notFound, message: "Image not found")))
+            }
+
+            if !printable.isEmpty {
                 print(try printable.jsonArray())
             }
-            if notFound.count > 0 {
-                throw ContainerizationError(.notFound, message: "images: \(notFound.joined(separator: "\n"))")
+
+            if !allErrors.isEmpty {
+                let logger = Logger(label: "ImageInspect", factory: { _ in StderrLogHandler() })
+                for (name, error) in allErrors {
+                    logger.error("\(name): \(error.localizedDescription)")
+                }
+
+                throw InspectError(succeeded: succeededImages, failed: allErrors)
             }
         }
     }

@@ -21,14 +21,14 @@ import ContainerizationError
 import Foundation
 
 extension Application {
-    public struct PropertyGet: AsyncParsableCommand {
+    public struct PropertyGet: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "get",
             abstract: "Retrieve a property value"
         )
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "The property ID")
         var id: String

@@ -23,7 +23,7 @@ import Foundation
 import TerminalProgress
 
 extension Application {
-    public struct NetworkCreate: AsyncParsableCommand {
+    public struct NetworkCreate: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "create",
             abstract: "Create a new network")
@@ -46,7 +46,7 @@ extension Application {
         var ipv6Subnet: CIDRv6? = nil
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "Network name")
         var name: String

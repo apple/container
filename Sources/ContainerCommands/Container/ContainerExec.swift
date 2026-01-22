@@ -21,7 +21,7 @@ import ContainerizationOS
 import Foundation
 
 extension Application {
-    public struct ContainerExec: AsyncParsableCommand {
+    public struct ContainerExec: AsyncLoggableCommand {
         public init() {}
 
         public static let configuration = CommandConfiguration(
@@ -32,7 +32,7 @@ extension Application {
         var processFlags: Flags.Process
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Flag(name: .shortAndLong, help: "Run the process and detach from it")
         var detach = false
