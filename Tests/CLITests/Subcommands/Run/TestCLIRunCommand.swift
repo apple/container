@@ -605,7 +605,7 @@ class TestCLIRunCommand3: CLITest {
     }
 
     @available(macOS 26, *)
-    func testForwardTCPv6() async throws {
+    @Test func testForwardTCPv6() async throws {
         let retries = 10
         let retryDelaySeconds = Int64(3)
         do {
