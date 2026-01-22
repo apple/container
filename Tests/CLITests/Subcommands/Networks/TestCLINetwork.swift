@@ -89,8 +89,7 @@ class TestCLINetwork: CLITest {
     }
 
     @available(macOS 26, *)
-    @Test
-    func testNetworkDeleteWithContainer() async throws {
+    @Test func testNetworkDeleteWithContainer() async throws {
         do {
             // prep: delete container and network, ignoring if it doesn't exist
             let name = getLowercasedTestName()
