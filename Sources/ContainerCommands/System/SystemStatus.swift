@@ -22,7 +22,7 @@ import Foundation
 import Logging
 
 extension Application {
-    public struct SystemStatus: AsyncParsableCommand {
+    public struct SystemStatus: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "status",
             abstract: "Show the status of `container` services"
@@ -32,7 +32,7 @@ extension Application {
         var prefix: String = "com.apple.container."
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         public init() {}
 

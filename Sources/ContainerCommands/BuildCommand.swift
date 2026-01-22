@@ -27,7 +27,7 @@ import NIO
 import TerminalProgress
 
 extension Application {
-    public struct BuildCommand: AsyncParsableCommand {
+    public struct BuildCommand: AsyncLoggableCommand {
         public init() {}
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
@@ -122,11 +122,11 @@ extension Application {
         @Option(name: .long, help: ArgumentHelp("Builder shim vsock port", valueName: "port"))
         var vsockPort: UInt32 = 8088
 
-        @Option(
-            name: .customLong("dns"),
-            help: .init("DNS nameserver IP address for builder container", valueName: "ip")
-        )
-        var dnsNameservers: [String] = []
+        @OptionGroup
+        public var logOptions: Flags.Logging
+
+        @OptionGroup
+        public var dns: Flags.DNS
 
         @Argument(help: "Build directory")
         var contextDir: String = "."
@@ -146,12 +146,13 @@ extension Application {
 
                 progress.set(description: "Dialing builder")
 
+                let dnsNameservers = self.dns.nameservers
                 let builder: Builder? = try await withThrowingTaskGroup(of: Builder.self) { [vsockPort, cpus, memory, dnsNameservers] group in
                     defer {
                         group.cancelAll()
                     }
 
-                    group.addTask { [vsockPort, cpus, memory, dnsNameservers] in
+                    group.addTask { [vsockPort, cpus, memory, log, dnsNameservers] in
                         while true {
                             do {
                                 let container = try await ClientContainer.get(id: "buildkit")
@@ -172,6 +173,7 @@ extension Application {
                                 try await BuilderStart.start(
                                     cpus: cpus,
                                     memory: memory,
+                                    log: log,
                                     dnsNameservers: dnsNameservers,
                                     progressUpdate: progress.handler
                                 )
@@ -363,9 +365,9 @@ extension Application {
                         }
                         let loaded = try await ClientImage.load(from: dest.absolutePath())
 
-                        for image in loaded {
+                        for image in loaded.images {
                             try Task.checkCancellation()
-                            try await image.unpack(platform: nil, progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: unpackProgress.handler))
+                            try await image.unpack(platform: .none, progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: unpackProgress.handler))
 
                             // Tag the unpacked image with all requested tags
                             for tagName in imageNames {

@@ -20,7 +20,7 @@ import Foundation
 import SwiftProtobuf
 
 extension Application {
-    public struct ContainerInspect: AsyncParsableCommand {
+    public struct ContainerInspect: AsyncLoggableCommand {
         public init() {}
 
         public static let configuration = CommandConfiguration(
@@ -28,7 +28,7 @@ extension Application {
             abstract: "Display information about one or more containers")
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "Container IDs to inspect")
         var containerIds: [String]

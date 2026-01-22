@@ -15,11 +15,12 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerAPIClient
 import ContainerizationError
 import Foundation
 
 extension Application {
-    public struct SystemDNS: AsyncParsableCommand {
+    public struct SystemDNS: AsyncLoggableCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "dns",
@@ -30,5 +31,8 @@ extension Application {
                 DNSList.self,
             ]
         )
+
+        @OptionGroup
+        public var logOptions: Flags.Logging
     }
 }

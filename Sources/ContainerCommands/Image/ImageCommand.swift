@@ -15,9 +15,10 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerAPIClient
 
 extension Application {
-    public struct ImageCommand: AsyncParsableCommand {
+    public struct ImageCommand: AsyncLoggableCommand {
         public init() {}
 
         public static let configuration = CommandConfiguration(
@@ -36,5 +37,8 @@ extension Application {
             ],
             aliases: ["i"]
         )
+
+        @OptionGroup
+        public var logOptions: Flags.Logging
     }
 }

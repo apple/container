@@ -20,7 +20,7 @@ import ContainerizationError
 import Foundation
 
 extension Application {
-    public struct BuilderStop: AsyncParsableCommand {
+    public struct BuilderStop: AsyncLoggableCommand {
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
             config.commandName = "stop"
@@ -29,7 +29,7 @@ extension Application {
         }
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         public init() {}
 
