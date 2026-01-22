@@ -196,8 +196,7 @@ class TestCLINoParallelCases: CLITest {
     }
 
     @available(macOS 26, *)
-    @Test(.disabled("https://github.com/apple/container/issues/953"))
-    func testNetworkPruneSkipsNetworksInUse() throws {
+    @Test func testNetworkPruneSkipsNetworksInUse() throws {
         let name = getTestName()
         let containerName = "\(name)_c1"
         let networkInUse = "\(name)_inuse"
@@ -251,8 +250,7 @@ class TestCLINoParallelCases: CLITest {
     }
 
     @available(macOS 26, *)
-    @Test(.disabled("https://github.com/apple/container/issues/953"))
-    func testNetworkPruneSkipsNetworkAttachedToStoppedContainer() async throws {
+    @Test func testNetworkPruneSkipsNetworkAttachedToStoppedContainer() async throws {
         let name = getTestName()
         let containerName = "\(name)_c1"
         let networkName = "\(name)"
