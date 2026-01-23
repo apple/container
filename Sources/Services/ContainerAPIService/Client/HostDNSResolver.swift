@@ -63,11 +63,7 @@ public struct HostDNSResolver {
             \(options)
             """
 
-        do {
-            try resolverText.write(toFile: path, atomically: true, encoding: .utf8)
-        } catch {
-            throw ContainerizationError(.invalidState, message: "failed to write resolver configuration for \(name)")
-        }
+        try resolverText.write(toFile: path, atomically: true, encoding: .utf8)
     }
 
     /// Removes a DNS resolver configuration file for domain resolved by the application.

@@ -62,8 +62,15 @@ class LocalhostDNSHandler: DNSHandler {
             if let ip = dns[question.name] {
                 record = HostRecord<IPv4>(name: question.name, ttl: ttl, ip: ip)
             }
-        case ResourceRecordType.host6,
-            ResourceRecordType.nameServer,
+        case ResourceRecordType.host6:
+            return Message(
+                id: query.id,
+                type: .response,
+                returnCode: .noError,
+                questions: query.questions,
+                answers: []
+            )
+        case ResourceRecordType.nameServer,
             ResourceRecordType.alias,
             ResourceRecordType.startOfAuthority,
             ResourceRecordType.pointer,

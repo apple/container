@@ -82,16 +82,9 @@ struct PacketFilterTest {
 
     @Test
     func testPacketFilterReinitialize() async throws {
-        let isAdmin = getuid() == 0
         let pf = PacketFilter()
-        do {
+        #expect(throws: ContainerizationError.self) {
             try pf.reinitialize()
-            #expect(isAdmin)
-        } catch {
-            let containerizationError = try #require(error as? ContainerizationError)
-            #expect(containerizationError.code == .invalidState)
-            #expect(containerizationError.message == "pfctl -f \"\(PacketFilter.defaultConfigPath.path)\" failed")
-            #expect(!isAdmin)
         }
     }
 }

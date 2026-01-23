@@ -72,8 +72,10 @@ extension Application {
             if localhostIP != nil {
                 do {
                     try pf.reinitialize()
+                } catch let error as ContainerizationError {
+                    throw error
                 } catch {
-                    throw ContainerizationError(.invalidState, message: "failed loading pf rules, run `sudo pfctl -n -f /etc/pf.conf` to investigate")
+                    throw ContainerizationError(.invalidState, message: "failed loading pf rules")
                 }
             }
 

@@ -191,7 +191,7 @@ public struct PacketFilter {
             pfctl.waitUntilExit()
             status = pfctl.terminationStatus
             guard status == 0 else {
-                throw ContainerizationError(.invalidState, message: "pfctl -f \"\(configURL.path)\" failed")
+                throw ContainerizationError(.invalidState, message: "pfctl -f \"\(configURL.path)\" failed with status \(status)")
             }
         }
     }

@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerizationError
+import ContainerizationExtras
 import Foundation
 import Testing
 
@@ -87,6 +88,12 @@ struct HostDNSResolverTest {
         let resolver = HostDNSResolver(configURL: tempURL)
         try resolver.createDomain(name: "foo.bar")
         _ = try resolver.deleteDomain(name: "foo.bar")
+
+        let localhost = try! IPAddress("127.0.0.1")
+        try resolver.createDomain(name: "bar.baz", localhost: localhost)
+        let deletedLocalhost = try resolver.deleteDomain(name: "bar.baz")
+        #expect(localhost == deletedLocalhost)
+
         let domains = resolver.listDomains()
         #expect(domains == [])
     }
