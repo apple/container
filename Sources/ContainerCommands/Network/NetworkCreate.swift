@@ -45,6 +45,12 @@ extension Application {
             })
         var ipv6Subnet: CIDRv6? = nil
 
+        @Option(name: .long, help: "Set the plugin to use to create this network.")
+        var plugin: String = "container-network-vmnet"
+
+        @Option(name: .long, help: "Set the variant of the network plugin to use.")
+        var pluginVariant: String?
+
         @OptionGroup
         var global: Flags.Global
 
@@ -60,7 +66,8 @@ extension Application {
                 mode: .nat,
                 ipv4Subnet: ipv4Subnet,
                 ipv6Subnet: ipv6Subnet,
-                labels: parsedLabels
+                labels: parsedLabels,
+                pluginInfo: NetworkPluginInfo(plugin: self.plugin, variant: self.pluginVariant)
             )
             let state = try await ClientNetwork.create(configuration: config)
             print(state.id)

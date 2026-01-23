@@ -17,6 +17,7 @@
 import ContainerResource
 import ContainerXPC
 import ContainerizationError
+import ContainerizationExtras
 import ContainerizationOS
 import Foundation
 
@@ -81,9 +82,96 @@ extension ClientNetwork {
 
     /// Delete the network with the given id.
     public static func delete(id: String) async throws {
-        let client = XPCClient(service: Self.serviceIdentifier)
+        let client = Self.newClient()
         let request = XPCMessage(route: .networkDelete)
         request.set(key: .networkId, value: id)
-        try await client.send(request)
+        let _ = try await xpcSend(client: client, message: request)
+    }
+
+    /// Allocate an IP address from network `id`.
+    public static func allocate(id: String, hostname: String, macAddress: MACAddress? = nil) async throws -> (attachment: Attachment, additionalData: XPCMessage?) {
+        let client = Self.newClient()
+
+        let request = XPCMessage(route: .networkAllocate)
+        request.set(key: .networkId, value: id)
+        request.set(key: .networkHostname, value: hostname)
+        if let macAddress = macAddress {
+            request.set(key: .networkMACAddress, value: macAddress.description)
+        }
+
+        let response = try await xpcSend(client: client, message: request)
+        let attachment = try response.attachment()
+        let additionalData = response.additionalData()
+        return (attachment, additionalData)
+    }
+
+    /// Deallocate a previously allocated IP address from network `id`.
+    public static func deallocate(id: String, hostname: String) async throws {
+        let client = Self.newClient()
+
+        let request = XPCMessage(route: .networkDeallocate)
+        request.set(key: .networkId, value: id)
+        request.set(key: .networkHostname, value: hostname)
+        let _ = try await xpcSend(client: client, message: request)
+    }
+
+    /// Lookup a hostname on network `id`.
+    public static func lookup(id: String, hostname: String) async throws -> Attachment? {
+        let client = Self.newClient()
+
+        let request = XPCMessage(route: .networkLookup)
+        request.set(key: .networkId, value: id)
+        request.set(key: .networkHostname, value: hostname)
+
+        let response = try await xpcSend(client: client, message: request)
+        return try response.attachment()
+    }
+
+    /// Disable the IP allocator for network `id`.
+    public static func disableAllocator(id: String) async throws -> Bool {
+        let client = Self.newClient()
+
+        let request = XPCMessage(route: .networkDisableAllocator)
+        request.set(key: .networkId, value: id)
+
+        let response = try await xpcSend(client: client, message: request)
+        return try response.allocatorDisabled()
+    }
+}
+
+extension XPCMessage {
+    public func additionalData() -> XPCMessage? {
+        guard let additionalData = xpc_dictionary_get_dictionary(self.underlying, XPCKeys.networkAdditionalData.rawValue) else {
+            return nil
+        }
+        return XPCMessage(object: additionalData)
+    }
+
+    public func allocatorDisabled() throws -> Bool {
+        self.bool(key: .networkDisableAllocator)
+    }
+
+    public func attachment() throws -> Attachment {
+        let data = self.dataNoCopy(key: .networkAttachment)
+        guard let data else {
+            throw ContainerizationError(.invalidArgument, message: "no network attachment snapshot data in message")
+        }
+        return try JSONDecoder().decode(Attachment.self, from: data)
+    }
+
+    public func hostname() throws -> String {
+        let hostname = self.string(key: .networkHostname)
+        guard let hostname else {
+            throw ContainerizationError(.invalidArgument, message: "no hostname data in message")
+        }
+        return hostname
+    }
+
+    public func state() throws -> NetworkState {
+        let data = self.dataNoCopy(key: .networkState)
+        guard let data else {
+            throw ContainerizationError(.invalidArgument, message: "no network snapshot data in message")
+        }
+        return try JSONDecoder().decode(NetworkState.self, from: data)
     }
 }

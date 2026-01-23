@@ -245,7 +245,11 @@ extension APIServer {
                 .filter { $0.id == ClientNetwork.defaultNetworkName }
                 .first
             if defaultNetwork == nil {
-                let config = try NetworkConfiguration(id: ClientNetwork.defaultNetworkName, mode: .nat)
+                let config = try NetworkConfiguration(
+                    id: ClientNetwork.defaultNetworkName,
+                    mode: .nat,
+                    pluginInfo: NetworkPluginInfo(plugin: "container-network-vmnet")
+                )
                 _ = try await service.create(configuration: config)
             }
 
@@ -254,6 +258,10 @@ extension APIServer {
             routes[XPCRoute.networkCreate] = harness.create
             routes[XPCRoute.networkDelete] = harness.delete
             routes[XPCRoute.networkList] = harness.list
+            routes[XPCRoute.networkAllocate] = harness.allocate
+            routes[XPCRoute.networkDeallocate] = harness.deallocate
+            routes[XPCRoute.networkLookup] = harness.lookup
+            routes[XPCRoute.networkDisableAllocator] = harness.disableAllocator
             return service
         }
 

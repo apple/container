@@ -14,7 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerNetworkServiceClient
+import ContainerAPIClient
 import ContainerPersistence
 import ContainerResource
 import ContainerSandboxServiceClient
@@ -147,8 +147,11 @@ public actor SandboxService {
             var interfaces: [Interface] = []
             for index in 0..<config.networks.count {
                 let network = config.networks[index]
-                let client = NetworkClient(id: network.network)
-                let (attachment, additionalData) = try await client.allocate(hostname: network.options.hostname, macAddress: network.options.macAddress)
+                let (attachment, additionalData) = try await ClientNetwork.allocate(
+                    id: network.network,
+                    hostname: network.options.hostname,
+                    macAddress: network.options.macAddress
+                )
                 attachments.append(attachment)
 
                 let interface = try self.interfaceStrategy.toInterface(
@@ -866,8 +869,7 @@ public actor SandboxService {
 
     private func getDefaultNameservers(attachmentConfigurations: [AttachmentConfiguration]) async throws -> [String] {
         for attachmentConfiguration in attachmentConfigurations {
-            let client = NetworkClient(id: attachmentConfiguration.network)
-            let state = try await client.state()
+            let state = try await ClientNetwork.get(id: attachmentConfiguration.network)
             guard case .running(_, let status) = state else {
                 continue
             }
@@ -1027,9 +1029,8 @@ public actor SandboxService {
         // Give back our lovely IP(s)
         await self.stopSocketForwarders()
         for attachment in containerInfo.attachments {
-            let client = NetworkClient(id: attachment.network)
             do {
-                try await client.deallocate(hostname: attachment.hostname)
+                try await ClientNetwork.deallocate(id: attachment.network, hostname: attachment.hostname)
             } catch {
                 self.log.error("failed to deallocate hostname \(attachment.hostname) on network \(attachment.network) during cleanup: \(error)")
             }
