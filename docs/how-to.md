@@ -198,6 +198,30 @@ Test access using `curl`:
 </body></html>
 ```
 
+## Access a host service from a container
+
+Create a DNS domain with `--localhost <ipv4-address>` to make a domain used by a container to access a host service. Any IPv4 address can be used as `<ipv4-address>`, which will be assigned to the domain name in container.
+
+To connect a host HTTP server from a container, run:
+
+```bash
+mkdir -p /tmp/test; cd /tmp/test; echo "hello" > index.html
+python3 -m http.server 8000 --bind 127.0.0.1
+```
+
+Create a domain for host connection:
+
+```bash
+sudo container system dns create host.container.internal --localhost 203.0.113.113
+```
+
+Test access to the host HTTP server from a container:
+
+```console
+% container run -it --rm alpine/curl curl http://host.container.internal:8000
+hello
+```
+
 ## Set a custom MAC address for your container
 
 Use the `mac` option to specify a custom MAC address for your container's network interface. This is useful for:
