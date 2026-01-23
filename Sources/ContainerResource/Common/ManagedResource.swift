@@ -14,11 +14,67 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationError
 import Foundation
 
+/// Common properties for all managed resources.
 public protocol ManagedResource: Identifiable, Sendable, Codable {
-    var qualifiedId: String { get }
-    var hexId: String { get }
-    var labels: [String: String] { get }
+    /// The specific error codes that the resource  can produce.
+    associatedtype ErrorCode: ManagedResourceErrorCode
+
+    /// A 64 byte hexadecimal string, assigned by the system, that uniquely
+    /// identifies the resource.
+    var id: String { get }
+
+    /// A user assigned name that shall be unique within the namespace of
+    /// the resource category. If the user does not assign a name, this value
+    /// shall be the same as the system-assigned identifier.
+    var name: String { get }
+
+    /// The time at which the system created the resource.
     var creationDate: Date { get }
+
+    /// Key-value properties for the resource. The user and system may both
+    /// make use of labels to read and write annotations or other metadata.
+    /// A good practice is to use
+    var labels: [String: String] { get }
+
+    /// Generates a unique resource ID value.
+    static func generateId() -> String
+
+    /// Returns true only if the specified resource name is syntactically valid.
+    static func nameValid(_ name: String) -> Bool
+}
+
+/// A structured error representing a failure while operating on a managed resource.
+public struct ManagedResourceError<Resource: ManagedResource>: Error, Sendable {
+    /// The kind of failure that occurred.
+    public let code: Resource.ErrorCode
+
+    /// The name of the resource.
+    public let resourceName: String?
+
+    /// The underlying containerization error.
+    public let containerizationError: ContainerizationError?
+
+    public init(
+        code: Resource.ErrorCode,
+        resourceName: String? = nil,
+        containerizationError: ContainerizationError? = nil,
+    ) {
+        self.code = code
+        self.resourceName = resourceName
+        self.containerizationError = containerizationError
+    }
+}
+
+public protocol ManagedResourceErrorCode: Sendable, Codable, Hashable {}
+
+extension ManagedResource {
+    public static func generateId() -> String {
+        (0..<4)
+            .map { _ in UInt128.random(in: 0...UInt128.max) }
+            .map { String($0, radix: 16) }
+            .joined()
+    }
 }

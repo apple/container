@@ -18,9 +18,11 @@ import Foundation
 
 /// A named or anonymous volume that can be mounted in containers.
 public struct VolumeResource: ManagedResource {
-    // id of the volume.
+    // Associated error codes with the volume
+    public typealias ErrorCode = VolumeErrorCode
+    // Id of the volume.
     public var id: String { name }
-    // id of the resource.
+    // Id of the resource.
     public var qualifiedId: String { "volume/\(name)" }
     // Name of the volume.
     public let name: String
@@ -51,7 +53,7 @@ public struct VolumeResource: ManagedResource {
         options: [String: String] = [:],
         sizeInBytes: UInt64? = nil
     ) {
-        self.hexId = HexId.random()
+        self.hexId = Self.generateId()
         self.name = name ?? self.hexId
         self.driver = driver
         self.format = format
@@ -60,6 +62,11 @@ public struct VolumeResource: ManagedResource {
         self.labels = labels
         self.options = options
         self.sizeInBytes = sizeInBytes
+    }
+    
+    public static func nameValid(_ name: String) -> Bool {
+        // TODO
+        return true
     }
 }
 
@@ -73,7 +80,11 @@ extension VolumeResource {
     }
 }
 
-/// Error types for volume operations.
+/// Error codes for volume operations.
+public enum VolumeErrorCode: ManagedResourceErrorCode {
+    case volumeNotFound
+}
+
 public enum VolumeError: Error, LocalizedError {
     case volumeNotFound(String)
     case volumeAlreadyExists(String)
