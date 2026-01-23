@@ -269,6 +269,12 @@ extension XPCMessage {
         }
     }
 
+    public func set(key: String, xpcDictionary: xpc_object_t) {
+        lock.withLock {
+            xpc_dictionary_set_value(self.object, key, xpcDictionary)
+        }
+    }
+
     public func endpoint(key: String) -> xpc_endpoint_t? {
         lock.withLock {
             xpc_dictionary_get_value(self.object, key)
