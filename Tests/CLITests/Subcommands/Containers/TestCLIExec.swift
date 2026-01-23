@@ -115,6 +115,8 @@ class TestCLIExecCommand: CLITest {
             defer {
                 try? doRemove(name: name)
             }
+            // Give time for container process to exit due to no stdin
+            sleep(1)
 
             try doStart(name: name)
             do {
