@@ -86,7 +86,7 @@ public struct Flags {
         public var nameservers: [String] = []
 
         @Option(
-            name: .long,
+            name: .customLong("dns-domain"),
             help: .init("Default DNS domain", valueName: "domain")
         )
         public var domain: String? = nil
