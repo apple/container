@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerAPIClient
 import ContainerResource
 import ContainerXPC
 import Containerization
@@ -76,7 +77,7 @@ public struct SandboxClient: Sendable {
 
 // Runtime Methods
 extension SandboxClient {
-    public func bootstrap(stdio: [FileHandle?]) async throws {
+    public func bootstrap(stdio: [FileHandle?], allocatedNetworks: [AllocatedNetwork]) async throws {
         let request = XPCMessage(route: SandboxRoutes.bootstrap.rawValue)
 
         for (i, h) in stdio.enumerated() {
@@ -96,6 +97,7 @@ extension SandboxClient {
         }
 
         do {
+            try request.setAllocatedNetworks(allocatedNetworks)
             try await self.client.send(request)
         } catch {
             throw ContainerizationError(
@@ -321,5 +323,25 @@ extension XPCMessage {
             )
         }
         return try JSONDecoder().decode(SandboxSnapshot.self, from: data)
+    }
+
+    func setAllocatedNetworks(_ networks: [AllocatedNetwork]) throws {
+        let encoder = JSONEncoder()
+        for net in networks {
+            let xpcObject: xpc_object_t = xpc_dictionary_create_empty()
+            let networkXPC = XPCMessage(object: xpcObject)
+
+            let attachmentEncoded = try encoder.encode(net.attachment)
+            networkXPC.set(key: SandboxKeys.networkAttachment.rawValue, value: attachmentEncoded)
+
+            let pluginInfoEncoded = try encoder.encode(net.pluginInfo)
+            networkXPC.set(key: SandboxKeys.networkPluginInfo.rawValue, value: pluginInfoEncoded)
+
+            if let additionalData = net.additionalData {
+                xpc_dictionary_set_value(networkXPC.underlying, SandboxKeys.networkAdditionalData.rawValue, additionalData.underlying)
+            }
+
+            self.set(key: "\(SandboxKeys.networkAllocated.rawValue)_\(net.attachment.network)", value: networkXPC.underlying)
+        }
     }
 }
