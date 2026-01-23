@@ -67,6 +67,7 @@ extension APIServer {
                     log: log,
                     routes: &routes
                 )
+                await containersService.setNetworksService(networkService)
                 initializeHealthCheckService(log: log, routes: &routes)
                 try initializeKernelService(log: log, routes: &routes)
                 let volumesService = try initializeVolumeService(containersService: containersService, log: log, routes: &routes)
@@ -269,10 +270,12 @@ extension APIServer {
                 .filter { $0.isBuiltin }
                 .first
             if defaultNetwork == nil {
+                // FIXME: default network should be configurable elsewhere
                 let config = try NetworkConfiguration(
                     id: ClientNetwork.defaultNetworkName,
                     mode: .nat,
-                    labels: [ResourceLabelKeys.role: ResourceRoleValues.builtin]
+                    labels: [ResourceLabelKeys.role: ResourceRoleValues.builtin],
+                    pluginInfo: NetworkPluginInfo(plugin: "container-network-vmnet")
                 )
                 _ = try await service.create(configuration: config)
             }

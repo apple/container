@@ -310,7 +310,6 @@ let package = Package(
                 .product(name: "ContainerizationOS", package: "containerization"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 "ContainerAPIClient",
-                "ContainerNetworkServiceClient",
                 "ContainerPersistence",
                 "ContainerResource",
                 "ContainerSandboxServiceClient",
@@ -322,6 +321,7 @@ let package = Package(
         .target(
             name: "ContainerSandboxServiceClient",
             dependencies: [
+                "ContainerAPIClient",
                 "ContainerResource",
                 "ContainerXPC",
             ],
@@ -330,7 +330,10 @@ let package = Package(
         .target(
             name: "ContainerResource",
             dependencies: [
-                .product(name: "Containerization", package: "containerization")
+                .product(name: "Containerization", package: "containerization"),
+                "ContainerXPC",
+                "CAuditToken",
+                "CVersion",
             ]
         ),
         .testTarget(

@@ -14,7 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerNetworkServiceClient
+import ContainerAPIClient
 import ContainerPersistence
 import ContainerResource
 import ContainerSandboxServiceClient
@@ -39,7 +39,7 @@ import struct ContainerizationOCI.Process
 public actor SandboxService {
     private let connection: xpc_connection_t
     private let root: URL
-    private let interfaceStrategy: InterfaceStrategy
+    private let interfaceStrategies: [NetworkPluginInfo: InterfaceStrategy]
     private var container: ContainerInfo?
     private let monitor: ExitMonitor
     private let eventLoopGroup: any EventLoopGroup
@@ -62,13 +62,13 @@ public actor SandboxService {
 
     public init(
         root: URL,
-        interfaceStrategy: InterfaceStrategy,
+        interfaceStrategies: [NetworkPluginInfo: InterfaceStrategy],
         eventLoopGroup: any EventLoopGroup,
         connection: xpc_connection_t,
         log: Logger
     ) {
         self.root = root
-        self.interfaceStrategy = interfaceStrategy
+        self.interfaceStrategies = interfaceStrategies
         self.log = log
         self.monitor = ExitMonitor(log: log)
         self.eventLoopGroup = eventLoopGroup
@@ -143,18 +143,22 @@ public actor SandboxService {
                 }
             }
 
+            let allocatedNetworks = try message.getAllocatedNetworks(configuredNetworks: config.networks)
             var attachments: [Attachment] = []
             var interfaces: [Interface] = []
-            for index in 0..<config.networks.count {
-                let network = config.networks[index]
-                let client = NetworkClient(id: network.network)
-                let (attachment, additionalData) = try await client.allocate(hostname: network.options.hostname, macAddress: network.options.macAddress)
-                attachments.append(attachment)
+            for index in 0..<allocatedNetworks.count {
+                let allocatedNet = allocatedNetworks[index]
+                attachments.append(allocatedNet.attachment)
 
-                let interface = try self.interfaceStrategy.toInterface(
-                    attachment: attachment,
+                guard let iStrategy = self.interfaceStrategies[allocatedNet.pluginInfo] else {
+                    throw ContainerizationError(
+                        .internalError, message: "no available interface strategy for network \(allocatedNet.attachment.network), \(allocatedNet.pluginInfo)")
+                }
+
+                let interface = try iStrategy.toInterface(
+                    attachment: allocatedNet.attachment,
                     interfaceIndex: index,
-                    additionalData: additionalData
+                    additionalData: allocatedNet.additionalData
                 )
                 interfaces.append(interface)
             }
@@ -869,8 +873,7 @@ public actor SandboxService {
 
     private func getDefaultNameservers(attachmentConfigurations: [AttachmentConfiguration]) async throws -> [String] {
         for attachmentConfiguration in attachmentConfigurations {
-            let client = NetworkClient(id: attachmentConfiguration.network)
-            let state = try await client.state()
+            let state = try await ClientNetwork.get(id: attachmentConfiguration.network)
             guard case .running(_, let status) = state else {
                 continue
             }
@@ -1035,16 +1038,7 @@ public actor SandboxService {
             self.log.error("failed to stop container during cleanup: \(error)")
         }
 
-        // Give back our lovely IP(s)
         await self.stopSocketForwarders()
-        for attachment in containerInfo.attachments {
-            let client = NetworkClient(id: attachment.network)
-            do {
-                try await client.deallocate(hostname: attachment.hostname)
-            } catch {
-                self.log.error("failed to deallocate hostname \(attachment.hostname) on network \(attachment.network) during cleanup: \(error)")
-            }
-        }
 
         let status = exitStatus ?? ExitStatus(exitCode: 255)
         let waiters = self.waiters[id] ?? []
@@ -1095,6 +1089,43 @@ extension XPCMessage {
             throw ContainerizationError(.invalidArgument, message: "empty process configuration")
         }
         return try JSONDecoder().decode(ProcessConfiguration.self, from: data)
+    }
+
+    fileprivate func getAllocatedNetworks(configuredNetworks: [AttachmentConfiguration]) throws -> [AllocatedNetwork] {
+        var results = [AllocatedNetwork]()
+        let decoder = JSONDecoder()
+        for net in configuredNetworks {
+            guard let allocatedNet = xpc_dictionary_get_dictionary(self.underlying, "\(SandboxKeys.networkAllocated.rawValue)_\(net.network)") else {
+                throw ContainerizationError(.invalidArgument, message: "no allocated network information found for \(net.network)")
+            }
+
+            let allocatedNetXPC = XPCMessage(object: allocatedNet)
+
+            let attachmentData = allocatedNetXPC.dataNoCopy(key: SandboxKeys.networkAttachment.rawValue)
+            let pluginInfoData = allocatedNetXPC.dataNoCopy(key: SandboxKeys.networkPluginInfo.rawValue)
+
+            guard let attachmentData = attachmentData, let pluginInfoData = pluginInfoData else {
+                throw ContainerizationError(.invalidArgument, message: "must have attachment and plugin information for network")
+            }
+
+            let attachment = try decoder.decode(Attachment.self, from: attachmentData)
+            let pluginInfo = try decoder.decode(NetworkPluginInfo.self, from: pluginInfoData)
+
+            let additionalDataXPC: XPCMessage? = {
+                if let rawData = xpc_dictionary_get_dictionary(allocatedNetXPC.underlying, SandboxKeys.networkAdditionalData.rawValue) {
+                    return XPCMessage(object: rawData)
+                }
+                return nil
+            }()
+
+            results.append(
+                AllocatedNetwork(
+                    attachment: attachment,
+                    additionalData: additionalDataXPC,
+                    pluginInfo: pluginInfo
+                ))
+        }
+        return results
     }
 }
 

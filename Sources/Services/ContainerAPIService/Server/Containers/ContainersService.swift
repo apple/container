@@ -32,6 +32,7 @@ public actor ContainersService {
     struct ContainerState {
         var snapshot: ContainerSnapshot
         var client: SandboxClient?
+        var allocatedNetworks: [AllocatedNetwork]
 
         func getClient() throws -> SandboxClient {
             guard let client else {
@@ -57,6 +58,9 @@ public actor ContainersService {
     private let lock = AsyncLock()
     private var containers: [String: ContainerState]
 
+    // FIXME: Find a better mechanism for services running on the APIServer to work with each other
+    private weak var networksService: NetworksService?
+
     public init(appRoot: URL, pluginLoader: PluginLoader, log: Logger) throws {
         let containerRoot = appRoot.appendingPathComponent("containers")
         try FileManager.default.createDirectory(at: containerRoot, withIntermediateDirectories: true)
@@ -66,6 +70,10 @@ public actor ContainersService {
         self.log = log
         self.runtimePlugins = pluginLoader.findPlugins().filter { $0.hasType(.runtime) }
         self.containers = try Self.loadAtBoot(root: containerRoot, loader: pluginLoader, log: log)
+    }
+
+    public func setNetworksService(_ service: NetworksService) async {
+        self.networksService = service
     }
 
     static func loadAtBoot(root: URL, loader: PluginLoader, log: Logger) throws -> [String: ContainerState] {
@@ -89,7 +97,8 @@ public actor ContainersService {
                         status: .stopped,
                         networks: [],
                         startedDate: nil
-                    )
+                    ),
+                    allocatedNetworks: []
                 )
                 results[config.id] = state
                 guard runtimePlugins.first(where: { $0.name == config.runtimeHandler }) != nil else {
@@ -282,7 +291,7 @@ public actor ContainersService {
                     networks: [],
                     startedDate: nil
                 )
-                await self.setContainerState(configuration.id, ContainerState(snapshot: snapshot), context: context)
+                await self.setContainerState(configuration.id, ContainerState(snapshot: snapshot, allocatedNetworks: []), context: context)
             } catch {
                 throw error
             }
@@ -305,7 +314,20 @@ public actor ContainersService {
             let path = self.containerRoot.appendingPathComponent(id)
             let config = try Self.getContainerConfiguration(at: path)
 
+            var allocatedNetworks = [AllocatedNetwork]()
             do {
+                for n in config.networks {
+                    let allocatedNet = try await self.networksService?.allocate(
+                        id: n.network,
+                        hostname: n.options.hostname,
+                        macAddress: n.options.macAddress
+                    )
+                    guard let allocatedNet = allocatedNet else {
+                        throw ContainerizationError(.internalError, message: "failed to allocate a network")
+                    }
+                    allocatedNetworks.append(allocatedNet)
+                }
+
                 try Self.registerService(
                     plugin: self.runtimePlugins.first { $0.name == config.runtimeHandler }!,
                     loader: self.pluginLoader,
@@ -318,8 +340,7 @@ public actor ContainersService {
                     id: id,
                     runtime: runtime
                 )
-
-                try await sandboxClient.bootstrap(stdio: stdio)
+                try await sandboxClient.bootstrap(stdio: stdio, allocatedNetworks: allocatedNetworks)
 
                 try await self.exitMonitor.registerProcess(
                     id: id,
@@ -327,8 +348,17 @@ public actor ContainersService {
                 )
 
                 state.client = sandboxClient
+                state.allocatedNetworks = allocatedNetworks
                 await self.setContainerState(id, state, context: context)
             } catch {
+                for allocatedNet in allocatedNetworks {
+                    do {
+                        try await self.networksService?.deallocate(attachment: allocatedNet.attachment)
+                    } catch {
+                        self.log.error("failed to deallocate network attachment in \(id) for \(allocatedNet.attachment.network): \(error)")
+                    }
+                }
+
                 let label = Self.fullLaunchdServiceLabel(
                     runtimeName: config.runtimeHandler,
                     instanceId: id
@@ -595,9 +625,21 @@ public actor ContainersService {
             self.log.error("Failed to deregister sandbox service for \(id): \(error)")
         }
 
+        // Best effort deallocate network attachments for the container. Don't throw on
+        // failure so we can continue with state cleanup.
+        self.log.info("Deallocating network attachments for \(id)")
+        for allocatedNet in state.allocatedNetworks {
+            do {
+                try await self.networksService?.deallocate(attachment: allocatedNet.attachment)
+            } catch {
+                self.log.error("failed to deallocate network attachment in \(id) for \(allocatedNet.attachment.network): \(error)")
+            }
+        }
+
         state.snapshot.status = .stopped
         state.snapshot.networks = []
         state.client = nil
+        state.allocatedNetworks = []
         await self.setContainerState(id, state, context: context)
 
         let options = try getContainerCreationOptions(id: id)

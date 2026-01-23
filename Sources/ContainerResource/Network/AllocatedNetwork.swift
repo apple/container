@@ -14,38 +14,19 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-public enum SandboxKeys: String {
-    /// ID key.
-    case id
-    /// Vsock port number key.
-    case port
-    /// Exit code for a process
-    case exitCode
-    /// Exit timestamp for a process
-    case exitedAt
-    /// FD to a container resource key.
-    case fd
-    /// Options for stopping a container key.
-    case stopOptions
-    /// An endpoint to talk to a sandbox service.
-    case sandboxServiceEndpoint
+import ContainerXPC
 
-    /// Process request keys.
-    case signal
-    case snapshot
-    case stdin
-    case stdout
-    case stderr
-    case width
-    case height
-    case processConfig
+/// AllocatedNetwork represents an allocated network attachment and additional
+/// relevant data needed for a sandbox to properly configure a network interface
+/// on bootstrap.
+public struct AllocatedNetwork: Sendable {
+    public let attachment: Attachment
+    public let additionalData: XPCMessage?
+    public let pluginInfo: NetworkPluginInfo
 
-    /// Container statistics
-    case statistics
-
-    /// Network resource keys.
-    case networkAllocated
-    case networkAdditionalData
-    case networkAttachment
-    case networkPluginInfo
+    public init(attachment: Attachment, additionalData: XPCMessage?, pluginInfo: NetworkPluginInfo) {
+        self.attachment = attachment
+        self.additionalData = additionalData
+        self.pluginInfo = pluginInfo
+    }
 }
