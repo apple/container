@@ -54,8 +54,16 @@ extension Application {
             let uniqueNetworkNames = Set<String>(networkNames)
             let networks: [NetworkState]
 
+            if uniqueNetworkNames.contains(ClientNetwork.defaultNetworkName) {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "cannot delete the default network"
+                )
+            }
+
             if all {
                 networks = try await ClientNetwork.list()
+                    .filter { $0.id != ClientNetwork.defaultNetworkName }
             } else {
                 networks = try await ClientNetwork.list()
                     .filter { c in
@@ -76,13 +84,6 @@ extension Application {
                         message: "failed to delete one or more networks: \(missing)"
                     )
                 }
-            }
-
-            if uniqueNetworkNames.contains(ClientNetwork.defaultNetworkName) {
-                throw ContainerizationError(
-                    .invalidArgument,
-                    message: "cannot delete the default network"
-                )
             }
 
             var failed = [String]()
