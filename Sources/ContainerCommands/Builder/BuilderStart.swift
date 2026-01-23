@@ -64,11 +64,29 @@ extension Application {
                 progress.finish()
             }
             progress.start()
-            try await Self.start(cpus: self.cpus, memory: self.memory, log: log, dnsNameservers: self.dns.nameservers, progressUpdate: progress.handler)
+            try await Self.start(
+                cpus: self.cpus,
+                memory: self.memory,
+                log: log,
+                dnsNameservers: self.dns.nameservers,
+                dnsDomain: self.dns.domain,
+                dnsSearchDomains: self.dns.searchDomains,
+                dnsOptions: self.dns.options,
+                progressUpdate: progress.handler
+            )
             progress.finish()
         }
 
-        static func start(cpus: Int64?, memory: String?, log: Logger, dnsNameservers: [String] = [], progressUpdate: @escaping ProgressUpdateHandler) async throws {
+        static func start(
+            cpus: Int64?,
+            memory: String?,
+            log: Logger,
+            dnsNameservers: [String] = [],
+            dnsDomain: String? = nil,
+            dnsSearchDomains: [String] = [],
+            dnsOptions: [String] = [],
+            progressUpdate: @escaping ProgressUpdateHandler
+        ) async throws {
             await progressUpdate([
                 .setDescription("Fetching BuildKit image"),
                 .setItemsName("blobs"),
@@ -106,7 +124,7 @@ extension Application {
                 let existingImage = existingContainer.configuration.image.reference
                 let existingResources = existingContainer.configuration.resources
                 let existingEnv = existingContainer.configuration.initProcess.environment
-                let existingDNS = existingContainer.configuration.dns?.nameservers ?? []
+                let existingDNS = existingContainer.configuration.dns
 
                 let existingManagedEnv = existingEnv.filter { envVar in
                     envVar.hasPrefix("BUILDKIT_COLORS=") || envVar.hasPrefix("NO_COLOR=")
@@ -133,7 +151,21 @@ extension Application {
                     }
                     return false
                 }()
-                let dnsChanged = !dnsNameservers.isEmpty && existingDNS != dnsNameservers
+                let dnsChanged = {
+                    if !dnsNameservers.isEmpty {
+                        return existingDNS?.nameservers != dnsNameservers
+                    }
+                    if dnsDomain != nil {
+                        return existingDNS?.domain != dnsDomain
+                    }
+                    if !dnsSearchDomains.isEmpty {
+                        return existingDNS?.searchDomains != dnsSearchDomains
+                    }
+                    if !dnsOptions.isEmpty {
+                        return existingDNS?.options != dnsOptions
+                    }
+                    return false
+                }()
 
                 switch existingContainer.status {
                 case .running:
@@ -239,7 +271,12 @@ extension Application {
             let subnet = networkStatus.ipv4Subnet
             let nameserver = IPv4Address(subnet.lower.value + 1).description
             let nameservers = dnsNameservers.isEmpty ? [nameserver] : dnsNameservers
-            config.dns = ContainerConfiguration.DNSConfiguration(nameservers: nameservers)
+            config.dns = ContainerConfiguration.DNSConfiguration(
+                nameservers: nameservers,
+                domain: dnsDomain,
+                searchDomains: dnsSearchDomains,
+                options: dnsOptions
+            )
 
             let kernel = try await {
                 await progressUpdate([
