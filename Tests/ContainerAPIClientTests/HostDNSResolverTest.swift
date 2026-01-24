@@ -42,6 +42,7 @@ struct HostDNSResolverTest {
             search foo.bar
             nameserver 127.0.0.1
             port 2053
+
             """
 
         #expect(actualText == expectedText)
