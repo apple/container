@@ -162,6 +162,7 @@ let package = Package(
                 "ContainerVersion",
                 "ContainerXPC",
                 "TerminalProgress",
+                "HelperMacros"
             ],
             path: "Sources/Services/ContainerAPIService/Server"
         ),
@@ -251,8 +252,6 @@ let package = Package(
                 "ContainerResource",
                 "ContainerVersion",
                 "ContainerXPC",
-                "TerminalProgress",
-                "HelperMacros",
             ],
             path: "Sources/Helpers/NetworkVmnet"
         ),
