@@ -20,14 +20,14 @@ import ContainerizationOCI
 import Foundation
 
 extension Application {
-    public struct ImagePrune: AsyncParsableCommand {
+    public struct ImagePrune: AsyncLoggableCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "prune",
             abstract: "Remove all dangling images. If -a is specified, also remove all images not referenced by any container.")
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Flag(name: .shortAndLong, help: "Remove all unused images, not just dangling ones")
         var all: Bool = false

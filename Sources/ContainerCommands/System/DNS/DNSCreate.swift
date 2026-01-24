@@ -22,14 +22,14 @@ import ContainerizationExtras
 import Foundation
 
 extension Application {
-    public struct DNSCreate: AsyncParsableCommand {
+    public struct DNSCreate: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "create",
             abstract: "Create a local DNS domain for containers (must run as an administrator)"
         )
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Option(name: .long, help: "Set the ip address to be redirected to localhost")
         var localhost: String?

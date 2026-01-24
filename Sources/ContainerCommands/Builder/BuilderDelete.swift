@@ -20,7 +20,7 @@ import ContainerizationError
 import Foundation
 
 extension Application {
-    public struct BuilderDelete: AsyncParsableCommand {
+    public struct BuilderDelete: AsyncLoggableCommand {
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
             config.commandName = "delete"
@@ -33,7 +33,7 @@ extension Application {
         var force = false
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         public init() {}
 

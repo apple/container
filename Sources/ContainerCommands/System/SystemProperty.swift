@@ -15,12 +15,13 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerAPIClient
 import ContainerPersistence
 import ContainerizationError
 import Foundation
 
 extension Application {
-    public struct SystemProperty: AsyncParsableCommand {
+    public struct SystemProperty: AsyncLoggableCommand {
         public init() {}
 
         public static let configuration = CommandConfiguration(
@@ -33,5 +34,8 @@ extension Application {
                 PropertySet.self,
             ]
         )
+
+        @OptionGroup
+        public var logOptions: Flags.Logging
     }
 }

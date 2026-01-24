@@ -27,7 +27,7 @@ import NIO
 import TerminalProgress
 
 extension Application {
-    public struct BuildCommand: AsyncParsableCommand {
+    public struct BuildCommand: AsyncLoggableCommand {
         public init() {}
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
@@ -122,6 +122,12 @@ extension Application {
         @Option(name: .long, help: ArgumentHelp("Builder shim vsock port", valueName: "port"))
         var vsockPort: UInt32 = 8088
 
+        @OptionGroup
+        public var logOptions: Flags.Logging
+
+        @OptionGroup
+        public var dns: Flags.DNS
+
         @Argument(help: "Build directory")
         var contextDir: String = "."
 
@@ -140,12 +146,13 @@ extension Application {
 
                 progress.set(description: "Dialing builder")
 
-                let builder: Builder? = try await withThrowingTaskGroup(of: Builder.self) { [vsockPort, cpus, memory] group in
+                let dnsNameservers = self.dns.nameservers
+                let builder: Builder? = try await withThrowingTaskGroup(of: Builder.self) { [vsockPort, cpus, memory, dnsNameservers] group in
                     defer {
                         group.cancelAll()
                     }
 
-                    group.addTask { [vsockPort, cpus, memory] in
+                    group.addTask { [vsockPort, cpus, memory, log, dnsNameservers] in
                         while true {
                             do {
                                 let container = try await ClientContainer.get(id: "buildkit")
@@ -166,6 +173,8 @@ extension Application {
                                 try await BuilderStart.start(
                                     cpus: cpus,
                                     memory: memory,
+                                    log: log,
+                                    dnsNameservers: dnsNameservers,
                                     progressUpdate: progress.handler
                                 )
 
@@ -354,9 +363,12 @@ extension Application {
                         guard let dest = exp.destination else {
                             throw ContainerizationError(.invalidArgument, message: "dest is required \(exp.rawValue)")
                         }
-                        let loaded = try await ClientImage.load(from: dest.absolutePath())
-
-                        for image in loaded {
+                        let result = try await ClientImage.load(from: dest.absolutePath(), force: false)
+                        guard result.rejectedMembers.isEmpty else {
+                            log.error("archive contains invalid members", metadata: ["paths": "\(result.rejectedMembers)"])
+                            throw ContainerizationError(.internalError, message: "failed to load archive")
+                        }
+                        for image in result.images {
                             try Task.checkCancellation()
                             try await image.unpack(platform: nil, progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: unpackProgress.handler))
 

@@ -504,12 +504,13 @@ Loads images from a tar archive created by `image save`. The tar file must be sp
 **Usage**
 
 ```bash
-container image load --input <input> [--debug]
+container image load --input <input> [--force] [--debug]
 ```
 
 **Options**
 
 *   `-i, --input <input>`: Path to the image tar archive
+*   `-f, --force`: Load images even if invalid member files are detected
 
 ### `container image tag`
 

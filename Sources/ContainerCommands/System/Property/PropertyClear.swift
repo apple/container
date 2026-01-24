@@ -21,14 +21,14 @@ import ContainerizationError
 import Foundation
 
 extension Application {
-    public struct PropertyClear: AsyncParsableCommand {
+    public struct PropertyClear: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "clear",
             abstract: "Clear a property value"
         )
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "The property ID")
         var id: String

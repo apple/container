@@ -22,7 +22,7 @@ import ContainerizationExtras
 import Foundation
 
 extension Application {
-    public struct ContainerStats: AsyncParsableCommand {
+    public struct ContainerStats: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "stats",
             abstract: "Display resource usage statistics for containers")
@@ -37,7 +37,7 @@ extension Application {
         var noStream = false
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         public init() {}
 
@@ -198,15 +198,15 @@ extension Application {
         ///   - timeDeltaUsec: Time delta between samples in microseconds
         /// - Returns: CPU percentage where 100% = one fully utilized core
         static func calculateCPUPercent(
-            cpuUsageUsec1: UInt64,
-            cpuUsageUsec2: UInt64,
-            timeDeltaUsec: UInt64
+            cpuUsage1: Duration,
+            cpuUsage2: Duration,
+            timeInterval: Duration
         ) -> Double {
             let cpuDelta =
-                cpuUsageUsec2 > cpuUsageUsec1
-                ? cpuUsageUsec2 - cpuUsageUsec1
-                : 0
-            return (Double(cpuDelta) / Double(timeDeltaUsec)) * 100.0
+                cpuUsage2 > cpuUsage1
+                ? cpuUsage2 - cpuUsage1
+                : .seconds(0)
+            return (cpuDelta / timeInterval) * 100.0
         }
 
         static func formatBytes(_ bytes: UInt64) -> String {
@@ -226,27 +226,43 @@ extension Application {
         }
 
         private func printStatsTable(_ statsData: [StatsSnapshot]) {
-            let header = [["Container ID", "Cpu %", "Memory Usage", "Net Rx/Tx", "Block I/O", "Pids"]]
-            var rows = header
+            let headerRow = ["Container ID", "Cpu %", "Memory Usage", "Net Rx/Tx", "Block I/O", "Pids"]
+            let notAvailable = "--"
+            var rows = [headerRow]
 
             for snapshot in statsData {
+                var row = [snapshot.container.id]
                 let stats1 = snapshot.stats1
                 let stats2 = snapshot.stats2
 
-                let cpuPercent = Self.calculateCPUPercent(
-                    cpuUsageUsec1: stats1.cpuUsageUsec,
-                    cpuUsageUsec2: stats2.cpuUsageUsec,
-                    timeDeltaUsec: 2_000_000  // 2 seconds in microseconds
-                )
-                let cpuStr = String(format: "%.2f%%", cpuPercent)
+                if let cpuUsageUsec1 = stats1.cpuUsageUsec, let cpuUsageUsec2 = stats2.cpuUsageUsec {
+                    let cpuPercent = Self.calculateCPUPercent(
+                        cpuUsage1: .microseconds(cpuUsageUsec1),
+                        cpuUsage2: .microseconds(cpuUsageUsec2),
+                        timeInterval: .seconds(2)
+                    )
+                    let cpuStr = String(format: "%.2f%%", cpuPercent)
+                    row.append(cpuStr)
+                } else {
+                    row.append(notAvailable)
+                }
 
-                let memUsageStr = "\(Self.formatBytes(stats2.memoryUsageBytes)) / \(Self.formatBytes(stats2.memoryLimitBytes))"
-                let netStr = "\(Self.formatBytes(stats2.networkRxBytes)) / \(Self.formatBytes(stats2.networkTxBytes))"
-                let blockStr = "\(Self.formatBytes(stats2.blockReadBytes)) / \(Self.formatBytes(stats2.blockWriteBytes))"
+                let memUsageStr = stats2.memoryUsageBytes.map { Self.formatBytes($0) } ?? notAvailable
+                let memLimitStr = stats2.memoryLimitBytes.map { Self.formatBytes($0) } ?? notAvailable
+                row.append("\(memUsageStr) / \(memLimitStr)")
 
-                let pidsStr = "\(stats2.numProcesses)"
+                let netRxStr = stats2.networkRxBytes.map { Self.formatBytes($0) } ?? notAvailable
+                let netTxStr = stats2.networkTxBytes.map { Self.formatBytes($0) } ?? notAvailable
+                row.append("\(netRxStr) / \(netTxStr)")
 
-                rows.append([snapshot.container.id, cpuStr, memUsageStr, netStr, blockStr, pidsStr])
+                let blkReadStr = stats2.blockReadBytes.map { Self.formatBytes($0) } ?? notAvailable
+                let blkWriteStr = stats2.blockWriteBytes.map { Self.formatBytes($0) } ?? notAvailable
+                row.append("\(blkReadStr) / \(blkWriteStr)")
+
+                let pidsStr = stats2.numProcesses.map { "\($0)" } ?? notAvailable
+                row.append(pidsStr)
+
+                rows.append(row)
             }
 
             // Always print header, even if no containers

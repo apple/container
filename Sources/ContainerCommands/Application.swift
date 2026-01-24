@@ -25,17 +25,18 @@ import Foundation
 import Logging
 import TerminalProgress
 
+// This logger is only used until `asyncCommand.run()`.
 // `log` is updated only once in the `validate()` method.
-nonisolated(unsafe) var log = {
-    LoggingSystem.bootstrap(StreamLogHandler.standardError)
+private nonisolated(unsafe) var bootstrapLogger = {
+    LoggingSystem.bootstrap({ _ in StderrLogHandler() })
     var log = Logger(label: "com.apple.container")
     log.logLevel = .info
     return log
 }()
 
-public struct Application: AsyncParsableCommand {
+public struct Application: AsyncLoggableCommand {
     @OptionGroup
-    var global: Flags.Global
+    public var logOptions: Flags.Logging
 
     public init() {}
 
@@ -91,7 +92,12 @@ public struct Application: AsyncParsableCommand {
 
         #if DEBUG
         let warning = "Running debug build. Performance may be degraded."
-        let formattedWarning = "\u{001B}[33mWarning!\u{001B}[0m \(warning)\n"
+        let formattedWarning: String
+        if isatty(FileHandle.standardError.fileDescriptor) == 1 {
+            formattedWarning = "\u{001B}[33mWarning!\u{001B}[0m \(warning)\n"
+        } else {
+            formattedWarning = "Warning! \(warning)\n"
+        }
         let warningData = Data(formattedWarning.utf8)
         FileHandle.standardError.write(warningData)
         #endif
@@ -166,7 +172,7 @@ public struct Application: AsyncParsableCommand {
             installRoot: systemHealth.installRoot,
             pluginDirectories: pluginDirectories,
             pluginFactories: pluginFactories,
-            log: log
+            log: bootstrapLogger
         )
     }
 
@@ -174,8 +180,8 @@ public struct Application: AsyncParsableCommand {
         // Not really a "validation", but a cheat to run this before
         // any of the commands do their business.
         let debugEnvVar = ProcessInfo.processInfo.environment["CONTAINER_DEBUG"]
-        if self.global.debug || debugEnvVar != nil {
-            log.logLevel = .debug
+        if self.logOptions.debug || debugEnvVar != nil {
+            bootstrapLogger.logLevel = .debug
         }
         // Ensure we're not running under Rosetta.
         if try isTranslated() {
