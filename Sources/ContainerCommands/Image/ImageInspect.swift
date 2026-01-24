@@ -17,6 +17,7 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerLog
+import ContainerResource
 import ContainerizationError
 import Foundation
 import Logging
@@ -36,39 +37,39 @@ extension Application {
 
         public init() {}
 
-        struct InspectError: Error {
-            let succeeded: [String]
-            let failed: [(String, Error)]
-        }
-
         public func run() async throws {
             var printable = [any Codable]()
-            var succeededImages: [String] = []
-            var allErrors: [(String, Error)] = []
+            var found: [ClientImage] = []
+            var failures: [ManagedResourceError<ImageResource>] = []
 
-            let result = try await ClientImage.get(names: images)
-
-            for image in result.images {
-                guard !Utility.isInfraImage(name: image.reference) else { continue }
-                printable.append(try await image.details())
-                succeededImages.append(image.reference)
+            do {
+                found = try await ClientImage.getWithPartialErrors(names: images)
+            } catch let partial as ManagedResourcePartialError<ClientImage, ManagedResourceError<ImageResource>> {
+                found = partial.successes
+                failures = partial.failures
             }
 
-            for missing in result.error {
-                allErrors.append((missing, ContainerizationError(.notFound, message: "Image not found")))
+            for image in found {
+                guard !Utility.isInfraImage(name: image.reference) else { continue }
+                printable.append(try await image.details())
             }
 
             if !printable.isEmpty {
                 print(try printable.jsonArray())
             }
 
-            if !allErrors.isEmpty {
+            if !failures.isEmpty {
                 let logger = Logger(label: "ImageInspect", factory: { _ in StderrLogHandler() })
-                for (name, error) in allErrors {
-                    logger.error("\(name): \(error.localizedDescription)")
+                for failure in failures {
+                    logger.error(
+                        "\(failure.localizedDescription)"
+                    )
                 }
 
-                throw InspectError(succeeded: succeededImages, failed: allErrors)
+                throw ManagedResourcePartialError<ClientImage, ManagedResourceError<ImageResource>>(
+                    successes: found,
+                    failures: failures
+                )
             }
         }
     }
