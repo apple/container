@@ -538,7 +538,7 @@ Deletes one or more images. If no images are provided, `--all` can be used to de
 **Usage**
 
 ```bash
-container image delete [--all] [--debug] [<images> ...]
+container image delete [--all] [--force] [--debug] [<images> ...]
 ```
 
 **Arguments**
@@ -548,6 +548,7 @@ container image delete [--all] [--debug] [<images> ...]
 **Options**
 
 *   `-a, --all`: Delete all images
+*   `-f, --force`: Ignore errors for images that are not found
 
 ### `container image prune`
 
