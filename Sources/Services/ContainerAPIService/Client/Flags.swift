@@ -76,6 +76,34 @@ public struct Flags {
         public var memory: String?
     }
 
+    public struct DNS: ParsableArguments {
+        public init() {}
+
+        @Option(
+            name: .customLong("dns"),
+            help: .init("DNS nameserver IP address", valueName: "ip")
+        )
+        public var nameservers: [String] = []
+
+        @Option(
+            name: .customLong("dns-domain"),
+            help: .init("Default DNS domain", valueName: "domain")
+        )
+        public var domain: String? = nil
+
+        @Option(
+            name: .customLong("dns-option"),
+            help: .init("DNS options", valueName: "option")
+        )
+        public var options: [String] = []
+
+        @Option(
+            name: .customLong("dns-search"),
+            help: .init("DNS search domains", valueName: "domain")
+        )
+        public var searchDomains: [String] = []
+    }
+
     public struct Registry: ParsableArguments {
         public init() {}
 
@@ -99,29 +127,8 @@ public struct Flags {
         @Flag(name: .shortAndLong, help: "Run the container and detach from the process")
         public var detach = false
 
-        @Option(
-            name: .customLong("dns"),
-            help: .init("DNS nameserver IP address", valueName: "ip")
-        )
-        public var dnsNameservers: [String] = []
-
-        @Option(
-            name: .long,
-            help: .init("Default DNS domain", valueName: "domain")
-        )
-        public var dnsDomain: String? = nil
-
-        @Option(
-            name: .customLong("dns-option"),
-            help: .init("DNS options", valueName: "option")
-        )
-        public var dnsOptions: [String] = []
-
-        @Option(
-            name: .customLong("dns-search"),
-            help: .init("DNS search domains", valueName: "domain")
-        )
-        public var dnsSearchDomains: [String] = []
+        @OptionGroup
+        public var dns: Flags.DNS
 
         @Option(
             name: .long,
