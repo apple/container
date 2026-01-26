@@ -32,7 +32,7 @@ public actor AllocationOnlyVmnetNetwork: Network {
         configuration: NetworkConfiguration,
         log: Logger
     ) throws {
-        guard configuration.mode == .nat || configuration.mode == .hostOnly else {
+        guard configuration.mode == .nat else {
             throw ContainerizationError(.unsupported, message: "invalid network mode \(configuration.mode)")
         }
 

@@ -282,11 +282,9 @@ public actor NetworksService {
             configuration.id,
             "--service-identifier",
             serviceIdentifier,
+            "--mode",
+            configuration.mode.rawValue,
         ]
-
-        if case .hostOnly = configuration.mode {
-            args += ["--host-only"]
-        }
 
         if let ipv4Subnet = configuration.ipv4Subnet {
             var existingCidrs: [CIDRv4] = []

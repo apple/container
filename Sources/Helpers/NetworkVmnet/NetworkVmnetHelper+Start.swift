@@ -39,8 +39,8 @@ extension NetworkVmnetHelper {
         @Option(name: .shortAndLong, help: "Network identifier")
         var id: String
 
-        @Flag(name: .long, help: "Restrict external access to the network")
-        var hostOnly: Bool = false
+        @Option(name: .long, help: "Network mode")
+        var mode: NetworkMode = .nat
 
         @Option(name: .customLong("subnet"), help: "CIDR address for the IPv4 subnet")
         var ipv4Subnet: String?
@@ -60,7 +60,6 @@ extension NetworkVmnetHelper {
                 log.info("configuring XPC server")
                 let ipv4Subnet = try self.ipv4Subnet.map { try CIDRv4($0) }
                 let ipv6Subnet = try self.ipv6Subnet.map { try CIDRv6($0) }
-                let mode: NetworkMode = self.hostOnly ? .hostOnly : .nat
                 let configuration = try NetworkConfiguration(
                     id: id,
                     mode: mode,

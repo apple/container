@@ -14,8 +14,10 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ArgumentParser
+
 /// Networking mode that applies to client containers.
-public enum NetworkMode: String, Codable, Sendable {
+public enum NetworkMode: String, Codable, Sendable, ExpressibleByArgument {
     /// NAT networking mode.
     /// Containers do not have routable IPs, and the host performs network
     /// address translation to allow containers to reach external services.

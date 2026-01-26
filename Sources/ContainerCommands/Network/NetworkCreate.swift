@@ -31,7 +31,7 @@ extension Application {
         @Option(name: .customLong("label"), help: "Set metadata for a network")
         var labels: [String] = []
 
-        @Flag(name: .customLong("internal"), help: "Restrict external access to the network")
+        @Flag(name: .customLong("internal"), help: "Restrict to host-only network")
         var hostOnly: Bool = false
 
         @Option(
