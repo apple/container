@@ -269,7 +269,8 @@ class CLITest {
         image: String? = nil,
         args: [String]? = nil,
         volumes: [String] = [],
-        networks: [String] = []
+        networks: [String] = [],
+        ports: [String] = []
     ) throws {
         let image = image ?? alpine
         let args: [String] = args ?? ["sleep", "infinity"]
@@ -286,6 +287,10 @@ class CLITest {
         // Add networks (can include properties like "network,mac=XX:XX:XX:XX:XX:XX")
         for network in networks {
             arguments += ["--network", network]
+        }
+
+        for port in ports {
+            arguments += ["--publish", "\(port):\(port)"]
         }
 
         arguments += [image] + args
