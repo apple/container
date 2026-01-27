@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerNetworkService
+import ContainerResource
 import ContainerSandboxService
 import ContainerXPC
 import Containerization
@@ -24,7 +24,7 @@ import Containerization
 /// works for macOS Sequoia.
 struct IsolatedInterfaceStrategy: InterfaceStrategy {
     public func toInterface(attachment: Attachment, interfaceIndex: Int, additionalData: XPCMessage?) -> Interface {
-        let gateway = interfaceIndex == 0 ? attachment.gateway : nil
-        return NATInterface(address: attachment.address, gateway: gateway, macAddress: attachment.macAddress)
+        let ipv4Gateway = interfaceIndex == 0 ? attachment.ipv4Gateway : nil
+        return NATInterface(ipv4Address: attachment.ipv4Address, ipv4Gateway: ipv4Gateway, macAddress: attachment.macAddress)
     }
 }

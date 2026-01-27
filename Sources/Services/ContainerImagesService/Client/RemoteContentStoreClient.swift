@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -77,7 +77,7 @@ public struct RemoteContentStoreClient: ContentStore {
 
         let decoder = JSONDecoder()
         let deleted = try decoder.decode([String].self, from: data)
-        let size = response.uint64(key: .size)
+        let size = response.uint64(key: .imageSize)
         return (deleted, size)
     }
 
@@ -96,7 +96,7 @@ public struct RemoteContentStoreClient: ContentStore {
 
         let decoder = JSONDecoder()
         let deleted = try decoder.decode([String].self, from: data)
-        let size = response.uint64(key: .size)
+        let size = response.uint64(key: .imageSize)
         return (deleted, size)
     }
 

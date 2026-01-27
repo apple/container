@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,12 +15,13 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
+import ContainerResource
 import ContainerizationError
 import Foundation
 
 extension Application.VolumeCommand {
-    public struct VolumeDelete: AsyncParsableCommand {
+    public struct VolumeDelete: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "delete",
             abstract: "Delete one or more volumes",
@@ -31,7 +32,7 @@ extension Application.VolumeCommand {
         var all = false
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "Volume names")
         var names: [String] = []
@@ -67,6 +68,7 @@ extension Application.VolumeCommand {
             }
 
             var failed = [String]()
+            let logger = log
             try await withThrowingTaskGroup(of: Volume?.self) { group in
                 for volume in volumes {
                     group.addTask {
@@ -75,7 +77,7 @@ extension Application.VolumeCommand {
                             print(volume.id)
                             return nil
                         } catch {
-                            log.error("failed to delete volume \(volume.id): \(error)")
+                            logger.error("failed to delete volume \(volume.id): \(error)")
                             return volume
                         }
                     }

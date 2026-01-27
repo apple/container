@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,12 +15,12 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
 import ContainerizationError
 import Foundation
 
 extension Application {
-    public struct ContainerDelete: AsyncParsableCommand {
+    public struct ContainerDelete: AsyncLoggableCommand {
         public init() {}
 
         public static let configuration = CommandConfiguration(
@@ -28,14 +28,14 @@ extension Application {
             abstract: "Delete one or more containers",
             aliases: ["rm"])
 
-        @Flag(name: .shortAndLong, help: "Remove all containers")
+        @Flag(name: .shortAndLong, help: "Delete all containers")
         var all = false
 
         @Flag(name: .shortAndLong, help: "Delete containers even if they are running")
         var force = false
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "Container IDs")
         var containerIds: [String] = []
@@ -82,6 +82,7 @@ extension Application {
             var failed = [String]()
             let force = self.force
             let all = self.all
+            let logger = log
             try await withThrowingTaskGroup(of: String?.self) { group in
                 for container in containers {
                     group.addTask {
@@ -97,7 +98,7 @@ extension Application {
                             print(container.id)
                             return nil
                         } catch {
-                            log.error("failed to delete container \(container.id): \(error)")
+                            logger.error("failed to delete container \(container.id): \(error)")
                             return container.id
                         }
                     }

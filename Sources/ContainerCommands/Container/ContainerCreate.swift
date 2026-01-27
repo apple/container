@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,13 +15,14 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
+import ContainerResource
 import ContainerizationError
 import Foundation
 import TerminalProgress
 
 extension Application {
-    public struct ContainerCreate: AsyncParsableCommand {
+    public struct ContainerCreate: AsyncLoggableCommand {
         public init() {}
 
         public static let configuration = CommandConfiguration(
@@ -40,8 +41,11 @@ extension Application {
         @OptionGroup(title: "Registry options")
         var registryFlags: Flags.Registry
 
+        @OptionGroup(title: "Image fetch options")
+        var imageFetchFlags: Flags.ImageFetch
+
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "Image name")
         var image: String
@@ -73,6 +77,7 @@ extension Application {
                 management: managementFlags,
                 resource: resourceFlags,
                 registry: registryFlags,
+                imageFetch: imageFetchFlags,
                 progressUpdate: progress.handler
             )
 

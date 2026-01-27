@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,9 +35,6 @@ extension ConnectHandler: ChannelInboundHandler {
     typealias OutboundOut = ByteBuffer
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        if self.pendingBytes.isEmpty {
-            self.connectToServer(context: context)
-        }
         self.pendingBytes.append(data)
     }
 
@@ -45,6 +42,12 @@ extension ConnectHandler: ChannelInboundHandler {
         // Add logger metadata.
         self.log?[metadataKey: "proxy"] = "\(context.channel.localAddress?.description ?? "none")"
         self.log?[metadataKey: "server"] = "\(context.channel.remoteAddress?.description ?? "none")"
+    }
+
+    func channelActive(context: ChannelHandlerContext) {
+        self.log?.trace("frontend - channel active, connecting to backend")
+        self.connectToServer(context: context)
+        context.fireChannelActive()
     }
 }
 
@@ -78,6 +81,11 @@ extension ConnectHandler {
             .whenComplete { result in
                 switch result {
                 case .success(let channel):
+                    guard context.channel.isActive else {
+                        self.log?.trace("backend - frontend channel closed, closing backend connection")
+                        context.channel.close(promise: nil)
+                        return
+                    }
                     self.log?.trace("backend - connected")
                     self.glue(channel, context: context)
                 case .failure(let error):

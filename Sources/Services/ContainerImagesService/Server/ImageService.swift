@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,8 +14,9 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerClient
+import ContainerAPIClient
 import ContainerImagesServiceClient
+import ContainerResource
 import Containerization
 import ContainerizationArchive
 import ContainerizationError
@@ -59,11 +60,15 @@ public actor ImagesService {
         return try await imageStore.list().map { $0.description.fromCZ }
     }
 
-    public func pull(reference: String, platform: Platform?, insecure: Bool, progressUpdate: ProgressUpdateHandler?) async throws -> ImageDescription {
-        self.log.info("ImagesService: \(#function) - ref: \(reference), platform: \(String(describing: platform)), insecure: \(insecure)")
+    public func pull(reference: String, platform: Platform?, insecure: Bool, progressUpdate: ProgressUpdateHandler?, maxConcurrentDownloads: Int = 3) async throws
+        -> ImageDescription
+    {
+        self.log.info(
+            "ImagesService: \(#function) - ref: \(reference), platform: \(String(describing: platform)), insecure: \(insecure), maxConcurrentDownloads: \(maxConcurrentDownloads)")
         let img = try await Self.withAuthentication(ref: reference) { auth in
             try await self.imageStore.pull(
-                reference: reference, platform: platform, insecure: insecure, auth: auth, progress: ContainerizationProgressAdapter.handler(from: progressUpdate))
+                reference: reference, platform: platform, insecure: insecure, auth: auth, progress: ContainerizationProgressAdapter.handler(from: progressUpdate),
+                maxConcurrentDownloads: maxConcurrentDownloads)
         }
         guard let img else {
             throw ContainerizationError(.internalError, message: "failed to pull image \(reference)")
@@ -102,27 +107,82 @@ public actor ImagesService {
         try writer.finishEncoding()
     }
 
-    public func load(from tarFile: URL) async throws -> [ImageDescription] {
-        self.log.info("ImagesService: \(#function) from: \(tarFile.absolutePath())")
+    public func load(from tarFile: URL, force: Bool) async throws -> ([ImageDescription], [String]) {
+        let archivePathname = tarFile.absolutePath()
+        self.log.info("ImagesService: \(#function) from: \(archivePathname)")
         let reader = try ArchiveReader(file: tarFile)
         let tempDir = FileManager.default.uniqueTemporaryDirectory()
         defer {
             try? FileManager.default.removeItem(at: tempDir)
         }
-        try reader.extractContents(to: tempDir)
+        let rejectedMembers = try reader.extractContents(to: tempDir)
+        guard rejectedMembers.isEmpty || force else {
+            throw ContainerizationError(.invalidArgument, message: "cannot load tar image with rejected paths: \(rejectedMembers)")
+        }
+
         let loaded = try await self.imageStore.load(from: tempDir)
         var images: [ImageDescription] = []
         for image in loaded {
             images.append(image.description.fromCZ)
         }
-        return images
+        return (images, rejectedMembers)
     }
 
-    public func prune() async throws -> ([String], UInt64) {
+    public func cleanupOrphanedBlobs() async throws -> ([String], UInt64) {
         let images = try await self._list()
         let freedSnapshotBytes = try await self.snapshotStore.clean(keepingSnapshotsFor: images)
-        let (deleted, freedContentBytes) = try await self.imageStore.prune()
+        let (deleted, freedContentBytes) = try await self.imageStore.cleanupOrphanedBlobs()
         return (deleted, freedContentBytes + freedSnapshotBytes)
+    }
+
+    /// Calculate disk usage for images
+    /// - Parameter activeReferences: Set of image references currently in use by containers
+    /// - Returns: Tuple of (total count, active count, total size, reclaimable size)
+    public func calculateDiskUsage(activeReferences: Set<String>) async throws -> (Int, Int, UInt64, UInt64) {
+        let images = try await self._list()
+        var totalSize: UInt64 = 0
+        var reclaimableSize: UInt64 = 0
+        var activeCount = 0
+
+        for image in images {
+            // Calculate size for all platform variants
+            let imageSize = try await self.calculateImageSize(image)
+            totalSize += imageSize
+
+            // Check if image is referenced by any container
+            let isActive = activeReferences.contains(image.reference)
+            if isActive {
+                activeCount += 1
+            } else {
+                reclaimableSize += imageSize
+            }
+        }
+
+        return (images.count, activeCount, totalSize, reclaimableSize)
+    }
+
+    /// Calculate total size for an image including all platform variants
+    private func calculateImageSize(_ image: Containerization.Image) async throws -> UInt64 {
+        var totalSize: UInt64 = 0
+        let index = try await image.index()
+
+        for descriptor in index.manifests {
+            // Skip attestation manifests
+            if let refType = descriptor.annotations?["vnd.docker.reference.type"],
+                refType == "attestation-manifest"
+            {
+                continue
+            }
+
+            guard descriptor.platform != nil else { continue }
+
+            // Get snapshot size for this platform
+            if let snapshotSize = try? await self.snapshotStore.getSnapshotSize(descriptor: descriptor) {
+                totalSize += snapshotSize
+            }
+        }
+
+        return totalSize
     }
 }
 
@@ -181,7 +241,7 @@ extension ImagesService {
                 throw err
             }
             guard authentication != nil else {
-                throw ContainerizationError(.internalError, message: "\(String(describing: err)). No credentials found for host \(host)")
+                throw ContainerizationError(.internalError, message: "\(String(describing: err)), no credentials found for host \(host)")
             }
             throw err
         }

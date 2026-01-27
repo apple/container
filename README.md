@@ -22,7 +22,7 @@ If you're upgrading, first stop and uninstall your existing `container` (the `-k
 
 ```bash
 container system stop
-uninstall-container.sh -k
+/usr/local/bin/uninstall-container.sh -k
 ```
 
 Download the latest signed installer package for `container` from the [GitHub release page](https://github.com/apple/container/releases).
@@ -37,16 +37,16 @@ container system start
 
 ### Uninstall
 
-Use the `uninstall-container.sh` script to remove `container` from your system. To remove your user data along with the tool, run:
+Use the `uninstall-container.sh` script (installed to `/usr/local/bin`) to remove `container` from your system. To remove your user data along with the tool, run:
 
 ```bash
-uninstall-container.sh -d
+/usr/local/bin/uninstall-container.sh -d
 ```
 
 To retain your user data so that it is available should you reinstall later, run:
 
 ```bash
-uninstall-container.sh -k
+/usr/local/bin/uninstall-container.sh -k
 ```
 
 ## Next steps
@@ -57,11 +57,6 @@ uninstall-container.sh -k
 - Browse the [full command reference](./docs/command-reference.md).
 - [Build and run](./BUILDING.md) `container` on your own development system.
 - View the project [API documentation](https://apple.github.io/container/documentation/).
-
-> [!IMPORTANT]
-> The links above are for the CURRENT BRANCH's documentation. To find documentation for official releases, find the target release on the [Release Page](https://github.com/apple/container/releases) and click the tag corresponding to your release version. 
->
-> Example: [release 0.4.1 tag](https://github.com/apple/container/tree/0.4.1)
 
 ## Contributing
 

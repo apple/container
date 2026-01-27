@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,8 +15,8 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerAPIClient
 import ContainerBuild
-import ContainerClient
 import ContainerImagesServiceClient
 import Containerization
 import ContainerizationError
@@ -27,7 +27,7 @@ import NIO
 import TerminalProgress
 
 extension Application {
-    public struct BuildCommand: AsyncParsableCommand {
+    public struct BuildCommand: AsyncLoggableCommand {
         public init() {}
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
@@ -122,6 +122,12 @@ extension Application {
         @Option(name: .long, help: ArgumentHelp("Builder shim vsock port", valueName: "port"))
         var vsockPort: UInt32 = 8088
 
+        @OptionGroup
+        public var logOptions: Flags.Logging
+
+        @OptionGroup
+        public var dns: Flags.DNS
+
         @Argument(help: "Build directory")
         var contextDir: String = "."
 
@@ -140,12 +146,13 @@ extension Application {
 
                 progress.set(description: "Dialing builder")
 
-                let builder: Builder? = try await withThrowingTaskGroup(of: Builder.self) { [vsockPort, cpus, memory] group in
+                let dnsNameservers = self.dns.nameservers
+                let builder: Builder? = try await withThrowingTaskGroup(of: Builder.self) { [vsockPort, cpus, memory, dnsNameservers] group in
                     defer {
                         group.cancelAll()
                     }
 
-                    group.addTask { [vsockPort, cpus, memory] in
+                    group.addTask { [vsockPort, cpus, memory, log, dnsNameservers] in
                         while true {
                             do {
                                 let container = try await ClientContainer.get(id: "buildkit")
@@ -166,6 +173,8 @@ extension Application {
                                 try await BuilderStart.start(
                                     cpus: cpus,
                                     memory: memory,
+                                    log: log,
+                                    dnsNameservers: dnsNameservers,
                                     progressUpdate: progress.handler
                                 )
 
@@ -207,7 +216,33 @@ extension Application {
                     buildFilePath = resolvedPath
                 }
 
-                let buildFileData = try Data(contentsOf: URL(filePath: buildFilePath))
+                let buildFileData: Data
+                // Dockerfile should be read from stdin
+                if file == "-" {
+                    let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("Dockerfile-\(UUID().uuidString)")
+                    defer {
+                        try? FileManager.default.removeItem(at: tempFile)
+                    }
+
+                    guard FileManager.default.createFile(atPath: tempFile.path(), contents: nil) else {
+                        throw ContainerizationError(.internalError, message: "unable to create temporary file")
+                    }
+
+                    guard let fileHandle = try? FileHandle(forWritingTo: tempFile) else {
+                        throw ContainerizationError(.internalError, message: "unable to open temporary file for writing")
+                    }
+
+                    let bufferSize = 4096
+                    while true {
+                        let chunk = FileHandle.standardInput.readData(ofLength: bufferSize)
+                        if chunk.isEmpty { break }
+                        fileHandle.write(chunk)
+                    }
+                    try fileHandle.close()
+                    buildFileData = try Data(contentsOf: URL(filePath: tempFile.path()))
+                } else {
+                    buildFileData = try Data(contentsOf: URL(filePath: buildFilePath))
+                }
 
                 let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
                 let exportPath = systemHealth.appRoot
@@ -328,9 +363,12 @@ extension Application {
                         guard let dest = exp.destination else {
                             throw ContainerizationError(.invalidArgument, message: "dest is required \(exp.rawValue)")
                         }
-                        let loaded = try await ClientImage.load(from: dest.absolutePath())
-
-                        for image in loaded {
+                        let result = try await ClientImage.load(from: dest.absolutePath(), force: false)
+                        guard result.rejectedMembers.isEmpty else {
+                            log.error("archive contains invalid members", metadata: ["paths": "\(result.rejectedMembers)"])
+                            throw ContainerizationError(.internalError, message: "failed to load archive")
+                        }
+                        for image in result.images {
                             try Task.checkCancellation()
                             try await image.unpack(platform: nil, progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: unpackProgress.handler))
 

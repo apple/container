@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,8 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import AsyncHTTPClient
-import ContainerClient
-import ContainerNetworkService
+import ContainerResource
 import Containerization
 import ContainerizationOS
 import Foundation
@@ -110,7 +109,7 @@ class CLITest {
         }
     }
 
-    func run(arguments: [String], currentDirectory: URL? = nil) throws -> (output: String, error: String, status: Int32) {
+    func run(arguments: [String], stdin: Data? = nil, currentDirectory: URL? = nil) throws -> (outputData: Data, output: String, error: String, status: Int32) {
         let process = Process()
         process.executableURL = try executablePath
         process.arguments = arguments
@@ -118,24 +117,32 @@ class CLITest {
             process.currentDirectoryURL = directory
         }
 
+        let inputPipe = Pipe()
         let outputPipe = Pipe()
         let errorPipe = Pipe()
+        process.standardInput = inputPipe
         process.standardOutput = outputPipe
         process.standardError = errorPipe
 
+        let outputData: Data
+        let errorData: Data
         do {
             try process.run()
+            if let data = stdin {
+                inputPipe.fileHandleForWriting.write(data)
+            }
+            inputPipe.fileHandleForWriting.closeFile()
+            outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+            errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
         } catch {
             throw CLIError.executionFailed("Failed to run CLI: \(error)")
         }
 
-        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
         let output = String(data: outputData, encoding: .utf8) ?? ""
         let error = String(data: errorData, encoding: .utf8) ?? ""
 
-        return (output: output, error: error, status: process.terminationStatus)
+        return (outputData: outputData, output: output, error: error, status: process.terminationStatus)
     }
 
     func runInteractive(arguments: [String], currentDirectory: URL? = nil) throws -> Terminal {
@@ -208,6 +215,8 @@ class CLITest {
             runArgs.append(contentsOf: args)
         }
 
+        runArgs.append(contentsOf: getProxyEnvironment())
+
         if let image {
             runArgs.append(image)
         } else {
@@ -220,19 +229,23 @@ class CLITest {
             runArgs.append(contentsOf: defaultContainerArgs)
         }
 
-        let (_, error, status) = try run(arguments: runArgs)
+        let (_, _, error, status) = try run(arguments: runArgs)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
     }
 
-    func doExec(name: String, cmd: [String]) throws -> String {
+    func doExec(name: String, cmd: [String], detach: Bool = false) throws -> String {
         var execArgs = [
-            "exec",
-            name,
+            "exec"
         ]
+        execArgs.append(contentsOf: getProxyEnvironment())
+        if detach {
+            execArgs.append("-d")
+        }
+        execArgs.append(name)
         execArgs.append(contentsOf: cmd)
-        let (resp, error, status) = try run(arguments: execArgs)
+        let (_, resp, error, status) = try run(arguments: execArgs)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
@@ -240,7 +253,7 @@ class CLITest {
     }
 
     func doStop(name: String, signal: String = "SIGKILL") throws {
-        let (_, error, status) = try run(arguments: [
+        let (_, _, error, status) = try run(arguments: [
             "stop",
             "-s",
             signal,
@@ -263,6 +276,8 @@ class CLITest {
 
         var arguments = ["create", "--rm", "--name", name]
 
+        arguments.append(contentsOf: getProxyEnvironment())
+
         // Add volume mounts
         for volume in volumes {
             arguments += ["-v", volume]
@@ -275,14 +290,14 @@ class CLITest {
 
         arguments += [image] + args
 
-        let (_, error, status) = try run(arguments: arguments)
+        let (_, _, error, status) = try run(arguments: arguments)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
     }
 
     func doStart(name: String) throws {
-        let (_, error, status) = try run(arguments: [
+        let (_, _, error, status) = try run(arguments: [
             "start",
             name,
         ])
@@ -294,7 +309,7 @@ class CLITest {
     struct inspectOutput: Codable {
         let status: String
         let configuration: ContainerConfiguration
-        let networks: [ContainerNetworkService.Attachment]
+        let networks: [ContainerResource.Attachment]
     }
 
     func getContainerStatus(_ name: String) throws -> String {
@@ -368,7 +383,7 @@ class CLITest {
         }
         pullArgs.append(imageName)
 
-        let (_, error, status) = try run(arguments: pullArgs)
+        let (_, _, error, status) = try run(arguments: pullArgs)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
@@ -381,7 +396,7 @@ class CLITest {
             "-q",
         ]
 
-        let (out, error, status) = try run(arguments: args)
+        let (_, out, error, status) = try run(arguments: args)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
@@ -389,7 +404,7 @@ class CLITest {
     }
 
     func doInspectImages(image: String) throws -> [ImageInspectOutput] {
-        let (output, error, status) = try run(arguments: [
+        let (_, output, error, status) = try run(arguments: [
             "image",
             "inspect",
             image,
@@ -415,7 +430,7 @@ class CLITest {
             "registry.domain",
             domain,
         ]
-        let (_, error, status) = try run(arguments: args)
+        let (_, _, error, status) = try run(arguments: args)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
@@ -428,7 +443,7 @@ class CLITest {
             "clear",
             "registry.domain",
         ]
-        let (_, error, status) = try run(arguments: args)
+        let (_, _, error, status) = try run(arguments: args)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
@@ -441,15 +456,18 @@ class CLITest {
         }
         args.append(name)
 
-        let (_, error, status) = try run(arguments: args)
+        let (_, _, error, status) = try run(arguments: args)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
     }
 
-    func getClient() -> HTTPClient {
+    func getClient(useHttpProxy: Bool) -> HTTPClient {
         var httpConfiguration = HTTPClient.Configuration()
         let proxyConfig: HTTPClient.Configuration.Proxy? = {
+            guard useHttpProxy else {
+                return nil
+            }
             let proxyEnv = ProcessInfo.processInfo.environment["HTTP_PROXY"]
             guard let proxyEnv else {
                 return nil
@@ -472,5 +490,88 @@ class CLITest {
         }
 
         return try await body(tempDir)
+    }
+
+    func doRemoveImages(images: [String]? = nil) throws {
+        var args = [
+            "image",
+            "rm",
+        ]
+
+        if let images {
+            args.append(contentsOf: images)
+        } else {
+            args.append("--all")
+        }
+
+        let (_, _, error, status) = try run(arguments: args)
+        if status != 0 {
+            throw CLIError.executionFailed("command failed: \(error)")
+        }
+    }
+
+    func isImagePresent(targetImage: String) throws -> Bool {
+        let images = try doListImages()
+        return images.contains(where: { image in
+            if image.reference == targetImage {
+                return true
+            }
+            return false
+        })
+    }
+
+    func doListImages() throws -> [Image] {
+        let (_, output, error, status) = try run(arguments: [
+            "image",
+            "list",
+            "--format",
+            "json",
+        ])
+        if status != 0 {
+            throw CLIError.executionFailed("command failed: \(error)")
+        }
+
+        guard let jsonData = output.data(using: .utf8) else {
+            throw CLIError.invalidOutput("image list output invalid \(output)")
+        }
+
+        let decoder = JSONDecoder()
+        return try decoder.decode([Image].self, from: jsonData)
+    }
+
+    func doImageTag(image: String, newName: String) throws {
+        let tagArgs = [
+            "image",
+            "tag",
+            image,
+            newName,
+        ]
+
+        let (_, _, error, status) = try run(arguments: tagArgs)
+        if status != 0 {
+            throw CLIError.executionFailed("command failed: \(error)")
+        }
+    }
+
+    func doNetworkCreate(name: String) throws {
+        let (_, _, error, status) = try run(arguments: ["network", "create", name])
+        if status != 0 {
+            throw CLIError.executionFailed("network create failed: \(error)")
+        }
+    }
+
+    func doNetworkDeleteIfExists(name: String) {
+        let (_, _, _, _) = (try? run(arguments: ["network", "rm", name])) ?? (nil, "", "", 1)
+    }
+
+    private func getProxyEnvironment() -> [String] {
+        let proxyVars = Set([
+            "HTTP_PROXY", "http_proxy",
+            "HTTPS_PROXY", "https_proxy",
+            "NO_PROXY", "no_proxy",
+        ])
+        return ProcessInfo.processInfo.environment
+            .filter { (key, val) in proxyVars.contains(key) }
+            .flatMap { (key, val) in ["-e", "\(key)=\(val)"] }
     }
 }

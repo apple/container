@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,13 +15,15 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
+import ContainerResource
 import ContainerizationError
 import ContainerizationOS
 import Foundation
+import Logging
 
 extension Application {
-    public struct ContainerStop: AsyncParsableCommand {
+    public struct ContainerStop: AsyncLoggableCommand {
         public init() {}
 
         public static let configuration = CommandConfiguration(
@@ -31,14 +33,14 @@ extension Application {
         @Flag(name: .shortAndLong, help: "Stop all running containers")
         var all = false
 
-        @Option(name: .shortAndLong, help: "Signal to send the containers")
+        @Option(name: .shortAndLong, help: "Signal to send to the containers")
         var signal: String = "SIGTERM"
 
         @Option(name: .shortAndLong, help: "Seconds to wait before killing the containers")
         var time: Int32 = 5
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "Container IDs")
         var containerIds: [String] = []
@@ -49,7 +51,7 @@ extension Application {
             }
             if containerIds.count > 0 && all {
                 throw ContainerizationError(
-                    .invalidArgument, message: "explicitly supplied container IDs conflicts with the --all flag")
+                    .invalidArgument, message: "explicitly supplied container IDs conflict with the --all flag")
             }
         }
 
@@ -68,7 +70,7 @@ extension Application {
                 timeoutInSeconds: self.time,
                 signal: try Signals.parseSignal(self.signal)
             )
-            let failed = try await Self.stopContainers(containers: containers, stopOptions: opts)
+            let failed = try await Self.stopContainers(containers: containers, stopOptions: opts, log: log)
             if failed.count > 0 {
                 throw ContainerizationError(
                     .internalError,
@@ -77,7 +79,7 @@ extension Application {
             }
         }
 
-        static func stopContainers(containers: [ClientContainer], stopOptions: ContainerStopOptions) async throws -> [String] {
+        static func stopContainers(containers: [ClientContainer], stopOptions: ContainerStopOptions, log: Logger) async throws -> [String] {
             var failed: [String] = []
             try await withThrowingTaskGroup(of: ClientContainer?.self) { group in
                 for container in containers {

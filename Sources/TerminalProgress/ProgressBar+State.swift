@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,10 +17,10 @@
 import Foundation
 
 extension ProgressBar {
-    /// A configuration struct for the progress bar.
-    public struct State {
+    /// State for the progress bar.
+    struct State {
         /// A flag indicating whether the progress bar is finished.
-        public var finished = false
+        var finished = false
         var iteration = 0
         private let speedInterval: DispatchTimeInterval = .seconds(1)
 
@@ -41,6 +41,7 @@ extension ProgressBar {
                 calculateSizeSpeed()
             }
         }
+
         var totalSize: Int64?
         private var sizeUpdateSpeed: String?
         var sizeSpeed: String? {
@@ -66,6 +67,7 @@ extension ProgressBar {
 
         var startTime: DispatchTime
         var output = ""
+        var renderTask: Task<Void, Never>?
 
         init(
             description: String = "", subDescription: String = "", itemsName: String = "", tasks: Int = 0, totalTasks: Int? = nil, items: Int = 0, totalItems: Int? = nil,

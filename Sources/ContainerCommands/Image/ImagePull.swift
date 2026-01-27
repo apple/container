@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,26 +15,26 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
 import Containerization
 import ContainerizationOCI
 import TerminalProgress
 
 extension Application {
-    public struct ImagePull: AsyncParsableCommand {
+    public struct ImagePull: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "pull",
             abstract: "Pull an image"
         )
 
         @OptionGroup
-        var global: Flags.Global
-
-        @OptionGroup
         var registry: Flags.Registry
 
         @OptionGroup
         var progressFlags: Flags.Progress
+
+        @OptionGroup
+        var imageFetchFlags: Flags.ImageFetch
 
         @Option(
             name: .shortAndLong,
@@ -52,12 +52,15 @@ extension Application {
         )
         var platform: String?
 
+        @OptionGroup
+        public var logOptions: Flags.Logging
+
         @Argument var reference: String
 
         public init() {}
 
         public init(platform: String? = nil, scheme: String = "auto", reference: String) {
-            self.global = Flags.Global()
+            self.logOptions = Flags.Logging()
             self.registry = Flags.Registry(scheme: scheme)
             self.platform = platform
             self.reference = reference
@@ -100,7 +103,8 @@ extension Application {
             let taskManager = ProgressTaskCoordinator()
             let fetchTask = await taskManager.startTask()
             let image = try await ClientImage.pull(
-                reference: processedReference, platform: p, scheme: scheme, progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progress.handler)
+                reference: processedReference, platform: p, scheme: scheme, progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progress.handler),
+                maxConcurrentDownloads: self.imageFetchFlags.maxConcurrentDownloads
             )
 
             progress.set(description: "Unpacking image")

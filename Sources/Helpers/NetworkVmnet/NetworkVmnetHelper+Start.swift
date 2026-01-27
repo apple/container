@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,10 +16,18 @@
 
 import ArgumentParser
 import ContainerNetworkService
+import ContainerNetworkServiceClient
+import ContainerResource
 import ContainerXPC
+import ContainerizationError
 import ContainerizationExtras
 import Foundation
 import Logging
+
+enum Variant: String, ExpressibleByArgument {
+    case reserved
+    case allocationOnly
+}
 
 extension NetworkVmnetHelper {
     struct Start: AsyncParsableCommand {
@@ -37,8 +45,22 @@ extension NetworkVmnetHelper {
         @Option(name: .shortAndLong, help: "Network identifier")
         var id: String
 
-        @Option(name: .shortAndLong, help: "CIDR address for the subnet")
-        var subnet: String?
+        @Option(name: .long, help: "Network mode")
+        var mode: NetworkMode = .nat
+
+        @Option(name: .customLong("subnet"), help: "CIDR address for the IPv4 subnet")
+        var ipv4Subnet: String?
+
+        @Option(name: .customLong("subnet-v6"), help: "CIDR address for the IPv6 prefix")
+        var ipv6Subnet: String?
+
+        @Option(name: .long, help: "Variant of the network helper to use.")
+        var variant: Variant = {
+            guard #available(macOS 26, *) else {
+                return .allocationOnly
+            }
+            return .reserved
+        }()
 
         func run() async throws {
             let commandName = NetworkVmnetHelper._commandName
@@ -50,9 +72,19 @@ extension NetworkVmnetHelper {
 
             do {
                 log.info("configuring XPC server")
-                let subnet = try self.subnet.map { try CIDRAddress($0) }
-                let configuration = try NetworkConfiguration(id: id, mode: .nat, subnet: subnet?.description)
-                let network = try Self.createNetwork(configuration: configuration, log: log)
+                let ipv4Subnet = try self.ipv4Subnet.map { try CIDRv4($0) }
+                let ipv6Subnet = try self.ipv6Subnet.map { try CIDRv6($0) }
+                let configuration = try NetworkConfiguration(
+                    id: id,
+                    mode: mode,
+                    ipv4Subnet: ipv4Subnet,
+                    ipv6Subnet: ipv6Subnet,
+                )
+                let network = try Self.createNetwork(
+                    configuration: configuration,
+                    variant: self.variant,
+                    log: log
+                )
                 try await network.start()
                 let server = try await NetworkService(network: network, log: log)
                 let xpc = XPCServer(
@@ -75,12 +107,19 @@ extension NetworkVmnetHelper {
             }
         }
 
-        private static func createNetwork(configuration: NetworkConfiguration, log: Logger) throws -> Network {
-            guard #available(macOS 26, *) else {
+        private static func createNetwork(configuration: NetworkConfiguration, variant: Variant, log: Logger) throws -> Network {
+            switch variant {
+            case .allocationOnly:
                 return try AllocationOnlyVmnetNetwork(configuration: configuration, log: log)
+            case .reserved:
+                guard #available(macOS 26, *) else {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "variant ReservedVmnetNetwork is only available on macOS 26+"
+                    )
+                }
+                return try ReservedVmnetNetwork(configuration: configuration, log: log)
             }
-
-            return try ReservedVmnetNetwork(configuration: configuration, log: log)
         }
     }
 }

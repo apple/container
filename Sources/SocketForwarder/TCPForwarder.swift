@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -57,6 +57,6 @@ public struct TCPForwarder: SocketForwarder {
         return
             bootstrap
             .bind(to: self.proxyAddress)
-            .flatMap { $0.eventLoop.makeSucceededFuture(SocketForwarderResult(channel: $0)) }
+            .map { SocketForwarderResult(channel: $0) }
     }
 }

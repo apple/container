@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -455,6 +455,21 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(tag1) == tag1, "expected to have successfully built \(tag1)")
             #expect(try self.inspectImage(tag2) == tag2, "expected to have successfully built \(tag2)")
             #expect(try self.inspectImage(tag3) == tag3, "expected to have successfully built \(tag3)")
+        }
+
+        @Test func testBuildWithDockerfileFromStdin() throws {
+            let tempDir: URL = try createTempDir()
+            let dockerfile =
+                """
+                FROM scratch
+
+                ADD emptyFile /
+                """
+            let context: [FileSystemEntry] = [.file("emptyFile", content: .zeroFilled(size: 1))]
+            try createContext(tempDir: tempDir, dockerfile: "", context: context)
+            let imageName = "registry.local/stdin-file:\(UUID().uuidString)"
+            try buildWithStdin(tags: [imageName], tempContext: tempDir, dockerfileContents: dockerfile)
+            #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
     }
 }

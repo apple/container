@@ -1,5 +1,10 @@
 # Technical Overview
 
+> [!IMPORTANT]
+> This file contains documentation for the CURRENT BRANCH. To find documentation for official releases, find the target release on the [Release Page](https://github.com/apple/container/releases) and click the tag corresponding to your release version. 
+>
+> Example: [release 0.4.1 tag](https://github.com/apple/container/tree/0.4.1)
+
 A brief description and technical overview of `container`.
 
 ## What are containers?
@@ -46,18 +51,6 @@ When `container-apiserver` starts, it launches an XPC helper `container-core-ima
 ## What limitations does `container` have today?
 
 With the initial release of `container`, you get basic facilities for building and running containers, but many common containerization features remain to be implemented. Consider [contributing](../CONTRIBUTING.md) new features and bug fixes to `container` and the Containerization projects!
-
-### Container to host networking
-
-In the initial release, there is no way to route traffic directly from a client in a container to a host-based application listening on the loopback interface at 127.0.0.1. If you were to configure the application in your container to connect to 127.0.0.1 or `localhost`, requests would simply go to the loopback interface in the container, rather than your host-based service.
-
-You can work around this limitation by configuring the host-based application to listen on the wildcard address 0.0.0.0, but this practice is insecure and not recommended because, without firewall rules, this exposes the application to external requests.
-
-A more secure approach uses `socat` to redirect traffic from the container network gateway to the host-based service. For example, to forward traffic for port 8000, configure your containerized application to connect to `192.168.64.1:8000` instead of `127.0.0.1:8000`, and then run the following command in a terminal on your Mac to forward the port traffic from the gateway to the host:
-
-```bash
-socat TCP-LISTEN:8000,fork,bind=192.168.64.1 TCP:127.0.0.1:8000
-```
 
 ### Releasing container memory to macOS
 

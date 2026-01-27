@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerClient
+import ContainerAPIClient
 import ContainerPersistence
 import ContainerizationArchive
 import Foundation
@@ -41,7 +41,7 @@ class TestCLIKernelSet: CLITest {
             "--recommended",
             "--force",
         ]
-        let (_, error, status) = try run(arguments: arguments)
+        let (_, _, error, status) = try run(arguments: arguments)
         if status != 0 {
             throw CLIError.executionFailed("failed to reset kernel to recommended: \(error)")
         }
@@ -56,7 +56,7 @@ class TestCLIKernelSet: CLITest {
         ]
         arguments.append(contentsOf: extraArgs)
 
-        let (_, error, status) = try run(arguments: arguments)
+        let (_, _, error, status) = try run(arguments: arguments)
         if status != 0 {
             throw CLIError.executionFailed("failed to set kernel: \(error)")
         }
@@ -81,7 +81,7 @@ class TestCLIKernelSet: CLITest {
         try await withTempDir { tempDir in
             // manually download the tar file
             let localTarPath = tempDir.appending(path: remoteTar.lastPathComponent)
-            try await ContainerClient.FileDownloader.downloadFile(url: remoteTar, to: localTarPath)
+            try await ContainerAPIClient.FileDownloader.downloadFile(url: remoteTar, to: localTarPath)
 
             let extraArgs: [String] = [
                 "--tar",
@@ -113,7 +113,7 @@ class TestCLIKernelSet: CLITest {
         try await withTempDir { tempDir in
             // manually download the tar file
             let localTarPath = tempDir.appending(path: remoteTar.lastPathComponent)
-            try await ContainerClient.FileDownloader.downloadFile(url: remoteTar, to: localTarPath)
+            try await ContainerAPIClient.FileDownloader.downloadFile(url: remoteTar, to: localTarPath)
 
             // extract just the file we want
             let targetPath = tempDir.appending(path: URL(string: defaultBinaryPath)!.lastPathComponent)

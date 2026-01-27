@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationExtras
 import Foundation
 import Testing
 
@@ -32,7 +33,7 @@ class TestCLICreateCommand: CLITest {
 
     @Test func testCreateWithMACAddress() throws {
         let name = getTestName()
-        let expectedMAC = "02:42:ac:11:00:03"
+        let expectedMAC = try MACAddress("02:42:ac:11:00:03")
         #expect(throws: Never.self, "expected container create with MAC address to succeed") {
             try doCreate(name: name, networks: ["default,mac=\(expectedMAC)"])
             try doStart(name: name)
@@ -43,7 +44,82 @@ class TestCLICreateCommand: CLITest {
             try waitForContainerRunning(name)
             let inspectResp = try inspectContainer(name)
             #expect(inspectResp.networks.count > 0, "expected at least one network attachment")
-            #expect(inspectResp.networks[0].macAddress == expectedMAC, "expected MAC address \(expectedMAC), got \(inspectResp.networks[0].macAddress ?? "nil")")
+            let actualMAC = inspectResp.networks[0].macAddress?.description ?? "nil"
+            #expect(
+                actualMAC == expectedMAC.description, "expected MAC address \(expectedMAC), got \(actualMAC)"
+            )
         }
     }
+
+    @Test func testPublishPortParserMaxPorts() throws {
+        let name = getTestName()
+        var args: [String] = ["create", "--name", name]
+
+        let portCount = 64
+        for i in 0..<portCount {
+            args.append("--publish")
+            args.append("127.0.0.1:\(8000 + i):\(9000 + i)")
+        }
+
+        args.append("ghcr.io/linuxcontainers/alpine:3.20")
+        args.append("echo")
+        args.append("\"hello world\"")
+
+        #expect(throws: Never.self, "expected container create maximum port publishes to succeed") {
+            let (_, _, error, status) = try run(arguments: args)
+            defer { try? doRemove(name: name) }
+            if status != 0 {
+                throw CLIError.executionFailed("command failed: \(error)")
+            }
+        }
+    }
+
+    @Test func testPublishPortParserTooManyPorts() throws {
+        let name = getTestName()
+        var args: [String] = ["create", "--name", name]
+
+        let portCount = 65
+        for i in 0..<portCount {
+            args.append("--publish")
+            args.append("127.0.0.1:\(8000 + i):\(9000 + i)")
+        }
+
+        args.append("ghcr.io/linuxcontainers/alpine:3.20")
+        args.append("echo")
+        args.append("\"hello world\"")
+
+        #expect(throws: CLIError.self, "expected container create more than maximum port publishes to fail") {
+            let (_, _, error, status) = try run(arguments: args)
+            defer { try? doRemove(name: name) }
+            if status != 0 {
+                throw CLIError.executionFailed("command failed: \(error)")
+            }
+        }
+    }
+
+    @Test func testCreateWithFQDNName() throws {
+        let name = "test.example.com"
+        let expectedHostname = "test"
+        #expect(throws: Never.self, "expected container create with FQDN name to succeed") {
+            try doCreate(name: name)
+            try doStart(name: name)
+            defer {
+                try? doStop(name: name)
+                try? doRemove(name: name)
+            }
+            try waitForContainerRunning(name)
+            let inspectResp = try inspectContainer(name)
+            let attachmentHostname = inspectResp.networks.first?.hostname ?? ""
+            let gotHostname =
+                attachmentHostname
+                .split(separator: ".", maxSplits: 1, omittingEmptySubsequences: true)
+                .first
+                .map { String($0) } ?? attachmentHostname
+            #expect(
+                gotHostname == expectedHostname,
+                "expected hostname to be extracted as '\(expectedHostname)' from FQDN '\(name)', got '\(gotHostname)' (attachment hostname: '\(attachmentHostname)')"
+            )
+        }
+    }
+
 }

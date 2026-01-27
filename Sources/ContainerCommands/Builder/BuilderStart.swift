@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,19 +15,20 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerAPIClient
 import ContainerBuild
-import ContainerClient
-import ContainerNetworkService
 import ContainerPersistence
+import ContainerResource
 import Containerization
 import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOCI
 import Foundation
+import Logging
 import TerminalProgress
 
 extension Application {
-    public struct BuilderStart: AsyncParsableCommand {
+    public struct BuilderStart: AsyncLoggableCommand {
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
             config.commandName = "start"
@@ -45,7 +46,10 @@ extension Application {
         var memory: String = "2048MB"
 
         @OptionGroup
-        var global: Flags.Global
+        public var dns: Flags.DNS
+
+        @OptionGroup
+        public var logOptions: Flags.Logging
 
         public init() {}
 
@@ -60,11 +64,29 @@ extension Application {
                 progress.finish()
             }
             progress.start()
-            try await Self.start(cpus: self.cpus, memory: self.memory, progressUpdate: progress.handler)
+            try await Self.start(
+                cpus: self.cpus,
+                memory: self.memory,
+                log: log,
+                dnsNameservers: self.dns.nameservers,
+                dnsDomain: self.dns.domain,
+                dnsSearchDomains: self.dns.searchDomains,
+                dnsOptions: self.dns.options,
+                progressUpdate: progress.handler
+            )
             progress.finish()
         }
 
-        static func start(cpus: Int64?, memory: String?, progressUpdate: @escaping ProgressUpdateHandler) async throws {
+        static func start(
+            cpus: Int64?,
+            memory: String?,
+            log: Logger,
+            dnsNameservers: [String] = [],
+            dnsDomain: String? = nil,
+            dnsSearchDomains: [String] = [],
+            dnsOptions: [String] = [],
+            progressUpdate: @escaping ProgressUpdateHandler
+        ) async throws {
             await progressUpdate([
                 .setDescription("Fetching BuildKit image"),
                 .setItemsName("blobs"),
@@ -88,10 +110,27 @@ extension Application {
 
             let builderPlatform = ContainerizationOCI.Platform(arch: "arm64", os: "linux", variant: "v8")
 
+            var targetEnvVars: [String] = []
+            if let buildkitColors = ProcessInfo.processInfo.environment["BUILDKIT_COLORS"] {
+                targetEnvVars.append("BUILDKIT_COLORS=\(buildkitColors)")
+            }
+            if ProcessInfo.processInfo.environment["NO_COLOR"] != nil {
+                targetEnvVars.append("NO_COLOR=true")
+            }
+            targetEnvVars.sort()
+
             let existingContainer = try? await ClientContainer.get(id: "buildkit")
             if let existingContainer {
                 let existingImage = existingContainer.configuration.image.reference
                 let existingResources = existingContainer.configuration.resources
+                let existingEnv = existingContainer.configuration.initProcess.environment
+                let existingDNS = existingContainer.configuration.dns
+
+                let existingManagedEnv = existingEnv.filter { envVar in
+                    envVar.hasPrefix("BUILDKIT_COLORS=") || envVar.hasPrefix("NO_COLOR=")
+                }.sorted()
+
+                let envChanged = existingManagedEnv != targetEnvVars
 
                 // Check if we need to recreate the builder due to different image
                 let imageChanged = existingImage != builderImage
@@ -112,11 +151,26 @@ extension Application {
                     }
                     return false
                 }()
+                let dnsChanged = {
+                    if !dnsNameservers.isEmpty {
+                        return existingDNS?.nameservers != dnsNameservers
+                    }
+                    if dnsDomain != nil {
+                        return existingDNS?.domain != dnsDomain
+                    }
+                    if !dnsSearchDomains.isEmpty {
+                        return existingDNS?.searchDomains != dnsSearchDomains
+                    }
+                    if !dnsOptions.isEmpty {
+                        return existingDNS?.options != dnsOptions
+                    }
+                    return false
+                }()
 
                 switch existingContainer.status {
                 case .running:
-                    guard imageChanged || cpuChanged || memChanged else {
-                        // If image, mem and cpu are the same, continue using the existing builder
+                    guard imageChanged || cpuChanged || memChanged || envChanged || dnsChanged else {
+                        // If image, mem, cpu, env, and DNS are the same, continue using the existing builder
                         return
                     }
                     // If they changed, stop and delete the existing builder
@@ -125,7 +179,7 @@ extension Application {
                 case .stopped:
                     // If the builder is stopped and matches our requirements, start it
                     // Otherwise, delete it and create a new one
-                    guard imageChanged || cpuChanged || memChanged else {
+                    guard imageChanged || cpuChanged || memChanged || envChanged || dnsChanged else {
                         try await existingContainer.startBuildKit(progressUpdate, nil)
                         return
                     }
@@ -140,13 +194,15 @@ extension Application {
                 }
             }
 
-            let shimArguments: [String] = [
+            let useRosetta = DefaultsStore.getBool(key: .buildRosetta) ?? true
+            let shimArguments = [
                 "--debug",
                 "--vsock",
-            ]
+                useRosetta ? nil : "--enable-qemu",
+            ].compactMap { $0 }
 
             let id = "buildkit"
-            try ContainerClient.Utility.validEntityName(id)
+            try ContainerAPIClient.Utility.validEntityName(id)
 
             let image = try await ClientImage.fetch(
                 reference: builderImage,
@@ -171,10 +227,13 @@ extension Application {
             )
 
             let imageConfig = try await image.config(for: builderPlatform).config
+            var environment = imageConfig?.env ?? []
+            environment.append(contentsOf: targetEnvVars)
+
             let processConfig = ProcessConfiguration(
                 executable: "/usr/local/bin/container-builder-shim",
                 arguments: shimArguments,
-                environment: imageConfig?.env ?? [],
+                environment: environment,
                 workingDirectory: "/",
                 terminal: false,
                 user: .id(uid: 0, gid: 0)
@@ -202,17 +261,22 @@ extension Application {
                 ),
             ]
             // Enable Rosetta only if the user didn't ask to disable it
-            config.rosetta = DefaultsStore.getBool(key: .buildRosetta) ?? true
+            config.rosetta = useRosetta
 
             let network = try await ClientNetwork.get(id: ClientNetwork.defaultNetworkName)
             guard case .running(_, let networkStatus) = network else {
                 throw ContainerizationError(.invalidState, message: "default network is not running")
             }
             config.networks = [AttachmentConfiguration(network: network.id, options: AttachmentOptions(hostname: id))]
-            let subnet = try CIDRAddress(networkStatus.address)
-            let nameserver = IPv4Address(fromValue: subnet.lower.value + 1).description
-            let nameservers = [nameserver]
-            config.dns = ContainerConfiguration.DNSConfiguration(nameservers: nameservers)
+            let subnet = networkStatus.ipv4Subnet
+            let nameserver = IPv4Address(subnet.lower.value + 1).description
+            let nameservers = dnsNameservers.isEmpty ? [nameserver] : dnsNameservers
+            config.dns = ContainerConfiguration.DNSConfiguration(
+                nameservers: nameservers,
+                domain: dnsDomain,
+                searchDomains: dnsSearchDomains,
+                options: dnsOptions
+            )
 
             let kernel = try await {
                 await progressUpdate([
@@ -235,6 +299,7 @@ extension Application {
             )
 
             try await container.startBuildKit(progressUpdate, taskManager)
+            log.debug("starting BuildKit and BuildKit-shim")
         }
     }
 }
@@ -257,8 +322,6 @@ extension ClientContainer {
             try await process.start()
             await taskManager?.finish()
             try io.closeAfterStart()
-
-            log.debug("starting BuildKit and BuildKit-shim")
         } catch {
             try? await stop()
             try? await delete()
