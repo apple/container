@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,18 +15,25 @@
 //===----------------------------------------------------------------------===//
 
 import AsyncHTTPClient
-import ContainerClient
+import ContainerAPIClient
 import ContainerizationExtras
 import ContainerizationOS
 import Foundation
 import Testing
 
-class TestCLIRunCommand: CLITest {
-    private func getTestName() -> String {
+// FIXME: We've split the tests into two suites to prevent swamping
+// the API server with so many run commands that all wind up pulling
+// images.
+//
+// When https://github.com/swiftlang/swift-testing/pull/1390 lands
+// and is available on the CI runners, we can try setting the
+// environment variable to limit concurrency and rejoin these suites.
+class TestCLIRunCommand1: CLITest {
+    func getTestName() -> String {
         Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
     }
 
-    private func getLowercasedTestName() -> String {
+    func getLowercasedTestName() -> String {
         getTestName().lowercased()
     }
 
@@ -193,6 +200,16 @@ class TestCLIRunCommand: CLITest {
             Issue.record("failed to run container \(error)")
             return
         }
+    }
+}
+
+class TestCLIRunCommand2: CLITest {
+    func getTestName() -> String {
+        Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
+    }
+
+    func getLowercasedTestName() -> String {
+        getTestName().lowercased()
     }
 
     @Test func testRunCommandMount() throws {
@@ -383,6 +400,16 @@ class TestCLIRunCommand: CLITest {
             Issue.record("failed to run container \(error)")
             return
         }
+    }
+}
+
+class TestCLIRunCommand3: CLITest {
+    func getTestName() -> String {
+        Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
+    }
+
+    func getLowercasedTestName() -> String {
+        getTestName().lowercased()
     }
 
     @Test func testRunCommandDefaultResolvConf() throws {
@@ -577,6 +604,52 @@ class TestCLIRunCommand: CLITest {
         }
     }
 
+    @available(macOS 26, *)
+    @Test func testForwardTCPv6() async throws {
+        let retries = 10
+        let retryDelaySeconds = Int64(3)
+        do {
+            let name = getLowercasedTestName()
+            let proxyIp = "[::1]"
+            let proxyPort = UInt16.random(in: 50000..<55000)
+            let serverPort = UInt16.random(in: 55000..<60000)
+            try doLongRun(
+                name: name,
+                image: "docker.io/library/node:alpine",
+                args: ["--publish", "\(proxyIp):\(proxyPort):\(serverPort)/tcp"],
+                containerArgs: ["npx", "http-server", "-a", "::", "-p", "\(serverPort)"])
+            defer {
+                try? doStop(name: name)
+            }
+
+            let url = "http://\(proxyIp):\(proxyPort)"
+            var request = HTTPClientRequest(url: url)
+            request.method = .GET
+            let config = HTTPClient.Configuration(proxy: nil)
+            let client = HTTPClient(eventLoopGroupProvider: .singleton, configuration: config)
+            defer { _ = client.shutdown() }
+            var retriesRemaining = retries
+            var success = false
+            while !success && retriesRemaining > 0 {
+                do {
+                    let response = try await client.execute(request, timeout: .seconds(retryDelaySeconds))
+                    try #require(response.status == .ok)
+                    success = true
+                    print("request to \(url) succeeded")
+                } catch {
+                    print("request to \(url) failed, error \(error)")
+                    try await Task.sleep(for: .seconds(retryDelaySeconds))
+                }
+                retriesRemaining -= 1
+            }
+            try #require(success, "Request to \(url) failed after \(retries - retriesRemaining) retries")
+            try doStop(name: name)
+        } catch {
+            Issue.record("failed to run container \(error)")
+            return
+        }
+    }
+
     @Test func testRunCommandEnvFileFromNamedPipe() throws {
         do {
             let name = getTestName()
@@ -639,6 +712,23 @@ class TestCLIRunCommand: CLITest {
         }
     }
 
+    @Test func testRunCommandReadOnly() throws {
+        do {
+            let name = getTestName()
+            try doLongRun(name: name, args: ["--read-only"])
+            defer {
+                try? doStop(name: name)
+            }
+            // Attempt to touch a file on the read-only rootfs should fail
+            #expect(throws: (any Error).self) {
+                try doExec(name: name, cmd: ["touch", "/testfile"])
+            }
+        } catch {
+            Issue.record("failed to run container \(error)")
+            return
+        }
+    }
+
     func getDefaultDomain() throws -> String? {
         let (_, output, err, status) = try run(arguments: ["system", "property", "get", "dns.domain"])
         try #require(status == 0, "default DNS domain retrieval returned status \(status): \(err)")
@@ -648,5 +738,30 @@ class TestCLIRunCommand: CLITest {
         }
 
         return trimmedOutput
+    }
+
+    @Test func testPrivilegedPortError() throws {
+        try #require(geteuid() != 0)
+
+        let name = getTestName()
+        let privilegedPort = 80
+        let (_, _, error, status) = try run(arguments: [
+            "run",
+            "--name", name,
+            "--publish", "127.0.0.1:\(privilegedPort):80",
+            alpine,
+        ])
+        defer {
+            try? doRemove(name: name, force: true)
+        }
+        #expect(status != 0, "Command should have failed")
+        #expect(
+            error.contains("Permission denied while binding to host port \(privilegedPort)"),
+            "Error message should mention permission denied for the port. Got: \(error)"
+        )
+        #expect(
+            error.contains("root privileges"),
+            "Error message should mention root privileges requirement. Got: \(error)"
+        )
     }
 }

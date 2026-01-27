@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,19 +15,19 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
 import ContainerizationOCI
 import Foundation
 
 extension Application {
-    public struct ImagePrune: AsyncParsableCommand {
+    public struct ImagePrune: AsyncLoggableCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "prune",
             abstract: "Remove all dangling images. If -a is specified, also remove all images not referenced by any container.")
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Flag(name: .shortAndLong, help: "Remove all unused images, not just dangling ones")
         var all: Bool = false

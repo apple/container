@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,11 +50,9 @@ extension ImagesHelper {
         @Option(name: .long, help: "XPC service prefix")
         var serviceIdentifier: String = "com.apple.container.core.container-core-images"
 
-        @Option(
-            name: .shortAndLong,
-            help: "Application data directory",
-            transform: { URL(filePath: $0) })
-        var appRoot = ApplicationRoot.defaultURL
+        var appRoot = ApplicationRoot.url
+
+        var installRoot = InstallRoot.url
 
         private static let unpackStrategy = SnapshotStore.defaultUnpackStrategy
 

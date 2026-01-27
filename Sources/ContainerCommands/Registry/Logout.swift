@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,18 +15,18 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
 import Containerization
 import ContainerizationOCI
 
 extension Application {
-    public struct Logout: AsyncParsableCommand {
+    public struct Logout: AsyncLoggableCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
             abstract: "Log out from a registry")
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "Registry server name")
         var registry: String

@@ -504,12 +504,13 @@ Loads images from a tar archive created by `image save`. The tar file must be sp
 **Usage**
 
 ```bash
-container image load --input <input> [--debug]
+container image load --input <input> [--force] [--debug]
 ```
 
 **Options**
 
 *   `-i, --input <input>`: Path to the image tar archive
+*   `-f, --force`: Load images even if invalid member files are detected
 
 ### `container image tag`
 
@@ -537,7 +538,7 @@ Deletes one or more images. If no images are provided, `--all` can be used to de
 **Usage**
 
 ```bash
-container image delete [--all] [--debug] [<images> ...]
+container image delete [--all] [--force] [--debug] [<images> ...]
 ```
 
 **Arguments**
@@ -547,6 +548,7 @@ container image delete [--all] [--debug] [<images> ...]
 **Options**
 
 *   `-a, --all`: Delete all images
+*   `-f, --force`: Ignore errors for images that are not found
 
 ### `container image prune`
 

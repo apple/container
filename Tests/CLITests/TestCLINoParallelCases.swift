@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerClient
+import ContainerAPIClient
 import ContainerizationOCI
 import Foundation
 import Testing
@@ -22,13 +22,18 @@ import Testing
 /// Tests that need total control over environment to avoid conflicts.
 @Suite(.serialized)
 class TestCLINoParallelCases: CLITest {
-    private func getTestName() -> String {
+    func getTestName() -> String {
         Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
+    }
+
+    func getLowercasedTestName() -> String {
+        getTestName().lowercased()
     }
 
     @Test func testImageSingleConcurrentDownload() throws {
         // removing this image during parallel tests breaks stuff!
         _ = try? run(arguments: ["image", "rm", alpine])
+        defer { _ = try? run(arguments: ["image", "rm", "--all"]) }
         do {
             try doPull(imageName: alpine, args: ["--max-concurrent-downloads", "1"])
             let imagePresent = try isImagePresent(targetImage: alpine)
@@ -42,6 +47,7 @@ class TestCLINoParallelCases: CLITest {
     @Test func testImageManyConcurrentDownloads() throws {
         // removing this image during parallel tests breaks stuff!
         _ = try? run(arguments: ["image", "rm", alpine])
+        defer { _ = try? run(arguments: ["image", "rm", "--all"]) }
         do {
             try doPull(imageName: alpine, args: ["--max-concurrent-downloads", "64"])
             let imagePresent = try isImagePresent(targetImage: alpine)
@@ -54,6 +60,7 @@ class TestCLINoParallelCases: CLITest {
 
     @Test func testImagePruneNoImages() throws {
         // Prune with no images should succeed
+        _ = try? run(arguments: ["image", "rm", "--all"])
         let (_, output, error, status) = try run(arguments: ["image", "prune"])
         if status != 0 {
             throw CLIError.executionFailed("image prune failed: \(error)")
@@ -64,6 +71,8 @@ class TestCLINoParallelCases: CLITest {
 
     @Test func testImagePruneUnusedImages() throws {
         // 1. Pull the images
+        _ = try? run(arguments: ["image", "rm", "--all"])
+        defer { _ = try? run(arguments: ["image", "rm", "--all"]) }
         try doPull(imageName: alpine)
         try doPull(imageName: busybox)
 
@@ -93,6 +102,10 @@ class TestCLINoParallelCases: CLITest {
         let containerName = "\(name)_container"
 
         // 1. Pull the images
+        _ = try? run(arguments: ["image", "rm", "--all"])
+        defer { _ = try? run(arguments: ["image", "rm", "--all"]) }
+        _ = try? run(arguments: ["rm", "--all", "--force"])
+        defer { _ = try? run(arguments: ["rm", "--all", "--force"]) }
         try doPull(imageName: alpine)
         try doPull(imageName: busybox)
 
@@ -183,8 +196,7 @@ class TestCLINoParallelCases: CLITest {
     }
 
     @available(macOS 26, *)
-    @Test(.disabled("https://github.com/apple/container/issues/953"))
-    func testNetworkPruneSkipsNetworksInUse() throws {
+    @Test func testNetworkPruneSkipsNetworksInUse() throws {
         let name = getTestName()
         let containerName = "\(name)_c1"
         let networkInUse = "\(name)_inuse"
@@ -238,8 +250,7 @@ class TestCLINoParallelCases: CLITest {
     }
 
     @available(macOS 26, *)
-    @Test(.disabled("https://github.com/apple/container/issues/953"))
-    func testNetworkPruneSkipsNetworkAttachedToStoppedContainer() async throws {
+    @Test func testNetworkPruneSkipsNetworkAttachedToStoppedContainer() async throws {
         let name = getTestName()
         let containerName = "\(name)_c1"
         let networkName = "\(name)"

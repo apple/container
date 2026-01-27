@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,8 +43,30 @@ public struct StderrLogHandler: LogHandler {
         function: String,
         line: UInt
     ) {
-        let messageText = message.description
-        let data = messageText.data(using: .utf8) ?? Data()
+        let data: Data
+        switch logLevel {
+        case .debug, .trace:
+            let timestamp = ISO8601DateFormatter().string(from: Date())
+            if let metadata, !metadata.isEmpty {
+                data =
+                    "\(timestamp) \(message.description): \(metadata.description)"
+                    .data(using: .utf8) ?? Data()
+            } else {
+                data =
+                    "\(timestamp) \(message.description)"
+                    .data(using: .utf8) ?? Data()
+            }
+        default:
+            if let metadata, !metadata.isEmpty {
+                data =
+                    "\(message.description): \(metadata.description)"
+                    .data(using: .utf8) ?? Data()
+            } else {
+                data =
+                    message.description
+                    .data(using: .utf8) ?? Data()
+            }
+        }
 
         // Use a single write call for atomicity
         var output = data

@@ -1,5 +1,5 @@
 #! /bin/bash -e
-# Copyright © 2025 Apple Inc. and the container project authors.
+# Copyright © 2025-2026 Apple Inc. and the container project authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,10 +16,15 @@
 opts=()
 opts+=("--allow-writing-to-directory" "$1")
 opts+=("generate-documentation")
+opts+=("--target" "ContainerAPIService")
+opts+=("--target" "ContainerAPIClient")
 opts+=("--target" "ContainerSandboxService")
+opts+=("--target" "ContainerSandboxServiceClient")
 opts+=("--target" "ContainerNetworkService")
+opts+=("--target" "ContainerNetworkServiceClient")
 opts+=("--target" "ContainerImagesService")
-opts+=("--target" "ContainerClient")
+opts+=("--target" "ContainerImagesServiceClient")
+opts+=("--target" "ContainerResource")
 opts+=("--target" "ContainerLog")
 opts+=("--target" "ContainerPlugin")
 opts+=("--target" "ContainerXPC")

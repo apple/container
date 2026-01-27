@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,19 +15,19 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
 import ContainerPlugin
 import Darwin
 import Foundation
 
-struct DefaultCommand: AsyncParsableCommand {
+struct DefaultCommand: AsyncLoggableCommand {
     public static let configuration = CommandConfiguration(
         commandName: nil,
         shouldDisplay: false
     )
 
     @OptionGroup(visibility: .hidden)
-    var global: Flags.Global
+    public var logOptions: Flags.Logging
 
     @Argument(parsing: .captureForPassthrough)
     var remaining: [String] = []

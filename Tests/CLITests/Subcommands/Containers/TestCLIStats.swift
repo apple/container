@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerClient
+import ContainerResource
 import Foundation
 import Testing
 
@@ -47,8 +47,10 @@ class TestCLIStatsCommand: CLITest {
 
             #expect(stats.count == 1, "expected stats for one container")
             #expect(stats[0].id == name, "container ID should match")
-            #expect(stats[0].memoryUsageBytes > 0, "memory usage should be non-zero")
-            #expect(stats[0].numProcesses >= 1, "should have at least one process")
+            let memoryUsageBytes = try #require(stats[0].memoryUsageBytes)
+            let numProcesses = try #require(stats[0].numProcesses)
+            #expect(memoryUsageBytes > 0, "memory usage should be non-zero")
+            #expect(numProcesses >= 1, "should have at least one process")
         }
     }
 

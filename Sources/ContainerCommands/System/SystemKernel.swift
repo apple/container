@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,9 +15,10 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerAPIClient
 
 extension Application {
-    public struct SystemKernel: AsyncParsableCommand {
+    public struct SystemKernel: AsyncLoggableCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "kernel",
@@ -26,5 +27,8 @@ extension Application {
                 KernelSet.self
             ]
         )
+
+        @OptionGroup
+        public var logOptions: Flags.Logging
     }
 }

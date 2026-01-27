@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,12 +15,12 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
 import ContainerVersion
 import Foundation
 
 extension Application {
-    public struct SystemVersion: AsyncParsableCommand {
+    public struct SystemVersion: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "version",
             abstract: "Show version information"
@@ -30,7 +30,7 @@ extension Application {
         var format: ListFormat = .table
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         public init() {}
 
