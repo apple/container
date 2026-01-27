@@ -15,18 +15,22 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerClient
+import ContainerAPIClient
 import ContainerizationError
 import Foundation
 
 extension Application {
-    public struct ContainerPrune: AsyncParsableCommand {
+    public struct ContainerPrune: AsyncLoggableCommand {
         public init() {}
 
         public static let configuration = CommandConfiguration(
             commandName: "prune",
             abstract: "Remove all stopped containers"
         )
+
+        @OptionGroup
+        public var logOptions: Flags.Logging
+
         public func run() async throws {
             let containersToPrune = try await ClientContainer.list().filter { $0.status == .stopped }
 
