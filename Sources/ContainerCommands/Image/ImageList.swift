@@ -111,31 +111,12 @@ extension Application {
                 var printableImages: [PrintableImage] = []
                 for image in images {
                     let formatter = ByteCountFormatter()
-                    for descriptor in try await image.index().manifests {
-                        // Don't list attestation manifests
-                        if let referenceType = descriptor.annotations?["vnd.docker.reference.type"],
-                            referenceType == "attestation-manifest"
-                        {
-                            continue
-                        }
+                    let size = try await ClientImage.getFullImageSize(image: image)
+                    let formattedSize = formatter.string(fromByteCount: size)
 
-                        guard let platform = descriptor.platform else {
-                            continue
-                        }
-                        var manifest: ContainerizationOCI.Manifest
-                        do {
-                            manifest = try await image.manifest(for: platform)
-                        } catch {
-                            continue
-                        }
-
-                        let size = descriptor.size + manifest.config.size + manifest.layers.reduce(0, { (l, r) in l + r.size })
-                        let formattedSize = formatter.string(fromByteCount: size)
-
-                        printableImages.append(
-                            PrintableImage(reference: image.reference, size: formattedSize, descriptor: image.descriptor)
-                        )
-                    }
+                    printableImages.append(
+                        PrintableImage(reference: image.reference, size: formattedSize, descriptor: image.descriptor)
+                    )
                 }
                 let data = try JSONEncoder().encode(printableImages)
                 print(String(data: data, encoding: .utf8)!)

@@ -193,6 +193,29 @@ extension ClientImage {
         }
         return found
     }
+    
+    public static func getFullImageSize(image: ClientImage) async throws -> Int64 {
+        for descriptor in try await image.index().manifests {
+            if let referenceType = descriptor.annotations?["vnd.docker.reference.type"],
+                referenceType == "attestation-manifest"
+            {
+                continue
+            }
+
+            guard let platform = descriptor.platform else {
+                continue
+            }
+
+            do {
+                let manifest = try await image.manifest(for: platform)
+                return
+                    descriptor.size + manifest.config.size + manifest.layers.reduce(0) { $0 + $1.size }
+            } catch {
+                continue
+            }
+        }
+        return 0
+    }
 
     private static func _search(reference: String, in all: [ClientImage]) throws -> ClientImage? {
         let locallyBuiltImage = try {
