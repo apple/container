@@ -84,9 +84,13 @@ public struct Filesystem: Sendable, Codable {
         self.options = options
     }
 
+    // Defaulting to CachedMode = .on (i.e., cached mode) to fix Linux FS issue when using Virtualization
+    // * https://github.com/apple/container/issues/614
+    // * https://github.com/utmapp/UTM/pull/5919
+
     /// A block based filesystem.
     public static func block(
-        format: String, source: String, destination: String, options: MountOptions, cache: CacheMode = .auto,
+        format: String, source: String, destination: String, options: MountOptions, cache: CacheMode = .on,
         sync: SyncMode = .fsync
     ) -> Filesystem {
         .init(
@@ -100,7 +104,7 @@ public struct Filesystem: Sendable, Codable {
     /// A named volume filesystem.
     public static func volume(
         name: String, format: String, source: String, destination: String, options: MountOptions,
-        cache: CacheMode = .auto, sync: SyncMode = .fsync
+        cache: CacheMode = .on, sync: SyncMode = .fsync
     ) -> Filesystem {
         .init(
             type: .volume(name: name, format: format, cache: cache, sync: sync),

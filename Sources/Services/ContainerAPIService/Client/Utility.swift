@@ -209,12 +209,12 @@ public struct Utility {
         if management.dnsDisabled {
             config.dns = nil
         } else {
-            let domain = management.dnsDomain ?? DefaultsStore.getOptional(key: .defaultDNSDomain)
+            let domain = management.dns.domain ?? DefaultsStore.getOptional(key: .defaultDNSDomain)
             config.dns = .init(
-                nameservers: management.dnsNameservers,
+                nameservers: management.dns.nameservers,
                 domain: domain,
-                searchDomains: management.dnsSearchDomains,
-                options: management.dnsOptions
+                searchDomains: management.dns.searchDomains,
+                options: management.dns.options
             )
         }
 

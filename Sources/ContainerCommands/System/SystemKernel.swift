@@ -15,9 +15,10 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerAPIClient
 
 extension Application {
-    public struct SystemKernel: AsyncParsableCommand {
+    public struct SystemKernel: AsyncLoggableCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "kernel",
@@ -26,5 +27,8 @@ extension Application {
                 KernelSet.self
             ]
         )
+
+        @OptionGroup
+        public var logOptions: Flags.Logging
     }
 }

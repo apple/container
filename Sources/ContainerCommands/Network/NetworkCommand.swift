@@ -15,9 +15,10 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerAPIClient
 
 extension Application {
-    public struct NetworkCommand: AsyncParsableCommand {
+    public struct NetworkCommand: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "network",
             abstract: "Manage container networks",
@@ -32,5 +33,8 @@ extension Application {
         )
 
         public init() {}
+
+        @OptionGroup
+        public var logOptions: Flags.Logging
     }
 }

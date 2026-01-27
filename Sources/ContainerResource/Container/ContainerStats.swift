@@ -21,32 +21,32 @@ public struct ContainerStats: Sendable, Codable {
     /// Container ID
     public var id: String
     /// Physical memory usage in bytes
-    public var memoryUsageBytes: UInt64
+    public var memoryUsageBytes: UInt64?
     /// Memory limit in bytes
-    public var memoryLimitBytes: UInt64
+    public var memoryLimitBytes: UInt64?
     /// CPU usage in microseconds
-    public var cpuUsageUsec: UInt64
+    public var cpuUsageUsec: UInt64?
     /// Network received bytes (sum of all interfaces)
-    public var networkRxBytes: UInt64
+    public var networkRxBytes: UInt64?
     /// Network transmitted bytes (sum of all interfaces)
-    public var networkTxBytes: UInt64
+    public var networkTxBytes: UInt64?
     /// Block I/O read bytes (sum of all devices)
-    public var blockReadBytes: UInt64
+    public var blockReadBytes: UInt64?
     /// Block I/O write bytes (sum of all devices)
-    public var blockWriteBytes: UInt64
+    public var blockWriteBytes: UInt64?
     /// Number of processes in the container
-    public var numProcesses: UInt64
+    public var numProcesses: UInt64?
 
     public init(
         id: String,
-        memoryUsageBytes: UInt64,
-        memoryLimitBytes: UInt64,
-        cpuUsageUsec: UInt64,
-        networkRxBytes: UInt64,
-        networkTxBytes: UInt64,
-        blockReadBytes: UInt64,
-        blockWriteBytes: UInt64,
-        numProcesses: UInt64
+        memoryUsageBytes: UInt64?,
+        memoryLimitBytes: UInt64?,
+        cpuUsageUsec: UInt64?,
+        networkRxBytes: UInt64?,
+        networkTxBytes: UInt64?,
+        blockReadBytes: UInt64?,
+        blockWriteBytes: UInt64?,
+        numProcesses: UInt64?
     ) {
         self.id = id
         self.memoryUsageBytes = memoryUsageBytes

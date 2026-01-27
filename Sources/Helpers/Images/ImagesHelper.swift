@@ -50,11 +50,9 @@ extension ImagesHelper {
         @Option(name: .long, help: "XPC service prefix")
         var serviceIdentifier: String = "com.apple.container.core.container-core-images"
 
-        @Option(
-            name: .shortAndLong,
-            help: "Application data directory",
-            transform: { URL(filePath: $0) })
-        var appRoot = ApplicationRoot.defaultURL
+        var appRoot = ApplicationRoot.url
+
+        var installRoot = InstallRoot.url
 
         private static let unpackStrategy = SnapshotStore.defaultUnpackStrategy
 

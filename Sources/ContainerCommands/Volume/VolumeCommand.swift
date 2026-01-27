@@ -15,9 +15,10 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerAPIClient
 
 extension Application {
-    public struct VolumeCommand: AsyncParsableCommand {
+    public struct VolumeCommand: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "volume",
             abstract: "Manage container volumes",
@@ -32,5 +33,8 @@ extension Application {
         )
 
         public init() {}
+
+        @OptionGroup
+        public var logOptions: Flags.Logging
     }
 }

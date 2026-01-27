@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025-2026 Apple Inc. and the container project authors.
+// Copyright © 2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,24 +14,12 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ArgumentParser
-import ContainerAPIClient
+/// The result of loading an archive file into the image store.
+public struct ImageLoadResult {
+    /// The successfully loaded images
+    public let images: [ClientImage]
 
-extension Application {
-    public struct RegistryCommand: AsyncLoggableCommand {
-        public static let configuration = CommandConfiguration(
-            commandName: "registry",
-            abstract: "Manage registry logins",
-            subcommands: [
-                Login.self,
-                Logout.self,
-            ],
-            aliases: ["r"]
-        )
-
-        public init() {}
-
-        @OptionGroup
-        public var logOptions: Flags.Logging
-    }
+    /// The archive member files that were not extracted due
+    /// to invalid paths or attempted symlink traversal.
+    public let rejectedMembers: [String]
 }

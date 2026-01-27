@@ -20,7 +20,7 @@ import ContainerizationError
 import Foundation
 
 extension Application {
-    public struct ContainerDelete: AsyncParsableCommand {
+    public struct ContainerDelete: AsyncLoggableCommand {
         public init() {}
 
         public static let configuration = CommandConfiguration(
@@ -35,7 +35,7 @@ extension Application {
         var force = false
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "Container IDs")
         var containerIds: [String] = []
@@ -82,6 +82,7 @@ extension Application {
             var failed = [String]()
             let force = self.force
             let all = self.all
+            let logger = log
             try await withThrowingTaskGroup(of: String?.self) { group in
                 for container in containers {
                     group.addTask {
@@ -97,7 +98,7 @@ extension Application {
                             print(container.id)
                             return nil
                         } catch {
-                            log.error("failed to delete container \(container.id): \(error)")
+                            logger.error("failed to delete container \(container.id): \(error)")
                             return container.id
                         }
                     }

@@ -79,7 +79,6 @@ public struct PluginConfig: Sendable, Codable {
         public let services: [Service]
         /// An optional parameter that include any command line arguments
         /// that must be passed to the plugin binary when it is loaded.
-        /// This parameter is used only when `servicesConfig.loadAtBoot` is `true`
         public let defaultArguments: [String]
     }
 

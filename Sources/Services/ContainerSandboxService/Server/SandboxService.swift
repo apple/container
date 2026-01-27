@@ -277,14 +277,14 @@ public actor SandboxService {
 
             let containerStats = ContainerStats(
                 id: stats.id,
-                memoryUsageBytes: stats.memory.usageBytes,
-                memoryLimitBytes: stats.memory.limitBytes,
-                cpuUsageUsec: stats.cpu.usageUsec,
-                networkRxBytes: stats.networks.reduce(0) { $0 + $1.receivedBytes },
-                networkTxBytes: stats.networks.reduce(0) { $0 + $1.transmittedBytes },
-                blockReadBytes: stats.blockIO.devices.reduce(0) { $0 + $1.readBytes },
-                blockWriteBytes: stats.blockIO.devices.reduce(0) { $0 + $1.writeBytes },
-                numProcesses: stats.process.current
+                memoryUsageBytes: stats.memory?.usageBytes,
+                memoryLimitBytes: stats.memory?.limitBytes,
+                cpuUsageUsec: stats.cpu?.usageUsec,
+                networkRxBytes: stats.networks?.reduce(0) { $0 + $1.receivedBytes },
+                networkTxBytes: stats.networks?.reduce(0) { $0 + $1.transmittedBytes },
+                blockReadBytes: stats.blockIO?.devices.reduce(0) { $0 + $1.readBytes },
+                blockWriteBytes: stats.blockIO?.devices.reduce(0) { $0 + $1.writeBytes },
+                numProcesses: stats.process?.current
             )
 
             let reply = message.reply()
@@ -748,7 +748,17 @@ public actor SandboxService {
                                 log: self.log
                             )
                         }
-                        return try await forwarder.run().get()
+                        do {
+                            return try await forwarder.run().get()
+                        } catch let error as IOError where error.errnoCode == EACCES {
+                            if let port = proxyAddress.port, port < 1024 {
+                                throw ContainerizationError(
+                                    .invalidArgument,
+                                    message: "Permission denied while binding to host port \(port). Binding to ports below 1024 requires root privileges."
+                                )
+                            }
+                            throw error
+                        }
                     }
                 }
             }
@@ -839,7 +849,11 @@ public actor SandboxService {
             czConfig.sockets.append(socketConfig)
         }
 
-        czConfig.hostname = config.id
+        let containerId = config.id
+        czConfig.hostname =
+            containerId.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: true)
+            .first
+            .map { String($0) } ?? containerId
 
         if let dns = config.dns {
             czConfig.dns = DNS(

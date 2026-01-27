@@ -22,7 +22,7 @@ import ContainerizationOCI
 import Foundation
 
 extension Application {
-    public struct Login: AsyncParsableCommand {
+    public struct Login: AsyncLoggableCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
             abstract: "Log in to a registry"
@@ -38,7 +38,7 @@ extension Application {
         var username: String = ""
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "Registry server name")
         var server: String

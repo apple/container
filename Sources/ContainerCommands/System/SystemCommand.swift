@@ -15,9 +15,10 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerAPIClient
 
 extension Application {
-    public struct SystemCommand: AsyncParsableCommand {
+    public struct SystemCommand: AsyncLoggableCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "system",
@@ -35,5 +36,8 @@ extension Application {
             ],
             aliases: ["s"]
         )
+
+        @OptionGroup
+        public var logOptions: Flags.Logging
     }
 }

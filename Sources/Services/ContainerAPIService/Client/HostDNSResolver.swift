@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerizationError
+import ContainerizationExtras
 import Foundation
 
 /// Functions for managing local DNS domains for containers.
@@ -22,7 +23,8 @@ public struct HostDNSResolver {
     public static let defaultConfigPath = URL(filePath: "/etc/resolver")
 
     // prefix used to mark our files as /etc/resolver/{prefix}{domainName}
-    private static let containerizationPrefix = "containerization."
+    public static let containerizationPrefix = "containerization."
+    public static let localhostOptionsRegex = #"options localhost:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"#
 
     private let configURL: URL
 
@@ -31,7 +33,7 @@ public struct HostDNSResolver {
     }
 
     /// Creates a DNS resolver configuration file for domain resolved by the application.
-    public func createDomain(name: String) throws {
+    public func createDomain(name: String, localhost: IPAddress? = nil) throws {
         let path = self.configURL.appending(path: "\(Self.containerizationPrefix)\(name)").path
         let fm: FileManager = FileManager.default
 
@@ -47,26 +49,35 @@ public struct HostDNSResolver {
             throw ContainerizationError(.exists, message: "domain \(name) already exists")
         }
 
+        let dnsPort = localhost == nil ? "2053" : "1053"
+        let options =
+            localhost == nil
+            ? ""
+            : HostDNSResolver.localhostOptionsRegex.replacingOccurrences(
+                of: #"\((.*?)\)"#, with: localhost!.description, options: .regularExpression)
         let resolverText = """
             domain \(name)
             search \(name)
             nameserver 127.0.0.1
-            port 2053
+            port \(dnsPort)
+            \(options)
             """
 
-        do {
-            try resolverText.write(toFile: path, atomically: true, encoding: .utf8)
-        } catch {
-            throw ContainerizationError(.invalidState, message: "failed to write resolver configuration for \(name)")
-        }
+        try resolverText.write(toFile: path, atomically: true, encoding: .utf8)
     }
 
     /// Removes a DNS resolver configuration file for domain resolved by the application.
-    public func deleteDomain(name: String) throws {
+    public func deleteDomain(name: String) throws -> IPAddress? {
         let path = self.configURL.appending(path: "\(Self.containerizationPrefix)\(name)").path
         let fm = FileManager.default
         guard fm.fileExists(atPath: path) else {
             throw ContainerizationError(.notFound, message: "domain \(name) at \(path) not found")
+        }
+
+        var localhost: IPAddress?
+        let content = try String(contentsOfFile: path, encoding: .utf8)
+        if let match = content.firstMatch(of: try Regex(HostDNSResolver.localhostOptionsRegex)) {
+            localhost = try? IPAddress(String(match[1].substring ?? ""))
         }
 
         do {
@@ -74,6 +85,8 @@ public struct HostDNSResolver {
         } catch {
             throw ContainerizationError(.invalidState, message: "cannot delete domain (try sudo?)")
         }
+
+        return localhost
     }
 
     /// Lists application-created local DNS domains.

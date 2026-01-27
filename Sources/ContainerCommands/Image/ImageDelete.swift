@@ -19,6 +19,7 @@ import ContainerAPIClient
 import Containerization
 import ContainerizationError
 import Foundation
+import Logging
 
 extension Application {
     public struct RemoveImageOptions: ParsableArguments {
@@ -27,8 +28,8 @@ extension Application {
         @Flag(name: .shortAndLong, help: "Delete all images")
         var all: Bool = false
 
-        @OptionGroup
-        var global: Flags.Global
+        @Flag(name: .shortAndLong, help: "Ignore errors for images that are not found")
+        var force: Bool = false
 
         @Argument
         var images: [String] = []
@@ -44,7 +45,7 @@ extension Application {
             }
         }
 
-        static func removeImage(options: RemoveImageOptions) async throws {
+        static func removeImage(options: RemoveImageOptions, log: Logger) async throws {
             let (found, notFound) = try await {
                 if options.all {
                     let found = try await ClientImage.list()
@@ -53,7 +54,7 @@ extension Application {
                 }
                 return try await ClientImage.get(names: options.images)
             }()
-            var failures: [String] = notFound
+            var failures: [String] = options.force ? [] : notFound
             var didDeleteAnyImage = false
             for image in found {
                 guard !Utility.isInfraImage(name: image.reference) else {
@@ -81,9 +82,12 @@ extension Application {
         }
     }
 
-    public struct ImageDelete: AsyncParsableCommand {
+    public struct ImageDelete: AsyncLoggableCommand {
         @OptionGroup
         var options: RemoveImageOptions
+
+        @OptionGroup
+        public var logOptions: Flags.Logging
 
         public static let configuration = CommandConfiguration(
             commandName: "delete",
@@ -97,7 +101,7 @@ extension Application {
         }
 
         public mutating func run() async throws {
-            try await DeleteImageImplementation.removeImage(options: options)
+            try await DeleteImageImplementation.removeImage(options: options, log: log)
         }
     }
 }

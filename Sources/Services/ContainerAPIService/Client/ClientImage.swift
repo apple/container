@@ -280,16 +280,18 @@ extension ClientImage {
         let _ = try await client.send(request)
     }
 
-    public static func load(from tarFile: String) async throws -> [ClientImage] {
+    public static func load(from tarFile: String, force: Bool = false) async throws -> ImageLoadResult {
         let client = newXPCClient()
         let request = newRequest(.imageLoad)
         request.set(key: .filePath, value: tarFile)
+        request.set(key: .forceLoad, value: force)
         let reply = try await client.send(request)
 
-        let loaded = try reply.imageDescriptions()
-        return loaded.map { desc in
+        let (descriptions, rejectedMembers) = try reply.loadResults()
+        let images = descriptions.map { desc in
             ClientImage(description: desc)
         }
+        return ImageLoadResult(images: images, rejectedMembers: rejectedMembers)
     }
 
     public static func cleanupOrphanedBlobs() async throws -> ([String], UInt64) {
@@ -461,12 +463,26 @@ extension XPCMessage {
     }
 
     fileprivate func imageDescriptions() throws -> [ImageDescription] {
-        let responseData = self.dataNoCopy(key: .imageDescriptions)
-        guard let responseData else {
+        let imagesData = self.dataNoCopy(key: .imageDescriptions)
+        guard let imagesData else {
             throw ContainerizationError(.empty, message: "imageDescriptions not received")
         }
-        let descriptions = try JSONDecoder().decode([ImageDescription].self, from: responseData)
+        let descriptions = try JSONDecoder().decode([ImageDescription].self, from: imagesData)
         return descriptions
+    }
+
+    fileprivate func loadResults() throws -> ([ImageDescription], [String]) {
+        let imagesData = self.dataNoCopy(key: .imageDescriptions)
+        guard let imagesData else {
+            throw ContainerizationError(.empty, message: "imageDescriptions not received")
+        }
+        let descriptions = try JSONDecoder().decode([ImageDescription].self, from: imagesData)
+        let rejectedMembersData = self.dataNoCopy(key: .rejectedMembers)
+        guard let rejectedMembersData else {
+            throw ContainerizationError(.empty, message: "rejectedMembers not received")
+        }
+        let rejectedMembers = try JSONDecoder().decode([String].self, from: rejectedMembersData)
+        return (descriptions, rejectedMembers)
     }
 
     fileprivate func filesystem() throws -> Filesystem {

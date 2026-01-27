@@ -17,10 +17,11 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerizationError
+import ContainerizationExtras
 import Foundation
 
 extension Application {
-    public struct DNSDelete: AsyncParsableCommand {
+    public struct DNSDelete: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "delete",
             abstract: "Delete a local DNS domain (must run as an administrator)",
@@ -28,7 +29,7 @@ extension Application {
         )
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "The local domain name")
         var domainName: String
@@ -37,9 +38,9 @@ extension Application {
 
         public func run() async throws {
             let resolver = HostDNSResolver()
+            var localhostIP: IPAddress?
             do {
-                try resolver.deleteDomain(name: domainName)
-                print(domainName)
+                localhostIP = try resolver.deleteDomain(name: domainName)
             } catch {
                 throw ContainerizationError(.invalidState, message: "cannot delete domain (try sudo?)")
             }
@@ -49,6 +50,23 @@ extension Application {
             } catch {
                 throw ContainerizationError(.invalidState, message: "mDNSResponder restart failed, run `sudo killall -HUP mDNSResponder` to deactivate domain")
             }
+
+            guard let localhostIP else {
+                print(domainName)
+                return
+            }
+
+            let pf = PacketFilter()
+            try pf.removeRedirectRule(from: localhostIP, to: try! IPAddress("127.0.0.1"), domain: domainName)
+
+            do {
+                try pf.reinitialize()
+            } catch let error as ContainerizationError {
+                throw error
+            } catch {
+                throw ContainerizationError(.invalidState, message: "failed loading pf rules")
+            }
+            print(domainName)
         }
     }
 }

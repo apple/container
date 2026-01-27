@@ -22,7 +22,7 @@ import Foundation
 import SwiftProtobuf
 
 extension Application {
-    public struct ContainerList: AsyncParsableCommand {
+    public struct ContainerList: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "list",
             abstract: "List running containers",
@@ -38,7 +38,7 @@ extension Application {
         var quiet = false
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         public init() {}
 

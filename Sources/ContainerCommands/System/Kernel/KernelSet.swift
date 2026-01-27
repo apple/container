@@ -25,7 +25,7 @@ import Foundation
 import TerminalProgress
 
 extension Application {
-    public struct KernelSet: AsyncParsableCommand {
+    public struct KernelSet: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "set",
             abstract: "Set the default kernel"
@@ -47,7 +47,7 @@ extension Application {
         var tarPath: String? = nil
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         public init() {}
 

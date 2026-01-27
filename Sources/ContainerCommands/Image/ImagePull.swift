@@ -21,14 +21,11 @@ import ContainerizationOCI
 import TerminalProgress
 
 extension Application {
-    public struct ImagePull: AsyncParsableCommand {
+    public struct ImagePull: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "pull",
             abstract: "Pull an image"
         )
-
-        @OptionGroup
-        var global: Flags.Global
 
         @OptionGroup
         var registry: Flags.Registry
@@ -55,12 +52,15 @@ extension Application {
         )
         var platform: String?
 
+        @OptionGroup
+        public var logOptions: Flags.Logging
+
         @Argument var reference: String
 
         public init() {}
 
         public init(platform: String? = nil, scheme: String = "auto", reference: String) {
-            self.global = Flags.Global()
+            self.logOptions = Flags.Logging()
             self.registry = Flags.Registry(scheme: scheme)
             self.platform = platform
             self.reference = reference

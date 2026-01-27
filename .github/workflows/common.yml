@@ -16,7 +16,7 @@ jobs:
     name: Build and test the project
     if: github.repository == 'apple/container'
     timeout-minutes: 60
-    runs-on: [self-hosted, macos, sequoia, ARM64]
+    runs-on: [self-hosted, macos, tahoe, ARM64]
     permissions:
       contents: read
       packages: read
@@ -73,6 +73,10 @@ jobs:
           APP_ROOT=$(mktemp -d -p "${RUNNER_TEMP}")
           trap 'rm -rf "${APP_ROOT}"; echo Removing data directory ${APP_ROOT}' EXIT
           echo "Created data directory ${APP_ROOT}"
+          export NO_PROXY="${NO_PROXY},192.168.0.0/16,fe80::/10"
+          echo NO_PROXY=${NO_PROXY}
+          export no_proxy="${no_proxy},192.168.0.0/16,fe80::/10"
+          echo no_proxy=${no_proxy}
           make APP_ROOT="${APP_ROOT}" test install-kernel integration
         env:
           DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"

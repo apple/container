@@ -20,7 +20,7 @@ import ContainerizationError
 import Foundation
 
 extension Application {
-    public struct SystemDF: AsyncParsableCommand {
+    public struct SystemDF: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "df",
             abstract: "Show disk usage for images, containers, and volumes"
@@ -30,7 +30,7 @@ extension Application {
         var format: ListFormat = .table
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         public init() {}
 

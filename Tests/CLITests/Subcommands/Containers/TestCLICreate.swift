@@ -97,4 +97,29 @@ class TestCLICreateCommand: CLITest {
         }
     }
 
+    @Test func testCreateWithFQDNName() throws {
+        let name = "test.example.com"
+        let expectedHostname = "test"
+        #expect(throws: Never.self, "expected container create with FQDN name to succeed") {
+            try doCreate(name: name)
+            try doStart(name: name)
+            defer {
+                try? doStop(name: name)
+                try? doRemove(name: name)
+            }
+            try waitForContainerRunning(name)
+            let inspectResp = try inspectContainer(name)
+            let attachmentHostname = inspectResp.networks.first?.hostname ?? ""
+            let gotHostname =
+                attachmentHostname
+                .split(separator: ".", maxSplits: 1, omittingEmptySubsequences: true)
+                .first
+                .map { String($0) } ?? attachmentHostname
+            #expect(
+                gotHostname == expectedHostname,
+                "expected hostname to be extracted as '\(expectedHostname)' from FQDN '\(name)', got '\(gotHostname)' (attachment hostname: '\(attachmentHostname)')"
+            )
+        }
+    }
+
 }

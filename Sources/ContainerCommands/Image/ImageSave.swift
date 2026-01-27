@@ -24,7 +24,7 @@ import Foundation
 import TerminalProgress
 
 extension Application {
-    public struct ImageSave: AsyncParsableCommand {
+    public struct ImageSave: AsyncLoggableCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "save",
@@ -55,7 +55,7 @@ extension Application {
         var platform: String?
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument var references: [String]
 

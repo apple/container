@@ -19,7 +19,7 @@ import ContainerAPIClient
 import Foundation
 
 extension Application {
-    public struct DNSList: AsyncParsableCommand {
+    public struct DNSList: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "list",
             abstract: "List local DNS domains",
@@ -33,7 +33,7 @@ extension Application {
         var quiet = false
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         public init() {}
 

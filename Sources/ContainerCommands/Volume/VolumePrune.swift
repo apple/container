@@ -19,14 +19,14 @@ import ContainerAPIClient
 import Foundation
 
 extension Application.VolumeCommand {
-    public struct VolumePrune: AsyncParsableCommand {
+    public struct VolumePrune: AsyncLoggableCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "prune",
             abstract: "Remove volumes with no container references")
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         public func run() async throws {
             let allVolumes = try await ClientVolume.list()

@@ -1,0 +1,16 @@
+#! /bin/bash -e
+
+setup_error() {
+    echo failed to run: $1 1>&2
+    echo run '"make pre-commit"' and try again 1>&2
+    exit 1
+}
+
+if [ ! -z "${PRECOMMIT_NOFMT}" ] ; then
+    exit 0
+fi
+
+echo checking formatting and licenses 1>&2
+project_pathname=$(git rev-parse --show-toplevel)
+cd "${project_pathname}"
+make check

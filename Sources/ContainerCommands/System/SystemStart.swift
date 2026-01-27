@@ -23,7 +23,7 @@ import Foundation
 import TerminalProgress
 
 extension Application {
-    public struct SystemStart: AsyncParsableCommand {
+    public struct SystemStart: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "start",
             abstract: "Start `container` services"
@@ -48,7 +48,7 @@ extension Application {
         var kernelInstall: Bool?
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         public init() {}
 
@@ -62,7 +62,7 @@ extension Application {
 
             var args = [executableUrl.absolutePath()]
 
-            if global.debug {
+            if logOptions.debug {
                 args.append("--debug")
             }
 

@@ -20,14 +20,14 @@ import ContainerPlugin
 import Darwin
 import Foundation
 
-struct DefaultCommand: AsyncParsableCommand {
+struct DefaultCommand: AsyncLoggableCommand {
     public static let configuration = CommandConfiguration(
         commandName: nil,
         shouldDisplay: false
     )
 
     @OptionGroup(visibility: .hidden)
-    var global: Flags.Global
+    public var logOptions: Flags.Logging
 
     @Argument(parsing: .captureForPassthrough)
     var remaining: [String] = []

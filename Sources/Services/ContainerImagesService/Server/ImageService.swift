@@ -107,20 +107,25 @@ public actor ImagesService {
         try writer.finishEncoding()
     }
 
-    public func load(from tarFile: URL) async throws -> [ImageDescription] {
-        self.log.info("ImagesService: \(#function) from: \(tarFile.absolutePath())")
+    public func load(from tarFile: URL, force: Bool) async throws -> ([ImageDescription], [String]) {
+        let archivePathname = tarFile.absolutePath()
+        self.log.info("ImagesService: \(#function) from: \(archivePathname)")
         let reader = try ArchiveReader(file: tarFile)
         let tempDir = FileManager.default.uniqueTemporaryDirectory()
         defer {
             try? FileManager.default.removeItem(at: tempDir)
         }
-        try reader.extractContents(to: tempDir)
+        let rejectedMembers = try reader.extractContents(to: tempDir)
+        guard rejectedMembers.isEmpty || force else {
+            throw ContainerizationError(.invalidArgument, message: "cannot load tar image with rejected paths: \(rejectedMembers)")
+        }
+
         let loaded = try await self.imageStore.load(from: tempDir)
         var images: [ImageDescription] = []
         for image in loaded {
             images.append(image.description.fromCZ)
         }
-        return images
+        return (images, rejectedMembers)
     }
 
     public func cleanupOrphanedBlobs() async throws -> ([String], UInt64) {

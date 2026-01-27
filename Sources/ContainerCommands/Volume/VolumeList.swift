@@ -21,7 +21,7 @@ import ContainerizationExtras
 import Foundation
 
 extension Application.VolumeCommand {
-    public struct VolumeList: AsyncParsableCommand {
+    public struct VolumeList: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "list",
             abstract: "List volumes",
@@ -35,7 +35,7 @@ extension Application.VolumeCommand {
         var quiet: Bool = false
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         public init() {}
 

@@ -22,7 +22,7 @@ import Foundation
 import TerminalProgress
 
 extension Application {
-    public struct ContainerCreate: AsyncParsableCommand {
+    public struct ContainerCreate: AsyncLoggableCommand {
         public init() {}
 
         public static let configuration = CommandConfiguration(
@@ -45,7 +45,7 @@ extension Application {
         var imageFetchFlags: Flags.ImageFetch
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "Image name")
         var image: String

@@ -11,6 +11,6 @@
                 "description": "Provide an XPC interface to interact with an image store."
             }
         ],
-        "defaultArguments": ["start"]
+        "defaultArguments": []
     }
 }

@@ -19,7 +19,7 @@ import ContainerAPIClient
 import Foundation
 
 extension Application.VolumeCommand {
-    public struct VolumeCreate: AsyncParsableCommand {
+    public struct VolumeCreate: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "create",
             abstract: "Create a new volume"
@@ -35,7 +35,7 @@ extension Application.VolumeCommand {
         var size: String?
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "Volume name")
         var name: String

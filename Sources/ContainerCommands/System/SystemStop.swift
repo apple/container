@@ -23,7 +23,7 @@ import Foundation
 import Logging
 
 extension Application {
-    public struct SystemStop: AsyncParsableCommand {
+    public struct SystemStop: AsyncLoggableCommand {
         private static let stopTimeoutSeconds: Int32 = 5
         private static let shutdownTimeoutSeconds: Int32 = 20
 
@@ -36,7 +36,7 @@ extension Application {
         var prefix: String = "com.apple.container."
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         public init() {}
 
@@ -66,7 +66,7 @@ extension Application {
                     let containers = try await ClientContainer.list()
                     let signal = try Signals.parseSignal("SIGTERM")
                     let opts = ContainerStopOptions(timeoutInSeconds: Self.stopTimeoutSeconds, signal: signal)
-                    let failed = try await ContainerStop.stopContainers(containers: containers, stopOptions: opts)
+                    let failed = try await ContainerStop.stopContainers(containers: containers, stopOptions: opts, log: log)
                     if !failed.isEmpty {
                         log.warning("some containers could not be stopped gracefully", metadata: ["ids": "\(failed)"])
                     }

@@ -22,7 +22,7 @@ import Dispatch
 import Foundation
 
 extension Application {
-    public struct ContainerLogs: AsyncParsableCommand {
+    public struct ContainerLogs: AsyncLoggableCommand {
         public init() {}
 
         public static let configuration = CommandConfiguration(
@@ -40,7 +40,7 @@ extension Application {
         var numLines: Int?
 
         @OptionGroup
-        var global: Flags.Global
+        public var logOptions: Flags.Logging
 
         @Argument(help: "Container ID")
         var containerId: String

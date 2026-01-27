@@ -17,6 +17,17 @@
 public enum Arch: String {
     case arm64, amd64
 
+    public init?(rawValue: String) {
+        switch rawValue.lowercased() {
+        case "arm64", "aarch64":
+            self = .arm64
+        case "amd64", "x86_64", "x86-64":
+            self = .amd64
+        default:
+            return nil
+        }
+    }
+
     public static func hostArchitecture() -> Arch {
         #if arch(arm64)
         return .arm64

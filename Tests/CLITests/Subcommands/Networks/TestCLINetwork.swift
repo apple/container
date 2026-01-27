@@ -65,7 +65,7 @@ class TestCLINetwork: CLITest {
             let url = "http://\(cidrAddress.address):\(port)"
             var request = HTTPClientRequest(url: url)
             request.method = .GET
-            let client = getClient()
+            let client = getClient(useHttpProxy: false)
             defer { _ = client.shutdown() }
             var retriesRemaining = Self.retries
             var success = false
