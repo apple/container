@@ -529,7 +529,6 @@ class TestCLIImagesCommand: CLITest {
         #expect(!size.isEmpty, "expected image to have non-empty 'fullSize' field: \(image)")
     }
 
-
     private func addInvalidMemberToTar(tarPath: String, maliciousFilename: String) throws {
         // Create a malicious entry with path traversal
         let evilEntryName = "../../../../../../../../../../../tmp/\(maliciousFilename)"
