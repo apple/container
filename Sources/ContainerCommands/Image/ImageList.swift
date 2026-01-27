@@ -42,7 +42,7 @@ extension Application {
         }
 
         static func createVerboseHeader() -> [[String]] {
-            [["NAME", "TAG", "INDEX DIGEST", "OS", "ARCH", "VARIANT", "SIZE", "CREATED", "MANIFEST DIGEST"]]
+            [["NAME", "TAG", "INDEX DIGEST", "OS", "ARCH", "VARIANT", "FULL SIZE", "CREATED", "MANIFEST DIGEST"]]
         }
 
         static func printImagesVerbose(images: [ClientImage]) async throws {
@@ -108,7 +108,17 @@ extension Application {
             }
 
             if format == .json {
-                let data = try JSONEncoder().encode(images.map { $0.description })
+                var printableImages: [PrintableImage] = []
+                for image in images {
+                    let formatter = ByteCountFormatter()
+                    let size = try await ClientImage.getFullImageSize(image: image)
+                    let formattedSize = formatter.string(fromByteCount: size)
+
+                    printableImages.append(
+                        PrintableImage(reference: image.reference, fullSize: formattedSize, descriptor: image.descriptor)
+                    )
+                }
+                let data = try JSONEncoder().encode(printableImages)
                 print(String(data: data, encoding: .utf8)!)
                 return
             }
@@ -156,6 +166,18 @@ extension Application {
                 !Utility.isInfraImage(name: img.reference)
             }
             try await printImages(images: images, format: options.format, options: options)
+        }
+
+        struct PrintableImage: Codable {
+            let reference: String
+            let fullSize: String
+            let descriptor: Descriptor
+
+            init(reference: String, fullSize: String, descriptor: Descriptor) {
+                self.reference = reference
+                self.fullSize = fullSize
+                self.descriptor = descriptor
+            }
         }
     }
 
