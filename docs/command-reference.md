@@ -432,7 +432,7 @@ No options.
 
 ### `container image list (ls)`
 
-Lists local images. Verbose output provides additional details such as image ID, creation time and size; JSON output provides the same data in machine-readable form.
+Lists local images. Verbose output provides additional details such as image ID, creation time and full size; JSON output provides the same data in machine-readable form.
 
 **Usage**
 

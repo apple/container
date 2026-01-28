@@ -505,6 +505,30 @@ class TestCLIImagesCommand: CLITest {
         }
     }
 
+    @Test func testImageFullSizeFieldExists() throws {
+        // 1. pull image
+        try doPull(imageName: alpine)
+
+        // 2. run the image ls command
+        let (_, output, error, status) = try run(arguments: ["image", "ls", "--format", "json"])
+        if status != 0 {
+            throw CLIError.executionFailed("failed to list images: \(error)")
+        }
+
+        // 3. parse the json output
+        guard let data = output.data(using: .utf8),
+            let json = try JSONSerialization.jsonObject(with: data, options: []) as? [[String: Any]],
+            let image = json.first
+        else {
+            Issue.record("failed to parse JSON output or no images found: \(output)")
+            return
+        }
+
+        // 4. check that the output has a non-empty 'fullSize' field
+        let size = image["fullSize"] as? String ?? ""
+        #expect(!size.isEmpty, "expected image to have non-empty 'fullSize' field: \(image)")
+    }
+
     private func addInvalidMemberToTar(tarPath: String, maliciousFilename: String) throws {
         // Create a malicious entry with path traversal
         let evilEntryName = "../../../../../../../../../../../tmp/\(maliciousFilename)"
