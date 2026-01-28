@@ -47,14 +47,22 @@ public class DirectoryWatcher {
         log.info("starting directory watcher for \(directoryURL.path)")
 
         let descriptor = open(directoryURL.path, O_EVTONLY)
+        guard descriptor >= 0 else {
+            throw ContainerizationError(.fileNotFound, message: "failed to open directory for watching: \(directoryURL.path)")
+        }
 
-        source = DispatchSource.makeFileSystemObjectSource(
+        let dispatchSource = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: descriptor,
             eventMask: .write,
             queue: monitorQueue
         )
 
-        source?.setEventHandler { [weak self] in
+        // Close the file descriptor when the source is cancelled
+        dispatchSource.setCancelHandler {
+            close(descriptor)
+        }
+
+        dispatchSource.setEventHandler { [weak self] in
             guard let self else { return }
 
             do {
@@ -65,7 +73,8 @@ public class DirectoryWatcher {
             }
         }
 
-        source?.resume()
+        source = dispatchSource
+        dispatchSource.resume()
     }
 
     deinit {
