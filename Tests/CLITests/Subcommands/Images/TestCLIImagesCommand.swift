@@ -517,8 +517,8 @@ class TestCLIImagesCommand: CLITest {
 
         // 3. parse the json output
         guard let data = output.data(using: .utf8),
-              let json = try JSONSerialization.jsonObject(with: data, options: []) as? [[String: Any]],
-              let image = json.first
+            let json = try JSONSerialization.jsonObject(with: data, options: []) as? [[String: Any]],
+            let image = json.first
         else {
             Issue.record("failed to parse JSON output or no images found: \(output)")
             return
