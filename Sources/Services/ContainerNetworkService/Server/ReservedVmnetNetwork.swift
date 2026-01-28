@@ -181,7 +181,7 @@ public final class ReservedVmnetNetwork: Network {
         let prefixIpv6Bytes = withUnsafeBytes(of: prefixAddr.__u6_addr.__u6_addr8) {
             Array($0)
         }
-        let prefixIpv6Addr = IPv6Address(prefixIpv6Bytes)
+        let prefixIpv6Addr = try IPv6Address(prefixIpv6Bytes)
         let runningV6Subnet = try CIDRv6(prefixIpv6Addr, prefix: prefix)
 
         log.info(

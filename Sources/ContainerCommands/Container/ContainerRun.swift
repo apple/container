@@ -161,6 +161,7 @@ extension Application {
 
                 exitCode = try await io.handleProcess(process: process, log: log)
             } catch {
+                try? await container.delete()
                 if error is ContainerizationError {
                     throw error
                 }
