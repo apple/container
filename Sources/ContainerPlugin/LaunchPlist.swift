@@ -18,7 +18,7 @@
 import Foundation
 
 public struct LaunchPlist: Encodable {
-    static let debugTarget = "CONTAINER_DEBUG"
+    static let debugTarget = "CONTAINER_DEBUG_LAUNCHD_LABEL"
 
     public enum Domain: String, Codable {
         case Aqua
