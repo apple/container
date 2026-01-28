@@ -26,7 +26,7 @@ import SwiftDiagnostics
 import SwiftSyntaxMacros
 
 @main
-struct SwiftMacrosAndMePlugin: CompilerPlugin {
+struct HelperMacrosMacros: CompilerPlugin {
     let providingMacros: [Macro.Type] = [
         OptionGroupPassthrough.self
     ]
