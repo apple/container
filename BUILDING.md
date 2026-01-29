@@ -119,6 +119,42 @@ To revert to using the Containerization dependency from your `Package.swift`:
     bin/container system start
     ```
 
+## Debug XPC Helpers
+
+Attach debugger to the XPC helpers using their launchd service labels:
+
+1. Find launchd service labels:
+
+   ```console
+   % container system start
+   % container run -d --name test debian:bookworm sleep infinity
+   test
+   % launchd list | grep container
+   27068   0       com.apple.container.container-network-vmnet.default
+   27072   0       com.apple.container.container-core-images
+   26980   0       com.apple.container.apiserver
+   27331   0       com.apple.container.container-runtime-linux.test
+   ```
+
+2. Stop container and start again after setting the environment variable `CONTAINER_DEBUG_LAUNCHD_LABEL` to the label of service to attach debugger. Services whose label starts with the `CONTAINER_DEBUG_LAUNCHD_LABEL` will wait the debugger:
+
+    ```console
+    % export CONTAINER_DEBUG_LAUNCHD_LABEL=com.apple.container.container-runtime-linux.test
+    % container system start # Only the service `com.apple.container.container-runtime-linux.test` waits debugger
+    ```
+
+    ```console
+    % export CONTAINER_DEBUG_LAUNCHD_LABEL=com.apple.container.container-runtime-linux
+    % container system start # Every service starting with `com.apple.container.container-runtime-linux` waits debugger
+    ```
+
+3. Run the command to launch the service, and attach debugger:
+
+    ```console
+    % container run -it --name test debian:bookworm
+    ⠧ [6/6] Starting container [0s] # It hangs as the service is waiting for debugger
+    ```
+
 ## Pre-commit hook
 
 Run `make pre-commit` to install a pre-commit hook that ensures that your changes have correct formatting and license headers when you run `git commit`.
