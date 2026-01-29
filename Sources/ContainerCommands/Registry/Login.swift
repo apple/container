@@ -19,6 +19,7 @@ import ContainerAPIClient
 import Containerization
 import ContainerizationError
 import ContainerizationOCI
+import ContainerVersion
 import Foundation
 
 extension Application {
@@ -89,8 +90,77 @@ extension Application {
                 )
             )
             try await client.ping()
-            try keychain.save(domain: server, username: username, password: password)
+            try Self.saveCredentials(
+                server: server,
+                username: username,
+                password: password,
+                keychainId: Constants.keychainID
+            )
             print("Login succeeded")
+        }
+
+        /// Save credentials to keychain with proper ACL to allow container-core-images plugin access.
+        /// Uses the security CLI tool to set up ACL with -T flags for both container and plugin binaries.
+        private static func saveCredentials(server: String, username: String, password: String, keychainId: String) throws {
+            // Delete existing entry first (ignore errors if not found)
+            let deleteProcess = Process()
+            deleteProcess.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+            deleteProcess.arguments = [
+                "delete-internet-password",
+                "-s", server,
+                "-d", keychainId
+            ]
+            deleteProcess.standardOutput = FileHandle.nullDevice
+            deleteProcess.standardError = FileHandle.nullDevice
+            try? deleteProcess.run()
+            deleteProcess.waitUntilExit()
+
+            // Get paths to binaries that need keychain access
+            let containerPath = CommandLine.executablePathUrl.path
+            let installRoot = CommandLine.executablePathUrl
+                .deletingLastPathComponent()
+                .appendingPathComponent("..")
+                .standardized
+            let pluginPath = installRoot
+                .appendingPathComponent("libexec/container/plugins/container-core-images/bin/container-core-images")
+                .standardized
+                .path
+
+            // Add new keychain entry with proper ACL using security CLI
+            // The -T flags grant access to specified applications
+            let addProcess = Process()
+            addProcess.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+            var args = [
+                "add-internet-password",
+                "-a", username,
+                "-s", server,
+                "-w", password,
+                "-d", keychainId,
+                "-T", containerPath,  // Grant access to container CLI
+                "-U"  // Update if exists
+            ]
+
+            // Only add plugin path if the binary exists
+            if FileManager.default.fileExists(atPath: pluginPath) {
+                args.insert(contentsOf: ["-T", pluginPath], at: args.count - 1)
+            }
+
+            addProcess.arguments = args
+            let errorPipe = Pipe()
+            addProcess.standardOutput = FileHandle.nullDevice
+            addProcess.standardError = errorPipe
+
+            try addProcess.run()
+            addProcess.waitUntilExit()
+
+            if addProcess.terminationStatus != 0 {
+                let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                let errorMessage = String(data: errorData, encoding: .utf8) ?? "unknown error"
+                throw ContainerizationError(
+                    .internalError,
+                    message: "failed to save credentials to keychain: \(errorMessage)"
+                )
+            }
         }
     }
 }
