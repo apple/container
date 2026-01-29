@@ -22,6 +22,13 @@ import ContainerizationOS
 import Foundation
 import Logging
 
+package protocol ContainerIdentifiable {
+    var id: String { get }
+    var status: RuntimeStatus { get }
+}
+
+extension ClientContainer: ContainerIdentifiable {}
+
 extension Application {
     public struct ContainerStop: AsyncLoggableCommand {
         public init() {}
@@ -46,25 +53,20 @@ extension Application {
         var containerIds: [String] = []
 
         public func validate() throws {
-            if containerIds.count == 0 && !all {
+            if containerIds.isEmpty && !all {
                 throw ContainerizationError(.invalidArgument, message: "no containers specified and --all not supplied")
             }
-            if containerIds.count > 0 && all {
+            if !containerIds.isEmpty && all {
                 throw ContainerizationError(
                     .invalidArgument, message: "explicitly supplied container IDs conflict with the --all flag")
             }
         }
 
         public mutating func run() async throws {
-            let set = Set<String>(containerIds)
-            var containers = [ClientContainer]()
-            if self.all {
-                containers = try await ClientContainer.list()
-            } else {
-                containers = try await ClientContainer.list().filter { c in
-                    set.contains(c.id)
-                }
-            }
+            let allContainers = try await ClientContainer.list()
+            let containers = try self.all
+                ? allContainers
+                : Self.containers(matching: containerIds, in: allContainers)
 
             let opts = ContainerStopOptions(
                 timeoutInSeconds: self.time,
@@ -104,6 +106,29 @@ extension Application {
             }
 
             return failed
+        }
+
+        static func containers<C: ContainerIdentifiable>(
+            matching containerIds: [String],
+            in allContainers: [C]
+        ) throws -> [C] {
+            var matched: [C] = []
+            for containerId in containerIds {
+                if let exact = allContainers.first(where: { $0.id == containerId }) {
+                    matched.append(exact)
+                    continue
+                }
+
+                let prefixMatches = allContainers.filter { $0.id.starts(with: containerId) }
+                guard !prefixMatches.isEmpty else {
+                    throw ContainerizationError(.notFound, message: "no such container: \(containerId)")
+                }
+                if prefixMatches.count > 1 {
+                    throw ContainerizationError(.invalidArgument, message: "ambiguous container ID prefix: \(containerId)")
+                }
+                matched.append(prefixMatches[0])
+            }
+            return matched
         }
     }
 }
