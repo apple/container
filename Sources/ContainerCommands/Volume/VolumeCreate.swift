@@ -51,7 +51,7 @@ extension Application.VolumeCommand {
                 parsedDriverOpts["size"] = size
             }
 
-            let volume = try await ClientVolume.create(
+            let volume = try await VolumeClient.create(
                 name: name,
                 driver: "local",
                 driverOpts: parsedDriverOpts,

@@ -40,7 +40,7 @@ extension Application.VolumeCommand {
         public init() {}
 
         public func run() async throws {
-            let volumes = try await ClientVolume.list()
+            let volumes = try await VolumeClient.list()
             try printVolumes(volumes: volumes, format: format)
         }
 
@@ -48,7 +48,7 @@ extension Application.VolumeCommand {
             [["NAME", "TYPE", "DRIVER", "OPTIONS"]]
         }
 
-        func printVolumes(volumes: [Volume], format: Application.ListFormat) throws {
+        func printVolumes(volumes: [VolumeResource], format: Application.ListFormat) throws {
             if format == .json {
                 let data = try JSONEncoder().encode(volumes)
                 print(String(data: data, encoding: .utf8)!)
@@ -64,7 +64,7 @@ extension Application.VolumeCommand {
 
             // Sort volumes by creation time (newest first)
             let sortedVolumes = volumes.sorted { v1, v2 in
-                v1.createdAt > v2.createdAt
+                v1.creationDate > v2.creationDate
             }
 
             var rows = createHeader()
@@ -78,7 +78,7 @@ extension Application.VolumeCommand {
     }
 }
 
-extension Volume {
+extension VolumeResource {
     var asRow: [String] {
         let volumeType = self.isAnonymous ? "anonymous" : "named"
         let optionsString = options.isEmpty ? "" : options.map { "\($0.key)=\($0.value)" }.joined(separator: ",")

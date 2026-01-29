@@ -186,6 +186,41 @@ extension ClientImage {
         return (found, errors)
     }
 
+    /// NOTE: This will be stripped out and/or updated before merge.
+    /// It is a representation of how we would need to handle a collection of resources.
+    public static func getWithPartialErrors(names: [String]) async throws -> [ClientImage] {
+        let all = try await self.list()
+        var errors: [ManagedResourceError<ImageResource>] = []
+        var found: [ClientImage] = []
+        for name in names {
+            do {
+                guard let img = try Self._search(reference: name, in: all) else {
+                    errors.append(
+                        ManagedResourceError<ImageResource>(
+                            code: .imageNotFound,
+                            resourceName: name
+                        )
+                    )
+                    continue
+                }
+                found.append(img)
+            } catch {
+                errors.append(
+                    ManagedResourceError<ImageResource>(
+                        code: .imageNotFound,
+                        resourceName: name
+                    )
+                )
+            }
+        }
+
+        if !errors.isEmpty {
+            throw ManagedResourcePartialError(successes: found, failures: errors)
+        }
+
+        return found
+    }
+
     public static func get(reference: String) async throws -> ClientImage {
         let all = try await self.list()
         guard let found = try self._search(reference: reference, in: all) else {
