@@ -131,6 +131,9 @@ extension Application {
         @Argument(help: "Build directory")
         var contextDir: String = "."
 
+        @Flag(name: .long, help: "Pull latest image")
+        var pull: Bool = false
+
         public func run() async throws {
             do {
                 let timeout: Duration = .seconds(300)
@@ -313,7 +316,7 @@ extension Application {
                         }
                         return results
                     }()
-                    group.addTask { [terminal, buildArg, contextDir, label, noCache, target, quiet, cacheIn, cacheOut] in
+                    group.addTask { [terminal, buildArg, contextDir, label, noCache, target, quiet, cacheIn, cacheOut, pull] in
                         let config = Builder.BuildConfig(
                             buildID: buildID,
                             contentStore: RemoteContentStoreClient(),
@@ -329,7 +332,8 @@ extension Application {
                             quiet: quiet,
                             exports: exports,
                             cacheIn: cacheIn,
-                            cacheOut: cacheOut
+                            cacheOut: cacheOut,
+                            pull: pull
                         )
                         progress.finish()
 

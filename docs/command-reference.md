@@ -131,6 +131,7 @@ container build [<options>] [<context-dir>]
 *   `--os <value>`: Add the OS type to the build
 *   `--platform <platform>`: Add the platform to the build (format: os/arch[/variant], takes precedence over --os and --arch)
 *   `--progress <type>`: Progress type (format: auto|plain|tty) (default: auto)
+*   `--pull`: Pull latest image
 *   `-q, --quiet`: Suppress build output
 *   `-t, --tag <name>`: Name for the built image (can be specified multiple times)
 *   `--target <stage>`: Set the target build stage
