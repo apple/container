@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerAPIClient
 import ContainerResource
 import ContainerXPC
 import ContainerizationError
@@ -66,5 +67,84 @@ public struct NetworksHarness: Sendable {
         try await service.delete(id: id)
 
         return message.reply()
+    }
+
+    @Sendable
+    public func allocate(_ message: XPCMessage) async throws -> XPCMessage {
+        let id = message.string(key: .networkId)
+        guard let id else {
+            throw ContainerizationError(.invalidArgument, message: "id cannot be empty")
+        }
+
+        let hostname = message.string(key: .networkHostname)
+        guard let hostname else {
+            throw ContainerizationError(.invalidArgument, message: "hostname cannot be empty")
+        }
+
+        let macAddress = message.string(key: .networkMACAddress)
+
+        let reply = message.reply()
+        let (attachment, additionalData) = try await service.allocate(
+            id: id,
+            hostname: hostname,
+            macAddress: macAddress
+        )
+        let attachmentData = try JSONEncoder().encode(attachment)
+        reply.set(key: .networkAttachment, value: attachmentData)
+
+        if let additionalData {
+            xpc_dictionary_set_value(reply.underlying, XPCKeys.networkAdditionalData.rawValue, additionalData.underlying)
+        }
+        return reply
+    }
+
+    @Sendable
+    public func deallocate(_ message: XPCMessage) async throws -> XPCMessage {
+        let id = message.string(key: .networkId)
+        guard let id else {
+            throw ContainerizationError(.invalidArgument, message: "id cannot be empty")
+        }
+
+        let hostname = message.string(key: .networkHostname)
+        guard let hostname else {
+            throw ContainerizationError(.invalidArgument, message: "hostname cannot be empty")
+        }
+
+        try await service.deallocate(id: id, hostname: hostname)
+        return message.reply()
+    }
+
+    @Sendable
+    public func lookup(_ message: XPCMessage) async throws -> XPCMessage {
+        let id = message.string(key: .networkId)
+        guard let id else {
+            throw ContainerizationError(.invalidArgument, message: "id cannot be empty")
+        }
+
+        let hostname = message.string(key: .networkHostname)
+        guard let hostname else {
+            throw ContainerizationError(.invalidArgument, message: "hostname cannot be empty")
+        }
+
+        let reply = message.reply()
+        let attachment = try await service.lookup(id: id, hostname: hostname)
+        if let attachment {
+            let attachmentData = try JSONEncoder().encode(attachment)
+            reply.set(key: .networkAttachment, value: attachmentData)
+        }
+        return reply
+    }
+
+    @Sendable
+    public func disableAllocator(_ message: XPCMessage) async throws -> XPCMessage {
+        let id = message.string(key: .networkId)
+        guard let id else {
+            throw ContainerizationError(.invalidArgument, message: "id cannot be empty")
+        }
+
+        let reply = message.reply()
+        let success = try await service.disableAllocator(id: id)
+        reply.set(key: .networkDisableAllocator, value: success)
+        return reply
     }
 }
