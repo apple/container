@@ -282,4 +282,28 @@ extension ImagesServiceHarness {
         reply.set(key: .filesystem, value: fsData)
         return reply
     }
+
+    @Sendable
+    public func getSnapshotSize(_ message: XPCMessage) async throws -> XPCMessage {
+        let descriptionData = message.dataNoCopy(key: .imageDescription)
+        guard let descriptionData else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "missing image description"
+            )
+        }
+        let description = try JSONDecoder().decode(ImageDescription.self, from: descriptionData)
+        let platformData = message.dataNoCopy(key: .ociPlatform)
+        guard let platformData else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "missing OCI platform"
+            )
+        }
+        let platform = try JSONDecoder().decode(ContainerizationOCI.Platform.self, from: platformData)
+        let size = try await self.service.getSnapshotSize(description: description, platform: platform)
+        let reply = message.reply()
+        reply.set(key: .imageSize, value: size)
+        return reply
+    }
 }
