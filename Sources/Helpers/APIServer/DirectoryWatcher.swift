@@ -47,9 +47,6 @@ public class DirectoryWatcher {
         log.info("starting directory watcher for \(directoryURL.path)")
 
         let descriptor = open(directoryURL.path, O_EVTONLY)
-        guard descriptor >= 0 else {
-            throw ContainerizationError(.fileNotFound, message: "failed to open directory for watching: \(directoryURL.path)")
-        }
 
         let dispatchSource = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: descriptor,
