@@ -347,6 +347,7 @@ public struct Utility {
         let labels = parsed.isAnonymous ? [Volume.anonymousLabel: ""] : [:]
 
         let volume: Volume
+        var wasCreated = false
         do {
             volume = try await ClientVolume.create(
                 name: parsed.name,
@@ -354,6 +355,7 @@ public struct Utility {
                 driverOpts: [:],
                 labels: labels
             )
+            wasCreated = true
         } catch let error as VolumeError {
             guard case .volumeAlreadyExists = error else {
                 throw error
@@ -368,7 +370,9 @@ public struct Utility {
             volume = try await ClientVolume.inspect(parsed.name)
         }
 
-        // TODO: Warn user if named volume was auto-created
+        if wasCreated && !parsed.isAnonymous {
+            print("Warning: volume \"\(parsed.name)\" not found, auto-created")
+        }
 
         return volume
     }
