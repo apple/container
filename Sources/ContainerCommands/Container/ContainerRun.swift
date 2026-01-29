@@ -111,7 +111,8 @@ extension Application {
             let container = try await ClientContainer.create(
                 configuration: ck.0,
                 options: options,
-                kernel: ck.1
+                kernel: ck.1,
+                initImage: ck.2
             )
 
             let detach = self.managementFlags.detach
