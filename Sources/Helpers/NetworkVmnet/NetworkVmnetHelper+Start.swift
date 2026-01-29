@@ -29,6 +29,8 @@ enum Variant: String, ExpressibleByArgument {
     case allocationOnly
 }
 
+extension NetworkMode: ExpressibleByArgument {}
+
 extension NetworkVmnetHelper {
     struct Start: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
