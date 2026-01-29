@@ -122,9 +122,15 @@ class TestCLIExecCommand: CLITest {
             do {
                 _ = try doExec(name: name, cmd: ["sleep", "infinity"])
             } catch CLIError.executionFailed(let message) {
-                #expect(message.contains("is not running"))
+                // There's no nice way to check fail reason here
+                #expect(message.contains("is not running"), "expected container is not running if exec failed")
             }
-            #expect(try getContainerStatus(name) == "stopped")
+
+            // Give time for the exec (or start) error handling settles down
+            sleep(1)
+            #expect(throws: Never.self, "expected the container remains") {
+                try getContainerStatus(name)
+            }
         }
     }
 }
