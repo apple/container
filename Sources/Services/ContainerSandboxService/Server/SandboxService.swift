@@ -865,16 +865,49 @@ public actor SandboxService {
     }
 
     private func getDefaultNameservers(attachmentConfigurations: [AttachmentConfiguration]) async throws -> [String] {
+        var nameservers: [String] = []
+
         for attachmentConfiguration in attachmentConfigurations {
             let client = NetworkClient(id: attachmentConfiguration.network)
             let state = try await client.state()
             guard case .running(_, let status) = state else {
                 continue
             }
-            return [status.ipv4Gateway.description]
+            nameservers.append(status.ipv4Gateway.description)
+            break
         }
 
-        return []
+        let systemNameservers = self.getSystemNameservers()
+        for ns in systemNameservers {
+            if !nameservers.contains(ns) {
+                nameservers.append(ns)
+            }
+        }
+
+        return nameservers
+    }
+
+    private func getSystemNameservers() -> [String] {
+        let path = "/etc/resolv.conf"
+        guard let content = try? String(contentsOfFile: path, encoding: .utf8) else {
+            return []
+        }
+
+        var nameservers: [String] = []
+        let lines = content.components(separatedBy: .newlines)
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.starts(with: "nameserver") {
+                let parts = trimmed.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+                if parts.count >= 2 {
+                    let ip = parts[1]
+                    if ip != "127.0.0.1" && ip != "::1" && ip != "0.0.0.0" {
+                        nameservers.append(ip)
+                    }
+                }
+            }
+        }
+        return nameservers
     }
 
     private static func configureInitialProcess(
