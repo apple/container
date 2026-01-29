@@ -42,4 +42,9 @@ public enum SandboxKeys: String {
 
     /// Container statistics
     case statistics
+
+    /// Container bundle creation keys.
+    case containerConfiguration
+    case kernel
+    case createOptions
 }

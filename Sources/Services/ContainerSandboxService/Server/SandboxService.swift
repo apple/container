@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerAPIClient
 import ContainerNetworkServiceClient
 import ContainerPersistence
 import ContainerResource
@@ -82,7 +83,60 @@ public actor SandboxService {
         self.connection = connection
     }
 
-    /// Returns an endpoint from an anonymous xpc connection.
+    /// Create a container bundle from the provided configuration, kernel, and options.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with the following parameters:
+    ///     - configuration: JSON serialization of the `ContainerConfiguration`
+    ///     - kernel: JSON serialization of the `Kernel`
+    ///     - options: JSON serialization of the `ContainerCreateOptions`
+    ///
+    /// - Returns: An XPC message with no parameters.
+    @Sendable
+    public func createBundle(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`createBundle` xpc handler")
+        return try await self.lock.withLock { _ in
+            guard await self.state == .created else {
+                throw ContainerizationError(
+                    .invalidState,
+                    message: "container expected to be in created state, got: \(await self.state)"
+                )
+            }
+
+            let configuration = try message.containerConfiguration()
+            let kernel = try message.kernel()
+            let options = try message.createOptions()
+
+            let path = self.root
+            let systemPlatform = kernel.platform
+            let initFs = try await self.getInitBlock(for: systemPlatform.ociPlatform())
+
+            let bundle = try ContainerResource.Bundle.create(
+                path: path,
+                initialFilesystem: initFs,
+                kernel: kernel,
+                containerConfiguration: configuration
+            )
+
+            do {
+                let containerImage = ClientImage(description: configuration.image)
+                let imageFs = try await containerImage.getCreateSnapshot(platform: configuration.platform)
+                try bundle.setContainerRootFs(cloning: imageFs)
+                try bundle.write(filename: "options.json", value: options)
+            } catch {
+                do {
+                    try bundle.delete()
+                } catch {
+                    self.log.error("failed to delete bundle for container \(configuration.id): \(error)")
+                }
+                throw error
+            }
+
+            return message.reply()
+        }
+    }
+
+    /// Create an endpoint from an anonymous xpc connection.
     ///
     /// - Parameters:
     ///   - message: An XPC message with no parameters.
@@ -1014,6 +1068,13 @@ public actor SandboxService {
         return code
     }
 
+    private func getInitBlock(for platform: Platform) async throws -> Filesystem {
+        let initImage = try await ClientImage.fetch(reference: ClientImage.initImageRef, platform: platform)
+        var fs = try await initImage.getCreateSnapshot(platform: platform)
+        fs.options = ["ro"]
+        return fs
+    }
+
     private func cleanupContainer(containerInfo: ContainerInfo, exitStatus: ExitStatus? = nil) async throws {
         let container = containerInfo.container
         let id = container.id
@@ -1084,6 +1145,27 @@ extension XPCMessage {
             throw ContainerizationError(.invalidArgument, message: "empty process configuration")
         }
         return try JSONDecoder().decode(ProcessConfiguration.self, from: data)
+    }
+
+    fileprivate func containerConfiguration() throws -> ContainerConfiguration {
+        guard let data = self.dataNoCopy(key: SandboxKeys.containerConfiguration.rawValue) else {
+            throw ContainerizationError(.invalidArgument, message: "empty container configuration")
+        }
+        return try JSONDecoder().decode(ContainerConfiguration.self, from: data)
+    }
+
+    fileprivate func kernel() throws -> Kernel {
+        guard let data = self.dataNoCopy(key: SandboxKeys.kernel.rawValue) else {
+            throw ContainerizationError(.invalidArgument, message: "empty kernel")
+        }
+        return try JSONDecoder().decode(Kernel.self, from: data)
+    }
+
+    fileprivate func createOptions() throws -> ContainerCreateOptions {
+        guard let data = self.dataNoCopy(key: SandboxKeys.createOptions.rawValue) else {
+            throw ContainerizationError(.invalidArgument, message: "empty create options")
+        }
+        return try JSONDecoder().decode(ContainerCreateOptions.self, from: data)
     }
 }
 

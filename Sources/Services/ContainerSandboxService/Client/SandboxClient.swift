@@ -298,6 +298,29 @@ extension SandboxClient {
 
         return try JSONDecoder().decode(ContainerStats.self, from: data)
     }
+
+    public func createBundle(configuration: ContainerConfiguration, kernel: Kernel, options: ContainerCreateOptions) async throws {
+        let request = XPCMessage(route: SandboxRoutes.createBundle.rawValue)
+
+        let configData = try JSONEncoder().encode(configuration)
+        request.set(key: SandboxKeys.containerConfiguration.rawValue, value: configData)
+
+        let kernelData = try JSONEncoder().encode(kernel)
+        request.set(key: SandboxKeys.kernel.rawValue, value: kernelData)
+
+        let optionsData = try JSONEncoder().encode(options)
+        request.set(key: SandboxKeys.createOptions.rawValue, value: optionsData)
+
+        do {
+            try await self.client.send(request)
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to create bundle for container \(self.id)",
+                cause: error
+            )
+        }
+    }
 }
 
 extension XPCMessage {

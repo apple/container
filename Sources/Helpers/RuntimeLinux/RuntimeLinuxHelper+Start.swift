@@ -88,6 +88,7 @@ extension RuntimeLinuxHelper {
                 let mainServer = XPCServer(
                     connection: anonymousConnection,
                     routes: [
+                        SandboxRoutes.createBundle.rawValue: server.createBundle,
                         SandboxRoutes.bootstrap.rawValue: server.bootstrap,
                         SandboxRoutes.createProcess.rawValue: server.createProcess,
                         SandboxRoutes.state.rawValue: server.state,
