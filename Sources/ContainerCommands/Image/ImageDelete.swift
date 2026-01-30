@@ -28,6 +28,9 @@ extension Application {
         @Flag(name: .shortAndLong, help: "Delete all images")
         var all: Bool = false
 
+        @Flag(name: .shortAndLong, help: "Ignore errors for images that are not found")
+        var force: Bool = false
+
         @Argument
         var images: [String] = []
     }
@@ -51,7 +54,7 @@ extension Application {
                 }
                 return try await ClientImage.get(names: options.images)
             }()
-            var failures: [String] = notFound
+            var failures: [String] = options.force ? [] : notFound
             var didDeleteAnyImage = false
             for image in found {
                 guard !Utility.isInfraImage(name: image.reference) else {

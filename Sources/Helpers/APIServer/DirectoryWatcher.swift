@@ -59,9 +59,9 @@ public class DirectoryWatcher {
 
             do {
                 let files = try FileManager.default.contentsOfDirectory(atPath: directoryURL.path)
-                try? handler(files.map { directoryURL.appending(path: $0) })
+                try handler(files.map { directoryURL.appending(path: $0) })
             } catch {
-                self.log.info("failed to run handler for \(directoryURL.path)")
+                self.log.error("failed to run DirectoryWatcher handler", metadata: ["error": "\(error)", "path": "\(directoryURL.path)"])
             }
         }
 

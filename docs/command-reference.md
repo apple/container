@@ -414,11 +414,25 @@ container stats --no-stream web
 container stats --format json --no-stream web
 ```
 
+### `container prune`
+
+Removes stopped containers to reclaim disk space. The command outputs the amount of space freed after deletion.
+
+**Usage**
+
+```bash
+container prune [--debug]
+```
+
+**Options**
+
+No options.
+
 ## Image Management
 
 ### `container image list (ls)`
 
-Lists local images. Verbose output provides additional details such as image ID, creation time and size; JSON output provides the same data in machine-readable form.
+Lists local images. Verbose output provides additional details such as image ID, creation time and full size; JSON output provides the same data in machine-readable form.
 
 **Usage**
 
@@ -538,7 +552,7 @@ Deletes one or more images. If no images are provided, `--all` can be used to de
 **Usage**
 
 ```bash
-container image delete [--all] [--debug] [<images> ...]
+container image delete [--all] [--force] [--debug] [<images> ...]
 ```
 
 **Arguments**
@@ -548,6 +562,7 @@ container image delete [--all] [--debug] [<images> ...]
 **Options**
 
 *   `-a, --all`: Delete all images
+*   `-f, --force`: Ignore errors for images that are not found
 
 ### `container image prune`
 

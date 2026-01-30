@@ -190,4 +190,61 @@ class TestCLINetwork: CLITest {
             return
         }
     }
+
+    @available(macOS 26, *)
+    @Test func testIsolatedNetwork() async throws {
+        do {
+            let name = getLowercasedTestName()
+            let networkDeleteArgs = ["network", "delete", name]
+            _ = try? run(arguments: networkDeleteArgs)
+
+            let networkCreateArgs = ["network", "create", "--internal", name]
+            let result = try run(arguments: networkCreateArgs)
+            if result.status != 0 {
+                throw CLIError.executionFailed("command failed: \(result.error)")
+            }
+            defer {
+                _ = try? run(arguments: networkDeleteArgs)
+            }
+            let port = UInt16.random(in: 50000..<60000)
+            try doLongRun(
+                name: name,
+                image: "docker.io/library/python:alpine",
+                args: ["--network", name],
+                containerArgs: ["python3", "-m", "http.server", "--bind", "0.0.0.0", "\(port)"]
+            )
+            defer {
+                try? doStop(name: name)
+            }
+
+            let container = try inspectContainer(name)
+            #expect(container.networks.count > 0)
+            let curlImage = "docker.io/curlimages/curl:8.6.0"
+            let cidrAddress = container.networks[0].ipv4Address
+            let url = "http://\(cidrAddress.address):\(port)"
+            let (_, _, _, succeed) = try run(arguments: [
+                "run",
+                "--rm",
+                "--network",
+                name,
+                curlImage,
+                "curl",
+                url,
+            ])
+
+            #expect(succeed == 0, "internal connection should succeed")
+
+            let (_, _, _, failed) = try run(arguments: [
+                "run",
+                "--rm",
+                "--network",
+                name,
+                curlImage,
+                "curl",
+                "http://google.com",
+            ])
+
+            #expect(failed == 6, "external connection should fail")
+        }
+    }
 }

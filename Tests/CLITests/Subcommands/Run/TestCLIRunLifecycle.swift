@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationError
 import Testing
 
 class TestCLIRunLifecycle: CLITest {
@@ -82,5 +83,33 @@ class TestCLIRunLifecycle: CLITest {
 
             try self.doStop(name: name)
         }
+    }
+
+    @Test func testStartPortBindFails() async throws {
+        let port = UInt16.random(in: 50000..<60000)
+
+        let name = getTestName()
+        try self.doCreate(name: name, ports: ["\(port)"])
+        defer {
+            try? self.doRemove(name: name)
+        }
+
+        let server = "\(name)-server"
+        try doLongRun(
+            name: server,
+            image: "docker.io/library/python:alpine",
+            args: ["--publish", "\(port):\(port)"],
+            containerArgs: ["python3", "-m", "http.server", "\(port)"]
+        )
+        defer {
+            try? doStop(name: server)
+        }
+
+        #expect(throws: CLIError.self) {
+            try doStart(name: name)
+        }
+
+        let status = try getContainerStatus(name)
+        #expect(status == "stopped")
     }
 }
