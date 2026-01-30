@@ -159,40 +159,44 @@ public struct PacketFilter {
     }
 
     public func reinitialize() throws {
+        let null = FileHandle.nullDevice
+
+        let checkProcess = Foundation.Process()
+        var checkStatus: Int32
+        checkProcess.executableURL = URL(fileURLWithPath: "/sbin/pfctl")
+        checkProcess.arguments = ["-n", "-f", configURL.path]
+        checkProcess.standardOutput = null
+        checkProcess.standardError = null
+
         do {
-            let pfctl = Foundation.Process()
-            let null = FileHandle.nullDevice
-            var status: Int32
-
-            pfctl.executableURL = URL(fileURLWithPath: "/sbin/pfctl")
-            pfctl.arguments = ["-n", "-f", configURL.path]
-            pfctl.standardOutput = null
-            pfctl.standardError = null
-
-            try pfctl.run()
-            pfctl.waitUntilExit()
-            status = pfctl.terminationStatus
-            guard status == 0 else {
-                throw ContainerizationError(.internalError, message: "invalid pf config \"\(configURL.path)\"")
-            }
+            try checkProcess.run()
+        } catch {
+            throw ContainerizationError(.internalError, message: "pfctl rule check exec failed: \"\(error)\"")
         }
 
+        checkProcess.waitUntilExit()
+        checkStatus = checkProcess.terminationStatus
+        guard checkStatus == 0 else {
+            throw ContainerizationError(.internalError, message: "invalid pf config \"\(configURL.path)\"")
+        }
+
+        let reloadProcess = Foundation.Process()
+        var reloadStatus: Int32
+
+        reloadProcess.executableURL = URL(fileURLWithPath: "/sbin/reloadProcess")
+        reloadProcess.arguments = ["-f", configURL.path]
+        reloadProcess.standardOutput = null
+        reloadProcess.standardError = null
+
         do {
-            let pfctl = Foundation.Process()
-            let null = FileHandle.nullDevice
-            var status: Int32
-
-            pfctl.executableURL = URL(fileURLWithPath: "/sbin/pfctl")
-            pfctl.arguments = ["-f", configURL.path]
-            pfctl.standardOutput = null
-            pfctl.standardError = null
-
-            try pfctl.run()
-            pfctl.waitUntilExit()
-            status = pfctl.terminationStatus
-            guard status == 0 else {
-                throw ContainerizationError(.invalidState, message: "pfctl -f \"\(configURL.path)\" failed with status \(status)")
-            }
+            try reloadProcess.run()
+        } catch {
+            throw ContainerizationError(.internalError, message: "pfctl reload exec failed: \"\(error)\"")
+        }
+        reloadProcess.waitUntilExit()
+        reloadStatus = reloadProcess.terminationStatus
+        guard reloadStatus == 0 else {
+            throw ContainerizationError(.invalidState, message: "pfctl -f \"\(configURL.path)\" failed with status \(reloadStatus)")
         }
     }
 }
