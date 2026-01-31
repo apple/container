@@ -86,4 +86,11 @@ extension ClientNetwork {
         request.set(key: .networkId, value: id)
         try await client.send(request)
     }
+
+    /// Retrieve the builtin network.
+    public static var builtin: NetworkState? {
+        get async throws {
+            try await list().first { $0.isBuiltin }
+        }
+    }
 }
