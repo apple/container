@@ -14,7 +14,6 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-
 /// NOTE: This is just a basic representation of the ImageResource and will be stripped out and/or updated before merge.
 /// This was needed in order to use the ManagedResourceError and ManagedResourcePartialError types
 
@@ -43,8 +42,11 @@ public struct ImageResource: ManagedResource {
         self.labels = labels
     }
 
+    public static func generateId() -> String {
+        ""
+    }
+
     public static func nameValid(_ name: String) -> Bool {
-        // TODO
         true
     }
 }
