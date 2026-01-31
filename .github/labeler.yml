@@ -3,3 +3,102 @@ cli:
     - any-glob-to-any-file:
       - 'Sources/CLI/**'
       - 'Sources/ContainerCommands/**'
+
+api:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Sources/Services/ContainerAPIService/**'
+
+sandbox:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Sources/Services/ContainerSandboxService/**'
+
+networking:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Sources/Services/ContainerNetworkService/**'
+      - 'Sources/DNSServer/**'
+
+images:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Sources/Services/ContainerImagesService/**'
+
+build:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Sources/ContainerBuild/**'
+
+tests:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Tests/**'
+
+documentation:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.md'
+      - 'docs/**'
+
+ci:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/**'
+
+dependencies:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Package.swift'
+      - 'Package.resolved'
+
+xpc:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Sources/ContainerXPC/**'
+
+persistence:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Sources/ContainerPersistence/**'
+
+plugins:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Sources/ContainerPlugin/**'
+
+resources:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Sources/ContainerResource/**'
+
+helpers:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Sources/Helpers/**'
+
+logging:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Sources/ContainerLog/**'
+
+version:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Sources/ContainerVersion/**'
+      - 'Sources/CVersion/**'
+
+socket-forwarding:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Sources/SocketForwarder/**'
+
+terminal:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Sources/TerminalProgress/**'
+
+audit:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Sources/CAuditToken/**'
