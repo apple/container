@@ -181,9 +181,9 @@ extension DefaultsStore.Keys {
             }
             return "ghcr.io/apple/containerization/vminit:\(tag)"
         case .defaultKernelBinaryPath:
-            return "opt/kata/share/kata-containers/vmlinux-6.12.28-153"
+            return "opt/kata/share/kata-containers/vmlinux-6.12.42-162"
         case .defaultKernelURL:
-            return "https://github.com/kata-containers/kata-containers/releases/download/3.17.0/kata-static-3.17.0-arm64.tar.xz"
+            return "https://github.com/kata-containers/kata-containers/releases/download/3.20.0/kata-static-3.20.0-arm64.tar.xz"
         case .defaultSubnet:
             return "192.168.64.1/24"
         case .defaultIPv6Subnet:

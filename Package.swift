@@ -23,7 +23,7 @@ import PackageDescription
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
 let builderShimVersion = "0.7.0"
-let scVersion = "0.21.1"
+let scVersion = "0.23.2"
 
 let package = Package(
     name: "container",
@@ -43,6 +43,7 @@ let package = Package(
         .library(name: "ContainerVersion", targets: ["ContainerVersion"]),
         .library(name: "ContainerXPC", targets: ["ContainerXPC"]),
         .library(name: "SocketForwarder", targets: ["SocketForwarder"]),
+        .library(name: "TerminalProgress", targets: ["TerminalProgress"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
