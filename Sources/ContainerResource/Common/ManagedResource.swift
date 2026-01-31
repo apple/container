@@ -40,7 +40,39 @@ public protocol ManagedResource: Identifiable, Sendable, Codable {
 
     /// Returns true only if the specified resource name is syntactically valid.
     static func nameValid(_ name: String) -> Bool
+
+    /// The specific error codes that the resource can produce.
+    associatedtype ErrorCode: ManagedResourceErrorCode
 }
+
+/// A structured error representing a failure while operating on a managed resource.
+public struct ManagedResourceError<Resource: ManagedResource>: Error, Sendable {
+    /// The kind of failure that occurred.
+    public let code: Resource.ErrorCode
+
+    /// The system-assigned identifier of the resource.
+    public let id: String?
+
+    /// The user-assigned name of the resource.
+    public let name: String?
+
+    /// A human-readable error message.
+    public let message: String
+
+    public init(
+        code: Resource.ErrorCode,
+        id: String? = nil,
+        name: String? = nil,
+        message: String
+    ) {
+        self.code = code
+        self.id = id
+        self.name = name
+        self.message = message
+    }
+}
+
+public protocol ManagedResourceErrorCode: Sendable, Codable, Hashable {}
 
 extension ManagedResource {
     /// Generate a random identifier that has the format of an ASCII SHA-256 hash.
