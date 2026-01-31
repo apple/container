@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationError
 import Foundation
 
 /// Common properties for all managed resources.
@@ -40,7 +41,34 @@ public protocol ManagedResource: Identifiable, Sendable, Codable {
 
     /// Returns true only if the specified resource name is syntactically valid.
     static func nameValid(_ name: String) -> Bool
+
+    /// The specific error codes that the resource can produce.
+    associatedtype ErrorCode: ManagedResourceErrorCode
 }
+
+/// A structured error representing a failure while operating on a managed resource.
+public struct ManagedResourceError<Resource: ManagedResource>: Error, Sendable {
+    /// The kind of failure that occurred.
+    public let code: Resource.ErrorCode
+
+    /// The name of the resource.
+    public let resourceName: String?
+
+    /// The underlying containerization error.
+    public let containerizationError: ContainerizationError?
+
+    public init(
+        code: Resource.ErrorCode,
+        resourceName: String? = nil,
+        containerizationError: ContainerizationError? = nil,
+    ) {
+        self.code = code
+        self.resourceName = resourceName
+        self.containerizationError = containerizationError
+    }
+}
+
+public protocol ManagedResourceErrorCode: Sendable, Codable, Hashable {}
 
 extension ManagedResource {
     /// Generate a random identifier that has the format of an ASCII SHA-256 hash.
