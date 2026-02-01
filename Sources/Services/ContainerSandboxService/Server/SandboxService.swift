@@ -681,8 +681,11 @@ public actor SandboxService {
         }
 
         let containerInfo = try self.getContainer()
-
-        let czConfig = self.configureProcessConfig(config: processInfo.config, stdio: processInfo.io, containerConfig: containerInfo.config)
+        let czConfig = try self.configureProcessConfig(
+            config: processInfo.config,
+            stdio: processInfo.io,
+            containerConfig: containerInfo.config
+        )
 
         let process = try await container.exec(id, configuration: czConfig)
         try self.setUnderlyingProcess(id, process)
@@ -861,7 +864,7 @@ public actor SandboxService {
                 searchDomains: dns.searchDomains, options: dns.options)
         }
 
-        Self.configureInitialProcess(czConfig: &czConfig, config: config)
+        try Self.configureInitialProcess(czConfig: &czConfig, config: config)
     }
 
     private func getDefaultNameservers(attachmentConfigurations: [AttachmentConfiguration]) async throws -> [String] {
@@ -880,7 +883,7 @@ public actor SandboxService {
     private static func configureInitialProcess(
         czConfig: inout LinuxContainer.Configuration,
         config: ContainerConfiguration
-    ) {
+    ) throws {
         let process = config.initProcess
 
         czConfig.process.arguments = [process.executable] + process.arguments
@@ -894,8 +897,12 @@ public actor SandboxService {
 
         czConfig.process.terminal = process.terminal
         czConfig.process.workingDirectory = process.workingDirectory
-        czConfig.process.rlimits = process.rlimits.map {
-            .init(type: $0.limit, hard: $0.hard, soft: $0.soft)
+        try czConfig.process.rlimits = process.rlimits.map {
+            LinuxRLimit(
+                kind: try LinuxRLimit.Kind($0.limit),
+                hard: $0.hard,
+                soft: $0.soft
+            )
         }
         switch process.user {
         case .raw(let name):
@@ -918,7 +925,7 @@ public actor SandboxService {
     }
 
     private nonisolated func configureProcessConfig(config: ProcessConfiguration, stdio: [FileHandle?], containerConfig: ContainerConfiguration)
-        -> LinuxProcessConfiguration
+        throws -> LinuxProcessConfiguration
     {
         var proc = LinuxProcessConfiguration()
         proc.stdin = stdio[0]
@@ -936,8 +943,12 @@ public actor SandboxService {
 
         proc.terminal = config.terminal
         proc.workingDirectory = config.workingDirectory
-        proc.rlimits = config.rlimits.map {
-            .init(type: $0.limit, hard: $0.hard, soft: $0.soft)
+        try proc.rlimits = config.rlimits.map {
+            LinuxRLimit(
+                kind: try LinuxRLimit.Kind($0.limit),
+                hard: $0.hard,
+                soft: $0.soft
+            )
         }
         switch config.user {
         case .raw(let name):
