@@ -57,15 +57,19 @@ public enum NetworkState: Codable, Sendable {
 
     public var id: String {
         switch self {
-        case .created(let configuration): configuration.id
-        case .running(let configuration, _): configuration.id
+        case .created(let config), .running(let config, _): config.id
         }
     }
 
     public var creationDate: Date {
         switch self {
-        case .created(let configuration): configuration.creationDate
-        case .running(let configuration, _): configuration.creationDate
+        case .created(let config), .running(let config, _): config.creationDate
+        }
+    }
+
+    public var isBuiltin: Bool {
+        switch self {
+        case .created(let config), .running(let config, _): config.labels.isBuiltin
         }
     }
 }

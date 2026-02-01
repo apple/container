@@ -264,10 +264,14 @@ extension APIServer {
             )
 
             let defaultNetwork = try await service.list()
-                .filter { $0.id == ClientNetwork.defaultNetworkName }
+                .filter { $0.isBuiltin }
                 .first
             if defaultNetwork == nil {
-                let config = try NetworkConfiguration(id: ClientNetwork.defaultNetworkName, mode: .nat)
+                let config = try NetworkConfiguration(
+                    id: ClientNetwork.defaultNetworkName,
+                    mode: .nat,
+                    labels: [ResourceLabelKeys.role: ResourceRoleValues.builtin]
+                )
                 _ = try await service.create(configuration: config)
             }
 

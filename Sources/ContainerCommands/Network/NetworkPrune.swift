@@ -41,7 +41,7 @@ extension Application.NetworkCommand {
             }
 
             let networksToPrune = allNetworks.filter { network in
-                network.id != ClientNetwork.defaultNetworkName && !networksInUse.contains(network.id)
+                !network.isBuiltin && !networksInUse.contains(network.id)
             }
 
             var prunedNetworks = [String]()
