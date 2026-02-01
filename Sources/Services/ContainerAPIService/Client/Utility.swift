@@ -190,9 +190,6 @@ public struct Utility {
         config.virtualization = management.virtualization
 
         // Parse network specifications with properties
-        guard let builtinNetworkId = try await ClientNetwork.builtin?.id else {
-            throw ContainerizationError(.invalidState, message: "builtin network is not present")
-        }
         let parsedNetworks = try management.networks.map { try Parser.network($0) }
         if management.networks.contains(ClientNetwork.noNetworkName) {
             guard management.networks.count == 1 else {
@@ -200,6 +197,7 @@ public struct Utility {
             }
             config.networks = []
         } else {
+            let builtinNetworkId = try await ClientNetwork.builtin?.id
             config.networks = try getAttachmentConfigurations(
                 containerId: config.id,
                 builtinNetworkId: builtinNetworkId,
@@ -253,7 +251,7 @@ public struct Utility {
 
     static func getAttachmentConfigurations(
         containerId: String,
-        builtinNetworkId: String,
+        builtinNetworkId: String?,
         networks: [Parser.ParsedNetwork]
     ) throws -> [AttachmentConfiguration] {
         // Validate MAC addresses if provided
@@ -303,7 +301,11 @@ public struct Utility {
                 )
             }
         }
+
         // if no networks specified, attach to the default network
+        guard let builtinNetworkId else {
+            throw ContainerizationError(.invalidState, message: "builtin network is not present")
+        }
         return [AttachmentConfiguration(network: builtinNetworkId, options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: nil))]
     }
 
