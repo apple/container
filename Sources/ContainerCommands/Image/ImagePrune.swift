@@ -65,7 +65,7 @@ extension Application {
                 }
             }
 
-            let (deletedDigests, size) = try await ClientImage.cleanupOrphanedBlobs()
+            let (deletedDigests, size) = try await ClientImage.cleanUpOrphanedBlobs()
 
             for image in imagesToPrune {
                 print("untagged \(image.reference)")
