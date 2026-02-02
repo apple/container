@@ -78,7 +78,8 @@ extension Application {
                 resource: resourceFlags,
                 registry: registryFlags,
                 imageFetch: imageFetchFlags,
-                progressUpdate: progress.handler
+                progressUpdate: progress.handler,
+                log: log
             )
 
             let options = ContainerCreateOptions(autoRemove: managementFlags.remove)
