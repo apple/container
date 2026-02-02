@@ -20,7 +20,7 @@ import ContainerizationError
 import Foundation
 
 public enum DefaultsStore {
-    private static let userDefaultDomain = "com.apple.container.defaults"
+    public static let userDefaultDomain = "com.apple.container.defaults"
 
     public enum Keys: String {
         case buildRosetta = "build.rosetta"
