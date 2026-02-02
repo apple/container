@@ -60,6 +60,15 @@ if [ -n "$CONTAINER_RUNNING" ]; then
     exit 1
 fi
 
+# Explain why administrator password is required
+echo "This script requires administrator privileges to:"
+echo "  - Remove application files from ${INSTALL_DIR}"
+echo "  - Unregister the installer package receipt"
+if [ "$DELETE_DATA" = true ]; then
+    echo "  - Delete user data from ~/Library/Application Support"
+fi
+echo ""
+
 FILES=$(pkgutil --only-files --files com.apple.container-installer)
 for i in ${FILES[@]}; do
     # this command can fail for some of the reported files from pkgutil such as 
