@@ -66,11 +66,19 @@ to prepare your build environment.
     ```
 
     > [!IMPORTANT]
-    > If you are using Xcode, you will need to temporarily modify `Package.swift` instead of using `swift package edit`, using a path dependency in place of the versioned `container` dependency:
+    > If you are using Xcode, do **not** run `swift package edit`. Instead, temporarily modify `Package.swift` to replace the versioned `containerization` dependency:
     >
-    >    ```swift
-    >    .package(path: "../containerization"),
-    >    ```
+    > ```swift
+    > .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion)),
+    > ```
+    >
+    > with the local path dependency:
+    >
+    > ```swift
+    > .package(path: "../containerization"),
+    > ```
+    >
+    > **Note:** If you have already run `swift package edit`, whether intentionally or by accident, follow the steps in the next section to restore the normal `containerization` dependency. Otherwise, the modified `Package.swift` file will not work, and the project may fail to build.
 
 5. If you want `container` to use any changes you made in the `vminit` subproject of Containerization, update the system property to use the locally built init filesystem image:
 

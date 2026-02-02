@@ -246,6 +246,7 @@ extension Application {
 
             var config = ContainerConfiguration(id: id, image: imageDesc, process: processConfig)
             config.resources = resources
+            config.labels = ["com.apple.container.resource.role": "builder"]
             config.mounts = [
                 .init(
                     type: .tmpfs,
