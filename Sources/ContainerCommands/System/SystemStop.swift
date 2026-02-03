@@ -61,12 +61,13 @@ extension Application {
             }
 
             if running {
+                let client = ContainerClient()
                 log.info("stopping containers", metadata: ["stopTimeoutSeconds": "\(Self.stopTimeoutSeconds)"])
                 do {
-                    let containers = try await ClientContainer.list()
+                    let containers = try await client.list()
                     let signal = try Signals.parseSignal("SIGTERM")
                     let opts = ContainerStopOptions(timeoutInSeconds: Self.stopTimeoutSeconds, signal: signal)
-                    let failed = try await ContainerStop.stopContainers(containers: containers, stopOptions: opts, log: log)
+                    let failed = try await ContainerStop.stopContainers(client: client, containers: containers, stopOptions: opts, log: log)
                     if !failed.isEmpty {
                         log.warning("some containers could not be stopped gracefully", metadata: ["ids": "\(failed)"])
                     }
@@ -77,7 +78,7 @@ extension Application {
                 log.info("waiting for containers to exit")
                 do {
                     for _ in 0..<Self.shutdownTimeoutSeconds {
-                        let anyRunning = try await ClientContainer.list()
+                        let anyRunning = try await client.list()
                             .contains { $0.status == .running }
                         guard anyRunning else {
                             break

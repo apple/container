@@ -38,7 +38,8 @@ extension Application {
             let imagesToPrune: [ClientImage]
             if all {
                 // Find all images not used by any container
-                let containers = try await ClientContainer.list()
+                let client = ContainerClient()
+                let containers = try await client.list()
                 var imagesInUse = Set<String>()
                 for container in containers {
                     imagesInUse.insert(container.configuration.image.reference)

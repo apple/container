@@ -32,7 +32,8 @@ extension Application.VolumeCommand {
             let allVolumes = try await ClientVolume.list()
 
             // Find all volumes not used by any container
-            let containers = try await ClientContainer.list()
+            let client = ContainerClient()
+            let containers = try await client.list()
             var volumesInUse = Set<String>()
             for container in containers {
                 for mount in container.configuration.mounts {

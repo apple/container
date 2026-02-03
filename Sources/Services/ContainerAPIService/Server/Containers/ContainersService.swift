@@ -446,8 +446,11 @@ public actor ContainersService {
         self.log.debug("\(#function)")
 
         // Logs doesn't care if the container is running or not, just that
-        // the bundle is there, and that the files actually exist.
+        // the bundle is there, and that the files actually exist. We do
+        // first try and get the container state so we get a nicer error message
+        // (container foo not found) however.
         do {
+            _ = try _getContainerState(id: id)
             let path = self.containerRoot.appendingPathComponent(id)
             let bundle = ContainerResource.Bundle(path: path)
             return [

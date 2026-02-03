@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerResource
 import ContainerizationError
 import Foundation
 
@@ -54,12 +55,13 @@ extension Application {
 
         public mutating func run() async throws {
             let set = Set<String>(containerIds)
-            var containers = [ClientContainer]()
+            let client = ContainerClient()
+            var containers = [ContainerSnapshot]()
 
             if all {
-                containers = try await ClientContainer.list()
+                containers = try await client.list()
             } else {
-                let ctrs = try await ClientContainer.list()
+                let ctrs = try await client.list()
                 containers = ctrs.filter { c in
                     set.contains(c.id)
                 }
@@ -94,7 +96,7 @@ extension Application {
                                 return nil  // Skip running container when using --all
                             }
 
-                            try await container.delete(force: force)
+                            try await client.delete(id: container.id, force: force)
                             print(container.id)
                             return nil
                         } catch {
