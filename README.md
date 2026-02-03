@@ -6,6 +6,8 @@ The tool consumes and produces [OCI-compatible container images](https://github.
 
 `container` uses the [Containerization](https://github.com/apple/containerization) Swift package for low level container, image, and process management.
 
+This fork also ships a `kubernetes` CLI for running a single-node Kubernetes cluster on Apple Containerization. See `docs/kubernetes.md`.
+
 ![introductory movie showing some basic commands](./docs/assets/landing-movie.gif)
 
 ## Get started
