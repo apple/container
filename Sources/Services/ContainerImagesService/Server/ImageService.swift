@@ -223,9 +223,9 @@ extension ImagesService {
         if let authentication {
             return try await body(authentication)
         }
-        let keychain = KeychainHelper(id: Constants.keychainID)
+        let keychain = KeychainHelper(securityDomain: Constants.keychainID)
         do {
-            authentication = try keychain.lookup(domain: host)
+            authentication = try keychain.lookup(hostname: host)
         } catch let err as KeychainHelper.Error {
             guard case .keyNotFound = err else {
                 throw ContainerizationError(.internalError, message: "error querying keychain for \(host)", cause: err)
