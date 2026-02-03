@@ -201,6 +201,92 @@ class TestCLIRunCommand1: CLITest {
             return
         }
     }
+
+    @Test func testRunCommandUlimitNofile() throws {
+        do {
+            let name = getTestName()
+            let softLimit = "1024"
+            let hardLimit = "2048"
+            try doLongRun(name: name, args: ["--ulimit", "nofile=\(softLimit):\(hardLimit)"])
+            defer {
+                try? doStop(name: name)
+            }
+
+            let inspectResp = try inspectContainer(name)
+            let rlimits = inspectResp.configuration.initProcess.rlimits
+            let nofileRlimit = rlimits.first { $0.limit == "RLIMIT_NOFILE" }
+            #expect(nofileRlimit != nil, "expected RLIMIT_NOFILE to be set")
+            #expect(nofileRlimit?.soft == UInt64(softLimit), "expected soft limit \(softLimit), got \(nofileRlimit?.soft ?? 0)")
+            #expect(nofileRlimit?.hard == UInt64(hardLimit), "expected hard limit \(hardLimit), got \(nofileRlimit?.hard ?? 0)")
+
+            var output = try doExec(name: name, cmd: ["sh", "-c", "ulimit -n"])
+            output = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(output == softLimit, "expected ulimit -n to return \(softLimit), got \(output)")
+
+            try doStop(name: name)
+        } catch {
+            Issue.record("failed to run container \(error)")
+            return
+        }
+    }
+
+    @Test func testRunCommandUlimitNproc() throws {
+        do {
+            let name = getTestName()
+            let limit = "256"
+            try doLongRun(name: name, args: ["--ulimit", "nproc=\(limit)"])
+            defer {
+                try? doStop(name: name)
+            }
+            let inspectResp = try inspectContainer(name)
+            let rlimits = inspectResp.configuration.initProcess.rlimits
+            let nprocRlimit = rlimits.first { $0.limit == "RLIMIT_NPROC" }
+            #expect(nprocRlimit != nil, "expected RLIMIT_NPROC to be set")
+            #expect(nprocRlimit?.soft == UInt64(limit), "expected soft limit \(limit), got \(nprocRlimit?.soft ?? 0)")
+            #expect(nprocRlimit?.hard == UInt64(limit), "expected hard limit \(limit), got \(nprocRlimit?.hard ?? 0)")
+
+            var output = try doExec(name: name, cmd: ["sh", "-c", "ulimit -u"])
+            output = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(output == limit, "expected ulimit -u to return \(limit), got \(output)")
+
+            try doStop(name: name)
+        } catch {
+            Issue.record("failed to run container \(error)")
+            return
+        }
+    }
+
+    @Test func testRunCommandMultipleUlimits() throws {
+        do {
+            let name = getTestName()
+            try doLongRun(
+                name: name,
+                args: [
+                    "--ulimit", "nofile=1024:2048",
+                    "--ulimit", "nproc=512",
+                    "--ulimit", "stack=8388608",
+                ])
+            defer {
+                try? doStop(name: name)
+            }
+            let inspectResp = try inspectContainer(name)
+            let rlimits = inspectResp.configuration.initProcess.rlimits
+            #expect(rlimits.count == 3, "expected 3 rlimits, got \(rlimits.count)")
+
+            let nofile = rlimits.first { $0.limit == "RLIMIT_NOFILE" }
+            let nproc = rlimits.first { $0.limit == "RLIMIT_NPROC" }
+            let stack = rlimits.first { $0.limit == "RLIMIT_STACK" }
+
+            #expect(nofile != nil && nofile?.soft == 1024 && nofile?.hard == 2048)
+            #expect(nproc != nil && nproc?.soft == 512 && nproc?.hard == 512)
+            #expect(stack != nil && stack?.soft == 8_388_608 && stack?.hard == 8_388_608)
+
+            try doStop(name: name)
+        } catch {
+            Issue.record("failed to run container \(error)")
+            return
+        }
+    }
 }
 
 class TestCLIRunCommand2: CLITest {

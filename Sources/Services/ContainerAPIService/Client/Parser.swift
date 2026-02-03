@@ -281,6 +281,8 @@ public struct Parser {
             user: processFlags.user, uid: processFlags.uid,
             gid: processFlags.gid, defaultUser: defaultUser)
 
+        let rlimits = try Parser.rlimits(processFlags.ulimits)
+
         return .init(
             executable: commandToRun.first!,
             arguments: [String](commandToRun.dropFirst()),
@@ -288,7 +290,8 @@ public struct Parser {
             workingDirectory: workingDir,
             terminal: processFlags.tty,
             user: user,
-            supplementalGroups: additionalGroups
+            supplementalGroups: additionalGroups,
+            rlimits: rlimits
         )
     }
 
@@ -865,6 +868,118 @@ public struct Parser {
         }
         let pattern = #/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/#
         return !label.ranges(of: pattern).isEmpty
+    }
+
+    private static let ulimitNameToRlimit: [String: String] = [
+        "core": "RLIMIT_CORE",
+        "cpu": "RLIMIT_CPU",
+        "data": "RLIMIT_DATA",
+        "fsize": "RLIMIT_FSIZE",
+        "locks": "RLIMIT_LOCKS",
+        "memlock": "RLIMIT_MEMLOCK",
+        "msgqueue": "RLIMIT_MSGQUEUE",
+        "nice": "RLIMIT_NICE",
+        "nofile": "RLIMIT_NOFILE",
+        "nproc": "RLIMIT_NPROC",
+        "rss": "RLIMIT_RSS",
+        "rtprio": "RLIMIT_RTPRIO",
+        "rttime": "RLIMIT_RTTIME",
+        "sigpending": "RLIMIT_SIGPENDING",
+        "stack": "RLIMIT_STACK",
+    ]
+
+    /// Parse ulimit specifications into Rlimit objects
+    /// Format: <type>=<soft>[:<hard>]
+    /// Examples:
+    ///   - nofile=1024:2048  (soft=1024, hard=2048)
+    ///   - nofile=1024       (soft=hard=1024)
+    ///   - nofile=unlimited  (soft=hard=UINT64_MAX)
+    ///   - nofile=1024:unlimited (soft=1024, hard=UINT64_MAX)
+    public static func rlimits(_ rawUlimits: [String]) throws -> [ProcessConfiguration.Rlimit] {
+        var rlimits: [ProcessConfiguration.Rlimit] = []
+        var seenTypes: Set<String> = []
+
+        for ulimit in rawUlimits {
+            let rlimit = try Parser.rlimit(ulimit)
+            if seenTypes.contains(rlimit.limit) {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "duplicate ulimit type: \(ulimit.split(separator: "=").first ?? "")"
+                )
+            }
+            seenTypes.insert(rlimit.limit)
+            rlimits.append(rlimit)
+        }
+
+        return rlimits
+    }
+
+    /// Parse a single ulimit specification
+    public static func rlimit(_ ulimit: String) throws -> ProcessConfiguration.Rlimit {
+        let parts = ulimit.split(separator: "=", maxSplits: 1)
+        guard parts.count == 2 else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "invalid ulimit format '\(ulimit)': expected <type>=<soft>[:<hard>]"
+            )
+        }
+
+        let typeName = String(parts[0]).lowercased()
+        let valuesPart = String(parts[1])
+
+        guard let rlimitType = ulimitNameToRlimit[typeName] else {
+            let validTypes = ulimitNameToRlimit.keys.sorted().joined(separator: ", ")
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "unsupported ulimit type '\(typeName)': valid types are \(validTypes)"
+            )
+        }
+
+        let valueParts = valuesPart.split(separator: ":", maxSplits: 1)
+        let soft: UInt64
+        let hard: UInt64
+
+        switch valueParts.count {
+        case 1:
+            // Single value: use for both soft and hard
+            soft = try parseRlimitValue(String(valueParts[0]), typeName: typeName)
+            hard = soft
+        case 2:
+            // Two values: soft:hard
+            soft = try parseRlimitValue(String(valueParts[0]), typeName: typeName)
+            hard = try parseRlimitValue(String(valueParts[1]), typeName: typeName)
+        default:
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "invalid ulimit format '\(ulimit)': expected <type>=<soft>[:<hard>]"
+            )
+        }
+
+        if soft > hard {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "ulimit '\(typeName)' soft limit (\(soft)) cannot exceed hard limit (\(hard))"
+            )
+        }
+
+        return ProcessConfiguration.Rlimit(limit: rlimitType, soft: soft, hard: hard)
+    }
+
+    private static func parseRlimitValue(_ value: String, typeName: String) throws -> UInt64 {
+        let trimmed = value.trimmingCharacters(in: .whitespaces).lowercased()
+
+        if trimmed == "unlimited" || trimmed == "-1" {
+            return UInt64.max
+        }
+
+        guard let parsed = UInt64(trimmed) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "invalid ulimit value '\(value)' for '\(typeName)': must be a non-negative integer or 'unlimited'"
+            )
+        }
+
+        return parsed
     }
 
     // MARK: Miscellaneous

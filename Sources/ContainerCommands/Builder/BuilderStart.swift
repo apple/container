@@ -201,8 +201,7 @@ extension Application {
                 useRosetta ? nil : "--enable-qemu",
             ].compactMap { $0 }
 
-            let id = "buildkit"
-            try ContainerAPIClient.Utility.validEntityName(id)
+            try ContainerAPIClient.Utility.validEntityName(Builder.builderContainerId)
 
             let image = try await ClientImage.fetch(
                 reference: builderImage,
@@ -244,9 +243,9 @@ extension Application {
                 memory: memory
             )
 
-            var config = ContainerConfiguration(id: id, image: imageDesc, process: processConfig)
+            var config = ContainerConfiguration(id: Builder.builderContainerId, image: imageDesc, process: processConfig)
             config.resources = resources
-            config.labels = ["com.apple.container.resource.role": "builder"]
+            config.labels = [ResourceLabelKeys.role: ResourceRoleValues.builder]
             config.mounts = [
                 .init(
                     type: .tmpfs,
@@ -264,11 +263,15 @@ extension Application {
             // Enable Rosetta only if the user didn't ask to disable it
             config.rosetta = useRosetta
 
-            let network = try await ClientNetwork.get(id: ClientNetwork.defaultNetworkName)
-            guard case .running(_, let networkStatus) = network else {
+            guard let defaultNetwork = try await ClientNetwork.builtin else {
+                throw ContainerizationError(.invalidState, message: "default network is not present")
+            }
+            guard case .running(_, let networkStatus) = defaultNetwork else {
                 throw ContainerizationError(.invalidState, message: "default network is not running")
             }
-            config.networks = [AttachmentConfiguration(network: network.id, options: AttachmentOptions(hostname: id))]
+            config.networks = [
+                AttachmentConfiguration(network: defaultNetwork.id, options: AttachmentOptions(hostname: Builder.builderContainerId))
+            ]
             let subnet = networkStatus.ipv4Subnet
             let nameserver = IPv4Address(subnet.lower.value + 1).description
             let nameservers = dnsNameservers.isEmpty ? [nameserver] : dnsNameservers

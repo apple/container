@@ -61,6 +61,15 @@ public struct Flags {
             )
         )
         public var cwd: String?
+
+        @Option(
+            name: .customLong("ulimit"),
+            help: .init(
+                "Set resource limits (format: <type>=<soft>[:<hard>])",
+                valueName: "limit"
+            )
+        )
+        public var ulimits: [String] = []
     }
 
     public struct Resource: ParsableArguments {

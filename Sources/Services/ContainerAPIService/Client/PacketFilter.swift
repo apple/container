@@ -183,7 +183,7 @@ public struct PacketFilter {
         let reloadProcess = Foundation.Process()
         var reloadStatus: Int32
 
-        reloadProcess.executableURL = URL(fileURLWithPath: "/sbin/reloadProcess")
+        reloadProcess.executableURL = URL(fileURLWithPath: "/sbin/pfctl")
         reloadProcess.arguments = ["-f", configURL.path]
         reloadProcess.standardOutput = null
         reloadProcess.standardError = null
