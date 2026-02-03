@@ -18,6 +18,7 @@ import Collections
 import ContainerAPIClient
 import ContainerizationArchive
 import ContainerizationOCI
+import CryptoKit
 import Foundation
 import GRPC
 
@@ -164,6 +165,8 @@ actor BuildFSSync: BuildPipelineHandler {
         var fileOrder = [String]()
         try processDirectory("", inputEntries: entries, processedPaths: &fileOrder)
 
+        let contextHash = try computeContextHash(fileOrder: fileOrder, contextDir: contextDir)
+
         if !wantsTar {
             let fileInfos = try fileOrder.map { rel -> FileInfo in
                 try FileInfo(path: contextDir.appendingPathComponent(rel), contextDir: contextDir)
@@ -179,6 +182,7 @@ actor BuildFSSync: BuildPipelineHandler {
                     "os": "linux",
                     "stage": "fssync",
                     "mode": "json",
+                    "context_hash": contextHash,
                 ],
                 data: data
             )
@@ -239,6 +243,7 @@ actor BuildFSSync: BuildPipelineHandler {
                     "os": "linux",
                     "stage": "fssync",
                     "mode": "tar",
+                    "context_hash": contextHash,
                 ],
                 data: chunk
             )
@@ -258,6 +263,7 @@ actor BuildFSSync: BuildPipelineHandler {
                 "os": "linux",
                 "stage": "fssync",
                 "mode": "tar",
+                "context_hash": contextHash,
             ],
             data: Data()
         )
@@ -267,6 +273,30 @@ actor BuildFSSync: BuildPipelineHandler {
         finalResp.buildTransfer = done
         finalResp.packetType = .buildTransfer(done)
         sender.yield(finalResp)
+    }
+
+    func computeContextHash(fileOrder: [String], contextDir: URL) throws -> String {
+        var hasher = SHA256()
+        
+        // Hash file paths and metadata in deterministic order
+        for relativePath in fileOrder {
+            let fullPath = contextDir.appendingPathComponent(relativePath)
+            
+            // Hash the relative path
+            hasher.update(data: Data(relativePath.utf8))
+            
+            // Hash file size and modification time
+            if let size = try? fullPath.size() {
+                withUnsafeBytes(of: size) { hasher.update(bufferPointer: $0) }
+            }
+            
+            if let modTime = try? fullPath.modTime() {
+                hasher.update(data: Data(modTime.utf8))
+            }
+        }
+        
+        let digest = hasher.finalize()
+        return digest.map { String(format: "%02x", $0) }.joined()
     }
 
     func walk(root: URL, includePatterns: [String]) throws -> [URL] {
