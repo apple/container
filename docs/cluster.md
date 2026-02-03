@@ -1,6 +1,6 @@
-# `kubernetes` CLI
+# `cluster` CLI
 
-`kubernetes` is a small companion CLI that creates a single-node Kubernetes
+`cluster` is a small companion CLI that creates a single-node Kubernetes
 cluster inside Apple Containerization, using `kubeadm` and `kindnet`.
 
 ## Requirements
@@ -14,20 +14,20 @@ cluster inside Apple Containerization, using `kubeadm` and `kindnet`.
 
 ```bash
 # Create a cluster named "kubernetes"
-kubernetes create
+cluster create
 
 # Use a custom kernel (recommended for certain CNI features)
-kubernetes create --kernel /path/to/vmlinux
+cluster create --kernel /path/to/vmlinux
 
 # Show status and endpoints
-kubernetes status
+cluster status
 
 # Stop/start the cluster
-kubernetes stop
-kubernetes start
+cluster stop
+cluster start
 
 # Delete the cluster
-kubernetes delete
+cluster delete
 ```
 
 ## Kubeconfig
@@ -35,19 +35,19 @@ kubernetes delete
 By default, kubeconfig is written to:
 
 ```
-~/.kube/kubernetes/<cluster-name>.config
+~/.kube/cluster/<cluster-name>.config
 ```
 
 You can override the path during creation:
 
 ```bash
-kubernetes create --kubeconfig ~/.kube/config
+cluster create --kubeconfig ~/.kube/config
 ```
 
 You can also print a fresh kubeconfig from a running cluster:
 
 ```bash
-kubernetes kubeconfig
+cluster kubeconfig
 ```
 
 ## Flags (create)

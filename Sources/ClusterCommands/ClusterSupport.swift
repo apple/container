@@ -19,7 +19,7 @@ import ContainerizationError
 import Foundation
 import Logging
 
-enum KubernetesDefaults {
+enum ClusterDefaults {
     static let clusterName = "kubernetes"
     static let image = "docker.io/kindest/node:v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a"
     static let memory = "16G"
@@ -71,7 +71,7 @@ enum KubeconfigManager {
         }
         let kubeDir = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".kube")
-            .appendingPathComponent("kubernetes", isDirectory: true)
+            .appendingPathComponent("cluster", isDirectory: true)
         return kubeDir.appendingPathComponent("\(clusterName).config")
     }
 
@@ -121,7 +121,7 @@ struct ExecResult: Sendable {
     let exitCode: Int32
 }
 
-enum KubernetesExecutor {
+enum ClusterExecutor {
     static func run(
         container: ClientContainer,
         command: [String],
@@ -185,7 +185,7 @@ enum KubernetesExecutor {
     }
 }
 
-enum KubernetesContainer {
+enum ClusterContainer {
     static func ensureRunning(_ container: ClientContainer) throws {
         if container.status != .running {
             throw ContainerizationError(.invalidState, message: "container \(container.id) is not running")

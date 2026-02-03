@@ -23,19 +23,19 @@ import Foundation
 import Logging
 import TerminalProgress
 
-public protocol KubernetesLoggableCommand: AsyncParsableCommand {
+public protocol ClusterLoggableCommand: AsyncParsableCommand {
     var logOptions: Flags.Logging { get }
 }
 
-extension KubernetesLoggableCommand {
+extension ClusterLoggableCommand {
     public var log: Logger {
-        var logger = Logger(label: "kubernetes", factory: { _ in StderrLogHandler() })
+        var logger = Logger(label: "cluster", factory: { _ in StderrLogHandler() })
         logger.logLevel = logOptions.debug ? .debug : .info
         return logger
     }
 }
 
-public struct KubernetesCreate: KubernetesLoggableCommand {
+public struct ClusterCreate: ClusterLoggableCommand {
     public init() {}
 
     public static let configuration = CommandConfiguration(
@@ -47,22 +47,22 @@ public struct KubernetesCreate: KubernetesLoggableCommand {
     public var logOptions: Flags.Logging
 
     @Option(name: .long, help: "Cluster name")
-    var name: String = KubernetesDefaults.clusterName
+    var name: String = ClusterDefaults.clusterName
 
     @Option(name: .long, help: "Container image for the node")
-    var image: String = KubernetesDefaults.image
+    var image: String = ClusterDefaults.image
 
     @Option(name: .long, help: "Number of CPUs to allocate")
-    var cpus: Int64 = KubernetesDefaults.cpus
+    var cpus: Int64 = ClusterDefaults.cpus
 
     @Option(name: .long, help: "Memory allocation (e.g. 8G, 16G)")
-    var memory: String = KubernetesDefaults.memory
+    var memory: String = ClusterDefaults.memory
 
     @Option(name: .long, help: "Pod network CIDR for kubeadm")
-    var podCIDR: String = KubernetesDefaults.podCIDR
+    var podCIDR: String = ClusterDefaults.podCIDR
 
     @Option(name: .long, help: "Kubernetes API server port")
-    var apiPort: UInt16 = KubernetesDefaults.apiPort
+    var apiPort: UInt16 = ClusterDefaults.apiPort
 
     @Option(name: .shortAndLong, help: "Path to kernel binary", completion: .file())
     var kernel: String?
@@ -109,20 +109,20 @@ public struct KubernetesCreate: KubernetesLoggableCommand {
         }
         progress.start()
 
-        var processFlags = Flags.Process()
+        var processFlags = try Flags.Process.parse([])
         processFlags.env = ["KUBECONFIG=/etc/kubernetes/admin.conf"]
 
-        var resourceFlags = Flags.Resource()
+        var resourceFlags = try Flags.Resource.parse([])
         resourceFlags.cpus = spec.cpus
         resourceFlags.memory = spec.memory
 
-        var managementFlags = Flags.Management()
+        var managementFlags = try Flags.Management.parse([])
         managementFlags.name = spec.nodeName
         managementFlags.kernel = spec.kernelPath
         managementFlags.publishPorts = ["127.0.0.1:\(spec.apiPort):6443"]
 
-        let registryFlags = Flags.Registry()
-        let imageFetchFlags = Flags.ImageFetch()
+        let registryFlags = try Flags.Registry.parse([])
+        let imageFetchFlags = try Flags.ImageFetch.parse([])
 
         let (configuration, kernel) = try await Utility.containerConfigFromFlags(
             id: spec.nodeName,
@@ -138,46 +138,45 @@ public struct KubernetesCreate: KubernetesLoggableCommand {
 
         progress.set(description: "Starting container")
         let container = try await ClientContainer.create(configuration: configuration, options: .default, kernel: kernel)
-        try await KubernetesContainer.bootstrapAndStart(container: container)
+        try await ClusterContainer.bootstrapAndStart(container: container)
         progress.finish()
         progressFinished = true
 
-        try await KubernetesExecutor.run(
-            container: container,
-            command: ["sysctl", "-w", "net.ipv4.ip_forward=1"],
-            log: log,
-            captureOutput: false
-        )
+        func runStep(_ label: String, command: [String]) async throws {
+            if !logOptions.debug {
+                print(label)
+            }
+            _ = try await ClusterExecutor.run(
+                container: container,
+                command: command,
+                log: log,
+                captureOutput: !logOptions.debug
+            )
+        }
 
-        try await KubernetesExecutor.run(
-            container: container,
+        try await runStep("Configuring networking...", command: ["sysctl", "-w", "net.ipv4.ip_forward=1"])
+        try await runStep(
+            "Initializing kubeadm...",
             command: [
                 "kubeadm",
                 "init",
                 "--pod-network-cidr=\(spec.podCIDR)",
                 "--apiserver-cert-extra-sans=127.0.0.1",
-            ],
-            log: log,
-            captureOutput: false
+            ]
         )
 
         let installCni = "sed -e 's@{{ .PodSubnet }}@\(spec.podCIDR)@' /kind/manifests/default-cni.yaml | kubectl apply -f -"
-        try await KubernetesExecutor.run(
-            container: container,
-            command: ["/bin/sh", "-euc", installCni],
-            log: log,
-            captureOutput: false
-        )
+        try await runStep("Applying CNI...", command: ["/bin/sh", "-euc", installCni])
 
-        _ = try? await KubernetesExecutor.run(
+        _ = try? await ClusterExecutor.run(
             container: container,
             command: ["kubectl", "taint", "nodes", "--all", "node-role.kubernetes.io/control-plane-"],
             log: log,
-            captureOutput: false,
+            captureOutput: !logOptions.debug,
             allowFailure: true
         )
 
-        let kubeconfigRaw = try await KubernetesExecutor.run(
+        let kubeconfigRaw = try await ClusterExecutor.run(
             container: container,
             command: ["cat", "/etc/kubernetes/admin.conf"],
             log: log,
@@ -194,6 +193,9 @@ public struct KubernetesCreate: KubernetesLoggableCommand {
         let nodeIP = refreshed.networks.first?.ipv4Address.address.description
         let apiServer = "https://127.0.0.1:\(spec.apiPort)"
 
+        if !logOptions.debug {
+            print("Cluster ready.")
+        }
         print("\nCluster created.\n")
         print("  Name:       \(spec.name)")
         print("  Node:       \(spec.nodeName)")
@@ -203,15 +205,10 @@ public struct KubernetesCreate: KubernetesLoggableCommand {
         }
         print("  API server: \(apiServer)")
         print("  Kubeconfig: \(spec.kubeconfigPath.path)")
-        if let nodeIP {
-            print("\nTo forward HTTP/HTTPS to localhost (requires socat):")
-            print("  sudo socat TCP-LISTEN:443,bind=127.0.0.1,reuseaddr,fork TCP:\(nodeIP):443 &")
-            print("  sudo socat TCP-LISTEN:80,bind=127.0.0.1,reuseaddr,fork TCP:\(nodeIP):80 &")
-        }
     }
 }
 
-public struct KubernetesDelete: KubernetesLoggableCommand {
+public struct ClusterDelete: ClusterLoggableCommand {
     public init() {}
 
     public static let configuration = CommandConfiguration(
@@ -223,10 +220,10 @@ public struct KubernetesDelete: KubernetesLoggableCommand {
     public var logOptions: Flags.Logging
 
     @Option(name: .long, help: "Cluster name")
-    var name: String = KubernetesDefaults.clusterName
+    var name: String = ClusterDefaults.clusterName
 
     @Flag(name: .long, help: "Force delete the cluster")
-    var force = true
+    var force = false
 
     public func run() async throws {
         let nodeName = "\(name)-control-plane"
@@ -242,7 +239,7 @@ public struct KubernetesDelete: KubernetesLoggableCommand {
     }
 }
 
-public struct KubernetesStart: KubernetesLoggableCommand {
+public struct ClusterStart: ClusterLoggableCommand {
     public init() {}
 
     public static let configuration = CommandConfiguration(
@@ -254,7 +251,7 @@ public struct KubernetesStart: KubernetesLoggableCommand {
     public var logOptions: Flags.Logging
 
     @Option(name: .long, help: "Cluster name")
-    var name: String = KubernetesDefaults.clusterName
+    var name: String = ClusterDefaults.clusterName
 
     public func run() async throws {
         let nodeName = "\(name)-control-plane"
@@ -263,12 +260,12 @@ public struct KubernetesStart: KubernetesLoggableCommand {
             print(nodeName)
             return
         }
-        try await KubernetesContainer.bootstrapAndStart(container: container)
+        try await ClusterContainer.bootstrapAndStart(container: container)
         print(nodeName)
     }
 }
 
-public struct KubernetesStop: KubernetesLoggableCommand {
+public struct ClusterStop: ClusterLoggableCommand {
     public init() {}
 
     public static let configuration = CommandConfiguration(
@@ -280,7 +277,7 @@ public struct KubernetesStop: KubernetesLoggableCommand {
     public var logOptions: Flags.Logging
 
     @Option(name: .long, help: "Cluster name")
-    var name: String = KubernetesDefaults.clusterName
+    var name: String = ClusterDefaults.clusterName
 
     public func run() async throws {
         let nodeName = "\(name)-control-plane"
@@ -290,7 +287,7 @@ public struct KubernetesStop: KubernetesLoggableCommand {
     }
 }
 
-public struct KubernetesStatus: KubernetesLoggableCommand {
+public struct ClusterStatus: ClusterLoggableCommand {
     public init() {}
 
     public static let configuration = CommandConfiguration(
@@ -302,7 +299,7 @@ public struct KubernetesStatus: KubernetesLoggableCommand {
     public var logOptions: Flags.Logging
 
     @Option(name: .long, help: "Cluster name")
-    var name: String = KubernetesDefaults.clusterName
+    var name: String = ClusterDefaults.clusterName
 
     public func run() async throws {
         let nodeName = "\(name)-control-plane"
@@ -324,7 +321,7 @@ public struct KubernetesStatus: KubernetesLoggableCommand {
     }
 }
 
-public struct KubernetesKubeconfig: KubernetesLoggableCommand {
+public struct ClusterKubeconfig: ClusterLoggableCommand {
     public init() {}
 
     public static let configuration = CommandConfiguration(
@@ -336,7 +333,7 @@ public struct KubernetesKubeconfig: KubernetesLoggableCommand {
     public var logOptions: Flags.Logging
 
     @Option(name: .long, help: "Cluster name")
-    var name: String = KubernetesDefaults.clusterName
+    var name: String = ClusterDefaults.clusterName
 
     @Option(name: .long, help: "Write kubeconfig to this path")
     var kubeconfig: String?
@@ -344,13 +341,14 @@ public struct KubernetesKubeconfig: KubernetesLoggableCommand {
     public func run() async throws {
         let nodeName = "\(name)-control-plane"
         let container = try await ClientContainer.get(id: nodeName)
-        try KubernetesContainer.ensureRunning(container)
+        try ClusterContainer.ensureRunning(container)
 
-        let apiPort =
-            container.configuration.publishedPorts.first(where: { $0.containerPort == 6443 })?.hostPort
-            ?? KubernetesDefaults.apiPort
+        let apiPort: UInt16 =
+            container.configuration.publishedPorts
+            .first(where: { $0.containerPort == 6443 })?
+            .hostPort ?? ClusterDefaults.apiPort
 
-        let kubeconfigRaw = try await KubernetesExecutor.run(
+        let kubeconfigRaw = try await ClusterExecutor.run(
             container: container,
             command: ["cat", "/etc/kubernetes/admin.conf"],
             log: log,

@@ -17,22 +17,23 @@
 import ArgumentParser
 import ContainerVersion
 import ContainerizationError
+import Darwin
 import TerminalProgress
 
-public struct KubernetesApplication: AsyncParsableCommand {
+public struct ClusterApplication: AsyncParsableCommand {
     public init() {}
 
     public static let configuration = CommandConfiguration(
-        commandName: "kubernetes",
+        commandName: "cluster",
         abstract: "Kubernetes clusters on Apple Containerization",
-        version: ReleaseVersion.singleLine(appName: "kubernetes CLI"),
+        version: ReleaseVersion.singleLine(appName: "cluster CLI"),
         subcommands: [
-            KubernetesCreate.self,
-            KubernetesDelete.self,
-            KubernetesStart.self,
-            KubernetesStop.self,
-            KubernetesStatus.self,
-            KubernetesKubeconfig.self,
+            ClusterCreate.self,
+            ClusterDelete.self,
+            ClusterStart.self,
+            ClusterStop.self,
+            ClusterStatus.self,
+            ClusterKubeconfig.self,
         ]
     )
 
@@ -43,7 +44,7 @@ public struct KubernetesApplication: AsyncParsableCommand {
         let args = Array(fullArgs.dropFirst())
 
         do {
-            var command = try KubernetesApplication.parseAsRoot(args)
+            var command = try ClusterApplication.parseAsRoot(args)
             if var asyncCommand = command as? AsyncParsableCommand {
                 try await asyncCommand.run()
             } else {
@@ -56,9 +57,9 @@ public struct KubernetesApplication: AsyncParsableCommand {
                     .interrupted,
                     message: "\(error)\nEnsure container system service has been started with `container system start`."
                 )
-                KubernetesApplication.exit(withError: modifiedError)
+                ClusterApplication.exit(withError: modifiedError)
             } else {
-                KubernetesApplication.exit(withError: error)
+                ClusterApplication.exit(withError: error)
             }
         }
     }
@@ -66,7 +67,7 @@ public struct KubernetesApplication: AsyncParsableCommand {
     private static func restoreCursorAtExit() {
         let signalHandler: @convention(c) (Int32) -> Void = { signal in
             let exitCode = ExitCode(signal + 128)
-            KubernetesApplication.exit(withError: exitCode)
+            ClusterApplication.exit(withError: exitCode)
         }
         signal(SIGINT, signalHandler)
         signal(SIGTERM, signalHandler)

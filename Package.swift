@@ -42,6 +42,7 @@ let package = Package(
         .library(name: "ContainerPlugin", targets: ["ContainerPlugin"]),
         .library(name: "ContainerVersion", targets: ["ContainerVersion"]),
         .library(name: "ContainerXPC", targets: ["ContainerXPC"]),
+        .library(name: "ClusterCommands", targets: ["ClusterCommands"]),
         .library(name: "SocketForwarder", targets: ["SocketForwarder"]),
         .library(name: "TerminalProgress", targets: ["TerminalProgress"]),
     ],
@@ -67,6 +68,14 @@ let package = Package(
                 "ContainerCommands",
             ],
             path: "Sources/CLI"
+        ),
+        .executableTarget(
+            name: "cluster",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                "ClusterCommands",
+            ],
+            path: "Sources/ClusterCLI"
         ),
         .testTarget(
             name: "CLITests",
@@ -101,6 +110,26 @@ let package = Package(
                 "TerminalProgress",
             ],
             path: "Sources/ContainerCommands"
+        ),
+        .target(
+            name: "ClusterCommands",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "Containerization", package: "containerization"),
+                "ContainerAPIClient",
+                "ContainerLog",
+                "ContainerResource",
+                "TerminalProgress",
+            ],
+            path: "Sources/ClusterCommands"
+        ),
+        .testTarget(
+            name: "ClusterTests",
+            dependencies: [
+                "ClusterCommands"
+            ],
+            path: "Tests/ClusterTests"
         ),
         .target(
             name: "ContainerBuild",

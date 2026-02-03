@@ -1,5 +1,5 @@
 import XCTest
-@testable import KubernetesCommands
+@testable import ClusterCommands
 
 final class KubeconfigPatcherTests: XCTestCase {
     func testPatchRewritesServerAndNames() {

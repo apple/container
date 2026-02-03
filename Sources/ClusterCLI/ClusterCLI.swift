@@ -15,23 +15,23 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import KubernetesCommands
+import ClusterCommands
 
 @main
-public struct KubernetesCLI: AsyncParsableCommand {
+public struct ClusterCLI: AsyncParsableCommand {
     public init() {}
 
     @Argument(parsing: .captureForPassthrough)
     var arguments: [String] = []
 
-    public static let configuration = KubernetesApplication.configuration
+    public static let configuration = ClusterApplication.configuration
 
     public static func main() async throws {
-        try await KubernetesApplication.main()
+        try await ClusterApplication.main()
     }
 
     public func run() async throws {
-        var application = try KubernetesApplication.parse(arguments)
+        var application = try ClusterApplication.parse(arguments)
         try application.run()
     }
 }
