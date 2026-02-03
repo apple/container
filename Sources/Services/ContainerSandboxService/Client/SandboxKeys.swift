@@ -42,4 +42,6 @@ public enum SandboxKeys: String {
 
     /// Container statistics
     case statistics
+    /// Path to bundle metadata file
+    case metadataPath
 }

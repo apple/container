@@ -60,7 +60,29 @@ public actor SandboxService {
         return nil
     }
 
-    /// Create an instance with a bundle that describes the container.
+    /// Create bundle from metadata file
+    @Sendable
+    public func createBundle(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`createBundle` xpc handler")
+
+        guard let metadataPathString = message.string(key: SandboxKeys.metadataPath.rawValue) else {
+            throw ContainerizationError(.invalidArgument, message: "missing metadata path in createBundle xpc message")
+        }
+
+        let metadataPath = URL(fileURLWithPath: metadataPathString)
+
+        do {
+            let metadata = try ContainerResource.Bundle.readMetadata(from: metadataPath)
+            _ = try ContainerResource.Bundle.createFromMetadata(metadata)
+            try FileManager.default.removeItem(at: metadataPath)
+            self.log.info("Created bundle from metadata at \(metadata.path)")
+        } catch {
+            try? FileManager.default.removeItem(at: metadataPath)
+            throw error
+        }
+
+        return message.reply()
+    }
     ///
     /// - Parameters:
     ///   - root: The file URL for the bundle root.

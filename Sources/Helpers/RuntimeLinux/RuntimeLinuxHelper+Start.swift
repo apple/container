@@ -89,6 +89,7 @@ extension RuntimeLinuxHelper {
                     connection: anonymousConnection,
                     routes: [
                         SandboxRoutes.bootstrap.rawValue: server.bootstrap,
+                        SandboxRoutes.createBundle.rawValue: server.createBundle,
                         SandboxRoutes.createProcess.rawValue: server.createProcess,
                         SandboxRoutes.state.rawValue: server.state,
                         SandboxRoutes.stop.rawValue: server.stop,
