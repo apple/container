@@ -41,6 +41,4 @@ public enum SandboxRoutes: String {
     case shutdown = "com.apple.container.sandbox/shutdown"
     /// Get statistics for the sandbox.
     case statistics = "com.apple.container.sandbox/statistics"
-    /// Create bundle from metadata.
-    case createBundle = "com.apple.container.sandbox/createBundle"
 }

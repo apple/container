@@ -106,20 +106,6 @@ extension SandboxClient {
         }
     }
 
-    public func createBundle(metadataPath: URL) async throws {
-        let request = XPCMessage(route: SandboxRoutes.createBundle.rawValue)
-        request.set(key: SandboxKeys.metadataPath.rawValue, value: metadataPath.path)
-        do {
-            _ = try await self.client.send(request)
-        } catch {
-            throw ContainerizationError(
-                .internalError,
-                message: "failed to create bundle for container \(self.id)",
-                cause: error
-            )
-        }
-    }
-
     public func state() async throws -> SandboxSnapshot {
         let request = XPCMessage(route: SandboxRoutes.state.rawValue)
         let response: XPCMessage

@@ -298,12 +298,6 @@ public actor ContainersService {
                     runtime: runtime
                 )
 
-                // Create bundle if it doesn't exist
-                if !(await self.bundleExists(at: path)) {
-                    let metadataPath = Self.getMetadataPath(for: id)
-                    try await sandboxClient.createBundle(metadataPath: metadataPath)
-                }
-
                 try await sandboxClient.bootstrap(stdio: stdio)
 
                 try await self.exitMonitor.registerProcess(

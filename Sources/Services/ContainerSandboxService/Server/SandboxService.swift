@@ -39,6 +39,7 @@ import struct ContainerizationOCI.Process
 public actor SandboxService {
     private let connection: xpc_connection_t
     private let root: URL
+    private let metadataPath: URL?
     private let interfaceStrategy: InterfaceStrategy
     private var container: ContainerInfo?
     private let monitor: ExitMonitor
@@ -60,43 +61,16 @@ public actor SandboxService {
         return nil
     }
 
-    /// Create bundle from metadata file
-    @Sendable
-    public func createBundle(_ message: XPCMessage) async throws -> XPCMessage {
-        self.log.info("`createBundle` xpc handler")
-
-        guard let metadataPathString = message.string(key: SandboxKeys.metadataPath.rawValue) else {
-            throw ContainerizationError(.invalidArgument, message: "missing metadata path in createBundle xpc message")
-        }
-
-        let metadataPath = URL(fileURLWithPath: metadataPathString)
-
-        do {
-            let metadata = try ContainerResource.Bundle.readMetadata(from: metadataPath)
-            _ = try ContainerResource.Bundle.createFromMetadata(metadata)
-            try FileManager.default.removeItem(at: metadataPath)
-            self.log.info("Created bundle from metadata at \(metadata.path)")
-        } catch {
-            try? FileManager.default.removeItem(at: metadataPath)
-            throw error
-        }
-
-        return message.reply()
-    }
-    ///
-    /// - Parameters:
-    ///   - root: The file URL for the bundle root.
-    ///   - interfaceStrategy: The strategy for producing network interface
-    ///     objects for each network to which the container attaches.
-    ///   - log: The destination for log messages.
     public init(
         root: URL,
+        metadataPath: URL? = nil,
         interfaceStrategy: InterfaceStrategy,
         eventLoopGroup: any EventLoopGroup,
         connection: xpc_connection_t,
         log: Logger
     ) {
         self.root = root
+        self.metadataPath = metadataPath
         self.interfaceStrategy = interfaceStrategy
         self.log = log
         self.monitor = ExitMonitor(log: log)
@@ -130,6 +104,12 @@ public actor SandboxService {
     @Sendable
     public func bootstrap(_ message: XPCMessage) async throws -> XPCMessage {
         self.log.info("`bootstrap` xpc handler")
+
+        // Create the bundle if it doesn't exist yet
+        if !self.bundleExists(at: self.root) {
+            try self.createBundle()
+        }
+
         return try await self.lock.withLock { _ in
             guard await self.state == .created else {
                 throw ContainerizationError(
@@ -1247,7 +1227,7 @@ extension FileHandle: @retroactive ReaderStream, @retroactive Writer {
     }
 }
 
-// MARK: State handler helpers
+// MARK: State handler and bundle creation helpers
 
 extension SandboxService {
     private func addWaiter(id: String, cont: CheckedContinuation<ExitStatus, Never>) {
@@ -1321,5 +1301,37 @@ extension SandboxService {
 
     func setState(_ new: State) {
         self.state = new
+    }
+
+    /// Check if a bundle exists at the given path
+    private func bundleExists(at path: URL) -> Bool {
+        guard FileManager.default.fileExists(atPath: path.path) else {
+            return false
+        }
+
+        let bundle = ContainerResource.Bundle(path: path)
+        do {
+            _ = try bundle.configuration
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// Create bundle from metadata
+    private func createBundle() throws {
+        guard let metadataPath = self.metadataPath else {
+            throw ContainerizationError(.internalError, message: "No metadata path provided for bundle creation")
+        }
+
+        do {
+            let metadata = try ContainerResource.Bundle.readMetadata(from: metadataPath)
+            _ = try ContainerResource.Bundle.createFromMetadata(metadata)
+            try FileManager.default.removeItem(at: metadataPath)
+            self.log.info("Created bundle from metadata at \(metadata.path)")
+        } catch {
+            self.log.error("Failed to create bundle \(error)")
+            throw error
+        }
     }
 }
