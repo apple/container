@@ -129,8 +129,9 @@ public struct Utility {
             .setItemsName("blobs"),
         ])
         let fetchInitTask = await taskManager.startTask()
+        let initImageRef = management.initImage ?? ClientImage.initImageRef
         let initImage = try await ClientImage.fetch(
-            reference: ClientImage.initImageRef, platform: .current, scheme: scheme,
+            reference: initImageRef, platform: .current, scheme: scheme,
             progressUpdate: ProgressTaskCoordinator.handler(for: fetchInitTask, from: progressUpdate),
             maxConcurrentDownloads: imageFetch.maxConcurrentDownloads)
 
