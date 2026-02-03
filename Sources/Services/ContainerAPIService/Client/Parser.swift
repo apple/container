@@ -870,17 +870,21 @@ public struct Parser {
         return !label.ranges(of: pattern).isEmpty
     }
 
-    // TODO: When containerization supports all 16 (minus AS as it's not great) add
-    // them here.
     private static let ulimitNameToRlimit: [String: String] = [
         "core": "RLIMIT_CORE",
         "cpu": "RLIMIT_CPU",
         "data": "RLIMIT_DATA",
         "fsize": "RLIMIT_FSIZE",
+        "locks": "RLIMIT_LOCKS",
         "memlock": "RLIMIT_MEMLOCK",
+        "msgqueue": "RLIMIT_MSGQUEUE",
+        "nice": "RLIMIT_NICE",
         "nofile": "RLIMIT_NOFILE",
         "nproc": "RLIMIT_NPROC",
         "rss": "RLIMIT_RSS",
+        "rtprio": "RLIMIT_RTPRIO",
+        "rttime": "RLIMIT_RTTIME",
+        "sigpending": "RLIMIT_SIGPENDING",
         "stack": "RLIMIT_STACK",
     ]
 
