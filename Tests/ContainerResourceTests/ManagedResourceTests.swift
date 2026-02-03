@@ -28,10 +28,6 @@ struct ManagedResourceTests {
         var creationDate: Date
         var labels: [String: String]
 
-        static func generateId() -> String {
-            randomId()
-        }
-
         static func nameValid(_ name: String) -> Bool {
             true
         }
@@ -39,7 +35,7 @@ struct ManagedResourceTests {
 
     @Test("randomId generates valid hex string SHA256 hash format")
     func testRandomIdFormat() {
-        let id = MockManagedResource.randomId()
+        let id = MockManagedResource.generateId()
 
         // SHA256 hash is 64 hex characters (256 bits / 4 bits per hex char)
         #expect(id.count == 64, "randomId should generate 64 character string")
@@ -55,7 +51,7 @@ struct ManagedResourceTests {
     @Test("randomId generates unique values")
     func testRandomIdUniqueness() {
         // Generate multiple IDs and verify they're all different
-        let ids = (0..<100).map { _ in MockManagedResource.randomId() }
+        let ids = (0..<100).map { _ in MockManagedResource.generateId() }
         let uniqueIds = Set(ids)
 
         #expect(uniqueIds.count == 100, "All generated IDs should be unique")
@@ -63,7 +59,7 @@ struct ManagedResourceTests {
 
     @Test("randomId uses lowercase hexadecimal")
     func testRandomIdLowercase() {
-        let id = MockManagedResource.randomId()
+        let id = MockManagedResource.generateId()
 
         // Should not contain uppercase letters
         let uppercaseLetters = CharacterSet.uppercaseLetters

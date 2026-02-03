@@ -44,7 +44,7 @@ public protocol ManagedResource: Identifiable, Sendable, Codable {
 
 extension ManagedResource {
     /// Generate a random identifier that has the format of an ASCII SHA-256 hash.
-    public static func randomId() -> String {
+    public static func generateId() -> String {
         (0..<2)
             .map { _ in UInt128.random(in: 0...UInt128.max) }
             .map { String($0, radix: 16).padding(toLength: 32, withPad: "0", startingAt: 0) }
