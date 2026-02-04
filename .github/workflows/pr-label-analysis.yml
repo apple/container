@@ -2,7 +2,7 @@ name: PR Label Analysis
 
 on:
   pull_request:
-    types: [opened]
+    types: [opened, synchronize] # TODO katiewasnothere: adding this for testing
 
 permissions:
   contents: read
