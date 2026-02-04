@@ -117,7 +117,7 @@ public struct Flags {
         )
         public var searchDomains: [String] = []
     }
-    
+
     @OptionGroupPassthrough
     public struct Registry: ParsableArguments {
         public init() {}
