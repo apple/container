@@ -871,6 +871,28 @@ No options.
 
 The registry commands manage authentication and defaults for container registries.
 
+### Credential Helpers
+
+`container` supports Docker-compatible credential helpers for dynamic authentication with registries. Credential helpers are external programs that provide short-lived credentials on demand, which is useful for registries that prefer or require token-based authentication.
+
+To configure credential helpers, create or edit `~/.docker/config.json` with a `credHelpers` section:
+
+```json
+{
+  "credHelpers": {
+    "cgr.dev": "cgr",
+    "us-east4-docker.pkg.dev": "gcloud"
+  }
+}
+```
+
+When pulling from or pushing to a configured registry, `container` will execute `docker-credential-<helper-name>` (e.g., `docker-credential-cgr`) to retrieve credentials dynamically.
+
+The authentication priority order is:
+1. Environment variables (`CONTAINER_REGISTRY_HOST`, `CONTAINER_REGISTRY_USER`, `CONTAINER_REGISTRY_TOKEN`)
+2. Credential helpers (from `~/.docker/config.json`)
+3. Keychain (from `container registry login`)
+
 ### `container registry login`
 
 Authenticates with a registry. Credentials can be provided interactively or via flags. The login is stored for reuse by subsequent commands.
