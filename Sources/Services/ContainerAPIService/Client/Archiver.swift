@@ -20,7 +20,7 @@ import CryptoKit
 import Foundation
 
 public final class Archiver: Sendable {
-    public struct ArchiveEntryInfo: Sendable {
+    public struct ArchiveEntryInfo: Sendable, Codable {
         public let pathOnHost: URL
         public let pathInArchive: URL
 
@@ -74,7 +74,8 @@ public final class Archiver: Sendable {
                     entryInfo.append(info)
                 }
             } else {
-                while let relPath = enumerator.nextObject() as? String {
+                let relPaths = enumerator.compactMap { $0 as? String }
+                for relPath in relPaths.sorted(by: { $0 < $1 }) {
                     let url = source.appending(path: relPath).standardizedFileURL
                     guard let info = closure(url) else {
                         continue
@@ -88,10 +89,14 @@ public final class Archiver: Sendable {
             )
             try archiver.open(file: destination)
 
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .sortedKeys
+
             for info in entryInfo {
                 guard let entry = try Self._createEntry(entryInfo: info) else {
                     throw Error.failedToCreateEntry
                 }
+                hasher.update(data: try encoder.encode(info))
                 try Self._compressFile(item: info.pathOnHost, entry: entry, archiver: archiver, hasher: &hasher)
             }
             try archiver.finishEncoding()
