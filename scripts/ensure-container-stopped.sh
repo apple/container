@@ -13,19 +13,59 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-domain_string=""
+ALL_DOMAINS=false
 
-launchd_domain=$(launchctl managername)
-
-if [[ "$launchd_domain" == "System" ]]; then
-  domain_string="system"
-elif [[ "$launchd_domain" == "Aqua" ]]; then
-  domain_string="gui/$(id -u)"
-elif [[ "$launchd_domain" == "Background" ]]; then
-  domain_string="user/$(id -u)"
-else
-    echo "Unsupported launchd domain. Exiting"
+usage() {
+    echo "Usage: $0 [-a] [-h]"
+    echo "Stop container services"
+    echo
+    echo "Options:"
+    echo "a     Stop container services in all launchd domains."
+    echo "h     Show this help message."
+    echo
     exit 1
-fi
+}
 
-launchctl list | grep -e 'com\.apple\.container\W' | awk '{print $3}' | xargs -I % launchctl bootout $domain_string/%
+while getopts ":ah" arg; do
+    case "$arg" in
+        a)
+            ALL_DOMAINS=true
+            ;;
+        h)
+            usage
+            ;;
+        *)
+            echo "Invalid option: -${OPTARG}"
+            usage
+            ;;
+    esac
+done
+
+if $ALL_DOMAINS; then
+    uid=$(id -u)
+    for domain in "gui/$uid" "user/$uid" "system"; do
+        launchctl print "$domain" 2>/dev/null \
+            | grep -oE 'com\.apple\.container\.[^ ]+' \
+            | sort -u \
+            | while read -r service; do
+                launchctl bootout "$domain/$service"
+            done
+    done
+else
+    domain_string=""
+
+    launchd_domain=$(launchctl managername)
+
+    if [[ "$launchd_domain" == "System" ]]; then
+      domain_string="system"
+    elif [[ "$launchd_domain" == "Aqua" ]]; then
+      domain_string="gui/$(id -u)"
+    elif [[ "$launchd_domain" == "Background" ]]; then
+      domain_string="user/$(id -u)"
+    else
+        echo "Unsupported launchd domain. Exiting"
+        exit 1
+    fi
+
+    launchctl list | grep -e 'com\.apple\.container\W' | awk '{print $3}' | xargs -I % launchctl bootout $domain_string/%
+fi

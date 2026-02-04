@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerizationError
+import ContainerizationExtras
 import Foundation
 import Testing
 
@@ -41,6 +42,7 @@ struct HostDNSResolverTest {
             search foo.bar
             nameserver 127.0.0.1
             port 2053
+
             """
 
         #expect(actualText == expectedText)
@@ -86,7 +88,13 @@ struct HostDNSResolverTest {
 
         let resolver = HostDNSResolver(configURL: tempURL)
         try resolver.createDomain(name: "foo.bar")
-        try resolver.deleteDomain(name: "foo.bar")
+        _ = try resolver.deleteDomain(name: "foo.bar")
+
+        let localhost = try! IPAddress("127.0.0.1")
+        try resolver.createDomain(name: "bar.baz", localhost: localhost)
+        let deletedLocalhost = try resolver.deleteDomain(name: "bar.baz")
+        #expect(localhost == deletedLocalhost)
+
         let domains = resolver.listDomains()
         #expect(domains == [])
     }
@@ -105,7 +113,7 @@ struct HostDNSResolverTest {
         let resolver = HostDNSResolver(configURL: tempURL)
         try resolver.createDomain(name: "foo.bar")
         #expect {
-            try resolver.deleteDomain(name: "bar.foo")
+            _ = try resolver.deleteDomain(name: "bar.foo")
         } throws: { error in
             guard let error = error as? ContainerizationError, error.code == .notFound else {
                 return false

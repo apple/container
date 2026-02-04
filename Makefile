@@ -187,6 +187,7 @@ integration: init-block
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunCommand1 || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunCommand2 || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunCommand3 || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIPruneCommand || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIStatsCommand || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIImagesCommand || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunBase || exit_code=1 ; \

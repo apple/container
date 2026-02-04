@@ -56,10 +56,20 @@ extension Application {
 
             if all {
                 networks = try await ClientNetwork.list()
+                    .filter { !$0.isBuiltin }
             } else {
                 networks = try await ClientNetwork.list()
                     .filter { c in
-                        uniqueNetworkNames.contains(c.id)
+                        guard uniqueNetworkNames.contains(c.id) else {
+                            return false
+                        }
+                        guard !c.isBuiltin else {
+                            throw ContainerizationError(
+                                .invalidArgument,
+                                message: "cannot delete a builtin network: \(c.id)"
+                            )
+                        }
+                        return true
                     }
 
                 // If one of the networks requested isn't present lets throw. We don't need to do
@@ -76,13 +86,6 @@ extension Application {
                         message: "failed to delete one or more networks: \(missing)"
                     )
                 }
-            }
-
-            if uniqueNetworkNames.contains(ClientNetwork.defaultNetworkName) {
-                throw ContainerizationError(
-                    .invalidArgument,
-                    message: "cannot delete the default network"
-                )
             }
 
             var failed = [String]()

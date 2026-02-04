@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerPersistence
 import ContainerizationError
 import ContainerizationExtras
 import Foundation
@@ -30,20 +31,52 @@ extension Application {
         @OptionGroup
         public var logOptions: Flags.Logging
 
+        @Option(name: .long, help: "Set the ip address to be redirected to localhost")
+        var localhost: String?
+
         @Argument(help: "The local domain name")
         var domainName: String
 
         public init() {}
 
         public func run() async throws {
+            var localhostIP: IPAddress? = nil
+            if let localhost {
+                localhostIP = try? IPAddress(localhost)
+                guard let localhostIP, case .v4(_) = localhostIP else {
+                    throw ContainerizationError(.invalidArgument, message: "invalid IPv4 address: \(localhost)")
+                }
+            }
+
             let resolver: HostDNSResolver = HostDNSResolver()
             do {
-                try resolver.createDomain(name: domainName)
-                print(domainName)
+                try resolver.createDomain(name: domainName, localhost: localhostIP)
             } catch let error as ContainerizationError {
                 throw error
             } catch {
                 throw ContainerizationError(.invalidState, message: "cannot create domain (try sudo?)")
+            }
+
+            let pf = PacketFilter()
+            if let from = localhostIP {
+                let to = try! IPAddress("127.0.0.1")
+                do {
+                    try pf.createRedirectRule(from: from, to: to, domain: domainName)
+                } catch {
+                    _ = try resolver.deleteDomain(name: domainName)
+                    throw error
+                }
+            }
+            print(domainName)
+
+            if localhostIP != nil {
+                do {
+                    try pf.reinitialize()
+                } catch let error as ContainerizationError {
+                    throw error
+                } catch {
+                    throw ContainerizationError(.invalidState, message: "failed loading pf rules")
+                }
             }
 
             do {

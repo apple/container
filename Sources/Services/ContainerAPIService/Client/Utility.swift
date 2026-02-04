@@ -197,7 +197,12 @@ public struct Utility {
             }
             config.networks = []
         } else {
-            config.networks = try getAttachmentConfigurations(containerId: config.id, networks: parsedNetworks)
+            let builtinNetworkId = try await ClientNetwork.builtin?.id
+            config.networks = try getAttachmentConfigurations(
+                containerId: config.id,
+                builtinNetworkId: builtinNetworkId,
+                networks: parsedNetworks
+            )
             for attachmentConfiguration in config.networks {
                 let network: NetworkState = try await ClientNetwork.get(id: attachmentConfiguration.network)
                 guard case .running(_, _) = network else {
@@ -209,12 +214,12 @@ public struct Utility {
         if management.dnsDisabled {
             config.dns = nil
         } else {
-            let domain = management.dnsDomain ?? DefaultsStore.getOptional(key: .defaultDNSDomain)
+            let domain = management.dns.domain ?? DefaultsStore.getOptional(key: .defaultDNSDomain)
             config.dns = .init(
-                nameservers: management.dnsNameservers,
+                nameservers: management.dns.nameservers,
                 domain: domain,
-                searchDomains: management.dnsSearchDomains,
-                options: management.dnsOptions
+                searchDomains: management.dns.searchDomains,
+                options: management.dns.options
             )
         }
 
@@ -244,7 +249,11 @@ public struct Utility {
         return (config, kernel)
     }
 
-    static func getAttachmentConfigurations(containerId: String, networks: [Parser.ParsedNetwork]) throws -> [AttachmentConfiguration] {
+    static func getAttachmentConfigurations(
+        containerId: String,
+        builtinNetworkId: String?,
+        networks: [Parser.ParsedNetwork]
+    ) throws -> [AttachmentConfiguration] {
         // Validate MAC addresses if provided
         for network in networks {
             if let mac = network.macAddress {
@@ -268,7 +277,7 @@ public struct Utility {
 
         guard networks.isEmpty else {
             // Check if this is only the default network with properties (e.g., MAC address)
-            let isOnlyDefaultNetwork = networks.count == 1 && networks[0].name == ClientNetwork.defaultNetworkName
+            let isOnlyDefaultNetwork = networks.count == 1 && networks[0].name == builtinNetworkId
 
             // networks may only be specified for macOS 26+ (except for default network with properties)
             if !isOnlyDefaultNetwork {
@@ -292,8 +301,12 @@ public struct Utility {
                 )
             }
         }
+
         // if no networks specified, attach to the default network
-        return [AttachmentConfiguration(network: ClientNetwork.defaultNetworkName, options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: nil))]
+        guard let builtinNetworkId else {
+            throw ContainerizationError(.invalidState, message: "builtin network is not present")
+        }
+        return [AttachmentConfiguration(network: builtinNetworkId, options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: nil))]
     }
 
     private static func getKernel(management: Flags.Management) async throws -> Kernel {

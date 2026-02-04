@@ -268,20 +268,21 @@ public actor ContainersService {
     /// Bootstrap the init process of the container.
     public func bootstrap(id: String, stdio: [FileHandle?]) async throws {
         self.log.debug("\(#function)")
-        do {
-            try await self.lock.withLock { context in
-                var state = try await self.getContainerState(id: id, context: context)
+        try await self.lock.withLock { context in
+            var state = try await self.getContainerState(id: id, context: context)
 
-                // We've already bootstrapped this container. Ideally we should be able to
-                // return some sort of error code from the sandbox svc to check here, but this
-                // is also a very simple check and faster than doing an rpc to get the same result.
-                if state.client != nil {
-                    return
-                }
+            // We've already bootstrapped this container. Ideally we should be able to
+            // return some sort of error code from the sandbox svc to check here, but this
+            // is also a very simple check and faster than doing an rpc to get the same result.
+            if state.client != nil {
+                return
+            }
 
-                let path = self.containerRoot.appendingPathComponent(id)
-                let bundle = ContainerResource.Bundle(path: path)
-                let config = try bundle.configuration
+            let path = self.containerRoot.appendingPathComponent(id)
+            let bundle = ContainerResource.Bundle(path: path)
+            let config = try bundle.configuration
+
+            do {
                 try Self.registerService(
                     plugin: self.runtimePlugins.first { $0.name == config.runtimeHandler }!,
                     loader: self.pluginLoader,
@@ -303,14 +304,17 @@ public actor ContainersService {
 
                 state.client = sandboxClient
                 await self.setContainerState(id, state, context: context)
-            }
-        } catch {
-            do {
-                try await _cleanup(id: id)
             } catch {
-                self.log.error("failed to cleanup container \(id) after bootstrap failure: \(error)")
+                let label = Self.fullLaunchdServiceLabel(
+                    runtimeName: config.runtimeHandler,
+                    instanceId: id
+                )
+
+                await self.exitMonitor.stopTracking(id: id)
+                try? ServiceManager.deregister(fullServiceLabel: label)
+
+                throw error
             }
-            throw error
         }
     }
 
@@ -324,21 +328,12 @@ public actor ContainersService {
         self.log.debug("\(#function)")
 
         let state = try self._getContainerState(id: id)
-        do {
-            let client = try state.getClient()
-            try await client.createProcess(
-                processID,
-                config: config,
-                stdio: stdio
-            )
-        } catch {
-            do {
-                try await _cleanup(id: id)
-            } catch {
-                self.log.error("failed to cleanup container \(id) after start failure: \(error)")
-            }
-            throw error
-        }
+        let client = try state.getClient()
+        try await client.createProcess(
+            processID,
+            config: config,
+            stdio: stdio
+        )
     }
 
     /// Start a process in a container. This can either be a process created via
@@ -347,43 +342,43 @@ public actor ContainersService {
     public func startProcess(id: String, processID: String) async throws {
         self.log.debug("\(#function)")
 
-        do {
-            try await self.lock.withLock { context in
-                var state = try await self.getContainerState(id: id, context: context)
+        try await self.lock.withLock { context in
+            var state = try await self.getContainerState(id: id, context: context)
 
-                let isInit = Self.isInitProcess(id: id, processID: processID)
-                if state.snapshot.status == .running && isInit {
-                    return
-                }
-
-                let client = try state.getClient()
-                try await client.startProcess(processID)
-
-                if isInit {
-                    let log = self.log
-                    let waitFunc: ExitMonitor.WaitHandler = {
-                        log.info("registering container \(id) with exit monitor")
-                        let code = try await client.wait(id)
-                        log.info("container \(id) finished in exit monitor, exit code \(code)")
-
-                        return code
-                    }
-                    try await self.exitMonitor.track(id: id, waitingOn: waitFunc)
-
-                    let sandboxSnapshot = try await client.state()
-                    state.snapshot.status = .running
-                    state.snapshot.networks = sandboxSnapshot.networks
-                    state.snapshot.startedDate = Date()
-                    await self.setContainerState(id, state, context: context)
-                }
+            let isInit = Self.isInitProcess(id: id, processID: processID)
+            if state.snapshot.status == .running && isInit {
+                return
             }
-        } catch {
+
+            let client = try state.getClient()
+            try await client.startProcess(processID)
+
+            guard isInit else {
+                return
+            }
+
             do {
-                try await _cleanup(id: id)
+                let log = self.log
+                let waitFunc: ExitMonitor.WaitHandler = {
+                    log.info("registering container \(id) with exit monitor")
+                    let code = try await client.wait(id)
+                    log.info("container \(id) finished in exit monitor, exit code \(code)")
+
+                    return code
+                }
+                try await self.exitMonitor.track(id: id, waitingOn: waitFunc)
+
+                let sandboxSnapshot = try await client.state()
+                state.snapshot.status = .running
+                state.snapshot.networks = sandboxSnapshot.networks
+                state.snapshot.startedDate = Date()
+                await self.setContainerState(id, state, context: context)
             } catch {
-                self.log.error("failed to cleanup container \(id) after start failure: \(error)")
+                await self.exitMonitor.stopTracking(id: id)
+                try? await client.stop(options: ContainerStopOptions.default)
+
+                throw error
             }
-            throw error
         }
     }
 
@@ -507,6 +502,14 @@ public actor ContainersService {
                 try await self.cleanup(id: id, context: context)
             }
         }
+    }
+
+    public func containerDiskUsage(id: String) async throws -> UInt64 {
+        self.log.debug("\(#function)")
+
+        let containerPath = self.containerRoot.appendingPathComponent(id).path
+
+        return Self.calculateDirectorySize(at: containerPath)
     }
 
     private func handleContainerExit(id: String, code: ExitStatus? = nil) async throws {

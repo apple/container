@@ -228,6 +228,16 @@ extension ClientContainer {
         }
     }
 
+    public static func containerDiskUsage(id: String) async throws -> UInt64 {
+        let client = Self.newXPCClient()
+        let request = XPCMessage(route: .containerDiskUsage)
+        request.set(key: .id, value: id)
+        let reply = try await client.send(request)
+
+        let size = reply.uint64(key: .containerSize)
+        return size
+    }
+
     /// Create a new process inside a running container. The process is in a
     /// created state and must still be started.
     public func createProcess(

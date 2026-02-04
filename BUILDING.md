@@ -58,7 +58,7 @@ to prepare your build environment.
     bin/container system stop
     ```
 
-4. Use the Swift package manager to configure use your local `containerization` package and update your `Package.resolved` file.
+4. Reconfigure the Swift project to use your local `containerization` package and update your `Package.resolved` file.
 
     ```bash
     /usr/bin/swift package edit --path ../containerization containerization
@@ -66,11 +66,19 @@ to prepare your build environment.
     ```
 
     > [!IMPORTANT]
-    > If you are using Xcode, you will need to temporarily modify `Package.swift` instead of using `swift package edit`, using a path dependency in place of the versioned `container` dependency:
+    > If you are using Xcode, do **not** run `swift package edit`. Instead, temporarily modify `Package.swift` to replace the versioned `containerization` dependency:
     >
-    >    ```swift
-    >    .package(path: "../containerization"),
-    >    ```
+    > ```swift
+    > .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion)),
+    > ```
+    >
+    > with the local path dependency:
+    >
+    > ```swift
+    > .package(path: "../containerization"),
+    > ```
+    >
+    > **Note:** If you have already run `swift package edit`, whether intentionally or by accident, follow the steps in the next section to restore the normal `containerization` dependency. Otherwise, the modified `Package.swift` file will not work, and the project may fail to build.
 
 5. If you want `container` to use any changes you made in the `vminit` subproject of Containerization, update the system property to use the locally built init filesystem image:
 
@@ -117,6 +125,42 @@ To revert to using the Containerization dependency from your `Package.swift`:
     ```bash
     bin/container system stop
     bin/container system start
+    ```
+
+## Debug XPC Helpers
+
+Attach debugger to the XPC helpers using their launchd service labels:
+
+1. Find launchd service labels:
+
+   ```console
+   % container system start
+   % container run -d --name test debian:bookworm sleep infinity
+   test
+   % launchctl list | grep container
+   27068   0       com.apple.container.container-network-vmnet.default
+   27072   0       com.apple.container.container-core-images
+   26980   0       com.apple.container.apiserver
+   27331   0       com.apple.container.container-runtime-linux.test
+   ```
+
+2. Stop container and start again after setting the environment variable `CONTAINER_DEBUG_LAUNCHD_LABEL` to the label of service to attach debugger. Services whose label starts with the `CONTAINER_DEBUG_LAUNCHD_LABEL` will wait the debugger:
+
+    ```console
+    % export CONTAINER_DEBUG_LAUNCHD_LABEL=com.apple.container.container-runtime-linux.test
+    % container system start # Only the service `com.apple.container.container-runtime-linux.test` waits debugger
+    ```
+
+    ```console
+    % export CONTAINER_DEBUG_LAUNCHD_LABEL=com.apple.container.container-runtime-linux
+    % container system start # Every service starting with `com.apple.container.container-runtime-linux` waits debugger
+    ```
+
+3. Run the command to launch the service, and attach debugger:
+
+    ```console
+    % container run -it --name test debian:bookworm
+    ⠧ [6/6] Starting container [0s] # It hangs as the service is waiting for debugger
     ```
 
 ## Pre-commit hook

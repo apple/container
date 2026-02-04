@@ -33,6 +33,7 @@ extension APIServer {
         )
 
         static let listenAddress = "127.0.0.1"
+        static let localhostDNSPort = 1053
         static let dnsPort = 2053
 
         @Flag(name: .long, help: "Enable debug logging")
@@ -97,13 +98,33 @@ extension APIServer {
                         let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
                         let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
                         log.info(
-                            "starting DNS host query resolver",
+                            "starting DNS resolver for container hostnames",
                             metadata: [
                                 "host": "\(Self.listenAddress)",
                                 "port": "\(Self.dnsPort)",
                             ]
                         )
                         try await dnsServer.run(host: Self.listenAddress, port: Self.dnsPort)
+
+                    }
+
+                    // start up realhost DNS
+                    group.addTask {
+                        let localhostResolver = LocalhostDNSHandler(log: log)
+                        try localhostResolver.monitorResolvers()
+
+                        let nxDomainResolver = NxDomainResolver()
+                        let compositeResolver = CompositeResolver(handlers: [localhostResolver, nxDomainResolver])
+                        let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
+                        let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
+                        log.info(
+                            "starting DNS resolver for localhost",
+                            metadata: [
+                                "host": "\(Self.listenAddress)",
+                                "port": "\(Self.localhostDNSPort)",
+                            ]
+                        )
+                        try await dnsServer.run(host: Self.listenAddress, port: Self.localhostDNSPort)
                     }
                 }
             } catch {
@@ -221,6 +242,7 @@ extension APIServer {
             routes[XPCRoute.containerWait] = harness.wait
             routes[XPCRoute.containerKill] = harness.kill
             routes[XPCRoute.containerStats] = harness.stats
+            routes[XPCRoute.containerDiskUsage] = harness.diskUsage
 
             return service
         }
@@ -242,10 +264,14 @@ extension APIServer {
             )
 
             let defaultNetwork = try await service.list()
-                .filter { $0.id == ClientNetwork.defaultNetworkName }
+                .filter { $0.isBuiltin }
                 .first
             if defaultNetwork == nil {
-                let config = try NetworkConfiguration(id: ClientNetwork.defaultNetworkName, mode: .nat)
+                let config = try NetworkConfiguration(
+                    id: ClientNetwork.defaultNetworkName,
+                    mode: .nat,
+                    labels: [ResourceLabelKeys.role: ResourceRoleValues.builtin]
+                )
                 _ = try await service.create(configuration: config)
             }
 

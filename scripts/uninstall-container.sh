@@ -60,6 +60,10 @@ if [ -n "$CONTAINER_RUNNING" ]; then
     exit 1
 fi
 
+if [ "$EUID" -ne 0 ]; then
+    echo "This script requires an administrator password to remove the application files from system directories."
+fi
+
 FILES=$(pkgutil --only-files --files com.apple.container-installer)
 for i in ${FILES[@]}; do
     # this command can fail for some of the reported files from pkgutil such as 

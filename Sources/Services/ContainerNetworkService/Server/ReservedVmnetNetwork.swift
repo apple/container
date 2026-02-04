@@ -52,7 +52,7 @@ public final class ReservedVmnetNetwork: Network {
         configuration: NetworkConfiguration,
         log: Logger
     ) throws {
-        guard configuration.mode == .nat else {
+        guard configuration.mode == .nat || configuration.mode == .hostOnly else {
             throw ContainerizationError(.unsupported, message: "invalid network mode \(configuration.mode)")
         }
 
@@ -110,7 +110,8 @@ public final class ReservedVmnetNetwork: Network {
 
         // set up the vmnet configuration
         var status: vmnet_return_t = .VMNET_SUCCESS
-        guard let vmnetConfiguration = vmnet_network_configuration_create(vmnet.operating_modes_t.VMNET_SHARED_MODE, &status), status == .VMNET_SUCCESS else {
+        let mode: vmnet.operating_modes_t = configuration.mode == .hostOnly ? .VMNET_HOST_MODE : .VMNET_SHARED_MODE
+        guard let vmnetConfiguration = vmnet_network_configuration_create(mode, &status), status == .VMNET_SUCCESS else {
             throw ContainerizationError(.unsupported, message: "failed to create vmnet config with status \(status)")
         }
 
@@ -180,7 +181,7 @@ public final class ReservedVmnetNetwork: Network {
         let prefixIpv6Bytes = withUnsafeBytes(of: prefixAddr.__u6_addr.__u6_addr8) {
             Array($0)
         }
-        let prefixIpv6Addr = IPv6Address(prefixIpv6Bytes)
+        let prefixIpv6Addr = try IPv6Address(prefixIpv6Bytes)
         let runningV6Subnet = try CIDRv6(prefixIpv6Addr, prefix: prefix)
 
         log.info(

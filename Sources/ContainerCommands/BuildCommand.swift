@@ -125,6 +125,9 @@ extension Application {
         @OptionGroup
         public var logOptions: Flags.Logging
 
+        @OptionGroup
+        public var dns: Flags.DNS
+
         @Argument(help: "Build directory")
         var contextDir: String = "."
 
@@ -143,12 +146,13 @@ extension Application {
 
                 progress.set(description: "Dialing builder")
 
-                let builder: Builder? = try await withThrowingTaskGroup(of: Builder.self) { [vsockPort, cpus, memory] group in
+                let dnsNameservers = self.dns.nameservers
+                let builder: Builder? = try await withThrowingTaskGroup(of: Builder.self) { [vsockPort, cpus, memory, dnsNameservers] group in
                     defer {
                         group.cancelAll()
                     }
 
-                    group.addTask { [vsockPort, cpus, memory, log] in
+                    group.addTask { [vsockPort, cpus, memory, log, dnsNameservers] in
                         while true {
                             do {
                                 let container = try await ClientContainer.get(id: "buildkit")
@@ -170,6 +174,7 @@ extension Application {
                                     cpus: cpus,
                                     memory: memory,
                                     log: log,
+                                    dnsNameservers: dnsNameservers,
                                     progressUpdate: progress.handler
                                 )
 

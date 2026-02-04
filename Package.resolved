@@ -1,5 +1,5 @@
 {
-  "originHash" : "6c4f899bb6e5f766097054c134adfab351d236a5b2a7d7de068460ef6211de6a",
+  "originHash" : "77f4cb7cb202f3e17c1555bf456b949cdbe8ca07e268d02d39f02ec01a37042c",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -15,14 +15,14 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/containerization.git",
       "state" : {
-        "revision" : "26f3dcc796c89baf729827770c011cd694debcbf",
-        "version" : "0.21.1"
+        "revision" : "c3fe889a2f739ee4a9b0faccedd9f36f3862dc29",
+        "version" : "0.24.5"
       }
     },
     {
       "identity" : "dns",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Bouke/DNS.git",
+      "location" : "https://github.com/Bouke/DNS",
       "state" : {
         "revision" : "78bbd1589890a90b202d11d5f9e1297050cf0eb2",
         "version" : "1.2.0"
@@ -31,7 +31,7 @@
     {
       "identity" : "dnsclient",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/orlandos-nl/DNSClient.git",
+      "location" : "https://github.com/orlandos-nl/DNSClient",
       "state" : {
         "revision" : "551fbddbf4fa728d4cd86f6a5208fe4f925f0549",
         "version" : "2.4.4"
@@ -236,21 +236,21 @@
       }
     },
     {
-      "identity" : "swift-syntax",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/swiftlang/swift-syntax.git",
-      "state" : {
-        "revision" : "4799286537280063c85a32f09884cfbca301b1a1",
-        "version" : "602.0.0"
-      }
-    },
-    {
       "identity" : "swift-system",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-system.git",
       "state" : {
         "revision" : "890830fff1a577dc83134890c7984020c5f6b43b",
         "version" : "1.6.2"
+      }
+    },
+    {
+      "identity" : "zstd",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/facebook/zstd.git",
+      "state" : {
+        "revision" : "f8745da6ff1ad1e7bab384bd1f9d742439278e99",
+        "version" : "1.5.7"
       }
     }
   ],

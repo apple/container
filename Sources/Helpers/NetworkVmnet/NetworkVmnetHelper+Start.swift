@@ -29,6 +29,8 @@ enum Variant: String, ExpressibleByArgument {
     case allocationOnly
 }
 
+extension NetworkMode: ExpressibleByArgument {}
+
 extension NetworkVmnetHelper {
     struct Start: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
@@ -44,6 +46,9 @@ extension NetworkVmnetHelper {
 
         @Option(name: .shortAndLong, help: "Network identifier")
         var id: String
+
+        @Option(name: .long, help: "Network mode")
+        var mode: NetworkMode = .nat
 
         @Option(name: .customLong("subnet"), help: "CIDR address for the IPv4 subnet")
         var ipv4Subnet: String?
@@ -73,7 +78,7 @@ extension NetworkVmnetHelper {
                 let ipv6Subnet = try self.ipv6Subnet.map { try CIDRv6($0) }
                 let configuration = try NetworkConfiguration(
                     id: id,
-                    mode: .nat,
+                    mode: mode,
                     ipv4Subnet: ipv4Subnet,
                     ipv6Subnet: ipv6Subnet,
                 )

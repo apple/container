@@ -66,7 +66,17 @@ public actor NetworksService {
         self.networkPlugin = networkPlugin
 
         let configurations = try await store.list()
-        for configuration in configurations {
+        for var configuration in configurations {
+            // Ensure the network with id "default" is marked as builtin.
+            if configuration.id == ClientNetwork.defaultNetworkName {
+                let role = configuration.labels[ResourceLabelKeys.role]
+                if role == nil || role != ResourceRoleValues.builtin {
+                    configuration.labels[ResourceLabelKeys.role] = ResourceRoleValues.builtin
+                    try await store.update(configuration)
+                }
+            }
+
+            // Start up the network.
             do {
                 try await registerService(configuration: configuration)
             } catch {
@@ -186,17 +196,17 @@ public actor NetworksService {
                 "id": "\(id)"
             ])
 
-        // basic sanity checks on network itself
-        if id == ClientNetwork.defaultNetworkName {
-            throw ContainerizationError(.invalidArgument, message: "cannot delete system subnet \(ClientNetwork.defaultNetworkName)")
-        }
-
         guard let networkState = networkStates[id] else {
             throw ContainerizationError(.notFound, message: "no network for id \(id)")
         }
 
+        // basic sanity checks on network itself
+        if networkState.isBuiltin {
+            throw ContainerizationError(.invalidArgument, message: "cannot delete builtin network: \(id)")
+        }
+
         guard case .running = networkState else {
-            throw ContainerizationError(.invalidState, message: "cannot delete subnet \(id) in state \(networkState.state)")
+            throw ContainerizationError(.invalidState, message: "cannot delete network \(id) in state \(networkState.state)")
         }
 
         // prevent container operations while we atomically check and delete
@@ -269,7 +279,7 @@ public actor NetworksService {
     }
 
     private func registerService(configuration: NetworkConfiguration) async throws {
-        guard configuration.mode == .nat else {
+        guard configuration.mode == .nat || configuration.mode == .hostOnly else {
             throw ContainerizationError(.invalidArgument, message: "unsupported network mode \(configuration.mode.rawValue)")
         }
 
@@ -282,6 +292,8 @@ public actor NetworksService {
             configuration.id,
             "--service-identifier",
             serviceIdentifier,
+            "--mode",
+            configuration.mode.rawValue,
         ]
 
         if let ipv4Subnet = configuration.ipv4Subnet {

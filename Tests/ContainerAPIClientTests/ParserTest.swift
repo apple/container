@@ -863,4 +863,165 @@ struct ParserTest {
         #expect(result.executable == "./uname")
         #expect(result.workingDirectory == "/bin")
     }
+
+    @Test
+    func testUlimitParserSoftAndHard() throws {
+        let result = try Parser.rlimits(["nofile=1024:2048"])
+        #expect(result.count == 1)
+        #expect(result[0].limit == "RLIMIT_NOFILE")
+        #expect(result[0].soft == 1024)
+        #expect(result[0].hard == 2048)
+    }
+
+    @Test
+    func testUlimitParserSingleValue() throws {
+        let result = try Parser.rlimits(["nproc=512"])
+        #expect(result.count == 1)
+        #expect(result[0].limit == "RLIMIT_NPROC")
+        #expect(result[0].soft == 512)
+        #expect(result[0].hard == 512)
+    }
+
+    @Test
+    func testUlimitParserUnlimited() throws {
+        let result = try Parser.rlimits(["memlock=unlimited"])
+        #expect(result.count == 1)
+        #expect(result[0].limit == "RLIMIT_MEMLOCK")
+        #expect(result[0].soft == UInt64.max)
+        #expect(result[0].hard == UInt64.max)
+    }
+
+    @Test
+    func testUlimitParserUnlimitedHardOnly() throws {
+        let result = try Parser.rlimits(["stack=8192:unlimited"])
+        #expect(result.count == 1)
+        #expect(result[0].limit == "RLIMIT_STACK")
+        #expect(result[0].soft == 8192)
+        #expect(result[0].hard == UInt64.max)
+    }
+
+    @Test
+    func testUlimitParserMinusOneAsUnlimited() throws {
+        let result = try Parser.rlimits(["core=-1"])
+        #expect(result.count == 1)
+        #expect(result[0].limit == "RLIMIT_CORE")
+        #expect(result[0].soft == UInt64.max)
+        #expect(result[0].hard == UInt64.max)
+    }
+
+    @Test
+    func testUlimitParserMultipleUlimits() throws {
+        let result = try Parser.rlimits(["nofile=1024:2048", "nproc=256", "cpu=60:120"])
+        #expect(result.count == 3)
+        #expect(result[0].limit == "RLIMIT_NOFILE")
+        #expect(result[1].limit == "RLIMIT_NPROC")
+        #expect(result[2].limit == "RLIMIT_CPU")
+    }
+
+    @Test
+    func testUlimitParserAllSupportedTypes() throws {
+        let types = ["core", "cpu", "data", "fsize", "memlock", "nofile", "nproc", "rss", "stack"]
+        let expectedRlimits = [
+            "RLIMIT_CORE", "RLIMIT_CPU", "RLIMIT_DATA", "RLIMIT_FSIZE",
+            "RLIMIT_MEMLOCK", "RLIMIT_NOFILE", "RLIMIT_NPROC", "RLIMIT_RSS", "RLIMIT_STACK",
+        ]
+
+        for (i, type) in types.enumerated() {
+            let result = try Parser.rlimits(["\(type)=100"])
+            #expect(result.count == 1)
+            #expect(result[0].limit == expectedRlimits[i])
+        }
+    }
+
+    @Test
+    func testUlimitParserCaseInsensitive() throws {
+        let result = try Parser.rlimits(["NOFILE=1024", "Nproc=512"])
+        #expect(result.count == 2)
+        #expect(result[0].limit == "RLIMIT_NOFILE")
+        #expect(result[1].limit == "RLIMIT_NPROC")
+    }
+
+    @Test
+    func testUlimitParserInvalidFormat() throws {
+        #expect {
+            _ = try Parser.rlimits(["nofile"])
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid ulimit format")
+        }
+    }
+
+    @Test
+    func testUlimitParserUnsupportedType() throws {
+        #expect {
+            _ = try Parser.rlimits(["foo=100"])
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("unsupported ulimit type")
+        }
+    }
+
+    @Test
+    func testUlimitParserSoftExceedsHard() throws {
+        #expect {
+            _ = try Parser.rlimits(["nofile=2048:1024"])
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("soft limit") && error.description.contains("cannot exceed hard limit")
+        }
+    }
+
+    @Test
+    func testUlimitParserDuplicateType() throws {
+        #expect {
+            _ = try Parser.rlimits(["nofile=1024", "nofile=2048"])
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("duplicate ulimit type")
+        }
+    }
+
+    @Test
+    func testUlimitParserInvalidValue() throws {
+        #expect {
+            _ = try Parser.rlimits(["nofile=abc"])
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid ulimit value")
+        }
+    }
+
+    @Test
+    func testUlimitParserEmptyArray() throws {
+        let result = try Parser.rlimits([])
+        #expect(result.isEmpty)
+    }
+
+    @Test
+    func testUlimitParserZeroValue() throws {
+        let result = try Parser.rlimits(["core=0"])
+        #expect(result.count == 1)
+        #expect(result[0].limit == "RLIMIT_CORE")
+        #expect(result[0].soft == 0)
+        #expect(result[0].hard == 0)
+    }
+
+    @Test
+    func testUlimitParserLargeValues() throws {
+        let result = try Parser.rlimits(["nproc=\(UInt64.max - 1):\(UInt64.max)"])
+        #expect(result.count == 1)
+        #expect(result[0].limit == "RLIMIT_NPROC")
+        #expect(result[0].soft == UInt64.max - 1)
+        #expect(result[0].hard == UInt64.max)
+    }
 }
