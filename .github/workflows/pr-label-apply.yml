@@ -29,8 +29,12 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           pattern: pr-metadata-*
           merge-multiple: false
-        continue-on-error: true
         id: download-artifact
+
+      - name: Debug workspace contents 
+        run: |
+          echo "Workspace contents:"
+          ls -R 
       
       - name: Read PR number
         id: pr-number
