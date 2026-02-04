@@ -243,6 +243,7 @@ public struct Flags {
         public var progress: ProgressType = .ansi
     }
 
+    @OptionGroupPassthrough
     public struct ImageFetch: ParsableArguments {
         public init() {}
 
