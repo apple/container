@@ -471,5 +471,126 @@ extension TestCLIBuildBase {
             try buildWithStdin(tags: [imageName], tempContext: tempDir, dockerfileContents: dockerfile)
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
+
+        @Test func testBuildDockerIgnore() throws {
+            let tempDir: URL = try createTempDir()
+            let dockerfile =
+                """
+                FROM ghcr.io/linuxcontainers/alpine:3.20
+
+                # Copy all files - should respect .dockerignore
+                COPY . /app
+
+                # Verify specific files are excluded
+                RUN set -e; \
+                    echo "Checking specific file exclusion..."; \
+                    if [ -f /app/secret.txt ]; then \
+                        echo "ERROR: secret.txt should be excluded!"; \
+                        exit 1; \
+                    fi
+
+                # Verify wildcard *.log files are excluded
+                RUN set -e; \
+                    echo "Checking *.log exclusion..."; \
+                    if [ -f /app/debug.log ]; then \
+                        echo "ERROR: debug.log should be excluded by *.log pattern!"; \
+                        exit 1; \
+                    fi; \
+                    if ls /app/logs/*.log 2>/dev/null; then \
+                        echo "ERROR: logs/*.log files should be excluded!"; \
+                        exit 1; \
+                    fi
+
+                # Verify exception pattern (!important.log) works
+                RUN set -e; \
+                    echo "Checking exception pattern..."; \
+                    if [ ! -f /app/important.log ]; then \
+                        echo "ERROR: important.log should be included (exception with !)"; \
+                        exit 1; \
+                    fi
+
+                # Verify *.tmp files are excluded
+                RUN set -e; \
+                    echo "Checking *.tmp exclusion..."; \
+                    if find /app -name "*.tmp" | grep .; then \
+                        echo "ERROR: .tmp files should be excluded!"; \
+                        exit 1; \
+                    fi
+
+                # Verify directories are excluded
+                RUN set -e; \
+                    echo "Checking directory exclusion..."; \
+                    if [ -d /app/temp ]; then \
+                        echo "ERROR: temp/ directory should be excluded!"; \
+                        exit 1; \
+                    fi; \
+                    if [ -d /app/node_modules ]; then \
+                        echo "ERROR: node_modules/ should be excluded!"; \
+                        exit 1; \
+                    fi
+
+                # Verify included files ARE present
+                RUN set -e; \
+                    echo "Checking included files..."; \
+                    if [ ! -f /app/main.go ]; then \
+                        echo "ERROR: main.go should be included!"; \
+                        exit 1; \
+                    fi; \
+                    if [ ! -f /app/README.md ]; then \
+                        echo "ERROR: README.md should be included!"; \
+                        exit 1; \
+                    fi; \
+                    if [ ! -f /app/src/app.go ]; then \
+                        echo "ERROR: src/app.go should be included!"; \
+                        exit 1; \
+                    fi; \
+                    echo "All .dockerignore checks passed!"
+                """
+
+            let dockerignore =
+                """
+                # Exclude specific files
+                secret.txt
+
+                # Exclude all log files
+                *.log
+                **/*.log
+
+                # But make an exception for important.log
+                !important.log
+
+                # Exclude all temporary files
+                *.tmp
+                **/*.tmp
+
+                # Exclude directories
+                temp/
+                node_modules/
+                """
+
+            let context: [FileSystemEntry] = [
+                .file(".dockerignore", content: .data(dockerignore.data(using: .utf8)!)),
+                .file("secret.txt", content: .data("secret content".data(using: .utf8)!)),
+                .file("debug.log", content: .data("debug log content".data(using: .utf8)!)),
+                .file("important.log", content: .data("important log content".data(using: .utf8)!)),
+                .file("cache.tmp", content: .data("cache".data(using: .utf8)!)),
+                .file("main.go", content: .data("package main".data(using: .utf8)!)),
+                .file("README.md", content: .data("# README".data(using: .utf8)!)),
+                .directory("temp"),
+                .file("temp/cache.tmp", content: .data("temp cache".data(using: .utf8)!)),
+                .directory("logs"),
+                .file("logs/app.log", content: .data("app log".data(using: .utf8)!)),
+                .directory("node_modules"),
+                .file("node_modules/package.json", content: .data("{}".data(using: .utf8)!)),
+                .directory("src"),
+                .file("src/app.go", content: .data("package src".data(using: .utf8)!)),
+                .file("src/test.tmp", content: .data("temp".data(using: .utf8)!)),
+            ]
+
+            try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
+            let imageName = "registry.local/dockerignore-test:\(UUID().uuidString)"
+            try self.build(tag: imageName, tempDir: tempDir)
+            #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
+        }
     }
 }
