@@ -57,11 +57,12 @@ extension Application {
 
         public mutating func run() async throws {
             let set = Set<String>(containerIds)
-            var containers = [ClientContainer]()
+            let client = ContainerClient()
+            var containers = [ContainerSnapshot]()
             if self.all {
-                containers = try await ClientContainer.list()
+                containers = try await client.list()
             } else {
-                containers = try await ClientContainer.list().filter { c in
+                containers = try await client.list().filter { c in
                     set.contains(c.id)
                 }
             }
@@ -70,7 +71,7 @@ extension Application {
                 timeoutInSeconds: self.time,
                 signal: try Signals.parseSignal(self.signal)
             )
-            let failed = try await Self.stopContainers(containers: containers, stopOptions: opts, log: log)
+            let failed = try await Self.stopContainers(client: client, containers: containers, stopOptions: opts, log: log)
             if failed.count > 0 {
                 throw ContainerizationError(
                     .internalError,
@@ -79,13 +80,13 @@ extension Application {
             }
         }
 
-        static func stopContainers(containers: [ClientContainer], stopOptions: ContainerStopOptions, log: Logger) async throws -> [String] {
+        static func stopContainers(client: ContainerClient, containers: [ContainerSnapshot], stopOptions: ContainerStopOptions, log: Logger) async throws -> [String] {
             var failed: [String] = []
-            try await withThrowingTaskGroup(of: ClientContainer?.self) { group in
+            try await withThrowingTaskGroup(of: ContainerSnapshot?.self) { group in
                 for container in containers {
                     group.addTask {
                         do {
-                            try await container.stop(opts: stopOptions)
+                            try await client.stop(id: container.id, opts: stopOptions)
                             print(container.id)
                             return nil
                         } catch {

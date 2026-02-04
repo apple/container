@@ -119,7 +119,8 @@ extension Application {
             }
             targetEnvVars.sort()
 
-            let existingContainer = try? await ClientContainer.get(id: "buildkit")
+            let client = ContainerClient()
+            let existingContainer = try? await client.get(id: "buildkit")
             if let existingContainer {
                 let existingImage = existingContainer.configuration.image.reference
                 let existingResources = existingContainer.configuration.resources
@@ -174,16 +175,16 @@ extension Application {
                         return
                     }
                     // If they changed, stop and delete the existing builder
-                    try await existingContainer.stop()
-                    try await existingContainer.delete()
+                    try await client.stop(id: existingContainer.id)
+                    try await client.delete(id: existingContainer.id)
                 case .stopped:
                     // If the builder is stopped and matches our requirements, start it
                     // Otherwise, delete it and create a new one
                     guard imageChanged || cpuChanged || memChanged || envChanged || dnsChanged else {
-                        try await existingContainer.startBuildKit(progressUpdate, nil)
+                        try await startBuildKit(client: client, id: existingContainer.id, progressUpdate, nil)
                         return
                     }
-                    try await existingContainer.delete()
+                    try await client.delete(id: existingContainer.id)
                 case .stopping:
                     throw ContainerizationError(
                         .invalidState,
@@ -296,43 +297,46 @@ extension Application {
                 .setDescription("Starting BuildKit container")
             ])
 
-            let container = try await ClientContainer.create(
+            try await client.create(
                 configuration: config,
                 options: .default,
                 kernel: kernel
             )
 
-            try await container.startBuildKit(progressUpdate, taskManager)
+            try await startBuildKit(client: client, id: Builder.builderContainerId, progressUpdate, taskManager)
             log.debug("starting BuildKit and BuildKit-shim")
         }
     }
 }
 
-// MARK: - ClientContainer Extension for BuildKit
+// MARK: - BuildKit Start Helper
 
-extension ClientContainer {
-    /// Starts the BuildKit process within the container
-    /// This method handles bootstrapping the container and starting the BuildKit process
-    fileprivate func startBuildKit(_ progress: @escaping ProgressUpdateHandler, _ taskManager: ProgressTaskCoordinator? = nil) async throws {
-        do {
-            let io = try ProcessIO.create(
-                tty: false,
-                interactive: false,
-                detach: true
-            )
-            defer { try? io.close() }
+/// Starts the BuildKit process within the container
+/// This function handles bootstrapping the container and starting the BuildKit process
+private func startBuildKit(
+    client: ContainerClient,
+    id: String,
+    _ progress: @escaping ProgressUpdateHandler,
+    _ taskManager: ProgressTaskCoordinator? = nil
+) async throws {
+    do {
+        let io = try ProcessIO.create(
+            tty: false,
+            interactive: false,
+            detach: true
+        )
+        defer { try? io.close() }
 
-            let process = try await bootstrap(stdio: io.stdio)
-            try await process.start()
-            await taskManager?.finish()
-            try io.closeAfterStart()
-        } catch {
-            try? await stop()
-            try? await delete()
-            if error is ContainerizationError {
-                throw error
-            }
-            throw ContainerizationError(.internalError, message: "failed to start BuildKit: \(error)")
+        let process = try await client.bootstrap(id: id, stdio: io.stdio)
+        try await process.start()
+        await taskManager?.finish()
+        try io.closeAfterStart()
+    } catch {
+        try? await client.stop(id: id)
+        try? await client.delete(id: id)
+        if error is ContainerizationError {
+            throw error
         }
+        throw ContainerizationError(.internalError, message: "failed to start BuildKit: \(error)")
     }
 }
