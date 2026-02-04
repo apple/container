@@ -200,7 +200,7 @@ actor BuildFSSync: BuildPipelineHandler {
             format: .paxRestricted,
             filter: .none)
 
-        try Archiver.compress(
+        let tarHash = try Archiver.compress(
             source: contextDir,
             destination: tarURL,
             writerConfiguration: writerCfg
@@ -230,9 +230,7 @@ actor BuildFSSync: BuildPipelineHandler {
                 pathInArchive: URL(fileURLWithPath: rel))
         }
 
-        let tarData = try Data(contentsOf: tarURL)
-        let tarHash = SHA256.hash(data: tarData).compactMap { String(format: "%02x", $0) }.joined()
-
+        let hash = tarHash.compactMap { String(format: "%02x", $0) }.joined()
         let header = BuildTransfer(
             id: packet.id,
             source: tarURL.path,
@@ -242,7 +240,7 @@ actor BuildFSSync: BuildPipelineHandler {
                 "os": "linux",
                 "stage": "fssync",
                 "mode": "tar",
-                "hash": tarHash,
+                "hash": hash,
             ]
         )
         var resp = ClientStream()

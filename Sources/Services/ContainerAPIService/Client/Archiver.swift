@@ -16,6 +16,7 @@
 
 import ContainerizationArchive
 import ContainerizationOS
+import CryptoKit
 import Foundation
 
 public final class Archiver: Sendable {
@@ -48,12 +49,14 @@ public final class Archiver: Sendable {
         followSymlinks: Bool = false,
         writerConfiguration: ArchiveWriterConfiguration = ArchiveWriterConfiguration(format: .paxRestricted, filter: .gzip),
         closure: (URL) -> ArchiveEntryInfo?
-    ) throws {
+    ) throws -> SHA256.Digest {
         let source = source.standardizedFileURL
         let destination = destination.standardizedFileURL
 
         let fileManager = FileManager.default
         try? fileManager.removeItem(at: destination)
+
+        var hasher = SHA256()
 
         do {
             let directory = destination.deletingLastPathComponent()
@@ -89,13 +92,15 @@ public final class Archiver: Sendable {
                 guard let entry = try Self._createEntry(entryInfo: info) else {
                     throw Error.failedToCreateEntry
                 }
-                try Self._compressFile(item: info.pathOnHost, entry: entry, archiver: archiver)
+                try Self._compressFile(item: info.pathOnHost, entry: entry, archiver: archiver, hasher: &hasher)
             }
             try archiver.finishEncoding()
         } catch {
             try? fileManager.removeItem(at: destination)
             throw error
         }
+
+        return hasher.finalize()
     }
 
     public static func uncompress(source: URL, destination: URL) throws {
@@ -186,7 +191,7 @@ public final class Archiver: Sendable {
     }
 
     // MARK: private functions
-    private static func _compressFile(item: URL, entry: WriteEntry, archiver: ArchiveWriter) throws {
+    private static func _compressFile(item: URL, entry: WriteEntry, archiver: ArchiveWriter, hasher: inout SHA256) throws {
         guard let stream = InputStream(url: item) else {
             return
         }
@@ -204,6 +209,7 @@ public final class Archiver: Sendable {
                 break
             } else {
                 let data = Data(bytes: readBuffer, count: byteRead)
+                hasher.update(data: data)
                 try data.withUnsafeBytes { pointer in
                     try writer.writeChunk(data: pointer)
                 }

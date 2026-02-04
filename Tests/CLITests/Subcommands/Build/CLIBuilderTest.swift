@@ -457,6 +457,59 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(tag3) == tag3, "expected to have successfully built \(tag3)")
         }
 
+        @Test func testBuildAfterContextChange() throws {
+            let name = "test-build-context-change"
+            let tempDir: URL = try createTempDir()
+
+            // Create initial context with file "foo" containing "initial"
+            let dockerfile =
+                """
+                FROM ghcr.io/linuxcontainers/alpine:3.20
+                COPY foo /foo
+                COPY bar /bar
+                """
+            let initialContent = "initial".data(using: .utf8)!
+            let context: [FileSystemEntry] = [
+                .file("foo", content: .data(Data((0..<4 * 1024 * 1024).map { UInt8($0 % 256) }))),
+                .file("bar", content: .data(initialContent)),
+            ]
+            try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
+
+            // Build first image
+            let imageName1 = "\(name):v1"
+            let containerName1 = "\(name)-container-v1"
+            try self.build(tag: imageName1, tempDir: tempDir)
+            #expect(try self.inspectImage(imageName1) == imageName1, "expected to have successfully built \(imageName1)")
+
+            // Run container and verify content is "initial"
+            try self.doLongRun(name: containerName1, image: imageName1)
+            defer {
+                try? self.doStop(name: containerName1)
+            }
+            var output = try doExec(name: containerName1, cmd: ["cat", "/bar"])
+            #expect(output == "initial", "expected file contents to be 'initial', instead got '\(output)'")
+
+            // Update the file "foo" to contain "updated"
+            let updatedContent = "updated".data(using: .utf8)!
+            let contextDir = tempDir.appendingPathComponent("context")
+            let barPath = contextDir.appendingPathComponent("bar")
+            try updatedContent.write(to: barPath, options: .atomic)
+
+            // Build second image
+            let imageName2 = "\(name):v2"
+            let containerName2 = "\(name)-container-v2"
+            try self.build(tag: imageName2, tempDir: tempDir)
+            #expect(try self.inspectImage(imageName2) == imageName2, "expected to have successfully built \(imageName2)")
+
+            // Run container and verify content is "updated"
+            try self.doLongRun(name: containerName2, image: imageName2)
+            defer {
+                try? self.doStop(name: containerName2)
+            }
+            output = try doExec(name: containerName2, cmd: ["cat", "/bar"])
+            #expect(output == "updated", "expected file contents to be 'updated', instead got '\(output)'")
+        }
+
         @Test func testBuildWithDockerfileFromStdin() throws {
             let tempDir: URL = try createTempDir()
             let dockerfile =
