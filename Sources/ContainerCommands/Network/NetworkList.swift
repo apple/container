@@ -54,7 +54,7 @@ extension Application {
                     PrintableNetwork($0)
                 }
                 let data = try JSONEncoder().encode(printables)
-                print(String(data: data, encoding: .utf8)!)
+                print(String(decoding: data, as: UTF8.self))
 
                 return
             }

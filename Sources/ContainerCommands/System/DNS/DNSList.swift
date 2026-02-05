@@ -50,7 +50,7 @@ extension Application {
         func printDomains(domains: [String], format: ListFormat) throws {
             if format == .json {
                 let data = try JSONEncoder().encode(domains)
-                print(String(data: data, encoding: .utf8)!)
+                print(String(decoding: data, as: UTF8.self))
 
                 return
             }
