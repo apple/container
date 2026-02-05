@@ -573,6 +573,50 @@ class CLITest {
         let (_, _, _, _) = (try? run(arguments: ["network", "rm", name])) ?? (nil, "", "", 1)
     }
 
+    func doNetworkDeleteWithRetry(name: String, retries: Int = 3) throws {
+        var lastError: Error?
+        let delays: [TimeInterval] = [0.5, 1.0, 2.0]
+        
+        for attempt in 1...retries {
+            let (_, _, error, status) = try run(arguments: ["network", "rm", name])
+            if status == 0 {
+                print("Network '\(name)' deleted successfully (attempt \(attempt)/\(retries))")
+                return
+            }
+            
+            print("Network '\(name)' deletion attempt \(attempt)/\(retries) failed: \(error)")
+            lastError = CLIError.executionFailed("network delete failed after \(retries) attempts: \(error)")
+            
+            if attempt < retries {
+                Thread.sleep(forTimeInterval: delays[attempt - 1])
+            }
+        }
+        
+        throw lastError ?? CLIError.executionFailed("Network deletion failed after \(retries) attempts")
+    }
+    
+    func doStopWithRetry(name: String, retries: Int = 3) throws {
+        var lastError: Error?
+        let delays: [TimeInterval] = [0.5, 1.0, 2.0]
+        
+        for attempt in 1...retries {
+            let (_, _, error, status) = try run(arguments: ["stop", "-s", "SIGKILL", name])
+            if status == 0 {
+                print("Container '\(name)' stopped successfully (attempt \(attempt)/\(retries))")
+                return
+            }
+            
+            print("Container '\(name)' stop attempt \(attempt)/\(retries) failed: \(error)")
+            lastError = CLIError.executionFailed("container stop failed after \(retries) attempts: \(error)")
+            
+            if attempt < retries {
+                Thread.sleep(forTimeInterval: delays[attempt - 1])
+            }
+        }
+        
+        throw lastError ?? CLIError.executionFailed("Container stop failed after \(retries) attempts")
+    }
+
     private func getProxyEnvironment() -> [String] {
         let proxyVars = Set([
             "HTTP_PROXY", "http_proxy",
