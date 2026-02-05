@@ -251,6 +251,7 @@ public struct Builder: Sendable {
         public let exports: [BuildExport]
         public let cacheIn: [String]
         public let cacheOut: [String]
+        public let pull: Bool
 
         public init(
             buildID: String,
@@ -268,6 +269,7 @@ public struct Builder: Sendable {
             exports: [BuildExport],
             cacheIn: [String],
             cacheOut: [String],
+            pull: Bool
         ) {
             self.buildID = buildID
             self.contentStore = contentStore
@@ -284,6 +286,7 @@ public struct Builder: Sendable {
             self.exports = exports
             self.cacheIn = cacheIn
             self.cacheOut = cacheOut
+            self.pull = pull
         }
     }
 }

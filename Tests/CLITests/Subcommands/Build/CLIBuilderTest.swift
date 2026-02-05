@@ -697,5 +697,25 @@ extension TestCLIBuildBase {
             try self.build(tag: imageName, tempDir: tempDir)
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
+
+        @Test func testBuildNoCachePullLatestImage() throws {
+            let tempDir: URL = try createTempDir()
+            let dockerfile =
+                """
+                FROM \(alpine)
+
+                ADD emptyFile /
+                """
+            let context: [FileSystemEntry] = [.file("emptyFile", content: .zeroFilled(size: 1))]
+            try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
+
+            let imageName = "registry.local/no-cache-pull:\(UUID().uuidString)"
+            try self.build(
+                tags: [imageName],
+                tempDir: tempDir,
+                otherArgs: ["--pull", "--no-cache"]
+            )
+            #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
+        }
     }
 }
