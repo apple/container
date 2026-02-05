@@ -30,7 +30,8 @@ extension Application.NetworkCommand {
         public var logOptions: Flags.Logging
 
         public func run() async throws {
-            let allContainers = try await ClientContainer.list()
+            let client = ContainerClient()
+            let allContainers = try await client.list()
             let allNetworks = try await ClientNetwork.list()
 
             var networksInUse = Set<String>()
@@ -41,7 +42,7 @@ extension Application.NetworkCommand {
             }
 
             let networksToPrune = allNetworks.filter { network in
-                network.id != ClientNetwork.defaultNetworkName && !networksInUse.contains(network.id)
+                !network.isBuiltin && !networksInUse.contains(network.id)
             }
 
             var prunedNetworks = [String]()

@@ -71,7 +71,7 @@ class TestCLIVolumes: CLITest {
         doRemoveIfExists(name: container2Name, force: true)
 
         defer {
-            // Cleanup containers and volume
+            // Clean up containers and volume
             try? doStop(name: container1Name)
             doRemoveIfExists(name: container1Name, force: true)
             try? doStop(name: container2Name)
@@ -118,7 +118,7 @@ class TestCLIVolumes: CLITest {
         doRemoveIfExists(name: container2Name, force: true)
 
         defer {
-            // Cleanup containers and volume
+            // Clean up containers and volume
             try? doStop(name: container1Name)
             doRemoveIfExists(name: container1Name, force: true)
             try? doStop(name: container2Name)
@@ -138,7 +138,7 @@ class TestCLIVolumes: CLITest {
 
         #expect(status != 0, "second container should fail when trying to use volume already in use")
 
-        // Cleanup
+        // Clean up
         try doStop(name: container1Name)
         doRemoveIfExists(name: container1Name, force: true)
         doVolumeDeleteIfExists(name: volumeName)
@@ -154,7 +154,7 @@ class TestCLIVolumes: CLITest {
         doRemoveIfExists(name: containerName, force: true)
 
         defer {
-            // Cleanup container and volume
+            // Clean up container and volume
             try? doStop(name: containerName)
             doRemoveIfExists(name: containerName, force: true)
             doVolumeDeleteIfExists(name: volumeName)
@@ -189,7 +189,7 @@ class TestCLIVolumes: CLITest {
         doRemoveIfExists(name: containerName, force: true)
 
         defer {
-            // Cleanup container and volume
+            // Clean up container and volume
             try? doStop(name: containerName)
             doRemoveIfExists(name: containerName, force: true)
             doVolumeDeleteIfExists(name: volumeName)

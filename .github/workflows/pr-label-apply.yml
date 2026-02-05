@@ -20,7 +20,7 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Download PR metadata artifact
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
@@ -29,20 +29,12 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           pattern: pr-metadata-*
           merge-multiple: false
-        continue-on-error: true
         id: download-artifact
       
       - name: Read PR number
         id: pr-number
         run: |
-          METADATA_DIR=$(find . -type d -name "pr-metadata-*" 2>/dev/null | head -n 1)
-          
-          if [ -z "$METADATA_DIR" ]; then
-            echo "No metadata found"
-            exit 1
-          fi
-          
-          PR_NUMBER=$(cat "${METADATA_DIR}/pr-number.txt")
+          PR_NUMBER=$(cat "pr-number.txt")
           echo "number=${PR_NUMBER}" >> $GITHUB_OUTPUT
           echo "PR Number: ${PR_NUMBER}"
       

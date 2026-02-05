@@ -45,7 +45,8 @@ extension Application {
 
         public func run() async throws {
             var exitCode: Int32 = 127
-            let container = try await ClientContainer.get(id: containerId)
+            let client = ContainerClient()
+            let container = try await client.get(id: containerId)
             try ensureRunning(container: container)
 
             let stdin = self.processFlags.interactive
@@ -79,8 +80,9 @@ extension Application {
                     try? io.close()
                 }
 
-                let process = try await container.createProcess(
-                    id: UUID().uuidString.lowercased(),
+                let process = try await client.createProcess(
+                    containerId: container.id,
+                    processId: UUID().uuidString.lowercased(),
                     configuration: config,
                     stdio: io.stdio
                 )

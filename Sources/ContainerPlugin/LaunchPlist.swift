@@ -18,6 +18,8 @@
 import Foundation
 
 public struct LaunchPlist: Encodable {
+    static let debugTarget = "CONTAINER_DEBUG_LAUNCHD_LABEL"
+
     public enum Domain: String, Codable {
         case Aqua
         case Background
@@ -61,6 +63,21 @@ public struct LaunchPlist: Encodable {
         case waitForDebugger = "WaitForDebugger"
     }
 
+    static private func getWaitForDebugger(label: String, fromArg: Bool?) -> Bool? {
+        if let fromArg {
+            return fromArg
+        }
+
+        let env = ProcessInfo.processInfo.environment
+        if let debugTarget = env[Self.debugTarget],
+            label == debugTarget || label.starts(with: debugTarget + ".")
+        {
+            return true
+        }
+
+        return nil
+    }
+
     public init(
         label: String,
         arguments: [String],
@@ -93,7 +110,7 @@ public struct LaunchPlist: Encodable {
         self.disabled = disabled
         self.program = program
         self.keepAlive = keepAlive
-        self.waitForDebugger = waitForDebugger
+        self.waitForDebugger = Self.getWaitForDebugger(label: label, fromArg: waitForDebugger)
         if let services = machServices {
             var machServices: [String: Bool] = [:]
             for service in services {

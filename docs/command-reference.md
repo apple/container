@@ -132,6 +132,7 @@ container build [<options>] [<context-dir>]
 *   `--os <value>`: Add the OS type to the build
 *   `--platform <platform>`: Add the platform to the build (format: os/arch[/variant], takes precedence over --os and --arch)
 *   `--progress <type>`: Progress type (format: auto|plain|tty) (default: auto)
+*   `--pull`: Pull latest image
 *   `-q, --quiet`: Suppress build output
 *   `-t, --tag <name>`: Name for the built image (can be specified multiple times)
 *   `--target <stage>`: Set the target build stage
@@ -416,11 +417,25 @@ container stats --no-stream web
 container stats --format json --no-stream web
 ```
 
+### `container prune`
+
+Removes stopped containers to reclaim disk space. The command outputs the amount of space freed after deletion.
+
+**Usage**
+
+```bash
+container prune [--debug]
+```
+
+**Options**
+
+No options.
+
 ## Image Management
 
 ### `container image list (ls)`
 
-Lists local images. Verbose output provides additional details such as image ID, creation time and size; JSON output provides the same data in machine-readable form.
+Lists local images. Verbose output provides additional details such as image ID, creation time and full size; JSON output provides the same data in machine-readable form.
 
 **Usage**
 

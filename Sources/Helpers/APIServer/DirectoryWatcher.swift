@@ -48,24 +48,30 @@ public class DirectoryWatcher {
 
         let descriptor = open(directoryURL.path, O_EVTONLY)
 
-        source = DispatchSource.makeFileSystemObjectSource(
+        let dispatchSource = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: descriptor,
             eventMask: .write,
             queue: monitorQueue
         )
 
-        source?.setEventHandler { [weak self] in
+        // Close the file descriptor when the source is cancelled
+        dispatchSource.setCancelHandler {
+            close(descriptor)
+        }
+
+        dispatchSource.setEventHandler { [weak self] in
             guard let self else { return }
 
             do {
                 let files = try FileManager.default.contentsOfDirectory(atPath: directoryURL.path)
-                try? handler(files.map { directoryURL.appending(path: $0) })
+                try handler(files.map { directoryURL.appending(path: $0) })
             } catch {
-                self.log.info("failed to run handler for \(directoryURL.path)")
+                self.log.error("failed to run DirectoryWatcher handler", metadata: ["error": "\(error)", "path": "\(directoryURL.path)"])
             }
         }
 
-        source?.resume()
+        source = dispatchSource
+        dispatchSource.resume()
     }
 
     deinit {

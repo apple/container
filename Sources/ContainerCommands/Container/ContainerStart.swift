@@ -54,7 +54,8 @@ extension Application {
             progress.start()
 
             let detach = !self.attach && !self.interactive
-            let container = try await ClientContainer.get(id: containerId)
+            let client = ContainerClient()
+            let container = try await client.get(id: containerId)
 
             // Bootstrap and process start are both idempotent and don't fail the second time
             // around, however not doing an rpc is always faster :). The other bit is we don't
@@ -86,7 +87,7 @@ extension Application {
                     try? io.close()
                 }
 
-                let process = try await container.bootstrap(stdio: io.stdio)
+                let process = try await client.bootstrap(id: container.id, stdio: io.stdio)
                 progress.finish()
 
                 if detach {
@@ -98,7 +99,7 @@ extension Application {
 
                 exitCode = try await io.handleProcess(process: process, log: log)
             } catch {
-                try? await container.stop()
+                try? await client.stop(id: container.id)
 
                 if error is ContainerizationError {
                     throw error
