@@ -25,6 +25,7 @@ extension Application {
             subcommands: [
                 RegistryLogin.self,
                 RegistryLogout.self,
+                RegistryList.self,
             ],
             aliases: ["r"]
         )
