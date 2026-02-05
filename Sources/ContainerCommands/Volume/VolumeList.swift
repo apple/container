@@ -51,7 +51,7 @@ extension Application.VolumeCommand {
         func printVolumes(volumes: [Volume], format: Application.ListFormat) throws {
             if format == .json {
                 let data = try JSONEncoder().encode(volumes)
-                print(String(data: data, encoding: .utf8)!)
+                print(String(decoding: data, as: UTF8.self))
                 return
             }
 
