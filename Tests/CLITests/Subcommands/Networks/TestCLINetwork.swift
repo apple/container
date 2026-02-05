@@ -47,12 +47,8 @@ class TestCLINetwork: CLITest {
                 throw CLIError.executionFailed("command failed: \(result.error)")
             }
             defer {
-                do {
-                    try doStopWithRetry(name: name)
-                    try doNetworkDeleteWithRetry(name: name)
-                } catch {
-                    print("Test cleanup failed for '\(name)': \(error)")
-                }
+                doStopWithLogging(name: name)
+                doNetworkDeleteWithLogging(name: name)
             }
             let port = UInt16.random(in: 50000..<60000)
             try doLongRun(
@@ -155,11 +151,7 @@ class TestCLINetwork: CLITest {
 
             // ensure it's deleted
             defer {
-                do {
-                    try doNetworkDeleteWithRetry(name: name)
-                } catch {
-                    print("Test cleanup failed for '\(name)': \(error)")
-                }
+                doNetworkDeleteWithLogging(name: name)
             }
 
             // inspect the network
@@ -210,12 +202,8 @@ class TestCLINetwork: CLITest {
         }
         
         defer {
-            do {
-                try doStopWithRetry(name: name)
-                try doNetworkDeleteWithRetry(name: name)
-            } catch {
-                print("Test cleanup failed for '\(name)': \(error)")
-            }
+            doStopWithLogging(name: name)
+            doNetworkDeleteWithLogging(name: name)
         }
         
         let port = UInt16.random(in: 50000..<60000)
