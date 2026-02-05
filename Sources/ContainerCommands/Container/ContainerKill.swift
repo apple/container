@@ -64,18 +64,17 @@ extension Application {
 
             let signalNumber = try Signals.parseSignal(signal)
 
-            var failed: [String] = []
+            var errors: [any Error] = []
             for container in containers {
                 do {
                     try await client.kill(id: container.id, signal: signalNumber)
                     print(container.id)
                 } catch {
-                    log.error("failed to kill container \(container.id): \(error)")
-                    failed.append(container.id)
+                    errors.append(error)
                 }
             }
-            if failed.count > 0 {
-                throw ContainerizationError(.internalError, message: "kill failed for one or more containers \(failed.joined(separator: ","))")
+            if !errors.isEmpty {
+                throw AggregateError(errors)
             }
         }
     }

@@ -81,11 +81,10 @@ extension Application {
                 }
             }
 
-            var failed = [String]()
+            var errors: [any Error] = []
             let force = self.force
             let all = self.all
-            let logger = log
-            try await withThrowingTaskGroup(of: String?.self) { group in
+            try await withThrowingTaskGroup(of: (any Error)?.self) { group in
                 for container in containers {
                     group.addTask {
                         do {
@@ -100,25 +99,20 @@ extension Application {
                             print(container.id)
                             return nil
                         } catch {
-                            logger.error("failed to delete container \(container.id): \(error)")
-                            return container.id
+                            return error
                         }
                     }
                 }
 
-                for try await ctr in group {
-                    guard let ctr else {
-                        continue
+                for try await error in group {
+                    if let error {
+                        errors.append(error)
                     }
-                    failed.append(ctr)
                 }
             }
 
-            if failed.count > 0 {
-                throw ContainerizationError(
-                    .internalError,
-                    message: "delete failed for one or more containers: \(failed)"
-                )
+            if !errors.isEmpty {
+                throw AggregateError(errors)
             }
         }
     }
