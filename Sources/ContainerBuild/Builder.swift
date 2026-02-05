@@ -25,6 +25,8 @@ import NIOHPACK
 import NIOHTTP2
 
 public struct Builder: Sendable {
+    public static let builderContainerId = "buildkit"
+
     let client: BuilderClientProtocol
     let clientAsync: BuilderClientAsyncProtocol
     let group: EventLoopGroup

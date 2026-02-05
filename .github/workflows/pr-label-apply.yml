@@ -29,20 +29,12 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           pattern: pr-metadata-*
           merge-multiple: false
-        continue-on-error: true
         id: download-artifact
       
       - name: Read PR number
         id: pr-number
         run: |
-          METADATA_DIR=$(find . -type d -name "pr-metadata-*" 2>/dev/null | head -n 1)
-          
-          if [ -z "$METADATA_DIR" ]; then
-            echo "No metadata found"
-            exit 1
-          fi
-          
-          PR_NUMBER=$(cat "${METADATA_DIR}/pr-number.txt")
+          PR_NUMBER=$(cat "pr-number.txt")
           echo "number=${PR_NUMBER}" >> $GITHUB_OUTPUT
           echo "PR Number: ${PR_NUMBER}"
       

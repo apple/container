@@ -153,10 +153,10 @@ extension Application {
                     }
 
                     group.addTask { [vsockPort, cpus, memory, log, dnsNameservers] in
+                        let client = ContainerClient()
                         while true {
                             do {
-                                let container = try await ClientContainer.get(id: "buildkit")
-                                let fh = try await container.dial(vsockPort)
+                                let fh = try await client.dial(id: "buildkit", port: vsockPort)
 
                                 let threadGroup: MultiThreadedEventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
                                 let b = try Builder(socket: fh, group: threadGroup)

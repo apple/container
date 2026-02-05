@@ -20,68 +20,37 @@ import Containerization
 import ContainerizationError
 import ContainerizationOCI
 import Foundation
-import TerminalProgress
 
-public struct ClientContainer: Sendable, Codable {
-    static let serviceIdentifier = "com.apple.container.apiserver"
+/// A client for interacting with the container API server.
+///
+/// This client holds a reusable XPC connection and provides methods for
+/// container lifecycle operations. All methods that operate on a specific
+/// container take an `id` parameter.
+public struct ContainerClient: Sendable {
+    private static let serviceIdentifier = "com.apple.container.apiserver"
 
-    /// Identifier of the container.
-    public var id: String {
-        configuration.id
-    }
+    private let xpcClient: XPCClient
 
-    public let status: RuntimeStatus
-
-    /// Configured platform for the container.
-    public var platform: ContainerizationOCI.Platform {
-        configuration.platform
-    }
-
-    /// Configuration for the container.
-    public let configuration: ContainerConfiguration
-
-    /// Network allocated to the container.
-    public let networks: [Attachment]
-
-    /// When the container was started.
-    public let startedDate: Date?
-
-    package init(configuration: ContainerConfiguration) {
-        self.configuration = configuration
-        self.status = .stopped
-        self.networks = []
-        self.startedDate = nil
-    }
-
-    init(snapshot: ContainerSnapshot) {
-        self.configuration = snapshot.configuration
-        self.status = snapshot.status
-        self.networks = snapshot.networks
-        self.startedDate = snapshot.startedDate
-    }
-}
-
-extension ClientContainer {
-    private static func newXPCClient() -> XPCClient {
-        XPCClient(service: serviceIdentifier)
+    /// Creates a new container client with a connection to the API server.
+    public init() {
+        self.xpcClient = XPCClient(service: Self.serviceIdentifier)
     }
 
     @discardableResult
-    private static func xpcSend(
-        client: XPCClient,
+    private func xpcSend(
         message: XPCMessage,
         timeout: Duration? = .seconds(15)
     ) async throws -> XPCMessage {
-        try await client.send(message, responseTimeout: timeout)
+        try await xpcClient.send(message, responseTimeout: timeout)
     }
 
-    public static func create(
+    /// Create a new container with the given configuration.
+    public func create(
         configuration: ContainerConfiguration,
         options: ContainerCreateOptions = .default,
         kernel: Kernel
-    ) async throws -> ClientContainer {
+    ) async throws {
         do {
-            let client = Self.newXPCClient()
             let request = XPCMessage(route: .containerCreate)
 
             let data = try JSONEncoder().encode(configuration)
@@ -91,8 +60,7 @@ extension ClientContainer {
             request.set(key: .kernel, value: kdata)
             request.set(key: .containerOptions, value: odata)
 
-            try await xpcSend(client: client, message: request)
-            return ClientContainer(configuration: configuration)
+            try await xpcSend(message: request)
         } catch {
             throw ContainerizationError(
                 .internalError,
@@ -102,13 +70,12 @@ extension ClientContainer {
         }
     }
 
-    public static func list() async throws -> [ClientContainer] {
+    /// List all containers.
+    public func list() async throws -> [ContainerSnapshot] {
         do {
-            let client = Self.newXPCClient()
             let request = XPCMessage(route: .containerList)
 
             let response = try await xpcSend(
-                client: client,
                 message: request,
                 timeout: .seconds(10)
             )
@@ -116,8 +83,7 @@ extension ClientContainer {
             guard let data else {
                 return []
             }
-            let configs = try JSONDecoder().decode([ContainerSnapshot].self, from: data)
-            return configs.map { ClientContainer(snapshot: $0) }
+            return try JSONDecoder().decode([ContainerSnapshot].self, from: data)
         } catch {
             throw ContainerizationError(
                 .internalError,
@@ -128,9 +94,9 @@ extension ClientContainer {
     }
 
     /// Get the container for the provided id.
-    public static func get(id: String) async throws -> ClientContainer {
+    public func get(id: String) async throws -> ContainerSnapshot {
         let containers = try await list()
-        guard let container = containers.first(where: { $0.id == id }) else {
+        guard let container = containers.first(where: { $0.configuration.id == id }) else {
             throw ContainerizationError(
                 .notFound,
                 message: "get failed: container \(id) not found"
@@ -138,12 +104,10 @@ extension ClientContainer {
         }
         return container
     }
-}
 
-extension ClientContainer {
-    public func bootstrap(stdio: [FileHandle?]) async throws -> ClientProcess {
+    /// Bootstrap the container's init process.
+    public func bootstrap(id: String, stdio: [FileHandle?]) async throws -> ClientProcess {
         let request = XPCMessage(route: .containerBootstrap)
-        let client = Self.newXPCClient()
 
         for (i, h) in stdio.enumerated() {
             let key: XPCKeys = try {
@@ -162,9 +126,9 @@ extension ClientContainer {
         }
 
         do {
-            request.set(key: .id, value: self.id)
-            try await client.send(request)
-            return ClientProcessImpl(containerId: self.id, xpcClient: client)
+            request.set(key: .id, value: id)
+            try await xpcClient.send(request)
+            return ClientProcessImpl(containerId: id, xpcClient: xpcClient)
         } catch {
             throw ContainerizationError(
                 .internalError,
@@ -174,15 +138,15 @@ extension ClientContainer {
         }
     }
 
-    public func kill(_ signal: Int32) async throws {
+    /// Send a signal to the container.
+    public func kill(id: String, signal: Int32) async throws {
         do {
             let request = XPCMessage(route: .containerKill)
-            request.set(key: .id, value: self.id)
-            request.set(key: .processIdentifier, value: self.id)
+            request.set(key: .id, value: id)
+            request.set(key: .processIdentifier, value: id)
             request.set(key: .signal, value: Int64(signal))
 
-            let client = Self.newXPCClient()
-            try await client.send(request)
+            try await xpcClient.send(request)
         } catch {
             throw ContainerizationError(
                 .internalError,
@@ -193,15 +157,14 @@ extension ClientContainer {
     }
 
     /// Stop the container and all processes currently executing inside.
-    public func stop(opts: ContainerStopOptions = ContainerStopOptions.default) async throws {
+    public func stop(id: String, opts: ContainerStopOptions = ContainerStopOptions.default) async throws {
         do {
-            let client = Self.newXPCClient()
             let request = XPCMessage(route: .containerStop)
             let data = try JSONEncoder().encode(opts)
-            request.set(key: .id, value: self.id)
+            request.set(key: .id, value: id)
             request.set(key: .stopOptions, value: data)
 
-            try await client.send(request)
+            try await xpcClient.send(request)
         } catch {
             throw ContainerizationError(
                 .internalError,
@@ -212,13 +175,12 @@ extension ClientContainer {
     }
 
     /// Delete the container along with any resources.
-    public func delete(force: Bool = false) async throws {
+    public func delete(id: String, force: Bool = false) async throws {
         do {
-            let client = Self.newXPCClient()
             let request = XPCMessage(route: .containerDelete)
-            request.set(key: .id, value: self.id)
+            request.set(key: .id, value: id)
             request.set(key: .forceDelete, value: force)
-            try await client.send(request)
+            try await xpcClient.send(request)
         } catch {
             throw ContainerizationError(
                 .internalError,
@@ -228,27 +190,28 @@ extension ClientContainer {
         }
     }
 
-    public static func containerDiskUsage(id: String) async throws -> UInt64 {
-        let client = Self.newXPCClient()
+    /// Get the disk usage for a container.
+    public func diskUsage(id: String) async throws -> UInt64 {
         let request = XPCMessage(route: .containerDiskUsage)
         request.set(key: .id, value: id)
-        let reply = try await client.send(request)
+        let reply = try await xpcClient.send(request)
 
         let size = reply.uint64(key: .containerSize)
         return size
     }
 
-    /// Create a new process inside a running container. The process is in a
-    /// created state and must still be started.
+    /// Create a new process inside a running container.
+    /// The process is in a created state and must still be started.
     public func createProcess(
-        id: String,
+        containerId: String,
+        processId: String,
         configuration: ProcessConfiguration,
         stdio: [FileHandle?]
     ) async throws -> ClientProcess {
         do {
             let request = XPCMessage(route: .containerCreateProcess)
-            request.set(key: .id, value: self.id)
-            request.set(key: .processIdentifier, value: id)
+            request.set(key: .id, value: containerId)
+            request.set(key: .processIdentifier, value: processId)
 
             let data = try JSONEncoder().encode(configuration)
             request.set(key: .processConfig, value: data)
@@ -269,9 +232,8 @@ extension ClientContainer {
                 }
             }
 
-            let client = Self.newXPCClient()
-            try await client.send(request)
-            return ClientProcessImpl(containerId: self.id, processId: id, xpcClient: client)
+            try await xpcClient.send(request)
+            return ClientProcessImpl(containerId: containerId, processId: processId, xpcClient: xpcClient)
         } catch {
             throw ContainerizationError(
                 .internalError,
@@ -281,13 +243,13 @@ extension ClientContainer {
         }
     }
 
-    public func logs() async throws -> [FileHandle] {
+    /// Get the log file handles for a container.
+    public func logs(id: String) async throws -> [FileHandle] {
         do {
-            let client = Self.newXPCClient()
             let request = XPCMessage(route: .containerLogs)
-            request.set(key: .id, value: self.id)
+            request.set(key: .id, value: id)
 
-            let response = try await client.send(request)
+            let response = try await xpcClient.send(request)
             let fds = response.fileHandles(key: .logs)
             guard let fds else {
                 throw ContainerizationError(
@@ -299,21 +261,21 @@ extension ClientContainer {
         } catch {
             throw ContainerizationError(
                 .internalError,
-                message: "failed to get logs for container \(self.id)",
+                message: "failed to get logs for container \(id)",
                 cause: error
             )
         }
     }
 
-    public func dial(_ port: UInt32) async throws -> FileHandle {
+    /// Dial a port on the container via vsock.
+    public func dial(id: String, port: UInt32) async throws -> FileHandle {
         let request = XPCMessage(route: .containerDial)
-        request.set(key: .id, value: self.id)
+        request.set(key: .id, value: id)
         request.set(key: .port, value: UInt64(port))
 
-        let client = Self.newXPCClient()
         let response: XPCMessage
         do {
-            response = try await client.send(request)
+            response = try await xpcClient.send(request)
         } catch {
             throw ContainerizationError(
                 .internalError,
@@ -330,13 +292,13 @@ extension ClientContainer {
         return fh
     }
 
-    public func stats() async throws -> ContainerStats {
+    /// Get resource usage statistics for a container.
+    public func stats(id: String) async throws -> ContainerStats {
         let request = XPCMessage(route: .containerStats)
-        request.set(key: .id, value: self.id)
+        request.set(key: .id, value: id)
 
-        let client = Self.newXPCClient()
         do {
-            let response = try await client.send(request)
+            let response = try await xpcClient.send(request)
             guard let data = response.dataNoCopy(key: .statistics) else {
                 throw ContainerizationError(
                     .internalError,
@@ -347,7 +309,7 @@ extension ClientContainer {
         } catch {
             throw ContainerizationError(
                 .internalError,
-                message: "failed to get statistics for container \(self.id)",
+                message: "failed to get statistics for container \(id)",
                 cause: error
             )
         }
