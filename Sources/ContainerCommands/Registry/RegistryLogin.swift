@@ -22,7 +22,7 @@ import ContainerizationOCI
 import Foundation
 
 extension Application {
-    public struct Login: AsyncLoggableCommand {
+    public struct RegistryLogin: AsyncLoggableCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
             abstract: "Log in to a registry"

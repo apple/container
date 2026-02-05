@@ -20,7 +20,7 @@ import Containerization
 import ContainerizationOCI
 
 extension Application {
-    public struct Logout: AsyncLoggableCommand {
+    public struct RegistryLogout: AsyncLoggableCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
             abstract: "Log out from a registry")
