@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerResource
 import Foundation
 import SwiftProtobuf
 
@@ -34,7 +35,8 @@ extension Application {
         var containerIds: [String]
 
         public func run() async throws {
-            let objects: [any Codable] = try await ClientContainer.list().filter {
+            let client = ContainerClient()
+            let objects: [any Codable] = try await client.list().filter {
                 containerIds.contains($0.id)
             }.map {
                 PrintableContainer($0)

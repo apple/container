@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerResource
 import ContainerizationError
 import ContainerizationExtras
 import Foundation
@@ -42,7 +43,8 @@ extension Application {
 
         public func run() async throws {
             do {
-                let container = try await ClientContainer.get(id: "buildkit")
+                let client = ContainerClient()
+                let container = try await client.get(id: "buildkit")
                 try printContainers(containers: [container], format: format)
             } catch {
                 if error is ContainerizationError {
@@ -59,7 +61,7 @@ extension Application {
             [["ID", "IMAGE", "STATE", "ADDR", "CPUS", "MEMORY"]]
         }
 
-        private func printContainers(containers: [ClientContainer], format: ListFormat) throws {
+        private func printContainers(containers: [ContainerSnapshot], format: ListFormat) throws {
             if format == .json {
                 let printables = containers.map {
                     PrintableContainer($0)
@@ -88,7 +90,7 @@ extension Application {
     }
 }
 
-extension ClientContainer {
+extension ContainerSnapshot {
     fileprivate var asRow: [String] {
         [
             self.id,

@@ -85,7 +85,8 @@ extension Application {
             try Utility.validEntityName(id)
 
             // Check if container with id already exists.
-            let existing = try? await ClientContainer.get(id: id)
+            let client = ContainerClient()
+            let existing = try? await client.get(id: id)
             guard existing == nil else {
                 throw ContainerizationError(
                     .exists,
@@ -108,7 +109,7 @@ extension Application {
             progress.set(description: "Starting container")
 
             let options = ContainerCreateOptions(autoRemove: managementFlags.remove)
-            let container = try await ClientContainer.create(
+            try await client.create(
                 configuration: ck.0,
                 options: options,
                 kernel: ck.1
@@ -125,7 +126,7 @@ extension Application {
                     try? io.close()
                 }
 
-                let process = try await container.bootstrap(stdio: io.stdio)
+                let process = try await client.bootstrap(id: id, stdio: io.stdio)
                 progress.finish()
 
                 if !self.managementFlags.cidfile.isEmpty {
@@ -161,7 +162,7 @@ extension Application {
 
                 exitCode = try await io.handleProcess(process: process, log: log)
             } catch {
-                try? await container.delete()
+                try? await client.delete(id: id)
                 if error is ContainerizationError {
                     throw error
                 }

@@ -51,8 +51,9 @@ extension Application {
 
         public mutating func run() async throws {
             let set = Set<String>(containerIds)
+            let client = ContainerClient()
 
-            var containers = try await ClientContainer.list().filter { c in
+            var containers = try await client.list().filter { c in
                 c.status == .running
             }
             if !self.all {
@@ -66,7 +67,7 @@ extension Application {
             var failed: [String] = []
             for container in containers {
                 do {
-                    try await container.kill(signalNumber)
+                    try await client.kill(id: container.id, signal: signalNumber)
                     print(container.id)
                 } catch {
                     log.error("failed to kill container \(container.id): \(error)")
