@@ -46,22 +46,15 @@ extension Application {
         var containerId: String
 
         public func run() async throws {
-            do {
-                let container = try await ClientContainer.get(id: containerId)
-                let fhs = try await container.logs()
-                let fileHandle = boot ? fhs[1] : fhs[0]
+            let client = ContainerClient()
+            let fhs = try await client.logs(id: containerId)
+            let fileHandle = boot ? fhs[1] : fhs[0]
 
-                try await Self.tail(
-                    fh: fileHandle,
-                    n: numLines,
-                    follow: follow
-                )
-            } catch {
-                throw ContainerizationError(
-                    .invalidArgument,
-                    message: "failed to fetch container logs for \(containerId): \(error)"
-                )
-            }
+            try await Self.tail(
+                fh: fileHandle,
+                n: numLines,
+                follow: follow
+            )
         }
 
         private static func tail(

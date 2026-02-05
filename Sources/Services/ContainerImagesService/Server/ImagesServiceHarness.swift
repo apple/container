@@ -182,8 +182,8 @@ public struct ImagesServiceHarness: Sendable {
     }
 
     @Sendable
-    public func cleanupOrphanedBlobs(_ message: XPCMessage) async throws -> XPCMessage {
-        let (deleted, size) = try await service.cleanupOrphanedBlobs()
+    public func cleanUpOrphanedBlobs(_ message: XPCMessage) async throws -> XPCMessage {
+        let (deleted, size) = try await service.cleanUpOrphanedBlobs()
         let reply = message.reply()
         let data = try JSONEncoder().encode(deleted)
         reply.set(key: .digests, value: data)

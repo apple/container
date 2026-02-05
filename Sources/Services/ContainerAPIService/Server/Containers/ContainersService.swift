@@ -446,8 +446,11 @@ public actor ContainersService {
         self.log.debug("\(#function)")
 
         // Logs doesn't care if the container is running or not, just that
-        // the bundle is there, and that the files actually exist.
+        // the bundle is there, and that the files actually exist. We do
+        // first try and get the container state so we get a nicer error message
+        // (container foo not found) however.
         do {
+            _ = try _getContainerState(id: id)
             let path = self.containerRoot.appendingPathComponent(id)
             let bundle = ContainerResource.Bundle(path: path)
             return [
@@ -490,7 +493,7 @@ public actor ContainersService {
             let client = try state.getClient()
             try await client.stop(options: opts)
             try await self.lock.withLock { context in
-                try await self.cleanup(id: id, context: context)
+                try await self.cleanUp(id: id, context: context)
             }
         case .stopping:
             throw ContainerizationError(
@@ -499,7 +502,7 @@ public actor ContainersService {
             )
         default:
             try await self.lock.withLock { context in
-                try await self.cleanup(id: id, context: context)
+                try await self.cleanUp(id: id, context: context)
             }
         }
     }
@@ -575,7 +578,7 @@ public actor ContainersService {
 
         let options = try getContainerCreationOptions(id: id)
         if options.autoRemove {
-            try await self.cleanup(id: id, context: context)
+            try await self.cleanUp(id: id, context: context)
         }
     }
 
@@ -583,7 +586,7 @@ public actor ContainersService {
         "\(Self.launchdDomainString)/\(Self.machServicePrefix).\(runtimeName).\(instanceId)"
     }
 
-    private func _cleanup(id: String) async throws {
+    private func _cleanUp(id: String) async throws {
         self.log.debug("\(#function)")
 
         // Did the exit container handler win?
@@ -608,8 +611,8 @@ public actor ContainersService {
         self.containers.removeValue(forKey: id)
     }
 
-    private func cleanup(id: String, context: AsyncLock.Context) async throws {
-        try await self._cleanup(id: id)
+    private func cleanUp(id: String, context: AsyncLock.Context) async throws {
+        try await self._cleanUp(id: id)
     }
 
     private func getContainerCreationOptions(id: String) throws -> ContainerCreateOptions {

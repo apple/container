@@ -321,7 +321,7 @@ extension ClientImage {
         return ImageLoadResult(images: images, rejectedMembers: rejectedMembers)
     }
 
-    public static func cleanupOrphanedBlobs() async throws -> ([String], UInt64) {
+    public static func cleanUpOrphanedBlobs() async throws -> ([String], UInt64) {
         let client = newXPCClient()
         let request = newRequest(.imageCleanupOrphanedBlobs)
         let response = try await client.send(request)

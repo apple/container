@@ -15,13 +15,14 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
+import ContainerResource
 import Containerization
 import ContainerizationError
 import ContainerizationOS
 import Foundation
 
 extension Application {
-    static func ensureRunning(container: ClientContainer) throws {
+    static func ensureRunning(container: ContainerSnapshot) throws {
         if container.status != .running {
             throw ContainerizationError(.invalidState, message: "container \(container.id) is not running")
         }
