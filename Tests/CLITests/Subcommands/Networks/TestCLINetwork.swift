@@ -58,7 +58,7 @@ class TestCLINetwork: CLITest {
                 } catch {
                     print("Container stop threw error for '\(name)': \(error)")
                 }
-                
+
                 do {
                     let deleteResult = try run(arguments: ["network", "rm", name])
                     if deleteResult.status != 0 {
@@ -231,7 +231,7 @@ class TestCLINetwork: CLITest {
         if result.status != 0 {
             throw CLIError.executionFailed("command failed: \(result.error)")
         }
-        
+
         defer {
             // Proper cleanup order: stop container first, then delete network
             do {
@@ -245,7 +245,7 @@ class TestCLINetwork: CLITest {
             } catch {
                 print("Container stop threw error for '\(name)': \(error)")
             }
-            
+
             do {
                 let deleteResult = try run(arguments: ["network", "rm", name])
                 if deleteResult.status != 0 {
@@ -258,7 +258,7 @@ class TestCLINetwork: CLITest {
                 print("Network cleanup threw error for '\(name)': \(error)")
             }
         }
-        
+
         let port = UInt16.random(in: 50000..<60000)
         try doLongRun(
             name: name,
