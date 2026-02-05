@@ -573,31 +573,6 @@ class CLITest {
         let (_, _, _, _) = (try? run(arguments: ["network", "rm", name])) ?? (nil, "", "", 1)
     }
 
-    
-    func doNetworkDeleteWithLogging(name: String) {
-        let (output, error, status) = (try? run(arguments: ["network", "rm", name])) ?? (nil, "", "", 1)
-        if status != 0 {
-            print("Network cleanup failed for '\(name)':")
-            print("  Status: \(status)")
-            print("  Error: \(error)")
-            if let output = output {
-                print("  Output: \(output)")
-            }
-        }
-    }
-    
-    func doStopWithLogging(name: String) {
-        let (output, error, status) = (try? run(arguments: ["stop", "-s", "SIGKILL", name])) ?? (nil, "", "", 1)
-        if status != 0 {
-            print("Container stop failed for '\(name)':")
-            print("  Status: \(status)")
-            print("  Error: \(error)")
-            if let output = output {
-                print("  Output: \(output)")
-            }
-        }
-    }
-
     private func getProxyEnvironment() -> [String] {
         let proxyVars = Set([
             "HTTP_PROXY", "http_proxy",
