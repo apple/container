@@ -47,14 +47,11 @@ class TestCLINetwork: CLITest {
                 throw CLIError.executionFailed("command failed: \(result.error)")
             }
             defer {
-                // Proper cleanup order: stop container first, then delete network
-                // Don't use try? - we want to see failures in CI logs
                 do {
                     try doStopWithRetry(name: name)
                     try doNetworkDeleteWithRetry(name: name)
                 } catch {
                     print("Test cleanup failed for '\(name)': \(error)")
-                    // Note: We can't fail the test from defer, but error is now visible in logs
                 }
             }
             let port = UInt16.random(in: 50000..<60000)
