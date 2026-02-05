@@ -172,7 +172,17 @@ class TestCLINetwork: CLITest {
 
             // ensure it's deleted
             defer {
-                doNetworkDeleteWithLogging(name: name)
+                do {
+                    let result = try run(arguments: ["network", "rm", name])
+                    if result.status != 0 {
+                        print("Network cleanup failed for '\(name)':")
+                        print("  Status: \(result.status)")
+                        print("  Stdout: \(result.output)")
+                        print("  Stderr: \(result.error)")
+                    }
+                } catch {
+                    print("Network cleanup threw error for '\(name)': \(error)")
+                }
             }
 
             // inspect the network
@@ -223,8 +233,30 @@ class TestCLINetwork: CLITest {
         }
         
         defer {
-            doStopWithLogging(name: name)
-            doNetworkDeleteWithLogging(name: name)
+            // Proper cleanup order: stop container first, then delete network
+            do {
+                let stopResult = try run(arguments: ["stop", "-s", "SIGKILL", name])
+                if stopResult.status != 0 {
+                    print("Container stop failed for '\(name)':")
+                    print("  Status: \(stopResult.status)")
+                    print("  Stdout: \(stopResult.output)")
+                    print("  Stderr: \(stopResult.error)")
+                }
+            } catch {
+                print("Container stop threw error for '\(name)': \(error)")
+            }
+            
+            do {
+                let deleteResult = try run(arguments: ["network", "rm", name])
+                if deleteResult.status != 0 {
+                    print("Network cleanup failed for '\(name)':")
+                    print("  Status: \(deleteResult.status)")
+                    print("  Stdout: \(deleteResult.output)")
+                    print("  Stderr: \(deleteResult.error)")
+                }
+            } catch {
+                print("Network cleanup threw error for '\(name)': \(error)")
+            }
         }
         
         let port = UInt16.random(in: 50000..<60000)
