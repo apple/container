@@ -43,11 +43,9 @@ struct BundleMetadataTests {
     func testMetadataReadWrite() throws {
         let tempDir = FileManager.default.temporaryDirectory
         let bundlePath = tempDir.appendingPathComponent("test-bundle-\(UUID())")
-        let metadataPath = tempDir.appendingPathComponent("test-metadata-\(UUID()).json")
 
         defer {
             try? FileManager.default.removeItem(at: bundlePath)
-            try? FileManager.default.removeItem(at: metadataPath)
         }
 
         let initFs = Filesystem.virtiofs(
@@ -70,8 +68,13 @@ struct BundleMetadataTests {
             options: nil
         )
 
-        try ContainerResource.Bundle.writeMetadata(metadata, to: metadataPath)
-        let readMetadata = try ContainerResource.Bundle.readMetadata(from: metadataPath)
+        try ContainerResource.Bundle.writeMetadata(metadata)
+
+        defer {
+            try? FileManager.default.removeItem(at: metadata.bundleMetadataPath)
+        }
+
+        let readMetadata = try ContainerResource.Bundle.readMetadata(from: bundlePath)
 
         #expect(
             readMetadata.path == bundlePath,

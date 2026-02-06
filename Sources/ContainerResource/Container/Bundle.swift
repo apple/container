@@ -19,6 +19,8 @@ import ContainerizationError
 import Foundation
 
 public struct BundleMetadata: Codable, Sendable {
+    static let bundleMetadataFileName = "bundle-metadata.json"
+
     public let path: URL
     public let initialFilesystem: Filesystem
     public let kernel: Kernel
@@ -40,6 +42,10 @@ public struct BundleMetadata: Codable, Sendable {
         self.containerConfiguration = containerConfiguration
         self.containerRootFilesystem = containerRootFilesystem
         self.options = options
+    }
+
+    public var bundleMetadataPath: URL {
+        self.path.appendingPathComponent(Self.bundleMetadataFileName)
     }
 }
 
@@ -156,18 +162,18 @@ extension Bundle {
     }
 
     public static func writeMetadata(
-        _ metadata: BundleMetadata,
-        to metadataPath: URL
+        _ metadata: BundleMetadata
     ) throws {
         // Ensure the parent directory exists
-        let directory = metadataPath.deletingLastPathComponent()
+        let directory = metadata.bundleMetadataPath.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
         let data = try JSONEncoder().encode(metadata)
-        try data.write(to: metadataPath)
+        try data.write(to: metadata.bundleMetadataPath)
     }
 
-    public static func readMetadata(from metadataPath: URL) throws -> BundleMetadata {
+    public static func readMetadata(from bundlePath: URL) throws -> BundleMetadata {
+        let metadataPath = bundlePath.appendingPathComponent(BundleMetadata.bundleMetadataFileName)
         guard FileManager.default.fileExists(atPath: metadataPath.path) else {
             throw ContainerizationError(
                 .notFound,

@@ -232,7 +232,6 @@ public actor ContainersService {
             }
 
             let path = self.containerRoot.appendingPathComponent(configuration.id)
-            let metadataPath = self.getMetadataPath(for: configuration.id, containerRoot: self.containerRoot)
             let systemPlatform = kernel.platform
             let initFs = try await self.getInitBlock(for: systemPlatform.ociPlatform())
 
@@ -249,7 +248,7 @@ public actor ContainersService {
                     options: options
                 )
 
-                try ContainerResource.Bundle.writeMetadata(completeMetadata, to: metadataPath)
+                try ContainerResource.Bundle.writeMetadata(completeMetadata)
 
                 let snapshot = ContainerSnapshot(
                     configuration: configuration,
@@ -279,7 +278,7 @@ public actor ContainersService {
             }
 
             let path = self.containerRoot.appendingPathComponent(id)
-            let config = try await self.getContainerConfiguration(for: id, at: path)
+            let config = try await self.getContainerConfiguration(at: path)
 
             do {
                 try Self.registerService(
@@ -705,18 +704,11 @@ public actor ContainersService {
         }
     }
 
-    /// Get metadata file path for the given container ID
-    private nonisolated func getMetadataPath(for containerID: String, containerRoot: URL) -> URL {
-        containerRoot.appendingPathComponent(containerID)
-            .appendingPathComponent("bundle-metadata.json")
-    }
-
     /// Get container configuration, either from existing bundle or from metadata
-    private func getContainerConfiguration(for id: String, at path: URL) async throws -> ContainerConfiguration {
+    private func getContainerConfiguration(at path: URL) async throws -> ContainerConfiguration {
         guard await bundleExists(at: path) else {
             // Bundle doesn't exist, get config from metadata
-            let metadataPath = self.getMetadataPath(for: id, containerRoot: self.containerRoot)
-            let metadata = try ContainerResource.Bundle.readMetadata(from: metadataPath)
+            let metadata = try ContainerResource.Bundle.readMetadata(from: path)
             guard let config = metadata.containerConfiguration else {
                 throw ContainerizationError(.internalError, message: "Metadata missing container configuration")
             }

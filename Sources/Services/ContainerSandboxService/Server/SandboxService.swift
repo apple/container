@@ -39,7 +39,6 @@ import struct ContainerizationOCI.Process
 public actor SandboxService {
     private let connection: xpc_connection_t
     private let root: URL
-    private let metadataPath: URL?
     private let interfaceStrategy: InterfaceStrategy
     private var container: ContainerInfo?
     private let monitor: ExitMonitor
@@ -63,14 +62,12 @@ public actor SandboxService {
 
     public init(
         root: URL,
-        metadataPath: URL? = nil,
         interfaceStrategy: InterfaceStrategy,
         eventLoopGroup: any EventLoopGroup,
         connection: xpc_connection_t,
         log: Logger
     ) {
         self.root = root
-        self.metadataPath = metadataPath ?? root.appendingPathComponent("bundle-metadata.json")
         self.interfaceStrategy = interfaceStrategy
         self.log = log
         self.monitor = ExitMonitor(log: log)
@@ -1320,12 +1317,8 @@ extension SandboxService {
 
     /// Create bundle from metadata
     private func createBundle() throws {
-        guard let metadataPath = self.metadataPath else {
-            throw ContainerizationError(.internalError, message: "No metadata path provided for bundle creation")
-        }
-
         do {
-            let metadata = try ContainerResource.Bundle.readMetadata(from: metadataPath)
+            let metadata = try ContainerResource.Bundle.readMetadata(from: self.root)
             _ = try ContainerResource.Bundle.createFromMetadata(metadata)
             self.log.info("Created bundle from metadata at \(metadata.path)")
             // Could remove the metadata file at this point, but will be
