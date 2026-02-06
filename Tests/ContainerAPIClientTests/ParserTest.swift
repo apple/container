@@ -329,11 +329,6 @@ struct ParserTest {
 
     @Test
     func testRelativePaths() throws {
-        let originalDir = FileManager.default.currentDirectoryPath
-        defer {
-            FileManager.default.changeCurrentDirectoryPath(originalDir)
-        }
-
         func realpath(_ path: String) -> String {
             let resolved = UnsafeMutablePointer<CChar>.allocate(capacity: Int(PATH_MAX))
             defer { resolved.deallocate() }
@@ -351,8 +346,7 @@ struct ParserTest {
                 try? FileManager.default.removeItem(at: tempDir)
             }
 
-            FileManager.default.changeCurrentDirectoryPath(tempDir.path)
-            let result = try Parser.mount("type=bind,src=.,dst=/foo")
+            let result = try Parser.mount("type=bind,src=.,dst=/foo", relativeTo: tempDir)
 
             switch result {
             case .filesystem(let fs):
@@ -372,8 +366,7 @@ struct ParserTest {
                 try? FileManager.default.removeItem(at: tempDir)
             }
 
-            FileManager.default.changeCurrentDirectoryPath(tempDir.path)
-            let result = try Parser.volume("./:/foo")
+            let result = try Parser.volume("./:/foo", relativeTo: tempDir)
 
             switch result {
             case .filesystem(let fs):
@@ -395,8 +388,7 @@ struct ParserTest {
                 try? FileManager.default.removeItem(at: tempDir)
             }
 
-            FileManager.default.changeCurrentDirectoryPath(tempDir.path)
-            let result = try Parser.volume("./subdir:/foo")
+            let result = try Parser.volume("./subdir:/foo", relativeTo: tempDir)
 
             switch result {
             case .filesystem(let fs):
