@@ -232,11 +232,9 @@ public actor ContainersService {
             }
 
             let path = self.containerRoot.appendingPathComponent(configuration.id)
+            let metadataPath = self.getMetadataPath(for: configuration.id, containerRoot: self.containerRoot)
             let systemPlatform = kernel.platform
             let initFs = try await self.getInitBlock(for: systemPlatform.ociPlatform())
-
-            let metadataPath = FileManager.default.temporaryDirectory
-                .appendingPathComponent("bundle-metadata-\(configuration.id).json")
 
             do {
                 let containerImage = ClientImage(description: configuration.image)
@@ -261,8 +259,7 @@ public actor ContainersService {
                 )
                 await self.setContainerState(configuration.id, ContainerState(snapshot: snapshot), context: context)
             } catch {
-                try? FileManager.default.removeItem(at: metadataPath)
-                self.log.error("failed to cleanup metadata file for container \(configuration.id)")
+                // Metadata file is now in the bundle directory, no separate cleanup needed
                 throw error
             }
         }
@@ -603,7 +600,8 @@ public actor ContainersService {
         await self.exitMonitor.stopTracking(id: id)
         let path = self.containerRoot.appendingPathComponent(id)
 
-        // Try to get config for service deregistration, but don't fail if bundle is incomplete
+        // Try to get config for service deregistration
+        // Don't fail if bundle is incomplete
         var config: ContainerConfiguration?
         let bundle = ContainerResource.Bundle(path: path)
         do {
@@ -626,14 +624,7 @@ public actor ContainersService {
             try bundle.delete()
         } catch {
             self.log.warning("Failed to delete bundle for container \(id): \(error)")
-            // Still try to remove the directory manually if bundle.delete() fails
-            try? FileManager.default.removeItem(at: path)
         }
-
-        // If a container is created and immediately removed (without starting),
-        // the temp bundle metadata file never gets removed (so do that now)
-        let metadataPath = Self.getMetadataPath(for: id)
-        try? FileManager.default.removeItem(at: metadataPath)
 
         self.containers.removeValue(forKey: id)
     }
@@ -715,16 +706,16 @@ public actor ContainersService {
     }
 
     /// Get metadata file path for the given container ID
-    private static func getMetadataPath(for containerID: String) -> URL {
-        FileManager.default.temporaryDirectory
-            .appendingPathComponent("bundle-metadata-\(containerID).json")
+    private nonisolated func getMetadataPath(for containerID: String, containerRoot: URL) -> URL {
+        containerRoot.appendingPathComponent(containerID)
+            .appendingPathComponent("bundle-metadata.json")
     }
 
     /// Get container configuration, either from existing bundle or from metadata
     private func getContainerConfiguration(for id: String, at path: URL) async throws -> ContainerConfiguration {
         guard await bundleExists(at: path) else {
             // Bundle doesn't exist, get config from metadata
-            let metadataPath = Self.getMetadataPath(for: id)
+            let metadataPath = self.getMetadataPath(for: id, containerRoot: self.containerRoot)
             let metadata = try ContainerResource.Bundle.readMetadata(from: metadataPath)
             guard let config = metadata.containerConfiguration else {
                 throw ContainerizationError(.internalError, message: "Metadata missing container configuration")

@@ -70,14 +70,8 @@ extension RuntimeLinuxHelper {
 
                 nonisolated(unsafe) let anonymousConnection = xpc_connection_create(nil, nil)
 
-                // Extract container ID from root path and construct metadata path
-                let containerID = URL(fileURLWithPath: root).lastPathComponent
-                let metadataPath = FileManager.default.temporaryDirectory
-                    .appendingPathComponent("bundle-metadata-\(containerID).json")
-
                 let server = SandboxService(
                     root: .init(fileURLWithPath: root),
-                    metadataPath: metadataPath,
                     interfaceStrategy: interfaceStrategy,
                     eventLoopGroup: eventLoopGroup,
                     connection: anonymousConnection,

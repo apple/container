@@ -70,7 +70,7 @@ public actor SandboxService {
         log: Logger
     ) {
         self.root = root
-        self.metadataPath = metadataPath
+        self.metadataPath = metadataPath ?? root.appendingPathComponent("bundle-metadata.json")
         self.interfaceStrategy = interfaceStrategy
         self.log = log
         self.monitor = ExitMonitor(log: log)
@@ -1327,8 +1327,9 @@ extension SandboxService {
         do {
             let metadata = try ContainerResource.Bundle.readMetadata(from: metadataPath)
             _ = try ContainerResource.Bundle.createFromMetadata(metadata)
-            try FileManager.default.removeItem(at: metadataPath)
             self.log.info("Created bundle from metadata at \(metadata.path)")
+            // Could remove the metadata file at this point, but will be
+            // cleaned up along with the bundle anyway
         } catch {
             self.log.error("Failed to create bundle \(error)")
             throw error

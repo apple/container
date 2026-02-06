@@ -159,6 +159,10 @@ extension Bundle {
         _ metadata: BundleMetadata,
         to metadataPath: URL
     ) throws {
+        // Ensure the parent directory exists
+        let directory = metadataPath.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
         let data = try JSONEncoder().encode(metadata)
         try data.write(to: metadataPath)
     }
