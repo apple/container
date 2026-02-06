@@ -73,7 +73,7 @@ public enum NetworkState: Codable, Sendable {
         }
     }
 
-    public var pluginInfo: NetworkPluginInfo {
+    public var pluginInfo: NetworkPluginInfo? {
         switch self {
         case .created(let configuration), .running(let configuration, _): configuration.pluginInfo
         }

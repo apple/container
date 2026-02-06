@@ -44,7 +44,7 @@ public enum SandboxKeys: String {
     case statistics
 
     /// Network resource keys.
-    case networkAllocated
+    case allocatedAttachments
     case networkAdditionalData
     case networkAttachment
     case networkPluginInfo

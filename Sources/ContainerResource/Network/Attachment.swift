@@ -16,7 +16,7 @@
 
 import ContainerizationExtras
 
-/// A snapshot of a network interface allocated to a sandbox.
+/// A snapshot of a network interface for a sandbox.
 public struct Attachment: Codable, Sendable {
     /// The network ID associated with the attachment.
     public let network: String
