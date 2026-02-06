@@ -23,7 +23,9 @@ extension Application {
     public struct RegistryLogout: AsyncLoggableCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
-            abstract: "Log out from a registry")
+            commandName: "logout",
+            abstract: "Log out from a registry"
+        )
 
         @OptionGroup
         public var logOptions: Flags.Logging

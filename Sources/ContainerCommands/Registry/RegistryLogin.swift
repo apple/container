@@ -25,6 +25,7 @@ extension Application {
     public struct RegistryLogin: AsyncLoggableCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
+            commandName: "login",
             abstract: "Log in to a registry"
         )
 
