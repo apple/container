@@ -18,6 +18,37 @@ import Containerization
 import ContainerizationError
 import Foundation
 
+public struct BundleMetadata: Codable, Sendable {
+    static let bundleMetadataFileName = "bundle-metadata.json"
+
+    public let path: URL
+    public let initialFilesystem: Filesystem
+    public let kernel: Kernel
+    public let containerConfiguration: ContainerConfiguration?
+    public let containerRootFilesystem: Filesystem?
+    public let options: ContainerCreateOptions?
+
+    public init(
+        path: URL,
+        initialFilesystem: Filesystem,
+        kernel: Kernel,
+        containerConfiguration: ContainerConfiguration? = nil,
+        containerRootFilesystem: Filesystem? = nil,
+        options: ContainerCreateOptions? = nil
+    ) {
+        self.path = path
+        self.initialFilesystem = initialFilesystem
+        self.kernel = kernel
+        self.containerConfiguration = containerConfiguration
+        self.containerRootFilesystem = containerRootFilesystem
+        self.options = options
+    }
+
+    public var bundleMetadataPath: URL {
+        self.path.appendingPathComponent(Self.bundleMetadataFileName)
+    }
+}
+
 public struct Bundle: Sendable {
     private static let initfsFilename = "initfs.ext4"
     private static let kernelFilename = "kernel.json"
@@ -108,6 +139,50 @@ extension Bundle {
             try bundle.write(filename: Self.containerConfigFilename, value: containerConfiguration)
         }
         return bundle
+    }
+
+    public static func createFromMetadata(_ metadata: BundleMetadata) throws -> Bundle {
+        let bundle = try create(
+            path: metadata.path,
+            initialFilesystem: metadata.initialFilesystem,
+            kernel: metadata.kernel,
+            containerConfiguration: metadata.containerConfiguration
+        )
+
+        if let containerRootFs = metadata.containerRootFilesystem {
+            let readonly = metadata.containerConfiguration?.readOnly ?? false
+            try bundle.setContainerRootFs(cloning: containerRootFs, readonly: readonly)
+        }
+
+        if let options = metadata.options {
+            try bundle.write(filename: "options.json", value: options)
+        }
+
+        return bundle
+    }
+
+    public static func writeMetadata(
+        _ metadata: BundleMetadata
+    ) throws {
+        // Ensure the parent directory exists
+        let directory = metadata.bundleMetadataPath.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        let data = try JSONEncoder().encode(metadata)
+        try data.write(to: metadata.bundleMetadataPath)
+    }
+
+    public static func readMetadata(from bundlePath: URL) throws -> BundleMetadata {
+        let metadataPath = bundlePath.appendingPathComponent(BundleMetadata.bundleMetadataFileName)
+        guard FileManager.default.fileExists(atPath: metadataPath.path) else {
+            throw ContainerizationError(
+                .notFound,
+                message: "Bundle metadata file not found at path: \(metadataPath.path)"
+            )
+        }
+
+        let data = try Data(contentsOf: metadataPath)
+        return try JSONDecoder().decode(BundleMetadata.self, from: data)
     }
 }
 

@@ -235,17 +235,20 @@ public actor ContainersService {
             let systemPlatform = kernel.platform
             let initFs = try await self.getInitBlock(for: systemPlatform.ociPlatform())
 
-            let bundle = try ContainerResource.Bundle.create(
-                path: path,
-                initialFilesystem: initFs,
-                kernel: kernel,
-                containerConfiguration: configuration
-            )
             do {
                 let containerImage = ClientImage(description: configuration.image)
                 let imageFs = try await containerImage.getCreateSnapshot(platform: configuration.platform)
-                try bundle.setContainerRootFs(cloning: imageFs, readonly: configuration.readOnly)
-                try bundle.write(filename: "options.json", value: options)
+
+                let completeMetadata = BundleMetadata(
+                    path: path,
+                    initialFilesystem: initFs,
+                    kernel: kernel,
+                    containerConfiguration: configuration,
+                    containerRootFilesystem: imageFs,
+                    options: options
+                )
+
+                try ContainerResource.Bundle.writeMetadata(completeMetadata)
 
                 let snapshot = ContainerSnapshot(
                     configuration: configuration,
@@ -255,11 +258,7 @@ public actor ContainersService {
                 )
                 await self.setContainerState(configuration.id, ContainerState(snapshot: snapshot), context: context)
             } catch {
-                do {
-                    try bundle.delete()
-                } catch {
-                    self.log.error("failed to delete bundle for container \(configuration.id): \(error)")
-                }
+                // Metadata file is now in the bundle directory, no separate cleanup needed
                 throw error
             }
         }
@@ -279,8 +278,7 @@ public actor ContainersService {
             }
 
             let path = self.containerRoot.appendingPathComponent(id)
-            let bundle = ContainerResource.Bundle(path: path)
-            let config = try bundle.configuration
+            let config = try await self.getContainerConfiguration(at: path)
 
             do {
                 try Self.registerService(
@@ -295,6 +293,7 @@ public actor ContainersService {
                     id: id,
                     runtime: runtime
                 )
+
                 try await sandboxClient.bootstrap(stdio: stdio)
 
                 try await self.exitMonitor.registerProcess(
@@ -599,15 +598,33 @@ public actor ContainersService {
         // the OCI runtime.
         await self.exitMonitor.stopTracking(id: id)
         let path = self.containerRoot.appendingPathComponent(id)
-        let bundle = ContainerResource.Bundle(path: path)
-        let config = try bundle.configuration
 
-        let label = Self.fullLaunchdServiceLabel(
-            runtimeName: config.runtimeHandler,
-            instanceId: id
-        )
-        try ServiceManager.deregister(fullServiceLabel: label)
-        try bundle.delete()
+        // Try to get config for service deregistration
+        // Don't fail if bundle is incomplete
+        var config: ContainerConfiguration?
+        let bundle = ContainerResource.Bundle(path: path)
+        do {
+            config = try bundle.configuration
+        } catch {
+            self.log.warning("Unable to read bundle configuration during cleanup for container \(id): \(error)")
+        }
+
+        // Only try to deregister service if we have a valid config
+        if let config = config {
+            let label = Self.fullLaunchdServiceLabel(
+                runtimeName: config.runtimeHandler,
+                instanceId: id
+            )
+            try? ServiceManager.deregister(fullServiceLabel: label)
+        }
+
+        // Always try to delete the bundle directory, even if it's incomplete
+        do {
+            try bundle.delete()
+        } catch {
+            self.log.warning("Failed to delete bundle for container \(id): \(error)")
+        }
+
         self.containers.removeValue(forKey: id)
     }
 
@@ -670,6 +687,36 @@ public actor ContainersService {
 
     private static func isInitProcess(id: String, processID: String) -> Bool {
         id == processID
+    }
+
+    /// Check if a bundle exists at the given path
+    private func bundleExists(at path: URL) async -> Bool {
+        guard FileManager.default.fileExists(atPath: path.path) else {
+            return false
+        }
+
+        let bundle = ContainerResource.Bundle(path: path)
+        do {
+            _ = try bundle.configuration
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// Get container configuration, either from existing bundle or from metadata
+    private func getContainerConfiguration(at path: URL) async throws -> ContainerConfiguration {
+        guard await bundleExists(at: path) else {
+            // Bundle doesn't exist, get config from metadata
+            let metadata = try ContainerResource.Bundle.readMetadata(from: path)
+            guard let config = metadata.containerConfiguration else {
+                throw ContainerizationError(.internalError, message: "Metadata missing container configuration")
+            }
+            return config
+        }
+        // Bundle exists, read config normally
+        let bundle = ContainerResource.Bundle(path: path)
+        return try bundle.configuration
     }
 }
 
