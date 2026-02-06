@@ -27,10 +27,15 @@ struct ManagedResourceTests {
         var name: String
         var creationDate: Date
         var labels: [String: String]
+        typealias ErrorCode = MockManagedResourceErrorCode
 
         static func nameValid(_ name: String) -> Bool {
             true
         }
+    }
+
+    enum MockManagedResourceErrorCode: ManagedResourceErrorCode {
+        case invalidName
     }
 
     @Test("randomId generates valid hex string SHA256 hash format")
