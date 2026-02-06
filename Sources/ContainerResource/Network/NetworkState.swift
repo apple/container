@@ -30,14 +30,20 @@ public struct NetworkStatus: Codable, Sendable {
     /// The value is nil if the IPv6 subnet cannot be determined at creation time.
     public let ipv6Subnet: CIDRv6?
 
+    /// The gateway IPv6 address.
+    /// The value is nil if the IPv6 subnet cannot be determined at creation time.
+    public let ipv6Gateway: IPv6Address?
+
     public init(
         ipv4Subnet: CIDRv4,
         ipv4Gateway: IPv4Address,
         ipv6Subnet: CIDRv6?,
+        ipv6Gateway: IPv6Address? = nil
     ) {
         self.ipv4Subnet = ipv4Subnet
         self.ipv4Gateway = ipv4Gateway
         self.ipv6Subnet = ipv6Subnet
+        self.ipv6Gateway = ipv6Gateway
     }
 }
 
