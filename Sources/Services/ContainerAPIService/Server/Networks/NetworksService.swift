@@ -83,6 +83,15 @@ public actor NetworksService {
                 }
             }
 
+            // Ensure that the network always has plugin information.
+            // Before this field was added, the code always assumed we were using the
+            // container-network-vmnet network plugin, so it should be safe to fallback to that
+            // if no info was found in an on disk configuration.
+            if configuration.pluginInfo == nil {
+                configuration.pluginInfo = NetworkPluginInfo(plugin: "container-network-vmnet")
+                try await store.update(configuration)
+            }
+
             // Start up the network.
             do {
                 try await registerService(configuration: configuration)
@@ -94,7 +103,7 @@ public actor NetworksService {
                     ])
             }
 
-            let client = Self.getClient(configuration: configuration)
+            let client = try Self.getClient(configuration: configuration)
             var networkState = try await client.state()
 
             // FIXME: Temporary workaround for persisted configuration being overwritten
@@ -167,7 +176,7 @@ public actor NetworksService {
 
             // Create and start the network.
             try await self.registerService(configuration: configuration)
-            let client = Self.getClient(configuration: configuration)
+            let client = try Self.getClient(configuration: configuration)
 
             // Ensure the network is running, and set up the persistent network state
             // using our configuration data
@@ -303,15 +312,18 @@ public actor NetworksService {
         }
     }
 
-    public func allocate(id: String, hostname: String, macAddress: MACAddress?) async throws -> AllocatedNetwork {
+    public func allocate(id: String, hostname: String, macAddress: MACAddress?) async throws -> AllocatedAttachment {
         guard let serviceState = serviceStates[id] else {
             throw ContainerizationError(.notFound, message: "no network for id \(id)")
         }
-        let (attach, additionalData) = try await serviceState.client.allocate(hostname: hostname, macAddress: macAddress?.description)
-        return AllocatedNetwork(
+        guard let pluginInfo = serviceState.networkState.pluginInfo else {
+            throw ContainerizationError(.internalError, message: "network \(id) missing plugin information")
+        }
+        let (attach, additionalData) = try await serviceState.client.allocate(hostname: hostname, macAddress: macAddress)
+        return AllocatedAttachment(
             attachment: attach,
             additionalData: additionalData,
-            pluginInfo: serviceState.networkState.pluginInfo
+            pluginInfo: pluginInfo
         )
     }
 
@@ -322,8 +334,11 @@ public actor NetworksService {
         return try await serviceState.client.deallocate(hostname: attachment.hostname)
     }
 
-    private static func getClient(configuration: NetworkConfiguration) -> NetworkClient {
-        NetworkClient(id: configuration.id, plugin: configuration.pluginInfo.plugin)
+    private static func getClient(configuration: NetworkConfiguration) throws -> NetworkClient {
+        guard let pluginInfo = configuration.pluginInfo else {
+            throw ContainerizationError(.internalError, message: "network \(configuration.id) missing plugin information")
+        }
+        return NetworkClient(id: configuration.id, plugin: pluginInfo.plugin)
     }
 
     private func registerService(configuration: NetworkConfiguration) async throws {
@@ -331,10 +346,14 @@ public actor NetworksService {
             throw ContainerizationError(.invalidArgument, message: "unsupported network mode \(configuration.mode.rawValue)")
         }
 
-        guard let networkPlugin = self.networkPlugins.first(where: { $0.name == configuration.pluginInfo.plugin }) else {
+        guard let pluginInfo = configuration.pluginInfo else {
+            throw ContainerizationError(.internalError, message: "network \(configuration.id) missing plugin information")
+        }
+
+        guard let networkPlugin = self.networkPlugins.first(where: { $0.name == pluginInfo.plugin }) else {
             throw ContainerizationError(
                 .notFound,
-                message: "unable to locate network plugin \(configuration.pluginInfo.plugin)"
+                message: "unable to locate network plugin \(pluginInfo.plugin)"
             )
         }
 
@@ -391,7 +410,7 @@ public actor NetworksService {
             args += ["--subnet-v6", ipv6Subnet.description]
         }
 
-        if let variant = configuration.pluginInfo.variant {
+        if let variant = configuration.pluginInfo?.variant {
             args += ["--variant", variant]
         }
 
@@ -404,10 +423,13 @@ public actor NetworksService {
     }
 
     private func deregisterService(configuration: NetworkConfiguration) async throws {
-        guard let networkPlugin = self.networkPlugins.first(where: { $0.name == configuration.pluginInfo.plugin }) else {
+        guard let pluginInfo = configuration.pluginInfo else {
+            throw ContainerizationError(.internalError, message: "network \(configuration.id) missing plugin information")
+        }
+        guard let networkPlugin = self.networkPlugins.first(where: { $0.name == pluginInfo.plugin }) else {
             throw ContainerizationError(
                 .notFound,
-                message: "unable to locate network plugin \(configuration.pluginInfo.plugin)"
+                message: "unable to locate network plugin \(pluginInfo.plugin)"
             )
         }
         try self.pluginLoader.deregisterWithLaunchd(plugin: networkPlugin, instanceId: configuration.id)

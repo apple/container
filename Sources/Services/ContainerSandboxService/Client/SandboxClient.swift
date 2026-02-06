@@ -77,7 +77,7 @@ public struct SandboxClient: Sendable {
 
 // Runtime Methods
 extension SandboxClient {
-    public func bootstrap(stdio: [FileHandle?], allocatedNetworks: [AllocatedNetwork]) async throws {
+    public func bootstrap(stdio: [FileHandle?], allocatedAttachments: [AllocatedAttachment]) async throws {
         let request = XPCMessage(route: SandboxRoutes.bootstrap.rawValue)
 
         for (i, h) in stdio.enumerated() {
@@ -97,7 +97,7 @@ extension SandboxClient {
         }
 
         do {
-            try request.setAllocatedNetworks(allocatedNetworks)
+            try request.setAllocatedAttachments(allocatedAttachments)
             try await self.client.send(request)
         } catch {
             throw ContainerizationError(
@@ -325,23 +325,25 @@ extension XPCMessage {
         return try JSONDecoder().decode(SandboxSnapshot.self, from: data)
     }
 
-    func setAllocatedNetworks(_ networks: [AllocatedNetwork]) throws {
+    func setAllocatedAttachments(_ allocatedAttachments: [AllocatedAttachment]) throws {
         let encoder = JSONEncoder()
-        for net in networks {
+        let allocatedAttachmentsArray = xpc_array_create_empty()
+        for allocatedAttach in allocatedAttachments {
             let xpcObject: xpc_object_t = xpc_dictionary_create_empty()
             let networkXPC = XPCMessage(object: xpcObject)
 
-            let attachmentEncoded = try encoder.encode(net.attachment)
+            let attachmentEncoded = try encoder.encode(allocatedAttach.attachment)
             networkXPC.set(key: SandboxKeys.networkAttachment.rawValue, value: attachmentEncoded)
 
-            let pluginInfoEncoded = try encoder.encode(net.pluginInfo)
+            let pluginInfoEncoded = try encoder.encode(allocatedAttach.pluginInfo)
             networkXPC.set(key: SandboxKeys.networkPluginInfo.rawValue, value: pluginInfoEncoded)
 
-            if let additionalData = net.additionalData {
+            if let additionalData = allocatedAttach.additionalData {
                 xpc_dictionary_set_value(networkXPC.underlying, SandboxKeys.networkAdditionalData.rawValue, additionalData.underlying)
             }
 
-            self.set(key: "\(SandboxKeys.networkAllocated.rawValue)_\(net.attachment.network)", value: networkXPC.underlying)
+            xpc_array_append_value(allocatedAttachmentsArray, networkXPC.underlying)
         }
+        self.set(key: SandboxKeys.allocatedAttachments.rawValue, value: allocatedAttachmentsArray)
     }
 }

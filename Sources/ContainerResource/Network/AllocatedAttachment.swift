@@ -16,10 +16,10 @@
 
 import ContainerXPC
 
-/// AllocatedNetwork represents an allocated network attachment and additional
-/// relevant data needed for a sandbox to properly configure a network interface
-/// on bootstrap.
-public struct AllocatedNetwork: Sendable {
+/// AllocatedAttachment represents a network attachment that has been allocated for use
+/// by a container and any additional relevant data needed for a sandbox to properly
+/// configure networking on container bootstrap.
+public struct AllocatedAttachment: Sendable {
     public let attachment: Attachment
     public let additionalData: XPCMessage?
     public let pluginInfo: NetworkPluginInfo

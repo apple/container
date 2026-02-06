@@ -49,7 +49,9 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     public var labels: [String: String] = [:]
 
     /// Details about the network plugin that manages this network.
-    public var pluginInfo: NetworkPluginInfo
+    /// FIXME: This field only needs to be optional while we wait for the field
+    /// to be proliferated to most users when they update container.
+    public var pluginInfo: NetworkPluginInfo?
 
     /// Creates a network configuration
     public init(
@@ -97,7 +99,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         ipv6Subnet = try container.decodeIfPresent(String.self, forKey: .ipv6Subnet)
             .map { try CIDRv6($0) }
         labels = try container.decodeIfPresent([String: String].self, forKey: .labels) ?? [:]
-        pluginInfo = try container.decode(NetworkPluginInfo.self, forKey: .pluginInfo)
+        pluginInfo = try container.decodeIfPresent(NetworkPluginInfo.self, forKey: .pluginInfo)
         try validate()
     }
 
@@ -111,7 +113,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         try container.encodeIfPresent(ipv4Subnet, forKey: .ipv4Subnet)
         try container.encodeIfPresent(ipv6Subnet, forKey: .ipv6Subnet)
         try container.encode(labels, forKey: .labels)
-        try container.encode(pluginInfo, forKey: .pluginInfo)
+        try container.encodeIfPresent(pluginInfo, forKey: .pluginInfo)
     }
 
     private func validate() throws {
