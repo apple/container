@@ -329,15 +329,6 @@ struct ParserTest {
 
     @Test
     func testRelativePaths() throws {
-        func realpath(_ path: String) -> String {
-            let resolved = UnsafeMutablePointer<CChar>.allocate(capacity: Int(PATH_MAX))
-            defer { resolved.deallocate() }
-            guard let result = Darwin.realpath(path, resolved) else {
-                return path
-            }
-            return String(cString: result)
-        }
-
         // Test bind mount with relative path "."
         do {
             let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("test-bind-\(UUID().uuidString)")
@@ -350,7 +341,7 @@ struct ParserTest {
 
             switch result {
             case .filesystem(let fs):
-                #expect(fs.source == realpath(tempDir.path))
+                #expect(fs.source == tempDir.standardizedFileURL.path)
                 #expect(fs.destination == "/foo")
                 #expect(!fs.isVolume)
             case .volume:
@@ -370,7 +361,7 @@ struct ParserTest {
 
             switch result {
             case .filesystem(let fs):
-                let expectedPath = realpath(tempDir.path)
+                let expectedPath = tempDir.standardizedFileURL.path
                 // Normalize trailing slashes for comparison
                 #expect(fs.source.trimmingCharacters(in: CharacterSet(charactersIn: "/")) == expectedPath.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
                 #expect(fs.destination == "/foo")
@@ -392,7 +383,7 @@ struct ParserTest {
 
             switch result {
             case .filesystem(let fs):
-                let expectedPath = realpath(nestedDir.path)
+                let expectedPath = nestedDir.standardizedFileURL.path
                 // Normalize trailing slashes for comparison
                 #expect(fs.source.trimmingCharacters(in: CharacterSet(charactersIn: "/")) == expectedPath.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
                 #expect(fs.destination == "/foo")
