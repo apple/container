@@ -71,6 +71,7 @@ public struct Application: AsyncLoggableCommand {
                     BuildCommand.self,
                     ImageCommand.self,
                     RegistryCommand.self,
+                    ExportCommand.self,
                 ]
             ),
             CommandGroup(

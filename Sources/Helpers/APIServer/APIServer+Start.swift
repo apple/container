@@ -245,6 +245,7 @@ extension APIServer {
             routes[XPCRoute.containerKill] = harness.kill
             routes[XPCRoute.containerStats] = harness.stats
             routes[XPCRoute.containerDiskUsage] = harness.diskUsage
+            routes[XPCRoute.containerExport] = harness.export
 
             return service
         }

@@ -21,12 +21,14 @@ import ContainerResource
 import ContainerSandboxServiceClient
 import ContainerXPC
 import Containerization
+import ContainerizationEXT4
 import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOCI
 import ContainerizationOS
 import Foundation
 import Logging
+import SystemPackage
 
 public actor ContainersService {
     struct ContainerState {
@@ -539,6 +541,20 @@ public actor ContainersService {
         let containerPath = self.containerRoot.appendingPathComponent(id).path
 
         return Self.calculateDirectorySize(at: containerPath)
+    }
+
+    public func exportRootfs(id: String, archive: URL) async throws {
+        self.log.debug("\(#function)")
+
+        let state = try self._getContainerState(id: id)
+        guard state.snapshot.status == .stopped else {
+            throw ContainerizationError(.invalidState, message: "container is not stopped")
+        }
+
+        let path = self.containerRoot.appendingPathComponent(id)
+        let bundle = ContainerResource.Bundle(path: path)
+        let rootfs = bundle.containerRootfsBlock
+        try EXT4.EXT4Reader(blockDevice: FilePath(rootfs)).export(archive: FilePath(archive))
     }
 
     private func handleContainerExit(id: String, code: ExitStatus? = nil) async throws {
