@@ -77,6 +77,7 @@ public actor NetworkService: Sendable {
             ipv4Address: try CIDRv4(ip, prefix: status.ipv4Subnet.prefix),
             ipv4Gateway: status.ipv4Gateway,
             ipv6Address: ipv6Address,
+            ipv6Gateway: status.ipv6Gateway,
             macAddress: macAddress
         )
         log?.info(
@@ -86,6 +87,7 @@ public actor NetworkService: Sendable {
                 "ipv4Address": "\(attachment.ipv4Address)",
                 "ipv4Gateway": "\(attachment.ipv4Gateway)",
                 "ipv6Address": "\(attachment.ipv6Address?.description ?? "unavailable")",
+                "ipv6Gateway": "\(attachment.ipv6Gateway?.description ?? "unavailable")",
                 "macAddress": "\(attachment.macAddress?.description ?? "unspecified")",
             ])
         let reply = message.reply()
@@ -136,6 +138,7 @@ public actor NetworkService: Sendable {
             ipv4Address: ipv4Address,
             ipv4Gateway: status.ipv4Gateway,
             ipv6Address: ipv6Address,
+            ipv6Gateway: status.ipv6Gateway,
             macAddress: macAddress
         )
         log?.debug(
