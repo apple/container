@@ -25,6 +25,12 @@ import ContainerizationOCI
 import Foundation
 import TerminalProgress
 
+
+public struct ImageSizeInfo: Sendable {
+    public let ociImageSize: Int64    // Compressed OCI image size
+    public let snapshotSize: UInt64   // Unpacked snapshot size (0 if not available)
+}
+
 // MARK: ClientImage structure
 
 public struct ClientImage: Sendable {
@@ -456,6 +462,14 @@ extension ClientImage {
 
         let response = try await client.send(request)
         return response.uint64(key: .imageSize)
+    }
+
+    /// Returns both OCI image size and snapshot size for the specified platform.
+    public func getImageSizes(platform: Platform) async throws -> ImageSizeInfo {
+        let ociSize = try await Self.getFullImageSize(image: self)
+        let snapshotSize = (try? await self.getSnapshotSize(platform: platform)) ?? 0
+
+        return ImageSizeInfo(ociImageSize: ociSize, snapshotSize: snapshotSize)
     }
 
     @discardableResult

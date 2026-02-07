@@ -252,7 +252,7 @@ let package = Package(
                 "ContainerXPC",
             ],
             path: "Sources/Helpers/NetworkVmnet"
-        )
+        ),
         .testTarget(
             name: "ContainerImagesServiceTests",
             dependencies: [

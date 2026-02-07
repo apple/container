@@ -77,9 +77,8 @@ extension Application {
                     }
 
                     let created = config.created ?? ""
-                    let compressedSize = descriptor.size + manifest.config.size + manifest.layers.reduce(0, { (l, r) in l + r.size })
-                    let snapshotSize = (try? await image.getSnapshotSize(platform: platform)) ?? 0
-                    let size = snapshotSize > 0 ? Int64(snapshotSize) : compressedSize
+                    let sizes = try await image.getImageSizes(platform: platform)
+                    let size = sizes.snapshotSize > 0 ? Int64(sizes.snapshotSize) : sizes.ociImageSize
                     let formattedSize = formatter.string(fromByteCount: size)
 
                     let processedReferenceString = try ClientImage.denormalizeReference(image.reference)
