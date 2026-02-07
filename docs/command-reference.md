@@ -1223,3 +1223,30 @@ container system property clear dns.domain
 
 # clear custom registry setting
 container system property clear registry.domain
+```
+
+### `container system login-launch enable`
+
+Enables the `container` to be launched automatically on login.
+
+**Usage**
+
+```bash
+container system login-launch enable [--debug]
+```
+**Options**
+
+No options.
+
+### `container system login-launch disable`
+
+Disables the `container` to be launched automatically on login.
+
+**Usage**
+
+```bash
+container system login-launch disable [--debug]
+```
+**Options**
+
+No options.
