@@ -63,25 +63,23 @@ extension Application {
 
         private func runStatic() async throws {
             let client = ContainerClient()
-            let allContainers = try await client.list()
 
             let containersToShow: [ContainerSnapshot]
             if containers.isEmpty {
                 // No containers specified - show all running containers
-                containersToShow = allContainers.filter { $0.status == .running }
+                containersToShow = try await client.list(filters: ContainerListFilters(status: .running))
             } else {
-                // Validate all specified containers exist before proceeding
-                var found: [ContainerSnapshot] = []
+                // Fetch specified containers by ID
+                containersToShow = try await client.list(filters: ContainerListFilters(ids: containers))
+                // Validate all specified containers were found
                 for containerId in containers {
-                    guard let container = allContainers.first(where: { $0.id == containerId || $0.id.starts(with: containerId) }) else {
+                    guard containersToShow.contains(where: { $0.id == containerId }) else {
                         throw ContainerizationError(
                             .notFound,
                             message: "no such container: \(containerId)"
                         )
                     }
-                    found.append(container)
                 }
-                containersToShow = found
             }
 
             let statsData = try await collectStats(client: client, for: containersToShow)
@@ -101,9 +99,9 @@ extension Application {
 
             // If containers were specified, validate they all exist upfront
             if !containers.isEmpty {
-                let allContainers = try await client.list()
+                let specifiedContainers = try await client.list(filters: ContainerListFilters(ids: containers))
                 for containerId in containers {
-                    guard allContainers.first(where: { $0.id == containerId || $0.id.starts(with: containerId) }) != nil else {
+                    guard specifiedContainers.contains(where: { $0.id == containerId }) else {
                         throw ContainerizationError(
                             .notFound,
                             message: "no such container: \(containerId)"
@@ -118,19 +116,11 @@ extension Application {
 
             while true {
                 do {
-                    let allContainers = try await client.list()
-
                     let containersToShow: [ContainerSnapshot]
                     if containers.isEmpty {
-                        containersToShow = allContainers.filter { $0.status == .running }
+                        containersToShow = try await client.list(filters: ContainerListFilters(status: .running))
                     } else {
-                        var found: [ContainerSnapshot] = []
-                        for containerId in containers {
-                            if let container = allContainers.first(where: { $0.id == containerId || $0.id.starts(with: containerId) }) {
-                                found.append(container)
-                            }
-                        }
-                        containersToShow = found
+                        containersToShow = try await client.list(filters: ContainerListFilters(ids: containers))
                     }
 
                     let statsData = try await collectStats(client: client, for: containersToShow)

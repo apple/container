@@ -44,7 +44,8 @@ extension Application {
 
         public func run() async throws {
             let client = ContainerClient()
-            let containers = try await client.list()
+            let filters = self.all ? ContainerListFilters.all : ContainerListFilters(status: .running)
+            let containers = try await client.list(filters: filters)
             try printContainers(containers: containers, format: format)
         }
 
@@ -65,9 +66,6 @@ extension Application {
 
             if self.quiet {
                 containers.forEach {
-                    if !self.all && $0.status != .running {
-                        return
-                    }
                     print($0.id)
                 }
                 return
@@ -75,9 +73,6 @@ extension Application {
 
             var rows = createHeader()
             for container in containers {
-                if !self.all && container.status != .running {
-                    continue
-                }
                 rows.append(container.asRow)
             }
 

@@ -79,9 +79,8 @@ extension Application {
                 log.info("waiting for containers to exit")
                 do {
                     for _ in 0..<Self.shutdownTimeoutSeconds {
-                        let anyRunning = try await client.list()
-                            .contains { $0.status == .running }
-                        guard anyRunning else {
+                        let runningContainers = try await client.list(filters: ContainerListFilters(status: .running))
+                        guard !runningContainers.isEmpty else {
                             break
                         }
                         try await Task.sleep(for: .seconds(1))
