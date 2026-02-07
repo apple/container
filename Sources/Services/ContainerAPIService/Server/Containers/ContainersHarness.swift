@@ -33,7 +33,11 @@ public struct ContainersHarness: Sendable {
 
     @Sendable
     public func list(_ message: XPCMessage) async throws -> XPCMessage {
-        let containers = try await service.list()
+        var filters = ContainerListFilters.all
+        if let filterData = message.dataNoCopy(key: .listFilters) {
+            filters = try JSONDecoder().decode(ContainerListFilters.self, from: filterData)
+        }
+        let containers = try await service.list(filters: filters)
         let data = try JSONEncoder().encode(containers)
 
         let reply = message.reply()
