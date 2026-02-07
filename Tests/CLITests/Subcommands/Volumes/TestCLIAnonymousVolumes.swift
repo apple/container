@@ -24,10 +24,10 @@ class TestCLIAnonymousVolumes: CLITest {
     override init() throws {
         try super.init()
         // Clean up any leftover resources from previous test runs
-        cleanupAllTestResources()
+        cleanUpAllTestResources()
     }
 
-    private func cleanupAllTestResources() {
+    private func cleanUpAllTestResources() {
         // Clean up test containers (force remove)
         if let (_, output, _, status) = try? run(arguments: ["ls", "-a"]), status == 0 {
             let containers = output.components(separatedBy: .newlines)
@@ -185,7 +185,7 @@ class TestCLIAnonymousVolumes: CLITest {
         output = output.trimmingCharacters(in: .whitespacesAndNewlines)
         #expect(output == testData, "data should persist in anonymous volume")
 
-        // Cleanup
+        // Clean up
         try doStop(name: containerName2)
         doRemoveIfExists(name: containerName2, force: true)
         doVolumeDeleteIfExists(name: volumeID)

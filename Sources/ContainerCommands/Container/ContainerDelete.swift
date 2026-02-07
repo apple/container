@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerResource
 import ContainerizationError
 import Foundation
 
@@ -54,12 +55,13 @@ extension Application {
 
         public mutating func run() async throws {
             let set = Set<String>(containerIds)
-            var containers = [ClientContainer]()
+            let client = ContainerClient()
+            var containers = [ContainerSnapshot]()
 
             if all {
-                containers = try await ClientContainer.list()
+                containers = try await client.list()
             } else {
-                let ctrs = try await ClientContainer.list()
+                let ctrs = try await client.list()
                 containers = ctrs.filter { c in
                     set.contains(c.id)
                 }
@@ -79,11 +81,10 @@ extension Application {
                 }
             }
 
-            var failed = [String]()
+            var errors: [any Error] = []
             let force = self.force
             let all = self.all
-            let logger = log
-            try await withThrowingTaskGroup(of: String?.self) { group in
+            try await withThrowingTaskGroup(of: (any Error)?.self) { group in
                 for container in containers {
                     group.addTask {
                         do {
@@ -94,29 +95,24 @@ extension Application {
                                 return nil  // Skip running container when using --all
                             }
 
-                            try await container.delete(force: force)
+                            try await client.delete(id: container.id, force: force)
                             print(container.id)
                             return nil
                         } catch {
-                            logger.error("failed to delete container \(container.id): \(error)")
-                            return container.id
+                            return error
                         }
                     }
                 }
 
-                for try await ctr in group {
-                    guard let ctr else {
-                        continue
+                for try await error in group {
+                    if let error {
+                        errors.append(error)
                     }
-                    failed.append(ctr)
                 }
             }
 
-            if failed.count > 0 {
-                throw ContainerizationError(
-                    .internalError,
-                    message: "delete failed for one or more containers: \(failed)"
-                )
+            if !errors.isEmpty {
+                throw AggregateError(errors)
             }
         }
     }

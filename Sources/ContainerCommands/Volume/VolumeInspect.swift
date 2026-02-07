@@ -47,7 +47,7 @@ extension Application.VolumeCommand {
             encoder.dateEncodingStrategy = .iso8601
 
             let data = try encoder.encode(volumes)
-            print(String(data: data, encoding: .utf8)!)
+            print(String(decoding: data, as: UTF8.self))
         }
     }
 }

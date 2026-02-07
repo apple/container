@@ -65,6 +65,7 @@ container run [<options>] <image> [<arguments> ...]
 *   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
 *   `-v, --volume <volume>`: Bind mount a volume into the container
 *   `--virtualization`: Expose virtualization capabilities to the container (requires host and guest support)
+*   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)
 
 **Registry Options**
 
@@ -131,6 +132,7 @@ container build [<options>] [<context-dir>]
 *   `--os <value>`: Add the OS type to the build
 *   `--platform <platform>`: Add the platform to the build (format: os/arch[/variant], takes precedence over --os and --arch)
 *   `--progress <type>`: Progress type (format: auto|plain|tty) (default: auto)
+*   `--pull`: Pull latest image
 *   `-q, --quiet`: Suppress build output
 *   `-t, --tag <name>`: Name for the built image (can be specified multiple times)
 *   `--target <stage>`: Set the target build stage
@@ -213,6 +215,7 @@ container create [<options>] <image> [<arguments> ...]
 *   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
 *   `-v, --volume <volume>`: Bind mount a volume into the container
 *   `--virtualization`: Expose virtualization capabilities to the container (requires host and guest support)
+*   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)  
 
 **Registry Options**
 

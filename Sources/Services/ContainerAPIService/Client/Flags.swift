@@ -61,6 +61,15 @@ public struct Flags {
             )
         )
         public var cwd: String?
+
+        @Option(
+            name: .customLong("ulimit"),
+            help: .init(
+                "Set resource limits (format: <type>=<soft>[:<hard>])",
+                valueName: "limit"
+            )
+        )
+        public var ulimits: [String] = []
     }
 
     public struct Resource: ParsableArguments {
@@ -212,6 +221,9 @@ public struct Flags {
 
         @Flag(name: .long, help: "Mount the container's root filesystem as read-only")
         public var readOnly = false
+
+        @Option(name: .long, help: "Set the runtime handler for the container (default: container-runtime-linux)")
+        public var runtime: String?
     }
 
     public struct Progress: ParsableArguments {

@@ -8,6 +8,35 @@ on:
     types: [opened, reopened, synchronize]
 
 jobs:
+  verify-signatures:
+    name: Verify commit signatures
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all commits are signed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          commits=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/commits --paginate)
+          unsigned_commits=""
+
+          while IFS='|' read -r sha author verified; do
+            if [ "$verified" != "true" ]; then
+              unsigned_commits="$unsigned_commits  - $sha by $author\n"
+            fi
+          done < <(echo "$commits" | jq -r '.[] | "\(.sha)|\(.commit.author.name)|\(.commit.verification.verified)"')
+
+          if [ -n "$unsigned_commits" ]; then
+            echo "::error::The following commits are not signed:"
+            echo -e "$unsigned_commits"
+            echo ""
+            echo "Please sign your commits. See:"
+            echo  "  - https://github.com/apple/containerization/blob/main/CONTRIBUTING.md#pull-requests"
+            echo  "  - https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits"
+            exit 1
+          fi
+
+          echo "All commits are signed!"
+
   build:
     name: Invoke build
     uses: ./.github/workflows/common.yml

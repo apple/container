@@ -18,6 +18,6 @@ import Foundation
 
 extension [any Codable] {
     func jsonArray() throws -> String {
-        "[\(try self.map { String(data: try JSONEncoder().encode($0), encoding: .utf8)! }.joined(separator: ","))]"
+        "[\(try self.map { String(decoding: try JSONEncoder().encode($0), as: UTF8.self) }.joined(separator: ","))]"
     }
 }

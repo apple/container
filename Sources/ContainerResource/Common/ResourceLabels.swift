@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025-2026 Apple Inc. and the container project authors.
+// Copyright © 2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,17 +14,20 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerAPIClient
-import ContainerResource
-import Containerization
-import ContainerizationError
-import ContainerizationOS
-import Foundation
+/// System-defined keys for resource labels.
+public struct ResourceLabelKeys {
+    /// Indicates a owner of a resource managed by a plugin.
+    public static let plugin = "com.apple.container.plugin"
 
-extension Application {
-    static func ensureRunning(container: ContainerSnapshot) throws {
-        if container.status != .running {
-            throw ContainerizationError(.invalidState, message: "container \(container.id) is not running")
-        }
-    }
+    /// Indicates a resource with a reserved or dedicated purpose.
+    public static let role = "com.apple.container.resource.role"
+}
+
+/// System-defined values for resource the resource role label.
+public struct ResourceRoleValues {
+    /// Indicates a container that can build images.
+    public static let builder = "builder"
+
+    /// Indicates a system-created resource that cannot be deleted by the user.
+    public static let builtin = "builtin"
 }
