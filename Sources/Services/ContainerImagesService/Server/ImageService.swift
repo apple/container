@@ -206,6 +206,15 @@ extension ImagesService {
         let img = try await self._get(description)
         return try await self.snapshotStore.get(for: img, platform: platform)
     }
+
+    public func getSnapshotSize(description: ImageDescription, platform: Platform) async throws -> UInt64 {
+        self.log.info("ImagesService: \(#function) - description: \(description), platform: \(String(describing: platform))")
+        let img = try await self._get(description)
+        let descriptor = try await img.descriptor(for: platform)
+        // getSnapshotSize returns 0 if snapshot doesn't exist, and can throw on filesystem errors
+        // We catch errors and return 0 to match the behavior when snapshot doesn't exist
+        return (try? await self.snapshotStore.getSnapshotSize(descriptor: descriptor)) ?? 0
+    }
 }
 
 // MARK: Static Methods
