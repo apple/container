@@ -1,0 +1,54 @@
+name: Stale PR Management
+
+on:
+  pull_request:
+  schedule:
+    - cron: '0 0 * * *' 
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stale:
+    name: Mark stale PRs
+    runs-on: ubuntu-latest
+    
+    permissions:
+      issues: write
+      pull-requests: write
+    
+    steps:
+      - name: Run stale action
+        uses: actions/stale@v9
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          only-labels: 'test-stale-pr'
+          
+          days-before-stale: 30
+          days-before-close: 45
+          
+          stale-pr-message: |
+            This pull request has been inactive for 30 days and will be marked as stale.
+            
+            If you're still working on this, please update the PR (any of the following):
+            - Add new commits or respond to review comments
+            - Rebase on the latest main branch
+            - Comment with a status update
+            
+            The PR will be closed in 45 days if there's no activity.
+          
+          close-pr-message: |
+            This pull request was automatically closed due to inactivity.
+            
+            If you'd like to continue this work:
+            - Reopen this PR with updates, or
+            - Create a new PR with a fresh rebase
+            
+            Feel free to comment here if you need assistance.
+            
+            Thank you for your contribution!
+          
+          stale-pr-label: 'stale'
+          
+          remove-pr-stale-when-updated: true
