@@ -65,6 +65,7 @@ container run [<options>] <image> [<arguments> ...]
 *   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
 *   `-v, --volume <volume>`: Bind mount a volume into the container
 *   `--virtualization`: Expose virtualization capabilities to the container (requires host and guest support)
+*   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)
 
 **Registry Options**
 
@@ -214,6 +215,7 @@ container create [<options>] <image> [<arguments> ...]
 *   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
 *   `-v, --volume <volume>`: Bind mount a volume into the container
 *   `--virtualization`: Expose virtualization capabilities to the container (requires host and guest support)
+*   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)  
 
 **Registry Options**
 

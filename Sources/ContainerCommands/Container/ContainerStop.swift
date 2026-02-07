@@ -71,18 +71,16 @@ extension Application {
                 timeoutInSeconds: self.time,
                 signal: try Signals.parseSignal(self.signal)
             )
-            let failed = try await Self.stopContainers(client: client, containers: containers, stopOptions: opts, log: log)
-            if failed.count > 0 {
-                throw ContainerizationError(
-                    .internalError,
-                    message: "stop failed for one or more containers \(failed.joined(separator: ","))"
-                )
-            }
+            try await Self.stopContainers(
+                client: client,
+                containers: containers,
+                stopOptions: opts
+            )
         }
 
-        static func stopContainers(client: ContainerClient, containers: [ContainerSnapshot], stopOptions: ContainerStopOptions, log: Logger) async throws -> [String] {
-            var failed: [String] = []
-            try await withThrowingTaskGroup(of: ContainerSnapshot?.self) { group in
+        static func stopContainers(client: ContainerClient, containers: [ContainerSnapshot], stopOptions: ContainerStopOptions) async throws {
+            var errors: [any Error] = []
+            await withTaskGroup(of: (any Error)?.self) { group in
                 for container in containers {
                     group.addTask {
                         do {
@@ -90,21 +88,21 @@ extension Application {
                             print(container.id)
                             return nil
                         } catch {
-                            log.error("failed to stop container \(container.id): \(error)")
-                            return container
+                            return error
                         }
                     }
                 }
 
-                for try await ctr in group {
-                    guard let ctr else {
-                        continue
+                for await error in group {
+                    if let error {
+                        errors.append(error)
                     }
-                    failed.append(ctr.id)
                 }
             }
 
-            return failed
+            if !errors.isEmpty {
+                throw AggregateError(errors)
+            }
         }
     }
 }

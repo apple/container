@@ -123,6 +123,7 @@ public actor SandboxService {
 
             var kernel = try bundle.kernel
             kernel.commandLine.kernelArgs.append("oops=panic")
+            kernel.commandLine.kernelArgs.append("lsm=lockdown,capability,landlock,yama,apparmor")
             let vmm = VZVirtualMachineManager(
                 kernel: kernel,
                 initialFilesystem: bundle.initialFilesystem.asMount,

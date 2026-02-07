@@ -18,6 +18,7 @@ import Collections
 import ContainerAPIClient
 import ContainerizationArchive
 import ContainerizationOCI
+import CryptoKit
 import Foundation
 import GRPC
 
@@ -199,7 +200,7 @@ actor BuildFSSync: BuildPipelineHandler {
             format: .paxRestricted,
             filter: .none)
 
-        try Archiver.compress(
+        let tarHash = try Archiver.compress(
             source: contextDir,
             destination: tarURL,
             writerConfiguration: writerCfg
@@ -228,6 +229,25 @@ actor BuildFSSync: BuildPipelineHandler {
                 pathOnHost: url,
                 pathInArchive: URL(fileURLWithPath: rel))
         }
+
+        let hash = tarHash.compactMap { String(format: "%02x", $0) }.joined()
+        let header = BuildTransfer(
+            id: packet.id,
+            source: tarURL.path,
+            complete: false,
+            isDir: false,
+            metadata: [
+                "os": "linux",
+                "stage": "fssync",
+                "mode": "tar",
+                "hash": hash,
+            ]
+        )
+        var resp = ClientStream()
+        resp.buildID = buildID
+        resp.buildTransfer = header
+        resp.packetType = .buildTransfer(header)
+        sender.yield(resp)
 
         for try await chunk in try tarURL.bufferedCopyReader() {
             let part = BuildTransfer(
