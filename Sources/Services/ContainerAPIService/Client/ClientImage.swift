@@ -25,10 +25,9 @@ import ContainerizationOCI
 import Foundation
 import TerminalProgress
 
-
 public struct ImageSizeInfo: Sendable {
-    public let ociImageSize: Int64    // Compressed OCI image size
-    public let snapshotSize: UInt64   // Unpacked snapshot size (0 if not available)
+    public let ociImageSize: Int64  // Compressed OCI image size
+    public let snapshotSize: UInt64  // Unpacked snapshot size (0 if not available)
 }
 
 // MARK: ClientImage structure
