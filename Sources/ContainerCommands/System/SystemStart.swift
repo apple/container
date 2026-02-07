@@ -47,9 +47,6 @@ extension Application {
             help: "Specify whether the default kernel should be installed or not (default: prompt user)")
         var kernelInstall: Bool?
 
-        @Flag(name: [.long], help: "Enable automatic launch at login (default: disabled)")
-        public var launchAgent = false
-
         @OptionGroup
         public var logOptions: Flags.Logging
 
