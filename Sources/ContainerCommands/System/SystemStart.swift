@@ -92,10 +92,6 @@ extension Application {
 
             try ServiceManager.register(plistPath: plistURL.path)
 
-            if launchAgent {
-                try registerContainerLaunchAgent()
-            }
-
             // Now ping our friendly daemon. Fail if we don't get a response.
             do {
                 print("Verifying apiserver is running...")
@@ -115,45 +111,6 @@ extension Application {
                 return
             }
             try await installDefaultKernel()
-        }
-
-        private func registerContainerLaunchAgent() throws {
-            let launchContainerExecutableURL = CommandLine.executablePathUrl
-                .deletingLastPathComponent()
-                .appendingPathComponent("launch-container")
-                .resolvingSymlinksInPath()
-
-            var args = [launchContainerExecutableURL.absolutePath()]
-            args.append("start")
-
-            let fileManager = FileManager.default
-            let launchAgentsDirectory = FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent("Library/LaunchAgents")
-
-            try fileManager.createDirectory(
-                at: launchAgentsDirectory,
-                withIntermediateDirectories: true
-            )
-
-            var env = PluginLoader.filterEnvironment()
-            env[ApplicationRoot.environmentName] = appRoot.path(percentEncoded: false)
-            env[InstallRoot.environmentName] = installRoot.path(percentEncoded: false)
-
-            let plist = LaunchPlist(
-                label: "com.apple-container.launchagent",
-                arguments: args,
-                environment: env,
-                runAtLoad: true,
-                keepAlive: false,
-            )
-
-            let plistURL =
-                launchAgentsDirectory
-                .appendingPathComponent("com.apple-container.launchagent.plist")
-
-            let data = try plist.encode()
-            try data.write(to: plistURL)
-            try ServiceManager.register(plistPath: plistURL.path)
         }
 
         private func installInitialFilesystem() async throws {
