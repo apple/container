@@ -38,7 +38,7 @@ extension Application {
                 try LaunchServiceManager.deregisterLaunchAgent()
                 logger.info("LaunchAgent deregistered and deleted successfully")
             } catch {
-                logger.warning("Failed to deregister and delete the LaunchAgent: \(error)")
+                logger.error("Failed to deregister and delete the LaunchAgent", metadata: ["error": "\(error)"])
             }
         }
     }

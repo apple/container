@@ -39,7 +39,7 @@ extension Application {
                 try LaunchServiceManager.registerLaunchAgent(appRoot: ApplicationRoot.url, installRoot: InstallRoot.url)
                 logger.info("LaunchAgent registered and created successfully")
             } catch {
-                logger.warning("Failed to register and create the LaunchAgent: \(error)")
+                logger.error("Failed to register and create the LaunchAgent", metadata: ["error": "\(error)"])
             }
         }
     }
