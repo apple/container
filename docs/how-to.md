@@ -497,6 +497,82 @@ container run --name nested-virtualization --virtualization --kernel /path/to/a/
 [    0.017893] kvm [1]: Hyp mode initialized successfully
 ```
 
+## Use a custom init image
+
+The `--init-image` flag allows you to specify a custom init filesystem image for the lightweight VM that runs your container. This enables:
+
+- Custom boot-time logic before the OCI container starts
+- Running additional processes and daemons (e.g., eBPF network filters, logging agents) inside the VM
+- Debugging or instrumenting the init process
+
+### Create a custom init image
+
+A custom init image wraps the default `vminitd` binary, allowing you to run custom logic before handing off to the standard init process.
+
+**1. Create a wrapper binary (example in Go for easy cross-compilation):**
+
+```go
+// wrapper.go
+package main
+
+import (
+    "os"
+    "syscall"
+)
+
+func main() {
+    // Write a message to kernel log
+    kmsg, err := os.OpenFile("/dev/kmsg", os.O_WRONLY, 0)
+    if err == nil {
+        kmsg.WriteString("<6>custom-init: === CUSTOM INIT IMAGE RUNNING ===\n")
+        kmsg.Close()
+    }
+
+    // Execute the real vminitd
+    err = syscall.Exec("/sbin/vminitd.real", os.Args, os.Environ())
+    if err != nil {
+        os.Exit(1)
+    }
+}
+```
+
+**2. Build the wrapper for Linux arm64:**
+
+```bash
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o wrapper wrapper.go
+```
+
+**3. Create a Containerfile:**
+
+```dockerfile
+FROM ghcr.io/apple/containerization/vminit:latest AS base
+
+FROM ghcr.io/apple/containerization/vminit:latest
+COPY --from=base /sbin/vminitd /sbin/vminitd.real
+COPY wrapper /sbin/vminitd
+```
+
+**4. Build the custom init image:**
+
+```bash
+container build -t local/custom-init:latest .
+```
+
+### Run a container with a custom init image
+
+```bash
+container run --name my-container --init-image local/custom-init:latest alpine:latest echo "hello"
+```
+
+### Verify the custom init is running
+
+Check the VM boot logs to confirm your custom init code executed:
+
+```console
+% container logs --boot my-container | grep custom-init
+[    0.129230] custom-init: === CUSTOM INIT IMAGE RUNNING ===
+```
+
 ## Configure system properties
 
 The `container system property` subcommand manages the configuration settings for the `container` CLI and services. You can customize various aspects of container behavior, including build settings, default images, and network configuration.
