@@ -62,11 +62,12 @@ extension Application {
 
             var args = [executableUrl.absolutePath()]
 
+            args.append("start")
+
             if logOptions.debug {
                 args.append("--debug")
             }
 
-            args.append("start")
             let apiServerDataUrl = appRoot.appending(path: "apiserver")
             try! FileManager.default.createDirectory(at: apiServerDataUrl, withIntermediateDirectories: true)
 
