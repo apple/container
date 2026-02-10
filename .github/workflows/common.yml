@@ -68,16 +68,18 @@ jobs:
           mv bin/${{ env.BUILD_CONFIGURATION }}/container-installer-unsigned.pkg outputs
           mv bin/${{ env.BUILD_CONFIGURATION }}/bundle/container-dSYM.zip outputs
 
-      - name: Start OS log collection
-        run: |
-          log stream --debug --info --predicate 'subsystem == "com.apple.container" or subsystem == "com.apple.NetworkSharing" or process == "com.apple.Virtualization.VirtualMachine"' > container-test.log 2>&1 &
-          echo $! > log_stream_pid.txt
-          echo "Started log collection with PID $(cat log_stream_pid.txt)"
-
       - name: Test the container project
         run: |
+          # Start OS log collection in background
+          log stream --debug --info --predicate 'subsystem == "com.apple.container" or subsystem == "com.apple.NetworkSharing" or process == "com.apple.Virtualization.VirtualMachine"' > container-test.log 2>&1 &
+          LOG_PID=$!
+          echo "Started log collection with PID ${LOG_PID}"
+
+          # Ensure log collection is stopped on exit
+          trap "kill ${LOG_PID} 2>/dev/null || true; echo 'Stopped log collection'" EXIT
+
           APP_ROOT=$(mktemp -d -p "${RUNNER_TEMP}")
-          trap 'rm -rf "${APP_ROOT}"; echo Removing data directory ${APP_ROOT}' EXIT
+          trap 'kill '"${LOG_PID}"' 2>/dev/null || true; rm -rf "${APP_ROOT}"; echo Removing data directory ${APP_ROOT}' EXIT
           echo "created data directory: ${APP_ROOT}"
           echo "hostname: $(hostname)"
           export NO_PROXY="${NO_PROXY},192.168.0.0/16,fe80::/10"
@@ -87,16 +89,6 @@ jobs:
           make APP_ROOT="${APP_ROOT}" test install-kernel integration
         env:
           DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
-
-      - name: Stop OS log collection
-        if: always()
-        run: |
-          if [ -f log_stream_pid.txt ]; then
-            LOG_PID=$(cat log_stream_pid.txt)
-            echo "Stopping log collection (PID: ${LOG_PID})"
-            kill ${LOG_PID} || true
-            rm log_stream_pid.txt
-          fi
 
       - name: Upload OS logs on failure
         if: failure()
