@@ -99,6 +99,8 @@ extension RuntimeLinuxHelper {
                         SandboxRoutes.dial.rawValue: server.dial,
                         SandboxRoutes.shutdown.rawValue: server.shutdown,
                         SandboxRoutes.statistics.rawValue: server.statistics,
+                        SandboxRoutes.copyIn.rawValue: server.copyIn,
+                        SandboxRoutes.copyOut.rawValue: server.copyOut,
                     ],
                     log: log
                 )

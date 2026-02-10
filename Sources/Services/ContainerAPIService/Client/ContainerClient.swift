@@ -292,6 +292,43 @@ public struct ContainerClient: Sendable {
         return fh
     }
 
+    /// Copy a file from the host into the container.
+    public func copyIn(id: String, source: String, destination: String, mode: UInt32 = 0o644) async throws {
+        let request = XPCMessage(route: .containerCopyIn)
+        request.set(key: .id, value: id)
+        request.set(key: .sourcePath, value: source)
+        request.set(key: .destinationPath, value: destination)
+        request.set(key: .fileMode, value: UInt64(mode))
+
+        do {
+            try await xpcSend(message: request, timeout: .seconds(300))
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to copy into container \(id)",
+                cause: error
+            )
+        }
+    }
+
+    /// Copy a file from the container to the host.
+    public func copyOut(id: String, source: String, destination: String) async throws {
+        let request = XPCMessage(route: .containerCopyOut)
+        request.set(key: .id, value: id)
+        request.set(key: .sourcePath, value: source)
+        request.set(key: .destinationPath, value: destination)
+
+        do {
+            try await xpcSend(message: request, timeout: .seconds(300))
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to copy from container \(id)",
+                cause: error
+            )
+        }
+    }
+
     /// Get resource usage statistics for a container.
     public func stats(id: String) async throws -> ContainerStats {
         let request = XPCMessage(route: .containerStats)
