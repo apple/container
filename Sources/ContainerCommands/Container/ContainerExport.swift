@@ -21,22 +21,20 @@ import Foundation
 import TerminalProgress
 
 extension Application {
-    public struct ExportCommand: AsyncLoggableCommand {
+    public struct ContainerExport: AsyncLoggableCommand {
         public init() {}
         public static var configuration: CommandConfiguration {
-            var config = CommandConfiguration()
-            config.commandName = "export"
-            config.abstract = ""
-            config._superCommandName = "container"
-            config.helpNames = NameSpecification(arrayLiteral: .customShort("h"), .customLong("help"))
-            return config
+            CommandConfiguration(
+                commandName: "export",
+                abstract: "Export a container state to an image",
+            )
         }
 
         @OptionGroup
         public var logOptions: Flags.Logging
 
-        @Argument(help: "container id")
-        var id: String
+        @Option(name: .long, help: "container ID")
+        var name: String
 
         @Argument(help: "image name")
         var image: String
@@ -51,7 +49,7 @@ extension Application {
             }
 
             let archive = tempDir.appendingPathComponent("archive.tar")
-            try await client.export(id: id, archive: archive)
+            try await client.export(id: name, archive: archive)
 
             let dockerfile = """
                 FROM scratch
