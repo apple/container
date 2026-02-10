@@ -36,7 +36,7 @@ CODESIGN_OPTS ?= --force --sign - --timestamp=none
 ifeq ($(strip $(APP_ROOT)),)
 	SYSTEM_START_OPTS :=
 else
-	SYSTEM_START_OPTS := --app-root "$(strip $(APP_ROOT))"
+	SYSTEM_START_OPTS := -a "$(strip $(APP_ROOT))"
 endif
 
 MACOS_VERSION := $(shell sw_vers -productVersion)
@@ -77,7 +77,7 @@ release: all
 
 .PHONY: init-block
 init-block:
-	@scripts/install-init.sh
+	scripts/install-init.sh $(SYSTEM_START_OPTS)
 
 .PHONY: install
 install: installer-pkg
