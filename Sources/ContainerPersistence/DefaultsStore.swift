@@ -66,6 +66,10 @@ public enum DefaultsStore {
             ?? Bool(key.defaultValue)
     }
 
+    public static func isSet(key: DefaultsStore.Keys) -> Bool {
+        udSuite.object(forKey: key.rawValue) != nil
+    }
+
     public static func allValues() -> [DefaultsStoreValue] {
         let allKeys: [(Self.Keys, (Self.Keys) -> Any?)] = [
             (.buildRosetta, { Self.getBool(key: $0) }),
