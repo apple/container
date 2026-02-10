@@ -33,11 +33,11 @@ extension Application {
         @OptionGroup
         public var logOptions: Flags.Logging
 
-        @Option(name: .long, help: "container ID")
-        var name: String
+        @Option(name: .long, help: "image name")
+        var image: String?
 
-        @Argument(help: "image name")
-        var image: String
+        @Argument(help: "container ID")
+        var name: String
 
         public func run() async throws {
             let client = ContainerClient()
@@ -48,6 +48,8 @@ extension Application {
                 try? FileManager.default.removeItem(at: tempDir)
             }
 
+            let imageName = image ?? name
+
             let archive = tempDir.appendingPathComponent("archive.tar")
             try await client.export(id: name, archive: archive)
 
@@ -57,7 +59,7 @@ extension Application {
                 """
             try dockerfile.data(using: .utf8)!.write(to: tempDir.appendingPathComponent("Dockerfile"), options: .atomic)
 
-            let builder = try BuildCommand.parse(["-t", image, tempDir.absolutePath()])
+            let builder = try BuildCommand.parse(["-t", imageName, tempDir.absolutePath()])
 
             try await builder.run()
         }
