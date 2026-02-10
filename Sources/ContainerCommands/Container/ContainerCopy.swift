@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025-2026 Apple Inc. and the container project authors.
+// Copyright © 2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,9 +17,9 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerResource
+import Containerization
 import ContainerizationError
 import Foundation
-import Containerization
 
 extension Application {
     public struct ContainerCopy: AsyncLoggableCommand {
@@ -59,7 +59,7 @@ extension Application {
             let client = ContainerClient()
             let srcRef = Self.parsePathRef(source)
             let dstRef = Self.parsePathRef(destination)
-            
+
             switch (srcRef, dstRef) {
             case (.container(let id, let path), .local(let localPath)):
                 let resolvedLocal = URL(fileURLWithPath: localPath).standardizedFileURL.path
