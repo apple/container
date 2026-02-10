@@ -68,6 +68,12 @@ jobs:
           mv bin/${{ env.BUILD_CONFIGURATION }}/container-installer-unsigned.pkg outputs
           mv bin/${{ env.BUILD_CONFIGURATION }}/bundle/container-dSYM.zip outputs
 
+      - name: Start OS log collection
+        run: |
+          log stream --debug --info --predicate 'subsystem == "com.apple.container" or subsystem == "com.apple.NetworkSharing" or process == "com.apple.Virtualization.VirtualMachine"' > container-test.log 2>&1 &
+          echo $! > log_stream_pid.txt
+          echo "Started log collection with PID $(cat log_stream_pid.txt)"
+
       - name: Test the container project
         run: |
           APP_ROOT=$(mktemp -d -p "${RUNNER_TEMP}")
@@ -81,6 +87,24 @@ jobs:
           make APP_ROOT="${APP_ROOT}" test install-kernel integration
         env:
           DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
+
+      - name: Stop OS log collection
+        if: always()
+        run: |
+          if [ -f log_stream_pid.txt ]; then
+            LOG_PID=$(cat log_stream_pid.txt)
+            echo "Stopping log collection (PID: ${LOG_PID})"
+            kill ${LOG_PID} || true
+            rm log_stream_pid.txt
+          fi
+
+      - name: Upload OS logs on failure
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: container-test-logs
+          path: container-test.log
+          retention-days: 14
 
       - name: Save documentation artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
