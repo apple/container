@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025-2026 Apple Inc. and the container project authors.
+// Copyright © 2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,10 +20,12 @@ import Containerization
 import ContainerizationOCI
 
 extension Application {
-    public struct Logout: AsyncLoggableCommand {
+    public struct RegistryLogout: AsyncLoggableCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
-            abstract: "Log out from a registry")
+            commandName: "logout",
+            abstract: "Log out from a registry"
+        )
 
         @OptionGroup
         public var logOptions: Flags.Logging
