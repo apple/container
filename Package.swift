@@ -418,6 +418,27 @@ let package = Package(
             name: "SocketForwarderTests",
             dependencies: ["SocketForwarder"]
         ),
+        .testTarget(
+            name: "ContainerCommandsTests",
+            dependencies: [
+                "ContainerCommands",
+                "ContainerClient",
+                .product(name: "Containerization", package: "containerization"),
+            ]
+        ),
+        .testTarget(
+            name: "CLITests",
+            dependencies: [
+                .product(name: "AsyncHTTPClient", package: "async-http-client"),
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                .product(name: "ContainerizationOS", package: "containerization"),
+                "ContainerBuild",
+                "ContainerClient",
+                "ContainerNetworkService",
+            ],
+            path: "Tests/CLITests"
+        ),
         .target(
             name: "ContainerVersion",
             dependencies: [
