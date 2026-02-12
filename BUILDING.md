@@ -137,7 +137,7 @@ Attach debugger to the XPC helpers using their launchd service labels:
    % container system start
    % container run -d --name test debian:bookworm sleep infinity
    test
-   % launchd list | grep container
+   % launchctl list | grep container
    27068   0       com.apple.container.container-network-vmnet.default
    27072   0       com.apple.container.container-core-images
    26980   0       com.apple.container.apiserver

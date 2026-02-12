@@ -158,6 +158,12 @@ public struct Flags {
         )
         public var kernel: String?
 
+        @Option(
+            name: .long,
+            help: .init("Use a custom init image instead of the default", valueName: "image")
+        )
+        public var initImage: String?
+
         @Option(name: [.short, .customLong("label")], help: "Add a key=value label to the container")
         public var labels: [String] = []
 
@@ -221,6 +227,9 @@ public struct Flags {
 
         @Flag(name: .long, help: "Mount the container's root filesystem as read-only")
         public var readOnly = false
+
+        @Option(name: .long, help: "Set the runtime handler for the container (default: container-runtime-linux)")
+        public var runtime: String?
     }
 
     public struct Progress: ParsableArguments {

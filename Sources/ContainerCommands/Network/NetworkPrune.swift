@@ -30,7 +30,8 @@ extension Application.NetworkCommand {
         public var logOptions: Flags.Logging
 
         public func run() async throws {
-            let allContainers = try await ClientContainer.list()
+            let client = ContainerClient()
+            let allContainers = try await client.list()
             let allNetworks = try await ClientNetwork.list()
 
             var networksInUse = Set<String>()

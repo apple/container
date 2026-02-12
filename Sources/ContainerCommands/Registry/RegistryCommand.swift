@@ -23,8 +23,9 @@ extension Application {
             commandName: "registry",
             abstract: "Manage registry logins",
             subcommands: [
-                Login.self,
-                Logout.self,
+                RegistryLogin.self,
+                RegistryLogout.self,
+                RegistryList.self,
             ],
             aliases: ["r"]
         )

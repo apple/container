@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerResource
 import ContainerizationError
 import ContainerizationOS
 import Darwin
@@ -50,31 +51,28 @@ extension Application {
         }
 
         public mutating func run() async throws {
-            let set = Set<String>(containerIds)
+            let client = ContainerClient()
 
-            var containers = try await ClientContainer.list().filter { c in
-                c.status == .running
-            }
-            if !self.all {
-                containers = containers.filter { c in
-                    set.contains(c.id)
-                }
+            let containers: [String]
+            if self.all {
+                containers = try await client.list(filters: ContainerListFilters(status: .running)).map { $0.id }
+            } else {
+                containers = containerIds
             }
 
             let signalNumber = try Signals.parseSignal(signal)
 
-            var failed: [String] = []
+            var errors: [any Error] = []
             for container in containers {
                 do {
-                    try await container.kill(signalNumber)
-                    print(container.id)
+                    try await client.kill(id: container, signal: signalNumber)
+                    print(container)
                 } catch {
-                    log.error("failed to kill container \(container.id): \(error)")
-                    failed.append(container.id)
+                    errors.append(error)
                 }
             }
-            if failed.count > 0 {
-                throw ContainerizationError(.internalError, message: "kill failed for one or more containers \(failed.joined(separator: ","))")
+            if !errors.isEmpty {
+                throw AggregateError(errors)
             }
         }
     }

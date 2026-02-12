@@ -43,7 +43,9 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let containers = try await ClientContainer.list()
+            let client = ContainerClient()
+            let filters = self.all ? ContainerListFilters.all : ContainerListFilters(status: .running)
+            let containers = try await client.list(filters: filters)
             try printContainers(containers: containers, format: format)
         }
 
@@ -51,22 +53,19 @@ extension Application {
             [["ID", "IMAGE", "OS", "ARCH", "STATE", "ADDR", "CPUS", "MEMORY", "STARTED"]]
         }
 
-        private func printContainers(containers: [ClientContainer], format: ListFormat) throws {
+        private func printContainers(containers: [ContainerSnapshot], format: ListFormat) throws {
             if format == .json {
                 let printables = containers.map {
                     PrintableContainer($0)
                 }
                 let data = try JSONEncoder().encode(printables)
-                print(String(data: data, encoding: .utf8)!)
+                print(String(decoding: data, as: UTF8.self))
 
                 return
             }
 
             if self.quiet {
                 containers.forEach {
-                    if !self.all && $0.status != .running {
-                        return
-                    }
                     print($0.id)
                 }
                 return
@@ -74,9 +73,6 @@ extension Application {
 
             var rows = createHeader()
             for container in containers {
-                if !self.all && container.status != .running {
-                    continue
-                }
                 rows.append(container.asRow)
             }
 
@@ -86,13 +82,13 @@ extension Application {
     }
 }
 
-extension ClientContainer {
+extension ContainerSnapshot {
     fileprivate var asRow: [String] {
         [
             self.id,
             self.configuration.image.reference,
-            self.configuration.platform.os,
-            self.configuration.platform.architecture,
+            self.platform.os,
+            self.platform.architecture,
             self.status.rawValue,
             self.networks.compactMap { $0.ipv4Address.description }.joined(separator: ","),
             "\(self.configuration.resources.cpus)",
@@ -108,7 +104,7 @@ struct PrintableContainer: Codable {
     let networks: [Attachment]
     let startedDate: Date?
 
-    init(_ container: ClientContainer) {
+    init(_ container: ContainerSnapshot) {
         self.status = container.status
         self.configuration = container.configuration
         self.networks = container.networks

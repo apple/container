@@ -32,16 +32,17 @@ extension Application {
         public var logOptions: Flags.Logging
 
         public func run() async throws {
-            let containersToPrune = try await ClientContainer.list().filter { $0.status == .stopped }
+            let client = ContainerClient()
+            let containersToPrune = try await client.list().filter { $0.status == .stopped }
 
             var prunedContainerIds = [String]()
             var totalSize: UInt64 = 0
 
             for container in containersToPrune {
                 do {
-                    let actualSize = try await ClientContainer.containerDiskUsage(id: container.id)
+                    let actualSize = try await client.diskUsage(id: container.id)
                     totalSize += actualSize
-                    try await container.delete()
+                    try await client.delete(id: container.id)
                     prunedContainerIds.append(container.id)
                 } catch {
                     log.error("Failed to prune container \(container.id): \(error)")

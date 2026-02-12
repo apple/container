@@ -119,7 +119,7 @@ extension Application {
                     )
                 }
                 let data = try JSONEncoder().encode(printableImages)
-                print(String(data: data, encoding: .utf8)!)
+                print(String(decoding: data, as: UTF8.self))
                 return
             }
 

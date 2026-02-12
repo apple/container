@@ -123,6 +123,7 @@ public actor SandboxService {
 
             var kernel = try bundle.kernel
             kernel.commandLine.kernelArgs.append("oops=panic")
+            kernel.commandLine.kernelArgs.append("lsm=lockdown,capability,landlock,yama,apparmor")
             let vmm = VZVirtualMachineManager(
                 kernel: kernel,
                 initialFilesystem: bundle.initialFilesystem.asMount,
@@ -223,10 +224,10 @@ public actor SandboxService {
                 await self.setState(.booted)
             } catch {
                 do {
-                    try await self.cleanupContainer(containerInfo: ctrInfo)
+                    try await self.cleanUpContainer(containerInfo: ctrInfo)
                     await self.setState(.created)
                 } catch {
-                    self.log.error("failed to cleanup container: \(error)")
+                    self.log.error("Failed to clean up container: \(error)")
                 }
                 throw error
             }
@@ -443,9 +444,9 @@ public actor SandboxService {
                     if case .stopped(_) = await self.state {
                         return message.reply()
                     }
-                    try await self.cleanupContainer(containerInfo: ctr, exitStatus: exitStatus)
+                    try await self.cleanUpContainer(containerInfo: ctr, exitStatus: exitStatus)
                 } catch {
-                    self.log.error("failed to cleanup container: \(error)")
+                    self.log.error("Failed to clean up container: \(error)")
                 }
                 await self.setState(.stopped(exitStatus.exitCode))
             default:
@@ -668,7 +669,7 @@ public actor SandboxService {
             }
             try await self.monitor.track(id: id, waitingOn: waitFunc)
         } catch {
-            try? await self.cleanupContainer(containerInfo: info)
+            try? await self.cleanUpContainer(containerInfo: info)
             self.setState(.created)
             throw error
         }
@@ -796,9 +797,9 @@ public actor SandboxService {
             }
 
             do {
-                try await cleanupContainer(containerInfo: ctrInfo, exitStatus: exitStatus)
+                try await cleanUpContainer(containerInfo: ctrInfo, exitStatus: exitStatus)
             } catch {
-                self.log.error("failed to cleanup container: \(error)")
+                self.log.error("Failed to clean up container: \(error)")
             }
             await setState(.stopped(exitStatus.exitCode))
         }
@@ -1025,7 +1026,7 @@ public actor SandboxService {
         return code
     }
 
-    private func cleanupContainer(containerInfo: ContainerInfo, exitStatus: ExitStatus? = nil) async throws {
+    private func cleanUpContainer(containerInfo: ContainerInfo, exitStatus: ExitStatus? = nil) async throws {
         let container = containerInfo.container
         let id = container.id
 

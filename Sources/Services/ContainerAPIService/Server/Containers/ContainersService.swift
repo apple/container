@@ -106,10 +106,33 @@ public actor ContainersService {
         return results
     }
 
-    /// List all containers registered with the service.
-    public func list() async throws -> [ContainerSnapshot] {
+    /// List containers matching the given filters.
+    public func list(filters: ContainerListFilters = .all) async throws -> [ContainerSnapshot] {
         self.log.debug("\(#function)")
-        return self.containers.values.map { $0.snapshot }
+
+        return self.containers.values.compactMap { state -> ContainerSnapshot? in
+            let snapshot = state.snapshot
+
+            if !filters.ids.isEmpty {
+                guard filters.ids.contains(snapshot.id) else {
+                    return nil
+                }
+            }
+
+            if let status = filters.status {
+                guard snapshot.status == status else {
+                    return nil
+                }
+            }
+
+            for (key, value) in filters.labels {
+                guard snapshot.configuration.labels[key] == value else {
+                    return nil
+                }
+            }
+
+            return snapshot
+        }
     }
 
     /// Execute an operation with the current container list while maintaining atomicity
@@ -192,7 +215,7 @@ public actor ContainersService {
     }
 
     /// Create a new container from the provided id and configuration.
-    public func create(configuration: ContainerConfiguration, kernel: Kernel, options: ContainerCreateOptions) async throws {
+    public func create(configuration: ContainerConfiguration, kernel: Kernel, options: ContainerCreateOptions, initImage: String? = nil) async throws {
         self.log.debug("\(#function)")
 
         try await self.lock.withLock { context in
@@ -233,11 +256,14 @@ public actor ContainersService {
 
             let path = self.containerRoot.appendingPathComponent(configuration.id)
             let systemPlatform = kernel.platform
-            let initFs = try await self.getInitBlock(for: systemPlatform.ociPlatform())
+
+            // Fetch init image (custom or default)
+            self.log.info("Using init image: \(initImage ?? ClientImage.initImageRef)")
+            let initFilesystem = try await self.getInitBlock(for: systemPlatform.ociPlatform(), imageRef: initImage)
 
             let bundle = try ContainerResource.Bundle.create(
                 path: path,
-                initialFilesystem: initFs,
+                initialFilesystem: initFilesystem,
                 kernel: kernel,
                 containerConfiguration: configuration
             )
@@ -446,8 +472,11 @@ public actor ContainersService {
         self.log.debug("\(#function)")
 
         // Logs doesn't care if the container is running or not, just that
-        // the bundle is there, and that the files actually exist.
+        // the bundle is there, and that the files actually exist. We do
+        // first try and get the container state so we get a nicer error message
+        // (container foo not found) however.
         do {
+            _ = try _getContainerState(id: id)
             let path = self.containerRoot.appendingPathComponent(id)
             let bundle = ContainerResource.Bundle(path: path)
             return [
@@ -490,7 +519,7 @@ public actor ContainersService {
             let client = try state.getClient()
             try await client.stop(options: opts)
             try await self.lock.withLock { context in
-                try await self.cleanup(id: id, context: context)
+                try await self.cleanUp(id: id, context: context)
             }
         case .stopping:
             throw ContainerizationError(
@@ -499,7 +528,7 @@ public actor ContainersService {
             )
         default:
             try await self.lock.withLock { context in
-                try await self.cleanup(id: id, context: context)
+                try await self.cleanUp(id: id, context: context)
             }
         }
     }
@@ -575,7 +604,7 @@ public actor ContainersService {
 
         let options = try getContainerCreationOptions(id: id)
         if options.autoRemove {
-            try await self.cleanup(id: id, context: context)
+            try await self.cleanUp(id: id, context: context)
         }
     }
 
@@ -583,7 +612,7 @@ public actor ContainersService {
         "\(Self.launchdDomainString)/\(Self.machServicePrefix).\(runtimeName).\(instanceId)"
     }
 
-    private func _cleanup(id: String) async throws {
+    private func _cleanUp(id: String) async throws {
         self.log.debug("\(#function)")
 
         // Did the exit container handler win?
@@ -608,8 +637,8 @@ public actor ContainersService {
         self.containers.removeValue(forKey: id)
     }
 
-    private func cleanup(id: String, context: AsyncLock.Context) async throws {
-        try await self._cleanup(id: id)
+    private func cleanUp(id: String, context: AsyncLock.Context) async throws {
+        try await self._cleanUp(id: id)
     }
 
     private func getContainerCreationOptions(id: String) throws -> ContainerCreateOptions {
@@ -619,8 +648,9 @@ public actor ContainersService {
         return options
     }
 
-    private func getInitBlock(for platform: Platform) async throws -> Filesystem {
-        let initImage = try await ClientImage.fetch(reference: ClientImage.initImageRef, platform: platform)
+    private func getInitBlock(for platform: Platform, imageRef: String? = nil) async throws -> Filesystem {
+        let ref = imageRef ?? ClientImage.initImageRef
+        let initImage = try await ClientImage.fetch(reference: ref, platform: platform)
         var fs = try await initImage.getCreateSnapshot(platform: platform)
         fs.options = ["ro"]
         return fs

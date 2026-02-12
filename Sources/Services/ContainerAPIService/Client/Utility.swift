@@ -21,6 +21,7 @@ import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOCI
 import Foundation
+import Logging
 import TerminalProgress
 
 public struct Utility {
@@ -81,8 +82,9 @@ public struct Utility {
         resource: Flags.Resource,
         registry: Flags.Registry,
         imageFetch: Flags.ImageFetch,
-        progressUpdate: @escaping ProgressUpdateHandler
-    ) async throws -> (ContainerConfiguration, Kernel) {
+        progressUpdate: @escaping ProgressUpdateHandler,
+        log: Logger
+    ) async throws -> (ContainerConfiguration, Kernel, String?) {
         var requestedPlatform = Parser.platform(os: management.os, arch: management.arch)
         // Prefer --platform
         if let platform = management.platform {
@@ -127,8 +129,9 @@ public struct Utility {
             .setItemsName("blobs"),
         ])
         let fetchInitTask = await taskManager.startTask()
+        let initImageRef = management.initImage ?? ClientImage.initImageRef
         let initImage = try await ClientImage.fetch(
-            reference: ClientImage.initImageRef, platform: .current, scheme: scheme,
+            reference: initImageRef, platform: .current, scheme: scheme,
             progressUpdate: ProgressTaskCoordinator.handler(for: fetchInitTask, from: progressUpdate),
             maxConcurrentDownloads: imageFetch.maxConcurrentDownloads)
 
@@ -173,7 +176,7 @@ public struct Utility {
             case .filesystem(let fs):
                 resolvedMounts.append(fs)
             case .volume(let parsed):
-                let volume = try await getOrCreateVolume(parsed: parsed)
+                let volume = try await getOrCreateVolume(parsed: parsed, log: log)
                 let volumeMount = Filesystem.volume(
                     name: parsed.name,
                     format: volume.format,
@@ -246,7 +249,11 @@ public struct Utility {
         config.ssh = management.ssh
         config.readOnly = management.readOnly
 
-        return (config, kernel)
+        if let runtime = management.runtime {
+            config.runtimeHandler = runtime
+        }
+
+        return (config, kernel, management.initImage)
     }
 
     static func getAttachmentConfigurations(
@@ -343,10 +350,11 @@ public struct Utility {
 
     /// Gets an existing volume or creates it if it doesn't exist.
     /// Shows a warning for named volumes when auto-creating.
-    private static func getOrCreateVolume(parsed: ParsedVolume) async throws -> Volume {
+    private static func getOrCreateVolume(parsed: ParsedVolume, log: Logger) async throws -> Volume {
         let labels = parsed.isAnonymous ? [Volume.anonymousLabel: ""] : [:]
 
         let volume: Volume
+        var wasCreated = false
         do {
             volume = try await ClientVolume.create(
                 name: parsed.name,
@@ -354,6 +362,7 @@ public struct Utility {
                 driverOpts: [:],
                 labels: labels
             )
+            wasCreated = true
         } catch let error as VolumeError {
             guard case .volumeAlreadyExists = error else {
                 throw error
@@ -368,7 +377,9 @@ public struct Utility {
             volume = try await ClientVolume.inspect(parsed.name)
         }
 
-        // TODO: Warn user if named volume was auto-created
+        if wasCreated && !parsed.isAnonymous {
+            log.warning("named volume was automatically created", metadata: ["volume": "\(parsed.name)"])
+        }
 
         return volume
     }

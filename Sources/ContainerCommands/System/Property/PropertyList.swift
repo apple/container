@@ -50,7 +50,7 @@ extension Application {
         private func printValues(_ vals: [DefaultsStoreValue], format: ListFormat) throws {
             if format == .json {
                 let data = try JSONEncoder().encode(vals)
-                print(String(data: data, encoding: .utf8)!)
+                print(String(decoding: data, as: UTF8.self))
                 return
             }
 

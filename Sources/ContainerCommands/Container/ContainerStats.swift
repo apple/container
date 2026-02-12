@@ -62,33 +62,32 @@ extension Application {
         }
 
         private func runStatic() async throws {
-            let allContainers = try await ClientContainer.list()
+            let client = ContainerClient()
 
-            let containersToShow: [ClientContainer]
+            let containersToShow: [ContainerSnapshot]
             if containers.isEmpty {
                 // No containers specified - show all running containers
-                containersToShow = allContainers.filter { $0.status == .running }
+                containersToShow = try await client.list(filters: ContainerListFilters(status: .running))
             } else {
-                // Validate all specified containers exist before proceeding
-                var found: [ClientContainer] = []
+                // Fetch specified containers by ID
+                containersToShow = try await client.list(filters: ContainerListFilters(ids: containers))
+                // Validate all specified containers were found
                 for containerId in containers {
-                    guard let container = allContainers.first(where: { $0.id == containerId || $0.id.starts(with: containerId) }) else {
+                    guard containersToShow.contains(where: { $0.id == containerId }) else {
                         throw ContainerizationError(
                             .notFound,
                             message: "no such container: \(containerId)"
                         )
                     }
-                    found.append(container)
                 }
-                containersToShow = found
             }
 
-            let statsData = try await collectStats(for: containersToShow)
+            let statsData = try await collectStats(client: client, for: containersToShow)
 
             if format == .json {
                 let jsonStats = statsData.map { $0.stats2 }
                 let data = try JSONEncoder().encode(jsonStats)
-                print(String(data: data, encoding: .utf8)!)
+                print(String(decoding: data, as: UTF8.self))
                 return
             }
 
@@ -96,11 +95,13 @@ extension Application {
         }
 
         private func runStreaming() async throws {
+            let client = ContainerClient()
+
             // If containers were specified, validate they all exist upfront
             if !containers.isEmpty {
-                let allContainers = try await ClientContainer.list()
+                let specifiedContainers = try await client.list(filters: ContainerListFilters(ids: containers))
                 for containerId in containers {
-                    guard allContainers.first(where: { $0.id == containerId || $0.id.starts(with: containerId) }) != nil else {
+                    guard specifiedContainers.contains(where: { $0.id == containerId }) else {
                         throw ContainerizationError(
                             .notFound,
                             message: "no such container: \(containerId)"
@@ -115,22 +116,14 @@ extension Application {
 
             while true {
                 do {
-                    let allContainers = try await ClientContainer.list()
-
-                    let containersToShow: [ClientContainer]
+                    let containersToShow: [ContainerSnapshot]
                     if containers.isEmpty {
-                        containersToShow = allContainers.filter { $0.status == .running }
+                        containersToShow = try await client.list(filters: ContainerListFilters(status: .running))
                     } else {
-                        var found: [ClientContainer] = []
-                        for containerId in containers {
-                            if let container = allContainers.first(where: { $0.id == containerId || $0.id.starts(with: containerId) }) {
-                                found.append(container)
-                            }
-                        }
-                        containersToShow = found
+                        containersToShow = try await client.list(filters: ContainerListFilters(ids: containers))
                     }
 
-                    let statsData = try await collectStats(for: containersToShow)
+                    let statsData = try await collectStats(client: client, for: containersToShow)
 
                     // Clear screen and reprint
                     clearScreen()
@@ -148,19 +141,19 @@ extension Application {
         }
 
         private struct StatsSnapshot {
-            let container: ClientContainer
+            let container: ContainerSnapshot
             let stats1: ContainerResource.ContainerStats
             let stats2: ContainerResource.ContainerStats
         }
 
-        private func collectStats(for containers: [ClientContainer]) async throws -> [StatsSnapshot] {
+        private func collectStats(client: ContainerClient, for containers: [ContainerSnapshot]) async throws -> [StatsSnapshot] {
             var snapshots: [StatsSnapshot] = []
 
             // First sample
             for container in containers {
                 guard container.status == .running else { continue }
                 do {
-                    let stats1 = try await container.stats()
+                    let stats1 = try await client.stats(id: container.id)
                     snapshots.append(StatsSnapshot(container: container, stats1: stats1, stats2: stats1))
                 } catch {
                     // Skip containers that error out
@@ -175,7 +168,7 @@ extension Application {
                 // Second sample
                 for i in 0..<snapshots.count {
                     do {
-                        let stats2 = try await snapshots[i].container.stats()
+                        let stats2 = try await client.stats(id: snapshots[i].container.id)
                         snapshots[i] = StatsSnapshot(
                             container: snapshots[i].container,
                             stats1: snapshots[i].stats1,

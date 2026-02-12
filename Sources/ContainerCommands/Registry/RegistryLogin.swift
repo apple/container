@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025-2026 Apple Inc. and the container project authors.
+// Copyright © 2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,9 +22,10 @@ import ContainerizationOCI
 import Foundation
 
 extension Application {
-    public struct Login: AsyncLoggableCommand {
+    public struct RegistryLogin: AsyncLoggableCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
+            commandName: "login",
             abstract: "Log in to a registry"
         )
 
@@ -56,9 +57,9 @@ extension Application {
                 }
                 password = String(decoding: passwordData, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
             }
-            let keychain = KeychainHelper(id: Constants.keychainID)
+            let keychain = KeychainHelper(securityDomain: Constants.keychainID)
             if username == "" {
-                username = try keychain.userPrompt(domain: server)
+                username = try keychain.userPrompt(hostname: server)
             }
             if password == "" {
                 password = try keychain.passwordPrompt()
@@ -89,7 +90,7 @@ extension Application {
                 )
             )
             try await client.ping()
-            try keychain.save(domain: server, username: username, password: password)
+            try keychain.save(hostname: server, username: username, password: password)
             print("Login succeeded")
         }
     }
