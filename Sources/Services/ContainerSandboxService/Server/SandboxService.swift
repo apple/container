@@ -896,6 +896,12 @@ public actor SandboxService {
             }
         }
 
+        if config.rosetta {
+            if !czConfig.process.environmentVariables.contains(where: { $0.starts(with: "OPENSSL_ia32cap=") }) {
+                czConfig.process.environmentVariables.append("OPENSSL_ia32cap=~0x200000200000000")
+            }
+        }
+
         czConfig.process.terminal = process.terminal
         czConfig.process.workingDirectory = process.workingDirectory
         try czConfig.process.rlimits = process.rlimits.map {
@@ -939,6 +945,12 @@ public actor SandboxService {
         if Self.sshAuthSocketHostUrl(config: containerConfig) != nil {
             if !proc.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
                 proc.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
+            }
+        }
+        
+        if containerConfig.rosetta {
+            if !proc.environmentVariables.contains(where: { $0.starts(with: "OPENSSL_ia32cap=") }) {
+                proc.environmentVariables.append("OPENSSL_ia32cap=~0x200000200000000")
             }
         }
 
