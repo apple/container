@@ -21,7 +21,7 @@ if ! command -v swiftlint >/dev/null; then
     exit 1
 fi
 
-PROJECT_ROOT="$(realpath "${BASH_SOURCE[0]}/../../")"
+PROJECT_ROOT="$(git rev-parse --show-toplevel)"
 BUILD_LOG=${PROJECT_ROOT}/.build/build.log
 LINT_LOG=${PROJECT_ROOT}/.build/swiftlint.log
 
