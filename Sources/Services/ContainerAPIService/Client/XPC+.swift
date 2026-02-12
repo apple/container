@@ -124,6 +124,9 @@ public enum XPCKeys: String {
     case statistics
     case containerSize
 
+    /// Container list filters
+    case listFilters
+
     /// Disk usage
     case diskUsageStats
 }

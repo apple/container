@@ -106,10 +106,33 @@ public actor ContainersService {
         return results
     }
 
-    /// List all containers registered with the service.
-    public func list() async throws -> [ContainerSnapshot] {
+    /// List containers matching the given filters.
+    public func list(filters: ContainerListFilters = .all) async throws -> [ContainerSnapshot] {
         self.log.debug("\(#function)")
-        return self.containers.values.map { $0.snapshot }
+
+        return self.containers.values.compactMap { state -> ContainerSnapshot? in
+            let snapshot = state.snapshot
+
+            if !filters.ids.isEmpty {
+                guard filters.ids.contains(snapshot.id) else {
+                    return nil
+                }
+            }
+
+            if let status = filters.status {
+                guard snapshot.status == status else {
+                    return nil
+                }
+            }
+
+            for (key, value) in filters.labels {
+                guard snapshot.configuration.labels[key] == value else {
+                    return nil
+                }
+            }
+
+            return snapshot
+        }
     }
 
     /// Execute an operation with the current container list while maintaining atomicity
