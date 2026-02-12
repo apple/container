@@ -37,11 +37,29 @@ public class DirectoryWatcher {
             throw ContainerizationError(.invalidState, message: "already watching on \(directoryURL.path)")
         }
 
+        let files: [String]
         do {
-            let files = try FileManager.default.contentsOfDirectory(atPath: directoryURL.path)
+            files = try FileManager.default.contentsOfDirectory(atPath: directoryURL.path)
+        } catch {
+            log.error(
+                "cannot get contents of watched directory",
+                metadata: [
+                    "path": "\(directoryURL.path)",
+                    "error": "\(error)",
+                ])
+            files = []
+        }
+
+        do {
             try handler(files.map { directoryURL.appending(path: $0) })
         } catch {
-            throw ContainerizationError(.invalidState, message: "failed to start watching on \(directoryURL.path)")
+            log.error(
+                "failed to run handler on contents of watched directory",
+                metadata: [
+                    "path": "\(directoryURL.path)",
+                    "files": "\(files)",
+                    "error": "\(error)",
+                ])
         }
 
         log.info("starting directory watcher for \(directoryURL.path)")

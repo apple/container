@@ -28,6 +28,7 @@ struct PluginLoaderTest {
         let loader = try PluginLoader(
             appRoot: tempURL,
             installRoot: URL(filePath: "/usr/local/"),
+            logRoot: nil,
             pluginDirectories: [tempURL],
             pluginFactories: [factory]
         )
@@ -60,6 +61,7 @@ struct PluginLoaderTest {
         let loader = try PluginLoader(
             appRoot: tempURL,
             installRoot: URL(filePath: "/usr/local/"),
+            logRoot: nil,
             pluginDirectories: [tempURL],
             pluginFactories: [factory]
         )
@@ -76,6 +78,7 @@ struct PluginLoaderTest {
         let loader = try PluginLoader(
             appRoot: tempURL,
             installRoot: URL(filePath: "/usr/local/"),
+            logRoot: nil,
             pluginDirectories: [tempURL],
             pluginFactories: [factory]
         )
