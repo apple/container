@@ -26,6 +26,7 @@ public struct Bundle: Sendable {
     private static let containerRootFsFilename = "rootfs.json"
 
     static let containerConfigFilename = "config.json"
+    static let containerOptionsConfigFilename = "options.json"
 
     /// The path to the bundle.
     public let path: URL
@@ -73,6 +74,12 @@ public struct Bundle: Sendable {
     public var configuration: ContainerConfiguration {
         get throws {
             try load(path: self.path.appendingPathComponent(Self.containerConfigFilename))
+        }
+    }
+
+    public var options: ContainerCreateOptions {
+        get throws {
+            try load(path: self.path.appendingPathComponent(Self.containerOptionsConfigFilename))
         }
     }
 }

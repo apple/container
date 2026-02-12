@@ -83,9 +83,11 @@ public actor ContainersService {
             do {
                 let bundle = ContainerResource.Bundle(path: dir)
                 let config = try bundle.configuration
+                let options = try bundle.options
                 let state = ContainerState(
                     snapshot: .init(
                         configuration: config,
+                        createOptions: options,
                         status: .stopped,
                         networks: [],
                         startedDate: nil
@@ -275,6 +277,7 @@ public actor ContainersService {
 
                 let snapshot = ContainerSnapshot(
                     configuration: configuration,
+                    createOptions: options,
                     status: .stopped,
                     networks: [],
                     startedDate: nil
@@ -300,7 +303,8 @@ public actor ContainersService {
             // We've already bootstrapped this container. Ideally we should be able to
             // return some sort of error code from the sandbox svc to check here, but this
             // is also a very simple check and faster than doing an rpc to get the same result.
-            if state.client != nil {
+            // However, if it marked for system-start, continue with bootstrap.
+            if state.client != nil && state.snapshot.createOptions?.systemStart != true {
                 return
             }
 

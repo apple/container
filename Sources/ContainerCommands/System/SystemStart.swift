@@ -20,10 +20,13 @@ import ContainerPersistence
 import ContainerPlugin
 import ContainerizationError
 import Foundation
+import Logging
 import TerminalProgress
 
 extension Application {
     public struct SystemStart: AsyncLoggableCommand {
+        private static let startTimeoutSeconds: Int32 = 5
+
         public static let configuration = CommandConfiguration(
             commandName: "start",
             abstract: "Start `container` services"
@@ -53,6 +56,14 @@ extension Application {
         public init() {}
 
         public func run() async throws {
+            // TODO: update this to use the new logger
+            let log = Logger(
+                label: "com.apple.container.cli",
+                factory: { label in
+                    StreamLogHandler.standardOutput(label: label)
+                }
+            )
+
             // Without the true path to the binary in the plist, `container-apiserver` won't launch properly.
             // TODO: Can we use the plugin loader to bootstrap the API server?
             let executableUrl = CommandLine.executablePathUrl
@@ -89,6 +100,10 @@ extension Application {
 
             try ServiceManager.register(plistPath: plistURL.path)
 
+            // Start all the containers that have system-start enabled
+            log.info("starting containers", metadata: ["startTimeoutSeconds": "\(Self.startTimeoutSeconds)"])
+            try await startContainers()
+
             // Now ping our friendly daemon. Fail if we don't get a response.
             do {
                 print("Verifying apiserver is running...")
@@ -108,6 +123,49 @@ extension Application {
                 return
             }
             try await installDefaultKernel()
+        }
+
+        /// Starts all containers that are configured to automatically start on system start.
+        ///
+        /// - Throws: `AggregateError` containing all errors encountered during container startup.
+        private func startContainers() async throws {
+            let client = ContainerClient()
+            let containers = try await client.list()
+            let systemStartContainers = containers.filter { $0.createOptions?.systemStart == true && $0.status != .running }
+            var errors: [any Error] = []
+
+            await withTaskGroup(of: (any Error)?.self) { group in
+                for container in systemStartContainers {
+                    group.addTask {
+                        do {
+                            let io = try ProcessIO.create(
+                                tty: container.configuration.initProcess.terminal,
+                                interactive: false,
+                                detach: true
+                            )
+                            defer { try? io.close() }
+
+                            let process = try await client.bootstrap(id: container.id, stdio: io.stdio)
+                            try await process.start()
+                            try io.closeAfterStart()
+                            print(container.id)
+                            return nil
+                        } catch {
+                            return error
+                        }
+                    }
+                }
+
+                for await error in group {
+                    if let error {
+                        errors.append(error)
+                    }
+                }
+            }
+
+            if !errors.isEmpty {
+                throw AggregateError(errors)
+            }
         }
 
         private func installInitialFilesystem() async throws {

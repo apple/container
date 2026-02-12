@@ -23,6 +23,9 @@ public struct ContainerSnapshot: Codable, Sendable {
     /// The configuration of the container.
     public var configuration: ContainerConfiguration
 
+    /// The creation options of the container.
+    public var createOptions: ContainerCreateOptions?
+
     /// Identifier of the container.
     public var id: String {
         configuration.id
@@ -42,11 +45,13 @@ public struct ContainerSnapshot: Codable, Sendable {
 
     public init(
         configuration: ContainerConfiguration,
+        createOptions: ContainerCreateOptions? = nil,
         status: RuntimeStatus,
         networks: [Attachment],
         startedDate: Date? = nil
     ) {
         self.configuration = configuration
+        self.createOptions = createOptions
         self.status = status
         self.networks = networks
         self.startedDate = startedDate

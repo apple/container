@@ -50,7 +50,7 @@ extension Application {
         }
 
         private func createHeader() -> [[String]] {
-            [["ID", "IMAGE", "OS", "ARCH", "STATE", "ADDR", "CPUS", "MEMORY", "STARTED"]]
+            [["ID", "IMAGE", "OS", "ARCH", "STATE", "ADDR", "CPUS", "MEMORY", "STARTED", "SYSTEM-START"]]
         }
 
         private func printContainers(containers: [ContainerSnapshot], format: ListFormat) throws {
@@ -94,6 +94,7 @@ extension ContainerSnapshot {
             "\(self.configuration.resources.cpus)",
             "\(self.configuration.resources.memoryInBytes / (1024 * 1024)) MB",
             self.startedDate.map { ISO8601DateFormatter().string(from: $0) } ?? "",
+            (self.createOptions?.systemStart ?? false) ? "enabled" : "disabled",
         ]
     }
 }
@@ -101,12 +102,14 @@ extension ContainerSnapshot {
 struct PrintableContainer: Codable {
     let status: RuntimeStatus
     let configuration: ContainerConfiguration
+    let createOptions: ContainerCreateOptions?
     let networks: [Attachment]
     let startedDate: Date?
 
     init(_ container: ContainerSnapshot) {
         self.status = container.status
         self.configuration = container.configuration
+        self.createOptions = container.createOptions
         self.networks = container.networks
         self.startedDate = container.startedDate
     }

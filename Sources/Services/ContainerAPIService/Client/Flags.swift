@@ -230,6 +230,12 @@ public struct Flags {
 
         @Option(name: .long, help: "Set the runtime handler for the container (default: container-runtime-linux)")
         public var runtime: String?
+
+        @Flag(
+            name: .customLong("systemstart"),
+            help: "Automatically start the container when the container system starts"
+        )
+        public var systemStart: Bool = false
     }
 
     public struct Progress: ParsableArguments {
