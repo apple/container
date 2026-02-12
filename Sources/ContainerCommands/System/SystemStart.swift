@@ -89,15 +89,32 @@ extension Application {
 
             try ServiceManager.register(plistPath: plistURL.path)
 
-            // Now ping our friendly daemon. Fail if we don't get a response.
-            do {
-                print("Verifying apiserver is running...")
-                _ = try await ClientHealthCheck.ping(timeout: .seconds(10))
-            } catch {
-                throw ContainerizationError(
-                    .internalError,
-                    message: "failed to get a response from apiserver: \(error)"
-                )
+            
+            let maxRetries = 5
+            var lastError: Error?
+            var delay: Duration = .seconds(1)
+            let maxDelay: Duration = .seconds(5)
+            let backoffMultiplier = 1.5
+            
+            print("Verifying apiserver is running...")
+            for attempt in 1...maxRetries {
+                do {
+                    _ = try await ClientHealthCheck.ping(timeout: .seconds(10))
+                    break
+                } catch {
+                    lastError = error
+                    if attempt < maxRetries {
+                        print("Health check attempt \(attempt) failed, retrying in \(delay)...")
+                        try await Task.sleep(for: delay)
+                        let nextDelay = Duration.seconds(Double(delay.components.seconds) * backoffMultiplier)
+                        delay = min(nextDelay, maxDelay)
+                    } else {
+                        throw ContainerizationError(
+                            .internalError,
+                            message: "failed to get a response from apiserver after \(maxRetries) attempts: \(error)"
+                        )
+                    }
+                }
             }
 
             if await !initImageExists() {
