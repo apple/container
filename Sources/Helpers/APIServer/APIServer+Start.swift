@@ -113,7 +113,7 @@ extension APIServer {
                     group.addTask {
                         let localhostResolver = LocalhostDNSHandler(log: log)
                         try localhostResolver.monitorResolvers()
-
+                    
                         let nxDomainResolver = NxDomainResolver()
                         let compositeResolver = CompositeResolver(handlers: [localhostResolver, nxDomainResolver])
                         let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
