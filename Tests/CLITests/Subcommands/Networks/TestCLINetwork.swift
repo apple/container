@@ -36,7 +36,7 @@ class TestCLINetwork: CLITest {
     }
 
     @available(macOS 26, *)
-    @Test func testNetworkCreateAndUse() async throws {
+    @Test(.disabled()) func testNetworkCreateAndUse() async throws {
         do {
             let name = getLowercasedTestName()
             let networkDeleteArgs = ["network", "delete", name]

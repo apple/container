@@ -145,7 +145,7 @@ test:
 .PHONY: install-kernel
 install-kernel:
 	@bin/container system stop || true
-	@bin/container system start --enable-kernel-install $(SYSTEM_START_OPTS)
+	@bin/container system start --timeout 60 --enable-kernel-install $(SYSTEM_START_OPTS)
 
 .PHONY: coverage
 coverage: init-block
@@ -176,7 +176,7 @@ integration: init-block
 	@echo Ensuring apiserver stopped before the CLI integration tests...
 	@bin/container system stop && sleep 3 && scripts/ensure-container-stopped.sh
 	@echo Running the integration tests...
-	@bin/container system start $(SYSTEM_START_OPTS) && \
+	@bin/container system start --timeout 60 $(SYSTEM_START_OPTS) && \
 	echo "Starting CLI integration tests" && \
 	{ \
 		exit_code=0; \

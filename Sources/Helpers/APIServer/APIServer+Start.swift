@@ -109,6 +109,7 @@ extension APIServer {
                     }
 
                     // start up realhost DNS
+                    /*
                     group.addTask {
                         let localhostResolver = LocalhostDNSHandler(log: log)
                         try localhostResolver.monitorResolvers()
@@ -126,6 +127,7 @@ extension APIServer {
                         )
                         try await dnsServer.run(host: Self.listenAddress, port: Self.localhostDNSPort)
                     }
+                    */
                 }
             } catch {
                 log.error("\(commandName) failed", metadata: ["error": "\(error)"])
