@@ -25,6 +25,28 @@ PATH=$PATH:/usr/local/bin
 
 # Check that required commands are installed
 command -v container >/dev/null 2>&1 || error "container CLI is not installed"
+command -v expect >/dev/null 2>&1 || error "expect is not installed"
 
 # Start the container system
-container system start || error "Failed to start container system"
+expect <<EOF
+set timeout 30
+
+spawn container system start
+
+expect {
+    -re "Install.*recommended.*kernel.*" {
+        send "Y\r"
+        exp_continue
+    }
+    eof
+}
+
+catch wait result
+exit [lindex \$result 3]
+EOF
+
+START_EXIT_CODE=$?
+
+if [ $START_EXIT_CODE -ne 0 ]; then
+    error "container system start failed with exit code $START_EXIT_CODE"
+fi
