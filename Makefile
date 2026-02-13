@@ -33,10 +33,12 @@ DSYM_PATH := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM.zip
 CODESIGN_OPTS ?= --force --sign - --timestamp=none
 
 # Conditionally use a temporary data directory for integration tests
-ifeq ($(strip $(APP_ROOT)),)
-	SYSTEM_START_OPTS :=
-else
-	SYSTEM_START_OPTS := --app-root "$(strip $(APP_ROOT))"
+SYSTEM_START_OPTS :=
+ifneq ($(strip $(APP_ROOT)),)
+	SYSTEM_START_OPTS += --app-root "$(strip $(APP_ROOT))"
+endif
+ifneq ($(strip $(LOG_ROOT)),)
+	SYSTEM_START_OPTS += --log-root "$(strip $(LOG_ROOT))"
 endif
 
 MACOS_VERSION := $(shell sw_vers -productVersion)
@@ -77,6 +79,7 @@ release: all
 
 .PHONY: init-block
 init-block:
+	@echo Building initfs if containerization is in edit mode
 	@scripts/install-init.sh
 
 .PHONY: install
@@ -144,15 +147,17 @@ test:
 
 .PHONY: install-kernel
 install-kernel:
+	@echo Stopping system before installing kernel
 	@bin/container system stop || true
-	@bin/container system start --enable-kernel-install $(SYSTEM_START_OPTS)
+	@echo Starting system to install kernel
+	bin/container system start --timeout 60 --enable-kernel-install $(SYSTEM_START_OPTS)
 
 .PHONY: coverage
 coverage: init-block
-	@echo Ensuring apiserver stopped before the CLI integration tests...
+	@echo Ensuring apiserver stopped before the coverage analysis...
 	@bin/container system stop && sleep 3 && scripts/ensure-container-stopped.sh
 	@bin/container system start $(SYSTEM_START_OPTS) && \
-	echo "Starting unit tests" && \
+	echo "Starting coverage analysis" && \
 	{ \
 		exit_code=0; \
 		$(SWIFT) test --no-parallel --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) || exit_code=1 ; \
@@ -176,7 +181,7 @@ integration: init-block
 	@echo Ensuring apiserver stopped before the CLI integration tests...
 	@bin/container system stop && sleep 3 && scripts/ensure-container-stopped.sh
 	@echo Running the integration tests...
-	@bin/container system start $(SYSTEM_START_OPTS) && \
+	bin/container --debug system start --timeout 60 $(SYSTEM_START_OPTS) && \
 	echo "Starting CLI integration tests" && \
 	{ \
 		exit_code=0; \

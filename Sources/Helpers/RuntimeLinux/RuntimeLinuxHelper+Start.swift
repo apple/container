@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerLog
+import ContainerPlugin
 import ContainerResource
 import ContainerSandboxService
 import ContainerSandboxServiceClient
@@ -42,13 +43,16 @@ extension RuntimeLinuxHelper {
         @Option(name: .shortAndLong, help: "Root directory for the sandbox")
         var root: String
 
+        var logRoot = LogRoot.path
+
         var machServiceLabel: String {
             "\(Self.label).\(uuid)"
         }
 
         func run() async throws {
-            let commandName = Self._commandName
-            let log = RuntimeLinuxHelper.setupLogger(debug: debug, metadata: ["uuid": "\(uuid)"])
+            let commandName = RuntimeLinuxHelper._commandName
+            let logPath = logRoot.map { $0.appending("\(commandName)-\(uuid).log") }
+            let log = ServiceLogger.bootstrap(category: "NetworkVmnetHelper", metadata: ["uuid": "\(uuid)"], debug: debug, logPath: logPath)
 
             log.info("starting \(commandName)")
             defer {

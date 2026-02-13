@@ -17,26 +17,23 @@
 import Foundation
 import SystemPackage
 
-/// Snapshot of the health of container services and resources
-public struct SystemHealth: Sendable, Codable {
-    /// The full pathname of the application data root.
-    public let appRoot: URL
+/// Provides the application data root path.
+public struct LogRoot {
 
-    /// The full pathname of the application install root.
-    public let installRoot: URL
+    private static let envPath = ProcessInfo.processInfo.environment[Self.environmentName].flatMap {
+        $0.isEmpty ? nil : FilePath($0)
+    }
 
-    /// The full pathname of the application install root.
-    public let logRoot: FilePath?
+    /// The environment variable that if set, determines the root directory for log files.
+    /// Otherwise, the application uses the macOS log facility.
+    public static let environmentName = "CONTAINER_LOG_ROOT"
 
-    /// The release version of the container services.
-    public let apiServerVersion: String
+    /// The path object for the log file root directory
+    public static let path = envPath.map {
+        guard !$0.isAbsolute else { return $0 }
+        return FilePath(FileManager.default.currentDirectoryPath).appending($0.components)
+    }
 
-    /// The Git commit ID for the container services.
-    public let apiServerCommit: String
-
-    /// The build type of the API server (debug|release).
-    public let apiServerBuild: String
-
-    /// The app name label returned by the server.
-    public let apiServerAppName: String
+    /// The pathname to the log file root directory
+    public static let pathname = path?.string
 }
