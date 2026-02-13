@@ -115,6 +115,7 @@ extension APIServer {
                     }
 
                     // start up realhost DNS
+                    /*
                     group.addTask {
                         let localhostResolver = LocalhostDNSHandler(log: log)
                         do {
@@ -123,7 +124,7 @@ extension APIServer {
                             log.error("could not initialize resolver monitor", metadata: ["error": "\(error)"])
                             throw error
                         }
-
+                    
                         let nxDomainResolver = NxDomainResolver()
                         let compositeResolver = CompositeResolver(handlers: [localhostResolver, nxDomainResolver])
                         let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
@@ -137,6 +138,7 @@ extension APIServer {
                         )
                         try await dnsServer.run(host: Self.listenAddress, port: Self.localhostDNSPort)
                     }
+                    */
                 }
             } catch {
                 log.error("\(commandName) failed", metadata: ["error": "\(error)"])
