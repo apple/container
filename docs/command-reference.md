@@ -68,6 +68,7 @@ container run [<options>] <image> [<arguments> ...]
 *   `-v, --volume <volume>`: Bind mount a volume into the container
 *   `--virtualization`: Expose virtualization capabilities to the container (requires host and guest support)
 *   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)
+*   `--systemstart`: Automatically start the container when the container system starts
 
 **Registry Options**
 
@@ -223,6 +224,7 @@ container create [<options>] <image> [<arguments> ...]
 *   `-v, --volume <volume>`: Bind mount a volume into the container
 *   `--virtualization`: Expose virtualization capabilities to the container (requires host and guest support)
 *   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)  
+*   `--systemstart`: Automatically start the container when the container system starts
 
 **Registry Options**
 

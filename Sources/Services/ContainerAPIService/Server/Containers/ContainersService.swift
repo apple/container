@@ -83,9 +83,11 @@ public actor ContainersService {
             do {
                 let bundle = ContainerResource.Bundle(path: dir)
                 let config = try bundle.configuration
+                let options = try bundle.options
                 let state = ContainerState(
                     snapshot: .init(
                         configuration: config,
+                        createOptions: options,
                         status: .stopped,
                         networks: [],
                         startedDate: nil
@@ -275,6 +277,7 @@ public actor ContainersService {
 
                 let snapshot = ContainerSnapshot(
                     configuration: configuration,
+                    createOptions: options,
                     status: .stopped,
                     networks: [],
                     startedDate: nil
