@@ -303,8 +303,7 @@ public actor ContainersService {
             // We've already bootstrapped this container. Ideally we should be able to
             // return some sort of error code from the sandbox svc to check here, but this
             // is also a very simple check and faster than doing an rpc to get the same result.
-            // However, if it marked for system-start, continue with bootstrap.
-            if state.client != nil && state.snapshot.createOptions?.systemStart != true {
+            if state.client != nil {
                 return
             }
 

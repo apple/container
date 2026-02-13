@@ -100,10 +100,6 @@ extension Application {
 
             try ServiceManager.register(plistPath: plistURL.path)
 
-            // Start all the containers that have system-start enabled
-            log.info("starting containers", metadata: ["startTimeoutSeconds": "\(Self.startTimeoutSeconds)"])
-            try await startContainers()
-
             // Now ping our friendly daemon. Fail if we don't get a response.
             do {
                 print("Verifying apiserver is running...")
@@ -119,10 +115,13 @@ extension Application {
                 try? await installInitialFilesystem()
             }
 
-            guard await !kernelExists() else {
-                return
+            if await !kernelExists() {
+                try? await installDefaultKernel()
             }
-            try await installDefaultKernel()
+
+            // Start all the containers that have system-start enabled
+            log.info("starting containers", metadata: ["startTimeoutSeconds": "\(Self.startTimeoutSeconds)"])
+            try await startContainers()
         }
 
         /// Starts all containers that are configured to automatically start on system start.
