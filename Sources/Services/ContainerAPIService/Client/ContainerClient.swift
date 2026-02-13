@@ -321,4 +321,20 @@ public struct ContainerClient: Sendable {
             )
         }
     }
+
+    public func export(id: String, archive: URL) async throws {
+        let request = XPCMessage(route: .containerExport)
+        request.set(key: .id, value: id)
+        request.set(key: .archive, value: archive.absolutePath())
+
+        do {
+            try await xpcClient.send(request)
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to export container",
+                cause: error
+            )
+        }
+    }
 }
