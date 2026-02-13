@@ -69,6 +69,7 @@ jobs:
           mv bin/${{ env.BUILD_CONFIGURATION }}/bundle/container-dSYM.zip outputs
 
       - name: Test the container project
+        #timeout-minutes: 5
         run: |
           APP_ROOT=$(mktemp -d -p "${RUNNER_TEMP}")
           LOG_ROOT="${APP_ROOT}/logs"
@@ -79,11 +80,15 @@ jobs:
           echo NO_PROXY=${NO_PROXY}
           export no_proxy="${no_proxy},192.168.0.0/16,fe80::/10"
           echo no_proxy=${no_proxy}
+          echo "APP_ROOT=${APP_ROOT}" >> $GITHUB_ENV
+          echo "LOG_ROOT=${LOG_ROOT}" >> $GITHUB_ENV
           make APP_ROOT="${APP_ROOT}" LOG_ROOT="${LOG_ROOT}" test install-kernel integration || status=$?
           if [ "${status:-0}" -ne "0" ] ; then
-            echo tests failed with status: ${status}
+            echo "Tests failed with status: ${status}"
             if [ -d "${LOG_ROOT}" ] ; then
+              echo "Collecting logs from ${LOG_ROOT}..."
               tar czf container-logs.tar.gz -C "$(dirname "${LOG_ROOT}")" "$(basename "${LOG_ROOT}")"
+              echo "Log archive created: container-logs.tar.gz"
             fi
             exit ${status}
           fi
