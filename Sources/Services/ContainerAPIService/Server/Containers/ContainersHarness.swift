@@ -33,7 +33,11 @@ public struct ContainersHarness: Sendable {
 
     @Sendable
     public func list(_ message: XPCMessage) async throws -> XPCMessage {
-        let containers = try await service.list()
+        var filters = ContainerListFilters.all
+        if let filterData = message.dataNoCopy(key: .listFilters) {
+            filters = try JSONDecoder().decode(ContainerListFilters.self, from: filterData)
+        }
+        let containers = try await service.list(filters: filters)
         let data = try JSONEncoder().encode(containers)
 
         let reply = message.reply()
@@ -187,7 +191,9 @@ public struct ContainersHarness: Sendable {
         let config = try JSONDecoder().decode(ContainerConfiguration.self, from: data)
         let kernel = try JSONDecoder().decode(Kernel.self, from: kdata)
 
-        try await service.create(configuration: config, kernel: kernel, options: options)
+        let initImage = message.string(key: .initImage)
+
+        try await service.create(configuration: config, kernel: kernel, options: options, initImage: initImage)
         return message.reply()
     }
 

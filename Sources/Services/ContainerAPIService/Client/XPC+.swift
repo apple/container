@@ -106,6 +106,9 @@ public enum XPCKeys: String {
     case systemPlatform
     case kernelForce
 
+    /// Init image reference
+    case initImage
+
     /// Volume
     case volume
     case volumes
@@ -120,6 +123,9 @@ public enum XPCKeys: String {
     /// Container statistics
     case statistics
     case containerSize
+
+    /// Container list filters
+    case listFilters
 
     /// Disk usage
     case diskUsageStats

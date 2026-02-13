@@ -48,7 +48,8 @@ public struct ContainerClient: Sendable {
     public func create(
         configuration: ContainerConfiguration,
         options: ContainerCreateOptions = .default,
-        kernel: Kernel
+        kernel: Kernel,
+        initImage: String? = nil
     ) async throws {
         do {
             let request = XPCMessage(route: .containerCreate)
@@ -60,6 +61,10 @@ public struct ContainerClient: Sendable {
             request.set(key: .kernel, value: kdata)
             request.set(key: .containerOptions, value: odata)
 
+            if let initImage {
+                request.set(key: .initImage, value: initImage)
+            }
+
             try await xpcSend(message: request)
         } catch {
             throw ContainerizationError(
@@ -70,10 +75,12 @@ public struct ContainerClient: Sendable {
         }
     }
 
-    /// List all containers.
-    public func list() async throws -> [ContainerSnapshot] {
+    /// List containers matching the given filters.
+    public func list(filters: ContainerListFilters = .all) async throws -> [ContainerSnapshot] {
         do {
             let request = XPCMessage(route: .containerList)
+            let filterData = try JSONEncoder().encode(filters)
+            request.set(key: .listFilters, value: filterData)
 
             let response = try await xpcSend(
                 message: request,
@@ -95,8 +102,8 @@ public struct ContainerClient: Sendable {
 
     /// Get the container for the provided id.
     public func get(id: String) async throws -> ContainerSnapshot {
-        let containers = try await list()
-        guard let container = containers.first(where: { $0.configuration.id == id }) else {
+        let containers = try await list(filters: ContainerListFilters(ids: [id]))
+        guard let container = containers.first else {
             throw ContainerizationError(
                 .notFound,
                 message: "get failed: container \(id) not found"

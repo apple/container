@@ -84,7 +84,7 @@ public struct Utility {
         imageFetch: Flags.ImageFetch,
         progressUpdate: @escaping ProgressUpdateHandler,
         log: Logger
-    ) async throws -> (ContainerConfiguration, Kernel) {
+    ) async throws -> (ContainerConfiguration, Kernel, String?) {
         var requestedPlatform = Parser.platform(os: management.os, arch: management.arch)
         // Prefer --platform
         if let platform = management.platform {
@@ -129,8 +129,9 @@ public struct Utility {
             .setItemsName("blobs"),
         ])
         let fetchInitTask = await taskManager.startTask()
+        let initImageRef = management.initImage ?? ClientImage.initImageRef
         let initImage = try await ClientImage.fetch(
-            reference: ClientImage.initImageRef, platform: .current, scheme: scheme,
+            reference: initImageRef, platform: .current, scheme: scheme,
             progressUpdate: ProgressTaskCoordinator.handler(for: fetchInitTask, from: progressUpdate),
             maxConcurrentDownloads: imageFetch.maxConcurrentDownloads)
 
@@ -252,7 +253,7 @@ public struct Utility {
             config.runtimeHandler = runtime
         }
 
-        return (config, kernel)
+        return (config, kernel, management.initImage)
     }
 
     static func getAttachmentConfigurations(
