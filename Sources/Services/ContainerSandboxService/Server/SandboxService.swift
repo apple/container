@@ -53,11 +53,73 @@ public actor SandboxService {
     private static let sshAuthSocketGuestPath = "/run/host-services/ssh-auth.sock"
     private static let sshAuthSocketEnvVar = "SSH_AUTH_SOCK"
 
-    private static func sshAuthSocketHostUrl(config: ContainerConfiguration) -> URL? {
-        if config.ssh, let sshSocket = Foundation.ProcessInfo.processInfo.environment[Self.sshAuthSocketEnvVar] {
-            return URL(fileURLWithPath: sshSocket)
+    private enum SSHAuthSocketSource: String {
+        case config = "config"
+        case runtimeEnv = "runtimeEnv"
+        case launchctl = "launchctl"
+    }
+
+    private static func isUnixSocket(path: String) -> Bool {
+        (try? File.info(path).isSocket) ?? false
+    }
+
+    private static func launchctlSSHAuthSock() -> String? {
+        let proc = Foundation.Process()
+        proc.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        proc.arguments = ["getenv", Self.sshAuthSocketEnvVar]
+
+        let out = Pipe()
+        proc.standardOutput = out
+        proc.standardError = Pipe()
+
+        do {
+            try proc.run()
+            proc.waitUntilExit()
+            guard proc.terminationStatus == 0 else {
+                return nil
+            }
+            let data = out.fileHandleForReading.readDataToEndOfFile()
+            guard var value = String(data: data, encoding: .utf8) else {
+                return nil
+            }
+            value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return value.isEmpty ? nil : value
+        } catch {
+            return nil
         }
+    }
+
+    private static func resolveSSHAuthSocketHostPath(config: ContainerConfiguration) -> (path: String, source: SSHAuthSocketSource)? {
+        guard config.ssh else {
+            return nil
+        }
+
+        if let configuredPath = config.sshAuthSocketPath,
+            Self.isUnixSocket(path: configuredPath)
+        {
+            return (configuredPath, .config)
+        }
+
+        if let envPath = Foundation.ProcessInfo.processInfo.environment[Self.sshAuthSocketEnvVar],
+            Self.isUnixSocket(path: envPath)
+        {
+            return (envPath, .runtimeEnv)
+        }
+
+        if let launchctlPath = Self.launchctlSSHAuthSock(),
+            Self.isUnixSocket(path: launchctlPath)
+        {
+            return (launchctlPath, .launchctl)
+        }
+
         return nil
+    }
+
+    private static func sshAuthSocketHostUrl(config: ContainerConfiguration) -> URL? {
+        guard let resolved = Self.resolveSSHAuthSocketHostPath(config: config) else {
+            return nil
+        }
+        return URL(fileURLWithPath: resolved.path)
     }
 
     /// Create an instance with a bundle that describes the container.
@@ -120,6 +182,39 @@ public actor SandboxService {
             try bundle.createLogFile()
 
             var config = try bundle.configuration
+
+            if config.ssh {
+                let runtimeSshAuthSock = Foundation.ProcessInfo.processInfo.environment[Self.sshAuthSocketEnvVar]
+                let runtimeSocketIsValid = runtimeSshAuthSock.map { Self.isUnixSocket(path: $0) } ?? false
+                let configuredSshAuthSock = config.sshAuthSocketPath
+                let configuredSocketIsValid = configuredSshAuthSock.map { Self.isUnixSocket(path: $0) } ?? false
+                if let resolved = Self.resolveSSHAuthSocketHostPath(config: config) {
+                    self.log.info(
+                        "ssh agent forwarding requested",
+                        metadata: [
+                            "hostSocketPath": "\(resolved.path)",
+                            "hostSocketSource": "\(resolved.source.rawValue)",
+                            "hostSocketIsSocket": "true",
+                            "guestSocketPath": "\(Self.sshAuthSocketGuestPath)",
+                            "configuredSocketPath": "\(configuredSshAuthSock ?? "")",
+                            "configuredSocketIsValid": "\(configuredSocketIsValid)",
+                            "runtimeEnvSocketPath": "\(runtimeSshAuthSock ?? "")",
+                            "runtimeEnvSocketIsValid": "\(runtimeSocketIsValid)",
+                        ]
+                    )
+                } else {
+                    self.log.warning(
+                        "ssh agent forwarding requested but no valid SSH_AUTH_SOCK source found",
+                        metadata: [
+                            "envVar": "\(Self.sshAuthSocketEnvVar)",
+                            "configuredSocketPath": "\(configuredSshAuthSock ?? "")",
+                            "configuredSocketIsValid": "\(configuredSocketIsValid)",
+                            "runtimeEnvSocketPath": "\(runtimeSshAuthSock ?? "")",
+                            "runtimeEnvSocketIsValid": "\(runtimeSocketIsValid)",
+                        ]
+                    )
+                }
+            }
 
             var kernel = try bundle.kernel
             kernel.commandLine.kernelArgs.append("oops=panic")
