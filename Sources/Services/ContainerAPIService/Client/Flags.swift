@@ -22,12 +22,38 @@ public struct Flags {
     public struct Logging: ParsableArguments {
         public init() {}
 
+        public init(debug: Bool = false) {
+            self.debug = debug
+        }
+
         @Flag(name: .long, help: "Enable debug output [environment: CONTAINER_DEBUG]")
         public var debug = false
     }
 
     public struct Process: ParsableArguments {
         public init() {}
+
+        public init(
+            env: [String] = [],
+            envFile: [String] = [],
+            gid: UInt32? = nil,
+            interactive: Bool = false,
+            tty: Bool = false,
+            user: String? = nil,
+            uid: UInt32? = nil,
+            cwd: String? = nil,
+            ulimits: [String] = []
+        ) {
+            self.env = env
+            self.envFile = envFile
+            self.gid = gid
+            self.interactive = interactive
+            self.tty = tty
+            self.user = user
+            self.uid = uid
+            self.cwd = cwd
+            self.ulimits = ulimits
+        }
 
         @Option(name: .shortAndLong, help: "Set environment variables (key=value, or just key to inherit from host)")
         public var env: [String] = []
@@ -75,6 +101,11 @@ public struct Flags {
     public struct Resource: ParsableArguments {
         public init() {}
 
+        public init(cpus: Int64? = nil, memory: String? = nil) {
+            self.cpus = cpus
+            self.memory = memory
+        }
+
         @Option(name: .shortAndLong, help: "Number of CPUs to allocate to the container")
         public var cpus: Int64?
 
@@ -87,6 +118,13 @@ public struct Flags {
 
     public struct DNS: ParsableArguments {
         public init() {}
+
+        public init(nameservers: [String] = [], domain: String? = nil, options: [String] = [], searchDomains: [String] = []) {
+            self.nameservers = nameservers
+            self.domain = domain
+            self.options = options
+            self.searchDomains = searchDomains
+        }
 
         @Option(
             name: .customLong("dns"),
@@ -126,6 +164,54 @@ public struct Flags {
 
     public struct Management: ParsableArguments {
         public init() {}
+
+        public init(
+            arch: String = Arch.hostArchitecture().rawValue,
+            cidfile: String = "",
+            detach: Bool = false,
+            dns: Flags.DNS = DNS(),
+            entrypoint: String? = nil,
+            kernel: String? = nil,
+            labels: [String] = [],
+            mounts: [String] = [],
+            name: String? = nil,
+            networks: [String] = [],
+            dnsDisabled: Bool = false,
+            os: String = "linux",
+            publishPorts: [String] = [],
+            platform: String? = nil,
+            publishSockets: [String] = [],
+            remove: Bool = false,
+            rosetta: Bool = false,
+            ssh: Bool = false,
+            tmpFs: [String] = [],
+            volumes: [String] = [],
+            virtualization: Bool = false,
+            readOnly: Bool = false
+        ) {
+            self.arch = arch
+            self.cidfile = cidfile
+            self.detach = detach
+            self.dns = dns
+            self.entrypoint = entrypoint
+            self.kernel = kernel
+            self.labels = labels
+            self.mounts = mounts
+            self.name = name
+            self.networks = networks
+            self.dnsDisabled = dnsDisabled
+            self.os = os
+            self.publishPorts = publishPorts
+            self.platform = platform
+            self.publishSockets = publishSockets
+            self.remove = remove
+            self.rosetta = rosetta
+            self.ssh = ssh
+            self.tmpFs = tmpFs
+            self.volumes = volumes
+            self.virtualization = virtualization
+            self.readOnly = readOnly
+        }
 
         @Option(name: .shortAndLong, help: "Set arch if image can target multiple architectures")
         public var arch: String = Arch.hostArchitecture().rawValue
@@ -235,6 +321,10 @@ public struct Flags {
     public struct Progress: ParsableArguments {
         public init() {}
 
+        public init(progress: ProgressType = .ansi) {
+            self.progress = progress
+        }
+
         public enum ProgressType: String, ExpressibleByArgument {
             case none
             case ansi
@@ -246,6 +336,10 @@ public struct Flags {
 
     public struct ImageFetch: ParsableArguments {
         public init() {}
+
+        public init(maxConcurrentDownloads: Int = 3) {
+            self.maxConcurrentDownloads = maxConcurrentDownloads
+        }
 
         @Option(name: .long, help: "Maximum number of concurrent downloads (default: 3)")
         public var maxConcurrentDownloads: Int = 3
