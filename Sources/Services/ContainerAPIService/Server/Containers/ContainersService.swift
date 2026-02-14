@@ -254,6 +254,21 @@ public actor ContainersService {
                 )
             }
 
+            // Protect against a user providing a memory amount that will cause us to not be able
+            // to boot. We can go lower, but this is a somewhat safe threshold. Containerization
+            // also gives a little bit extra than the user asked for to account for guest agent overhead.
+            //
+            // NOTE: We could potentially leave this validation to the sandbox service(s), as
+            // it's possible there could be an implementation that can get away with a lower
+            // amount and be perfectly safe.
+            let minimumMemory: UInt64 = 200.mib()
+            guard configuration.resources.memoryInBytes >= minimumMemory else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "minimum memory amount allowed is 200 MiB (got \(configuration.resources.memoryInBytes) bytes)"
+                )
+            }
+
             let path = self.containerRoot.appendingPathComponent(configuration.id)
             let systemPlatform = kernel.platform
 
