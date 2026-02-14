@@ -890,27 +890,19 @@ public actor SandboxService {
         czConfig.process.arguments = [process.executable] + process.arguments
         czConfig.process.environmentVariables = process.environment
 
-        // When running x86_64 containers via Rosetta 2, OpenSSL detects CPU features
-        // (SHA-NI, AVX2, etc.) via CPUID that Rosetta cannot fully emulate, causing TLS
-        // failures: "error:030000EA:digital envelope routines::provider signature failure"
-        // Setting ":0" zeroes all post-AVX extensions, forcing software implementations.
-        if config.rosetta {
-            if !czConfig.process.environmentVariables.contains(where: { $0.starts(with: "OPENSSL_ia32cap=") }) {
-                czConfig.process.environmentVariables.append("OPENSSL_ia32cap=:0")
-            }
-        }
-
         if Self.sshAuthSocketHostUrl(config: config) != nil {
             if !czConfig.process.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
                 czConfig.process.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
             }
         }
 
-        if config.rosetta {
+        #if arch(arm64)
+        if config.platform.architecture == "amd64" {
             if !czConfig.process.environmentVariables.contains(where: { $0.starts(with: "OPENSSL_ia32cap=") }) {
-                czConfig.process.environmentVariables.append("OPENSSL_ia32cap=~0x200000200000000")
+                czConfig.process.environmentVariables.append("OPENSSL_ia32cap=0:0:0")
             }
         }
+        #endif
 
         czConfig.process.terminal = process.terminal
         czConfig.process.workingDirectory = process.workingDirectory
@@ -952,23 +944,19 @@ public actor SandboxService {
         proc.arguments = [config.executable] + config.arguments
         proc.environmentVariables = config.environment
 
-        if containerConfig.rosetta {
-            if !proc.environmentVariables.contains(where: { $0.starts(with: "OPENSSL_ia32cap=") }) {
-                proc.environmentVariables.append("OPENSSL_ia32cap=:0")
-            }
-        }
-
         if Self.sshAuthSocketHostUrl(config: containerConfig) != nil {
             if !proc.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
                 proc.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
             }
         }
-        
-        if containerConfig.rosetta {
+
+        #if arch(arm64)
+        if containerConfig.platform.architecture == "amd64" {
             if !proc.environmentVariables.contains(where: { $0.starts(with: "OPENSSL_ia32cap=") }) {
-                proc.environmentVariables.append("OPENSSL_ia32cap=~0x200000200000000")
+                proc.environmentVariables.append("OPENSSL_ia32cap=0:0:0")
             }
         }
+        #endif
 
         proc.terminal = config.terminal
         proc.workingDirectory = config.workingDirectory
