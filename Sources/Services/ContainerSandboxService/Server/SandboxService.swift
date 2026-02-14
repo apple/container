@@ -1315,7 +1315,7 @@ extension SandboxService {
         }
     }
 
-    /// Create bundle from metadata
+    /// Create bundle from RuntimeConfiguration
     private func createBundle() throws {
         do {
             let runtimeConfig = try RuntimeConfiguration.readRuntimeConfiguration(from: self.root)

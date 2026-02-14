@@ -635,6 +635,8 @@ public actor ContainersService {
         }
 
         // Only try to deregister service if we have a valid config
+        // TODO: Change this so we don't have to reread the config
+        // possibly store the container ID to service label mapping
         if let config = config {
             let label = Self.fullLaunchdServiceLabel(
                 runtimeName: config.runtimeHandler,
@@ -715,7 +717,7 @@ public actor ContainersService {
         id == processID
     }
 
-    /// Get container configuration, either from existing bundle or from metadata
+    /// Get container configuration, either from existing bundle or from RuntimeConfiguration
     private static func getContainerConfiguration(at path: URL) throws -> ContainerConfiguration {
         let bundle = ContainerResource.Bundle(path: path)
         do {
