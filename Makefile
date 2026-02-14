@@ -55,13 +55,13 @@ all: init-block
 build:
 	@echo Building container binaries...
 	@$(SWIFT) --version
-	@$(SWIFT) build -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION)
+	@$(SWIFT) build -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) $(BUILD_OPTIONS)
 
 .PHONY: cli
 cli:
 	@echo Building container CLI...
 	@$(SWIFT) --version
-	@$(SWIFT) build -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --product container
+	@$(SWIFT) build -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --product container $(BUILD_OPTIONS)
 	@echo Installing container CLI to bin/...
 	@mkdir -p bin
 	@install "$(BUILD_BIN_DIR)/container" "bin/container"
