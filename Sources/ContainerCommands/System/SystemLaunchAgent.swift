@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025-2026 Apple Inc. and the container project authors.
+// Copyright © 2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,24 +18,15 @@ import ArgumentParser
 import ContainerAPIClient
 
 extension Application {
-    public struct SystemCommand: AsyncLoggableCommand {
+    public struct SystemLaunchAgent: AsyncLoggableCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
-            commandName: "system",
-            abstract: "Manage system components",
+            commandName: "launch-agent",
+            abstract: "Manage the LaunchAgent that starts the container on user login",
             subcommands: [
-                SystemDF.self,
-                SystemDNS.self,
-                SystemKernel.self,
-                SystemLogs.self,
-                SystemLaunchAgent.self,
-                SystemProperty.self,
-                SystemStart.self,
-                SystemStatus.self,
-                SystemStop.self,
-                SystemVersion.self,
+                LaunchAgentEnable.self,
+                LaunchAgentDisable.self,
             ],
-            aliases: ["s"]
         )
 
         @OptionGroup

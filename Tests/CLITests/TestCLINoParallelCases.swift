@@ -22,6 +22,10 @@ import Testing
 /// Tests that need total control over environment to avoid conflicts.
 @Suite(.serialized)
 class TestCLINoParallelCases: CLITest {
+    let launchAgentLabel = "com.apple-container.launchagent"
+    let launchAgentPlist = "com.apple-container.launchagent.plist"
+    let launchAgentPath = "Library/LaunchAgents"
+
     func getTestName() -> String {
         Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
     }
@@ -300,5 +304,67 @@ class TestCLINoParallelCases: CLITest {
         let (_, listFinal, _, statusFinal) = try run(arguments: ["network", "list", "--quiet"])
         #expect(statusFinal == 0)
         #expect(!listFinal.contains(networkName), "network should be pruned after container is deleted")
+    }
+
+    @available(macOS 26, *)
+    @Test func testSystemLaunchAgentEnabled() throws {
+        defer {
+            _ = try? run(arguments: ["system", "launch-agent", "disable"])
+        }
+
+        do {
+            // Enable launch agent
+            _ = try run(arguments: ["system", "launch-agent", "enable"])
+
+            // Check status output
+            let (_, output, _, _) = try run(arguments: ["system", "status"])
+            let found =
+                output
+                .split(separator: "\n")
+                .contains { $0.contains("container launch on login: enabled") }
+            #expect(found, "expected container launch to be enabled, instead got:\n\(output)")
+
+            // Check if the plist file exists
+            let launchAgentsDirectory =
+                FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(launchAgentPath)
+            let plistURL = launchAgentsDirectory.appendingPathComponent(launchAgentPlist)
+            let plistExists = FileManager.default.fileExists(atPath: plistURL.path)
+            #expect(plistExists, "expected LaunchAgent plist to exist at: \(plistURL.path)")
+        } catch {
+            Issue.record("failed to enable launch agent: \(error)")
+            return
+        }
+    }
+
+    @available(macOS 26, *)
+    @Test func testSystemLaunchAgentDisabled() throws {
+        defer {
+            _ = try? run(arguments: ["system", "launch-agent", "disable"])
+        }
+
+        do {
+            // Disable launch agent
+            _ = try run(arguments: ["system", "launch-agent", "disable"])
+
+            // Check status output
+            let (_, output, _, _) = try run(arguments: ["system", "status"])
+            let found =
+                output
+                .split(separator: "\n")
+                .contains { $0.contains("container launch on login: disabled") }
+            #expect(found, "expected container launch to be disabled, instead got:\n\(output)")
+
+            // Check if the plist file does not exist
+            let launchAgentsDirectory =
+                FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(launchAgentPath)
+            let plistURL = launchAgentsDirectory.appendingPathComponent(launchAgentPlist)
+            let plistExists = FileManager.default.fileExists(atPath: plistURL.path)
+            #expect(!plistExists, "expected LaunchAgent plist to be removed at: \(plistURL.path)")
+        } catch {
+            Issue.record("failed to disable launch agent: \(error)")
+            return
+        }
     }
 }

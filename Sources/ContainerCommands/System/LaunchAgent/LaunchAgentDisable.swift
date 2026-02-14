@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025-2026 Apple Inc. and the container project authors.
+// Copyright © 2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,29 +16,30 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerLog
+import Logging
 
 extension Application {
-    public struct SystemCommand: AsyncLoggableCommand {
-        public init() {}
+    public struct LaunchAgentDisable: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
-            commandName: "system",
-            abstract: "Manage system components",
-            subcommands: [
-                SystemDF.self,
-                SystemDNS.self,
-                SystemKernel.self,
-                SystemLogs.self,
-                SystemLaunchAgent.self,
-                SystemProperty.self,
-                SystemStart.self,
-                SystemStatus.self,
-                SystemStop.self,
-                SystemVersion.self,
-            ],
-            aliases: ["s"]
+            commandName: "disable",
+            abstract: "Deregister the LaunchAgent to stop the container from starting on user login"
         )
 
         @OptionGroup
         public var logOptions: Flags.Logging
+
+        public init() {}
+
+        public func run() async throws {
+            let logger = Logger(label: "LaunchAgentDisable", factory: { _ in StderrLogHandler() })
+
+            do {
+                try LaunchAgentServiceManager.deregisterLaunchAgent()
+                logger.info("LaunchAgent deregistered and deleted successfully")
+            } catch {
+                logger.error("Failed to deregister and delete the LaunchAgent", metadata: ["error": "\(error)"])
+            }
+        }
     }
 }

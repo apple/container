@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025-2026 Apple Inc. and the container project authors.
+// Copyright © 2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,29 +16,31 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerLog
+import ContainerPlugin
+import Logging
 
 extension Application {
-    public struct SystemCommand: AsyncLoggableCommand {
-        public init() {}
+    public struct LaunchAgentEnable: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
-            commandName: "system",
-            abstract: "Manage system components",
-            subcommands: [
-                SystemDF.self,
-                SystemDNS.self,
-                SystemKernel.self,
-                SystemLogs.self,
-                SystemLaunchAgent.self,
-                SystemProperty.self,
-                SystemStart.self,
-                SystemStatus.self,
-                SystemStop.self,
-                SystemVersion.self,
-            ],
-            aliases: ["s"]
+            commandName: "enable",
+            abstract: "Register the LaunchAgent to start the container on user login"
         )
 
         @OptionGroup
         public var logOptions: Flags.Logging
+
+        public init() {}
+
+        public func run() async throws {
+            let logger = Logger(label: "LaunchAgentEnable", factory: { _ in StderrLogHandler() })
+
+            do {
+                try LaunchAgentServiceManager.registerLaunchAgent(appRoot: ApplicationRoot.url, installRoot: InstallRoot.url)
+                logger.info("LaunchAgent registered and created successfully")
+            } catch {
+                logger.error("Failed to register and create the LaunchAgent", metadata: ["error": "\(error)"])
+            }
+        }
     }
 }
