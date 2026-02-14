@@ -424,6 +424,39 @@ container stats --no-stream web
 container stats --format json --no-stream web
 ```
 
+### `container copy (cp)`
+
+Copies files between a container and the local filesystem. The container must be running. One of the source or destination must be a container reference in the form `container_id:path`.
+
+**Usage**
+
+```bash
+container copy [--debug] <source> <destination>
+```
+
+**Arguments**
+
+*   `<source>`: Source path (local path or `container_id:path`)
+*   `<destination>`: Destination path (local path or `container_id:path`)
+
+**Path Format**
+
+*   Local path: `/path/to/file` or `relative/path`
+*   Container path: `container_id:/path/in/container`
+
+**Examples**
+
+```bash
+# copy a file from host to container
+container cp ./config.json mycontainer:/etc/app/
+
+# copy a file from container to host
+container cp mycontainer:/var/log/app.log ./logs/
+
+# copy using the full command name
+container copy ./data.txt mycontainer:/tmp/
+```
+
 ### `container prune`
 
 Removes stopped containers to reclaim disk space. The command outputs the amount of space freed after deletion.
