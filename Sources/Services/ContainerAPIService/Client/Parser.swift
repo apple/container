@@ -98,13 +98,25 @@ public struct Parser {
     }
 
     public static func allEnv(imageEnvs: [String], envFiles: [String], envs: [String]) throws -> [String] {
-        var output: [String] = []
-        output.append(contentsOf: Parser.env(envList: imageEnvs))
+        var combined: [String] = []
+        combined.append(contentsOf: Parser.env(envList: imageEnvs))
         for envFile in envFiles {
             let content = try Parser.envFile(path: envFile)
-            output.append(contentsOf: content)
+            combined.append(contentsOf: content)
         }
-        output.append(contentsOf: Parser.env(envList: envs))
+        combined.append(contentsOf: Parser.env(envList: envs))
+
+        var seen = [String: Int]()
+        var output = [String]()
+        for entry in combined {
+            let key = String(entry.split(separator: "=", maxSplits: 1).first ?? Substring(entry))
+            if let existing = seen[key] {
+                output[existing] = entry
+            } else {
+                seen[key] = output.count
+                output.append(entry)
+            }
+        }
         return output
     }
 
