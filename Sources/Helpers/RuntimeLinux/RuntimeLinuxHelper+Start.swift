@@ -69,6 +69,7 @@ extension RuntimeLinuxHelper {
                 }
 
                 nonisolated(unsafe) let anonymousConnection = xpc_connection_create(nil, nil)
+
                 let server = SandboxService(
                     root: .init(fileURLWithPath: root),
                     interfaceStrategy: interfaceStrategy,

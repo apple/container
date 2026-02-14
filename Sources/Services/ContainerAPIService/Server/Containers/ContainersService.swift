@@ -81,8 +81,8 @@ public actor ContainersService {
         var results = [String: ContainerState]()
         for dir in directories {
             do {
-                let bundle = ContainerResource.Bundle(path: dir)
-                let config = try bundle.configuration
+                let config = try Self.getContainerConfiguration(at: dir)
+
                 let state = ContainerState(
                     snapshot: .init(
                         configuration: config,
@@ -100,16 +100,39 @@ public actor ContainersService {
                 }
             } catch {
                 try? FileManager.default.removeItem(at: dir)
-                log.warning("failed to load container bundle at \(dir.path)")
+                log.warning("failed to load container at \(dir.path): \(error)")
             }
         }
         return results
     }
 
-    /// List all containers registered with the service.
-    public func list() async throws -> [ContainerSnapshot] {
+    /// List containers matching the given filters.
+    public func list(filters: ContainerListFilters = .all) async throws -> [ContainerSnapshot] {
         self.log.debug("\(#function)")
-        return self.containers.values.map { $0.snapshot }
+
+        return self.containers.values.compactMap { state -> ContainerSnapshot? in
+            let snapshot = state.snapshot
+
+            if !filters.ids.isEmpty {
+                guard filters.ids.contains(snapshot.id) else {
+                    return nil
+                }
+            }
+
+            if let status = filters.status {
+                guard snapshot.status == status else {
+                    return nil
+                }
+            }
+
+            for (key, value) in filters.labels {
+                guard snapshot.configuration.labels[key] == value else {
+                    return nil
+                }
+            }
+
+            return snapshot
+        }
     }
 
     /// Execute an operation with the current container list while maintaining atomicity
@@ -238,17 +261,20 @@ public actor ContainersService {
             self.log.info("Using init image: \(initImage ?? ClientImage.initImageRef)")
             let initFilesystem = try await self.getInitBlock(for: systemPlatform.ociPlatform(), imageRef: initImage)
 
-            let bundle = try ContainerResource.Bundle.create(
-                path: path,
-                initialFilesystem: initFilesystem,
-                kernel: kernel,
-                containerConfiguration: configuration
-            )
             do {
                 let containerImage = ClientImage(description: configuration.image)
                 let imageFs = try await containerImage.getCreateSnapshot(platform: configuration.platform)
-                try bundle.setContainerRootFs(cloning: imageFs, readonly: configuration.readOnly)
-                try bundle.write(filename: "options.json", value: options)
+
+                let runtimeConfig = RuntimeConfiguration(
+                    path: path,
+                    initialFilesystem: initFilesystem,
+                    kernel: kernel,
+                    containerConfiguration: configuration,
+                    containerRootFilesystem: imageFs,
+                    options: options
+                )
+
+                try runtimeConfig.writeRuntimeConfiguration()
 
                 let snapshot = ContainerSnapshot(
                     configuration: configuration,
@@ -258,11 +284,6 @@ public actor ContainersService {
                 )
                 await self.setContainerState(configuration.id, ContainerState(snapshot: snapshot), context: context)
             } catch {
-                do {
-                    try bundle.delete()
-                } catch {
-                    self.log.error("failed to delete bundle for container \(configuration.id): \(error)")
-                }
                 throw error
             }
         }
@@ -282,8 +303,7 @@ public actor ContainersService {
             }
 
             let path = self.containerRoot.appendingPathComponent(id)
-            let bundle = ContainerResource.Bundle(path: path)
-            let config = try bundle.configuration
+            let config = try Self.getContainerConfiguration(at: path)
 
             do {
                 try Self.registerService(
@@ -298,6 +318,7 @@ public actor ContainersService {
                     id: id,
                     runtime: runtime
                 )
+
                 try await sandboxClient.bootstrap(stdio: stdio)
 
                 try await self.exitMonitor.registerProcess(
@@ -620,15 +641,35 @@ public actor ContainersService {
         // the OCI runtime.
         await self.exitMonitor.stopTracking(id: id)
         let path = self.containerRoot.appendingPathComponent(id)
-        let bundle = ContainerResource.Bundle(path: path)
-        let config = try bundle.configuration
 
-        let label = Self.fullLaunchdServiceLabel(
-            runtimeName: config.runtimeHandler,
-            instanceId: id
-        )
-        try ServiceManager.deregister(fullServiceLabel: label)
-        try bundle.delete()
+        // Try to get config for service deregistration
+        // Don't fail if bundle is incomplete
+        var config: ContainerConfiguration?
+        let bundle = ContainerResource.Bundle(path: path)
+        do {
+            config = try bundle.configuration
+        } catch {
+            self.log.warning("Unable to read bundle configuration during cleanup for container \(id): \(error)")
+        }
+
+        // Only try to deregister service if we have a valid config
+        // TODO: Change this so we don't have to reread the config
+        // possibly store the container ID to service label mapping
+        if let config = config {
+            let label = Self.fullLaunchdServiceLabel(
+                runtimeName: config.runtimeHandler,
+                instanceId: id
+            )
+            try? ServiceManager.deregister(fullServiceLabel: label)
+        }
+
+        // Always try to delete the bundle directory, even if it's incomplete
+        do {
+            try bundle.delete()
+        } catch {
+            self.log.warning("Failed to delete bundle for container \(id): \(error)")
+        }
+
         self.containers.removeValue(forKey: id)
     }
 
@@ -692,6 +733,22 @@ public actor ContainersService {
 
     private static func isInitProcess(id: String, processID: String) -> Bool {
         id == processID
+    }
+
+    /// Get container configuration, either from existing bundle or from RuntimeConfiguration
+    private static func getContainerConfiguration(at path: URL) throws -> ContainerConfiguration {
+        let bundle = ContainerResource.Bundle(path: path)
+        do {
+            return try bundle.configuration
+        } catch {
+            // Bundle doesn't exist or incomplete, try runtime configuration
+            // This handles containers that were created but not started yet
+            let runtimeConfig = try RuntimeConfiguration.readRuntimeConfiguration(from: path)
+            guard let config = runtimeConfig.containerConfiguration else {
+                throw ContainerizationError(.internalError, message: "runtime configuration missing container configuration")
+            }
+            return config
+        }
     }
 }
 

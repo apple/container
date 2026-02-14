@@ -75,10 +75,12 @@ public struct ContainerClient: Sendable {
         }
     }
 
-    /// List all containers.
-    public func list() async throws -> [ContainerSnapshot] {
+    /// List containers matching the given filters.
+    public func list(filters: ContainerListFilters = .all) async throws -> [ContainerSnapshot] {
         do {
             let request = XPCMessage(route: .containerList)
+            let filterData = try JSONEncoder().encode(filters)
+            request.set(key: .listFilters, value: filterData)
 
             let response = try await xpcSend(
                 message: request,
@@ -100,8 +102,8 @@ public struct ContainerClient: Sendable {
 
     /// Get the container for the provided id.
     public func get(id: String) async throws -> ContainerSnapshot {
-        let containers = try await list()
-        guard let container = containers.first(where: { $0.configuration.id == id }) else {
+        let containers = try await list(filters: ContainerListFilters(ids: [id]))
+        guard let container = containers.first else {
             throw ContainerizationError(
                 .notFound,
                 message: "get failed: container \(id) not found"
