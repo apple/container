@@ -22,6 +22,7 @@ public class DirectoryWatcher {
     public let directoryURL: URL
 
     private let monitorQueue: DispatchQueue
+    private var parentSource: DispatchSourceFileSystemObject?
     private var source: DispatchSourceFileSystemObject?
 
     private let log: Logger
@@ -32,21 +33,22 @@ public class DirectoryWatcher {
         self.log = log
     }
 
-    public func startWatching(handler: @escaping ([URL]) throws -> Void) throws {
-        guard source == nil else {
-            throw ContainerizationError(.invalidState, message: "already watching on \(directoryURL.path)")
+    private func _startWatching(
+        handler: @escaping ([URL]) throws -> Void
+    ) throws {
+        let descriptor = open(directoryURL.path, O_EVTONLY)
+        guard descriptor > 0 else {
+            throw ContainerizationError(.internalError, message: "cannot open \(directoryURL.path), descriptor=\(descriptor)")
         }
 
         do {
             let files = try FileManager.default.contentsOfDirectory(atPath: directoryURL.path)
             try handler(files.map { directoryURL.appending(path: $0) })
         } catch {
-            throw ContainerizationError(.invalidState, message: "failed to start watching on \(directoryURL.path)")
+            throw ContainerizationError(.internalError, message: "failed to run handler for \(directoryURL.path)")
         }
 
         log.info("starting directory watcher", metadata: ["path": "\(directoryURL.path)"])
-
-        let descriptor = open(directoryURL.path, O_EVTONLY)
 
         let dispatchSource = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: descriptor,
@@ -54,7 +56,6 @@ public class DirectoryWatcher {
             queue: monitorQueue
         )
 
-        // Close the file descriptor when the source is cancelled
         dispatchSource.setCancelHandler {
             close(descriptor)
         }
@@ -74,11 +75,56 @@ public class DirectoryWatcher {
         dispatchSource.resume()
     }
 
-    deinit {
-        guard let source else {
+    public func startWatching(handler: @escaping ([URL]) throws -> Void) throws {
+        guard source == nil else {
+            throw ContainerizationError(.invalidState, message: "already watching on \(directoryURL.path)")
+        }
+
+        let parent = directoryURL.deletingLastPathComponent().resolvingSymlinksInPathWithPrivate()
+        guard parent.isDirectory else {
+            throw ContainerizationError(.invalidState, message: "expected \(parent.path) to be an existing directory")
+        }
+
+        guard !directoryURL.isSymlink else {
+            throw ContainerizationError(.invalidState, message: "expected \(directoryURL.path) not a symlink")
+        }
+
+        guard directoryURL.isDirectory else {
+            log.info("no \(directoryURL.path), start watching \(parent.path)")
+
+            let descriptor = open(parent.path, O_EVTONLY)
+            let source = DispatchSource.makeFileSystemObjectSource(
+                fileDescriptor: descriptor,
+                eventMask: .write,
+                queue: monitorQueue)
+
+            source.setCancelHandler {
+                close(descriptor)
+            }
+
+            source.setEventHandler { [weak self] in
+                guard let self else { return }
+
+                if directoryURL.isDirectory {
+                    do {
+                        try _startWatching(handler: handler)
+                    } catch {
+                        log.error("failed to start watching: \(error)")
+                    }
+                    source.cancel()
+                }
+            }
+
+            parentSource = source
+            source.resume()
             return
         }
 
-        source.cancel()
+        try _startWatching(handler: handler)
+    }
+
+    deinit {
+        parentSource?.cancel()
+        source?.cancel()
     }
 }
