@@ -47,6 +47,11 @@ extension Application {
             help: "Specify whether the default kernel should be installed or not (default: prompt user)")
         var kernelInstall: Bool?
 
+        @Option(
+            name: .long,
+            help: "Number of seconds to wait for API service to become responsive")
+        var timeout: Double = 10.0
+
         @OptionGroup
         public var logOptions: Flags.Logging
 
@@ -62,11 +67,11 @@ extension Application {
 
             var args = [executableUrl.absolutePath()]
 
+            args.append("start")
             if logOptions.debug {
                 args.append("--debug")
             }
 
-            args.append("start")
             let apiServerDataUrl = appRoot.appending(path: "apiserver")
             try! FileManager.default.createDirectory(at: apiServerDataUrl, withIntermediateDirectories: true)
 
@@ -87,12 +92,13 @@ extension Application {
             let data = try plist.encode()
             try data.write(to: plistURL)
 
+            print("Registering API server with launchd...")
             try ServiceManager.register(plistPath: plistURL.path)
 
             // Now ping our friendly daemon. Fail if we don't get a response.
             do {
                 print("Verifying apiserver is running...")
-                _ = try await ClientHealthCheck.ping(timeout: .seconds(10))
+                _ = try await ClientHealthCheck.ping(timeout: .seconds(timeout))
             } catch {
                 throw ContainerizationError(
                     .internalError,

@@ -60,13 +60,6 @@ public actor SandboxService {
         return nil
     }
 
-    /// Create an instance with a bundle that describes the container.
-    ///
-    /// - Parameters:
-    ///   - root: The file URL for the bundle root.
-    ///   - interfaceStrategy: The strategy for producing network interface
-    ///     objects for each network to which the container attaches.
-    ///   - log: The destination for log messages.
     public init(
         root: URL,
         interfaceStrategy: InterfaceStrategy,
@@ -108,6 +101,12 @@ public actor SandboxService {
     @Sendable
     public func bootstrap(_ message: XPCMessage) async throws -> XPCMessage {
         self.log.info("`bootstrap` xpc handler")
+
+        // Create the bundle if it doesn't exist yet
+        if !self.bundleExists(at: self.root) {
+            try self.createBundle()
+        }
+
         return try await self.lock.withLock { _ in
             guard await self.state == .created else {
                 throw ContainerizationError(
@@ -1225,7 +1224,7 @@ extension FileHandle: @retroactive ReaderStream, @retroactive Writer {
     }
 }
 
-// MARK: State handler helpers
+// MARK: State handler and bundle creation helpers
 
 extension SandboxService {
     private func addWaiter(id: String, cont: CheckedContinuation<ExitStatus, Never>) {
@@ -1299,5 +1298,39 @@ extension SandboxService {
 
     func setState(_ new: State) {
         self.state = new
+    }
+
+    /// Check if a bundle exists at the given path
+    private func bundleExists(at path: URL) -> Bool {
+        guard FileManager.default.fileExists(atPath: path.path) else {
+            return false
+        }
+
+        let bundle = ContainerResource.Bundle(path: path)
+        do {
+            _ = try bundle.configuration
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// Create bundle from RuntimeConfiguration
+    private func createBundle() throws {
+        do {
+            let runtimeConfig = try RuntimeConfiguration.readRuntimeConfiguration(from: self.root)
+            _ = try ContainerResource.Bundle.create(
+                path: runtimeConfig.path,
+                initialFilesystem: runtimeConfig.initialFilesystem,
+                kernel: runtimeConfig.kernel,
+                containerConfiguration: runtimeConfig.containerConfiguration,
+                containerRootFilesystem: runtimeConfig.containerRootFilesystem,
+                options: runtimeConfig.options
+            )
+            self.log.info("Created bundle from runtime configuration at \(runtimeConfig.path)")
+        } catch {
+            self.log.error("Failed to create bundle \(error)")
+            throw error
+        }
     }
 }
