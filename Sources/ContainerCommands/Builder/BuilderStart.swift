@@ -26,6 +26,7 @@ import ContainerizationOCI
 import Foundation
 import Logging
 import TerminalProgress
+import Virtualization
 
 extension Application {
     public struct BuilderStart: AsyncLoggableCommand {
@@ -195,7 +196,15 @@ extension Application {
                 }
             }
 
-            let useRosetta = DefaultsStore.getBool(key: .buildRosetta) ?? true
+            let rosettaPreference = DefaultsStore.getBool(key: .buildRosetta) ?? true
+            let rosettaExplicit = DefaultsStore.isSet(key: .buildRosetta)
+            let useRosetta: Bool
+            #if arch(arm64)
+            let rosettaAvailable = VZLinuxRosettaDirectoryShare.availability == .installed
+            useRosetta = rosettaExplicit ? rosettaPreference : (rosettaPreference && rosettaAvailable)
+            #else
+            useRosetta = false
+            #endif
             let shimArguments = [
                 "--debug",
                 "--vsock",
