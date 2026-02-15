@@ -338,7 +338,11 @@ let package = Package(
             dependencies: [
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationExtras", package: "containerization"),
+<<<<<<< sshFlagAuthSocketFix
                 .product(name: "ContainerizationOCI", package: "containerization"),
+=======
+                "ContainerAPIService",
+>>>>>>> main
                 "ContainerResource",
             ]
         ),
@@ -369,6 +373,14 @@ let package = Package(
             name: "ContainerPluginTests",
             dependencies: [
                 "ContainerPlugin"
+            ]
+        ),
+        .testTarget(
+            name: "ContainerSandboxServiceTests",
+            dependencies: [
+                .product(name: "Containerization", package: "containerization"),
+                "ContainerResource",
+                "ContainerSandboxServiceClient",
             ]
         ),
         .target(
