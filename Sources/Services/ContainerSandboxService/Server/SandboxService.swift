@@ -471,6 +471,11 @@ public actor SandboxService {
             case .running:
                 let ctr = try await getContainer()
                 let id = try message.id()
+                let signalValue = try message.signal()
+                guard let signal32 = Int32(exactly: signalValue) else {
+                    throw ContainerizationError(.invalidArgument, message: "signal value \(signalValue) out of range")
+                }
+
                 if id != ctr.container.id {
                     guard let processInfo = await self.processes[id] else {
                         throw ContainerizationError(.invalidState, message: "process \(id) does not exist")
@@ -479,12 +484,11 @@ public actor SandboxService {
                     guard let proc = processInfo.process else {
                         throw ContainerizationError(.invalidState, message: "process \(id) not started")
                     }
-                    try await proc.kill(Int32(try message.signal()))
+                    try await proc.kill(signal32)
                     return message.reply()
                 }
 
-                // TODO: fix underlying signal value to int64
-                try await ctr.container.kill(Int32(try message.signal()))
+                try await ctr.container.kill(signal32)
                 return message.reply()
             default:
                 throw ContainerizationError(
