@@ -91,6 +91,18 @@ public struct ClientImage: Sendable {
     }
 }
 
+/// Represents a failure to look up a single image reference.
+public struct ImageLookupError: Error, Sendable, CustomStringConvertible {
+    /// The reference that could not be resolved.
+    public let reference: String
+    /// The underlying error.
+    public let cause: any Error
+
+    public var description: String {
+        "\(reference): \(cause)"
+    }
+}
+
 // MARK: ClientImage constants
 
 extension ClientImage {
@@ -168,19 +180,19 @@ extension ClientImage {
         }
     }
 
-    public static func get(names: [String]) async throws -> (images: [ClientImage], error: [String]) {
+    public static func get(names: [String]) async throws -> (images: [ClientImage], errors: [ImageLookupError]) {
         let all = try await self.list()
-        var errors: [String] = []
+        var errors: [ImageLookupError] = []
         var found: [ClientImage] = []
         for name in names {
             do {
                 guard let img = try Self._search(reference: name, in: all) else {
-                    errors.append(name)
+                    errors.append(ImageLookupError(reference: name, cause: ContainerizationError(.notFound, message: "image with reference \(name)")))
                     continue
                 }
                 found.append(img)
             } catch {
-                errors.append(name)
+                errors.append(ImageLookupError(reference: name, cause: error))
             }
         }
         return (found, errors)
@@ -294,8 +306,10 @@ extension ClientImage {
     public static func save(references: [String], out: String, platform: Platform? = nil) async throws {
         let (clientImages, errors) = try await get(names: references)
         guard errors.isEmpty else {
-            // TODO: Improve error handling here
-            throw ContainerizationError(.invalidArgument, message: "one or more image references are invalid: \(errors.joined(separator: ", "))")
+            throw ContainerizationError(
+                .notFound,
+                message: "failed to save: \(errors.map(\.description).joined(separator: "; "))"
+            )
         }
 
         let descriptions = clientImages.map { $0.description }

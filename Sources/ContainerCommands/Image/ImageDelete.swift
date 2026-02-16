@@ -46,15 +46,16 @@ extension Application {
         }
 
         static func removeImage(options: RemoveImageOptions, log: Logger) async throws {
-            let (found, notFound) = try await {
-                if options.all {
-                    let found = try await ClientImage.list()
-                    let notFound: [String] = []
-                    return (found, notFound)
-                }
-                return try await ClientImage.get(names: options.images)
-            }()
-            var failures: [String] = options.force ? [] : notFound
+            let found: [ClientImage]
+            var failures: [String]
+            if options.all {
+                found = try await ClientImage.list()
+                failures = []
+            } else {
+                let result = try await ClientImage.get(names: options.images)
+                found = result.images
+                failures = options.force ? [] : result.errors.map(\.reference)
+            }
             var didDeleteAnyImage = false
             for image in found {
                 guard !Utility.isInfraImage(name: image.reference) else {

@@ -54,8 +54,8 @@ extension Application {
                 succeededImages.append(image.reference)
             }
 
-            for missing in result.error {
-                allErrors.append((missing, ContainerizationError(.notFound, message: "Image not found")))
+            for lookupError in result.errors {
+                allErrors.append((lookupError.reference, lookupError.cause))
             }
 
             if !printable.isEmpty {
