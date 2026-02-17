@@ -37,7 +37,7 @@ extension Application {
         var image: String?
 
         @Argument(help: "container ID")
-        var name: String
+        var id: String
 
         public func run() async throws {
             let client = ContainerClient()
@@ -48,10 +48,10 @@ extension Application {
                 try? FileManager.default.removeItem(at: tempDir)
             }
 
-            let imageName = image ?? name
+            let imageName = image ?? id
 
             let archive = tempDir.appendingPathComponent("archive.tar")
-            try await client.export(id: name, archive: archive)
+            try await client.export(id: id, archive: archive)
 
             let dockerfile = """
                 FROM scratch
