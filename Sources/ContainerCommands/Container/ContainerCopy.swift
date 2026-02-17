@@ -63,13 +63,13 @@ extension Application {
 
             switch (srcRef, dstRef) {
             case (.container(let id, let path), .local(let localPath)):
-                let destURL = URL(fileURLWithPath: localPath).standardizedFileURL
                 let srcURL = URL(fileURLWithPath: path)
+                let localDest = localPath.hasSuffix("/") ? localPath + srcURL.lastPathComponent : localPath
+                let destURL = URL(fileURLWithPath: localDest).standardizedFileURL
                 try await client.copyOut(id: id, source: srcURL, destination: destURL)
             case (.local(let localPath), .container(let id, let path)):
                 let srcURL = URL(fileURLWithPath: localPath).standardizedFileURL
-                let filename = srcURL.lastPathComponent
-                let containerDest = path.hasSuffix("/") ? path + filename : path + "/" + filename
+                let containerDest = path.hasSuffix("/") ? path + srcURL.lastPathComponent : path
                 let destURL = URL(fileURLWithPath: containerDest)
                 try await client.copyIn(id: id, source: srcURL, destination: destURL)
             case (.container, .container):
