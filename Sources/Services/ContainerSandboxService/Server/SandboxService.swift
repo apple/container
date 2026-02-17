@@ -896,13 +896,7 @@ public actor SandboxService {
             }
         }
 
-        #if arch(arm64)
-        if config.platform.architecture == "amd64" {
-            if !czConfig.process.environmentVariables.contains(where: { $0.starts(with: "OPENSSL_ia32cap=") }) {
-                czConfig.process.environmentVariables.append("OPENSSL_ia32cap=0:0:0")
-            }
-        }
-        #endif
+
 
         czConfig.process.terminal = process.terminal
         czConfig.process.workingDirectory = process.workingDirectory
@@ -950,13 +944,7 @@ public actor SandboxService {
             }
         }
 
-        #if arch(arm64)
-        if containerConfig.platform.architecture == "amd64" {
-            if !proc.environmentVariables.contains(where: { $0.starts(with: "OPENSSL_ia32cap=") }) {
-                proc.environmentVariables.append("OPENSSL_ia32cap=0:0:0")
-            }
-        }
-        #endif
+
 
         proc.terminal = config.terminal
         proc.workingDirectory = config.workingDirectory
