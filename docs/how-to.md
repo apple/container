@@ -60,31 +60,6 @@ total 4
 %
 </pre>
 
-## Copy files between host and container
-
-Use `container copy` (or the short alias `container cp`) to transfer files between a running container and your local filesystem. 
-
-To copy a local file into a running container:
-
-<pre>
-% echo "hello" > greeting.txt
-% container cp greeting.txt mycontainer:/tmp/
-% container exec mycontainer cat /tmp/greeting.txt
-hello
-%
-</pre>
-
-To copy a file from a container to the host:
-
-<pre>
-% container cp mycontainer:/etc/hostname ./hostname.txt
-% cat hostname.txt
-mycontainer
-%
-</pre>
-
-The path format uses a colon to distinguish container paths from local paths: `container_id:/path/in/container`. One of the source or destination must always be a container reference. The container must be running for the copy to succeed.
-
 ## Build and run a multiplatform image
 
 Using the [project from the tutorial example](tutorial.md#set-up-a-simple-project), you can create an image to use both on Apple silicon Macs and on x86-64 servers.

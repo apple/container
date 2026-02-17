@@ -494,6 +494,9 @@ public actor ContainersService {
         self.log.debug("\(#function)")
 
         let state = try self._getContainerState(id: id)
+        guard state.snapshot.status == .running else {
+            throw ContainerizationError(.invalidState, message: "container \(id) is not running")
+        }
         let client = try state.getClient()
         try await client.copyIn(source: source, destination: destination, mode: mode)
     }
@@ -503,6 +506,9 @@ public actor ContainersService {
         self.log.debug("\(#function)")
 
         let state = try self._getContainerState(id: id)
+        guard state.snapshot.status == .running else {
+            throw ContainerizationError(.invalidState, message: "container \(id) is not running")
+        }
         let client = try state.getClient()
         try await client.copyOut(source: source, destination: destination)
     }

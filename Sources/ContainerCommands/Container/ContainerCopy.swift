@@ -29,9 +29,10 @@ extension Application {
         }
 
         static func parsePathRef(_ ref: String) -> PathRef {
-            if let colonIdx = ref.firstIndex(of: ":") {
-                let id = String(ref[ref.startIndex..<colonIdx])
-                let path = String(ref[ref.index(after: colonIdx)...])
+            let parts = ref.components(separatedBy: ":")
+            if parts.count == 2 {
+                let id = parts[0]
+                let path = parts[1]
                 if !id.isEmpty && !path.isEmpty {
                     return .container(id: id, path: path)
                 }
@@ -62,13 +63,15 @@ extension Application {
 
             switch (srcRef, dstRef) {
             case (.container(let id, let path), .local(let localPath)):
-                let resolvedLocal = URL(fileURLWithPath: localPath).standardizedFileURL.path
-                try await client.copyOut(id: id, source: path, destination: resolvedLocal)
+                let destURL = URL(fileURLWithPath: localPath).standardizedFileURL
+                let srcURL = URL(fileURLWithPath: path)
+                try await client.copyOut(id: id, source: srcURL, destination: destURL)
             case (.local(let localPath), .container(let id, let path)):
-                let resolvedLocal = URL(fileURLWithPath: localPath).standardizedFileURL.path
-                let filename = URL(fileURLWithPath: resolvedLocal).lastPathComponent
+                let srcURL = URL(fileURLWithPath: localPath).standardizedFileURL
+                let filename = srcURL.lastPathComponent
                 let containerDest = path.hasSuffix("/") ? path + filename : path + "/" + filename
-                try await client.copyIn(id: id, source: resolvedLocal, destination: containerDest)
+                let destURL = URL(fileURLWithPath: containerDest)
+                try await client.copyIn(id: id, source: srcURL, destination: destURL)
             case (.container, .container):
                 throw ContainerizationError(.invalidArgument, message: "copying between containers is not supported")
             case (.local, .local):
