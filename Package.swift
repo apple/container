@@ -254,6 +254,15 @@ let package = Package(
             ],
             path: "Sources/Helpers/NetworkVmnet"
         ),
+        .testTarget(
+            name: "ContainerImagesServiceTests",
+            dependencies: [
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                "ContainerImagesService",
+                "ContainerPersistence",
+            ]
+        ),
         .target(
             name: "ContainerNetworkService",
             dependencies: [
