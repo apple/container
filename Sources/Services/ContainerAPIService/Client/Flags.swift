@@ -130,7 +130,7 @@ public struct Flags {
             self.options = options
             self.searchDomains = searchDomains
         }
-        
+
         @Option(
             name: .customLong("dns"),
             help: .init("DNS nameserver IP address", valueName: "ip")
