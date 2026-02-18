@@ -18,6 +18,16 @@ import ContainerizationError
 import ContainerizationExtras
 import Foundation
 
+public struct NetworkPluginInfo: Codable, Sendable, Hashable {
+    public let plugin: String
+    public let variant: String?
+
+    public init(plugin: String, variant: String? = nil) {
+        self.plugin = plugin
+        self.variant = variant
+    }
+}
+
 /// Configuration parameters for network creation.
 public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     /// A unique identifier for the network
@@ -38,13 +48,19 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     /// Key-value labels for the network.
     public var labels: [String: String] = [:]
 
+    /// Details about the network plugin that manages this network.
+    /// FIXME: This field only needs to be optional while we wait for the field
+    /// to be proliferated to most users when they update container.
+    public var pluginInfo: NetworkPluginInfo?
+
     /// Creates a network configuration
     public init(
         id: String,
         mode: NetworkMode,
         ipv4Subnet: CIDRv4? = nil,
         ipv6Subnet: CIDRv6? = nil,
-        labels: [String: String] = [:]
+        labels: [String: String] = [:],
+        pluginInfo: NetworkPluginInfo,
     ) throws {
         self.id = id
         self.creationDate = Date()
@@ -52,6 +68,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         self.ipv4Subnet = ipv4Subnet
         self.ipv6Subnet = ipv6Subnet
         self.labels = labels
+        self.pluginInfo = pluginInfo
         try validate()
     }
 
@@ -62,6 +79,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         case ipv4Subnet
         case ipv6Subnet
         case labels
+        case pluginInfo
         // TODO: retain for deserialization compatability for now, remove later
         case subnet
     }
@@ -81,6 +99,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         ipv6Subnet = try container.decodeIfPresent(String.self, forKey: .ipv6Subnet)
             .map { try CIDRv6($0) }
         labels = try container.decodeIfPresent([String: String].self, forKey: .labels) ?? [:]
+        pluginInfo = try container.decodeIfPresent(NetworkPluginInfo.self, forKey: .pluginInfo)
         try validate()
     }
 
@@ -94,6 +113,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         try container.encodeIfPresent(ipv4Subnet, forKey: .ipv4Subnet)
         try container.encodeIfPresent(ipv6Subnet, forKey: .ipv6Subnet)
         try container.encode(labels, forKey: .labels)
+        try container.encodeIfPresent(pluginInfo, forKey: .pluginInfo)
     }
 
     private func validate() throws {

@@ -14,7 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerNetworkServiceClient
+import ContainerAPIClient
 import ContainerPersistence
 import ContainerResource
 import ContainerSandboxServiceClient
@@ -39,7 +39,7 @@ import struct ContainerizationOCI.Process
 public actor SandboxService {
     private let connection: xpc_connection_t
     private let root: URL
-    private let interfaceStrategy: InterfaceStrategy
+    private let interfaceStrategies: [NetworkPluginInfo: InterfaceStrategy]
     private var container: ContainerInfo?
     private let monitor: ExitMonitor
     private let eventLoopGroup: any EventLoopGroup
@@ -60,22 +60,15 @@ public actor SandboxService {
         return nil
     }
 
-    /// Create an instance with a bundle that describes the container.
-    ///
-    /// - Parameters:
-    ///   - root: The file URL for the bundle root.
-    ///   - interfaceStrategy: The strategy for producing network interface
-    ///     objects for each network to which the container attaches.
-    ///   - log: The destination for log messages.
     public init(
         root: URL,
-        interfaceStrategy: InterfaceStrategy,
+        interfaceStrategies: [NetworkPluginInfo: InterfaceStrategy],
         eventLoopGroup: any EventLoopGroup,
         connection: xpc_connection_t,
         log: Logger
     ) {
         self.root = root
-        self.interfaceStrategy = interfaceStrategy
+        self.interfaceStrategies = interfaceStrategies
         self.log = log
         self.monitor = ExitMonitor(log: log)
         self.eventLoopGroup = eventLoopGroup
@@ -108,6 +101,12 @@ public actor SandboxService {
     @Sendable
     public func bootstrap(_ message: XPCMessage) async throws -> XPCMessage {
         self.log.info("`bootstrap` xpc handler")
+
+        // Create the bundle if it doesn't exist yet
+        if !self.bundleExists(at: self.root) {
+            try self.createBundle()
+        }
+
         return try await self.lock.withLock { _ in
             guard await self.state == .created else {
                 throw ContainerizationError(
@@ -123,6 +122,7 @@ public actor SandboxService {
 
             var kernel = try bundle.kernel
             kernel.commandLine.kernelArgs.append("oops=panic")
+            kernel.commandLine.kernelArgs.append("lsm=lockdown,capability,landlock,yama,apparmor")
             let vmm = VZVirtualMachineManager(
                 kernel: kernel,
                 initialFilesystem: bundle.initialFilesystem.asMount,
@@ -130,9 +130,11 @@ public actor SandboxService {
                 logger: self.log
             )
 
+            let allocatedAttachments = try message.getAllocatedAttachments()
+
             // Dynamically configure the DNS nameserver from a network if no explicit configuration
             if let dns = config.dns, dns.nameservers.isEmpty {
-                let defaultNameservers = try await self.getDefaultNameservers(attachmentConfigurations: config.networks)
+                let defaultNameservers = try await self.getDefaultNameservers(allocatedAttachments: allocatedAttachments)
                 if !defaultNameservers.isEmpty {
                     config.dns = ContainerConfiguration.DNSConfiguration(
                         nameservers: defaultNameservers,
@@ -145,16 +147,19 @@ public actor SandboxService {
 
             var attachments: [Attachment] = []
             var interfaces: [Interface] = []
-            for index in 0..<config.networks.count {
-                let network = config.networks[index]
-                let client = NetworkClient(id: network.network)
-                let (attachment, additionalData) = try await client.allocate(hostname: network.options.hostname, macAddress: network.options.macAddress)
-                attachments.append(attachment)
+            for index in 0..<allocatedAttachments.count {
+                let allocatedAttach = allocatedAttachments[index]
+                attachments.append(allocatedAttach.attachment)
 
-                let interface = try self.interfaceStrategy.toInterface(
-                    attachment: attachment,
+                guard let iStrategy = self.interfaceStrategies[allocatedAttach.pluginInfo] else {
+                    throw ContainerizationError(
+                        .internalError, message: "no available interface strategy for network \(allocatedAttach.attachment.network), \(allocatedAttach.pluginInfo)")
+                }
+
+                let interface = try iStrategy.toInterface(
+                    attachment: allocatedAttach.attachment,
                     interfaceIndex: index,
-                    additionalData: additionalData
+                    additionalData: allocatedAttach.additionalData
                 )
                 interfaces.append(interface)
             }
@@ -223,10 +228,10 @@ public actor SandboxService {
                 await self.setState(.booted)
             } catch {
                 do {
-                    try await self.cleanupContainer(containerInfo: ctrInfo)
+                    try await self.cleanUpContainer(containerInfo: ctrInfo)
                     await self.setState(.created)
                 } catch {
-                    self.log.error("failed to cleanup container: \(error)")
+                    self.log.error("Failed to clean up container: \(error)")
                 }
                 throw error
             }
@@ -443,9 +448,9 @@ public actor SandboxService {
                     if case .stopped(_) = await self.state {
                         return message.reply()
                     }
-                    try await self.cleanupContainer(containerInfo: ctr, exitStatus: exitStatus)
+                    try await self.cleanUpContainer(containerInfo: ctr, exitStatus: exitStatus)
                 } catch {
-                    self.log.error("failed to cleanup container: \(error)")
+                    self.log.error("Failed to clean up container: \(error)")
                 }
                 await self.setState(.stopped(exitStatus.exitCode))
             default:
@@ -668,7 +673,7 @@ public actor SandboxService {
             }
             try await self.monitor.track(id: id, waitingOn: waitFunc)
         } catch {
-            try? await self.cleanupContainer(containerInfo: info)
+            try? await self.cleanUpContainer(containerInfo: info)
             self.setState(.created)
             throw error
         }
@@ -796,9 +801,9 @@ public actor SandboxService {
             }
 
             do {
-                try await cleanupContainer(containerInfo: ctrInfo, exitStatus: exitStatus)
+                try await cleanUpContainer(containerInfo: ctrInfo, exitStatus: exitStatus)
             } catch {
-                self.log.error("failed to cleanup container: \(error)")
+                self.log.error("Failed to clean up container: \(error)")
             }
             await setState(.stopped(exitStatus.exitCode))
         }
@@ -867,10 +872,9 @@ public actor SandboxService {
         try Self.configureInitialProcess(czConfig: &czConfig, config: config)
     }
 
-    private func getDefaultNameservers(attachmentConfigurations: [AttachmentConfiguration]) async throws -> [String] {
-        for attachmentConfiguration in attachmentConfigurations {
-            let client = NetworkClient(id: attachmentConfiguration.network)
-            let state = try await client.state()
+    private func getDefaultNameservers(allocatedAttachments: [AllocatedAttachment]) async throws -> [String] {
+        for allocatedAttach in allocatedAttachments {
+            let state = try await ClientNetwork.get(id: allocatedAttach.attachment.network)
             guard case .running(_, let status) = state else {
                 continue
             }
@@ -1025,7 +1029,7 @@ public actor SandboxService {
         return code
     }
 
-    private func cleanupContainer(containerInfo: ContainerInfo, exitStatus: ExitStatus? = nil) async throws {
+    private func cleanUpContainer(containerInfo: ContainerInfo, exitStatus: ExitStatus? = nil) async throws {
         let container = containerInfo.container
         let id = container.id
 
@@ -1035,16 +1039,7 @@ public actor SandboxService {
             self.log.error("failed to stop container during cleanup: \(error)")
         }
 
-        // Give back our lovely IP(s)
         await self.stopSocketForwarders()
-        for attachment in containerInfo.attachments {
-            let client = NetworkClient(id: attachment.network)
-            do {
-                try await client.deallocate(hostname: attachment.hostname)
-            } catch {
-                self.log.error("failed to deallocate hostname \(attachment.hostname) on network \(attachment.network) during cleanup: \(error)")
-            }
-        }
 
         let status = exitStatus ?? ExitStatus(exitCode: 255)
         let waiters = self.waiters[id] ?? []
@@ -1095,6 +1090,50 @@ extension XPCMessage {
             throw ContainerizationError(.invalidArgument, message: "empty process configuration")
         }
         return try JSONDecoder().decode(ProcessConfiguration.self, from: data)
+    }
+
+    fileprivate func getAllocatedAttachments() throws -> [AllocatedAttachment] {
+        guard let attachmentArray = xpc_dictionary_get_value(self.underlying, SandboxKeys.allocatedAttachments.rawValue) else {
+            throw ContainerizationError(.invalidArgument, message: "missing allocatedAttachments array in message")
+        }
+
+        var results = [AllocatedAttachment]()
+        let decoder = JSONDecoder()
+
+        let arrayCount = xpc_array_get_count(attachmentArray)
+
+        for i in 0..<arrayCount {
+            guard let allocatedAttach = xpc_array_get_dictionary(attachmentArray, i) else {
+                throw ContainerizationError(.invalidArgument, message: "invalid allocated attachment at index \(i)")
+            }
+
+            let allocatedAttachXPC = XPCMessage(object: allocatedAttach)
+
+            let attachmentData = allocatedAttachXPC.dataNoCopy(key: SandboxKeys.networkAttachment.rawValue)
+            let pluginInfoData = allocatedAttachXPC.dataNoCopy(key: SandboxKeys.networkPluginInfo.rawValue)
+
+            guard let attachmentData = attachmentData, let pluginInfoData = pluginInfoData else {
+                throw ContainerizationError(.invalidArgument, message: "must have attachment and plugin information for network")
+            }
+
+            let attachment = try decoder.decode(Attachment.self, from: attachmentData)
+            let pluginInfo = try decoder.decode(NetworkPluginInfo.self, from: pluginInfoData)
+
+            let additionalDataXPC: XPCMessage? = {
+                if let rawData = xpc_dictionary_get_dictionary(allocatedAttachXPC.underlying, SandboxKeys.networkAdditionalData.rawValue) {
+                    return XPCMessage(object: rawData)
+                }
+                return nil
+            }()
+
+            results.append(
+                AllocatedAttachment(
+                    attachment: attachment,
+                    additionalData: additionalDataXPC,
+                    pluginInfo: pluginInfo
+                ))
+        }
+        return results
     }
 }
 
@@ -1224,7 +1263,7 @@ extension FileHandle: @retroactive ReaderStream, @retroactive Writer {
     }
 }
 
-// MARK: State handler helpers
+// MARK: State handler and bundle creation helpers
 
 extension SandboxService {
     private func addWaiter(id: String, cont: CheckedContinuation<ExitStatus, Never>) {
@@ -1298,5 +1337,39 @@ extension SandboxService {
 
     func setState(_ new: State) {
         self.state = new
+    }
+
+    /// Check if a bundle exists at the given path
+    private func bundleExists(at path: URL) -> Bool {
+        guard FileManager.default.fileExists(atPath: path.path) else {
+            return false
+        }
+
+        let bundle = ContainerResource.Bundle(path: path)
+        do {
+            _ = try bundle.configuration
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// Create bundle from RuntimeConfiguration
+    private func createBundle() throws {
+        do {
+            let runtimeConfig = try RuntimeConfiguration.readRuntimeConfiguration(from: self.root)
+            _ = try ContainerResource.Bundle.create(
+                path: runtimeConfig.path,
+                initialFilesystem: runtimeConfig.initialFilesystem,
+                kernel: runtimeConfig.kernel,
+                containerConfiguration: runtimeConfig.containerConfiguration,
+                containerRootFilesystem: runtimeConfig.containerRootFilesystem,
+                options: runtimeConfig.options
+            )
+            self.log.info("Created bundle from runtime configuration at \(runtimeConfig.path)")
+        } catch {
+            self.log.error("Failed to create bundle \(error)")
+            throw error
+        }
     }
 }

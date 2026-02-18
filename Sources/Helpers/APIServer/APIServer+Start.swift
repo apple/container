@@ -67,6 +67,7 @@ extension APIServer {
                     log: log,
                     routes: &routes
                 )
+                await containersService.setNetworksService(networkService)
                 initializeHealthCheckService(log: log, routes: &routes)
                 try initializeKernelService(log: log, routes: &routes)
                 let volumesService = try initializeVolumeService(containersService: containersService, log: log, routes: &routes)
@@ -109,10 +110,11 @@ extension APIServer {
                     }
 
                     // start up realhost DNS
+                    /*
                     group.addTask {
                         let localhostResolver = LocalhostDNSHandler(log: log)
                         try localhostResolver.monitorResolvers()
-
+                    
                         let nxDomainResolver = NxDomainResolver()
                         let compositeResolver = CompositeResolver(handlers: [localhostResolver, nxDomainResolver])
                         let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
@@ -126,6 +128,7 @@ extension APIServer {
                         )
                         try await dnsServer.run(host: Self.listenAddress, port: Self.localhostDNSPort)
                     }
+                    */
                 }
             } catch {
                 log.error("\(commandName) failed", metadata: ["error": "\(error)"])
@@ -267,10 +270,12 @@ extension APIServer {
                 .filter { $0.isBuiltin }
                 .first
             if defaultNetwork == nil {
+                // FIXME: default network should be configurable elsewhere
                 let config = try NetworkConfiguration(
                     id: ClientNetwork.defaultNetworkName,
                     mode: .nat,
-                    labels: [ResourceLabelKeys.role: ResourceRoleValues.builtin]
+                    labels: [ResourceLabelKeys.role: ResourceRoleValues.builtin],
+                    pluginInfo: NetworkPluginInfo(plugin: "container-network-vmnet")
                 )
                 _ = try await service.create(configuration: config)
             }

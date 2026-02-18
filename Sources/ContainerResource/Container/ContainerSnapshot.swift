@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationOCI
 import Foundation
 
 /// A snapshot of a container along with its configuration
@@ -21,6 +22,17 @@ import Foundation
 public struct ContainerSnapshot: Codable, Sendable {
     /// The configuration of the container.
     public var configuration: ContainerConfiguration
+
+    /// Identifier of the container.
+    public var id: String {
+        configuration.id
+    }
+
+    /// Configured platform for the container.
+    public var platform: ContainerizationOCI.Platform {
+        configuration.platform
+    }
+
     /// The runtime status of the container.
     public var status: RuntimeStatus
     /// Network interfaces attached to the sandbox that are provided to the container.

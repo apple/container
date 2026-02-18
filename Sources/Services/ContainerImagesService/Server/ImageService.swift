@@ -128,10 +128,10 @@ public actor ImagesService {
         return (images, rejectedMembers)
     }
 
-    public func cleanupOrphanedBlobs() async throws -> ([String], UInt64) {
+    public func cleanUpOrphanedBlobs() async throws -> ([String], UInt64) {
         let images = try await self._list()
         let freedSnapshotBytes = try await self.snapshotStore.clean(keepingSnapshotsFor: images)
-        let (deleted, freedContentBytes) = try await self.imageStore.cleanupOrphanedBlobs()
+        let (deleted, freedContentBytes) = try await self.imageStore.cleanUpOrphanedBlobs()
         return (deleted, freedContentBytes + freedSnapshotBytes)
     }
 
@@ -223,9 +223,9 @@ extension ImagesService {
         if let authentication {
             return try await body(authentication)
         }
-        let keychain = KeychainHelper(id: Constants.keychainID)
+        let keychain = KeychainHelper(securityDomain: Constants.keychainID)
         do {
-            authentication = try keychain.lookup(domain: host)
+            authentication = try keychain.lookup(hostname: host)
         } catch let err as KeychainHelper.Error {
             guard case .keyNotFound = err else {
                 throw ContainerizationError(.internalError, message: "error querying keychain for \(host)", cause: err)

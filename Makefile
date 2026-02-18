@@ -145,7 +145,7 @@ test:
 .PHONY: install-kernel
 install-kernel:
 	@bin/container system stop || true
-	@bin/container system start --enable-kernel-install $(SYSTEM_START_OPTS)
+	@bin/container system start --timeout 60 --enable-kernel-install $(SYSTEM_START_OPTS)
 
 .PHONY: coverage
 coverage: init-block
@@ -176,7 +176,7 @@ integration: init-block
 	@echo Ensuring apiserver stopped before the CLI integration tests...
 	@bin/container system stop && sleep 3 && scripts/ensure-container-stopped.sh
 	@echo Running the integration tests...
-	@bin/container system start $(SYSTEM_START_OPTS) && \
+	@bin/container system start --timeout 60 $(SYSTEM_START_OPTS) && \
 	echo "Starting CLI integration tests" && \
 	{ \
 		exit_code=0; \
@@ -188,9 +188,11 @@ integration: init-block
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunCommand2 || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunCommand3 || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIPruneCommand || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRegistry || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIStatsCommand || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIImagesCommand || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunBase || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunInitImage || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIBuildBase || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIVolumes || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIKernelSet || exit_code=1 ; \

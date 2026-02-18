@@ -35,8 +35,8 @@ extension Application {
 
         public func run() async throws {
             do {
-                let container = try await ClientContainer.get(id: "buildkit")
-                try await container.stop()
+                let client = ContainerClient()
+                try await client.stop(id: "buildkit")
             } catch {
                 if error is ContainerizationError {
                     if (error as? ContainerizationError)?.code == .notFound {

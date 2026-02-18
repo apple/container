@@ -82,7 +82,9 @@ extension Bundle {
         path: URL,
         initialFilesystem: Filesystem,
         kernel: Kernel,
-        containerConfiguration: ContainerConfiguration? = nil
+        containerConfiguration: ContainerConfiguration? = nil,
+        containerRootFilesystem: Filesystem? = nil,
+        options: ContainerCreateOptions? = nil
     ) throws -> Bundle {
         try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true)
         let kbin = path.appendingPathComponent(Self.kernelBinaryFilename)
@@ -106,6 +108,15 @@ extension Bundle {
         let bundle = Bundle(path: path)
         if let containerConfiguration {
             try bundle.write(filename: Self.containerConfigFilename, value: containerConfiguration)
+        }
+
+        if let containerRootFilesystem {
+            let readonly = containerConfiguration?.readOnly ?? false
+            try bundle.setContainerRootFs(cloning: containerRootFilesystem, readonly: readonly)
+        }
+
+        if let options {
+            try bundle.write(filename: "options.json", value: options)
         }
         return bundle
     }

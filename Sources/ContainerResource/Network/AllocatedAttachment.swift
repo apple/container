@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025-2026 Apple Inc. and the container project authors.
+// Copyright © 2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,17 +14,19 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerAPIClient
-import ContainerResource
-import Containerization
-import ContainerizationError
-import ContainerizationOS
-import Foundation
+import ContainerXPC
 
-extension Application {
-    static func ensureRunning(container: ContainerSnapshot) throws {
-        if container.status != .running {
-            throw ContainerizationError(.invalidState, message: "container \(container.id) is not running")
-        }
+/// AllocatedAttachment represents a network attachment that has been allocated for use
+/// by a container and any additional relevant data needed for a sandbox to properly
+/// configure networking on container bootstrap.
+public struct AllocatedAttachment: Sendable {
+    public let attachment: Attachment
+    public let additionalData: XPCMessage?
+    public let pluginInfo: NetworkPluginInfo
+
+    public init(attachment: Attachment, additionalData: XPCMessage?, pluginInfo: NetworkPluginInfo) {
+        self.attachment = attachment
+        self.additionalData = additionalData
+        self.pluginInfo = pluginInfo
     }
 }

@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025-2026 Apple Inc. and the container project authors.
+// Copyright © 2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -106,6 +106,9 @@ public enum XPCKeys: String {
     case systemPlatform
     case kernelForce
 
+    /// Init image reference
+    case initImage
+
     /// Volume
     case volume
     case volumes
@@ -120,6 +123,9 @@ public enum XPCKeys: String {
     /// Container statistics
     case statistics
     case containerSize
+
+    /// Container list filters
+    case listFilters
 
     /// Disk usage
     case diskUsageStats

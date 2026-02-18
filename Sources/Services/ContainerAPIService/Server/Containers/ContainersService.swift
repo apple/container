@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025-2026 Apple Inc. and the container project authors.
+// Copyright © 2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ public actor ContainersService {
     struct ContainerState {
         var snapshot: ContainerSnapshot
         var client: SandboxClient?
+        var allocatedAttachments: [AllocatedAttachment]
 
         func getClient() throws -> SandboxClient {
             guard let client else {
@@ -57,6 +58,9 @@ public actor ContainersService {
     private let lock = AsyncLock()
     private var containers: [String: ContainerState]
 
+    // FIXME: Find a better mechanism for services running on the APIServer to work with each other
+    private weak var networksService: NetworksService?
+
     public init(appRoot: URL, pluginLoader: PluginLoader, log: Logger) throws {
         let containerRoot = appRoot.appendingPathComponent("containers")
         try FileManager.default.createDirectory(at: containerRoot, withIntermediateDirectories: true)
@@ -66,6 +70,10 @@ public actor ContainersService {
         self.log = log
         self.runtimePlugins = pluginLoader.findPlugins().filter { $0.hasType(.runtime) }
         self.containers = try Self.loadAtBoot(root: containerRoot, loader: pluginLoader, log: log)
+    }
+
+    public func setNetworksService(_ service: NetworksService) async {
+        self.networksService = service
     }
 
     static func loadAtBoot(root: URL, loader: PluginLoader, log: Logger) throws -> [String: ContainerState] {
@@ -81,15 +89,16 @@ public actor ContainersService {
         var results = [String: ContainerState]()
         for dir in directories {
             do {
-                let bundle = ContainerResource.Bundle(path: dir)
-                let config = try bundle.configuration
+                let config = try Self.getContainerConfiguration(at: dir)
+
                 let state = ContainerState(
                     snapshot: .init(
                         configuration: config,
                         status: .stopped,
                         networks: [],
                         startedDate: nil
-                    )
+                    ),
+                    allocatedAttachments: []
                 )
                 results[config.id] = state
                 guard runtimePlugins.first(where: { $0.name == config.runtimeHandler }) != nil else {
@@ -100,16 +109,39 @@ public actor ContainersService {
                 }
             } catch {
                 try? FileManager.default.removeItem(at: dir)
-                log.warning("failed to load container bundle at \(dir.path)")
+                log.warning("failed to load container at \(dir.path): \(error)")
             }
         }
         return results
     }
 
-    /// List all containers registered with the service.
-    public func list() async throws -> [ContainerSnapshot] {
+    /// List containers matching the given filters.
+    public func list(filters: ContainerListFilters = .all) async throws -> [ContainerSnapshot] {
         self.log.debug("\(#function)")
-        return self.containers.values.map { $0.snapshot }
+
+        return self.containers.values.compactMap { state -> ContainerSnapshot? in
+            let snapshot = state.snapshot
+
+            if !filters.ids.isEmpty {
+                guard filters.ids.contains(snapshot.id) else {
+                    return nil
+                }
+            }
+
+            if let status = filters.status {
+                guard snapshot.status == status else {
+                    return nil
+                }
+            }
+
+            for (key, value) in filters.labels {
+                guard snapshot.configuration.labels[key] == value else {
+                    return nil
+                }
+            }
+
+            return snapshot
+        }
     }
 
     /// Execute an operation with the current container list while maintaining atomicity
@@ -192,7 +224,7 @@ public actor ContainersService {
     }
 
     /// Create a new container from the provided id and configuration.
-    public func create(configuration: ContainerConfiguration, kernel: Kernel, options: ContainerCreateOptions) async throws {
+    public func create(configuration: ContainerConfiguration, kernel: Kernel, options: ContainerCreateOptions, initImage: String? = nil) async throws {
         self.log.debug("\(#function)")
 
         try await self.lock.withLock { context in
@@ -231,21 +263,42 @@ public actor ContainersService {
                 )
             }
 
+            // Protect against a user providing a memory amount that will cause us to not be able
+            // to boot. We can go lower, but this is a somewhat safe threshold. Containerization
+            // also gives a little bit extra than the user asked for to account for guest agent overhead.
+            //
+            // NOTE: We could potentially leave this validation to the sandbox service(s), as
+            // it's possible there could be an implementation that can get away with a lower
+            // amount and be perfectly safe.
+            let minimumMemory: UInt64 = 200.mib()
+            guard configuration.resources.memoryInBytes >= minimumMemory else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "minimum memory amount allowed is 200 MiB (got \(configuration.resources.memoryInBytes) bytes)"
+                )
+            }
+
             let path = self.containerRoot.appendingPathComponent(configuration.id)
             let systemPlatform = kernel.platform
-            let initFs = try await self.getInitBlock(for: systemPlatform.ociPlatform())
 
-            let bundle = try ContainerResource.Bundle.create(
-                path: path,
-                initialFilesystem: initFs,
-                kernel: kernel,
-                containerConfiguration: configuration
-            )
+            // Fetch init image (custom or default)
+            self.log.info("Using init image: \(initImage ?? ClientImage.initImageRef)")
+            let initFilesystem = try await self.getInitBlock(for: systemPlatform.ociPlatform(), imageRef: initImage)
+
             do {
                 let containerImage = ClientImage(description: configuration.image)
                 let imageFs = try await containerImage.getCreateSnapshot(platform: configuration.platform)
-                try bundle.setContainerRootFs(cloning: imageFs, readonly: configuration.readOnly)
-                try bundle.write(filename: "options.json", value: options)
+
+                let runtimeConfig = RuntimeConfiguration(
+                    path: path,
+                    initialFilesystem: initFilesystem,
+                    kernel: kernel,
+                    containerConfiguration: configuration,
+                    containerRootFilesystem: imageFs,
+                    options: options
+                )
+
+                try runtimeConfig.writeRuntimeConfiguration()
 
                 let snapshot = ContainerSnapshot(
                     configuration: configuration,
@@ -253,13 +306,8 @@ public actor ContainersService {
                     networks: [],
                     startedDate: nil
                 )
-                await self.setContainerState(configuration.id, ContainerState(snapshot: snapshot), context: context)
+                await self.setContainerState(configuration.id, ContainerState(snapshot: snapshot, allocatedAttachments: []), context: context)
             } catch {
-                do {
-                    try bundle.delete()
-                } catch {
-                    self.log.error("failed to delete bundle for container \(configuration.id): \(error)")
-                }
                 throw error
             }
         }
@@ -279,10 +327,22 @@ public actor ContainersService {
             }
 
             let path = self.containerRoot.appendingPathComponent(id)
-            let bundle = ContainerResource.Bundle(path: path)
-            let config = try bundle.configuration
+            let config = try Self.getContainerConfiguration(at: path)
 
+            var allocatedAttachments = [AllocatedAttachment]()
             do {
+                for n in config.networks {
+                    let allocatedAttach = try await self.networksService?.allocate(
+                        id: n.network,
+                        hostname: n.options.hostname,
+                        macAddress: n.options.macAddress
+                    )
+                    guard let allocatedAttach = allocatedAttach else {
+                        throw ContainerizationError(.internalError, message: "failed to allocate a network")
+                    }
+                    allocatedAttachments.append(allocatedAttach)
+                }
+
                 try Self.registerService(
                     plugin: self.runtimePlugins.first { $0.name == config.runtimeHandler }!,
                     loader: self.pluginLoader,
@@ -295,7 +355,7 @@ public actor ContainersService {
                     id: id,
                     runtime: runtime
                 )
-                try await sandboxClient.bootstrap(stdio: stdio)
+                try await sandboxClient.bootstrap(stdio: stdio, allocatedAttachments: allocatedAttachments)
 
                 try await self.exitMonitor.registerProcess(
                     id: id,
@@ -303,8 +363,17 @@ public actor ContainersService {
                 )
 
                 state.client = sandboxClient
+                state.allocatedAttachments = allocatedAttachments
                 await self.setContainerState(id, state, context: context)
             } catch {
+                for allocatedAttach in allocatedAttachments {
+                    do {
+                        try await self.networksService?.deallocate(attachment: allocatedAttach.attachment)
+                    } catch {
+                        self.log.error("failed to deallocate network attachment in \(id) for \(allocatedAttach.attachment.network): \(error)")
+                    }
+                }
+
                 let label = Self.fullLaunchdServiceLabel(
                     runtimeName: config.runtimeHandler,
                     instanceId: id
@@ -446,8 +515,11 @@ public actor ContainersService {
         self.log.debug("\(#function)")
 
         // Logs doesn't care if the container is running or not, just that
-        // the bundle is there, and that the files actually exist.
+        // the bundle is there, and that the files actually exist. We do
+        // first try and get the container state so we get a nicer error message
+        // (container foo not found) however.
         do {
+            _ = try _getContainerState(id: id)
             let path = self.containerRoot.appendingPathComponent(id)
             let bundle = ContainerResource.Bundle(path: path)
             return [
@@ -490,7 +562,7 @@ public actor ContainersService {
             let client = try state.getClient()
             try await client.stop(options: opts)
             try await self.lock.withLock { context in
-                try await self.cleanup(id: id, context: context)
+                try await self.cleanUp(id: id, context: context)
             }
         case .stopping:
             throw ContainerizationError(
@@ -499,7 +571,7 @@ public actor ContainersService {
             )
         default:
             try await self.lock.withLock { context in
-                try await self.cleanup(id: id, context: context)
+                try await self.cleanUp(id: id, context: context)
             }
         }
     }
@@ -568,14 +640,26 @@ public actor ContainersService {
             self.log.error("Failed to deregister sandbox service for \(id): \(error)")
         }
 
+        // Best effort deallocate network attachments for the container. Don't throw on
+        // failure so we can continue with state cleanup.
+        self.log.info("Deallocating network attachments for \(id)")
+        for allocatedAttach in state.allocatedAttachments {
+            do {
+                try await self.networksService?.deallocate(attachment: allocatedAttach.attachment)
+            } catch {
+                self.log.error("failed to deallocate network attachment in \(id) for \(allocatedAttach.attachment.network): \(error)")
+            }
+        }
+
         state.snapshot.status = .stopped
         state.snapshot.networks = []
         state.client = nil
+        state.allocatedAttachments = []
         await self.setContainerState(id, state, context: context)
 
         let options = try getContainerCreationOptions(id: id)
         if options.autoRemove {
-            try await self.cleanup(id: id, context: context)
+            try await self.cleanUp(id: id, context: context)
         }
     }
 
@@ -583,7 +667,7 @@ public actor ContainersService {
         "\(Self.launchdDomainString)/\(Self.machServicePrefix).\(runtimeName).\(instanceId)"
     }
 
-    private func _cleanup(id: String) async throws {
+    private func _cleanUp(id: String) async throws {
         self.log.debug("\(#function)")
 
         // Did the exit container handler win?
@@ -596,20 +680,40 @@ public actor ContainersService {
         // the OCI runtime.
         await self.exitMonitor.stopTracking(id: id)
         let path = self.containerRoot.appendingPathComponent(id)
-        let bundle = ContainerResource.Bundle(path: path)
-        let config = try bundle.configuration
 
-        let label = Self.fullLaunchdServiceLabel(
-            runtimeName: config.runtimeHandler,
-            instanceId: id
-        )
-        try ServiceManager.deregister(fullServiceLabel: label)
-        try bundle.delete()
+        // Try to get config for service deregistration
+        // Don't fail if bundle is incomplete
+        var config: ContainerConfiguration?
+        let bundle = ContainerResource.Bundle(path: path)
+        do {
+            config = try bundle.configuration
+        } catch {
+            self.log.warning("Unable to read bundle configuration during cleanup for container \(id): \(error)")
+        }
+
+        // Only try to deregister service if we have a valid config
+        // TODO: Change this so we don't have to reread the config
+        // possibly store the container ID to service label mapping
+        if let config = config {
+            let label = Self.fullLaunchdServiceLabel(
+                runtimeName: config.runtimeHandler,
+                instanceId: id
+            )
+            try? ServiceManager.deregister(fullServiceLabel: label)
+        }
+
+        // Always try to delete the bundle directory, even if it's incomplete
+        do {
+            try bundle.delete()
+        } catch {
+            self.log.warning("Failed to delete bundle for container \(id): \(error)")
+        }
+
         self.containers.removeValue(forKey: id)
     }
 
-    private func cleanup(id: String, context: AsyncLock.Context) async throws {
-        try await self._cleanup(id: id)
+    private func cleanUp(id: String, context: AsyncLock.Context) async throws {
+        try await self._cleanUp(id: id)
     }
 
     private func getContainerCreationOptions(id: String) throws -> ContainerCreateOptions {
@@ -619,8 +723,9 @@ public actor ContainersService {
         return options
     }
 
-    private func getInitBlock(for platform: Platform) async throws -> Filesystem {
-        let initImage = try await ClientImage.fetch(reference: ClientImage.initImageRef, platform: platform)
+    private func getInitBlock(for platform: Platform, imageRef: String? = nil) async throws -> Filesystem {
+        let ref = imageRef ?? ClientImage.initImageRef
+        let initImage = try await ClientImage.fetch(reference: ref, platform: platform)
         var fs = try await initImage.getCreateSnapshot(platform: platform)
         fs.options = ["ro"]
         return fs
@@ -667,6 +772,22 @@ public actor ContainersService {
 
     private static func isInitProcess(id: String, processID: String) -> Bool {
         id == processID
+    }
+
+    /// Get container configuration, either from existing bundle or from RuntimeConfiguration
+    private static func getContainerConfiguration(at path: URL) throws -> ContainerConfiguration {
+        let bundle = ContainerResource.Bundle(path: path)
+        do {
+            return try bundle.configuration
+        } catch {
+            // Bundle doesn't exist or incomplete, try runtime configuration
+            // This handles containers that were created but not started yet
+            let runtimeConfig = try RuntimeConfiguration.readRuntimeConfiguration(from: path)
+            guard let config = runtimeConfig.containerConfiguration else {
+                throw ContainerizationError(.internalError, message: "runtime configuration missing container configuration")
+            }
+            return config
+        }
     }
 }
 

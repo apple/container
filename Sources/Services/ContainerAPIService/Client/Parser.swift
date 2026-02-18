@@ -316,18 +316,18 @@ public struct Parser {
         return result
     }
 
-    public static func mounts(_ rawMounts: [String]) throws -> [VolumeOrFilesystem] {
+    public static func mounts(_ rawMounts: [String], relativeTo basePath: URL? = nil) throws -> [VolumeOrFilesystem] {
         var mounts: [VolumeOrFilesystem] = []
         let rawMounts = rawMounts.dedupe()
         for mount in rawMounts {
-            let m = try Parser.mount(mount)
+            let m = try Parser.mount(mount, relativeTo: basePath)
             try validateMount(m)
             mounts.append(m)
         }
         return mounts
     }
 
-    public static func mount(_ mount: String) throws -> VolumeOrFilesystem {
+    public static func mount(_ mount: String, relativeTo basePath: URL? = nil) throws -> VolumeOrFilesystem {
         let parts = mount.split(separator: ",")
         if parts.count == 0 {
             throw ContainerizationError(.invalidArgument, message: "invalid mount format: \(mount)")
@@ -407,7 +407,7 @@ public struct Parser {
                 switch type {
                 case "virtiofs", "bind":
                     // For bind mounts, resolve both absolute and relative paths
-                    let url = URL(filePath: val)
+                    let url = basePath?.appending(path: val).standardizedFileURL ?? URL(filePath: val)
                     let absolutePath = url.absoluteURL.path
 
                     var isDirectory: ObjCBool = false
@@ -458,17 +458,17 @@ public struct Parser {
             ))
     }
 
-    public static func volumes(_ rawVolumes: [String]) throws -> [VolumeOrFilesystem] {
+    public static func volumes(_ rawVolumes: [String], relativeTo basePath: URL? = nil) throws -> [VolumeOrFilesystem] {
         var mounts: [VolumeOrFilesystem] = []
         for volume in rawVolumes {
-            let m = try Parser.volume(volume)
+            let m = try Parser.volume(volume, relativeTo: basePath)
             try Parser.validateMount(m)
             mounts.append(m)
         }
         return mounts
     }
 
-    public static func volume(_ volume: String) throws -> VolumeOrFilesystem {
+    public static func volume(_ volume: String, relativeTo basePath: URL? = nil) throws -> VolumeOrFilesystem {
         var vol = volume
         vol.trimLeft(char: ":")
 
@@ -508,7 +508,7 @@ public struct Parser {
                         options: options
                     ))
             }
-            let url = URL(filePath: src)
+            let url = basePath?.appending(path: src).standardizedFileURL ?? URL(filePath: src)
             let absolutePath = url.absoluteURL.path
 
             var isDirectory: ObjCBool = false
