@@ -60,19 +60,20 @@ extension RuntimeLinuxHelper {
                 try adjustLimits()
                 signal(SIGPIPE, SIG_IGN)
 
-                log.info("configuring XPC server")
-                let interfaceStrategy: any InterfaceStrategy
+                // FIXME: The network plugins that the runtime supports should be configurable elsewhere
+                var interfaceStrategies: [NetworkPluginInfo: InterfaceStrategy] = [
+                    NetworkPluginInfo(plugin: "container-network-vmnet", variant: "allocationOnly"): IsolatedInterfaceStrategy()
+                ]
                 if #available(macOS 26, *) {
-                    interfaceStrategy = NonisolatedInterfaceStrategy(log: log)
-                } else {
-                    interfaceStrategy = IsolatedInterfaceStrategy()
+                    interfaceStrategies[NetworkPluginInfo(plugin: "container-network-vmnet", variant: "reserved")] = NonisolatedInterfaceStrategy(log: log)
                 }
 
+                log.info("configuring XPC server")
                 nonisolated(unsafe) let anonymousConnection = xpc_connection_create(nil, nil)
 
                 let server = SandboxService(
                     root: .init(fileURLWithPath: root),
-                    interfaceStrategy: interfaceStrategy,
+                    interfaceStrategies: interfaceStrategies,
                     eventLoopGroup: eventLoopGroup,
                     connection: anonymousConnection,
                     log: log
