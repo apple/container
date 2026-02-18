@@ -305,7 +305,7 @@ container delete [--all] [--force] [--debug] [<container-ids> ...]
 *   `-a, --all`: Delete all containers
 *   `-f, --force`: Delete containers even if they are running
 
-### `container list (ls)`
+### `container list (ls/ps)`
 
 Lists containers. By default only running containers are shown. Output can be formatted as a table or JSON.
 
