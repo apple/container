@@ -28,16 +28,16 @@ extension Application {
             case container(id: String, path: String)
         }
 
-        static func parsePathRef(_ ref: String) -> PathRef {
+        static func parsePathRef(_ ref: String) throws -> PathRef {
             let parts = ref.components(separatedBy: ":")
-            if parts.count == 2 {
-                let id = parts[0]
-                let path = parts[1]
-                if !id.isEmpty && !path.isEmpty {
-                    return .container(id: id, path: path)
-                }
+            switch parts.count {
+            case 1:
+                return .local(ref)
+            case 2 where !parts[0].isEmpty && parts[1].starts(with: "/"):
+                return .container(id: parts[0], path: parts[1])
+            default:
+                throw ContainerizationError(.invalidArgument, message: "invalid path given: \(ref)")
             }
-            return .local(ref)
         }
 
         public init() {}
@@ -58,17 +58,32 @@ extension Application {
 
         public func run() async throws {
             let client = ContainerClient()
-            let srcRef = Self.parsePathRef(source)
-            let dstRef = Self.parsePathRef(destination)
+            let srcRef = try Self.parsePathRef(source)
+            let dstRef = try Self.parsePathRef(destination)
 
             switch (srcRef, dstRef) {
             case (.container(let id, let path), .local(let localPath)):
                 let srcURL = URL(fileURLWithPath: path)
-                let localDest = localPath.hasSuffix("/") ? localPath + srcURL.lastPathComponent : localPath
-                let destURL = URL(fileURLWithPath: localDest).standardizedFileURL
-                try await client.copyOut(id: id, source: srcURL, destination: destURL)
+                let destURL = URL(fileURLWithPath: localPath).standardizedFileURL
+                var isDirectory: ObjCBool = false
+                let exists = FileManager.default.fileExists(atPath: destURL.path, isDirectory: &isDirectory)
+                if localPath.hasSuffix("/") {
+                    guard exists && isDirectory.boolValue else {
+                        throw ContainerizationError(.invalidArgument, message: "destination path is not a directory: \(localPath)")
+                    }
+                }
+                let appendFilename = localPath.hasSuffix("/") || (exists && isDirectory.boolValue)
+                let finalDestURL = appendFilename ? destURL.appendingPathComponent(srcURL.lastPathComponent) : destURL
+                try await client.copyOut(id: id, source: srcURL, destination: finalDestURL)
             case (.local(let localPath), .container(let id, let path)):
                 let srcURL = URL(fileURLWithPath: localPath).standardizedFileURL
+                var isDirectory: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: srcURL.path, isDirectory: &isDirectory) else {
+                    throw ContainerizationError(.notFound, message: "source path does not exist: \(localPath)")
+                }
+                if localPath.hasSuffix("/") && !isDirectory.boolValue {
+                    throw ContainerizationError(.invalidArgument, message: "source path is not a directory: \(localPath)")
+                }
                 let containerDest = path.hasSuffix("/") ? path + srcURL.lastPathComponent : path
                 let destURL = URL(fileURLWithPath: containerDest)
                 try await client.copyIn(id: id, source: srcURL, destination: destURL)
