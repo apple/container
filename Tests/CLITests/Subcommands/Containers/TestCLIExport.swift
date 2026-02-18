@@ -26,11 +26,21 @@ class TestCLIExportCommand: CLITest {
         let name = getTestName()
         try doLongRun(name: name, autoRemove: false)
         defer {
+            try? doStop(name: name)
             try? doRemove(name: name)
         }
 
         let mustBeInImage = "must-be-in-image"
         _ = try doExec(name: name, cmd: ["sh", "-c", "echo \(mustBeInImage) > /foo"])
+
+        _ = try doExec(name: name, cmd: ["sh", "-c", "mkdir -p /parent/child"])
+        let hardlinkMustRemain = "hardlink-must-remain"
+        _ = try doExec(name: name, cmd: ["sh", "-c", "echo \(hardlinkMustRemain) > /parent/child/bar"])
+        _ = try doExec(name: name, cmd: ["sh", "-c", "ln /parent/child/bar /bar"])
+
+        let symlinkMustRemain = "symlink-must-remain"
+        _ = try doExec(name: name, cmd: ["sh", "-c", "echo \(symlinkMustRemain) > /parent/child/baz"])
+        _ = try doExec(name: name, cmd: ["sh", "-c", "ln /parent/child/baz /baz"])
 
         try doStop(name: name)
         try doExport(name: name, image: name)
@@ -46,5 +56,11 @@ class TestCLIExportCommand: CLITest {
 
         let foo = try doExec(name: exported, cmd: ["cat", "/foo"])
         #expect(foo == mustBeInImage + "\n")
+
+        let bar = try doExec(name: exported, cmd: ["cat", "/bar"])
+        #expect(bar == hardlinkMustRemain + "\n")
+
+        let baz = try doExec(name: exported, cmd: ["cat", "/baz"])
+        #expect(baz == symlinkMustRemain + "\n")
     }
 }
