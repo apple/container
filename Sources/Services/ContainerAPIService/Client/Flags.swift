@@ -17,8 +17,10 @@
 import ArgumentParser
 import ContainerizationError
 import Foundation
+import HelperMacros
 
 public struct Flags {
+    @OptionGroupPassthrough
     public struct Logging: ParsableArguments {
         public init() {}
 
@@ -30,6 +32,7 @@ public struct Flags {
         public var debug = false
     }
 
+    @OptionGroupPassthrough
     public struct Process: ParsableArguments {
         public init() {}
 
@@ -98,6 +101,7 @@ public struct Flags {
         public var ulimits: [String] = []
     }
 
+    @OptionGroupPassthrough
     public struct Resource: ParsableArguments {
         public init() {}
 
@@ -116,6 +120,7 @@ public struct Flags {
         public var memory: String?
     }
 
+    @OptionGroupPassthrough
     public struct DNS: ParsableArguments {
         public init() {}
 
@@ -151,6 +156,7 @@ public struct Flags {
         public var searchDomains: [String] = []
     }
 
+    @OptionGroupPassthrough
     public struct Registry: ParsableArguments {
         public init() {}
 
@@ -162,6 +168,7 @@ public struct Flags {
         public var scheme: String = "auto"
     }
 
+    @OptionGroupPassthrough
     public struct Management: ParsableArguments {
         public init() {}
 
@@ -322,6 +329,7 @@ public struct Flags {
         public var runtime: String?
     }
 
+    @OptionGroupPassthrough
     public struct Progress: ParsableArguments {
         public init() {}
 
@@ -338,6 +346,7 @@ public struct Flags {
         public var progress: ProgressType = .ansi
     }
 
+    @OptionGroupPassthrough
     public struct ImageFetch: ParsableArguments {
         public init() {}
 
