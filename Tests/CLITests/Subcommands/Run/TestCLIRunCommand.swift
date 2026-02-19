@@ -841,7 +841,6 @@ class TestCLIRunCommand3: CLITest {
             try? doRemove(name: name, force: true)
         }
         #expect(status != 0, "Command should have failed")
-        print("TEST: \(error)")
         #expect(
             error.contains("Permission denied while binding to host port \(privilegedPort)"),
             "Error message should mention permission denied for the port. Got: \(error)"
