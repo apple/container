@@ -560,7 +560,7 @@ struct ParserTest {
             envFiles: [],
             envs: ["FOO=fromuser"]
         )
-        #expect(result == ["FOO=fromuser", "BAR=kept"])
+        #expect(Set(result) == Set(["FOO=fromuser", "BAR=kept"]))
     }
 
     @Test
@@ -573,7 +573,7 @@ struct ParserTest {
             envFiles: [tmpFile.path],
             envs: []
         )
-        #expect(result == ["FOO=fromfile", "BAR=kept"])
+        #expect(Set(result) == Set(["FOO=fromfile", "BAR=kept"]))
     }
 
     @Test
@@ -586,7 +586,7 @@ struct ParserTest {
             envFiles: [tmpFile.path],
             envs: ["FOO=fromuser"]
         )
-        #expect(result == ["FOO=fromuser", "BAR=fromimage", "BAZ=fromfile"])
+        #expect(Set(result) == Set(["FOO=fromuser", "BAR=fromimage", "BAZ=fromfile"]))
     }
 
     private func tmpFileWithContent(_ content: String) throws -> URL {

@@ -106,18 +106,12 @@ public struct Parser {
         }
         combined.append(contentsOf: Parser.env(envList: envs))
 
-        var seen = [String: Int]()
-        var output = [String]()
-        for entry in combined {
+        let deduped = combined.reduce(into: [String: String]()) { map, entry in
             let key = String(entry.split(separator: "=", maxSplits: 1).first ?? Substring(entry))
-            if let existing = seen[key] {
-                output[existing] = entry
-            } else {
-                seen[key] = output.count
-                output.append(entry)
-            }
+            map[key] = entry
         }
-        return output
+
+        return deduped.map { $0.value }
     }
 
     public static func envFile(path: String) throws -> [String] {
