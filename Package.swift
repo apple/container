@@ -23,7 +23,7 @@ import PackageDescription
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
 let builderShimVersion = "0.8.0"
-let scVersion = "0.25.0"
+let scVersion = "0.26.1"
 
 let package = Package(
     name: "container",
@@ -98,6 +98,7 @@ let package = Package(
                 "ContainerPlugin",
                 "ContainerResource",
                 "ContainerVersion",
+                "ContainerXPC",
                 "TerminalProgress",
             ],
             path: "Sources/ContainerCommands"
@@ -128,6 +129,7 @@ let package = Package(
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
+                .product(name: "ContainerizationEXT4", package: "containerization"),
                 .product(name: "GRPC", package: "grpc-swift"),
                 .product(name: "Logging", package: "swift-log"),
                 "ContainerAPIService",

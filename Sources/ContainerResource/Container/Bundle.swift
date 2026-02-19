@@ -38,7 +38,7 @@ public struct Bundle: Sendable {
         self.path.appendingPathComponent("vminitd.log")
     }
 
-    private var containerRootfsBlock: URL {
+    public var containerRootfsBlock: URL {
         self.path.appendingPathComponent(Self.containerRootFsBlockFilename)
     }
 

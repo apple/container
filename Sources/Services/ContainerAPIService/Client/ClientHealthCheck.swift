@@ -27,7 +27,7 @@ extension ClientHealthCheck {
         XPCClient(service: serviceIdentifier)
     }
 
-    public static func ping(timeout: Duration? = .seconds(5)) async throws -> SystemHealth {
+    public static func ping(timeout: Duration? = XPCClient.xpcRegistrationTimeout) async throws -> SystemHealth {
         let client = Self.newClient()
         let request = XPCMessage(route: .ping)
         let reply = try await client.send(request, responseTimeout: timeout)

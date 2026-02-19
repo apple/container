@@ -51,29 +51,112 @@ public actor VolumesService {
         driverOpts: [String: String] = [:],
         labels: [String: String] = [:]
     ) async throws -> Volume {
-        try await lock.withLock { _ in
+        log.debug(
+            "VolumesService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "name": "\(name)",
+            ]
+        )
+        defer {
+            log.debug(
+                "VolumesService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "name": "\(name)",
+                ]
+            )
+        }
+
+        return try await lock.withLock { _ in
             try await self._create(name: name, driver: driver, driverOpts: driverOpts, labels: labels)
         }
     }
 
     public func delete(name: String) async throws {
+        log.debug(
+            "VolumesService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "name": "\(name)",
+            ]
+        )
+        defer {
+            log.debug(
+                "VolumesService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "name": "\(name)",
+                ]
+            )
+        }
+
         try await lock.withLock { _ in
             try await self._delete(name: name)
         }
     }
 
     public func list() async throws -> [Volume] {
-        try await store.list()
+        log.debug(
+            "VolumesService: enter",
+            metadata: [
+                "func": "\(#function)"
+            ]
+        )
+        defer {
+            log.debug(
+                "VolumesService: exit",
+                metadata: [
+                    "func": "\(#function)"
+                ]
+            )
+        }
+
+        return try await store.list()
     }
 
     public func inspect(_ name: String) async throws -> Volume {
-        try await lock.withLock { _ in
+        log.debug(
+            "VolumesService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "name": "\(name)",
+            ]
+        )
+        defer {
+            log.debug(
+                "VolumesService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "name": "\(name)",
+                ]
+            )
+        }
+
+        return try await lock.withLock { _ in
             try await self._inspect(name)
         }
     }
 
     /// Calculate disk usage for a single volume
     public func volumeDiskUsage(name: String) async throws -> UInt64 {
+        log.debug(
+            "VolumesService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "name": "\(name)",
+            ]
+        )
+        defer {
+            log.debug(
+                "VolumesService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "name": "\(name)",
+                ]
+            )
+        }
+
         let volumePath = self.volumePath(for: name)
         return self.calculateDirectorySize(at: volumePath)
     }
@@ -81,11 +164,26 @@ public actor VolumesService {
     /// Calculate disk usage for volumes
     /// - Returns: Tuple of (total count, active count, total size, reclaimable size)
     public func calculateDiskUsage() async throws -> (Int, Int, UInt64, UInt64) {
-        try await lock.withLock { _ in
+        log.debug(
+            "VolumesService: enter",
+            metadata: [
+                "func": "\(#function)"
+            ]
+        )
+        defer {
+            log.debug(
+                "VolumesService: exit",
+                metadata: [
+                    "func": "\(#function)"
+                ]
+            )
+        }
+
+        return try await lock.withLock { _ in
             let allVolumes = try await self.store.list()
 
             // Atomically get active volumes with container list
-            return try await self.containersService.withContainerList { containers in
+            return try await self.containersService.withContainerList(logMetadata: ["acquirer": "\(#function)"]) { containers in
                 var inUseSet = Set<String>()
 
                 // Find all mounted volumes
@@ -239,7 +337,7 @@ public actor VolumesService {
 
         try await store.create(volume)
 
-        log.info("Created volume", metadata: ["name": "\(name)", "driver": "\(driver)", "isAnonymous": "\(volume.isAnonymous)"])
+        log.info("created volume", metadata: ["name": "\(name)", "driver": "\(driver)", "isAnonymous": "\(volume.isAnonymous)"])
         return volume
     }
 
@@ -255,7 +353,7 @@ public actor VolumesService {
         }
 
         // Check if volume is in use by any container atomically
-        try await containersService.withContainerList { containers in
+        try await containersService.withContainerList(logMetadata: ["acquirer": "\(#function)", "name": "\(name)"]) { containers in
             for container in containers {
                 for mount in container.configuration.mounts {
                     if mount.isVolume && mount.volumeName == name {
@@ -268,7 +366,7 @@ public actor VolumesService {
             try self.removeVolumeDirectory(for: name)
         }
 
-        log.info("Deleted volume", metadata: ["name": "\(name)"])
+        log.info("deleted volume", metadata: ["name": "\(name)"])
     }
 
     private func _inspect(_ name: String) async throws -> Volume {
