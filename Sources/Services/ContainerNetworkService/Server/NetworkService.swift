@@ -24,14 +24,14 @@ import Logging
 
 public actor NetworkService: Sendable {
     private let network: any Network
-    private let log: Logger?
+    private let log: Logger
     private var allocator: AttachmentAllocator
     private var macAddresses: [UInt32: MACAddress]
 
     /// Set up a network service for the specified network.
     public init(
         network: any Network,
-        log: Logger? = nil
+        log: Logger
     ) async throws {
         let state = await network.state
         guard case .running(_, let status) = state else {
@@ -57,6 +57,9 @@ public actor NetworkService: Sendable {
 
     @Sendable
     public func allocate(_ message: XPCMessage) async throws -> XPCMessage {
+        log.debug("enter", metadata: ["func": "\(#function)"])
+        defer { log.debug("exit", metadata: ["func": "\(#function)"]) }
+
         let state = await network.state
         guard case .running(_, let status) = state else {
             throw ContainerizationError(.invalidState, message: "invalid network state - network \(state.id) must be running")
@@ -79,7 +82,7 @@ public actor NetworkService: Sendable {
             ipv6Address: ipv6Address,
             macAddress: macAddress
         )
-        log?.info(
+        log.info(
             "allocated attachment",
             metadata: [
                 "hostname": "\(hostname)",
@@ -101,16 +104,22 @@ public actor NetworkService: Sendable {
 
     @Sendable
     public func deallocate(_ message: XPCMessage) async throws -> XPCMessage {
+        log.debug("enter", metadata: ["func": "\(#function)"])
+        defer { log.debug("exit", metadata: ["func": "\(#function)"]) }
+
         let hostname = try message.hostname()
         if let index = try await allocator.deallocate(hostname: hostname) {
             macAddresses.removeValue(forKey: index)
         }
-        log?.info("released attachments", metadata: ["hostname": "\(hostname)"])
+        log.info("released attachments", metadata: ["hostname": "\(hostname)"])
         return message.reply()
     }
 
     @Sendable
     public func lookup(_ message: XPCMessage) async throws -> XPCMessage {
+        log.debug("enter", metadata: ["func": "\(#function)"])
+        defer { log.debug("exit", metadata: ["func": "\(#function)"]) }
+
         let state = await network.state
         guard case .running(_, let status) = state else {
             throw ContainerizationError(.invalidState, message: "invalid network state - network \(state.id) must be running")
@@ -138,7 +147,7 @@ public actor NetworkService: Sendable {
             ipv6Address: ipv6Address,
             macAddress: macAddress
         )
-        log?.debug(
+        log.debug(
             "lookup attachment",
             metadata: [
                 "hostname": "\(hostname)",
@@ -150,8 +159,11 @@ public actor NetworkService: Sendable {
 
     @Sendable
     public func disableAllocator(_ message: XPCMessage) async throws -> XPCMessage {
+        log.debug("enter", metadata: ["func": "\(#function)"])
+        defer { log.debug("exit", metadata: ["func": "\(#function)"]) }
+
         let success = await allocator.disableAllocator()
-        log?.info("attempted allocator disable", metadata: ["success": "\(success)"])
+        log.info("attempted allocator disable", metadata: ["success": "\(success)"])
         let reply = message.reply()
         reply.setAllocatorDisabled(success)
         return reply

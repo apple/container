@@ -19,6 +19,13 @@ import ContainerizationError
 import Foundation
 
 public final class XPCClient: Sendable {
+    /// The maximum amount of time to wait for a request to a recently
+    /// registered XPC service. Once a service has launched, XPC
+    /// requests only have milliseconds of overhead, but in some instances,
+    /// macOS can take 5 seconds (or considerably longer) to launch a
+    /// service after it has been registered.
+    public static let xpcRegistrationTimeout: Duration = .seconds(60)
+
     private nonisolated(unsafe) let connection: xpc_connection_t
     private let q: DispatchQueue?
     private let service: String

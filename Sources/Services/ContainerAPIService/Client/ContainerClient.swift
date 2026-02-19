@@ -39,7 +39,7 @@ public struct ContainerClient: Sendable {
     @discardableResult
     private func xpcSend(
         message: XPCMessage,
-        timeout: Duration? = .seconds(15)
+        timeout: Duration? = XPCClient.xpcRegistrationTimeout
     ) async throws -> XPCMessage {
         try await xpcClient.send(message, responseTimeout: timeout)
     }

@@ -47,12 +47,11 @@ extension RuntimeLinuxHelper {
         }
 
         func run() async throws {
-            let commandName = Self._commandName
+            let commandName = RuntimeLinuxHelper._commandName
             let log = RuntimeLinuxHelper.setupLogger(debug: debug, metadata: ["uuid": "\(uuid)"])
-
-            log.info("starting \(commandName)")
+            log.info("starting helper", metadata: ["name": "\(commandName)"])
             defer {
-                log.info("stopping \(commandName)")
+                log.info("stopping helper", metadata: ["name": "\(commandName)"])
             }
 
             let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
@@ -118,7 +117,7 @@ extension RuntimeLinuxHelper {
                     _ = try await group.next()
                 }
             } catch {
-                log.error("\(commandName) failed", metadata: ["error": "\(error)"])
+                log.error("helper failed", metadata: ["name": "\(commandName)", "error": "\(error)"])
                 try? await eventLoopGroup.shutdownGracefully()
                 RuntimeLinuxHelper.Start.exit(withError: error)
             }

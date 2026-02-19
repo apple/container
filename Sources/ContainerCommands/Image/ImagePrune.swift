@@ -61,7 +61,12 @@ extension Application {
                     try await ClientImage.delete(reference: image.reference, garbageCollect: false)
                     prunedImages.append(image.reference)
                 } catch {
-                    log.error("Failed to prune image \(image.reference): \(error)")
+                    log.error(
+                        "failed to prune image",
+                        metadata: [
+                            "ref": "\(image.reference)",
+                            "error": "\(error)",
+                        ])
                 }
             }
 

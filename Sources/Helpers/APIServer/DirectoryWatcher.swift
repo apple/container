@@ -44,7 +44,7 @@ public class DirectoryWatcher {
             throw ContainerizationError(.invalidState, message: "failed to start watching on \(directoryURL.path)")
         }
 
-        log.info("starting directory watcher for \(directoryURL.path)")
+        log.info("starting directory watcher", metadata: ["path": "\(directoryURL.path)"])
 
         let descriptor = open(directoryURL.path, O_EVTONLY)
 
