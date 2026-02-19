@@ -117,7 +117,11 @@ public struct XPCServer: Sendable {
                         // a final XPC_ERROR_CONNECTION_INVALID message.
                         // We can ignore this if we know we have already handled
                         // the request.
-                        self.log.error("xpc client handler connection error \(object.errorDescription ?? "no description")")
+                        self.log.error(
+                            "xpc client handler connection error",
+                            metadata: [
+                                "error": "\(object.errorDescription ?? "no description")"
+                            ])
                     }
                 default:
                     fatalError("unhandled xpc object type: \(xpc_get_type(object))")
@@ -195,14 +199,14 @@ public struct XPCServer: Sendable {
                 let response = try await handler(message)
                 xpc_connection_send_message(connection, response.underlying)
             } catch let error as ContainerizationError {
-                log.error("handler for \(route) threw error \(error)")
+                log.error("route handler threw an error", metadata: ["route": "\(route)", "error": "\(error)"])
                 Self.replyWithError(
                     connection: connection,
                     object: object,
                     err: error
                 )
             } catch {
-                log.error("handler for \(route) threw error \(error)")
+                log.error("route handler threw an error", metadata: ["route": "\(route)", "error": "\(error)"])
                 let message = XPCMessage(object: object)
                 let reply = message.reply()
 

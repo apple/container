@@ -67,20 +67,26 @@ extension NetworkVmnetHelper {
         func run() async throws {
             let commandName = NetworkVmnetHelper._commandName
             let log = setupLogger(id: id, debug: debug)
-            log.info("starting \(commandName)")
+            log.info("starting helper", metadata: ["name": "\(commandName)"])
             defer {
-                log.info("stopping \(commandName)")
+                log.info("stopping helper", metadata: ["name": "\(commandName)"])
             }
 
             do {
                 log.info("configuring XPC server")
                 let ipv4Subnet = try self.ipv4Subnet.map { try CIDRv4($0) }
                 let ipv6Subnet = try self.ipv6Subnet.map { try CIDRv6($0) }
+                let pluginInfo = NetworkPluginInfo(
+                    plugin: NetworkVmnetHelper._commandName,
+                    variant: self.variant.rawValue
+                )
+
                 let configuration = try NetworkConfiguration(
                     id: id,
                     mode: mode,
                     ipv4Subnet: ipv4Subnet,
                     ipv6Subnet: ipv6Subnet,
+                    pluginInfo: pluginInfo
                 )
                 let network = try Self.createNetwork(
                     configuration: configuration,
@@ -104,7 +110,7 @@ extension NetworkVmnetHelper {
                 log.info("starting XPC server")
                 try await xpc.listen()
             } catch {
-                log.error("\(commandName) failed", metadata: ["error": "\(error)"])
+                log.error("helper failed", metadata: ["name": "\(commandName)", "error": "\(error)"])
                 NetworkVmnetHelper.exit(withError: error)
             }
         }

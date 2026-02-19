@@ -583,4 +583,16 @@ class CLITest {
             .filter { (key, val) in proxyVars.contains(key) }
             .flatMap { (key, val) in ["-e", "\(key)=\(val)"] }
     }
+
+    func doExport(name: String, image: String) throws {
+        let (_, _, error, status) = try run(arguments: [
+            "export",
+            "--image",
+            image,
+            name,
+        ])
+        if status != 0 {
+            throw CLIError.executionFailed("command failed: \(error)")
+        }
+    }
 }

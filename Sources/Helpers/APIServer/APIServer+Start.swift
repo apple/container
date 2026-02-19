@@ -46,9 +46,9 @@ extension APIServer {
         func run() async throws {
             let commandName = Self.configuration.commandName ?? "container-apiserver"
             let log = APIServer.setupLogger(debug: debug)
-            log.info("starting \(commandName)")
+            log.info("starting helper", metadata: ["name": "\(commandName)"])
             defer {
-                log.info("stopping \(commandName)")
+                log.info("stopping helper", metadata: ["name": "\(commandName)"])
             }
 
             do {
@@ -56,17 +56,18 @@ extension APIServer {
                 var routes = [XPCRoute: XPCServer.RouteHandler]()
                 let pluginLoader = try initializePluginLoader(log: log)
                 try await initializePlugins(pluginLoader: pluginLoader, log: log, routes: &routes)
-                let containersService = try initializeContainerService(
+                let containersService = try initializeContainersService(
                     pluginLoader: pluginLoader,
                     log: log,
                     routes: &routes
                 )
-                let networkService = try await initializeNetworkService(
+                let networkService = try await initializeNetworksService(
                     pluginLoader: pluginLoader,
                     containersService: containersService,
                     log: log,
                     routes: &routes
                 )
+                await containersService.setNetworksService(networkService)
                 initializeHealthCheckService(log: log, routes: &routes)
                 try initializeKernelService(log: log, routes: &routes)
                 let volumesService = try initializeVolumeService(containersService: containersService, log: log, routes: &routes)
@@ -130,7 +131,7 @@ extension APIServer {
                     */
                 }
             } catch {
-                log.error("\(commandName) failed", metadata: ["error": "\(error)"])
+                log.error("helper failed", metadata: ["name": "\(commandName)", "error": "\(error)"])
                 APIServer.exit(withError: error)
             }
         }
@@ -221,13 +222,14 @@ extension APIServer {
             routes[XPCRoute.getDefaultKernel] = harness.getDefaultKernel
         }
 
-        private func initializeContainerService(pluginLoader: PluginLoader, log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) throws -> ContainersService {
-            log.info("initializing container service")
+        private func initializeContainersService(pluginLoader: PluginLoader, log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) throws -> ContainersService {
+            log.info("initializing containers service")
 
             let service = try ContainersService(
                 appRoot: appRoot,
                 pluginLoader: pluginLoader,
-                log: log
+                log: log,
+                debugHelpers: debug
             )
             let harness = ContainersHarness(service: service, log: log)
 
@@ -245,34 +247,38 @@ extension APIServer {
             routes[XPCRoute.containerKill] = harness.kill
             routes[XPCRoute.containerStats] = harness.stats
             routes[XPCRoute.containerDiskUsage] = harness.diskUsage
+            routes[XPCRoute.containerExport] = harness.export
 
             return service
         }
 
-        private func initializeNetworkService(
+        private func initializeNetworksService(
             pluginLoader: PluginLoader,
             containersService: ContainersService,
             log: Logger,
             routes: inout [XPCRoute: XPCServer.RouteHandler]
         ) async throws -> NetworksService {
-            log.info("initializing network service")
+            log.info("initializing networks service")
 
             let resourceRoot = appRoot.appendingPathComponent("networks")
             let service = try await NetworksService(
                 pluginLoader: pluginLoader,
                 resourceRoot: resourceRoot,
                 containersService: containersService,
-                log: log
+                log: log,
+                debugHelpers: debug
             )
 
             let defaultNetwork = try await service.list()
                 .filter { $0.isBuiltin }
                 .first
             if defaultNetwork == nil {
+                // FIXME: default network should be configurable elsewhere
                 let config = try NetworkConfiguration(
                     id: ClientNetwork.defaultNetworkName,
                     mode: .nat,
-                    labels: [ResourceLabelKeys.role: ResourceRoleValues.builtin]
+                    labels: [ResourceLabelKeys.role: ResourceRoleValues.builtin],
+                    pluginInfo: NetworkPluginInfo(plugin: "container-network-vmnet")
                 )
                 _ = try await service.create(configuration: config)
             }
