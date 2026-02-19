@@ -42,6 +42,7 @@ extension Application {
                 print("apiserver is not running and not registered with launchd")
                 Application.exit(withError: ExitCode(1))
             }
+            let isLaunchAgentRegistered = try ServiceManager.isRegistered(fullServiceLabel: LaunchAgentServiceManager.launchAgentLabel)
 
             // Now ping our friendly daemon. Fail after 10 seconds with no response.
             do {
@@ -49,6 +50,7 @@ extension Application {
                 print("apiserver is running")
                 print("application data root: \(systemHealth.appRoot.path(percentEncoded: false))")
                 print("application install root: \(systemHealth.installRoot.path(percentEncoded: false))")
+                print("container launch on login: \(isLaunchAgentRegistered ? "enabled" : "disabled")")
                 print("container-apiserver version: \(systemHealth.apiServerVersion)")
                 print("container-apiserver commit: \(systemHealth.apiServerCommit)")
             } catch {

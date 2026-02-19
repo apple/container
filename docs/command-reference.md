@@ -1245,3 +1245,32 @@ container system property clear dns.domain
 
 # clear custom registry setting
 container system property clear registry.domain
+```
+
+### `container system launch-agent enable`
+
+Registers the `LaunchAgent` to start the `container` on user login.
+
+**Usage**
+
+```bash
+container system launch-agent enable [--debug]
+```
+
+**Options**
+
+No options.
+
+### `container system launch-agent disable`
+
+Deregister the `LaunchAgent` to stop the `container` from starting on user login.
+
+**Usage**
+
+```bash
+container system launch-agent disable [--debug]
+```
+
+**Options**
+
+No options.
