@@ -121,7 +121,12 @@ extension RuntimeLinuxHelper {
                     _ = try await group.next()
                 }
             } catch {
-                log.error("helper failed", metadata: ["name": "\(commandName)", "error": "\(error)"])
+                log.error(
+                    "helper failed",
+                    metadata: [
+                        "name": "\(commandName)",
+                        "error": "\(error)",
+                    ])
                 try? await eventLoopGroup.shutdownGracefully()
                 RuntimeLinuxHelper.Start.exit(withError: error)
             }

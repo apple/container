@@ -115,7 +115,12 @@ extension NetworkVmnetHelper {
                 log.info("starting XPC server")
                 try await xpc.listen()
             } catch {
-                log.error("helper failed", metadata: ["name": "\(commandName)", "error": "\(error)"])
+                log.error(
+                    "helper failed",
+                    metadata: [
+                        "name": "\(commandName)",
+                        "error": "\(error)",
+                    ])
                 NetworkVmnetHelper.exit(withError: error)
             }
         }

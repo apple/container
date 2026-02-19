@@ -21,15 +21,18 @@ import ContainerXPC
 import Containerization
 import Foundation
 import Logging
+import SystemPackage
 
 public actor HealthCheckHarness {
     private let appRoot: URL
     private let installRoot: URL
+    private let logRoot: FilePath?
     private let log: Logger
 
-    public init(appRoot: URL, installRoot: URL, log: Logger) {
+    public init(appRoot: URL, installRoot: URL, logRoot: FilePath?, log: Logger) {
         self.appRoot = appRoot
         self.installRoot = installRoot
+        self.logRoot = logRoot
         self.log = log
     }
 
@@ -38,6 +41,9 @@ public actor HealthCheckHarness {
         let reply = message.reply()
         reply.set(key: .appRoot, value: appRoot.absoluteString)
         reply.set(key: .installRoot, value: installRoot.absoluteString)
+        if let logRoot {
+            reply.set(key: .logRoot, value: logRoot.string)
+        }
         reply.set(key: .apiServerVersion, value: ReleaseVersion.singleLine(appName: "container-apiserver"))
         reply.set(key: .apiServerCommit, value: get_git_commit().map { String(cString: $0) } ?? "unspecified")
         // Extra optional fields for richer client display

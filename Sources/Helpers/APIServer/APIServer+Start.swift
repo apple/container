@@ -142,7 +142,12 @@ extension APIServer {
                     */
                 }
             } catch {
-                log.error("helper failed", metadata: ["name": "\(commandName)", "error": "\(error)"])
+                log.error(
+                    "helper failed",
+                    metadata: [
+                        "name": "\(commandName)",
+                        "error": "\(error)",
+                    ])
                 APIServer.exit(withError: error)
             }
         }
@@ -224,6 +229,7 @@ extension APIServer {
             let svc = HealthCheckHarness(
                 appRoot: appRoot,
                 installRoot: installRoot,
+                logRoot: logRoot,
                 log: log
             )
             routes[XPCRoute.ping] = svc.ping

@@ -25,6 +25,7 @@ public struct FileLogHandler: LogHandler {
     public var metadata: Logger.Metadata = [:]
 
     private let label: String
+    private let category: String
     private let fileHandle: FileHandle
 
     public subscript(metadataKey metadataKey: String) -> Logger.Metadata.Value? {
@@ -36,8 +37,17 @@ public struct FileLogHandler: LogHandler {
         }
     }
 
-    public init(label: String, path: FilePath) throws {
+    /// Create a log handler that appends to the specified file.
+    ///
+    /// - Parameters:
+    ///   - label: A unique identifier for the application.
+    ///   - category: An identifier for the application subsystem.
+    ///   - path: The log file location. The log handler creates the
+    ///     file and parent directory if needed.
+    /// - Returns: The log handler.
+    public init(label: String, category: String, path: FilePath) throws {
         self.label = label
+        self.category = category
         let parentPath = path.removingLastComponent()
         try FileManager.default.createDirectory(atPath: parentPath.string, withIntermediateDirectories: true)
         if !FileManager.default.fileExists(atPath: path.string) {
@@ -74,16 +84,18 @@ public struct FileLogHandler: LogHandler {
 
         let text: String
         if !effectiveMetadata.isEmpty {
-            text = "\(timestamp) [\(level)] \(label) \(effectiveMetadata.description): \(message)\n"
+            text = "\(timestamp) [\(level)] \(label) \(category) \(effectiveMetadata.description): \(message)\n"
         } else {
-            text = "\(timestamp) [\(level)] \(label): \(message)\n"
+            text = "\(timestamp) [\(level)] \(label): \(category) \(message)\n"
         }
         if let data = text.data(using: .utf8) {
             fileHandle.write(data)
         }
     }
 
+    /// Failures relating to the log handler.
     public enum FileLogFailure: Error {
+        /// The log handler could not open the log file.
         case openFailed
     }
 }

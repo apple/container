@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import SystemPackage
 
 /// Snapshot of the health of container services and resources
 public struct SystemHealth: Sendable, Codable {
@@ -23,6 +24,9 @@ public struct SystemHealth: Sendable, Codable {
 
     /// The full pathname of the application install root.
     public let installRoot: URL
+
+    /// The full pathname of the application install root.
+    public let logRoot: FilePath?
 
     /// The release version of the container services.
     public let apiServerVersion: String

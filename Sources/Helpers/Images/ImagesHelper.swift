@@ -80,7 +80,12 @@ extension ImagesHelper {
                 log.info("starting XPC server")
                 try await xpc.listen()
             } catch {
-                log.error("helper failed", metadata: ["name": "\(commandName)", "error": "\(error)"])
+                log.error(
+                    "helper failed",
+                    metadata: [
+                        "name": "\(commandName)",
+                        "error": "\(error)",
+                    ])
                 ImagesHelper.exit(withError: error)
             }
         }

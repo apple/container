@@ -19,22 +19,39 @@ import SystemPackage
 
 /// Common logging setup for application services.
 public struct ServiceLogger {
-    /// Create a logger
+    /// Set up the logging system and create a root logger.
+    ///
+    /// - Parameters:
+    ///   - label: A unique identifier for the application.
+    ///   - category: An identifier for the application subsystem.
+    ///   - metadata: Metadata to include for all messsages. A message
+    ///     specific value for a duplicate key overrides these values.
+    ///   - debug: Enable debug logging.
+    ///   - logPath: If supplied, create log files under the named
+    ///     directory. Otherwise, log to the OS log facility.
+    /// - Returns: The root logger.
     public static func bootstrap(
-        category: String,
         label: String = "com.apple.container",
+        category: String,
         metadata: [String: String] = [:],
         debug: Bool,
         logPath: FilePath?
     ) -> Logger {
+        // Select the log handler and bootstrap logging.
         LoggingSystem.bootstrap { label in
             if let logPath {
-                if let handler = try? FileLogHandler(label: label, path: logPath) {
+                if let handler = try? FileLogHandler(
+                    label: label,
+                    category: category,
+                    path: logPath
+                ) {
                     return handler
                 }
             }
             return OSLogHandler(label: label, category: category)
         }
+
+        // Configure log level and metadata.
         var log = Logger(label: label)
         if debug {
             log.logLevel = .debug
@@ -42,6 +59,16 @@ public struct ServiceLogger {
         for (key, value) in metadata {
             log[metadataKey: key] = "\(value)"
         }
+
+        // Log an error if for some reason FileLogHandler init failed.
+        if let logPath, log.handler as? OSLogHandler != nil {
+            log.error(
+                "unable to initialize FileLogHandler, using OSLogHandler",
+                metadata: [
+                    "logPath": "\(logPath)"
+                ])
+        }
+
         return log
     }
 }
