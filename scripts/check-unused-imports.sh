@@ -26,11 +26,8 @@ BUILD_LOG=${PROJECT_ROOT}/.build/build.log
 LINT_LOG=${PROJECT_ROOT}/.build/swiftlint.log
 
 echo 'Building `container` with verbose flag'
-if [ ! -f ${BUILD_LOG} ];
-then
-    make -C ${PROJECT_ROOT} clean
-    make -C ${PROJECT_ROOT} BUILD_OPTIONS="-v &>${BUILD_LOG}"
-fi
+make -C ${PROJECT_ROOT} clean
+make -C ${PROJECT_ROOT} BUILD_OPTIONS="-v &>${BUILD_LOG}"
 
 # Get changed Swift files from git diff main
 CHANGED_SWIFT_FILES=$(git diff main --name-only | grep '\.swift$' || true)
