@@ -47,7 +47,7 @@ extension RuntimeLinuxHelper {
         }
 
         func run() async throws {
-            let commandName = Self._commandName
+            let commandName = RuntimeLinuxHelper._commandName
             let log = RuntimeLinuxHelper.setupLogger(debug: debug, metadata: ["uuid": "\(uuid)"])
             log.info("starting helper", metadata: ["name": "\(commandName)"])
             defer {
