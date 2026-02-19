@@ -410,6 +410,7 @@ let package = Package(
                 .product(name: "DNSClient", package: "DNSClient"),
                 .product(name: "DNS", package: "DNS"),
                 .product(name: "Logging", package: "swift-log"),
+                .product(name: "ContainerizationOS", package: "containerization"),
             ]
         ),
         .testTarget(

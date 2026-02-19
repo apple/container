@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerizationError
+import ContainerizationOS
 import Foundation
 import Logging
 
@@ -25,9 +26,9 @@ public class DirectoryWatcher {
     private var parentSource: DispatchSourceFileSystemObject?
     private var source: DispatchSourceFileSystemObject?
 
-    private let log: Logger
+    private let log: Logger?
 
-    init(directoryURL: URL, log: Logger) {
+    public init(directoryURL: URL, log: Logger?) {
         self.directoryURL = directoryURL
         self.monitorQueue = DispatchQueue(label: "monitor:\(directoryURL.path)")
         self.log = log
@@ -48,7 +49,7 @@ public class DirectoryWatcher {
             throw ContainerizationError(.internalError, message: "failed to run handler for \(directoryURL.path)")
         }
 
-        log.info("starting directory watcher", metadata: ["path": "\(directoryURL.path)"])
+        log?.info("starting directory watcher", metadata: ["path": "\(directoryURL.path)"])
 
         let dispatchSource = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: descriptor,
@@ -67,7 +68,7 @@ public class DirectoryWatcher {
                 let files = try FileManager.default.contentsOfDirectory(atPath: directoryURL.path)
                 try handler(files.map { directoryURL.appending(path: $0) })
             } catch {
-                self.log.error("failed to run DirectoryWatcher handler", metadata: ["error": "\(error)", "path": "\(directoryURL.path)"])
+                self.log?.error("failed to run DirectoryWatcher handler", metadata: ["error": "\(error)", "path": "\(directoryURL.path)"])
             }
         }
 
@@ -90,7 +91,7 @@ public class DirectoryWatcher {
         }
 
         guard directoryURL.isDirectory else {
-            log.info("no \(directoryURL.path), start watching \(parent.path)")
+            log?.info("no \(directoryURL.path), start watching \(parent.path)")
 
             let descriptor = open(parent.path, O_EVTONLY)
             let source = DispatchSource.makeFileSystemObjectSource(
@@ -109,7 +110,7 @@ public class DirectoryWatcher {
                     do {
                         try _startWatching(handler: handler)
                     } catch {
-                        log.error("failed to start watching: \(error)")
+                        log?.error("failed to start watching: \(error)")
                     }
                     source.cancel()
                 }
