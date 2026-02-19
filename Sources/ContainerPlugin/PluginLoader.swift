@@ -206,7 +206,8 @@ extension PluginLoader {
         plugin: Plugin,
         pluginStateRoot: URL? = nil,
         args: [String]? = nil,
-        instanceId: String? = nil
+        instanceId: String? = nil,
+        debug: Bool = false,
     ) throws {
         // We only care about loading plugins that have a service
         // to expose; otherwise, they may just be CLI commands.
@@ -223,9 +224,10 @@ extension PluginLoader {
         env[ApplicationRoot.environmentName] = appRoot.path(percentEncoded: false)
         env[InstallRoot.environmentName] = installRoot.path(percentEncoded: false)
 
+        let processedArgs = (args ?? ["start"]) + (debug ? ["--debug"] : [])
         let plist = LaunchPlist(
             label: id,
-            arguments: [plugin.binaryURL.path] + (args ?? ["start"]) + serviceConfig.defaultArguments,
+            arguments: [plugin.binaryURL.path] + processedArgs + serviceConfig.defaultArguments,
             environment: env,
             limitLoadToSessionType: [.Aqua, .Background, .System],
             runAtLoad: serviceConfig.runAtLoad,

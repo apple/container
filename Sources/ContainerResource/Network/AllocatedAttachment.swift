@@ -14,8 +14,19 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-/// Global constants for the container API clients.
-public enum Constants {
-    /// The keychain ID to use for registry credentials.
-    public static let keychainID = "com.apple.container.registry"
+import ContainerXPC
+
+/// AllocatedAttachment represents a network attachment that has been allocated for use
+/// by a container and any additional relevant data needed for a sandbox to properly
+/// configure networking on container bootstrap.
+public struct AllocatedAttachment: Sendable {
+    public let attachment: Attachment
+    public let additionalData: XPCMessage?
+    public let pluginInfo: NetworkPluginInfo
+
+    public init(attachment: Attachment, additionalData: XPCMessage?, pluginInfo: NetworkPluginInfo) {
+        self.attachment = attachment
+        self.additionalData = additionalData
+        self.pluginInfo = pluginInfo
+    }
 }

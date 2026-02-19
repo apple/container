@@ -17,6 +17,7 @@
 import ContainerResource
 import ContainerXPC
 import ContainerizationError
+import ContainerizationExtras
 import ContainerizationOS
 import Foundation
 
@@ -35,7 +36,7 @@ extension ClientNetwork {
     private static func xpcSend(
         client: XPCClient,
         message: XPCMessage,
-        timeout: Duration? = .seconds(15)
+        timeout: Duration? = XPCClient.xpcRegistrationTimeout
     ) async throws -> XPCMessage {
         try await client.send(message, responseTimeout: timeout)
     }
@@ -81,10 +82,10 @@ extension ClientNetwork {
 
     /// Delete the network with the given id.
     public static func delete(id: String) async throws {
-        let client = XPCClient(service: Self.serviceIdentifier)
+        let client = Self.newClient()
         let request = XPCMessage(route: .networkDelete)
         request.set(key: .networkId, value: id)
-        try await client.send(request)
+        let _ = try await xpcSend(client: client, message: request)
     }
 
     /// Retrieve the builtin network.

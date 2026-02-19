@@ -18,6 +18,7 @@ import ArgumentParser
 import ContainerAPIClient
 import ContainerPersistence
 import ContainerPlugin
+import ContainerXPC
 import ContainerizationError
 import Foundation
 import TerminalProgress
@@ -48,9 +49,15 @@ extension Application {
         var kernelInstall: Bool?
 
         @Option(
-            name: .long,
-            help: "Number of seconds to wait for API service to become responsive")
-        var timeout: Double = 10.0
+            help: "Number of seconds to wait for API service to become responsive",
+            transform: {
+                guard let timeoutSeconds = Double($0) else {
+                    throw ValidationError("Invalid timeout value: \($0)")
+                }
+                return .seconds(timeoutSeconds)
+            }
+        )
+        var timeout: Duration = XPCClient.xpcRegistrationTimeout
 
         @OptionGroup
         public var logOptions: Flags.Logging
@@ -98,7 +105,7 @@ extension Application {
             // Now ping our friendly daemon. Fail if we don't get a response.
             do {
                 print("Verifying apiserver is running...")
-                _ = try await ClientHealthCheck.ping(timeout: .seconds(timeout))
+                _ = try await ClientHealthCheck.ping(timeout: timeout)
             } catch {
                 throw ContainerizationError(
                     .internalError,
@@ -124,7 +131,7 @@ extension Application {
             do {
                 try await pullCommand.run()
             } catch {
-                log.error("failed to install base container filesystem: \(error)")
+                log.error("failed to install base container filesystem", metadata: ["error": "\(error)"])
             }
         }
 

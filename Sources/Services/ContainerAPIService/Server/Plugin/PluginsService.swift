@@ -33,10 +33,11 @@ public actor PluginsService {
     /// if none are explicitly specified.
     public func loadAll(
         _ plugins: [Plugin]? = nil,
+        debug: Bool = false
     ) throws {
         let registerPlugins = plugins ?? pluginLoader.findPlugins()
         for plugin in registerPlugins {
-            try pluginLoader.registerWithLaunchd(plugin: plugin)
+            try pluginLoader.registerWithLaunchd(plugin: plugin, debug: debug)
             loaded[plugin.name] = plugin
         }
     }
@@ -54,14 +55,14 @@ public actor PluginsService {
     // MARK: XPC API surface.
 
     /// Load a single plugin, doing nothing if the plugin is already loaded.
-    public func load(name: String) throws {
+    public func load(name: String, debug: Bool = false) throws {
         guard self.loaded[name] == nil else {
             return
         }
         guard let plugin = pluginLoader.findPlugin(name: name) else {
             throw Error.pluginNotFound(name)
         }
-        try pluginLoader.registerWithLaunchd(plugin: plugin)
+        try pluginLoader.registerWithLaunchd(plugin: plugin, debug: debug)
         self.loaded[plugin.name] = plugin
     }
 
