@@ -91,7 +91,7 @@ public class DirectoryWatcher {
         }
 
         guard directoryURL.isDirectory else {
-            log?.info("no \(directoryURL.path), start watching \(parent.path)")
+            log?.info("no target directory, start watching parent", metadata: ["path": "\(parent.path)"])
 
             let descriptor = open(parent.path, O_EVTONLY)
             let source = DispatchSource.makeFileSystemObjectSource(
@@ -110,7 +110,7 @@ public class DirectoryWatcher {
                     do {
                         try _startWatching(handler: handler)
                     } catch {
-                        log?.error("failed to start watching: \(error)")
+                        log?.error("failed to start watching", metadata: ["error": "\(error)"])
                     }
                     source.cancel()
                 }
