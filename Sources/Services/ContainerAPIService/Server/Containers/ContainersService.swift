@@ -50,24 +50,32 @@ public actor ContainersService {
     private static let launchdDomainString = try! ServiceManager.getDomainString()
 
     private let log: Logger
+    private let debugHelpers: Bool
     private let containerRoot: URL
     private let pluginLoader: PluginLoader
     private let runtimePlugins: [Plugin]
     private let exitMonitor: ExitMonitor
 
-    private let lock = AsyncLock()
+    private let lock: AsyncLock
     private var containers: [String: ContainerState]
 
     // FIXME: Find a better mechanism for services running on the APIServer to work with each other
     private weak var networksService: NetworksService?
 
-    public init(appRoot: URL, pluginLoader: PluginLoader, log: Logger) throws {
+    public init(
+        appRoot: URL,
+        pluginLoader: PluginLoader,
+        log: Logger,
+        debugHelpers: Bool = false
+    ) throws {
         let containerRoot = appRoot.appendingPathComponent("containers")
         try FileManager.default.createDirectory(at: containerRoot, withIntermediateDirectories: true)
         self.exitMonitor = ExitMonitor(log: log)
+        self.lock = AsyncLock(log: log)
         self.containerRoot = containerRoot
         self.pluginLoader = pluginLoader
         self.log = log
+        self.debugHelpers = debugHelpers
         self.runtimePlugins = pluginLoader.findPlugins().filter { $0.hasType(.runtime) }
         self.containers = try Self.loadAtBoot(root: containerRoot, loader: pluginLoader, log: log)
     }
@@ -109,7 +117,7 @@ public actor ContainersService {
                 }
             } catch {
                 try? FileManager.default.removeItem(at: dir)
-                log.warning("failed to load container at \(dir.path): \(error)")
+                log.warning("failed to load container", metadata: ["path": "\(dir.path)", "error": "\(error)"])
             }
         }
         return results
@@ -117,7 +125,20 @@ public actor ContainersService {
 
     /// List containers matching the given filters.
     public func list(filters: ContainerListFilters = .all) async throws -> [ContainerSnapshot] {
-        self.log.debug("\(#function)")
+        log.debug(
+            "ContainersService: enter",
+            metadata: [
+                "func": "\(#function)"
+            ]
+        )
+        defer {
+            log.debug(
+                "ContainersService: exit",
+                metadata: [
+                    "func": "\(#function)"
+                ]
+            )
+        }
 
         return self.containers.values.compactMap { state -> ContainerSnapshot? in
             let snapshot = state.snapshot
@@ -146,8 +167,11 @@ public actor ContainersService {
 
     /// Execute an operation with the current container list while maintaining atomicity
     /// This prevents race conditions where containers are created during the operation
-    public func withContainerList<T: Sendable>(_ operation: @Sendable @escaping ([ContainerSnapshot]) async throws -> T) async throws -> T {
-        try await lock.withLock { context in
+    public func withContainerList<T: Sendable>(
+        logMetadata: Logger.Metadata? = nil,
+        _ operation: @Sendable @escaping ([ContainerSnapshot]) async throws -> T
+    ) async throws -> T {
+        try await lock.withLock(logMetadata: logMetadata) { context in
             let snapshots = await self.containers.values.map { $0.snapshot }
             return try await operation(snapshots)
         }
@@ -156,7 +180,7 @@ public actor ContainersService {
     /// Calculate disk usage for containers
     /// - Returns: Tuple of (total count, active count, total size, reclaimable size)
     public func calculateDiskUsage() async -> (Int, Int, UInt64, UInt64) {
-        await lock.withLock { _ in
+        await lock.withLock(logMetadata: ["acquirer": "\(#function)"]) { _ in
             var totalSize: UInt64 = 0
             var reclaimableSize: UInt64 = 0
             var activeCount = 0
@@ -181,7 +205,7 @@ public actor ContainersService {
     /// Get set of image references used by containers (for disk usage calculation)
     /// - Returns: Set of image references currently in use
     public func getActiveImageReferences() async -> Set<String> {
-        await lock.withLock { _ in
+        await lock.withLock(logMetadata: ["acquirer": "\(#function)"]) { _ in
             var imageRefs = Set<String>()
             for (_, state) in await self.containers {
                 imageRefs.insert(state.snapshot.configuration.image.reference)
@@ -225,9 +249,24 @@ public actor ContainersService {
 
     /// Create a new container from the provided id and configuration.
     public func create(configuration: ContainerConfiguration, kernel: Kernel, options: ContainerCreateOptions, initImage: String? = nil) async throws {
-        self.log.debug("\(#function)")
+        log.debug(
+            "ContainersService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "id": "\(configuration.id)",
+            ]
+        )
+        defer {
+            log.debug(
+                "ContainersService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "id": "\(configuration.id)",
+                ]
+            )
+        }
 
-        try await self.lock.withLock { context in
+        try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(configuration.id)"]) { context in
             guard await self.containers[configuration.id] == nil else {
                 throw ContainerizationError(
                     .exists,
@@ -282,13 +321,31 @@ public actor ContainersService {
             let systemPlatform = kernel.platform
 
             // Fetch init image (custom or default)
-            self.log.info("Using init image: \(initImage ?? ClientImage.initImageRef)")
+            self.log.debug(
+                "ContainersService: get init block",
+                metadata: [
+                    "id": "\(configuration.id)"
+                ]
+            )
             let initFilesystem = try await self.getInitBlock(for: systemPlatform.ociPlatform(), imageRef: initImage)
 
             do {
+                self.log.debug(
+                    "create snapshot",
+                    metadata: [
+                        "id": "\(configuration.id)",
+                        "ref": "\(configuration.image.reference)",
+                    ])
                 let containerImage = ClientImage(description: configuration.image)
                 let imageFs = try await containerImage.getCreateSnapshot(platform: configuration.platform)
 
+                self.log.debug(
+                    "configure runtime",
+                    metadata: [
+                        "id": "\(configuration.id)",
+                        "kernel": "\(kernel.path)",
+                        "initfs": "\(initImage ?? ClientImage.initImageRef)",
+                    ])
                 let runtimeConfig = RuntimeConfiguration(
                     path: path,
                     initialFilesystem: initFilesystem,
@@ -315,8 +372,24 @@ public actor ContainersService {
 
     /// Bootstrap the init process of the container.
     public func bootstrap(id: String, stdio: [FileHandle?]) async throws {
-        self.log.debug("\(#function)")
-        try await self.lock.withLock { context in
+        log.debug(
+            "ContainersService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "id": "\(id)",
+            ]
+        )
+        defer {
+            log.debug(
+                "ContainersService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "id": "\(id)",
+                ]
+            )
+        }
+
+        try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
             var state = try await self.getContainerState(id: id, context: context)
 
             // We've already bootstrapped this container. Ideally we should be able to
@@ -347,7 +420,8 @@ public actor ContainersService {
                     plugin: self.runtimePlugins.first { $0.name == config.runtimeHandler }!,
                     loader: self.pluginLoader,
                     configuration: config,
-                    path: path
+                    path: path,
+                    debug: self.debugHelpers
                 )
 
                 let runtime = state.snapshot.configuration.runtimeHandler
@@ -370,7 +444,13 @@ public actor ContainersService {
                     do {
                         try await self.networksService?.deallocate(attachment: allocatedAttach.attachment)
                     } catch {
-                        self.log.error("failed to deallocate network attachment in \(id) for \(allocatedAttach.attachment.network): \(error)")
+                        self.log.error(
+                            "failed to deallocate network attachment",
+                            metadata: [
+                                "id": "\(id)",
+                                "network": "\(allocatedAttach.attachment.network)",
+                                "error": "\(error)",
+                            ])
                     }
                 }
 
@@ -381,7 +461,6 @@ public actor ContainersService {
 
                 await self.exitMonitor.stopTracking(id: id)
                 try? ServiceManager.deregister(fullServiceLabel: label)
-
                 throw error
             }
         }
@@ -394,7 +473,24 @@ public actor ContainersService {
         config: ProcessConfiguration,
         stdio: [FileHandle?]
     ) async throws {
-        self.log.debug("\(#function)")
+        log.debug(
+            "ContainersService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "id": "\(id)",
+                "processId": "\(processID)",
+                "command": "\(config.arguments.isEmpty ? "" : config.arguments[0])",
+            ]
+        )
+        defer {
+            log.debug(
+                "ContainersService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "id": "\(id)",
+                ]
+            )
+        }
 
         let state = try self._getContainerState(id: id)
         let client = try state.getClient()
@@ -409,9 +505,26 @@ public actor ContainersService {
     /// createProcess, or the init process of the container which requires
     /// id == processID.
     public func startProcess(id: String, processID: String) async throws {
-        self.log.debug("\(#function)")
+        log.debug(
+            "ContainersService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "id": "\(id)",
+                "processId": "\(processID)",
+            ]
+        )
+        defer {
+            log.debug(
+                "ContainersService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "id": "\(id)",
+                    "processId": "\(processID)",
+                ]
+            )
+        }
 
-        try await self.lock.withLock { context in
+        try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)", "processId": "\(processID)"]) { context in
             var state = try await self.getContainerState(id: id, context: context)
 
             let isInit = Self.isInitProcess(id: id, processID: processID)
@@ -429,9 +542,9 @@ public actor ContainersService {
             do {
                 let log = self.log
                 let waitFunc: ExitMonitor.WaitHandler = {
-                    log.info("registering container \(id) with exit monitor")
+                    log.info("registering container with exit monitor")
                     let code = try await client.wait(id)
-                    log.info("container \(id) finished in exit monitor, exit code \(code)")
+                    log.info("container finished in exit monitor", metadata: ["id": "\(id)", "rc": "\(code)"])
 
                     return code
                 }
@@ -445,7 +558,6 @@ public actor ContainersService {
             } catch {
                 await self.exitMonitor.stopTracking(id: id)
                 try? await client.stop(options: ContainerStopOptions.default)
-
                 throw error
             }
         }
@@ -453,7 +565,25 @@ public actor ContainersService {
 
     /// Send a signal to the container.
     public func kill(id: String, processID: String, signal: Int64) async throws {
-        self.log.debug("\(#function)")
+        log.debug(
+            "ContainersService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "id": "\(id)",
+                "processId": "\(processID)",
+                "signal": "\(signal)",
+            ]
+        )
+        defer {
+            log.debug(
+                "ContainersService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "id": "\(id)",
+                    "processId": "\(processID)",
+                ]
+            )
+        }
 
         let state = try self._getContainerState(id: id)
         let client = try state.getClient()
@@ -463,7 +593,22 @@ public actor ContainersService {
     /// Stop all containers inside the sandbox, aborting any processes currently
     /// executing inside the container, before stopping the underlying sandbox.
     public func stop(id: String, options: ContainerStopOptions) async throws {
-        self.log.debug("\(#function)")
+        log.debug(
+            "ContainersService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "id": "\(id)",
+            ]
+        )
+        defer {
+            log.debug(
+                "ContainersService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "id": "\(id)",
+                ]
+            )
+        }
 
         let state = try self._getContainerState(id: id)
 
@@ -486,6 +631,25 @@ public actor ContainersService {
     }
 
     public func dial(id: String, port: UInt32) async throws -> FileHandle {
+        log.debug(
+            "ContainersService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "id": "\(id)",
+                "port": "\(port)",
+            ]
+        )
+        defer {
+            log.debug(
+                "ContainersService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "id": "\(id)",
+                    "port": "\(port)",
+                ]
+            )
+        }
+
         let state = try self._getContainerState(id: id)
         let client = try state.getClient()
         return try await client.dial(port)
@@ -494,7 +658,24 @@ public actor ContainersService {
     /// Wait waits for the container's init process or exec to exit and returns the
     /// exit status.
     public func wait(id: String, processID: String) async throws -> ExitStatus {
-        self.log.debug("\(#function)")
+        log.debug(
+            "ContainersService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "id": "\(id)",
+                "processId": "\(processID)",
+            ]
+        )
+        defer {
+            log.debug(
+                "ContainersService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "id": "\(id)",
+                    "processId": "\(processID)",
+                ]
+            )
+        }
 
         let state = try self._getContainerState(id: id)
         let client = try state.getClient()
@@ -503,7 +684,24 @@ public actor ContainersService {
 
     /// Resize resizes the container's PTY if one exists.
     public func resize(id: String, processID: String, size: Terminal.Size) async throws {
-        self.log.debug("\(#function)")
+        log.trace(
+            "ContainersService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "id": "\(id)",
+                "processId": "\(processID)",
+            ]
+        )
+        defer {
+            log.trace(
+                "ContainersService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "id": "\(id)",
+                    "processId": "\(processID)",
+                ]
+            )
+        }
 
         let state = try self._getContainerState(id: id)
         let client = try state.getClient()
@@ -512,7 +710,22 @@ public actor ContainersService {
 
     // Get the logs for the container.
     public func logs(id: String) async throws -> [FileHandle] {
-        self.log.debug("\(#function)")
+        log.debug(
+            "ContainersService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "id": "\(id)",
+            ]
+        )
+        defer {
+            log.debug(
+                "ContainersService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "id": "\(id)",
+                ]
+            )
+        }
 
         // Logs doesn't care if the container is running or not, just that
         // the bundle is there, and that the files actually exist. We do
@@ -536,7 +749,22 @@ public actor ContainersService {
 
     /// Get statistics for the container.
     public func stats(id: String) async throws -> ContainerStats {
-        self.log.debug("\(#function)")
+        log.debug(
+            "ContainersService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "id": "\(id)",
+            ]
+        )
+        defer {
+            log.debug(
+                "ContainersService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "id": "\(id)",
+                ]
+            )
+        }
 
         let state = try self._getContainerState(id: id)
         let client = try state.getClient()
@@ -545,7 +773,24 @@ public actor ContainersService {
 
     /// Delete a container and its resources.
     public func delete(id: String, force: Bool) async throws {
-        self.log.debug("\(#function)")
+        log.info(
+            "ContainersService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "id": "\(id)",
+                "force": "\(force)",
+            ]
+        )
+        defer {
+            log.debug(
+                "ContainersService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "id": "\(id)",
+                ]
+            )
+        }
+
         let state = try self._getContainerState(id: id)
         switch state.snapshot.status {
         case .running:
@@ -561,8 +806,22 @@ public actor ContainersService {
             )
             let client = try state.getClient()
             try await client.stop(options: opts)
-            try await self.lock.withLock { context in
+            try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
+                self.log.info(
+                    "ContainersService: attempt cleanup",
+                    metadata: [
+                        "func": "\(#function)",
+                        "id": "\(id)",
+                    ]
+                )
                 try await self.cleanUp(id: id, context: context)
+                self.log.info(
+                    "ContainersService: successful cleanup",
+                    metadata: [
+                        "func": "\(#function)",
+                        "id": "\(id)",
+                    ]
+                )
             }
         case .stopping:
             throw ContainerizationError(
@@ -570,14 +829,29 @@ public actor ContainersService {
                 message: "container \(id) is \(state.snapshot.status) and can not be deleted"
             )
         default:
-            try await self.lock.withLock { context in
+            try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
                 try await self.cleanUp(id: id, context: context)
             }
         }
     }
 
     public func containerDiskUsage(id: String) async throws -> UInt64 {
-        self.log.debug("\(#function)")
+        log.debug(
+            "ContainersService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "id": "\(id)",
+            ]
+        )
+        defer {
+            log.debug(
+                "ContainersService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "id": "\(id)",
+                ]
+            )
+        }
 
         let containerPath = self.containerRoot.appendingPathComponent(id).path
 
@@ -585,14 +859,14 @@ public actor ContainersService {
     }
 
     private func handleContainerExit(id: String, code: ExitStatus? = nil) async throws {
-        try await self.lock.withLock { [self] context in
+        try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { [self] context in
             try await handleContainerExit(id: id, code: code, context: context)
         }
     }
 
     private func handleContainerExit(id: String, code: ExitStatus?, context: AsyncLock.Context) async throws {
         if let code {
-            self.log.info("Handling container \(id) exit. Code \(code)")
+            self.log.info("handling container exit", metadata: ["id": "\(id)", "rc": "\(code)"])
         }
 
         var state: ContainerState
@@ -609,7 +883,7 @@ public actor ContainersService {
         await self.exitMonitor.stopTracking(id: id)
 
         // Shutdown and deregister the sandbox service
-        self.log.info("Shutting down sandbox service for \(id)")
+        self.log.info("shutting down sandbox service", metadata: ["id": "\(id)"])
 
         let path = self.containerRoot.appendingPathComponent(id)
         let bundle = ContainerResource.Bundle(path: path)
@@ -626,7 +900,7 @@ public actor ContainersService {
             do {
                 try await client.shutdown()
             } catch {
-                self.log.error("Failed to shutdown sandbox service for \(id): \(error)")
+                self.log.error("failed to shutdown sandbox service", metadata: ["id": "\(id)", "error": "\(error)"])
             }
         }
 
@@ -635,19 +909,25 @@ public actor ContainersService {
         // the process was killed externally.
         do {
             try ServiceManager.deregister(fullServiceLabel: label)
-            self.log.info("Deregistered sandbox service for \(id)")
+            self.log.info("deregistered sandbox service", metadata: ["id": "\(id)"])
         } catch {
-            self.log.error("Failed to deregister sandbox service for \(id): \(error)")
+            self.log.error("failed to deregister sandbox service", metadata: ["id": "\(id)", "error": "\(error)"])
         }
 
         // Best effort deallocate network attachments for the container. Don't throw on
         // failure so we can continue with state cleanup.
-        self.log.info("Deallocating network attachments for \(id)")
+        self.log.info("deallocating network attachments", metadata: ["id": "\(id)"])
         for allocatedAttach in state.allocatedAttachments {
             do {
                 try await self.networksService?.deallocate(attachment: allocatedAttach.attachment)
             } catch {
-                self.log.error("failed to deallocate network attachment in \(id) for \(allocatedAttach.attachment.network): \(error)")
+                self.log.error(
+                    "failed to deallocate network attachment",
+                    metadata: [
+                        "id": "\(id)",
+                        "network": "\(allocatedAttach.attachment.network)",
+                        "error": "\(error)",
+                    ])
             }
         }
 
@@ -668,7 +948,22 @@ public actor ContainersService {
     }
 
     private func _cleanUp(id: String) async throws {
-        self.log.debug("\(#function)")
+        log.debug(
+            "ContainersService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "id": "\(id)",
+            ]
+        )
+        defer {
+            log.debug(
+                "ContainersService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "id": "\(id)",
+                ]
+            )
+        }
 
         // Did the exit container handler win?
         if self.containers[id] == nil {
@@ -688,7 +983,7 @@ public actor ContainersService {
         do {
             config = try bundle.configuration
         } catch {
-            self.log.warning("Unable to read bundle configuration during cleanup for container \(id): \(error)")
+            self.log.warning("failed to read bundle configuration during cleanup for container", metadata: ["id": "\(id)", "error": "\(error)"])
         }
 
         // Only try to deregister service if we have a valid config
@@ -706,7 +1001,7 @@ public actor ContainersService {
         do {
             try bundle.delete()
         } catch {
-            self.log.warning("Failed to delete bundle for container \(id): \(error)")
+            self.log.warning("failed to delete bundle for container", metadata: ["id": "\(id)", "error": "\(error)"])
         }
 
         self.containers.removeValue(forKey: id)
@@ -735,14 +1030,15 @@ public actor ContainersService {
         plugin: Plugin,
         loader: PluginLoader,
         configuration: ContainerConfiguration,
-        path: URL
+        path: URL,
+        debug: Bool
     ) throws {
         let args = [
             "start",
             "--root", path.path,
             "--uuid", configuration.id,
-            "--debug",
-        ]
+            debug ? "--debug" : nil,
+        ].compactMap { $0 }
         try loader.registerWithLaunchd(
             plugin: plugin,
             pluginStateRoot: path,

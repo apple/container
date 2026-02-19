@@ -37,6 +37,7 @@ public actor NetworksService {
     private let resourceRoot: URL
     private let containersService: ContainersService
     private let log: Logger
+    private let debugHelpers: Bool
 
     private let store: FilesystemEntityStore<NetworkConfiguration>
     private let networkPlugins: [Plugin]
@@ -49,12 +50,14 @@ public actor NetworksService {
         pluginLoader: PluginLoader,
         resourceRoot: URL,
         containersService: ContainersService,
-        log: Logger
+        log: Logger,
+        debugHelpers: Bool = false,
     ) async throws {
         self.pluginLoader = pluginLoader
         self.resourceRoot = resourceRoot
         self.containersService = containersService
         self.log = log
+        self.debugHelpers = debugHelpers
 
         try FileManager.default.createDirectory(at: resourceRoot, withIntermediateDirectories: true)
         self.store = try FilesystemEntityStore<NetworkConfiguration>(
@@ -97,12 +100,17 @@ public actor NetworksService {
                 try await registerService(configuration: configuration)
             } catch {
                 log.error(
-                    "failed to start network: \(error)",
+                    "failed to start network",
                     metadata: [
-                        "id": "\(configuration.id)"
+                        "id": "\(configuration.id)",
+                        "error": "\(error)",
                     ])
             }
 
+            // This call will normally take ~20-100ms to complete after service
+            // registration, but on a fresh system (e.g. CI runner), it may take
+            // 5 seconds or considerably more from the registration of this first
+            // network service to its execution.
             let client = try Self.getClient(configuration: configuration)
             var networkState = try await client.state()
 
@@ -141,7 +149,9 @@ public actor NetworksService {
 
     /// List all networks registered with the service.
     public func list() async throws -> [NetworkState] {
-        log.info("network service: list")
+        log.debug("NetworksService: enter", metadata: ["func": "\(#function)"])
+        defer { log.debug("NetworksService: exit", metadata: ["func": "\(#function)"]) }
+
         return serviceStates.reduce(into: [NetworkState]()) {
             $0.append($1.value.networkState)
         }
@@ -149,11 +159,22 @@ public actor NetworksService {
 
     /// Create a new network from the provided configuration.
     public func create(configuration: NetworkConfiguration) async throws -> NetworkState {
-        log.info(
-            "network service: create",
+        log.debug(
+            "NetworksService: enter",
             metadata: [
-                "id": "\(configuration.id)"
-            ])
+                "func": "\(#function)",
+                "id": "\(configuration.id)",
+            ]
+        )
+        defer {
+            log.debug(
+                "NetworksService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "id": "\(configuration.id)",
+                ]
+            )
+        }
 
         //Ensure that the network is not named "none"
         if configuration.id == ClientNetwork.noNetworkName {
@@ -213,6 +234,23 @@ public actor NetworksService {
 
     /// Delete a network.
     public func delete(id: String) async throws {
+        log.debug(
+            "NetworksService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "id": "\(id)",
+            ]
+        )
+        defer {
+            log.debug(
+                "NetworksService: enter",
+                metadata: [
+                    "func": "\(#function)",
+                    "id": "\(id)",
+                ]
+            )
+        }
+
         // check actor busy state
         guard !busyNetworks.contains(id) else {
             throw ContainerizationError(.exists, message: "network \(id) has a pending operation")
@@ -223,10 +261,11 @@ public actor NetworksService {
         defer { busyNetworks.remove(id) }
 
         log.info(
-            "network service: delete",
+            "deleting network",
             metadata: [
                 "id": "\(id)"
-            ])
+            ]
+        )
 
         try await stateLock.withLock { _ in
             guard let serviceState = await self.serviceStates[id] else {
@@ -243,7 +282,7 @@ public actor NetworksService {
             }
 
             // prevent container operations while we atomically check and delete
-            try await self.containersService.withContainerList { containers in
+            try await self.containersService.withContainerList(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { containers in
                 // find all containers that refer to the network
                 var referringContainers = Set<String>()
                 for container in containers {
@@ -369,6 +408,9 @@ public actor NetworksService {
             "--mode",
             configuration.mode.rawValue,
         ]
+        if debugHelpers {
+            args.append("--debug")
+        }
 
         if let ipv4Subnet = configuration.ipv4Subnet {
             var existingCidrs: [CIDRv4] = []
