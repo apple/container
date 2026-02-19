@@ -37,6 +37,9 @@ SYSTEM_START_OPTS :=
 ifneq ($(strip $(APP_ROOT)),)
 	SYSTEM_START_OPTS += --app-root "$(strip $(APP_ROOT))"
 endif
+ifneq ($(strip $(LOG_ROOT)),)
+	SYSTEM_START_OPTS += --log-root "$(strip $(LOG_ROOT))"
+endif
 
 MACOS_VERSION := $(shell sw_vers -productVersion)
 MACOS_MAJOR := $(shell echo $(MACOS_VERSION) | cut -d. -f1)
