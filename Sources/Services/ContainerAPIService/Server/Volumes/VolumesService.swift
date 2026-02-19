@@ -119,14 +119,16 @@ public actor VolumesService {
         log.debug(
             "VolumesService: enter",
             metadata: [
-                "func": "\(#function)"
+                "func": "\(#function)",
+                "name": "\(name)",
             ]
         )
         defer {
             log.debug(
                 "VolumesService: exit",
                 metadata: [
-                    "func": "\(#function)"
+                    "func": "\(#function)",
+                    "name": "\(name)",
                 ]
             )
         }

@@ -788,8 +788,6 @@ public actor SandboxService {
                                 )
                             }
                             throw error
-                        } catch {
-                            throw error
                         }
                     }
                 }
