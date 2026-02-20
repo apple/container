@@ -57,7 +57,7 @@ struct DirectoryWatcherTest {
             let createdURLs = CreatedURLs()
             let name = "newFile"
 
-            try await watcher.startWatching { [createdURLs] urls in
+            await watcher.startWatching { [createdURLs] urls in
                 for url in urls where url.lastPathComponent == name {
                     createdURLs.urls.append(url)
                 }
@@ -82,7 +82,7 @@ struct DirectoryWatcherTest {
             let createdURLs = CreatedURLs()
             let name = "newFile"
 
-            try await watcher.startWatching { [createdURLs] urls in
+            await watcher.startWatching { [createdURLs] urls in
                 for url in urls where url.lastPathComponent == name {
                     createdURLs.urls.append(url)
                 }
@@ -111,7 +111,7 @@ struct DirectoryWatcherTest {
             let createdURLs = CreatedURLs()
             let name = "newFile"
 
-            try await watcher.startWatching { urls in
+            await watcher.startWatching { urls in
                 for url in urls where url.lastPathComponent == name {
                     createdURLs.urls.append(url)
                 }
