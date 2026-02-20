@@ -172,6 +172,7 @@ public struct Application: AsyncLoggableCommand {
         return try PluginLoader(
             appRoot: systemHealth.appRoot,
             installRoot: systemHealth.installRoot,
+            logRoot: systemHealth.logRoot,
             pluginDirectories: pluginDirectories,
             pluginFactories: pluginFactories,
             log: bootstrapLogger

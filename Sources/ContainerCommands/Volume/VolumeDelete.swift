@@ -68,7 +68,7 @@ extension Application.VolumeCommand {
             }
 
             var failed = [String]()
-            let logger = log
+            let _log = log
             try await withThrowingTaskGroup(of: Volume?.self) { group in
                 for volume in volumes {
                     group.addTask {
@@ -77,7 +77,12 @@ extension Application.VolumeCommand {
                             print(volume.id)
                             return nil
                         } catch {
-                            logger.error("failed to delete volume \(volume.id): \(error)")
+                            _log.error(
+                                "failed to delete volume",
+                                metadata: [
+                                    "id": "\(volume.id)",
+                                    "error": "\(error)",
+                                ])
                             return volume
                         }
                     }

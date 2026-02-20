@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerLog
+import ContainerPlugin
 import ContainerResource
 import ContainerSandboxService
 import ContainerSandboxServiceClient
@@ -42,13 +43,16 @@ extension RuntimeLinuxHelper {
         @Option(name: .shortAndLong, help: "Root directory for the sandbox")
         var root: String
 
+        var logRoot = LogRoot.path
+
         var machServiceLabel: String {
             "\(Self.label).\(uuid)"
         }
 
         func run() async throws {
             let commandName = RuntimeLinuxHelper._commandName
-            let log = RuntimeLinuxHelper.setupLogger(debug: debug, metadata: ["uuid": "\(uuid)"])
+            let logPath = logRoot.map { $0.appending("\(commandName)-\(uuid).log") }
+            let log = ServiceLogger.bootstrap(category: "RuntimeLinuxHelper", metadata: ["uuid": "\(uuid)"], debug: debug, logPath: logPath)
             log.info("starting helper", metadata: ["name": "\(commandName)"])
             defer {
                 log.info("stopping helper", metadata: ["name": "\(commandName)"])
@@ -117,7 +121,12 @@ extension RuntimeLinuxHelper {
                     _ = try await group.next()
                 }
             } catch {
-                log.error("helper failed", metadata: ["name": "\(commandName)", "error": "\(error)"])
+                log.error(
+                    "helper failed",
+                    metadata: [
+                        "name": "\(commandName)",
+                        "error": "\(error)",
+                    ])
                 try? await eventLoopGroup.shutdownGracefully()
                 RuntimeLinuxHelper.Start.exit(withError: error)
             }

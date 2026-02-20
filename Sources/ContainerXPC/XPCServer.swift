@@ -199,14 +199,24 @@ public struct XPCServer: Sendable {
                 let response = try await handler(message)
                 xpc_connection_send_message(connection, response.underlying)
             } catch let error as ContainerizationError {
-                log.error("route handler threw an error", metadata: ["route": "\(route)", "error": "\(error)"])
+                log.error(
+                    "route handler threw an error",
+                    metadata: [
+                        "route": "\(route)",
+                        "error": "\(error)",
+                    ])
                 Self.replyWithError(
                     connection: connection,
                     object: object,
                     err: error
                 )
             } catch {
-                log.error("route handler threw an error", metadata: ["route": "\(route)", "error": "\(error)"])
+                log.error(
+                    "route handler threw an error",
+                    metadata: [
+                        "route": "\(route)",
+                        "error": "\(error)",
+                    ])
                 let message = XPCMessage(object: object)
                 let reply = message.reply()
 

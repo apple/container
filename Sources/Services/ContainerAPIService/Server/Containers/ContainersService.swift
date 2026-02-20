@@ -119,7 +119,12 @@ public actor ContainersService {
                 }
             } catch {
                 try? FileManager.default.removeItem(at: dir)
-                log.warning("failed to load container", metadata: ["path": "\(dir.path)", "error": "\(error)"])
+                log.warning(
+                    "failed to load container",
+                    metadata: [
+                        "path": "\(dir.path)",
+                        "error": "\(error)",
+                    ])
             }
         }
         return results
@@ -546,7 +551,12 @@ public actor ContainersService {
                 let waitFunc: ExitMonitor.WaitHandler = {
                     log.info("registering container with exit monitor")
                     let code = try await client.wait(id)
-                    log.info("container finished in exit monitor", metadata: ["id": "\(id)", "rc": "\(code)"])
+                    log.info(
+                        "container finished in exit monitor",
+                        metadata: [
+                            "id": "\(id)",
+                            "rc": "\(code)",
+                        ])
 
                     return code
                 }
@@ -882,7 +892,12 @@ public actor ContainersService {
 
     private func handleContainerExit(id: String, code: ExitStatus?, context: AsyncLock.Context) async throws {
         if let code {
-            self.log.info("handling container exit", metadata: ["id": "\(id)", "rc": "\(code)"])
+            self.log.info(
+                "handling container exit",
+                metadata: [
+                    "id": "\(id)",
+                    "rc": "\(code)",
+                ])
         }
 
         var state: ContainerState
@@ -916,7 +931,12 @@ public actor ContainersService {
             do {
                 try await client.shutdown()
             } catch {
-                self.log.error("failed to shutdown sandbox service", metadata: ["id": "\(id)", "error": "\(error)"])
+                self.log.error(
+                    "failed to shutdown sandbox service",
+                    metadata: [
+                        "id": "\(id)",
+                        "error": "\(error)",
+                    ])
             }
         }
 
@@ -927,7 +947,12 @@ public actor ContainersService {
             try ServiceManager.deregister(fullServiceLabel: label)
             self.log.info("deregistered sandbox service", metadata: ["id": "\(id)"])
         } catch {
-            self.log.error("failed to deregister sandbox service", metadata: ["id": "\(id)", "error": "\(error)"])
+            self.log.error(
+                "failed to deregister sandbox service",
+                metadata: [
+                    "id": "\(id)",
+                    "error": "\(error)",
+                ])
         }
 
         // Best effort deallocate network attachments for the container. Don't throw on
@@ -999,7 +1024,12 @@ public actor ContainersService {
         do {
             config = try bundle.configuration
         } catch {
-            self.log.warning("failed to read bundle configuration during cleanup for container", metadata: ["id": "\(id)", "error": "\(error)"])
+            self.log.warning(
+                "failed to read bundle configuration during cleanup for container",
+                metadata: [
+                    "id": "\(id)",
+                    "error": "\(error)",
+                ])
         }
 
         // Only try to deregister service if we have a valid config
@@ -1017,7 +1047,12 @@ public actor ContainersService {
         do {
             try bundle.delete()
         } catch {
-            self.log.warning("failed to delete bundle for container", metadata: ["id": "\(id)", "error": "\(error)"])
+            self.log.warning(
+                "failed to delete bundle for container",
+                metadata: [
+                    "id": "\(id)",
+                    "error": "\(error)",
+                ])
         }
 
         self.containers.removeValue(forKey: id)
