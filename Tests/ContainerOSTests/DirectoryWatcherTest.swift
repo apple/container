@@ -131,4 +131,41 @@ struct DirectoryWatcherTest {
         }
     }
 
+    @Test func testWatchingRecreatedDirectory() async throws {
+        try await withTempDir { tempDir in
+            let dir = tempDir.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+
+            let watcher = DirectoryWatcher(directoryURL: dir, log: nil)
+            let createdURLs = CreatedURLs()
+            let beforeDelete = "beforeDelete"
+            let afterDelete = "afterDelete"
+
+            await watcher.startWatching { [createdURLs] urls in
+                for url in urls
+                where url.lastPathComponent == beforeDelete || url.lastPathComponent == afterDelete {
+                    createdURLs.urls.append(url)
+                }
+            }
+
+            try await Task.sleep(for: .milliseconds(100))
+            let file1 = dir.appendingPathComponent(beforeDelete)
+            FileManager.default.createFile(atPath: file1.path, contents: nil)
+            try await Task.sleep(for: .milliseconds(100))
+
+            try FileManager.default.removeItem(at: dir)
+            try await Task.sleep(for: .milliseconds(100))
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            try await Task.sleep(for: .milliseconds(1000))
+
+            let file2 = dir.appendingPathComponent(afterDelete)
+            FileManager.default.createFile(atPath: file2.path, contents: nil)
+
+            try await Task.sleep(for: .milliseconds(100))
+
+            #expect(!createdURLs.urls.isEmpty, "directory watcher failed to detect new file")
+            #expect(Set(createdURLs.urls.map { $0.lastPathComponent }) == Set([beforeDelete, afterDelete]))
+        }
+
+    }
 }

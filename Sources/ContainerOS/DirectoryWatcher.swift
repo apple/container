@@ -40,7 +40,7 @@ public actor DirectoryWatcher {
 
     private var task: Task<Void, any Error>?
     private let monitorQueue: DispatchQueue
-    private var source: DispatchSourceFileSystemObject?
+    nonisolated(unsafe) private var source: DispatchSourceFileSystemObject?
 
     private let log: Logger?
 
@@ -61,19 +61,20 @@ public actor DirectoryWatcher {
     ///   - handler: handler to run on directory state change.
     public func startWatching(handler: @Sendable @escaping ([URL]) throws -> Void) {
         self.task = Task {
-            var pollDirectory = true
+            var exists: Bool
+            var isDir: ObjCBool = false
 
-            do {
-                while pollDirectory {
-                    if self.directoryURL.isDirectory {
+            while true {
+                do {
+                    exists = FileManager.default.fileExists(atPath: self.directoryURL.path, isDirectory: &isDir)
+                    if exists && isDir.boolValue && self.source == nil {
                         try _startWatching(handler: handler)
-
-                        pollDirectory = false
-                        try await Task.sleep(for: Self.watchPeriod)
                     }
+                } catch {
+                    log?.error("failed to start watching", metadata: ["error": "\(error)"])
                 }
-            } catch {
-                log?.error("failed to start watching", metadata: ["error": "\(error)"])
+
+                try await Task.sleep(for: Self.watchPeriod)
             }
         }
     }
@@ -97,7 +98,7 @@ public actor DirectoryWatcher {
 
         let dispatchSource = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: descriptor,
-            eventMask: .write,
+            eventMask: [.delete, .write],
             queue: monitorQueue
         )
 
@@ -107,6 +108,12 @@ public actor DirectoryWatcher {
 
         dispatchSource.setEventHandler { [weak self] in
             guard let self else { return }
+
+            guard !dispatchSource.data.contains(.delete) else {
+                dispatchSource.cancel()
+                self.source = nil
+                return
+            }
 
             do {
                 let files = try FileManager.default.contentsOfDirectory(atPath: directoryURL.path)
