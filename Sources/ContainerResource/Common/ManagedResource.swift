@@ -72,6 +72,22 @@ public struct ManagedResourceError<Resource: ManagedResource>: Error, Sendable {
     }
 }
 
+/// A structured error representing a collection of succeses/failures for compound operations on managed resources.
+public struct ManagedResourcePartialError<Resource: ManagedResource>: Error, Sendable {
+    /// Resources that completed successfully.
+    public let successes: [Resource]
+    /// Resources that had errors, with detailed structured information.
+    public let failures: [ManagedResourceError<Resource>]
+
+    public init(
+        successes: [Resource],
+        failures: [ManagedResourceError<Resource>]
+    ) {
+        self.successes = successes
+        self.failures = failures
+    }
+}
+
 public protocol ManagedResourceErrorCode: Sendable, Codable, Hashable {}
 
 extension ManagedResource {
