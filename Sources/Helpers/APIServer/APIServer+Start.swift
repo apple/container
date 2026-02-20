@@ -123,7 +123,7 @@ extension APIServer {
                     group.addTask {
                         do {
                             let localhostResolver = LocalhostDNSHandler(log: log)
-                            try await localhostResolver.monitorResolvers()
+                            await localhostResolver.monitorResolvers()
 
                             let nxDomainResolver = NxDomainResolver()
                             let compositeResolver = CompositeResolver(handlers: [localhostResolver, nxDomainResolver])

@@ -59,7 +59,7 @@ public actor DirectoryWatcher {
     ///
     /// - Parameters:
     ///   - handler: handler to run on directory state change.
-    public func startWatching(handler: @Sendable @escaping ([URL]) throws -> Void) throws {
+    public func startWatching(handler: @Sendable @escaping ([URL]) throws -> Void) {
         self.task = Task {
             var pollDirectory = true
 

@@ -36,8 +36,8 @@ actor LocalhostDNSHandler: DNSHandler {
         self.dns = [:]
     }
 
-    public func monitorResolvers() async throws {
-        try await self.watcher.startWatching { fileURLs in
+    public func monitorResolvers() async {
+        await self.watcher.startWatching { fileURLs in
             var dns: [String: IPv4] = [:]
             let regex = try Regex(HostDNSResolver.localhostOptionsRegex)
 
