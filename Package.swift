@@ -42,6 +42,7 @@ let package = Package(
         .library(name: "ContainerPlugin", targets: ["ContainerPlugin"]),
         .library(name: "ContainerVersion", targets: ["ContainerVersion"]),
         .library(name: "ContainerXPC", targets: ["ContainerXPC"]),
+        .library(name: "ContainerOS", targets: ["ContainerOS"]),
         .library(name: "SocketForwarder", targets: ["SocketForwarder"]),
         .library(name: "TerminalProgress", targets: ["TerminalProgress"]),
     ],
@@ -141,6 +142,7 @@ let package = Package(
                 "ContainerResource",
                 "ContainerVersion",
                 "ContainerXPC",
+                "ContainerOS",
                 "DNSServer",
             ],
             path: "Sources/Helpers/APIServer"
@@ -391,6 +393,14 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
                 "CAuditToken",
             ]
+        ),
+        .target(
+            name: "ContainerOS",
+            dependencies: [
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationOS", package: "containerization"),
+            ],
+            path: "Sources/ContainerOS"
         ),
         .target(
             name: "TerminalProgress",

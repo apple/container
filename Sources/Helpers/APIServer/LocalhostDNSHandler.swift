@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
+import ContainerOS
 import ContainerPersistence
 import ContainerizationError
 import DNS
