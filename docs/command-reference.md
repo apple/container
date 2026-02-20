@@ -971,17 +971,18 @@ container system stop [--prefix <prefix>] [--debug]
 
 ### `container system status`
 
-Checks whether the container services are running and prints status information. It will ping the apiserver and report readiness.
+Checks whether the container services are running and prints status information. It sends a health check request to the API server, which returns basic system information.
 
 **Usage**
 
 ```bash
-container system status [--prefix <prefix>] [--debug]
+container system status [--prefix <prefix>] [--format <format>] [--debug]
 ```
 
 **Options**
 
 *   `-p, --prefix <prefix>`: Launchd prefix for services (default: com.apple.container.)
+*   `--format <format>`    : Format of the output (values: json, table; default: table)
 
 ### `container system version`
 
