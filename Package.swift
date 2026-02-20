@@ -430,6 +430,12 @@ let package = Package(
                 "DNSServer",
             ]
         ),
+        .testTarget(
+            name: "ContainerOSTests",
+            dependencies: [
+                "ContainerOS",
+            ]
+        ),
         .target(
             name: "SocketForwarder",
             dependencies: [

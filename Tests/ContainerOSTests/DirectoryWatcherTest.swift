@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerOS
 import ContainerizationError
 import DNSServer
 import Foundation
