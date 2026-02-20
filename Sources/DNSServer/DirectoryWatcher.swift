@@ -19,7 +19,21 @@ import ContainerizationOS
 import Foundation
 import Logging
 
+/// Watches a directory for changes and invokes a handler when the contents change.
+///
+/// `DirectoryWatcher` uses `DispatchSource` file system events to monitor a directory.
+/// If the target directory does not exist yet, it watches the parent directory until
+/// the target is created, then transitions to watching the target directly.
+///
+/// Example usage:
+/// ```swift
+/// let watcher = DirectoryWatcher(directoryURL: myURL, log: logger)
+/// try watcher.startWatching { urls in
+///     print("Directory contents changed: \(urls)")
+/// }
+/// ```
 public class DirectoryWatcher {
+    /// The URL of the directory being watched.
     public let directoryURL: URL
 
     private let monitorQueue: DispatchQueue
@@ -28,6 +42,11 @@ public class DirectoryWatcher {
 
     private let log: Logger?
 
+    /// Creates a new `DirectoryWatcher` for the given directory URL.
+    ///
+    /// - Parameters:
+    ///   - directoryURL: The URL of the directory to watch.
+    ///   - log: An optional logger for diagnostic messages.
     public init(directoryURL: URL, log: Logger?) {
         self.directoryURL = directoryURL
         self.monitorQueue = DispatchQueue(label: "monitor:\(directoryURL.path)")
@@ -76,6 +95,7 @@ public class DirectoryWatcher {
         dispatchSource.resume()
     }
 
+    /// Starts watching the directory for changes.
     public func startWatching(handler: @escaping ([URL]) throws -> Void) throws {
         guard source == nil else {
             throw ContainerizationError(.invalidState, message: "already watching on \(directoryURL.path)")
