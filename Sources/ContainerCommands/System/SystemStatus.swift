@@ -31,28 +31,96 @@ extension Application {
         @Option(name: .shortAndLong, help: "Launchd prefix for services")
         var prefix: String = "com.apple.container."
 
+        @Option(name: .long, help: "Format of the output")
+        var format: ListFormat = .table
+
         @OptionGroup
         public var logOptions: Flags.Logging
 
         public init() {}
 
+        struct PrintableStatus: Codable {
+            let status: String
+            let appRoot: String
+            let installRoot: String
+            let logRoot: String?
+            let apiServerVersion: String
+            let apiServerCommit: String
+            let apiServerBuild: String
+            let apiServerAppName: String
+        }
+
         public func run() async throws {
             let isRegistered = try ServiceManager.isRegistered(fullServiceLabel: "\(prefix)apiserver")
             if !isRegistered {
-                print("apiserver is not running and not registered with launchd")
+                if format == .json {
+                    let status = PrintableStatus(
+                        status: "unregistered",
+                        appRoot: "",
+                        installRoot: "",
+                        logRoot: nil,
+                        apiServerVersion: "",
+                        apiServerCommit: "",
+                        apiServerBuild: "",
+                        apiServerAppName: ""
+                    )
+                    let data = try JSONEncoder().encode(status)
+                    print(String(decoding: data, as: UTF8.self))
+                } else {
+                    print("apiserver is not running and not registered with launchd")
+                }
                 Application.exit(withError: ExitCode(1))
             }
 
             // Now ping our friendly daemon. Fail after 10 seconds with no response.
             do {
                 let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
-                print("apiserver is running")
-                print("application data root: \(systemHealth.appRoot.path(percentEncoded: false))")
-                print("application install root: \(systemHealth.installRoot.path(percentEncoded: false))")
-                print("container-apiserver version: \(systemHealth.apiServerVersion)")
-                print("container-apiserver commit: \(systemHealth.apiServerCommit)")
+
+                if format == .json {
+                    let status = PrintableStatus(
+                        status: "running",
+                        appRoot: systemHealth.appRoot.path(percentEncoded: false),
+                        installRoot: systemHealth.installRoot.path(percentEncoded: false),
+                        logRoot: systemHealth.logRoot?.string,
+                        apiServerVersion: systemHealth.apiServerVersion,
+                        apiServerCommit: systemHealth.apiServerCommit,
+                        apiServerBuild: systemHealth.apiServerBuild,
+                        apiServerAppName: systemHealth.apiServerAppName
+                    )
+                    let data = try JSONEncoder().encode(status)
+                    print(String(decoding: data, as: UTF8.self))
+                } else {
+                    let rows: [[String]] = [
+                        ["FIELD", "VALUE"],
+                        ["status", "running"],
+                        ["appRoot", systemHealth.appRoot.path(percentEncoded: false)],
+                        ["installRoot", systemHealth.installRoot.path(percentEncoded: false)],
+                        ["logRoot", systemHealth.logRoot?.string ?? ""],
+                        ["apiserver.version", systemHealth.apiServerVersion],
+                        ["apiserver.commit", systemHealth.apiServerCommit],
+                        ["apiserver.build", systemHealth.apiServerBuild],
+                        ["apiserver.appName", systemHealth.apiServerAppName],
+                    ]
+                    let formatter = TableOutput(rows: rows)
+                    print(formatter.format())
+                }
             } catch {
-                print("apiserver is not running")
+                if format == .json {
+                    let status = PrintableStatus(
+                        status: "not running",
+                        appRoot: "",
+                        installRoot: "",
+                        logRoot: nil,
+                        apiServerVersion: "",
+                        apiServerCommit: "",
+                        apiServerBuild: "",
+                        apiServerAppName: ""
+                    )
+                    let data = try JSONEncoder().encode(status)
+                    print(String(decoding: data, as: UTF8.self))
+                } else {
+                    print("apiserver is not running")
+                }
                 Application.exit(withError: ExitCode(1))
             }
         }
