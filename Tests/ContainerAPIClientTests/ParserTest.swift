@@ -552,7 +552,7 @@ struct ParserTest {
         let result = Parser.env(envList: ["EMPTY="])
         #expect(result == ["EMPTY="])
     }
-    
+
     @Test
     func testAllEnvUserOverridesImage() throws {
         let result = try Parser.allEnv(
