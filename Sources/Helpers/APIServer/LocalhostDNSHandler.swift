@@ -22,11 +22,11 @@ import DNSServer
 import Foundation
 import Logging
 
-class LocalhostDNSHandler: DNSHandler {
+actor LocalhostDNSHandler: DNSHandler {
     private let ttl: UInt32
     private let watcher: DirectoryWatcher
 
-    private var dns: [String: IPv4]
+    nonisolated(unsafe) private var dns: [String: IPv4]
 
     public init(resolversURL: URL = HostDNSResolver.defaultConfigPath, ttl: UInt32 = 5, log: Logger) {
         self.ttl = ttl
@@ -35,8 +35,8 @@ class LocalhostDNSHandler: DNSHandler {
         self.dns = [:]
     }
 
-    public func monitorResolvers() throws {
-        try self.watcher.startWatching { fileURLs in
+    public func monitorResolvers() async throws {
+        try await self.watcher.startWatching { fileURLs in
             var dns: [String: IPv4] = [:]
             let regex = try Regex(HostDNSResolver.localhostOptionsRegex)
 
@@ -54,7 +54,7 @@ class LocalhostDNSHandler: DNSHandler {
         }
     }
 
-    public func answer(query: Message) async throws -> Message? {
+    nonisolated public func answer(query: Message) async throws -> Message? {
         let question = query.questions[0]
         var record: ResourceRecord?
         switch question.type {

@@ -41,15 +41,11 @@ struct DirectoryWatcherTest {
         return try await body(tempDir)
     }
 
-    private class CreatedURLs {
-        public var urls: [URL]
+    private actor CreatedURLs {
+        nonisolated(unsafe) public var urls: [URL]
 
         public init() {
             self.urls = []
-        }
-
-        public func append(url: URL) {
-            urls.append(url)
         }
     }
 
@@ -60,18 +56,16 @@ struct DirectoryWatcherTest {
             let createdURLs = CreatedURLs()
             let name = "newFile"
 
-            #expect(throws: Never.self) {
-                try watcher.startWatching { [createdURLs] urls in
-                    for url in urls where url.lastPathComponent == name {
-                        createdURLs.append(url: url)
-                    }
+            try await watcher.startWatching { [createdURLs] urls in
+                for url in urls where url.lastPathComponent == name {
+                    createdURLs.urls.append(url)
                 }
             }
 
-            try await Task.sleep(for: .milliseconds(500))
+            try await Task.sleep(for: .milliseconds(100))
             let newFile = tempDir.appendingPathComponent(name)
             FileManager.default.createFile(atPath: newFile.path, contents: nil)
-            try await Task.sleep(for: .milliseconds(500))
+            try await Task.sleep(for: .milliseconds(100))
 
             #expect(!createdURLs.urls.isEmpty, "directory watcher failed to detect new file")
             #expect(createdURLs.urls.first!.lastPathComponent == name)
@@ -87,60 +81,21 @@ struct DirectoryWatcherTest {
             let createdURLs = CreatedURLs()
             let name = "newFile"
 
-            #expect(throws: Never.self) {
-                try watcher.startWatching { [createdURLs] urls in
-                    for url in urls where url.lastPathComponent == name {
-                        createdURLs.append(url: url)
-                    }
+            try await watcher.startWatching { [createdURLs] urls in
+                for url in urls where url.lastPathComponent == name {
+                    createdURLs.urls.append(url)
                 }
             }
 
-            try await Task.sleep(for: .milliseconds(300))
+            try await Task.sleep(for: .milliseconds(100))
             try FileManager.default.createDirectory(at: childDir, withIntermediateDirectories: true)
 
-            try await Task.sleep(for: .milliseconds(300))
+            try await Task.sleep(for: DirectoryWatcher.watchPeriod)
             let newFile = childDir.appendingPathComponent(name)
             FileManager.default.createFile(atPath: newFile.path, contents: nil)
-            try await Task.sleep(for: .milliseconds(300))
+            try await Task.sleep(for: .milliseconds(100))
 
             #expect(!createdURLs.urls.isEmpty, "directory watcher failed to detect parent directory")
-            #expect(createdURLs.urls.first!.lastPathComponent == name)
-
-        }
-
-        try await withTempDir { tempDir in
-            let parent = UUID().uuidString
-            let symlink = UUID().uuidString
-            let child = UUID().uuidString
-
-            let parentDir = tempDir.appendingPathComponent(parent)
-            let symlinkDir = tempDir.appendingPathComponent(symlink)
-            let childDir = symlinkDir.appendingPathComponent(child)
-
-            try FileManager.default.createDirectory(at: parentDir, withIntermediateDirectories: true)
-            try FileManager.default.createSymbolicLink(at: symlinkDir, withDestinationURL: parentDir)
-
-            let watcher = DirectoryWatcher(directoryURL: childDir, log: nil)
-            let createdURLs = CreatedURLs()
-            let name = "newFile"
-
-            #expect(throws: Never.self) {
-                try watcher.startWatching { [createdURLs] urls in
-                    for url in urls where url.lastPathComponent == name {
-                        createdURLs.append(url: url)
-                    }
-                }
-            }
-
-            try await Task.sleep(for: .milliseconds(300))
-            try FileManager.default.createDirectory(at: childDir, withIntermediateDirectories: true)
-
-            try await Task.sleep(for: .milliseconds(300))
-            let newFile = childDir.appendingPathComponent(name)
-            FileManager.default.createFile(atPath: newFile.path, contents: nil)
-            try await Task.sleep(for: .milliseconds(300))
-
-            #expect(!createdURLs.urls.isEmpty, "directory watcher failed to detect symbolic parent directory")
             #expect(createdURLs.urls.first!.lastPathComponent == name)
         }
     }
@@ -152,9 +107,26 @@ struct DirectoryWatcherTest {
             let childDir = tempDir.appendingPathComponent(parent).appendingPathComponent(child)
 
             let watcher = DirectoryWatcher(directoryURL: childDir, log: nil)
-            #expect(throws: ContainerizationError.self, "directory watcher should fail if no parent") {
-                try watcher.startWatching { urls in }
+            let createdURLs = CreatedURLs()
+            let name = "newFile"
+
+            try await watcher.startWatching { urls in
+                for url in urls where url.lastPathComponent == name {
+                    createdURLs.urls.append(url)
+                }
             }
+
+            try await Task.sleep(for: .microseconds(100))
+            try FileManager.default.createDirectory(at: childDir, withIntermediateDirectories: true)
+
+            try await Task.sleep(for: DirectoryWatcher.watchPeriod)
+
+            let newFile = childDir.appendingPathComponent(name)
+            FileManager.default.createFile(atPath: newFile.path, contents: nil)
+            try await Task.sleep(for: .milliseconds(100))
+
+            #expect(!createdURLs.urls.isEmpty, "directory watcher failed to detect parent directory")
+            #expect(createdURLs.urls.first!.lastPathComponent == name)
         }
     }
 

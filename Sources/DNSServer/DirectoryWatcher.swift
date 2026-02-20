@@ -22,7 +22,7 @@ import Logging
 /// Watches a directory for changes and invokes a handler when the contents change.
 ///
 /// `DirectoryWatcher` uses `DispatchSource` file system events to monitor a directory.
-/// If the target directory does not exist yet, it watches the parent directory until
+/// If the target directory does not exist yet, it polls until the directory is created.
 /// the target is created, then transitions to watching the target directly.
 ///
 /// Example usage:
@@ -32,12 +32,14 @@ import Logging
 ///     print("Directory contents changed: \(urls)")
 /// }
 /// ```
-public class DirectoryWatcher {
+public actor DirectoryWatcher {
+    public static let watchPeriod = Duration.seconds(1)
+
     /// The URL of the directory being watched.
     public let directoryURL: URL
 
+    private var task: Task<Void, any Error>?
     private let monitorQueue: DispatchQueue
-    private var parentSource: DispatchSourceFileSystemObject?
     private var source: DispatchSourceFileSystemObject?
 
     private let log: Logger?
@@ -51,6 +53,24 @@ public class DirectoryWatcher {
         self.directoryURL = directoryURL
         self.monitorQueue = DispatchQueue(label: "monitor:\(directoryURL.path)")
         self.log = log
+    }
+
+    /// Starts watching the directory for changes.
+    ///
+    /// - Parameters:
+    ///   - handler: handler to run on directory state change.
+    public func startWatching(handler: @Sendable @escaping ([URL]) throws -> Void) throws {
+        self.task = Task {
+            var pollDirectory = true
+            while pollDirectory {
+                if self.directoryURL.isDirectory {
+                    try _startWatching(handler: handler)
+
+                    pollDirectory = false
+                    try await Task.sleep(for: Self.watchPeriod)
+                }
+            }
+        }
     }
 
     private func _startWatching(
@@ -95,57 +115,8 @@ public class DirectoryWatcher {
         dispatchSource.resume()
     }
 
-    /// Starts watching the directory for changes.
-    public func startWatching(handler: @escaping ([URL]) throws -> Void) throws {
-        guard source == nil else {
-            throw ContainerizationError(.invalidState, message: "already watching on \(directoryURL.path)")
-        }
-
-        let parent = directoryURL.deletingLastPathComponent().resolvingSymlinksInPathWithPrivate()
-        guard parent.isDirectory else {
-            throw ContainerizationError(.invalidState, message: "expected \(parent.path) to be an existing directory")
-        }
-
-        guard !directoryURL.isSymlink else {
-            throw ContainerizationError(.invalidState, message: "expected \(directoryURL.path) not a symlink")
-        }
-
-        guard directoryURL.isDirectory else {
-            log?.info("no target directory, start watching parent", metadata: ["path": "\(parent.path)"])
-
-            let descriptor = open(parent.path, O_EVTONLY)
-            let source = DispatchSource.makeFileSystemObjectSource(
-                fileDescriptor: descriptor,
-                eventMask: .write,
-                queue: monitorQueue)
-
-            source.setCancelHandler {
-                close(descriptor)
-            }
-
-            source.setEventHandler { [weak self] in
-                guard let self else { return }
-
-                if directoryURL.isDirectory {
-                    do {
-                        try _startWatching(handler: handler)
-                    } catch {
-                        log?.error("failed to start watching", metadata: ["error": "\(error)"])
-                    }
-                    source.cancel()
-                }
-            }
-
-            parentSource = source
-            source.resume()
-            return
-        }
-
-        try _startWatching(handler: handler)
-    }
-
     deinit {
-        parentSource?.cancel()
+        self.task?.cancel()
         source?.cancel()
     }
 }
