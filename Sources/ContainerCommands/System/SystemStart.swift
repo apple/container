@@ -21,6 +21,7 @@ import ContainerPlugin
 import ContainerXPC
 import ContainerizationError
 import Foundation
+import SystemPackage
 import TerminalProgress
 
 extension Application {
@@ -41,6 +42,12 @@ extension Application {
             help: "Path to the root directory for application executables and plugins",
             transform: { URL(filePath: $0) })
         var installRoot = InstallRoot.defaultURL
+
+        @Option(
+            name: .long,
+            help: "Path to the root directory for log data, using macOS log facility if not set",
+            transform: { FilePath($0) })
+        var logRoot: FilePath? = nil
 
         @Flag(
             name: .long,
@@ -85,7 +92,12 @@ extension Application {
             var env = PluginLoader.filterEnvironment()
             env[ApplicationRoot.environmentName] = appRoot.path(percentEncoded: false)
             env[InstallRoot.environmentName] = installRoot.path(percentEncoded: false)
-
+            if let logRoot {
+                env[LogRoot.environmentName] =
+                    logRoot.isAbsolute
+                    ? logRoot.string
+                    : FilePath(FileManager.default.currentDirectoryPath).appending(logRoot.components).string
+            }
             let plist = LaunchPlist(
                 label: "com.apple.container.apiserver",
                 arguments: args,

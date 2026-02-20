@@ -17,6 +17,7 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerAPIService
+import ContainerLog
 import ContainerNetworkService
 import ContainerPlugin
 import ContainerResource
@@ -24,6 +25,7 @@ import ContainerXPC
 import DNSServer
 import Foundation
 import Logging
+import SystemPackage
 
 extension APIServer {
     struct Start: AsyncParsableCommand {
@@ -43,9 +45,12 @@ extension APIServer {
 
         var installRoot = InstallRoot.url
 
+        var logRoot = LogRoot.path
+
         func run() async throws {
-            let commandName = Self.configuration.commandName ?? "container-apiserver"
-            let log = APIServer.setupLogger(debug: debug)
+            let commandName = APIServer._commandName
+            let logPath = logRoot.map { $0.appending("\(commandName).log") }
+            let log = ServiceLogger.bootstrap(category: "APIServer", debug: debug, logPath: logPath)
             log.info("starting helper", metadata: ["name": "\(commandName)"])
             defer {
                 log.info("stopping helper", metadata: ["name": "\(commandName)"])
@@ -91,6 +96,7 @@ extension APIServer {
                         log.info("starting XPC server")
                         try await server.listen()
                     }
+
                     // start up host table DNS
                     group.addTask {
                         let hostsResolver = ContainerDNSHandler(networkService: networkService)
@@ -113,7 +119,12 @@ extension APIServer {
                     /*
                     group.addTask {
                         let localhostResolver = LocalhostDNSHandler(log: log)
-                        try localhostResolver.monitorResolvers()
+                        do {
+                            try localhostResolver.monitorResolvers()
+                        } catch {
+                            log.error("could not initialize resolver monitor", metadata: ["error": "\(error)"])
+                            throw error
+                        }
                     
                         let nxDomainResolver = NxDomainResolver()
                         let compositeResolver = CompositeResolver(handlers: [localhostResolver, nxDomainResolver])
@@ -131,7 +142,12 @@ extension APIServer {
                     */
                 }
             } catch {
-                log.error("helper failed", metadata: ["name": "\(commandName)", "error": "\(error)"])
+                log.error(
+                    "helper failed",
+                    metadata: [
+                        "name": "\(commandName)",
+                        "error": "\(error)",
+                    ])
                 APIServer.exit(withError: error)
             }
         }
@@ -178,6 +194,7 @@ extension APIServer {
             return try PluginLoader(
                 appRoot: appRoot,
                 installRoot: installRoot,
+                logRoot: logRoot,
                 pluginDirectories: pluginDirectories,
                 pluginFactories: pluginFactories,
                 log: log
@@ -209,7 +226,12 @@ extension APIServer {
         private func initializeHealthCheckService(log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) {
             log.info("initializing health check service")
 
-            let svc = HealthCheckHarness(appRoot: appRoot, installRoot: installRoot, log: log)
+            let svc = HealthCheckHarness(
+                appRoot: appRoot,
+                installRoot: installRoot,
+                logRoot: logRoot,
+                log: log
+            )
             routes[XPCRoute.ping] = svc.ping
         }
 

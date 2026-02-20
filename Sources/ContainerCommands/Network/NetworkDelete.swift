@@ -89,7 +89,7 @@ extension Application {
             }
 
             var failed = [String]()
-            let logger = log
+            let _log = log
             try await withThrowingTaskGroup(of: NetworkState?.self) { group in
                 for network in networks {
                     group.addTask {
@@ -100,7 +100,12 @@ extension Application {
                             print(network.id)
                             return nil
                         } catch {
-                            logger.error("failed to delete network \(network.id): \(error)")
+                            _log.error(
+                                "failed to delete network",
+                                metadata: [
+                                    "id": "\(network.id)",
+                                    "error": "\(error)",
+                                ])
                             return network
                         }
                     }
