@@ -433,7 +433,7 @@ let package = Package(
         .testTarget(
             name: "ContainerOSTests",
             dependencies: [
-                "ContainerOS",
+                "ContainerOS"
             ]
         ),
         .target(

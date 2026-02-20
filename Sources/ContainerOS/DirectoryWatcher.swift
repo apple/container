@@ -62,13 +62,18 @@ public actor DirectoryWatcher {
     public func startWatching(handler: @Sendable @escaping ([URL]) throws -> Void) throws {
         self.task = Task {
             var pollDirectory = true
-            while pollDirectory {
-                if self.directoryURL.isDirectory {
-                    try _startWatching(handler: handler)
 
-                    pollDirectory = false
-                    try await Task.sleep(for: Self.watchPeriod)
+            do {
+                while pollDirectory {
+                    if self.directoryURL.isDirectory {
+                        try _startWatching(handler: handler)
+
+                        pollDirectory = false
+                        try await Task.sleep(for: Self.watchPeriod)
+                    }
                 }
+            } catch {
+                log?.error("failed to start watching", metadata: ["error": "\(error)"])
             }
         }
     }
@@ -107,7 +112,7 @@ public actor DirectoryWatcher {
                 let files = try FileManager.default.contentsOfDirectory(atPath: directoryURL.path)
                 try handler(files.map { directoryURL.appending(path: $0) })
             } catch {
-                self.log?.error("failed to run DirectoryWatcher handler", metadata: ["error": "\(error)", "path": "\(directoryURL.path)"])
+                self.log?.error("failed to run watch handler", metadata: ["error": "\(error)", "path": "\(directoryURL.path)"])
             }
         }
 
