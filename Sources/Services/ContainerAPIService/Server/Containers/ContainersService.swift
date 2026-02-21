@@ -426,6 +426,7 @@ public actor ContainersService {
                 try Self.registerService(
                     loader: self.pluginLoader,
                     plugin: self.runtimePlugins.first { $0.name == config.runtimeHandler }!,
+                    variant: variant,
                     configuration: config,
                     path: path,
                     debug: self.debugHelpers
