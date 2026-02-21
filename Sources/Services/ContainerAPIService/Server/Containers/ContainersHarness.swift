@@ -55,7 +55,8 @@ public struct ContainersHarness: Sendable {
             )
         }
         let stdio = message.stdio()
-        try await service.bootstrap(id: id, stdio: stdio)
+        let variant = message.variant()
+        try await service.bootstrap(id: id, stdio: stdio, variant: variant)
         return message.reply()
     }
 

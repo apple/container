@@ -293,6 +293,9 @@ public struct Flags {
         )
         public var publishSockets: [String] = []
 
+        @Flag(name: .long, help: "Mount the container's root filesystem as read-only")
+        public var readOnly = false
+
         @Flag(name: [.customLong("rm"), .long], help: "Remove the container after it stops")
         public var remove = false
 
@@ -305,9 +308,6 @@ public struct Flags {
         @Option(name: .customLong("tmpfs"), help: "Add a tmpfs mount to the container at the given path")
         public var tmpFs: [String] = []
 
-        @Option(name: [.customLong("volume"), .short], help: "Bind mount a volume into the container")
-        public var volumes: [String] = []
-
         @Flag(
             name: .long,
             help:
@@ -315,8 +315,8 @@ public struct Flags {
         )
         public var virtualization: Bool = false
 
-        @Flag(name: .long, help: "Mount the container's root filesystem as read-only")
-        public var readOnly = false
+        @Option(name: [.customLong("volume"), .short], help: "Bind mount a volume into the container")
+        public var volumes: [String] = []
 
         @Option(name: .long, help: "Set the runtime handler for the container (default: container-runtime-linux)")
         public var runtime: String?
