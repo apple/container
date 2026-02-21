@@ -18,6 +18,7 @@ import ContainerizationError
 import ContainerizationOS
 import Foundation
 import Logging
+import Synchronization
 
 /// Watches a directory for changes and invokes a handler when the contents change.
 ///
@@ -40,7 +41,7 @@ public actor DirectoryWatcher {
 
     private var task: Task<Void, any Error>?
     private let monitorQueue: DispatchQueue
-    nonisolated(unsafe) private var source: DispatchSourceFileSystemObject?
+    private let source: Mutex<DispatchSourceFileSystemObject?>
 
     private let log: Logger?
 
@@ -53,6 +54,7 @@ public actor DirectoryWatcher {
         self.directoryURL = directoryURL
         self.monitorQueue = DispatchQueue(label: "monitor:\(directoryURL.path)")
         self.log = log
+        self.source = Mutex(nil)
     }
 
     /// Starts watching the directory for changes.
@@ -67,7 +69,7 @@ public actor DirectoryWatcher {
             while true {
                 do {
                     exists = FileManager.default.fileExists(atPath: self.directoryURL.path, isDirectory: &isDir)
-                    if exists && isDir.boolValue && self.source == nil {
+                    if exists && isDir.boolValue && self.source.withLock({ $0 }) == nil {
                         try _startWatching(handler: handler)
                     }
                 } catch {
@@ -111,7 +113,7 @@ public actor DirectoryWatcher {
 
             guard !dispatchSource.data.contains(.delete) else {
                 dispatchSource.cancel()
-                self.source = nil
+                self.source.withLock { $0 = nil }
                 return
             }
 
@@ -119,16 +121,18 @@ public actor DirectoryWatcher {
                 let files = try FileManager.default.contentsOfDirectory(atPath: directoryURL.path)
                 try handler(files.map { directoryURL.appending(path: $0) })
             } catch {
-                self.log?.error("failed to run watch handler", metadata: ["error": "\(error)", "path": "\(directoryURL.path)"])
+                self.log?.error(
+                    "failed to run watch handler",
+                    metadata: ["error": "\(error)", "path": "\(directoryURL.path)"])
             }
         }
 
-        source = dispatchSource
+        source.withLock { $0 = dispatchSource }
         dispatchSource.resume()
     }
 
     deinit {
         self.task?.cancel()
-        source?.cancel()
+        source.withLock { $0?.cancel() }
     }
 }
