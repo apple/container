@@ -842,6 +842,7 @@ public actor SandboxService {
         }
         // If the host doesn't support this, we'll throw on container creation.
         czConfig.virtualization = config.virtualization
+        czConfig.useInit = config.useInit
 
         for mount in config.mounts {
             if try mount.isSocket() {

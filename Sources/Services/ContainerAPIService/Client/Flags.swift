@@ -188,6 +188,7 @@ public struct Flags {
             runtime: String?,
             ssh: Bool,
             tmpFs: [String],
+            useInit: Bool,
             virtualization: Bool,
             volumes: [String]
         ) {
@@ -213,6 +214,7 @@ public struct Flags {
             self.runtime = runtime
             self.ssh = ssh
             self.tmpFs = tmpFs
+            self.useInit = useInit
             self.virtualization = virtualization
             self.volumes = volumes
         }
@@ -238,6 +240,15 @@ public struct Flags {
         )
         public var entrypoint: String?
 
+        @Flag(name: .customLong("init"), help: "Run an init process inside the container that forwards signals and reaps processes")
+        public var useInit = false
+
+        @Option(
+            name: .long,
+            help: .init("Use a custom init image instead of the default", valueName: "image")
+        )
+        public var initImage: String?
+
         @Option(
             name: .shortAndLong,
             help: .init("Set a custom kernel path", valueName: "path"),
@@ -247,12 +258,6 @@ public struct Flags {
             }
         )
         public var kernel: String?
-
-        @Option(
-            name: .long,
-            help: .init("Use a custom init image instead of the default", valueName: "image")
-        )
-        public var initImage: String?
 
         @Option(name: [.short, .customLong("label")], help: "Add a key=value label to the container")
         public var labels: [String] = []
@@ -293,20 +298,23 @@ public struct Flags {
         )
         public var publishSockets: [String] = []
 
+        @Flag(name: .long, help: "Mount the container's root filesystem as read-only")
+        public var readOnly = false
+
         @Flag(name: [.customLong("rm"), .long], help: "Remove the container after it stops")
         public var remove = false
 
         @Flag(name: .long, help: "Enable Rosetta in the container")
         public var rosetta = false
 
+        @Option(name: .long, help: "Set the runtime handler for the container (default: container-runtime-linux)")
+        public var runtime: String?
+
         @Flag(name: .long, help: "Forward SSH agent socket to container")
         public var ssh = false
 
         @Option(name: .customLong("tmpfs"), help: "Add a tmpfs mount to the container at the given path")
         public var tmpFs: [String] = []
-
-        @Option(name: [.customLong("volume"), .short], help: "Bind mount a volume into the container")
-        public var volumes: [String] = []
 
         @Flag(
             name: .long,
@@ -315,11 +323,8 @@ public struct Flags {
         )
         public var virtualization: Bool = false
 
-        @Flag(name: .long, help: "Mount the container's root filesystem as read-only")
-        public var readOnly = false
-
-        @Option(name: .long, help: "Set the runtime handler for the container (default: container-runtime-linux)")
-        public var runtime: String?
+        @Option(name: [.customLong("volume"), .short], help: "Bind mount a volume into the container")
+        public var volumes: [String] = []
     }
 
     public struct Progress: ParsableArguments {
