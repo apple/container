@@ -57,7 +57,7 @@ extension Application {
                 }
                 password = String(decoding: passwordData, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
             }
-            let keychain = KeychainHelper(securityDomain: Constants.keychainID)
+            let keychain = KeychainHelper(securityDomain: Constants.keychainID, accessGroup: Constants.keychainGroup)
             if username == "" {
                 username = try keychain.userPrompt(hostname: server)
             }

@@ -427,7 +427,7 @@ extension ImagesService {
         if let authentication {
             return try await body(authentication)
         }
-        let keychain = KeychainHelper(securityDomain: Constants.keychainID)
+        let keychain = KeychainHelper(securityDomain: Constants.keychainID, accessGroup: Constants.keychainGroup)
         do {
             authentication = try keychain.lookup(hostname: host)
         } catch let err as KeychainHelper.Error {

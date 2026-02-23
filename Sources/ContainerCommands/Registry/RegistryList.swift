@@ -38,7 +38,7 @@ extension Application {
             aliases: ["ls"])
 
         public func run() async throws {
-            let keychain = KeychainHelper(securityDomain: Constants.keychainID)
+            let keychain = KeychainHelper(securityDomain: Constants.keychainID, accessGroup: Constants.keychainGroup)
             let registries = try keychain.list()
             try printRegistries(registries: registries, format: format)
         }

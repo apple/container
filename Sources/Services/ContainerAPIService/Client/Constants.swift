@@ -18,4 +18,6 @@
 public enum Constants {
     /// The keychain ID to use for registry credentials.
     public static let keychainID = "com.apple.container.registry"
+    /// The application access group to use for registry credentials.
+    public static let keychainGroup = "com.apple.container.keychain"
 }
