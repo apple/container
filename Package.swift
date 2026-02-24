@@ -52,7 +52,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.80.0"),
-        .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.29.0"),
+        .package(url: "https://github.com/apple/swift-protobuf.git", exact: "1.29.0"),
         .package(url: "https://github.com/apple/swift-system.git", from: "1.4.0"),
         .package(url: "https://github.com/grpc/grpc-swift.git", from: "1.26.0"),
         .package(url: "https://github.com/orlandos-nl/DNSClient.git", from: "2.4.1"),

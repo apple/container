@@ -1,5 +1,5 @@
 {
-  "originHash" : "45be168c0ee465e39c40abfc024f37a41678d66e8ada8b345bc8dccbecfef90b",
+  "originHash" : "341b87cc3f2b0a1b830ffd8f47a99ebd75000778e950cce89c3bc73167163c95",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -42,8 +42,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/grpc/grpc-swift.git",
       "state" : {
-        "revision" : "956259f65a34c58dd76ae5df4511712e1087726b",
-        "version" : "1.27.3"
+        "revision" : "a56a157218877ef3e9625f7e1f7b2cb7e46ead1b",
+        "version" : "1.26.1"
       }
     },
     {
@@ -240,8 +240,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-protobuf.git",
       "state" : {
-        "revision" : "5596511fce902e649c403cd4d6d5da1254f142b7",
-        "version" : "1.35.1"
+        "revision" : "d72aed98f8253ec1aa9ea1141e28150f408cf17f",
+        "version" : "1.29.0"
       }
     },
     {
