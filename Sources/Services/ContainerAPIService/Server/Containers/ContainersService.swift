@@ -438,6 +438,7 @@ public actor ContainersService {
                 )
 
                 state.client = runtimeClient
+                state.snapshot.status = .bootstrapped
                 await self.setContainerState(id, state, context: context)
             } catch {
                 let label = Self.fullLaunchdServiceLabel(
