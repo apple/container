@@ -22,6 +22,8 @@ public enum RuntimeStatus: String, CaseIterable, Sendable, Codable {
     case unknown
     /// The object is currently stopped.
     case stopped
+    /// The object is waiting to be restarted.
+    case restarting
     /// The object is currently bootstrapped.
     case bootstrapped
     /// The object is currently running.
