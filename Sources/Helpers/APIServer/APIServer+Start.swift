@@ -61,7 +61,7 @@ extension APIServer {
                 var routes = [XPCRoute: XPCServer.RouteHandler]()
                 let pluginLoader = try initializePluginLoader(log: log)
                 try await initializePlugins(pluginLoader: pluginLoader, log: log, routes: &routes)
-                let containersService = try initializeContainersService(
+                let containersService = try await initializeContainersService(
                     pluginLoader: pluginLoader,
                     log: log,
                     routes: &routes
@@ -244,7 +244,7 @@ extension APIServer {
             routes[XPCRoute.getDefaultKernel] = harness.getDefaultKernel
         }
 
-        private func initializeContainersService(pluginLoader: PluginLoader, log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) throws -> ContainersService {
+        private func initializeContainersService(pluginLoader: PluginLoader, log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) async throws -> ContainersService {
             log.info("initializing containers service")
 
             let service = try ContainersService(
@@ -270,6 +270,8 @@ extension APIServer {
             routes[XPCRoute.containerStats] = harness.stats
             routes[XPCRoute.containerDiskUsage] = harness.diskUsage
             routes[XPCRoute.containerExport] = harness.export
+
+            async let _ = try service.runRestartScheduler()
 
             return service
         }

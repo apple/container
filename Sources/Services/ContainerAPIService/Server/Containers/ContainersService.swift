@@ -59,6 +59,10 @@ public actor ContainersService {
     private static let machServicePrefix = "com.apple.container"
     private static let launchdDomainString = try! ServiceManager.getDomainString()
 
+    private let exitQueue: AsyncStream<String>
+    private let exitQueueContinuation: AsyncStream<String>.Continuation
+    private var restartScheduler: Task<Void, Never>?
+
     private let log: Logger
     private let debugHelpers: Bool
     private let containerRoot: URL
@@ -87,7 +91,13 @@ public actor ContainersService {
         self.log = log
         self.debugHelpers = debugHelpers
         self.runtimePlugins = pluginLoader.findPlugins().filter { $0.hasType(.runtime) }
+
+        (self.exitQueue, self.exitQueueContinuation) = AsyncStream.makeStream(of: String.self)
         self.containers = try Self.loadAtBoot(root: containerRoot, loader: pluginLoader, log: log)
+
+        for id in self.containers.keys {
+            self.exitQueueContinuation.yield(id)
+        }
     }
 
     public func setNetworksService(_ service: NetworksService) async {
@@ -136,6 +146,61 @@ public actor ContainersService {
             }
         }
         return results
+    }
+
+    public func runRestartScheduler() throws {
+        log.debug(
+            "ContainersService: enter",
+            metadata: ["func": "\(#function)"]
+        )
+        defer {
+            log.debug(
+                "ContainersService: exit",
+                metadata: ["func": "\(#function)"]
+            )
+        }
+
+        guard restartScheduler == nil else {
+            throw ContainerizationError(.invalidState, message: "already running restart scheduler")
+        }
+
+        restartScheduler = Task {
+            for await id in self.exitQueue {
+                do {
+                    let state = try self._getContainerState(id: id)
+
+                    guard state.snapshot.status == .stopped else {
+                        throw ContainerizationError(.invalidState, message: "container not stopped: '\(id)'")
+                    }
+
+                    let options = try self.getContainerCreationOptions(id: id)
+
+                    guard options.autoRemove == false else {
+                        continue
+                    }
+
+                    let startFailed = state.stoppedState?.startError != nil
+                    let exitedWithError = (state.stoppedState?.exitStatus?.exitCode ?? 0) != 0
+                    let manualStopped = state.manualStopped
+
+                    switch options.restartPolicy {
+                    case .onFailure where !startFailed && !manualStopped && exitedWithError:
+                        break
+                    case .always where !startFailed && !manualStopped:
+                        break
+                    case _:
+                        continue
+                    }
+
+                    try await bootstrap(id: id, stdio: [FileHandle?](repeating: nil, count: 3))
+                    try await startProcess(id: id, processID: id)
+                } catch {
+                    log.error(
+                        "failed to restart container",
+                        metadata: ["id": "\(id)", "error": "\(error)"])
+                }
+            }
+        }
     }
 
     /// List containers matching the given filters.
@@ -1008,6 +1073,8 @@ public actor ContainersService {
         let options = try getContainerCreationOptions(id: id)
         if options.autoRemove {
             try await self.cleanUp(id: id, context: context)
+        } else {
+            exitQueueContinuation.yield(id)
         }
     }
 
