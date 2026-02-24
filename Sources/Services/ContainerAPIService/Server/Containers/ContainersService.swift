@@ -32,9 +32,17 @@ import Logging
 import SystemPackage
 
 public actor ContainersService {
+    struct StoppedState {
+        var startError: Error?
+        var exitStatus: ExitStatus?
+    }
+
     struct ContainerState {
         var snapshot: ContainerSnapshot
         var client: RuntimeClient? = nil
+
+        var stoppedState: StoppedState?
+        var manualStopped: Bool = false
 
         func getClient() throws -> RuntimeClient {
             guard let client else {
@@ -356,7 +364,10 @@ public actor ContainersService {
                     networks: [],
                     startedDate: nil
                 )
-                await self.setContainerState(configuration.id, ContainerState(snapshot: snapshot), context: context)
+                await self.setContainerState(
+                    configuration.id,
+                    ContainerState(snapshot: snapshot),
+                    context: context)
             } catch {
                 throw error
             }
@@ -436,6 +447,10 @@ public actor ContainersService {
 
                 await self.exitMonitor.stopTracking(id: id)
                 try? ServiceManager.deregister(fullServiceLabel: label)
+
+                state.stoppedState = StoppedState(startError: error)
+                await self.setContainerState(id, state, context: context)
+
                 throw error
             }
         }
@@ -538,6 +553,10 @@ public actor ContainersService {
             } catch {
                 await self.exitMonitor.stopTracking(id: id)
                 try? await client.stop(options: ContainerStopOptions.default)
+
+                state.stoppedState = StoppedState(startError: error)
+                await self.setContainerState(id, state, context: context)
+
                 throw error
             }
         }
@@ -597,29 +616,35 @@ public actor ContainersService {
             )
         }
 
-        let state = try self._getContainerState(id: id)
+        try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
+            var state = try await self.getContainerState(id: id, context: context)
 
-        // Stop should be idempotent.
-        let client: RuntimeClient
-        do {
-            client = try state.getClient()
-        } catch {
-            return
-        }
+            state.manualStopped = true
+            await self.setContainerState(id, state, context: context)
 
-        var resolvedOptions = options
-        if resolvedOptions.signal == nil, let stopSignal = state.snapshot.configuration.stopSignal {
-            resolvedOptions.signal = stopSignal
-        }
-
-        do {
-            try await client.stop(options: resolvedOptions)
-        } catch let err as ContainerizationError {
-            if err.code != .interrupted {
-                throw err
+            // Stop should be idempotent.
+            let client: RuntimeClient
+            do {
+                client = try state.getClient()
+            } catch {
+                return
             }
+
+            var resolvedOptions = options
+            if resolvedOptions.signal == nil, let stopSignal = state.snapshot.configuration.stopSignal {
+                resolvedOptions.signal = stopSignal
+            }
+
+            do {
+                try await client.stop(options: resolvedOptions)
+            } catch let err as ContainerizationError {
+                if err.code != .interrupted {
+                    throw err
+                }
+            }
+
+            try await self.handleContainerExit(id: id, code: nil, context: context)
         }
-        try await handleContainerExit(id: id)
     }
 
     public func dial(id: String, port: UInt32) async throws -> FileHandle {
@@ -1026,6 +1051,7 @@ public actor ContainersService {
         state.snapshot.status = .stopped
         state.snapshot.networks = []
         state.client = nil
+        state.stoppedState = StoppedState(exitStatus: code)
         await self.setContainerState(id, state, context: context)
 
         let options = try getContainerCreationOptions(id: id)
