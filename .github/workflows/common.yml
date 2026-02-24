@@ -70,6 +70,8 @@ jobs:
 
       - name: Test the container project
         run: |
+          curl -L -o https://download.swift.org/swift-6.2.3-release/static-sdk/swift-6.2.3-RELEASE/swift-6.2.3-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz /tmp/swift-6.2.3-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz
+          swift sdk install /tmp/swift-6.2.3-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz
           APP_ROOT=$(mktemp -d -p "${RUNNER_TEMP}")
           LOG_ROOT="${APP_ROOT}/logs"
           echo "created data directory: ${APP_ROOT}"
