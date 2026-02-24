@@ -456,6 +456,7 @@ public actor ContainersService {
 
                 state.client = sandboxClient
                 state.allocatedAttachments = allocatedAttachments
+                state.snapshot.status = .bootstrapped
                 await self.setContainerState(id, state, context: context)
             } catch {
                 for allocatedAttach in allocatedAttachments {
