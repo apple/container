@@ -14,17 +14,38 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+public enum RestartPolicy: String, Sendable, Codable {
+    case no
+    case onFailure
+    case always
+}
+
 public struct ContainerCreateOptions: Codable, Sendable {
     /// Remove the container and wipe out its data on container stop
     public let autoRemove: Bool
     /// Override the rootFs with this one other than the image-cloned version
     public let rootFsOverride: Filesystem?
+    public let restartPolicy: RestartPolicy
 
-    public init(autoRemove: Bool, rootFsOverride: Filesystem? = nil) {
+    public init(autoRemove: Bool, restartPolicy: RestartPolicy = .no, rootFsOverride: Filesystem? = nil) {
         self.autoRemove = autoRemove
+        self.restartPolicy = restartPolicy
         self.rootFsOverride = rootFsOverride
     }
 
-    public static let `default` = ContainerCreateOptions(autoRemove: false)
+    public static let `default` = ContainerCreateOptions(autoRemove: false, restartPolicy: .no)
 
+    enum CodingKeys: String, CodingKey {
+        case autoRemove
+        case restartPolicy
+        case rootFsOverride
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        autoRemove = try container.decode(Bool.self, forKey: .autoRemove)
+        restartPolicy = try container.decodeIfPresent(RestartPolicy.self, forKey: .restartPolicy) ?? .no
+        rootFsOverride = try container.decodeIfPresent(Filesystem.self, forKey: .rootFsOverride)
+    }
 }
