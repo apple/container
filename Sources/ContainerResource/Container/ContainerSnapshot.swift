@@ -34,7 +34,7 @@ public struct ContainerSnapshot: Codable, Sendable {
     }
 
     /// The runtime status of the container.
-    public var status: RuntimeStatus
+    public var status: ContainerStatus
     /// Network interfaces attached to the sandbox that are provided to the container.
     public var networks: [Attachment]
     /// When the container was started.
@@ -42,7 +42,7 @@ public struct ContainerSnapshot: Codable, Sendable {
 
     public init(
         configuration: ContainerConfiguration,
-        status: RuntimeStatus,
+        status: ContainerStatus,
         networks: [Attachment],
         startedDate: Date? = nil
     ) {

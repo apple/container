@@ -177,7 +177,7 @@ extension Application {
                     // If they changed, stop and delete the existing builder
                     try await client.stop(id: existingContainer.id)
                     try await client.delete(id: existingContainer.id)
-                case .stopped:
+                case .stopped, .bootstrapped:
                     // If the builder is stopped and matches our requirements, start it
                     // Otherwise, delete it and create a new one
                     guard imageChanged || cpuChanged || memChanged || envChanged || dnsChanged else {
@@ -190,7 +190,7 @@ extension Application {
                         .invalidState,
                         message: "builder is stopping, please wait until it is fully stopped before proceeding"
                     )
-                case .unknown:
+                case .unknown, .restarting:
                     break
                 }
             }
