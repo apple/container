@@ -38,11 +38,15 @@ public actor ContainersService {
     }
 
     struct ContainerState {
+        private static let initialBackOff = Duration.milliseconds(100)
+        private static let maxBackOff = Duration.seconds(10)
+
         var snapshot: ContainerSnapshot
         var client: RuntimeClient? = nil
 
         var stoppedState: StoppedState?
         var manualStopped: Bool = false
+        var backOff: Duration?
 
         func getClient() throws -> RuntimeClient {
             guard let client else {
@@ -53,6 +57,16 @@ public actor ContainersService {
                 throw ContainerizationError(.invalidState, message: message)
             }
             return client
+        }
+
+        mutating func setStartError(error: Error) {
+            stoppedState = StoppedState(startError: error)
+            backOff = nil
+        }
+
+        mutating func setExitStatus(exitStatus: ExitStatus?) {
+            stoppedState = StoppedState(exitStatus: exitStatus)
+            backOff = manualStopped ? nil : backOff.map { min($0 * 2, Self.maxBackOff) } ?? Self.initialBackOff
         }
     }
 
@@ -224,6 +238,10 @@ public actor ContainersService {
                         break
                     case _:
                         continue
+                    }
+
+                    if let backOff = state.backOff {
+                        try await Task.sleep(for: backOff)
                     }
 
                     try await bootstrap(id: id, stdio: [FileHandle?](repeating: nil, count: 3))
@@ -514,7 +532,7 @@ public actor ContainersService {
                 await self.exitMonitor.stopTracking(id: id)
                 try? ServiceManager.deregister(fullServiceLabel: label)
 
-                state.stoppedState = StoppedState(startError: error)
+                state.setStartError(error: error)
                 await self.setContainerState(id, state, context: context)
 
                 throw error
@@ -620,7 +638,7 @@ public actor ContainersService {
                 await self.exitMonitor.stopTracking(id: id)
                 try? await client.stop(options: ContainerStopOptions.default)
 
-                state.stoppedState = StoppedState(startError: error)
+                state.setStartError(error: error)
                 await self.setContainerState(id, state, context: context)
 
                 throw error
@@ -650,15 +668,21 @@ public actor ContainersService {
             )
         }
 
-        let state = try self._getContainerState(id: id)
-        let client = try state.getClient()
-        try await client.kill(processID, signal: signal)
+        try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
+            var state = try await self.getContainerState(id: id, context: context)
 
-        // SIGKILL is guaranteed to terminate the target. When directed at the
-        // container's init process, follow up with the same API-server cleanup
-        // that `stop` performs.
-        if processID == id, (try? Signal(signal)) == .kill {
-            try await handleContainerExit(id: id)
+            state.manualStopped = true
+            await self.setContainerState(id, state, context: context)
+
+            let client = try state.getClient()
+            try await client.kill(processID, signal: signal)
+
+            // SIGKILL is guaranteed to terminate the target. When directed at the
+            // container's init process, follow up with the same API-server cleanup
+            // that `stop` performs.
+            if processID == id, (try? Signal(signal)) == .kill {
+                try await self.handleContainerExit(id: id, code: nil, context: context)
+            }
         }
     }
 
@@ -1117,7 +1141,7 @@ public actor ContainersService {
         state.snapshot.status = .stopped
         state.snapshot.networks = []
         state.client = nil
-        state.stoppedState = StoppedState(exitStatus: code)
+        state.setExitStatus(exitStatus: code)
         await self.setContainerState(id, state, context: context)
 
         let options = try getContainerCreationOptions(id: id)
