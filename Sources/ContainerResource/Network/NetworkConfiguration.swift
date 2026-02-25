@@ -62,7 +62,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         case ipv4Subnet
         case ipv6Subnet
         case labels
-        // TODO: retain for deserialization compatability for now, remove later
+        // TODO: retain for deserialization compatibility for now, remove later
         case subnet
     }
 

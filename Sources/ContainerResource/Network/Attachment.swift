@@ -55,7 +55,7 @@ public struct Attachment: Codable, Sendable {
         case ipv4Gateway
         case ipv6Address
         case macAddress
-        // TODO: retain for deserialization compatability for now, remove later
+        // TODO: retain for deserialization compatibility for now, remove later
         case address
         case gateway
     }

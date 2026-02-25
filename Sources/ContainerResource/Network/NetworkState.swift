@@ -44,7 +44,7 @@ public struct NetworkStatus: Codable, Sendable {
         case ipv4Subnet
         case ipv4Gateway
         case ipv6Subnet
-        // TODO: retain for deserialization compatability for now, remove later
+        // TODO: retain for deserialization compatibility for now, remove later
         case address
         case gateway
     }
