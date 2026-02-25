@@ -18,8 +18,8 @@
 import Darwin
 
 /// Utility for triggering local network privacy alert.
-/// The local networking privacy feature introduced in macOS
-/// Sequoia requires users to authorize an app before it can
+/// The local networking privacy feature introduced in
+/// macOS 15 requires users to authorize an app before it can
 /// access peers on the local network. This security feature
 /// affects runtime helpers that publish ports on the loopback
 /// interface.
