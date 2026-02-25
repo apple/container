@@ -64,9 +64,15 @@ public actor ContainersService {
             backOff = nil
         }
 
-        mutating func setExitStatus(exitStatus: ExitStatus?) {
+        mutating func setExitStatus(exitStatus: ExitStatus?, restartPolicy: RestartPolicy) {
             stoppedState = StoppedState(exitStatus: exitStatus)
-            backOff = manualStopped ? nil : backOff.map { min($0 * 2, Self.maxBackOff) } ?? Self.initialBackOff
+            switch restartPolicy {
+            case .onFailure where !manualStopped && (exitStatus?.exitCode ?? 0) != 0,
+                .always where !manualStopped:
+                backOff = backOff.map { min($0 * 2, Self.maxBackOff) } ?? Self.initialBackOff
+            case _:
+                backOff = nil
+            }
         }
     }
 
@@ -1087,14 +1093,15 @@ public actor ContainersService {
             }
         }
 
+        let options = try getContainerCreationOptions(id: id)
+
         state.snapshot.status = .stopped
         state.snapshot.networks = []
         state.client = nil
         state.allocatedAttachments = []
-        state.setExitStatus(exitStatus: code)
+        state.setExitStatus(exitStatus: code, restartPolicy: options.restartPolicy)
         await self.setContainerState(id, state, context: context)
 
-        let options = try getContainerCreationOptions(id: id)
         if options.autoRemove {
             try await self.cleanUp(id: id, context: context)
         } else {
