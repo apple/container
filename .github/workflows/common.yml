@@ -72,7 +72,6 @@ jobs:
         run: |
           APP_ROOT=$(mktemp -d -p "${RUNNER_TEMP}")
           LOG_ROOT="${APP_ROOT}/logs"
-          trap 'rm -rf "${APP_ROOT}"; echo Removing data directory ${APP_ROOT}' EXIT
           echo "created data directory: ${APP_ROOT}"
           echo "hostname: $(hostname)"
           export NO_PROXY="${NO_PROXY},192.168.0.0/16,fe80::/10"
@@ -81,18 +80,22 @@ jobs:
           echo no_proxy=${no_proxy}
           echo "APP_ROOT=${APP_ROOT}" >> $GITHUB_ENV
           echo "LOG_ROOT=${LOG_ROOT}" >> $GITHUB_ENV
-          make APP_ROOT="${APP_ROOT}" LOG_ROOT="${LOG_ROOT}" test install-kernel integration || status=$?
-          if [ -d "${LOG_ROOT}" ] ; then
+          make APP_ROOT="${APP_ROOT}" LOG_ROOT="${LOG_ROOT}" test install-kernel integration
+        env:
+          DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
+
+      - name: Archive test logs
+        if: always()
+        run: |
+          if [ -n "${LOG_ROOT}" ] && [ -d "${LOG_ROOT}" ] ; then
             echo "Collecting logs from ${LOG_ROOT}..."
             tar czf container-logs.tar.gz -C "$(dirname "${LOG_ROOT}")" "$(basename "${LOG_ROOT}")"
             echo "Log archive created: container-logs.tar.gz"
           fi
-          if [ "${status:-0}" -ne "0" ] ; then
-            echo "Tests failed with status: ${status}"
-            exit ${status}
+          if [ -n "${APP_ROOT}" ] ; then
+            rm -rf "${APP_ROOT}"
+            echo "Removed data directory ${APP_ROOT}"
           fi
-        env:
-          DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
 
       - name: Upload logs if present
         if: always()
