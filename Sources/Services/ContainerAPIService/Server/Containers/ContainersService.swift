@@ -39,6 +39,7 @@ public actor ContainersService {
     struct ContainerState {
         private static let initialBackOff = Duration.milliseconds(100)
         private static let maxBackOff = Duration.seconds(10)
+        public static let stabilityCall = Duration.seconds(10)
 
         var snapshot: ContainerSnapshot
         var client: SandboxClient?
@@ -82,6 +83,7 @@ public actor ContainersService {
     private let exitQueue: AsyncStream<String>
     private let exitQueueContinuation: AsyncStream<String>.Continuation
     private var restartScheduler: Task<Void, Never>?
+    private var stabilityMonitor: ExitMonitor?
 
     private let log: Logger
     private let debugHelpers: Bool
@@ -184,44 +186,64 @@ public actor ContainersService {
             throw ContainerizationError(.invalidState, message: "already running restart scheduler")
         }
 
+        stabilityMonitor = ExitMonitor(log: log)
         restartScheduler = Task {
             for await id in self.exitQueue {
-                do {
-                    let state = try self._getContainerState(id: id)
+                Task {
+                    do {
+                        await stabilityMonitor?.stopTracking(id: id)
 
-                    guard state.snapshot.status == .stopped else {
-                        throw ContainerizationError(.invalidState, message: "container not stopped: '\(id)'")
+                        let state = try self._getContainerState(id: id)
+
+                        guard state.snapshot.status == .stopped else {
+                            throw ContainerizationError(.invalidState, message: "container not stopped: '\(id)'")
+                        }
+
+                        let options = try self.getContainerCreationOptions(id: id)
+
+                        guard options.autoRemove == false else {
+                            return
+                        }
+
+                        let startFailed = state.stoppedState?.startError != nil
+                        let exitedWithError = (state.stoppedState?.exitStatus?.exitCode ?? 0) != 0
+                        let manualStopped = state.manualStopped
+
+                        switch options.restartPolicy {
+                        case .onFailure where !startFailed && !manualStopped && exitedWithError:
+                            break
+                        case .always where !startFailed && !manualStopped:
+                            break
+                        case _:
+                            return
+                        }
+
+                        if let backOff = state.backOff {
+                            try await Task.sleep(for: backOff)
+                        }
+
+                        try await stabilityMonitor?.registerProcess(
+                            id: id,
+                            onExit: { id, code in
+                                guard code.exitCode == 0 else {
+                                    return
+                                }
+                                try? await self.resetBackOff(id: id)
+                            }
+                        )
+                        try await stabilityMonitor?.track(id: id) {
+                            try await Task.sleep(for: ContainerState.stabilityCall)
+                            return ExitStatus(exitCode: 0)
+                        }
+
+                        try await bootstrap(id: id, stdio: [FileHandle?](repeating: nil, count: 3))
+                        try await startProcess(id: id, processID: id)
+                    } catch {
+                        try await kill(id: id, processID: id, signal: Int64(SIGKILL))
+                        log.error(
+                            "failed to restart container",
+                            metadata: ["id": "\(id)", "error": "\(error)"])
                     }
-
-                    let options = try self.getContainerCreationOptions(id: id)
-
-                    guard options.autoRemove == false else {
-                        continue
-                    }
-
-                    let startFailed = state.stoppedState?.startError != nil
-                    let exitedWithError = (state.stoppedState?.exitStatus?.exitCode ?? 0) != 0
-                    let manualStopped = state.manualStopped
-
-                    switch options.restartPolicy {
-                    case .onFailure where !startFailed && !manualStopped && exitedWithError:
-                        break
-                    case .always where !startFailed && !manualStopped:
-                        break
-                    case _:
-                        continue
-                    }
-
-                    if let backOff = state.backOff {
-                        try await Task.sleep(for: backOff)
-                    }
-
-                    try await bootstrap(id: id, stdio: [FileHandle?](repeating: nil, count: 3))
-                    try await startProcess(id: id, processID: id)
-                } catch {
-                    log.error(
-                        "failed to restart container",
-                        metadata: ["id": "\(id)", "error": "\(error)"])
                 }
             }
         }
@@ -1106,6 +1128,18 @@ public actor ContainersService {
             try await self.cleanUp(id: id, context: context)
         } else {
             exitQueueContinuation.yield(id)
+        }
+    }
+
+    private func resetBackOff(id: String) async throws {
+        try await self.lock.withLock { context in
+            var state = try await self.getContainerState(id: id, context: context)
+            guard state.snapshot.status == .running else {
+                return
+            }
+
+            state.backOff = nil
+            await self.setContainerState(id, state, context: context)
         }
     }
 
