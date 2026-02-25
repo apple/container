@@ -56,6 +56,10 @@ public enum XPCKeys: String {
     case plugin
     /// Archive path to export rootfs
     case archive
+    /// Whether commit should run in best-effort live mode.
+    case commitLive
+    /// Whether stop should preserve an auto-remove container.
+    case preserveOnStop
 
     /// Health check request.
     case ping
@@ -152,6 +156,7 @@ public enum XPCRoute: String {
     case containerStats
     case containerDiskUsage
     case containerExport
+    case containerCommit
 
     case pluginLoad
     case pluginGet

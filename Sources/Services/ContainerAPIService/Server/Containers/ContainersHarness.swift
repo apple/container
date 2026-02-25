@@ -62,6 +62,7 @@ public struct ContainersHarness: Sendable {
     @Sendable
     public func stop(_ message: XPCMessage) async throws -> XPCMessage {
         let stopOptions = try message.stopOptions()
+        let preserveOnStop = message.bool(key: .preserveOnStop)
         let id = message.string(key: .id)
         guard let id else {
             throw ContainerizationError(
@@ -69,7 +70,7 @@ public struct ContainersHarness: Sendable {
                 message: "id cannot be empty"
             )
         }
-        try await service.stop(id: id, options: stopOptions)
+        try await service.stop(id: id, options: stopOptions, allowAutoRemove: !preserveOnStop)
         return message.reply()
     }
 
@@ -325,6 +326,29 @@ public struct ContainersHarness: Sendable {
         let archiveUrl = URL(fileURLWithPath: archive)
 
         try await service.exportRootfs(id: id, archive: archiveUrl)
+        return message.reply()
+    }
+
+    @Sendable
+    public func commit(_ message: XPCMessage) async throws -> XPCMessage {
+        let id = message.string(key: .id)
+        guard let id else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "id cannot be empty"
+            )
+        }
+        let archive = message.string(key: .archive)
+        guard let archive else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "archive cannot be empty"
+            )
+        }
+        let archiveUrl = URL(fileURLWithPath: archive)
+        let live = message.bool(key: .commitLive)
+
+        try await service.commitRootfs(id: id, archive: archiveUrl, live: live)
         return message.reply()
     }
 }

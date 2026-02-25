@@ -445,6 +445,44 @@ container prune [--debug]
 
 No options.
 
+### `container commit`
+
+Creates an image from a container's current filesystem state.
+
+By default, if the container is running, `commit` will briefly stop it, capture the filesystem, and start it again. Use `--live` to skip stop/restart and perform a best-effort live commit. Live commits can produce inconsistent filesystems if writes are in progress.
+
+The committed image keeps the source container's init process as the default image command, so `container run <committed-image>` works without extra process arguments.
+
+`container export` remains stopped-only.
+
+**Usage**
+
+```bash
+container commit [--live] [--debug] <container-id> [image]
+```
+
+**Arguments**
+
+*   `<container-id>`: Container ID
+*   `[image]`: Target image name (defaults to `<container-id>`)
+
+**Options**
+
+*   `--live`: Perform a best-effort live commit without stopping a running container
+
+**Examples**
+
+```bash
+# commit a stopped container
+container commit my-container my-image:latest
+
+# commit a running container with default quiesce (stop/commit/start)
+container commit my-running-container my-image:latest
+
+# commit a running container without stopping it
+container commit --live my-running-container my-image:live
+```
+
 ## Image Management
 
 ### `container image list (ls)`

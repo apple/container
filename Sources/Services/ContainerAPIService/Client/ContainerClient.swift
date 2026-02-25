@@ -164,12 +164,17 @@ public struct ContainerClient: Sendable {
     }
 
     /// Stop the container and all processes currently executing inside.
-    public func stop(id: String, opts: ContainerStopOptions = ContainerStopOptions.default) async throws {
+    public func stop(
+        id: String,
+        opts: ContainerStopOptions = ContainerStopOptions.default,
+        preserveOnStop: Bool = false
+    ) async throws {
         do {
             let request = XPCMessage(route: .containerStop)
             let data = try JSONEncoder().encode(opts)
             request.set(key: .id, value: id)
             request.set(key: .stopOptions, value: data)
+            request.set(key: .preserveOnStop, value: preserveOnStop)
 
             try await xpcClient.send(request)
         } catch {
@@ -333,6 +338,23 @@ public struct ContainerClient: Sendable {
             throw ContainerizationError(
                 .internalError,
                 message: "failed to export container",
+                cause: error
+            )
+        }
+    }
+
+    public func commit(id: String, archive: URL, live: Bool) async throws {
+        let request = XPCMessage(route: .containerCommit)
+        request.set(key: .id, value: id)
+        request.set(key: .archive, value: archive.absolutePath())
+        request.set(key: .commitLive, value: live)
+
+        do {
+            try await xpcClient.send(request)
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to commit container",
                 cause: error
             )
         }

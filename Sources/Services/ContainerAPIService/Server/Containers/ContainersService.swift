@@ -35,6 +35,8 @@ public actor ContainersService {
         var snapshot: ContainerSnapshot
         var client: SandboxClient?
         var allocatedAttachments: [AllocatedAttachment]
+        // When true, the next exit handling pass must not auto-remove an `--rm` container.
+        var suppressAutoRemoveOnNextExit = false
 
         func getClient() throws -> SandboxClient {
             guard let client else {
@@ -440,7 +442,9 @@ public actor ContainersService {
 
                 try await self.exitMonitor.registerProcess(
                     id: id,
-                    onExit: self.handleContainerExit
+                    onExit: { id, code in
+                        try await self.handleContainerExit(id: id, code: code)
+                    }
                 )
 
                 state.client = sandboxClient
@@ -604,7 +608,11 @@ public actor ContainersService {
 
     /// Stop all containers inside the sandbox, aborting any processes currently
     /// executing inside the container, before stopping the underlying sandbox.
-    public func stop(id: String, options: ContainerStopOptions) async throws {
+    public func stop(
+        id: String,
+        options: ContainerStopOptions,
+        allowAutoRemove: Bool = true
+    ) async throws {
         log.debug(
             "ContainersService: enter",
             metadata: [
@@ -632,6 +640,14 @@ public actor ContainersService {
             return
         }
 
+        if !allowAutoRemove {
+            try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
+                var protectedState = try await self.getContainerState(id: id, context: context)
+                protectedState.suppressAutoRemoveOnNextExit = true
+                await self.setContainerState(id, protectedState, context: context)
+            }
+        }
+
         do {
             try await client.stop(options: options)
         } catch let err as ContainerizationError {
@@ -639,7 +655,7 @@ public actor ContainersService {
                 throw err
             }
         }
-        try await handleContainerExit(id: id)
+        try await handleContainerExit(id: id, allowAutoRemove: allowAutoRemove)
     }
 
     public func dial(id: String, port: UInt32) async throws -> FileHandle {
@@ -884,13 +900,50 @@ public actor ContainersService {
         try EXT4.EXT4Reader(blockDevice: FilePath(rootfs)).export(archive: FilePath(archive))
     }
 
-    private func handleContainerExit(id: String, code: ExitStatus? = nil) async throws {
+    public func commitRootfs(id: String, archive: URL, live: Bool) async throws {
+        self.log.debug("\(#function)")
+
+        let state = try self._getContainerState(id: id)
+        switch state.snapshot.status {
+        case .stopped:
+            break
+        case .running:
+            guard live else {
+                throw ContainerizationError(.invalidState, message: "container is running")
+            }
+        case .stopping:
+            throw ContainerizationError(.invalidState, message: "container is stopping")
+        default:
+            throw ContainerizationError(.invalidState, message: "container is in an unknown state")
+        }
+
+        let path = self.containerRoot.appendingPathComponent(id)
+        let bundle = ContainerResource.Bundle(path: path)
+        let rootfs = bundle.containerRootfsBlock
+        try EXT4.EXT4Reader(blockDevice: FilePath(rootfs)).export(archive: FilePath(archive))
+    }
+
+    private func handleContainerExit(
+        id: String,
+        code: ExitStatus? = nil,
+        allowAutoRemove: Bool = true
+    ) async throws {
         try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { [self] context in
-            try await handleContainerExit(id: id, code: code, context: context)
+            try await handleContainerExit(
+                id: id,
+                code: code,
+                context: context,
+                allowAutoRemove: allowAutoRemove
+            )
         }
     }
 
-    private func handleContainerExit(id: String, code: ExitStatus?, context: AsyncLock.Context) async throws {
+    private func handleContainerExit(
+        id: String,
+        code: ExitStatus?,
+        context: AsyncLock.Context,
+        allowAutoRemove: Bool
+    ) async throws {
         if let code {
             self.log.info(
                 "handling container exit",
@@ -974,12 +1027,14 @@ public actor ContainersService {
 
         state.snapshot.status = .stopped
         state.snapshot.networks = []
+        let shouldAutoRemove = allowAutoRemove && !state.suppressAutoRemoveOnNextExit
+        state.suppressAutoRemoveOnNextExit = false
         state.client = nil
         state.allocatedAttachments = []
         await self.setContainerState(id, state, context: context)
 
         let options = try getContainerCreationOptions(id: id)
-        if options.autoRemove {
+        if shouldAutoRemove && options.autoRemove {
             try await self.cleanUp(id: id, context: context)
         }
     }

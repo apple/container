@@ -125,7 +125,7 @@ extension APIServer {
                             log.error("could not initialize resolver monitor", metadata: ["error": "\(error)"])
                             throw error
                         }
-                    
+
                         let nxDomainResolver = NxDomainResolver()
                         let compositeResolver = CompositeResolver(handlers: [localhostResolver, nxDomainResolver])
                         let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
@@ -270,6 +270,7 @@ extension APIServer {
             routes[XPCRoute.containerStats] = harness.stats
             routes[XPCRoute.containerDiskUsage] = harness.diskUsage
             routes[XPCRoute.containerExport] = harness.export
+            routes[XPCRoute.containerCommit] = harness.commit
 
             return service
         }
