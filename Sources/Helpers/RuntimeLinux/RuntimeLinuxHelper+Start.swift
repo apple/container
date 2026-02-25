@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerLog
+import ContainerPlugin
 import ContainerResource
 import ContainerSandboxService
 import ContainerSandboxServiceClient
@@ -42,17 +43,19 @@ extension RuntimeLinuxHelper {
         @Option(name: .shortAndLong, help: "Root directory for the sandbox")
         var root: String
 
+        var logRoot = LogRoot.path
+
         var machServiceLabel: String {
             "\(Self.label).\(uuid)"
         }
 
         func run() async throws {
-            let commandName = Self._commandName
-            let log = RuntimeLinuxHelper.setupLogger(debug: debug, metadata: ["uuid": "\(uuid)"])
-
-            log.info("starting \(commandName)")
+            let commandName = RuntimeLinuxHelper._commandName
+            let logPath = logRoot.map { $0.appending("\(commandName)-\(uuid).log") }
+            let log = ServiceLogger.bootstrap(category: "RuntimeLinuxHelper", metadata: ["uuid": "\(uuid)"], debug: debug, logPath: logPath)
+            log.info("starting helper", metadata: ["name": "\(commandName)"])
             defer {
-                log.info("stopping \(commandName)")
+                log.info("stopping helper", metadata: ["name": "\(commandName)"])
             }
 
             let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
@@ -60,19 +63,20 @@ extension RuntimeLinuxHelper {
                 try adjustLimits()
                 signal(SIGPIPE, SIG_IGN)
 
-                log.info("configuring XPC server")
-                let interfaceStrategy: any InterfaceStrategy
+                // FIXME: The network plugins that the runtime supports should be configurable elsewhere
+                var interfaceStrategies: [NetworkPluginInfo: InterfaceStrategy] = [
+                    NetworkPluginInfo(plugin: "container-network-vmnet", variant: "allocationOnly"): IsolatedInterfaceStrategy()
+                ]
                 if #available(macOS 26, *) {
-                    interfaceStrategy = NonisolatedInterfaceStrategy(log: log)
-                } else {
-                    interfaceStrategy = IsolatedInterfaceStrategy()
+                    interfaceStrategies[NetworkPluginInfo(plugin: "container-network-vmnet", variant: "reserved")] = NonisolatedInterfaceStrategy(log: log)
                 }
 
+                log.info("configuring XPC server")
                 nonisolated(unsafe) let anonymousConnection = xpc_connection_create(nil, nil)
 
                 let server = SandboxService(
                     root: .init(fileURLWithPath: root),
-                    interfaceStrategy: interfaceStrategy,
+                    interfaceStrategies: interfaceStrategies,
                     eventLoopGroup: eventLoopGroup,
                     connection: anonymousConnection,
                     log: log
@@ -117,7 +121,12 @@ extension RuntimeLinuxHelper {
                     _ = try await group.next()
                 }
             } catch {
-                log.error("\(commandName) failed", metadata: ["error": "\(error)"])
+                log.error(
+                    "helper failed",
+                    metadata: [
+                        "name": "\(commandName)",
+                        "error": "\(error)",
+                    ])
                 try? await eventLoopGroup.shutdownGracefully()
                 RuntimeLinuxHelper.Start.exit(withError: error)
             }

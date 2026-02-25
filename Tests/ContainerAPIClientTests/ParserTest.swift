@@ -553,6 +553,42 @@ struct ParserTest {
         #expect(result == ["EMPTY="])
     }
 
+    @Test
+    func testAllEnvUserOverridesImage() throws {
+        let result = try Parser.allEnv(
+            imageEnvs: ["FOO=fromimage", "BAR=kept"],
+            envFiles: [],
+            envs: ["FOO=fromuser"]
+        )
+        #expect(Set(result) == Set(["FOO=fromuser", "BAR=kept"]))
+    }
+
+    @Test
+    func testAllEnvFileOverridesImage() throws {
+        let tmpFile = try tmpFileWithContent("FOO=fromfile\n")
+        defer { try? FileManager.default.removeItem(at: tmpFile) }
+
+        let result = try Parser.allEnv(
+            imageEnvs: ["FOO=fromimage", "BAR=kept"],
+            envFiles: [tmpFile.path],
+            envs: []
+        )
+        #expect(Set(result) == Set(["FOO=fromfile", "BAR=kept"]))
+    }
+
+    @Test
+    func testAllEnvUserOverridesFileOverridesImage() throws {
+        let tmpFile = try tmpFileWithContent("FOO=fromfile\nBAZ=fromfile\n")
+        defer { try? FileManager.default.removeItem(at: tmpFile) }
+
+        let result = try Parser.allEnv(
+            imageEnvs: ["FOO=fromimage", "BAR=fromimage"],
+            envFiles: [tmpFile.path],
+            envs: ["FOO=fromuser"]
+        )
+        #expect(Set(result) == Set(["FOO=fromuser", "BAR=fromimage", "BAZ=fromfile"]))
+    }
+
     private func tmpFileWithContent(_ content: String) throws -> URL {
         let tempDir = FileManager.default.temporaryDirectory
         let tempFile = tempDir.appendingPathComponent("envfile-test-\(UUID().uuidString)")

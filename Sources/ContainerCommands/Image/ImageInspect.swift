@@ -63,9 +63,13 @@ extension Application {
             }
 
             if !allErrors.isEmpty {
-                let logger = Logger(label: "ImageInspect", factory: { _ in StderrLogHandler() })
                 for (name, error) in allErrors {
-                    logger.error("\(name): \(error.localizedDescription)")
+                    log.error(
+                        "image inspect failed",
+                        metadata: [
+                            "name": "\(name)",
+                            "error": "\(error.localizedDescription)",
+                        ])
                 }
 
                 throw InspectError(succeeded: succeededImages, failed: allErrors)

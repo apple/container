@@ -248,6 +248,7 @@ public struct Utility {
 
         config.ssh = management.ssh
         config.readOnly = management.readOnly
+        config.useInit = management.useInit
 
         if let runtime = management.runtime {
             config.runtimeHandler = runtime

@@ -38,7 +38,25 @@ public actor KernelService {
     /// Copies a kernel binary from a local path on disk into the managed kernels directory
     /// as the default kernel for the provided platform.
     public func installKernel(kernelFile url: URL, platform: SystemPlatform = .linuxArm, force: Bool) throws {
-        self.log.info("KernelService: \(#function) - kernelFile: \(url), platform: \(String(describing: platform))")
+        log.debug(
+            "KernelService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "kernelFile": "\(url)",
+                "platform": "\(String(describing: platform))",
+            ]
+        )
+        defer {
+            log.debug(
+                "KernelService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "kernelFile": "\(url)",
+                    "platform": "\(String(describing: platform))",
+                ]
+            )
+        }
+
         let kFile = url.resolvingSymlinksInPath()
         let destPath = self.kernelDirectory.appendingPathComponent(kFile.lastPathComponent)
         if force {
@@ -64,7 +82,26 @@ public actor KernelService {
     /// as the default kernel for the provided platform.
     /// The parameter `tar` maybe a location to a local file on disk, or a remote URL.
     public func installKernelFrom(tar: URL, kernelFilePath: String, platform: SystemPlatform, progressUpdate: ProgressUpdateHandler?, force: Bool) async throws {
-        self.log.info("KernelService: \(#function) - tar: \(tar), kernelFilePath: \(kernelFilePath), platform: \(String(describing: platform))")
+        log.debug(
+            "KernelService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "tar": "\(tar)",
+                "kernelFilePath": "\(kernelFilePath)",
+                "platform": "\(String(describing: platform))",
+            ]
+        )
+        defer {
+            log.debug(
+                "KernelService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "tar": "\(tar)",
+                    "kernelFilePath": "\(kernelFilePath)",
+                    "platform": "\(String(describing: platform))",
+                ]
+            )
+        }
 
         let tempDir = FileManager.default.uniqueTemporaryDirectory()
         defer {
@@ -78,7 +115,7 @@ public actor KernelService {
         let downloadTask = await taskManager.startTask()
         var tarFile = tar
         if !FileManager.default.fileExists(atPath: tar.absoluteString) {
-            self.log.debug("KernelService: Downloading \(tar)")
+            self.log.debug("KernelService: start download", metadata: ["tar": "\(tar)"])
             tarFile = tempDir.appendingPathComponent(tar.lastPathComponent)
             var downloadProgressUpdate: ProgressUpdateHandler?
             if let progressUpdate {
@@ -100,7 +137,25 @@ public actor KernelService {
     }
 
     private func setDefaultKernel(name: String, platform: SystemPlatform) throws {
-        self.log.info("KernelService: \(#function) - name: \(name), platform: \(String(describing: platform))")
+        log.debug(
+            "KernelService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "name": "\(name)",
+                "platform": "\(String(describing: platform))",
+            ]
+        )
+        defer {
+            log.debug(
+                "KernelService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "name": "\(name)",
+                    "platform": "\(String(describing: platform))",
+                ]
+            )
+        }
+
         let kernelPath = self.kernelDirectory.appendingPathComponent(name)
         guard FileManager.default.fileExists(atPath: kernelPath.path) else {
             throw ContainerizationError(.notFound, message: "kernel not found at \(kernelPath)")
@@ -112,7 +167,23 @@ public actor KernelService {
     }
 
     public func getDefaultKernel(platform: SystemPlatform = .linuxArm) async throws -> Kernel {
-        self.log.info("KernelService: \(#function) - platform: \(String(describing: platform))")
+        log.debug(
+            "KernelService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "platform": "\(String(describing: platform))",
+            ]
+        )
+        defer {
+            log.debug(
+                "KernelService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "platform": "\(String(describing: platform))",
+                ]
+            )
+        }
+
         let name = "\(Self.defaultKernelNamePrefix)\(platform.architecture)"
         let defaultKernelPath = self.kernelDirectory.appendingPathComponent(name).resolvingSymlinksInPath()
         guard FileManager.default.fileExists(atPath: defaultKernelPath.path) else {

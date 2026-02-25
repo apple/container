@@ -51,6 +51,8 @@ public struct ContainerConfiguration: Sendable, Codable {
     public var ssh: Bool = false
     /// Whether to mount the rootfs as read-only.
     public var readOnly: Bool = false
+    /// Whether to use a minimal init process inside the container.
+    public var useInit: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -70,6 +72,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         case virtualization
         case ssh
         case readOnly
+        case useInit
     }
 
     /// Create a configuration from the supplied Decoder, initializing missing
@@ -100,6 +103,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         virtualization = try container.decodeIfPresent(Bool.self, forKey: .virtualization) ?? false
         ssh = try container.decodeIfPresent(Bool.self, forKey: .ssh) ?? false
         readOnly = try container.decodeIfPresent(Bool.self, forKey: .readOnly) ?? false
+        useInit = try container.decodeIfPresent(Bool.self, forKey: .useInit) ?? false
     }
 
     public struct DNSConfiguration: Sendable, Codable {

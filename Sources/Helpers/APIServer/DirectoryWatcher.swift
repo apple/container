@@ -44,7 +44,7 @@ public class DirectoryWatcher {
             throw ContainerizationError(.invalidState, message: "failed to start watching on \(directoryURL.path)")
         }
 
-        log.info("starting directory watcher for \(directoryURL.path)")
+        log.info("starting directory watcher", metadata: ["path": "\(directoryURL.path)"])
 
         let descriptor = open(directoryURL.path, O_EVTONLY)
 
@@ -66,7 +66,12 @@ public class DirectoryWatcher {
                 let files = try FileManager.default.contentsOfDirectory(atPath: directoryURL.path)
                 try handler(files.map { directoryURL.appending(path: $0) })
             } catch {
-                self.log.error("failed to run DirectoryWatcher handler", metadata: ["error": "\(error)", "path": "\(directoryURL.path)"])
+                self.log.error(
+                    "failed to run DirectoryWatcher handler",
+                    metadata: [
+                        "error": "\(error)",
+                        "path": "\(directoryURL.path)",
+                    ])
             }
         }
 
