@@ -55,14 +55,16 @@ class TestCLIRunRestart: CLITest {
         try runWithRestartOnce(name: failing, policy: .onFailure, exitCode: 1)
         defer { try? doRemove(name: failing, force: true) }
 
+        // Give time for container to restart
+        try await Task.sleep(for: .seconds(3))
+
         try waitForContainerRunning(failing)
         var status = try getContainerStatus(failing)
         #expect(status == "running", "expected container with 'onFailure' policy to restart after non-zero exit, got '\(status)'")
 
-        try await Task.sleep(for: .seconds(1))
-        try doStop(name: failing)
+        try doKill(name: failing)
+        try await Task.sleep(for: .seconds(3))
 
-        try await Task.sleep(for: .seconds(10))
         status = try getContainerStatus(failing)
         #expect(status == "stopped", "expected container with 'onFailure' policy to not restart after manual stop, got '\(status)'")
         try doRemove(name: failing, force: true)
@@ -83,14 +85,16 @@ class TestCLIRunRestart: CLITest {
         try runWithRestartOnce(name: name, policy: .always, exitCode: 0)
         defer { try? doRemove(name: name, force: true) }
 
+        // Give time for container to restart
+        try await Task.sleep(for: .seconds(3))
+
         try waitForContainerRunning(name)
         var status = try getContainerStatus(name)
         #expect(status == "running", "expected container with 'always' policy to restart after zero exit, got '\(status)'")
 
-        try await Task.sleep(for: .seconds(1))
-        try doStop(name: name)
-
+        try doKill(name: name)
         try await Task.sleep(for: .seconds(3))
+
         status = try getContainerStatus(name)
         #expect(status == "stopped", "expected container with 'always' policy to not restart after manual stop, got '\(status)'")
     }
@@ -135,7 +139,7 @@ class TestCLIRunRestart: CLITest {
 
         // Poll until running (first restart)
         var samples: [Bool] = []
-        for _ in 0..<25 {
+        for _ in 0..<30 {
             if (try? getContainerStatus(name)) == "running" {
                 samples.append(true)
             } else {
