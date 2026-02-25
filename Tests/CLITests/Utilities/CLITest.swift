@@ -264,6 +264,18 @@ class CLITest {
         }
     }
 
+    func doKill(name: String, signal: String = "SIGKILL") throws {
+        let (_, _, error, status) = try run(arguments: [
+            "kill",
+            "-s",
+            signal,
+            name,
+        ])
+        if status != 0 {
+            throw CLIError.executionFailed("command failed: \(error)")
+        }
+    }
+
     func doCreate(
         name: String,
         image: String? = nil,
