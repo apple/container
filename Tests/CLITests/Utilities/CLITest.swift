@@ -595,4 +595,22 @@ class CLITest {
             throw CLIError.executionFailed("command failed: \(error)")
         }
     }
+
+    @discardableResult
+    func doCommit(name: String, image: String? = nil, live: Bool = false) throws -> (output: String, error: String) {
+        var args = ["commit"]
+        if live {
+            args.append("--live")
+        }
+        args.append(name)
+        if let image {
+            args.append(image)
+        }
+
+        let (_, output, error, status) = try run(arguments: args)
+        if status != 0 {
+            throw CLIError.executionFailed("command failed: \(error)")
+        }
+        return (output: output, error: error)
+    }
 }
