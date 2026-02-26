@@ -747,7 +747,21 @@ public actor SandboxService {
         try await withThrowingTaskGroup(of: SocketForwarderResult.self) { group in
             for publishedPort in publishedPorts {
                 for index in 0..<publishedPort.count {
-                    let proxyAddress = try SocketAddress(ipAddress: publishedPort.hostAddress.description, port: Int(publishedPort.hostPort + index))
+                    let hostPort = Int(publishedPort.hostPort + index)
+                    let containerPort = Int(publishedPort.containerPort + index)
+
+                    var proxyAddresses = [SocketAddress]()
+                    proxyAddresses.append(
+                        try SocketAddress(ipAddress: publishedPort.hostAddress.description, port: hostPort)
+                    )
+
+                    if case .v4(let ipv4) = publishedPort.hostAddress,
+                        ipv4.isUnspecified || ipv4.isLoopback
+                    {
+                        // Bind IPv6 loopback for localhost resolution (macOS resolves localhost to ::1 first).
+                        proxyAddresses.append(try SocketAddress(ipAddress: "::1", port: hostPort))
+                    }
+
                     let containerIPAddress: String
                     switch publishedPort.hostAddress {
                     case .v4(_):
@@ -758,42 +772,45 @@ public actor SandboxService {
                         }
                         containerIPAddress = ipv6Address.address.description
                     }
-                    let serverAddress = try SocketAddress(ipAddress: containerIPAddress, port: Int(publishedPort.containerPort + index))
-                    log.info(
-                        "creating forwarder for",
-                        metadata: [
-                            "proxy": "\(proxyAddress)",
-                            "server": "\(serverAddress)",
-                            "protocol": "\(publishedPort.proto)",
-                        ])
-                    group.addTask {
-                        let forwarder: SocketForwarder
-                        switch publishedPort.proto {
-                        case .tcp:
-                            forwarder = try TCPForwarder(
-                                proxyAddress: proxyAddress,
-                                serverAddress: serverAddress,
-                                eventLoopGroup: self.eventLoopGroup,
-                                log: self.log
-                            )
-                        case .udp:
-                            forwarder = try UDPForwarder(
-                                proxyAddress: proxyAddress,
-                                serverAddress: serverAddress,
-                                eventLoopGroup: self.eventLoopGroup,
-                                log: self.log
-                            )
-                        }
-                        do {
-                            return try await forwarder.run().get()
-                        } catch let error as IOError where error.errnoCode == EACCES {
-                            if let port = proxyAddress.port, port < 1024 {
-                                throw ContainerizationError(
-                                    .invalidArgument,
-                                    message: "Permission denied while binding to host port \(port). Binding to ports below 1024 requires root privileges."
+                    let serverAddress = try SocketAddress(ipAddress: containerIPAddress, port: containerPort)
+
+                    for proxyAddress in proxyAddresses {
+                        log.info(
+                            "creating forwarder for",
+                            metadata: [
+                                "proxy": "\(proxyAddress)",
+                                "server": "\(serverAddress)",
+                                "protocol": "\(publishedPort.proto)",
+                            ])
+                        group.addTask {
+                            let forwarder: SocketForwarder
+                            switch publishedPort.proto {
+                            case .tcp:
+                                forwarder = try TCPForwarder(
+                                    proxyAddress: proxyAddress,
+                                    serverAddress: serverAddress,
+                                    eventLoopGroup: self.eventLoopGroup,
+                                    log: self.log
+                                )
+                            case .udp:
+                                forwarder = try UDPForwarder(
+                                    proxyAddress: proxyAddress,
+                                    serverAddress: serverAddress,
+                                    eventLoopGroup: self.eventLoopGroup,
+                                    log: self.log
                                 )
                             }
-                            throw error
+                            do {
+                                return try await forwarder.run().get()
+                            } catch let error as IOError where error.errnoCode == EACCES {
+                                if let port = proxyAddress.port, port < 1024 {
+                                    throw ContainerizationError(
+                                        .invalidArgument,
+                                        message: "Permission denied while binding to host port \(port). Binding to ports below 1024 requires root privileges."
+                                    )
+                                }
+                                throw error
+                            }
                         }
                     }
                 }
