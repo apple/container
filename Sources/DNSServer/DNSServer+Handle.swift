@@ -19,10 +19,7 @@ import NIOCore
 import NIOPosix
 
 extension DNSServer {
-    /// Handles the DNS request.
-    /// - Parameters:
-    ///   - outbound: The NIOAsyncChannelOutboundWriter for which to respond.
-    ///   - packet: The request packet.
+    /// Handles a UDP DNS request and writes the response back to the sender.
     func handle(
         outbound: NIOAsyncChannelOutboundWriter<AddressedEnvelope<ByteBuffer>>,
         packet: inout AddressedEnvelope<ByteBuffer>
@@ -37,11 +34,20 @@ extension DNSServer {
             }
         }
 
+        self.log?.debug("sending response for request")
+        let responseData = try await self.processRaw(data: data)
+        let rData = ByteBuffer(bytes: responseData)
+        try? await outbound.write(AddressedEnvelope(remoteAddress: packet.remoteAddress, data: rData))
+        self.log?.debug("processing done")
+    }
+
+    /// Deserializes a raw DNS query, runs it through the handler chain, and returns
+    /// the serialized response bytes. Used by both UDP and TCP transports.
+    func processRaw(data: Data) async throws -> Data {
         self.log?.debug("deserializing message")
         let query = try Message(deserialize: data)
         self.log?.debug("processing query: \(query.questions)")
 
-        // always send response
         let responseData: Data
         do {
             self.log?.debug("awaiting processing")
@@ -76,11 +82,6 @@ extension DNSServer {
             responseData = try response.serialize()
         }
 
-        self.log?.debug("sending response for \(query.id)")
-        let rData = ByteBuffer(bytes: responseData)
-        try? await outbound.write(AddressedEnvelope(remoteAddress: packet.remoteAddress, data: rData))
-
-        self.log?.debug("processing done")
-
+        return responseData
     }
 }

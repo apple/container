@@ -97,22 +97,36 @@ extension APIServer {
                         try await server.listen()
                     }
 
-                    // start up host table DNS
+                    // start up host table DNS (UDP)
+                    let hostsResolver = ContainerDNSHandler(networkService: networkService)
+                    let nxDomainResolver = NxDomainResolver()
+                    let compositeResolver = CompositeResolver(handlers: [hostsResolver, nxDomainResolver])
+                    let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
+                    let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
+
                     group.addTask {
-                        let hostsResolver = ContainerDNSHandler(networkService: networkService)
-                        let nxDomainResolver = NxDomainResolver()
-                        let compositeResolver = CompositeResolver(handlers: [hostsResolver, nxDomainResolver])
-                        let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
-                        let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
                         log.info(
-                            "starting DNS resolver for container hostnames",
+                            "starting DNS resolver for container hostnames (UDP)",
                             metadata: [
                                 "host": "\(Self.listenAddress)",
                                 "port": "\(Self.dnsPort)",
                             ]
                         )
                         try await dnsServer.run(host: Self.listenAddress, port: Self.dnsPort)
+                    }
 
+                    // TCP server on the same port. Required by RFC 1035 for responses that
+                    // exceed the 512-byte UDP wire limit. The OS distinguishes the two by
+                    // socket type (SOCK_DGRAM vs SOCK_STREAM), so there is no port conflict.
+                    group.addTask {
+                        log.info(
+                            "starting DNS resolver for container hostnames (TCP)",
+                            metadata: [
+                                "host": "\(Self.listenAddress)",
+                                "port": "\(Self.dnsPort)",
+                            ]
+                        )
+                        try await dnsServer.runTCP(host: Self.listenAddress, port: Self.dnsPort)
                     }
 
                     // start up realhost DNS
