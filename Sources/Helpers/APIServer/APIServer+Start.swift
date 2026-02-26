@@ -115,8 +115,6 @@ extension APIServer {
                         try await dnsServer.run(host: Self.listenAddress, port: Self.dnsPort)
                     }
 
-                    // start up host table DNS (TCP)
-
                     group.addTask {
                         log.info(
                             "starting DNS resolver for container hostnames (TCP)",
@@ -127,32 +125,6 @@ extension APIServer {
                         )
                         try await dnsServer.runTCP(host: Self.listenAddress, port: Self.dnsPort)
                     }
-
-                    // start up realhost DNS
-                    /*
-                    group.addTask {
-                        let localhostResolver = LocalhostDNSHandler(log: log)
-                        do {
-                            try localhostResolver.monitorResolvers()
-                        } catch {
-                            log.error("could not initialize resolver monitor", metadata: ["error": "\(error)"])
-                            throw error
-                        }
-                    
-                        let nxDomainResolver = NxDomainResolver()
-                        let compositeResolver = CompositeResolver(handlers: [localhostResolver, nxDomainResolver])
-                        let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
-                        let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
-                        log.info(
-                            "starting DNS resolver for localhost",
-                            metadata: [
-                                "host": "\(Self.listenAddress)",
-                                "port": "\(Self.localhostDNSPort)",
-                            ]
-                        )
-                        try await dnsServer.run(host: Self.listenAddress, port: Self.localhostDNSPort)
-                    }
-                    */
                 }
             } catch {
                 log.error(
