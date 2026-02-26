@@ -80,7 +80,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         case ipv6Subnet
         case labels
         case pluginInfo
-        // TODO: retain for deserialization compatability for now, remove later
+        // TODO: retain for deserialization compatibility for now, remove later
         case subnet
     }
 

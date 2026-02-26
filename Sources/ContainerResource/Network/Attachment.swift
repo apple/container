@@ -47,4 +47,49 @@ public struct Attachment: Codable, Sendable {
         self.ipv6Address = ipv6Address
         self.macAddress = macAddress
     }
+
+    enum CodingKeys: String, CodingKey {
+        case network
+        case hostname
+        case ipv4Address
+        case ipv4Gateway
+        case ipv6Address
+        case macAddress
+        // TODO: retain for deserialization compatibility for now, remove later
+        case address
+        case gateway
+    }
+
+    /// Create a configuration from the supplied Decoder, initializing missing
+    /// values where possible to reasonable defaults.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        network = try container.decode(String.self, forKey: .network)
+        hostname = try container.decode(String.self, forKey: .hostname)
+        if let address = try? container.decode(CIDRv4.self, forKey: .ipv4Address) {
+            ipv4Address = address
+        } else {
+            ipv4Address = try container.decode(CIDRv4.self, forKey: .address)
+        }
+        if let gateway = try? container.decode(IPv4Address.self, forKey: .ipv4Gateway) {
+            ipv4Gateway = gateway
+        } else {
+            ipv4Gateway = try container.decode(IPv4Address.self, forKey: .gateway)
+        }
+        ipv6Address = try container.decodeIfPresent(CIDRv6.self, forKey: .ipv6Address)
+        macAddress = try container.decodeIfPresent(MACAddress.self, forKey: .macAddress)
+    }
+
+    /// Encode the configuration to the supplied Encoder.
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        try container.encode(network, forKey: .network)
+        try container.encode(hostname, forKey: .hostname)
+        try container.encode(ipv4Address, forKey: .ipv4Address)
+        try container.encode(ipv4Gateway, forKey: .ipv4Gateway)
+        try container.encodeIfPresent(ipv6Address, forKey: .ipv6Address)
+        try container.encodeIfPresent(macAddress, forKey: .macAddress)
+    }
 }
