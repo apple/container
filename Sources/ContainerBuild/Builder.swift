@@ -240,6 +240,7 @@ public struct Builder: Sendable {
         public let contentStore: ContentStore
         public let buildArgs: [String]
         public let contextDir: String
+        public let dockerfilePath: String?
         public let dockerfile: Data
         public let labels: [String]
         public let noCache: Bool
@@ -258,6 +259,7 @@ public struct Builder: Sendable {
             contentStore: ContentStore,
             buildArgs: [String],
             contextDir: String,
+            dockerfilePath: String?,
             dockerfile: Data,
             labels: [String],
             noCache: Bool,
@@ -275,6 +277,7 @@ public struct Builder: Sendable {
             self.contentStore = contentStore
             self.buildArgs = buildArgs
             self.contextDir = contextDir
+            self.dockerfilePath = dockerfilePath
             self.dockerfile = dockerfile
             self.labels = labels
             self.noCache = noCache
@@ -319,6 +322,9 @@ extension CallOptions {
             ("progress", config.terminal != nil ? "tty" : "plain"),
             ("target", config.target),
         ]
+        if let dockerfilePath = config.dockerfilePath {
+            headers.append(("dockerfile-path", dockerfilePath))
+        }
         for tag in config.tags {
             headers.append(("tag", tag))
         }

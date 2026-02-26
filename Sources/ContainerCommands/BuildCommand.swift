@@ -204,24 +204,10 @@ extension Application {
                     throw ValidationError("builder is not running")
                 }
 
-                let buildFilePath: String
-                if let file = self.file {
-                    buildFilePath = file
-                } else {
-                    guard
-                        let resolvedPath = try BuildFile.resolvePath(
-                            contextDir: self.contextDir,
-                            log: log
-                        )
-                    else {
-                        throw ValidationError("failed to find Dockerfile or Containerfile in the context directory \(self.contextDir)")
-                    }
-                    buildFilePath = resolvedPath
-                }
-
+                let buildFilePath: String?
                 let buildFileData: Data
                 // Dockerfile should be read from stdin
-                if file == "-" {
+                if let file = self.file, file == "-" {
                     let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("Dockerfile-\(UUID().uuidString)")
                     defer {
                         try? FileManager.default.removeItem(at: tempFile)
@@ -242,9 +228,24 @@ extension Application {
                         fileHandle.write(chunk)
                     }
                     try fileHandle.close()
+                    buildFilePath = nil
                     buildFileData = try Data(contentsOf: URL(filePath: tempFile.path()))
                 } else {
-                    buildFileData = try Data(contentsOf: URL(filePath: buildFilePath))
+                    let path = try file ?? BuildFile.resolvePath(contextDir: self.contextDir, log: log)
+
+                    guard let path else {
+                        throw ValidationError("failed to find Dockerfile or Containerfile in the context directory \(self.contextDir)")
+                    }
+
+                    let absolutePath = URL(filePath: path).path
+                    let contextPath = URL(filePath: contextDir).path + "/"
+
+                    guard absolutePath.starts(with: contextPath) else {
+                        throw ValidationError("Build file is not under the context directory \(absolutePath)")
+                    }
+
+                    buildFilePath = String(absolutePath.dropFirst(contextPath.count))
+                    buildFileData = try Data(contentsOf: URL(filePath: path))
                 }
 
                 let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
@@ -322,6 +323,7 @@ extension Application {
                             contentStore: RemoteContentStoreClient(),
                             buildArgs: buildArg,
                             contextDir: contextDir,
+                            dockerfilePath: buildFilePath,
                             dockerfile: buildFileData,
                             labels: label,
                             noCache: noCache,
