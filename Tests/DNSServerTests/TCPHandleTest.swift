@@ -241,7 +241,10 @@ struct TCPHandleTest {
             .serverChannelOption(.socketOption(.so_reuseaddr), value: 1)
             .bind(host: "127.0.0.1", port: 0) { channel in
                 channel.eventLoop.makeCompletedFuture {
-                    try NIOAsyncChannel(wrappingChannelSynchronously: channel, configuration: .init(inboundType: ByteBuffer.self, outboundType: ByteBuffer.self))
+                    try NIOAsyncChannel(
+                        wrappingChannelSynchronously: channel,
+                        configuration: .init(inboundType: ByteBuffer.self, outboundType: ByteBuffer.self)
+                    )
                 }
             }
         let port = listener.channel.localAddress!.port!
@@ -256,12 +259,14 @@ struct TCPHandleTest {
         let client = try await ClientBootstrap(group: NIOSingletons.posixEventLoopGroup)
             .connect(host: "127.0.0.1", port: port) { channel in
                 channel.eventLoop.makeCompletedFuture {
-                    try NIOAsyncChannel(wrappingChannelSynchronously: channel, configuration: .init(inboundType: ByteBuffer.self, outboundType: ByteBuffer.self))
+                    try NIOAsyncChannel(
+                        wrappingChannelSynchronously: channel,
+                        configuration: .init(inboundType: ByteBuffer.self, outboundType: ByteBuffer.self)
+                    )
                 }
             }
 
         var receivedChunks = 0
-        var connectionError: Error?
         do {
             try await client.executeThenClose { inbound, outbound in
                 var buf = ByteBuffer()
@@ -276,7 +281,7 @@ struct TCPHandleTest {
                 }
             }
         } catch {
-            connectionError = error
+            print("testTCPDropsOversizedFrame: connection closed with error (expected): \(error)")
         }
 
         try? await listener.channel.close()
@@ -296,7 +301,10 @@ struct TCPHandleTest {
             .serverChannelOption(.socketOption(.so_reuseaddr), value: 1)
             .bind(host: "127.0.0.1", port: 0) { channel in
                 channel.eventLoop.makeCompletedFuture {
-                    try NIOAsyncChannel(wrappingChannelSynchronously: channel, configuration: .init(inboundType: ByteBuffer.self, outboundType: ByteBuffer.self))
+                    try NIOAsyncChannel(
+                        wrappingChannelSynchronously: channel,
+                        configuration: .init(inboundType: ByteBuffer.self, outboundType: ByteBuffer.self)
+                    )
                 }
             }
         let port = listener.channel.localAddress!.port!
@@ -311,12 +319,14 @@ struct TCPHandleTest {
         let client = try await ClientBootstrap(group: NIOSingletons.posixEventLoopGroup)
             .connect(host: "127.0.0.1", port: port) { channel in
                 channel.eventLoop.makeCompletedFuture {
-                    try NIOAsyncChannel(wrappingChannelSynchronously: channel, configuration: .init(inboundType: ByteBuffer.self, outboundType: ByteBuffer.self))
+                    try NIOAsyncChannel(
+                        wrappingChannelSynchronously: channel,
+                        configuration: .init(inboundType: ByteBuffer.self, outboundType: ByteBuffer.self)
+                    )
                 }
             }
 
         var receivedChunks = 0
-        var connectionError: Error?
         do {
             try await client.executeThenClose { inbound, outbound in
                 try await Task.sleep(for: .milliseconds(300))
@@ -325,7 +335,7 @@ struct TCPHandleTest {
                 }
             }
         } catch {
-            connectionError = error
+            print("testTCPIdleTimeoutDropsConnection: connection closed with error (expected): \(error)")
         }
 
         try? await listener.channel.close()
