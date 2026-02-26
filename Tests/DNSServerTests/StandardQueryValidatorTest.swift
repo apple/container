@@ -14,7 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import DNS
+import ContainerizationExtras
 import Testing
 
 @testable import DNSServer
@@ -110,7 +110,7 @@ struct StandardQueryValidatorTest {
         #expect("foo" == response?.questions[0].name)
         #expect(.host == response?.questions[0].type)
         #expect(1 == response?.answers.count)
-        let answer = response?.answers[0] as? HostRecord<IPv4>
-        #expect(IPv4("1.2.3.4") == answer?.ip)
+        let answer = response?.answers[0] as? HostRecord<IPv4Address>
+        #expect(try IPv4Address("1.2.3.4") == answer?.ip)
     }
 }

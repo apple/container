@@ -1,5 +1,5 @@
 {
-  "originHash" : "052cce484c36a6e3389f4630d1fbaf7a73c8902737f282ec0697eedc84c833e9",
+  "originHash" : "4ec05f4e83999a89d3397d0657536924d4a425d7f0e3f0fd6a3578e34c924502",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -17,24 +17,6 @@
       "state" : {
         "revision" : "185bc1ecd7b6d9ef1938da1846e620ab73db8950",
         "version" : "0.26.3"
-      }
-    },
-    {
-      "identity" : "dns",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Bouke/DNS",
-      "state" : {
-        "revision" : "78bbd1589890a90b202d11d5f9e1297050cf0eb2",
-        "version" : "1.2.0"
-      }
-    },
-    {
-      "identity" : "dnsclient",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/orlandos-nl/DNSClient",
-      "state" : {
-        "revision" : "551fbddbf4fa728d4cd86f6a5208fe4f925f0549",
-        "version" : "2.4.4"
       }
     },
     {

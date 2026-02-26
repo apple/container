@@ -47,7 +47,6 @@ let package = Package(
         .library(name: "TerminalProgress", targets: ["TerminalProgress"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/Bouke/DNS.git", from: "1.2.0"),
         .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion)),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
         .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
@@ -56,7 +55,6 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.29.0"),
         .package(url: "https://github.com/apple/swift-system.git", from: "1.4.0"),
         .package(url: "https://github.com/grpc/grpc-swift.git", from: "1.26.0"),
-        .package(url: "https://github.com/orlandos-nl/DNSClient.git", from: "2.4.1"),
         .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.20.1"),
         .package(url: "https://github.com/swiftlang/swift-docc-plugin.git", from: "1.1.0"),
     ],
@@ -426,17 +424,15 @@ let package = Package(
             dependencies: [
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOPosix", package: "swift-nio"),
-                .product(name: "DNSClient", package: "DNSClient"),
-                .product(name: "DNS", package: "DNS"),
                 .product(name: "Logging", package: "swift-log"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
             ]
         ),
         .testTarget(
             name: "DNSServerTests",
             dependencies: [
-                .product(name: "DNS", package: "DNS"),
-                "DNSServer",
+                "DNSServer"
             ]
         ),
         .testTarget(
