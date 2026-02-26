@@ -115,9 +115,12 @@ extension APIServer {
                         try await dnsServer.run(host: Self.listenAddress, port: Self.dnsPort)
                     }
 
-                    // TCP server on the same port. Required by RFC 1035 for responses that
-                    // exceed the 512-byte UDP wire limit. The OS distinguishes the two by
-                    // socket type (SOCK_DGRAM vs SOCK_STREAM), so there is no port conflict.
+                    // start up host table DNS (TCP)
+                    //
+                    // Required by RFC 1035 for responses that exceed the 512-byte UDP wire 
+                    // limit. The OS distinguishes the two by socket type (SOCK_DGRAM vs 
+                    // SOCK_STREAM), so there is no port conflict on the same bind address.
+
                     group.addTask {
                         log.info(
                             "starting DNS resolver for container hostnames (TCP)",

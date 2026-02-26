@@ -45,21 +45,21 @@ public struct DNSServer: @unchecked Sendable {
     public var handler: DNSHandler
     let log: Logger?
 
-    // Maximum number of concurrent TCP connections. Connections beyond this limit
-    // are closed immediately. The UDP path is unaffected.
+    /// Maximum number of concurrent TCP connections.
+    /// Connections beyond this limit are closed immediately. The UDP path is unaffected.
     static let maxConcurrentConnections = 128
 
-    // Generous upper bound on a DNS message received over TCP. Legitimate messages
-    // are well under this limit; anything larger almost certainly indicates a framing
-    // desync rather than a valid query, so we close the connection instead of trying
-    // to allocate a huge buffer.
+    /// Generous upper bound on a DNS message received over TCP.
+    /// Legitimate messages are well under this limit; anything larger almost certainly
+    /// indicates a framing desync rather than a valid query, so we close the connection
+    /// instead of trying to allocate a huge buffer.
     static let maxTCPMessageSize: UInt16 = 4096
 
-    // How long a TCP connection may be idle between fully-processed messages before
-    // it is closed. Exposed as an instance property so tests can inject a short value.
+    /// How long a TCP connection may be idle between fully-processed messages before
+    /// it is closed. Exposed as an instance property so tests can inject a short value.
     let tcpIdleTimeout: Duration
 
-    // Active TCP connection counter.
+    /// Active TCP connection counter.
     private let connections: ConnectionCounter
 
     public init(
@@ -75,6 +75,7 @@ public struct DNSServer: @unchecked Sendable {
 
     // MARK: - UDP
 
+    /// Runs a UDP DNS listener on the given host and port.
     public func run(host: String, port: Int) async throws {
         let srv = try await DatagramBootstrap(group: NIOSingletons.posixEventLoopGroup)
             .channelOption(.socketOption(.so_reuseaddr), value: 1)
@@ -97,6 +98,7 @@ public struct DNSServer: @unchecked Sendable {
         }
     }
 
+    /// Runs a UDP DNS listener on a Unix domain socket.
     public func run(socketPath: String) async throws {
         let srv = try await DatagramBootstrap(group: NIOSingletons.posixEventLoopGroup)
             .bind(unixDomainSocketPath: socketPath, cleanupExistingSocketFile: true)
