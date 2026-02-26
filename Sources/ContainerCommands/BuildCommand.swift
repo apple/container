@@ -240,11 +240,13 @@ extension Application {
                     let absolutePath = URL(filePath: path).path
                     let contextPath = URL(filePath: contextDir).path + "/"
 
-                    guard absolutePath.starts(with: contextPath) else {
-                        throw ValidationError("Build file is not under the context directory \(absolutePath)")
+                    if absolutePath.starts(with: contextPath) {
+                        buildFilePath = String(absolutePath.dropFirst(contextPath.count))
+                    } else {
+                        print("Build file is out of context, docker specific ignore doesn't work")
+                        buildFilePath = nil
                     }
 
-                    buildFilePath = String(absolutePath.dropFirst(contextPath.count))
                     buildFileData = try Data(contentsOf: URL(filePath: path))
                 }
 
