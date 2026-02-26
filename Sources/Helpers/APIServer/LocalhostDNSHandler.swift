@@ -18,7 +18,7 @@ import ContainerAPIClient
 import ContainerOS
 import ContainerPersistence
 import ContainerizationError
-import DNS
+import ContainerizationExtras
 import DNSServer
 import Foundation
 import Logging
@@ -28,42 +28,41 @@ actor LocalhostDNSHandler: DNSHandler {
     private let ttl: UInt32
     private let watcher: DirectoryWatcher
 
-    private let dns: Mutex<[String: IPv4]>
+    private var dns: [String: IPv4Address]
 
     public init(resolversURL: URL = HostDNSResolver.defaultConfigPath, ttl: UInt32 = 5, log: Logger) {
         self.ttl = ttl
 
         self.watcher = DirectoryWatcher(directoryURL: resolversURL, log: log)
-        self.dns = Mutex([:])
+        self.dns = [:]
     }
 
     public func monitorResolvers() async {
-        await self.watcher.startWatching { fileURLs in
-            var dns: [String: String] = [:]
+        await self.watcher.startWatching { [weak self] fileURLs in
+            var dns: [String: IPv4Address] = [:]
             let regex = try Regex(HostDNSResolver.localhostOptionsRegex)
 
             for file in fileURLs.filter({ $0.lastPathComponent.starts(with: HostDNSResolver.containerizationPrefix) }) {
                 let content = try String(contentsOf: file, encoding: .utf8)
 
                 if let match = content.firstMatch(of: regex),
-                    let ipv4 = (match[1].substring.map { String($0) })
+                    let ipv4 = (match[1].substring.map { try? IPv4Address(String($0)) })
                 {
                     let name = String(file.lastPathComponent.dropFirst(HostDNSResolver.containerizationPrefix.count))
                     dns[name + "."] = ipv4
                 }
             }
-            self.dns.withLock { $0 = dns.compactMapValues { IPv4($0) } }
+            Task { await self?.updateDNS(dns) }
         }
     }
 
-    nonisolated public func answer(query: Message) async throws -> Message? {
+    public func answer(query: Message) async throws -> Message? {
         let question = query.questions[0]
         var record: ResourceRecord?
         switch question.type {
         case ResourceRecordType.host:
-            let dns = dns.withLock { $0 }
             if let ip = dns[question.name] {
-                record = HostRecord<IPv4>(name: question.name, ttl: ttl, ip: ip)
+                record = HostRecord<IPv4Address>(name: question.name, ttl: ttl, ip: ip)
             }
         case ResourceRecordType.host6:
             return Message(
@@ -73,28 +72,11 @@ actor LocalhostDNSHandler: DNSHandler {
                 questions: query.questions,
                 answers: []
             )
-        case ResourceRecordType.nameServer,
-            ResourceRecordType.alias,
-            ResourceRecordType.startOfAuthority,
-            ResourceRecordType.pointer,
-            ResourceRecordType.mailExchange,
-            ResourceRecordType.text,
-            ResourceRecordType.service,
-            ResourceRecordType.incrementalZoneTransfer,
-            ResourceRecordType.standardZoneTransfer,
-            ResourceRecordType.all:
-            return Message(
-                id: query.id,
-                type: .response,
-                returnCode: .notImplemented,
-                questions: query.questions,
-                answers: []
-            )
         default:
             return Message(
                 id: query.id,
                 type: .response,
-                returnCode: .formatError,
+                returnCode: .notImplemented,
                 questions: query.questions,
                 answers: []
             )
@@ -112,4 +94,9 @@ actor LocalhostDNSHandler: DNSHandler {
             answers: [record]
         )
     }
+
+    private func updateDNS(_ dns: [String: IPv4Address]) {
+        self.dns = dns
+    }
+
 }

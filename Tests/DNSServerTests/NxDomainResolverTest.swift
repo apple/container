@@ -14,7 +14,6 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import DNS
 import Testing
 
 @testable import DNSServer
