@@ -22,7 +22,6 @@ import Testing
 
 @testable import DNSServer
 
-// MARK: - Unit tests for the shared processRaw helper
 
 struct ProcessRawTest {
     @Test func testProcessRawReturnsSerializedResponse() async throws {
@@ -64,10 +63,8 @@ struct ProcessRawTest {
     }
 }
 
-// MARK: - TCP integration tests
 
 struct TCPHandleTest {
-    /// Serializes a DNS query and wraps it in the 2-byte length prefix required by TCP.
     private func makeTCPFrame(hostname: String, id: UInt16 = 1) throws -> ByteBuffer {
         let bytes = try Message(
             id: id,
@@ -87,7 +84,6 @@ struct TCPHandleTest {
             tcpIdleTimeout: .seconds(2)
         )
 
-        // Bind on an ephemeral port using the same pattern as DNSServer.runTCP().
         let listener = try await ServerBootstrap(group: NIOSingletons.posixEventLoopGroup)
             .serverChannelOption(.socketOption(.so_reuseaddr), value: 1)
             .bind(
@@ -106,7 +102,6 @@ struct TCPHandleTest {
             }
         let port = listener.channel.localAddress!.port!
 
-        // Server task: accept one connection, handle it, then we close the listener.
         async let serverDone: Void = listener.executeThenClose { inbound in
             for try await child in inbound {
                 await server.handleTCP(channel: child)
@@ -114,7 +109,6 @@ struct TCPHandleTest {
             }
         }
 
-        // Client: connect, send a query, read the response.
         let client = try await ClientBootstrap(group: NIOSingletons.posixEventLoopGroup)
             .connect(
                 host: "127.0.0.1",
@@ -142,7 +136,6 @@ struct TCPHandleTest {
             }
         }
 
-        // Unblock the server accept loop.
         try await listener.channel.close()
         try? await serverDone
 
@@ -206,7 +199,6 @@ struct TCPHandleTest {
 
         var responses: [Message] = []
         try await client.executeThenClose { inbound, outbound in
-            // Write two queries in a single write to simulate pipelining.
             var combined = try makeTCPFrame(hostname: "first.", id: 10)
             combined.writeImmutableBuffer(try makeTCPFrame(hostname: "second.", id: 20))
             try await outbound.write(combined)

@@ -116,10 +116,6 @@ extension APIServer {
                     }
 
                     // start up host table DNS (TCP)
-                    //
-                    // Required by RFC 1035 for responses that exceed the 512-byte UDP wire 
-                    // limit. The OS distinguishes the two by socket type (SOCK_DGRAM vs 
-                    // SOCK_STREAM), so there is no port conflict on the same bind address.
 
                     group.addTask {
                         log.info(

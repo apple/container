@@ -20,10 +20,6 @@ import NIOCore
 import NIOPosix
 import Synchronization
 
-/// Thread-safe active-connection counter used to enforce `maxConcurrentConnections`.
-///
-/// Wrapped in a `final class` so it can be stored as a reference in the
-/// `Copyable` `DNSServer` struct without running into `~Copyable` restrictions.
 private final class ConnectionCounter: Sendable {
     private let storage: Mutex<Int> = .init(0)
 
@@ -40,26 +36,16 @@ private final class ConnectionCounter: Sendable {
     }
 }
 
-/// Provides a DNS server over UDP and TCP.
 public struct DNSServer: @unchecked Sendable {
     public var handler: DNSHandler
     let log: Logger?
 
-    /// Maximum number of concurrent TCP connections.
-    /// Connections beyond this limit are closed immediately. The UDP path is unaffected.
     static let maxConcurrentConnections = 128
 
-    /// Generous upper bound on a DNS message received over TCP.
-    /// Legitimate messages are well under this limit; anything larger almost certainly
-    /// indicates a framing desync rather than a valid query, so we close the connection
-    /// instead of trying to allocate a huge buffer.
     static let maxTCPMessageSize: UInt16 = 4096
 
-    /// How long a TCP connection may be idle between fully-processed messages before
-    /// it is closed. Exposed as an instance property so tests can inject a short value.
     let tcpIdleTimeout: Duration
 
-    /// Active TCP connection counter.
     private let connections: ConnectionCounter
 
     public init(
@@ -75,7 +61,6 @@ public struct DNSServer: @unchecked Sendable {
 
     // MARK: - UDP
 
-    /// Runs a UDP DNS listener on the given host and port.
     public func run(host: String, port: Int) async throws {
         let srv = try await DatagramBootstrap(group: NIOSingletons.posixEventLoopGroup)
             .channelOption(.socketOption(.so_reuseaddr), value: 1)
@@ -98,7 +83,6 @@ public struct DNSServer: @unchecked Sendable {
         }
     }
 
-    /// Runs a UDP DNS listener on a Unix domain socket.
     public func run(socketPath: String) async throws {
         let srv = try await DatagramBootstrap(group: NIOSingletons.posixEventLoopGroup)
             .bind(unixDomainSocketPath: socketPath, cleanupExistingSocketFile: true)
@@ -124,12 +108,6 @@ public struct DNSServer: @unchecked Sendable {
 
     // MARK: - TCP
 
-    /// Runs a TCP DNS listener on the given host and port.
-    ///
-    /// DNS over TCP is required by RFC 1035 for responses that exceed 512 bytes (the UDP
-    /// wire limit). Clients signal truncation via the TC bit and retry over TCP.
-    /// This method runs a separate TCP server on the same port number as the UDP listener;
-    /// the OS distinguishes them by socket type (SOCK_STREAM vs SOCK_DGRAM).
     public func runTCP(host: String, port: Int) async throws {
         let server = try await ServerBootstrap(group: NIOSingletons.posixEventLoopGroup)
             .serverChannelOption(.socketOption(.so_reuseaddr), value: 1)
@@ -166,10 +144,6 @@ public struct DNSServer: @unchecked Sendable {
         }
     }
 
-    /// Runs a TCP DNS listener on a Unix domain socket.
-    ///
-    /// Mirrors `runTCP(host:port:)` but binds to a socket file path instead of a
-    /// TCP/IP address. Any existing socket file at the path is removed before binding.
     public func runTCP(socketPath: String) async throws {
         try? FileManager.default.removeItem(atPath: socketPath)
 
