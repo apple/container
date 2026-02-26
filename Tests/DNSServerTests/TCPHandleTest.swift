@@ -129,14 +129,15 @@ struct TCPHandleTest {
         try await client.executeThenClose { inbound, outbound in
             try await outbound.write(try makeTCPFrame(hostname: "tcp-test.", id: 77))
             for try await var chunk in inbound {
-                let len = chunk.readInteger(as: UInt16.self)!
-                let slice = chunk.readSlice(length: Int(len))!
+                // Safe in-process: the entire response will arrive in one chunk
+                guard let len = chunk.readInteger(as: UInt16.self) else { break }
+                guard let slice = chunk.readSlice(length: Int(len)) else { break }
                 response = try Message(deserialize: Data(slice.readableBytesView))
                 break
             }
         }
 
-        try await listener.channel.close()
+        try? await listener.channel.close()
         try? await serverDone
 
         #expect(77 == response?.id)
@@ -210,14 +211,14 @@ struct TCPHandleTest {
                     guard let len = accumulator.getInteger(at: accumulator.readerIndex, as: UInt16.self) else { break }
                     guard accumulator.readableBytes >= 2 + Int(len) else { break }
                     accumulator.moveReaderIndex(forwardBy: 2)
-                    let slice = accumulator.readSlice(length: Int(len))!
+                    guard let slice = accumulator.readSlice(length: Int(len)) else { break }
                     responses.append(try Message(deserialize: Data(slice.readableBytesView)))
                 }
                 if responses.count == 2 { break }
             }
         }
 
-        try await listener.channel.close()
+        try? await listener.channel.close()
         try? await serverDone
 
         #expect(2 == responses.count)
@@ -227,5 +228,109 @@ struct TCPHandleTest {
         let a2 = responses[1].answers.first as? HostRecord<IPv4>
         #expect(IPv4("1.1.1.1") == a1?.ip)
         #expect(IPv4("2.2.2.2") == a2?.ip)
+    }
+
+    @Test func testTCPDropsOversizedFrame() async throws {
+        let handler = HostTableResolver(hosts4: ["oversize.": IPv4("1.1.1.1")!])
+        let server = DNSServer(
+            handler: StandardQueryValidator(handler: handler),
+            tcpIdleTimeout: .seconds(2)
+        )
+
+        let listener = try await ServerBootstrap(group: NIOSingletons.posixEventLoopGroup)
+            .serverChannelOption(.socketOption(.so_reuseaddr), value: 1)
+            .bind(host: "127.0.0.1", port: 0) { channel in
+                channel.eventLoop.makeCompletedFuture {
+                    try NIOAsyncChannel(wrappingChannelSynchronously: channel, configuration: .init(inboundType: ByteBuffer.self, outboundType: ByteBuffer.self))
+                }
+            }
+        let port = listener.channel.localAddress!.port!
+
+        async let serverDone: Void = listener.executeThenClose { inbound in
+            for try await child in inbound {
+                await server.handleTCP(channel: child)
+                break
+            }
+        }
+
+        let client = try await ClientBootstrap(group: NIOSingletons.posixEventLoopGroup)
+            .connect(host: "127.0.0.1", port: port) { channel in
+                channel.eventLoop.makeCompletedFuture {
+                    try NIOAsyncChannel(wrappingChannelSynchronously: channel, configuration: .init(inboundType: ByteBuffer.self, outboundType: ByteBuffer.self))
+                }
+            }
+
+        var receivedChunks = 0
+        var connectionError: Error?
+        do {
+            try await client.executeThenClose { inbound, outbound in
+                var buf = ByteBuffer()
+                buf.writeInteger(UInt16(DNSServer.maxTCPMessageSize + 1))
+                // The server inspects only the 2-byte length prefix before closing.
+                // The payload bytes that follow are never read.
+                buf.writeBytes([UInt8](repeating: 0, count: 10))
+                try await outbound.write(buf)
+
+                for try await _ in inbound {
+                    receivedChunks += 1
+                }
+            }
+        } catch {
+            connectionError = error
+        }
+
+        try? await listener.channel.close()
+        try? await serverDone
+
+        #expect(receivedChunks == 0, "Expected server to drop connection without responding to oversized frame")
+    }
+
+    @Test func testTCPIdleTimeoutDropsConnection() async throws {
+        let handler = HostTableResolver(hosts4: ["idle.": IPv4("1.1.1.1")!])
+        let server = DNSServer(
+            handler: StandardQueryValidator(handler: handler),
+            tcpIdleTimeout: .milliseconds(100)
+        )
+
+        let listener = try await ServerBootstrap(group: NIOSingletons.posixEventLoopGroup)
+            .serverChannelOption(.socketOption(.so_reuseaddr), value: 1)
+            .bind(host: "127.0.0.1", port: 0) { channel in
+                channel.eventLoop.makeCompletedFuture {
+                    try NIOAsyncChannel(wrappingChannelSynchronously: channel, configuration: .init(inboundType: ByteBuffer.self, outboundType: ByteBuffer.self))
+                }
+            }
+        let port = listener.channel.localAddress!.port!
+
+        async let serverDone: Void = listener.executeThenClose { inbound in
+            for try await child in inbound {
+                await server.handleTCP(channel: child)
+                break
+            }
+        }
+
+        let client = try await ClientBootstrap(group: NIOSingletons.posixEventLoopGroup)
+            .connect(host: "127.0.0.1", port: port) { channel in
+                channel.eventLoop.makeCompletedFuture {
+                    try NIOAsyncChannel(wrappingChannelSynchronously: channel, configuration: .init(inboundType: ByteBuffer.self, outboundType: ByteBuffer.self))
+                }
+            }
+
+        var receivedChunks = 0
+        var connectionError: Error?
+        do {
+            try await client.executeThenClose { inbound, outbound in
+                try await Task.sleep(for: .milliseconds(300))
+                for try await _ in inbound {
+                    receivedChunks += 1
+                }
+            }
+        } catch {
+            connectionError = error
+        }
+
+        try? await listener.channel.close()
+        try? await serverDone
+
+        #expect(receivedChunks == 0, "Expected server to drop connection due to idle timeout")
     }
 }

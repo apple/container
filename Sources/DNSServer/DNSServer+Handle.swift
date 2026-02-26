@@ -24,15 +24,7 @@ extension DNSServer {
         outbound: NIOAsyncChannelOutboundWriter<AddressedEnvelope<ByteBuffer>>,
         packet: inout AddressedEnvelope<ByteBuffer>
     ) async throws {
-        let chunkSize = 512
-        var data = Data()
-
-        self.log?.debug("reading data")
-        while packet.data.readableBytes > 0 {
-            if let chunk = packet.data.readBytes(length: min(chunkSize, packet.data.readableBytes)) {
-                data.append(contentsOf: chunk)
-            }
-        }
+        let data = Data(packet.data.readableBytesView)
 
         self.log?.debug("sending response for request")
         let responseData = try await self.processRaw(data: data)

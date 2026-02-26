@@ -42,8 +42,10 @@ extension DNSServer {
                 let activity = ConnectionActivity()
                 try await withThrowingTaskGroup(of: Void.self) { group in
                     group.addTask {
-                        while await !activity.idle(after: self.tcpIdleTimeout) {
-                            try await Task.sleep(for: .seconds(1))
+                        let pollInterval = min(Duration.seconds(1), self.tcpIdleTimeout)
+                        while true {
+                            try await Task.sleep(for: pollInterval)
+                            if await activity.idle(after: self.tcpIdleTimeout) { break }
                         }
                         self.log?.debug("TCP DNS: idle timeout, closing connection")
                         throw CancellationError()
@@ -52,7 +54,6 @@ extension DNSServer {
                     group.addTask {
                         var buffer = ByteBuffer()
                         for try await chunk in inbound {
-                            await activity.ping()
                             buffer.writeImmutableBuffer(chunk)
 
                             while buffer.readableBytes >= 2 {
@@ -60,7 +61,7 @@ extension DNSServer {
                                     at: buffer.readerIndex, as: UInt16.self
                                 ) else { break }
 
-                                guard msgLen > 0, msgLen <= DNSServer.maxTCPMessageSize else {
+                                guard msgLen > 0, msgLen <= Self.maxTCPMessageSize else {
                                     self.log?.error(
                                         "TCP DNS: unexpected frame size \(msgLen) bytes, closing connection")
                                     return
@@ -70,7 +71,7 @@ extension DNSServer {
                                 guard buffer.readableBytes >= needed else { break }
 
                                 buffer.moveReaderIndex(forwardBy: 2)
-                                let msgSlice = buffer.readSlice(length: Int(msgLen))!
+                                guard let msgSlice = buffer.readSlice(length: Int(msgLen)) else { break }
                                 let msgData = Data(msgSlice.readableBytesView)
 
                                 let responseData = try await self.processRaw(data: msgData)
