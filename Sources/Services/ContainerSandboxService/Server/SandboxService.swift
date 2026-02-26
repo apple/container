@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
+import ContainerOS
 import ContainerPersistence
 import ContainerResource
 import ContainerSandboxServiceClient
@@ -733,6 +734,11 @@ public actor SandboxService {
     }
 
     private func startSocketForwarders(attachment: Attachment, publishedPorts: [PublishPort]) async throws {
+        guard !publishedPorts.isEmpty else {
+            return
+        }
+        LocalNetworkPrivacy.triggerLocalNetworkPrivacyAlert()
+
         var forwarders: [SocketForwarderResult] = []
         guard !publishedPorts.hasOverlaps() else {
             throw ContainerizationError(.invalidArgument, message: "host ports for different publish port specs may not overlap")
