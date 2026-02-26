@@ -21,7 +21,7 @@ public struct ContainerListFilters: Sendable, Codable {
     /// Filter by container IDs. If non-empty, only containers with matching IDs are returned.
     public var ids: [String]
     /// Filter by container status.
-    public var status: RuntimeStatus?
+    public var status: ContainerStatus?
     /// Filter by labels. All specified labels must match.
     public var labels: [String: String]
 
@@ -30,7 +30,7 @@ public struct ContainerListFilters: Sendable, Codable {
 
     public init(
         ids: [String] = [],
-        status: RuntimeStatus? = nil,
+        status: ContainerStatus? = nil,
         labels: [String: String] = [:]
     ) {
         self.ids = ids

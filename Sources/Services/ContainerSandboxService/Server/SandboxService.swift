@@ -401,7 +401,7 @@ public actor SandboxService {
         self.log.debug("enter", metadata: ["func": "\(#function)"])
         defer { self.log.debug("exit", metadata: ["func": "\(#function)"]) }
 
-        var status: RuntimeStatus = .unknown
+        var status: SandboxStatus = .unknown
         var networks: [Attachment] = []
         var cs: ContainerSnapshot?
 
@@ -417,7 +417,7 @@ public actor SandboxService {
             networks = ctr.attachments
             cs = ContainerSnapshot(
                 configuration: ctr.config,
-                status: RuntimeStatus.running,
+                status: .running,
                 networks: networks
             )
         }

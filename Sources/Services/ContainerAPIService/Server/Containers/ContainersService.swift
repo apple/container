@@ -31,10 +31,23 @@ import Logging
 import SystemPackage
 
 public actor ContainersService {
+    struct StoppedState {
+        var startError: Error?
+        var exitStatus: ExitStatus?
+    }
+
     struct ContainerState {
+        private static let initialBackOff = Duration.milliseconds(100)
+        private static let maxBackOff = Duration.seconds(10)
+        public static let stabilityCall = Duration.seconds(10)
+
         var snapshot: ContainerSnapshot
         var client: SandboxClient?
         var allocatedAttachments: [AllocatedAttachment]
+
+        var stoppedState: StoppedState?
+        var manualStopped: Bool = false
+        var backOff: Duration?
 
         func getClient() throws -> SandboxClient {
             guard let client else {
@@ -46,10 +59,31 @@ public actor ContainersService {
             }
             return client
         }
+
+        mutating func setStartError(error: Error) {
+            stoppedState = StoppedState(startError: error)
+            backOff = nil
+        }
+
+        mutating func setExitStatus(exitStatus: ExitStatus?, restartPolicy: RestartPolicy) {
+            stoppedState = StoppedState(exitStatus: exitStatus)
+            switch restartPolicy {
+            case .onFailure where !manualStopped && (exitStatus?.exitCode ?? 0) != 0,
+                .always where !manualStopped:
+                backOff = backOff.map { min($0 * 2, Self.maxBackOff) } ?? Self.initialBackOff
+            case _:
+                backOff = nil
+            }
+        }
     }
 
     private static let machServicePrefix = "com.apple.container"
     private static let launchdDomainString = try! ServiceManager.getDomainString()
+
+    private let exitQueue: AsyncStream<String>
+    private let exitQueueContinuation: AsyncStream<String>.Continuation
+    private var restartScheduler: Task<Void, Never>?
+    private var stabilityMonitor: ExitMonitor?
 
     private let log: Logger
     private let debugHelpers: Bool
@@ -79,7 +113,13 @@ public actor ContainersService {
         self.log = log
         self.debugHelpers = debugHelpers
         self.runtimePlugins = pluginLoader.findPlugins().filter { $0.hasType(.runtime) }
+
+        (self.exitQueue, self.exitQueueContinuation) = AsyncStream.makeStream(of: String.self)
         self.containers = try Self.loadAtBoot(root: containerRoot, loader: pluginLoader, log: log)
+
+        for id in self.containers.keys {
+            self.exitQueueContinuation.yield(id)
+        }
     }
 
     public func setNetworksService(_ service: NetworksService) async {
@@ -108,7 +148,7 @@ public actor ContainersService {
                         networks: [],
                         startedDate: nil
                     ),
-                    allocatedAttachments: []
+                    allocatedAttachments: [],
                 )
                 results[config.id] = state
                 guard runtimePlugins.first(where: { $0.name == config.runtimeHandler }) != nil else {
@@ -128,6 +168,84 @@ public actor ContainersService {
             }
         }
         return results
+    }
+
+    public func runRestartScheduler() throws {
+        log.debug(
+            "ContainersService: enter",
+            metadata: ["func": "\(#function)"]
+        )
+        defer {
+            log.debug(
+                "ContainersService: exit",
+                metadata: ["func": "\(#function)"]
+            )
+        }
+
+        guard restartScheduler == nil else {
+            throw ContainerizationError(.invalidState, message: "already running restart scheduler")
+        }
+
+        stabilityMonitor = ExitMonitor(log: log)
+        restartScheduler = Task {
+            for await id in self.exitQueue {
+                Task {
+                    do {
+                        await stabilityMonitor?.stopTracking(id: id)
+
+                        let state = try self._getContainerState(id: id)
+                        let options = try self.getContainerCreationOptions(id: id)
+                        guard options.autoRemove == false else {
+                            return
+                        }
+
+                        let startFailed = state.stoppedState?.startError != nil
+                        let exitedWithError = (state.stoppedState?.exitStatus?.exitCode ?? 0) != 0
+                        let manualStopped = state.manualStopped
+
+                        switch options.restartPolicy {
+                        case .onFailure where !startFailed && !manualStopped && exitedWithError:
+                            break
+                        case .always where !startFailed && !manualStopped:
+                            break
+                        case _:
+                            return
+                        }
+
+                        try await restart(id: id)
+                        if let backOff = state.backOff {
+                            try await Task.sleep(for: backOff)
+                        }
+
+                        guard (try self._getContainerState(id: id)).snapshot.status == .restarting else {
+                            return
+                        }
+
+                        try await stabilityMonitor?.registerProcess(
+                            id: id,
+                            onExit: { id, code in
+                                guard code.exitCode == 0 else {
+                                    return
+                                }
+                                try? await self.resetBackOff(id: id)
+                            }
+                        )
+                        try await stabilityMonitor?.track(id: id) {
+                            try await Task.sleep(for: ContainerState.stabilityCall)
+                            return ExitStatus(exitCode: 0)
+                        }
+
+                        try await bootstrap(id: id, stdio: [FileHandle?](repeating: nil, count: 3))
+                        try await startProcess(id: id, processID: id)
+                    } catch {
+                        try await kill(id: id, processID: id, signal: Int64(SIGKILL))
+                        log.error(
+                            "failed to restart container",
+                            metadata: ["id": "\(id)", "error": "\(error)"])
+                    }
+                }
+            }
+        }
     }
 
     /// List containers matching the given filters.
@@ -370,7 +488,10 @@ public actor ContainersService {
                     networks: [],
                     startedDate: nil
                 )
-                await self.setContainerState(configuration.id, ContainerState(snapshot: snapshot, allocatedAttachments: []), context: context)
+                await self.setContainerState(
+                    configuration.id,
+                    ContainerState(snapshot: snapshot, allocatedAttachments: []),
+                    context: context)
             } catch {
                 throw error
             }
@@ -445,6 +566,7 @@ public actor ContainersService {
 
                 state.client = sandboxClient
                 state.allocatedAttachments = allocatedAttachments
+                state.snapshot.status = .bootstrapped
                 await self.setContainerState(id, state, context: context)
             } catch {
                 for allocatedAttach in allocatedAttachments {
@@ -468,6 +590,10 @@ public actor ContainersService {
 
                 await self.exitMonitor.stopTracking(id: id)
                 try? ServiceManager.deregister(fullServiceLabel: label)
+
+                state.setStartError(error: error)
+                await self.setContainerState(id, state, context: context)
+
                 throw error
             }
         }
@@ -570,6 +696,10 @@ public actor ContainersService {
             } catch {
                 await self.exitMonitor.stopTracking(id: id)
                 try? await client.stop(options: ContainerStopOptions.default)
+
+                state.setStartError(error: error)
+                await self.setContainerState(id, state, context: context)
+
                 throw error
             }
         }
@@ -597,9 +727,15 @@ public actor ContainersService {
             )
         }
 
-        let state = try self._getContainerState(id: id)
-        let client = try state.getClient()
-        try await client.kill(processID, signal: signal)
+        try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
+            var state = try await self.getContainerState(id: id, context: context)
+
+            state.manualStopped = true
+            await self.setContainerState(id, state, context: context)
+
+            let client = try state.getClient()
+            try await client.kill(processID, signal: signal)
+        }
     }
 
     /// Stop all containers inside the sandbox, aborting any processes currently
@@ -622,24 +758,30 @@ public actor ContainersService {
             )
         }
 
-        let state = try self._getContainerState(id: id)
+        try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
+            var state = try await self.getContainerState(id: id, context: context)
 
-        // Stop should be idempotent.
-        let client: SandboxClient
-        do {
-            client = try state.getClient()
-        } catch {
-            return
-        }
+            state.manualStopped = true
+            await self.setContainerState(id, state, context: context)
 
-        do {
-            try await client.stop(options: options)
-        } catch let err as ContainerizationError {
-            if err.code != .interrupted {
-                throw err
+            // Stop should be idempotent.
+            let client: SandboxClient
+            do {
+                client = try state.getClient()
+            } catch {
+                return
             }
+
+            do {
+                try await client.stop(options: options)
+            } catch let err as ContainerizationError {
+                if err.code != .interrupted {
+                    throw err
+                }
+            }
+
+            try await self.handleContainerExit(id: id, code: nil, context: context)
         }
-        try await handleContainerExit(id: id)
     }
 
     public func dial(id: String, port: UInt32) async throws -> FileHandle {
@@ -972,15 +1114,43 @@ public actor ContainersService {
             }
         }
 
+        let options = try getContainerCreationOptions(id: id)
+
         state.snapshot.status = .stopped
         state.snapshot.networks = []
         state.client = nil
         state.allocatedAttachments = []
+        state.setExitStatus(exitStatus: code, restartPolicy: options.restartPolicy)
         await self.setContainerState(id, state, context: context)
 
-        let options = try getContainerCreationOptions(id: id)
         if options.autoRemove {
             try await self.cleanUp(id: id, context: context)
+        } else {
+            exitQueueContinuation.yield(id)
+        }
+    }
+
+    private func restart(id: String) async throws {
+        try await self.lock.withLock { context in
+            var state = try await self.getContainerState(id: id, context: context)
+            guard state.snapshot.status == .stopped else {
+                throw ContainerizationError(.invalidState, message: "container not stopped: '\(id)'")
+            }
+
+            state.snapshot.status = .restarting
+            await self.setContainerState(id, state, context: context)
+        }
+    }
+
+    private func resetBackOff(id: String) async throws {
+        try await self.lock.withLock { context in
+            var state = try await self.getContainerState(id: id, context: context)
+            guard state.snapshot.status == .running else {
+                return
+            }
+
+            state.backOff = nil
+            await self.setContainerState(id, state, context: context)
         }
     }
 

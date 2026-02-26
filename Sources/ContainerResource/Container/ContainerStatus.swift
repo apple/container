@@ -14,24 +14,20 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerResource
+import Foundation
 
-/// A snapshot of a sandbox and its resources.
-public struct SandboxSnapshot: Codable, Sendable {
-    /// The runtime status of the sandbox.
-    public var status: SandboxStatus
-    /// Network attachments for the sandbox.
-    public var networks: [Attachment]
-    /// Containers placed in the sandbox.
-    public var containers: [ContainerSnapshot]
-
-    public init(
-        status: SandboxStatus,
-        networks: [Attachment],
-        containers: [ContainerSnapshot]
-    ) {
-        self.status = status
-        self.networks = networks
-        self.containers = containers
-    }
+/// Runtime status for a sandbox or container.
+public enum ContainerStatus: String, CaseIterable, Sendable, Codable {
+    /// The object is in an unknown status.
+    case unknown
+    /// The object is currently stopped.
+    case stopped
+    /// The object is waiting to be restarted.
+    case restarting
+    /// The object is currently bootstrapped.
+    case bootstrapped
+    /// The object is currently running.
+    case running
+    /// The object is currently stopping.
+    case stopping
 }

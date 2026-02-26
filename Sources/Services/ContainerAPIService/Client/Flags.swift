@@ -15,8 +15,11 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerResource
 import ContainerizationError
 import Foundation
+
+extension RestartPolicy: ExpressibleByArgument {}
 
 public struct Flags {
     public struct Logging: ParsableArguments {
@@ -303,6 +306,9 @@ public struct Flags {
 
         @Flag(name: [.customLong("rm"), .long], help: "Remove the container after it stops")
         public var remove = false
+
+        @Option(name: .long, help: "Restart policy when the container exits")
+        public var restart: RestartPolicy = .no
 
         @Flag(name: .long, help: "Enable Rosetta in the container")
         public var rosetta = false
