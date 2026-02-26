@@ -194,13 +194,7 @@ public actor ContainersService {
                         await stabilityMonitor?.stopTracking(id: id)
 
                         let state = try self._getContainerState(id: id)
-
-                        guard state.snapshot.status == .stopped else {
-                            throw ContainerizationError(.invalidState, message: "container not stopped: '\(id)'")
-                        }
-
                         let options = try self.getContainerCreationOptions(id: id)
-
                         guard options.autoRemove == false else {
                             return
                         }
@@ -218,8 +212,13 @@ public actor ContainersService {
                             return
                         }
 
+                        try await restart(id: id)
                         if let backOff = state.backOff {
                             try await Task.sleep(for: backOff)
+                        }
+
+                        guard (try self._getContainerState(id: id)).snapshot.status == .restarting else {
+                            return
                         }
 
                         try await stabilityMonitor?.registerProcess(
@@ -1128,6 +1127,18 @@ public actor ContainersService {
             try await self.cleanUp(id: id, context: context)
         } else {
             exitQueueContinuation.yield(id)
+        }
+    }
+
+    private func restart(id: String) async throws {
+        try await self.lock.withLock { context in
+            var state = try await self.getContainerState(id: id, context: context)
+            guard state.snapshot.status == .stopped else {
+                throw ContainerizationError(.invalidState, message: "container not stopped: '\(id)'")
+            }
+
+            state.snapshot.status = .restarting
+            await self.setContainerState(id, state, context: context)
         }
     }
 
