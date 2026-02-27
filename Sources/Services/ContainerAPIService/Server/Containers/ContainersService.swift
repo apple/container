@@ -759,6 +759,30 @@ public actor ContainersService {
         }
     }
 
+    /// Copy a file from the host into the container.
+    public func copyIn(id: String, source: String, destination: String, mode: UInt32) async throws {
+        self.log.debug("\(#function)")
+
+        let state = try self._getContainerState(id: id)
+        guard state.snapshot.status == .running else {
+            throw ContainerizationError(.invalidState, message: "container \(id) is not running")
+        }
+        let client = try state.getClient()
+        try await client.copyIn(source: source, destination: destination, mode: mode)
+    }
+
+    /// Copy a file from the container to the host.
+    public func copyOut(id: String, source: String, destination: String) async throws {
+        self.log.debug("\(#function)")
+
+        let state = try self._getContainerState(id: id)
+        guard state.snapshot.status == .running else {
+            throw ContainerizationError(.invalidState, message: "container \(id) is not running")
+        }
+        let client = try state.getClient()
+        try await client.copyOut(source: source, destination: destination)
+    }
+
     /// Get statistics for the container.
     public func stats(id: String) async throws -> ContainerStats {
         log.debug(

@@ -631,6 +631,91 @@ public actor SandboxService {
         return reply
     }
 
+    /// Copy a file from the host into the container.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with the following parameters:
+    ///     - sourcePath: The host path to copy from.
+    ///     - destinationPath: The container path to copy to.
+    ///     - fileMode: The file permissions mode (UInt64).
+    ///
+    /// - Returns: An XPC message with no parameters.
+    @Sendable
+    public func copyIn(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`copyIn` xpc handler")
+        switch self.state {
+        case .running, .booted:
+            guard let source = message.string(key: SandboxKeys.sourcePath.rawValue) else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no source path supplied for copyIn"
+                )
+            }
+            guard let destination = message.string(key: SandboxKeys.destinationPath.rawValue) else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no destination path supplied for copyIn"
+                )
+            }
+            let mode = UInt32(message.uint64(key: SandboxKeys.fileMode.rawValue))
+
+            let ctr = try getContainer()
+            try await ctr.container.copyIn(
+                from: URL(fileURLWithPath: source),
+                to: URL(fileURLWithPath: destination),
+                mode: mode
+            )
+
+            return message.reply()
+        default:
+            throw ContainerizationError(
+                .invalidState,
+                message: "cannot copyIn: container is not running"
+            )
+        }
+    }
+
+    /// Copy a file from the container to the host.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with the following parameters:
+    ///     - sourcePath: The container path to copy from.
+    ///     - destinationPath: The host path to copy to.
+    ///
+    /// - Returns: An XPC message with no parameters.
+    @Sendable
+    public func copyOut(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`copyOut` xpc handler")
+        switch self.state {
+        case .running, .booted:
+            guard let source = message.string(key: SandboxKeys.sourcePath.rawValue) else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no source path supplied for copyOut"
+                )
+            }
+            guard let destination = message.string(key: SandboxKeys.destinationPath.rawValue) else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no destination path supplied for copyOut"
+                )
+            }
+
+            let ctr = try getContainer()
+            try await ctr.container.copyOut(
+                from: URL(fileURLWithPath: source),
+                to: URL(fileURLWithPath: destination)
+            )
+
+            return message.reply()
+        default:
+            throw ContainerizationError(
+                .invalidState,
+                message: "cannot copyOut: container is not running"
+            )
+        }
+    }
+
     /// Dial a vsock port on the virtual machine.
     ///
     /// - Parameters:
