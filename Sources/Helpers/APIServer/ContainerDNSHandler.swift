@@ -18,7 +18,6 @@ import ContainerAPIService
 import DNS
 import DNSServer
 
-/// Handler that uses table lookup to resolve hostnames.
 struct ContainerDNSHandler: DNSHandler {
     private let networkService: NetworksService
     private let ttl: UInt32
@@ -37,10 +36,6 @@ struct ContainerDNSHandler: DNSHandler {
         case ResourceRecordType.host6:
             let result = try await answerHost6(question: question)
             if result.record == nil && result.hostnameExists {
-                // Return NODATA (noError with empty answers) when hostname exists but has no IPv6.
-                // This is required because musl libc has issues when A record exists but AAAA returns NXDOMAIN.
-                // musl treats NXDOMAIN on AAAA as "domain doesn't exist" and fails DNS resolution entirely.
-                // NODATA correctly indicates "no IPv6 address available, but domain exists".
                 return Message(
                     id: query.id,
                     type: .response,
@@ -91,7 +86,11 @@ struct ContainerDNSHandler: DNSHandler {
     }
 
     private func answerHost(question: Question) async throws -> ResourceRecord? {
-        guard let ipAllocation = try await networkService.lookup(hostname: question.name) else {
+        var hostname = question.name
+        if hostname.hasSuffix(".") {
+            hostname.removeLast()
+        }
+        guard let ipAllocation = try await networkService.lookup(hostname: hostname) else {
             return nil
         }
         let ipv4 = ipAllocation.ipv4Address.address.description
@@ -103,7 +102,11 @@ struct ContainerDNSHandler: DNSHandler {
     }
 
     private func answerHost6(question: Question) async throws -> (record: ResourceRecord?, hostnameExists: Bool) {
-        guard let ipAllocation = try await networkService.lookup(hostname: question.name) else {
+        var hostname = question.name
+        if hostname.hasSuffix(".") {
+            hostname.removeLast()
+        }
+        guard let ipAllocation = try await networkService.lookup(hostname: hostname) else {
             return (nil, false)
         }
         guard let ipv6Address = ipAllocation.ipv6Address else {
