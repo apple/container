@@ -93,9 +93,9 @@ extension Logger.Level {
             return .debug
         case .info:
             return .info
-        case .notice:
+        case .notice, .warning:
             return .default
-        case .error, .warning:
+        case .error:
             return .error
         case .critical:
             return .fault

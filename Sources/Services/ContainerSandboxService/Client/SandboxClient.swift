@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerAPIClient
 import ContainerResource
 import ContainerXPC
 import Containerization
@@ -46,14 +47,14 @@ public struct SandboxClient: Sendable {
 
     /// Create a SandboxClient by ID and runtime string. The returned client is ready to be used
     /// without additional steps.
-    public static func create(id: String, runtime: String) async throws -> SandboxClient {
+    public static func create(id: String, runtime: String, timeout: Duration = XPCClient.xpcRegistrationTimeout) async throws -> SandboxClient {
         let label = Self.machServiceLabel(runtime: runtime, id: id)
         let client = XPCClient(service: label)
         let request = XPCMessage(route: SandboxRoutes.createEndpoint.rawValue)
 
         let response: XPCMessage
         do {
-            response = try await client.send(request, responseTimeout: .seconds(5))
+            response = try await client.send(request, responseTimeout: timeout)
         } catch {
             throw ContainerizationError(
                 .internalError,
@@ -77,7 +78,7 @@ public struct SandboxClient: Sendable {
 // Runtime Methods
 extension SandboxClient {
     /// - Parameter sshAuthSocketPath: Optional path to the current shell's SSH agent socket, supplied at bootstrap time when SSH forwarding is enabled.
-    public func bootstrap(stdio: [FileHandle?], sshAuthSocketPath: String? = nil) async throws {
+    public func bootstrap(stdio: [FileHandle?], allocatedAttachments: [AllocatedAttachment], sshAuthSocketPath: String? = nil) async throws {
         let request = XPCMessage(route: SandboxRoutes.bootstrap.rawValue)
 
         for (i, h) in stdio.enumerated() {
@@ -101,6 +102,7 @@ extension SandboxClient {
         }
 
         do {
+            try request.setAllocatedAttachments(allocatedAttachments)
             try await self.client.send(request)
         } catch {
             throw ContainerizationError(
@@ -326,5 +328,27 @@ extension XPCMessage {
             )
         }
         return try JSONDecoder().decode(SandboxSnapshot.self, from: data)
+    }
+
+    func setAllocatedAttachments(_ allocatedAttachments: [AllocatedAttachment]) throws {
+        let encoder = JSONEncoder()
+        let allocatedAttachmentsArray = xpc_array_create_empty()
+        for allocatedAttach in allocatedAttachments {
+            let xpcObject: xpc_object_t = xpc_dictionary_create_empty()
+            let networkXPC = XPCMessage(object: xpcObject)
+
+            let attachmentEncoded = try encoder.encode(allocatedAttach.attachment)
+            networkXPC.set(key: SandboxKeys.networkAttachment.rawValue, value: attachmentEncoded)
+
+            let pluginInfoEncoded = try encoder.encode(allocatedAttach.pluginInfo)
+            networkXPC.set(key: SandboxKeys.networkPluginInfo.rawValue, value: pluginInfoEncoded)
+
+            if let additionalData = allocatedAttach.additionalData {
+                xpc_dictionary_set_value(networkXPC.underlying, SandboxKeys.networkAdditionalData.rawValue, additionalData.underlying)
+            }
+
+            xpc_array_append_value(allocatedAttachmentsArray, networkXPC.underlying)
+        }
+        self.set(key: SandboxKeys.allocatedAttachments.rawValue, value: allocatedAttachmentsArray)
     }
 }

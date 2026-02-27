@@ -58,7 +58,7 @@ extension Application {
             do {
                 var args = ["log"]
                 args.append(self.follow ? "stream" : "show")
-                args.append(contentsOf: ["--info", "--debug"])
+                args.append(contentsOf: ["--info", logOptions.debug ? "--debug" : nil].compactMap { $0 })
                 if !self.follow {
                     args.append(contentsOf: ["--last", last])
                 }

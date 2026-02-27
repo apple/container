@@ -45,4 +45,10 @@ public enum SandboxKeys: String {
 
     /// SSH agent socket path supplied at bootstrap time (current client shell).
     case sshAuthSocketPath
+
+    /// Network resource keys.
+    case allocatedAttachments
+    case networkAdditionalData
+    case networkAttachment
+    case networkPluginInfo
 }

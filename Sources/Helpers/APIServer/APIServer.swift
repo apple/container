@@ -15,9 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerLog
 import ContainerVersion
-import Logging
 
 @main
 struct APIServer: AsyncParsableCommand {
@@ -27,18 +25,4 @@ struct APIServer: AsyncParsableCommand {
         version: ReleaseVersion.singleLine(appName: "container-apiserver"),
         subcommands: [Start.self],
     )
-
-    static func setupLogger(debug: Bool) -> Logger {
-        LoggingSystem.bootstrap { label in
-            OSLogHandler(
-                label: label,
-                category: "APIServer"
-            )
-        }
-        var log = Logger(label: "com.apple.container")
-        if debug {
-            log.logLevel = .debug
-        }
-        return log
-    }
 }

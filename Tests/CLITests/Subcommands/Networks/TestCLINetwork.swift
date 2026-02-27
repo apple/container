@@ -22,7 +22,6 @@ import ContainerizationOS
 import Foundation
 import Testing
 
-@Suite(.serialized)
 class TestCLINetwork: CLITest {
     private static let retries = 10
     private static let retryDelaySeconds = Int64(3)
@@ -36,7 +35,7 @@ class TestCLINetwork: CLITest {
     }
 
     @available(macOS 26, *)
-    @Test(.disabled()) func testNetworkCreateAndUse() async throws {
+    @Test func testNetworkCreateAndUse() async throws {
         do {
             let name = getLowercasedTestName()
             let networkDeleteArgs = ["network", "delete", name]
@@ -90,7 +89,7 @@ class TestCLINetwork: CLITest {
     }
 
     @available(macOS 26, *)
-    @Test(.disabled()) func testNetworkDeleteWithContainer() async throws {
+    @Test func testNetworkDeleteWithContainer() async throws {
         do {
             // prep: delete container and network, ignoring if it doesn't exist
             let name = getLowercasedTestName()
@@ -137,7 +136,7 @@ class TestCLINetwork: CLITest {
     }
 
     @available(macOS 26, *)
-    @Test(.disabled()) func testNetworkLabels() async throws {
+    @Test func testNetworkLabels() async throws {
         do {
             // prep: delete container and network, ignoring if it doesn't exist
             let name = getLowercasedTestName()
@@ -193,7 +192,7 @@ class TestCLINetwork: CLITest {
     }
 
     @available(macOS 26, *)
-    @Test(.disabled()) func testIsolatedNetwork() async throws {
+    @Test func testIsolatedNetwork() async throws {
         do {
             let name = getLowercasedTestName()
             let networkDeleteArgs = ["network", "delete", name]
