@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025-2026 Apple Inc. and the container project authors.
+// Copyright © 2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ import NIOPosix
 import Testing
 
 @testable import DNSServer
-
 
 struct ProcessRawTest {
     @Test func testProcessRawReturnsSerializedResponse() async throws {
@@ -62,7 +61,6 @@ struct ProcessRawTest {
         #expect(0 == response.answers.count)
     }
 }
-
 
 struct TCPHandleTest {
     private func makeTCPFrame(hostname: String, id: UInt16 = 1) throws -> ByteBuffer {
