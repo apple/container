@@ -452,4 +452,153 @@ class TestCLIVolumes: CLITest {
         #expect(statusFinal == 0)
         #expect(!listFinal.contains(volumeName), "volume should be pruned after container is deleted")
     }
+
+    @Test func testFileCopyOperations() throws {
+        let testName = getTestName()
+        let volumeName = "\(testName)_vol"
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+
+        defer {
+            doVolumeDeleteIfExists(name: volumeName)
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        try doVolumeCreate(name: volumeName)
+
+        // Single file
+        try "Hello World".write(to: tempDir.appendingPathComponent("single.txt"), atomically: true, encoding: .utf8)
+        let (_, _, _, uploadStatus1) = try run(arguments: ["volume", "cp", tempDir.appendingPathComponent("single.txt").path, "\(volumeName):/single.txt"])
+        #expect(uploadStatus1 == 0, "volume cp upload should succeed")
+        let (_, _, _, downloadStatus1) = try run(arguments: ["volume", "cp", "\(volumeName):/single.txt", tempDir.appendingPathComponent("out.txt").path])
+        #expect(downloadStatus1 == 0, "volume cp download should succeed")
+
+        let content1 = try String(contentsOf: tempDir.appendingPathComponent("out.txt"), encoding: .utf8)
+        #expect(content1 == "Hello World")
+
+        // Subdirectory path
+        try "subdir-test".write(to: tempDir.appendingPathComponent("subdir.txt"), atomically: true, encoding: .utf8)
+        let (_, _, _, uploadStatus2) = try run(arguments: ["volume", "cp", tempDir.appendingPathComponent("subdir.txt").path, "\(volumeName):/path/to/subdir.txt"])
+        #expect(uploadStatus2 == 0, "volume cp upload should succeed")
+        let (_, _, _, downloadStatus2) = try run(arguments: ["volume", "cp", "\(volumeName):/path/to/subdir.txt", tempDir.appendingPathComponent("subdir-out.txt").path])
+        #expect(downloadStatus2 == 0, "volume cp download should succeed")
+
+        let content2 = try String(contentsOf: tempDir.appendingPathComponent("subdir-out.txt"), encoding: .utf8)
+        #expect(content2 == "subdir-test")
+    }
+
+    @Test func testDirectoryCopyOperations() throws {
+        let testName = getTestName()
+        let volumeName = "\(testName)_vol"
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+
+        defer {
+            doVolumeDeleteIfExists(name: volumeName)
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        try doVolumeCreate(name: volumeName)
+
+        // Directory with files
+        let myDir = tempDir.appendingPathComponent("mydir")
+        try FileManager.default.createDirectory(at: myDir, withIntermediateDirectories: true)
+        try "file1".write(to: myDir.appendingPathComponent("file1.txt"), atomically: true, encoding: .utf8)
+        try "file2".write(to: myDir.appendingPathComponent("file2.txt"), atomically: true, encoding: .utf8)
+
+        let (_, _, _, uploadStatus1) = try run(arguments: ["volume", "cp", "-r", myDir.path, "\(volumeName):/mydir"])
+        #expect(uploadStatus1 == 0, "volume cp upload should succeed")
+        let (_, _, _, downloadStatus1) = try run(arguments: ["volume", "cp", "-r", "\(volumeName):/mydir", tempDir.appendingPathComponent("mydir-out").path])
+        #expect(downloadStatus1 == 0, "volume cp download should succeed")
+
+        let outputDir = tempDir.appendingPathComponent("mydir-out")
+        #expect(FileManager.default.fileExists(atPath: outputDir.path))
+        #expect(FileManager.default.fileExists(atPath: outputDir.appendingPathComponent("file1.txt").path))
+        #expect(FileManager.default.fileExists(atPath: outputDir.appendingPathComponent("file2.txt").path))
+        #expect(try String(contentsOf: outputDir.appendingPathComponent("file1.txt"), encoding: .utf8) == "file1")
+
+        // Empty directory
+        let emptyDir = tempDir.appendingPathComponent("empty")
+        try FileManager.default.createDirectory(at: emptyDir, withIntermediateDirectories: true)
+        let (_, _, _, uploadStatus2) = try run(arguments: ["volume", "cp", "-r", emptyDir.path, "\(volumeName):/empty"])
+        #expect(uploadStatus2 == 0, "volume cp upload should succeed")
+        let (_, _, _, downloadStatus2) = try run(arguments: ["volume", "cp", "-r", "\(volumeName):/empty", tempDir.appendingPathComponent("empty-out").path])
+        #expect(downloadStatus2 == 0, "volume cp download should succeed")
+
+        var isDirectory: ObjCBool = false
+        #expect(FileManager.default.fileExists(atPath: tempDir.appendingPathComponent("empty-out").path, isDirectory: &isDirectory) && isDirectory.boolValue)
+
+        // Directory name preservation
+        let preserveDir = tempDir.appendingPathComponent("preserve-name")
+        try FileManager.default.createDirectory(at: preserveDir, withIntermediateDirectories: true)
+        try "test".write(to: preserveDir.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
+
+        let (_, _, _, uploadStatus3) = try run(arguments: ["volume", "cp", "-r", preserveDir.path, "\(volumeName):/preserve-name"])
+        #expect(uploadStatus3 == 0, "volume cp upload should succeed")
+        let (_, _, _, downloadStatus3) = try run(arguments: ["volume", "cp", "-r", "\(volumeName):/preserve-name", tempDir.appendingPathComponent("preserve-out").path])
+        #expect(downloadStatus3 == 0, "volume cp download should succeed")
+
+        #expect(FileManager.default.fileExists(atPath: tempDir.appendingPathComponent("preserve-out/file.txt").path))
+    }
+
+    @Test func testLargeFileHandling() throws {
+        let testName = getTestName()
+        let volumeName = "\(testName)_vol"
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+
+        defer {
+            doVolumeDeleteIfExists(name: volumeName)
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        try doVolumeCreate(name: volumeName)
+
+        let largeFile = tempDir.appendingPathComponent("large.bin")
+        try Data(count: 10 * 1024 * 1024).write(to: largeFile)
+
+        let (_, _, _, uploadStatus) = try run(arguments: ["volume", "cp", largeFile.path, "\(volumeName):/large.bin"])
+        #expect(uploadStatus == 0, "volume cp upload should succeed")
+        let (_, _, _, downloadStatus) = try run(arguments: ["volume", "cp", "\(volumeName):/large.bin", tempDir.appendingPathComponent("large-out.bin").path])
+        #expect(downloadStatus == 0, "volume cp download should succeed")
+
+        let size1 = try FileManager.default.attributesOfItem(atPath: largeFile.path)[.size] as? Int
+        let size2 = try FileManager.default.attributesOfItem(atPath: tempDir.appendingPathComponent("large-out.bin").path)[.size] as? Int
+        #expect(size1 == size2)
+    }
+
+    @Test func testErrorHandling() throws {
+        let testName = getTestName()
+        let volumeName = "\(testName)_vol"
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+
+        defer {
+            doVolumeDeleteIfExists(name: volumeName)
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        try doVolumeCreate(name: volumeName)
+
+        let noRecursiveDir = tempDir.appendingPathComponent("no-recursive")
+        try FileManager.default.createDirectory(at: noRecursiveDir, withIntermediateDirectories: true)
+        try "test".write(to: noRecursiveDir.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
+
+        // Test: copy directory TO volume without -r should fail
+        let (_, _, _, uploadStatus) = try run(arguments: ["volume", "cp", noRecursiveDir.path, "\(volumeName):/no-recursive"])
+        #expect(uploadStatus != 0, "copy directory to volume without -r should fail")
+
+        // Test: copy directory TO volume with -r should succeed
+        let (_, _, _, uploadWithRStatus) = try run(arguments: ["volume", "cp", "-r", noRecursiveDir.path, "\(volumeName):/no-recursive"])
+        #expect(uploadWithRStatus == 0, "copy directory to volume with -r should succeed")
+
+        // Test: copy directory FROM volume without -r should fail
+        let downloadDest = tempDir.appendingPathComponent("downloaded")
+        let (_, _, _, downloadStatus) = try run(arguments: ["volume", "cp", "\(volumeName):/no-recursive", downloadDest.path])
+        #expect(downloadStatus != 0, "copy directory from volume without -r should fail")
+
+        // Test: copy directory FROM volume with -r should succeed
+        let (_, _, _, downloadWithRStatus) = try run(arguments: ["volume", "cp", "-r", "\(volumeName):/no-recursive", downloadDest.path])
+        #expect(downloadWithRStatus == 0, "copy directory from volume with -r should succeed")
+    }
 }

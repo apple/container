@@ -104,4 +104,38 @@ public struct VolumesHarness: Sendable {
         reply.set(key: .volumeSize, value: size)
         return reply
     }
+
+    @Sendable
+    public func copyIn(_ message: XPCMessage) async throws -> XPCMessage {
+        guard let name = message.string(key: .volumeName) else {
+            throw ContainerizationError(.invalidArgument, message: "volume name cannot be empty")
+        }
+        guard let path = message.string(key: .path) else {
+            throw ContainerizationError(.invalidArgument, message: "path cannot be empty")
+        }
+        guard let fd = message.fileHandle(key: .fd) else {
+            throw ContainerizationError(.invalidArgument, message: "file descriptor cannot be empty")
+        }
+        defer { try? fd.close() }
+
+        try await service.copyIn(name: name, path: path, fileHandle: fd)
+        return message.reply()
+    }
+
+    @Sendable
+    public func copyOut(_ message: XPCMessage) async throws -> XPCMessage {
+        guard let name = message.string(key: .volumeName) else {
+            throw ContainerizationError(.invalidArgument, message: "volume name cannot be empty")
+        }
+        guard let path = message.string(key: .path) else {
+            throw ContainerizationError(.invalidArgument, message: "path cannot be empty")
+        }
+        guard let fd = message.fileHandle(key: .fd) else {
+            throw ContainerizationError(.invalidArgument, message: "file descriptor cannot be empty")
+        }
+        defer { try? fd.close() }
+
+        try await service.copyOut(name: name, path: path, fileHandle: fd)
+        return message.reply()
+    }
 }

@@ -388,4 +388,40 @@ public actor VolumesService {
         return volume
     }
 
+    public func copyIn(name: String, path: String, fileHandle: FileHandle) async throws {
+        try await lock.withLock { _ in
+            let volume = try await self._inspect(name)
+            let volumePath = self.volumePath(for: volume.name)
+            let destination = URL(fileURLWithPath: volumePath).appendingPathComponent(path)
+            try Archiver.uncompress(from: fileHandle, to: destination)
+        }
+    }
+
+    public func copyOut(name: String, path: String, fileHandle: FileHandle) async throws {
+        try await lock.withLock { _ in
+            let volume = try await self._inspect(name)
+            let volumePath = self.volumePath(for: volume.name)
+            let source = URL(fileURLWithPath: volumePath).appendingPathComponent(path)
+
+            try Archiver.compress(source: source, to: fileHandle) { url in
+                let relativePath: String
+                let sourcePath = source.path
+                let urlPath = url.path
+
+                if sourcePath == urlPath {
+                    relativePath = source.lastPathComponent
+                } else if urlPath.hasPrefix(sourcePath + "/") {
+                    relativePath = String(urlPath.dropFirst(sourcePath.count + 1))
+                } else {
+                    relativePath = url.lastPathComponent
+                }
+
+                return Archiver.ArchiveEntryInfo(
+                    pathOnHost: url,
+                    pathInArchive: URL(fileURLWithPath: relativePath)
+                )
+            }
+        }
+    }
+
 }

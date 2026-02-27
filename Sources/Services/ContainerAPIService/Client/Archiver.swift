@@ -82,6 +82,12 @@ public final class Archiver: Sendable {
                     }
                     entryInfo.append(info)
                 }
+                // Handle empty directories - if no entries were added, add the directory itself
+                if entryInfo.isEmpty {
+                    if let info = closure(source) {
+                        entryInfo.append(info)
+                    }
+                }
             }
 
             let archiver = try ArchiveWriter(
@@ -106,6 +112,22 @@ public final class Archiver: Sendable {
         }
 
         return hasher.finalize()
+    }
+
+    public static func compress(
+        source: URL,
+        to handle: FileHandle,
+        followSymlinks: Bool = false,
+        writerConfiguration: ArchiveWriterConfiguration = ArchiveWriterConfiguration(format: .paxRestricted, filter: .gzip),
+        closure: (URL) -> ArchiveEntryInfo?
+    ) throws {
+        let destination = URL(fileURLWithPath: "/dev/fd/\(handle.fileDescriptor)")
+        try compress(source: source, destination: destination, followSymlinks: followSymlinks, writerConfiguration: writerConfiguration, closure: closure)
+    }
+
+    public static func uncompress(from handle: FileHandle, to destination: URL) throws {
+        let source = URL(fileURLWithPath: "/dev/fd/\(handle.fileDescriptor)")
+        try uncompress(source: source, destination: destination)
     }
 
     public static func uncompress(source: URL, destination: URL) throws {
