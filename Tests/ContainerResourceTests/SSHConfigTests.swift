@@ -20,38 +20,33 @@ import Testing
 
 @testable import ContainerResource
 
-/// Unit tests for SSH agent forwarding configuration (`ssh`, `sshAuthSocketPath`).
-/// Ensures the config model correctly persists and restores the caller's socket path
-/// so runtime resolution (config → runtime env → launchctl) is not regressed.
+/// Unit tests for SSH agent forwarding configuration (`ssh`).
+/// The SSH agent socket path is supplied at bootstrap time by the client, not stored in config.
 struct SSHConfigTests {
 
-    @Test("SSH config round-trip: ssh and sshAuthSocketPath are preserved after encode/decode")
-    func sshConfigRoundTripPreservesSocketPath() throws {
+    @Test("SSH config round-trip: ssh true is preserved after encode/decode")
+    func sshConfigRoundTripPreservesTrue() throws {
         var config = makeMinimalConfig()
         config.ssh = true
-        config.sshAuthSocketPath = "/path/to/agent.sock"
 
         let encoded = try JSONEncoder().encode(config)
         let decoded = try JSONDecoder().decode(ContainerConfiguration.self, from: encoded)
 
         #expect(decoded.ssh == true)
-        #expect(decoded.sshAuthSocketPath == "/path/to/agent.sock")
     }
 
-    @Test("SSH config round-trip: ssh false and nil path are preserved")
-    func sshConfigRoundTripPreservesFalseAndNil() throws {
+    @Test("SSH config round-trip: ssh false is preserved")
+    func sshConfigRoundTripPreservesFalse() throws {
         let config = makeMinimalConfig()
         #expect(config.ssh == false)
-        #expect(config.sshAuthSocketPath == nil)
 
         let encoded = try JSONEncoder().encode(config)
         let decoded = try JSONDecoder().decode(ContainerConfiguration.self, from: encoded)
 
         #expect(decoded.ssh == false)
-        #expect(decoded.sshAuthSocketPath == nil)
     }
 
-    @Test("SSH config decode: missing ssh and sshAuthSocketPath default to false and nil")
+    @Test("SSH config decode: missing ssh defaults to false")
     func sshConfigDecodeDefaults() throws {
         let minimalJSON = """
             {
@@ -73,7 +68,6 @@ struct SSHConfigTests {
         let decoded = try JSONDecoder().decode(ContainerConfiguration.self, from: data)
 
         #expect(decoded.ssh == false)
-        #expect(decoded.sshAuthSocketPath == nil)
     }
 
     private func makeMinimalConfig() -> ContainerConfiguration {

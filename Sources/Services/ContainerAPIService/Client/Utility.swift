@@ -247,9 +247,6 @@ public struct Utility {
         config.publishedSockets = try Parser.publishSockets(management.publishSockets)
 
         config.ssh = management.ssh
-        if management.ssh {
-            config.sshAuthSocketPath = ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"]
-        }
         config.readOnly = management.readOnly
 
         if let runtime = management.runtime {

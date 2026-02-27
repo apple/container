@@ -42,4 +42,7 @@ public enum SandboxKeys: String {
 
     /// Container statistics
     case statistics
+
+    /// SSH agent socket path supplied at bootstrap time (current client shell).
+    case sshAuthSocketPath
 }

@@ -76,7 +76,8 @@ public struct SandboxClient: Sendable {
 
 // Runtime Methods
 extension SandboxClient {
-    public func bootstrap(stdio: [FileHandle?]) async throws {
+    /// - Parameter sshAuthSocketPath: Optional path to the current shell's SSH agent socket, supplied at bootstrap time when SSH forwarding is enabled.
+    public func bootstrap(stdio: [FileHandle?], sshAuthSocketPath: String? = nil) async throws {
         let request = XPCMessage(route: SandboxRoutes.bootstrap.rawValue)
 
         for (i, h) in stdio.enumerated() {
@@ -93,6 +94,10 @@ extension SandboxClient {
             if let h {
                 request.set(key: key.rawValue, value: h)
             }
+        }
+
+        if let sshAuthSocketPath {
+            request.set(key: SandboxKeys.sshAuthSocketPath.rawValue, value: sshAuthSocketPath)
         }
 
         do {

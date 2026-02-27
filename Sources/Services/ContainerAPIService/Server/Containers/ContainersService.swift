@@ -290,7 +290,8 @@ public actor ContainersService {
     }
 
     /// Bootstrap the init process of the container.
-    public func bootstrap(id: String, stdio: [FileHandle?]) async throws {
+    /// - Parameter sshAuthSocketPath: Optional path to the current shell's SSH agent socket, supplied by the client at bootstrap time when SSH forwarding is enabled.
+    public func bootstrap(id: String, stdio: [FileHandle?], sshAuthSocketPath: String? = nil) async throws {
         self.log.debug("\(#function)")
         try await self.lock.withLock { context in
             var state = try await self.getContainerState(id: id, context: context)
@@ -318,8 +319,7 @@ public actor ContainersService {
                     id: id,
                     runtime: runtime
                 )
-
-                try await sandboxClient.bootstrap(stdio: stdio)
+                try await sandboxClient.bootstrap(stdio: stdio, sshAuthSocketPath: sshAuthSocketPath)
 
                 try await self.exitMonitor.registerProcess(
                     id: id,
