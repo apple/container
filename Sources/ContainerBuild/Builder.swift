@@ -242,6 +242,7 @@ public struct Builder: Sendable {
         public let contextDir: String
         public let dockerfilePath: String?
         public let dockerfile: Data
+        public let dockerignore: Data?
         public let labels: [String]
         public let noCache: Bool
         public let platforms: [Platform]
@@ -261,6 +262,7 @@ public struct Builder: Sendable {
             contextDir: String,
             dockerfilePath: String?,
             dockerfile: Data,
+            dockerignore: Data?,
             labels: [String],
             noCache: Bool,
             platforms: [Platform],
@@ -279,6 +281,7 @@ public struct Builder: Sendable {
             self.contextDir = contextDir
             self.dockerfilePath = dockerfilePath
             self.dockerfile = dockerfile
+            self.dockerignore = dockerignore
             self.labels = labels
             self.noCache = noCache
             self.platforms = platforms
@@ -324,6 +327,9 @@ extension CallOptions {
         ]
         if let dockerfilePath = config.dockerfilePath {
             headers.append(("dockerfile-path", dockerfilePath))
+        }
+        if let dockerignore = config.dockerignore {
+            headers.append(("dockerignore", dockerignore.base64EncodedString()))
         }
         for tag in config.tags {
             headers.append(("tag", tag))

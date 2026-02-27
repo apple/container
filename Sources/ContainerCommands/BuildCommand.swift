@@ -204,8 +204,9 @@ extension Application {
                     throw ValidationError("builder is not running")
                 }
 
-                let buildFilePath: String?
                 let buildFileData: Data
+                var buildFilePath: String? = nil
+                var ignoreFileData: Data? = nil
                 // Dockerfile should be read from stdin
                 if let file = self.file, file == "-" {
                     let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("Dockerfile-\(UUID().uuidString)")
@@ -228,7 +229,6 @@ extension Application {
                         fileHandle.write(chunk)
                     }
                     try fileHandle.close()
-                    buildFilePath = nil
                     buildFileData = try Data(contentsOf: URL(filePath: tempFile.path()))
                 } else {
                     let path = try file ?? BuildFile.resolvePath(contextDir: self.contextDir, log: log)
@@ -237,14 +237,15 @@ extension Application {
                         throw ValidationError("failed to find Dockerfile or Containerfile in the context directory \(self.contextDir)")
                     }
 
-                    let absolutePath = URL(filePath: path).path
-                    let contextPath = URL(filePath: contextDir).path + "/"
+                    let ignoreFileURL = URL(filePath: path + ".dockerignore")
+                    ignoreFileData = try? Data(contentsOf: ignoreFileURL)
 
-                    if absolutePath.starts(with: contextPath) {
-                        buildFilePath = String(absolutePath.dropFirst(contextPath.count))
-                    } else {
-                        print("Build file is out of context, docker specific ignore doesn't work")
-                        buildFilePath = nil
+                    if ignoreFileData != nil {
+                        let hiddenDirName = ".\(UUID().uuidString)"
+                        let buildFileName = URL(filePath: path).lastPathComponent
+
+                        buildFilePath = "\(hiddenDirName)/\(buildFileName)"
+                        ignoreFileData?.append("\n\(hiddenDirName)".data(using: .utf8) ?? Data())
                     }
 
                     buildFileData = try Data(contentsOf: URL(filePath: path))
@@ -319,7 +320,7 @@ extension Application {
                         }
                         return results
                     }()
-                    group.addTask { [terminal, buildArg, contextDir, label, noCache, target, quiet, cacheIn, cacheOut, pull] in
+                    group.addTask { [terminal, buildArg, contextDir, buildFilePath, ignoreFileData, label, noCache, target, quiet, cacheIn, cacheOut, pull] in
                         let config = Builder.BuildConfig(
                             buildID: buildID,
                             contentStore: RemoteContentStoreClient(),
@@ -327,6 +328,7 @@ extension Application {
                             contextDir: contextDir,
                             dockerfilePath: buildFilePath,
                             dockerfile: buildFileData,
+                            dockerignore: ignoreFileData,
                             labels: label,
                             noCache: noCache,
                             platforms: [Platform](platforms),

@@ -136,7 +136,7 @@ extension TestCLIBuildBase {
 
                 ADD . .
 
-                RUN cat emptyFile 
+                RUN cat emptyFile
                 RUN cat Test/testempty
                 """
             let context: [FileSystemEntry] = [
@@ -154,8 +154,8 @@ extension TestCLIBuildBase {
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
                 """
-                ARG TAG=unknown 
-                FROM ghcr.io/linuxcontainers/alpine:${TAG} 
+                ARG TAG=unknown
+                FROM ghcr.io/linuxcontainers/alpine:${TAG}
                 """
             try createContext(tempDir: tempDir, dockerfile: dockerfile)
             let imageName: String = "registry.local/build-arg:\(UUID().uuidString)"
@@ -191,7 +191,7 @@ extension TestCLIBuildBase {
                 ARG TAG=3.20
                 FROM ghcr.io/linuxcontainers/alpine:${TAG}
 
-                # stage 2 RUN 
+                # stage 2 RUN
                 FROM ghcr.io/linuxcontainers/alpine:3.20
                 RUN echo "Hello, World!" > /hello.txt
 
@@ -199,8 +199,8 @@ extension TestCLIBuildBase {
                 FROM ghcr.io/linuxcontainers/alpine:3.20
                 RUN ["sh", "-c", "echo 'Exec form' > /exec.txt"]
 
-                # stage 4 - CMD 
-                FROM ghcr.io/linuxcontainers/alpine:3.20        
+                # stage 4 - CMD
+                FROM ghcr.io/linuxcontainers/alpine:3.20
                 CMD ["echo", "Exec default"]
 
                 # stage 5 - CMD []
@@ -291,9 +291,9 @@ extension TestCLIBuildBase {
                 ADD Test1Source Test1Source
                 ADD Test1Source2 Test1Source2
 
-                RUN cat Test1Source2/test.yaml 
+                RUN cat Test1Source2/test.yaml
 
-                # Test2: Test symlinks in nested directories 
+                # Test2: Test symlinks in nested directories
                 FROM ghcr.io/linuxcontainers/alpine:3.20
 
                 ADD Test2Source Test2Source
@@ -301,7 +301,7 @@ extension TestCLIBuildBase {
 
                 RUN cat Test2Source2/Test/test.txt
 
-                # Test 3: Test symlinks to directories work 
+                # Test 3: Test symlinks to directories work
                 FROM ghcr.io/linuxcontainers/alpine:3.20
 
                 ADD Test3Source Test3Source
@@ -398,7 +398,7 @@ extension TestCLIBuildBase {
 
                 ADD . .
 
-                RUN cat emptyFile 
+                RUN cat emptyFile
                 RUN cat Test/testempty
                 """
             let context: [FileSystemEntry] = [
@@ -822,6 +822,51 @@ extension TestCLIBuildBase {
 
             let generalResult = try run(arguments: ["exec", containerName, "test", "-f", "/app/general.txt"])
             #expect(generalResult.status == 0, "general.txt should be present (only in .dockerignore, not Dockerfile.dockerignore)")
+
+            let listResult = try run(arguments: ["exec", containerName, "ls", "-a"])
+            let listFiles = listResult.output.components(separatedBy: "\n").filter { !$0.isEmpty && $0 != "." && $0 != ".." }
+            #expect(Set(listFiles) == Set(["Dockerfile", ".dockerignore", "Dockerfile.dockerignore", "general.txt"]), "temporary directory must not be detected")
+        }
+
+        @Test func testDockerIgnoreOutsideContext() throws {
+            let tempDir: URL = try createTempDir()
+            let dockerfile =
+                """
+                FROM ghcr.io/linuxcontainers/alpine:3.20
+                WORKDIR /app
+                COPY . .
+                """
+            // .dockerignore ignores general.txt; Dockerfile.dockerignore ignores specific.txt.
+            // When both exist, Dockerfile.dockerignore takes precedence, so general.txt is included.
+            // Dockerfile and its .dockerignore must be co-located; here both live in the context root.
+            let context: [FileSystemEntry] = [
+                .file(".dockerignore", content: .data("general.txt\n".data(using: .utf8)!)),
+                .file("general.txt", content: .data("This file should be included (Dockerfile.dockerignore takes precedence over .dockerignore).\n".data(using: .utf8)!)),
+                .file("specific.txt", content: .data("This file should be ignored by Dockerfile.dockerignore.\n".data(using: .utf8)!)),
+            ]
+            try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
+
+            let dockerignore = "specific.txt\n".data(using: .utf8)!
+            try dockerignore.write(to: tempDir.appendingPathComponent("Dockerfile.dockerignore"), options: .atomic)
+
+            let contextDir = tempDir.appendingPathComponent("context")
+            let dockerfilePath = tempDir.appendingPathComponent("Dockerfile")
+            let imageName = "registry.local/dockerignore-specific:\(UUID().uuidString)"
+            let args = ["build", "-f", dockerfilePath.path, "-t", imageName, contextDir.path]
+            let response = try run(arguments: args)
+            if response.status != 0 {
+                throw CLIError.executionFailed("build failed: stdout=\(response.output) stderr=\(response.error)")
+            }
+
+            let containerName = "dockerignore-specific-\(UUID().uuidString)"
+            try self.doLongRun(name: containerName, image: imageName)
+            defer { try? self.doStop(name: containerName) }
+
+            let specificResult = try run(arguments: ["exec", containerName, "test", "-f", "/app/specific.txt"])
+            #expect(specificResult.status != 0, "specific.txt should NOT be present (ignored by Dockerfile.dockerignore)")
+
+            let generalResult = try run(arguments: ["exec", containerName, "test", "-f", "/app/general.txt"])
+            #expect(generalResult.status == 0, "general.txt should be present (only in .dockerignore, not Dockerfile.dockerignore)")
         }
 
         // Test 5: Build succeeds when Dockerfile is listed in .dockerignore
@@ -882,7 +927,7 @@ extension TestCLIBuildBase {
                 .file("secret.txt", content: .data("This file should be ignored by Dockerfile.dockerignore.\n".data(using: .utf8)!)),
                 .file("nested/secret.txt", content: .data("This file should be ignored by Dockerfile.dockerignore.\n".data(using: .utf8)!)),
                 .file("nested/project/Dockerfile", content: .data(dockerfile.data(using: .utf8)!)),
-                .file("nested/project/Dockerfile.dockerignore", content: .data("secret.txt\n".data(using: .utf8)!)),
+                .file("nested/project/Dockerfile.dockerignore", content: .data("secret.txt\n**/secret.txt\n".data(using: .utf8)!)),
                 .file("nested/project/config.txt", content: .data("This config file should be included.\n".data(using: .utf8)!)),
             ]
             try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
