@@ -50,7 +50,7 @@ extension NetworkVmnetHelper {
         var id: String
 
         @Option(name: .long, help: "Network mode")
-        var mode: NetworkMode = .nat
+        var mode: NetworkMode?
 
         @Option(name: .customLong("subnet"), help: "CIDR address for the IPv4 subnet")
         var ipv4Subnet: String?
@@ -59,12 +59,21 @@ extension NetworkVmnetHelper {
         var ipv6Subnet: String?
 
         @Option(name: .long, help: "Variant of the network helper to use.")
-        var variant: Variant = {
+        var variant: Variant?
+
+        @Option(
+            name: .long, help: "Path to a JSON configuration file for the network", completion: .file(),
+            transform: { str in
+                URL(fileURLWithPath: str, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false)
+            })
+        var config: String?
+
+        private static var defaultVariant: Variant {
             guard #available(macOS 26, *) else {
                 return .allocationOnly
             }
             return .reserved
-        }()
+        }
 
         var logRoot = LogRoot.path
 
@@ -79,23 +88,51 @@ extension NetworkVmnetHelper {
 
             do {
                 log.info("configuring XPC server")
-                let ipv4Subnet = try self.ipv4Subnet.map { try CIDRv4($0) }
-                let ipv6Subnet = try self.ipv6Subnet.map { try CIDRv6($0) }
+
+                let effectiveMode: NetworkMode
+                let effectiveSubnet: String?
+                let effectiveSubnetV6: String?
+                let effectiveVariant: Variant
+
+                if let configPath = config {
+                    let data = try Data(contentsOf: URL(fileURLWithPath: configPath))
+                    let configFile = try JSONDecoder().decode(NetworkConfigurationFile.self, from: data)
+
+                    // CLI flags override values from the config file.
+                    effectiveMode = mode ?? configFile.mode
+                    effectiveSubnet = ipv4Subnet ?? configFile.ipv4Subnet
+                    effectiveSubnetV6 = ipv6Subnet ?? configFile.ipv6Subnet
+                    if let v = variant {
+                        effectiveVariant = v
+                    } else if let v = configFile.pluginInfo?.variant, let parsed = Variant(rawValue: v) {
+                        effectiveVariant = parsed
+                    } else {
+                        effectiveVariant = Self.defaultVariant
+                    }
+                } else {
+                    effectiveMode = mode ?? .nat
+                    effectiveSubnet = ipv4Subnet
+                    effectiveSubnetV6 = ipv6Subnet
+                    effectiveVariant = variant ?? Self.defaultVariant
+                }
+
+                let ipv4Subnet = try effectiveSubnet.map { try CIDRv4($0) }
+                let ipv6Subnet = try effectiveSubnetV6.map { try CIDRv6($0) }
                 let pluginInfo = NetworkPluginInfo(
                     plugin: NetworkVmnetHelper._commandName,
-                    variant: self.variant.rawValue
+                    variant: effectiveVariant.rawValue
                 )
 
                 let configuration = try NetworkConfiguration(
                     id: id,
-                    mode: mode,
+                    mode: effectiveMode,
                     ipv4Subnet: ipv4Subnet,
                     ipv6Subnet: ipv6Subnet,
                     pluginInfo: pluginInfo
                 )
                 let network = try Self.createNetwork(
                     configuration: configuration,
-                    variant: self.variant,
+                    variant: effectiveVariant,
                     log: log
                 )
                 try await network.start()
