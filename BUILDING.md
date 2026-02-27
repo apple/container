@@ -127,6 +127,28 @@ To revert to using the Containerization dependency from your `Package.swift`:
     bin/container system start
     ```
 
+## Develop using a local copy of container-builder-shim
+
+To test changes that require the `container-builder-shim` project:
+
+1. Clone the [container-builder-shim](https://github.com/apple/container-builder-shim) repository and navigate to its directory.
+
+2. Make the appropriate changes, then build and configure the custom builder image:
+
+```bash
+container build -t builder .
+container system property set image.builder builder:latest # Use the local builder image
+container rm -f buildkit # Remove the already existing buildkit container
+```
+3. Run the container build as usual:
+
+```bash
+container build ...
+```
+
+> [!IMPORTANT]
+> If your modified builder image is broken, make sure to rebuild and correctly tag the builder image before attempting to build `container-builder-shim` again.
+
 ## Debug XPC Helpers
 
 Attach debugger to the XPC helpers using their launchd service labels:
