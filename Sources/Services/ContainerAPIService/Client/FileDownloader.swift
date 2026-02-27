@@ -67,6 +67,8 @@ public struct FileDownloader {
             connect: .seconds(30),
             read: .none
         )
+
+        httpConfiguration.tlsConfiguration = TLSUtils.makeEnvironmentAwareTLSConfiguration()
         if let host = url.host {
             let proxyURL = ProxyUtils.proxyFromEnvironment(scheme: url.scheme, host: host)
             if let proxyURL, let proxyHost = proxyURL.host {
