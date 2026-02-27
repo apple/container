@@ -152,12 +152,15 @@ actor BuildFSSync: BuildPipelineHandler {
             entries[parentPath, default: []].insert(entry)
 
             if url.isSymlink {
-                let target: URL = url.resolvingSymlinksInPath()
-                if self.contextDir.parentOf(target) {
-                    let relPath = try target.relativeChildPath(to: self.contextDir)
-                    let entry = DirEntry(url: target, isDirectory: target.hasDirectoryPath, relativePath: relPath)
-                    let parentPath: String = try target.deletingLastPathComponent().relativeChildPath(to: self.contextDir)
-                    entries[parentPath, default: []].insert(entry)
+                if let rawTarget = url.rawSymlinkTarget() {
+                    let target = URL(fileURLWithPath: rawTarget, relativeTo: url.deletingLastPathComponent())
+                        .standardized
+                    if self.contextDir.parentOf(target) {
+                        let relPath = try target.relativeChildPath(to: self.contextDir)
+                        let entry = DirEntry(url: target, isDirectory: target.hasDirectoryPath, relativePath: relPath)
+                        let parentPath: String = try target.deletingLastPathComponent().relativeChildPath(to: self.contextDir)
+                        entries[parentPath, default: []].insert(entry)
+                    }
                 }
             }
         }
@@ -335,16 +338,14 @@ actor BuildFSSync: BuildPipelineHandler {
 
         init(path: URL, contextDir: URL) throws {
             if path.isSymlink {
-                let target: URL = path.resolvingSymlinksInPath()
-                if contextDir.parentOf(target) {
-                    self.target = target.relativePathFrom(from: path)
+                if let rawTarget = path.rawSymlinkTarget() {
+                    self.target = rawTarget
                 } else {
-                    self.target = target.cleanPath
+                    self.target = ""
                 }
             } else {
                 self.target = ""
             }
-
             self.name = try path.relativeChildPath(to: contextDir)
             self.modTime = try path.modTime()
             self.mode = try path.mode()
@@ -522,6 +523,18 @@ extension Date {
         dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)  // Adjust if necessary
 
         return dateFormatter.string(from: self)
+    }
+}
+
+extension URL {
+    fileprivate func rawSymlinkTarget() -> String? {
+        var buf = [CChar](repeating: 0, count: Int(PATH_MAX))
+        let pathStr = self.path(percentEncoded: false)
+        let len = Darwin.readlink(pathStr, &buf, buf.count - 1)
+        guard len > 0 else { return nil }
+        return buf.prefix(len).withUnsafeBytes {
+            String(decoding: $0, as: UTF8.self)
+        }
     }
 }
 
