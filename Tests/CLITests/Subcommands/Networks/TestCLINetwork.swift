@@ -47,7 +47,29 @@ class TestCLINetwork: CLITest {
                 throw CLIError.executionFailed("command failed: \(result.error)")
             }
             defer {
-                _ = try? run(arguments: networkDeleteArgs)
+                do {
+                    let stopResult = try run(arguments: ["stop", "-s", "SIGKILL", name])
+                    if stopResult.status != 0 {
+                        print("Container stop failed for '\(name)':")
+                        print("  Status: \(stopResult.status)")
+                        print("  Stdout: \(stopResult.output)")
+                        print("  Stderr: \(stopResult.error)")
+                    }
+                } catch {
+                    print("Container stop threw error for '\(name)': \(error)")
+                }
+
+                do {
+                    let deleteResult = try run(arguments: ["network", "rm", name])
+                    if deleteResult.status != 0 {
+                        print("Network cleanup failed for '\(name)':")
+                        print("  Status: \(deleteResult.status)")
+                        print("  Stdout: \(deleteResult.output)")
+                        print("  Stderr: \(deleteResult.error)")
+                    }
+                } catch {
+                    print("Network cleanup threw error for '\(name)': \(error)")
+                }
             }
             let port = UInt16.random(in: 50000..<60000)
             try doLongRun(
@@ -55,9 +77,6 @@ class TestCLINetwork: CLITest {
                 image: "docker.io/library/python:alpine",
                 args: ["--network", name],
                 containerArgs: ["python3", "-m", "http.server", "--bind", "0.0.0.0", "\(port)"])
-            defer {
-                try? doStop(name: name)
-            }
 
             let container = try inspectContainer(name)
             #expect(container.networks.count > 0)
@@ -153,7 +172,17 @@ class TestCLINetwork: CLITest {
 
             // ensure it's deleted
             defer {
-                _ = try? run(arguments: networkDeleteArgs)
+                do {
+                    let result = try run(arguments: ["network", "rm", name])
+                    if result.status != 0 {
+                        print("Network cleanup failed for '\(name)':")
+                        print("  Status: \(result.status)")
+                        print("  Stdout: \(result.output)")
+                        print("  Stderr: \(result.error)")
+                    }
+                } catch {
+                    print("Network cleanup threw error for '\(name)': \(error)")
+                }
             }
 
             // inspect the network
@@ -193,58 +222,78 @@ class TestCLINetwork: CLITest {
 
     @available(macOS 26, *)
     @Test func testIsolatedNetwork() async throws {
-        do {
-            let name = getLowercasedTestName()
-            let networkDeleteArgs = ["network", "delete", name]
-            _ = try? run(arguments: networkDeleteArgs)
+        let name = getLowercasedTestName()
+        let networkDeleteArgs = ["network", "delete", name]
+        _ = try? run(arguments: networkDeleteArgs)
 
-            let networkCreateArgs = ["network", "create", "--internal", name]
-            let result = try run(arguments: networkCreateArgs)
-            if result.status != 0 {
-                throw CLIError.executionFailed("command failed: \(result.error)")
-            }
-            defer {
-                _ = try? run(arguments: networkDeleteArgs)
-            }
-            let port = UInt16.random(in: 50000..<60000)
-            try doLongRun(
-                name: name,
-                image: "docker.io/library/python:alpine",
-                args: ["--network", name],
-                containerArgs: ["python3", "-m", "http.server", "--bind", "0.0.0.0", "\(port)"]
-            )
-            defer {
-                try? doStop(name: name)
-            }
-
-            let container = try inspectContainer(name)
-            #expect(container.networks.count > 0)
-            let curlImage = "docker.io/curlimages/curl:8.6.0"
-            let cidrAddress = container.networks[0].ipv4Address
-            let url = "http://\(cidrAddress.address):\(port)"
-            let (_, _, _, succeed) = try run(arguments: [
-                "run",
-                "--rm",
-                "--network",
-                name,
-                curlImage,
-                "curl",
-                url,
-            ])
-
-            #expect(succeed == 0, "internal connection should succeed")
-
-            let (_, _, _, failed) = try run(arguments: [
-                "run",
-                "--rm",
-                "--network",
-                name,
-                curlImage,
-                "curl",
-                "http://google.com",
-            ])
-
-            #expect(failed == 6, "external connection should fail")
+        let networkCreateArgs = ["network", "create", "--internal", name]
+        let result = try run(arguments: networkCreateArgs)
+        if result.status != 0 {
+            throw CLIError.executionFailed("command failed: \(result.error)")
         }
+
+        defer {
+            // Proper cleanup order: stop container first, then delete network
+            do {
+                let stopResult = try run(arguments: ["stop", "-s", "SIGKILL", name])
+                if stopResult.status != 0 {
+                    print("Container stop failed for '\(name)':")
+                    print("  Status: \(stopResult.status)")
+                    print("  Stdout: \(stopResult.output)")
+                    print("  Stderr: \(stopResult.error)")
+                }
+            } catch {
+                print("Container stop threw error for '\(name)': \(error)")
+            }
+
+            do {
+                let deleteResult = try run(arguments: ["network", "rm", name])
+                if deleteResult.status != 0 {
+                    print("Network cleanup failed for '\(name)':")
+                    print("  Status: \(deleteResult.status)")
+                    print("  Stdout: \(deleteResult.output)")
+                    print("  Stderr: \(deleteResult.error)")
+                }
+            } catch {
+                print("Network cleanup threw error for '\(name)': \(error)")
+            }
+        }
+
+        let port = UInt16.random(in: 50000..<60000)
+        try doLongRun(
+            name: name,
+            image: "docker.io/library/python:alpine",
+            args: ["--network", name],
+            containerArgs: ["python3", "-m", "http.server", "--bind", "0.0.0.0", "\(port)"]
+        )
+
+        let container = try inspectContainer(name)
+        #expect(container.networks.count > 0)
+        let curlImage = "docker.io/curlimages/curl:8.6.0"
+        let cidrAddress = container.networks[0].ipv4Address
+        let url = "http://\(cidrAddress.address):\(port)"
+        let (_, _, _, succeed) = try run(arguments: [
+            "run",
+            "--rm",
+            "--network",
+            name,
+            curlImage,
+            "curl",
+            url,
+        ])
+
+        #expect(succeed == 0, "internal connection should succeed")
+
+        let (_, _, _, failed) = try run(arguments: [
+            "run",
+            "--rm",
+            "--network",
+            name,
+            curlImage,
+            "curl",
+            "http://google.com",
+        ])
+
+        #expect(failed == 6, "external connection should fail")
     }
 }
