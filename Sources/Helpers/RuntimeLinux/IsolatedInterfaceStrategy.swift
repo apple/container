@@ -25,9 +25,12 @@ import Containerization
 struct IsolatedInterfaceStrategy: InterfaceStrategy {
     public func toInterface(attachment: Attachment, interfaceIndex: Int, additionalData: XPCMessage?) -> Interface {
         let ipv4Gateway = interfaceIndex == 0 ? attachment.ipv4Gateway : nil
+        let ipv6Gateway = interfaceIndex == 0 ? attachment.ipv6Gateway : nil
         return NATInterface(
             ipv4Address: attachment.ipv4Address,
             ipv4Gateway: ipv4Gateway,
+            ipv6Address: attachment.ipv6Address,
+            ipv6Gateway: ipv6Gateway,
             macAddress: attachment.macAddress,
             // https://github.com/apple/containerization/pull/38
             mtu: 1280

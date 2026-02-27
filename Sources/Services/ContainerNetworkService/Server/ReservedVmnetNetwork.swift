@@ -41,6 +41,7 @@ public final class ReservedVmnetNetwork: Network {
         let ipv4Subnet: CIDRv4
         let ipv4Gateway: IPv4Address
         let ipv6Subnet: CIDRv6
+        let ipv6Gateway: IPv6Address
     }
 
     private let stateMutex: Mutex<State>
@@ -85,6 +86,7 @@ public final class ReservedVmnetNetwork: Network {
                 ipv4Subnet: networkInfo.ipv4Subnet,
                 ipv4Gateway: networkInfo.ipv4Gateway,
                 ipv6Subnet: networkInfo.ipv6Subnet,
+                ipv6Gateway: networkInfo.ipv6Gateway
             )
             state.networkState = NetworkState.running(configuration, networkStatus)
             state.network = networkInfo.network
@@ -183,6 +185,7 @@ public final class ReservedVmnetNetwork: Network {
         }
         let prefixIpv6Addr = try IPv6Address(prefixIpv6Bytes)
         let runningV6Subnet = try CIDRv6(prefixIpv6Addr, prefix: prefix)
+        let runningV6Gateway = IPv6Address(runningV6Subnet.lower.value + 1)
 
         log.info(
             "started vmnet network",
@@ -199,6 +202,7 @@ public final class ReservedVmnetNetwork: Network {
             ipv4Subnet: runningSubnet,
             ipv4Gateway: runningGateway,
             ipv6Subnet: runningV6Subnet,
+            ipv6Gateway: runningV6Gateway
         )
     }
 }
