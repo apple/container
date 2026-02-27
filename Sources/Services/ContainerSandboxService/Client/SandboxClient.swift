@@ -96,6 +96,10 @@ extension SandboxClient {
             }
         }
 
+        if let sshAuthSocketPath {
+            request.set(key: SandboxKeys.sshAuthSocketPath.rawValue, value: sshAuthSocketPath)
+        }
+
         do {
             try request.setAllocatedAttachments(allocatedAttachments)
             try await self.client.send(request)

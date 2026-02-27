@@ -49,8 +49,6 @@ public struct ContainerConfiguration: Sendable, Codable {
     public var virtualization: Bool = false
     /// Enable SSH agent socket forwarding from host to container.
     public var ssh: Bool = false
-    /// Optiional preferred SSH agent socket path captured from client-side environment
-    public var sshAuthSocketPath: String? = nil
     /// Whether to mount the rootfs as read-only.
     public var readOnly: Bool = false
     /// Whether to use a minimal init process inside the container.
@@ -73,7 +71,6 @@ public struct ContainerConfiguration: Sendable, Codable {
         case runtimeHandler
         case virtualization
         case ssh
-        case sshAuthSocketPath
         case readOnly
         case useInit
     }
@@ -105,7 +102,6 @@ public struct ContainerConfiguration: Sendable, Codable {
         runtimeHandler = try container.decodeIfPresent(String.self, forKey: .runtimeHandler) ?? "container-runtime-linux"
         virtualization = try container.decodeIfPresent(Bool.self, forKey: .virtualization) ?? false
         ssh = try container.decodeIfPresent(Bool.self, forKey: .ssh) ?? false
-        sshAuthSocketPath = try container.decodeIfPresent(String.self, forKey: .sshAuthSocketPath)
         readOnly = try container.decodeIfPresent(Bool.self, forKey: .readOnly) ?? false
         useInit = try container.decodeIfPresent(Bool.self, forKey: .useInit) ?? false
     }

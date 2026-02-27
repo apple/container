@@ -128,7 +128,8 @@ extension Application {
                     try? io.close()
                 }
 
-                let process = try await client.bootstrap(id: id, stdio: io.stdio)
+                let sshAuthSocketPath = ck.0.ssh ? ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] : nil
+                let process = try await client.bootstrap(id: id, stdio: io.stdio, sshAuthSocketPath: sshAuthSocketPath)
                 progress.finish()
 
                 if !self.managementFlags.cidfile.isEmpty {
