@@ -19,6 +19,8 @@ import NIOCore
 import NIOPosix
 import Synchronization
 
+/// Tracks the activity timestamps for a specific TCP connection.
+/// Used to enforce idle timeouts and disconnect inactive clients to prevent resource exhaustion.
 private actor ConnectionActivity {
     private var lastSeen: ContinuousClock.Instant
 
@@ -36,6 +38,14 @@ private actor ConnectionActivity {
 }
 
 extension DNSServer {
+    /// Handles a single active TCP connection from an inbound client.
+    ///
+    /// This method manages the lifecycle of the connection, reading length-prefixed DNS queries
+    /// iteratively and executing the underlying `processRaw` logic for each query concurrently
+    /// using Swift Concurrency. It enforces strict idle timeouts to prevent stale clients
+    /// from holding connections open indefinitely.
+    ///
+    /// - Parameter channel: The connected asynchronous TCP channel containing the message buffer streams.
     func handleTCP(channel: NIOAsyncChannel<ByteBuffer, ByteBuffer>) async {
         do {
             try await channel.executeThenClose { inbound, outbound in

@@ -90,12 +90,9 @@ struct ContainerDNSHandler: DNSHandler {
         if hostname.hasSuffix(".") {
             hostname.removeLast()
         }
-        print("DEBUG: ContainerDNSHandler looking up hostname: '\(hostname)'")
         guard let ipAllocation = try await networkService.lookup(hostname: hostname) else {
-            print("DEBUG: ContainerDNSHandler lookup failed for '\(hostname)'")
             return nil
         }
-        print("DEBUG: ContainerDNSHandler found IP: \(ipAllocation.ipv4Address.address.description)")
         let ipv4 = ipAllocation.ipv4Address.address.description
         guard let ip = IPv4(ipv4) else {
             throw DNSResolverError.serverError("failed to parse IP address: \(ipv4)")

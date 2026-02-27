@@ -126,22 +126,8 @@ extension APIServer {
                         try await dnsServer.runTCP(host: Self.listenAddress, port: Self.dnsPort)
                     }
 
-                    group.addTask {
-                        let localhostResolver = LocalhostDNSHandler(log: log)
-                        await localhostResolver.monitorResolvers()
-
-                        let nxDomainResolver = NxDomainResolver()
-                        let compositeResolver = CompositeResolver(handlers: [localhostResolver, nxDomainResolver])
-                        let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
-                        let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
-                        log.info(
-                            "starting DNS resolver for localhost",
-                            metadata: [
-                                "host": "\(Self.listenAddress)",
-                                "port": "\(Self.localhostDNSPort)",
-                            ]
-                        )
-                        try await dnsServer.run(host: Self.listenAddress, port: Self.localhostDNSPort)
+                    for try await _ in group {
+                        continue
                     }
                 }
             } catch {
