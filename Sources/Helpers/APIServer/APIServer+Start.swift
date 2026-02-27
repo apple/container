@@ -91,7 +91,7 @@ extension APIServer {
                             $0[$1.key.rawValue] = $1.value
                         }), log: log)
 
-                await withThrowingTaskGroup(of: Void.self) { group in
+                try await withThrowingTaskGroup(of: Void.self) { group in
                     group.addTask {
                         log.info("starting XPC server")
                         try await server.listen()

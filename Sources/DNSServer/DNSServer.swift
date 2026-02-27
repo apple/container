@@ -132,6 +132,7 @@ public struct DNSServer: @unchecked Sendable {
                     guard connections.tryIncrement(limit: Self.maxConcurrentConnections) else {
                         log?.warning(
                             "TCP DNS: connection limit (\(Self.maxConcurrentConnections)) reached, dropping connection")
+                        try? await child.channel.close()
                         continue
                     }
 
@@ -167,6 +168,7 @@ public struct DNSServer: @unchecked Sendable {
                     guard connections.tryIncrement(limit: Self.maxConcurrentConnections) else {
                         log?.warning(
                             "TCP DNS: connection limit (\(Self.maxConcurrentConnections)) reached, dropping connection")
+                        try? await child.channel.close()
                         continue
                     }
 
