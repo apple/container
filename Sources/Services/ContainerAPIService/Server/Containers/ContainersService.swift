@@ -378,7 +378,8 @@ public actor ContainersService {
     }
 
     /// Bootstrap the init process of the container.
-    public func bootstrap(id: String, stdio: [FileHandle?]) async throws {
+    /// - Parameter sshAuthSocketPath: Optional path to the current shell's SSH agent socket, supplied by the client at bootstrap time when SSH forwarding is enabled.
+    public func bootstrap(id: String, stdio: [FileHandle?], sshAuthSocketPath: String? = nil) async throws {
         log.debug(
             "ContainersService: enter",
             metadata: [

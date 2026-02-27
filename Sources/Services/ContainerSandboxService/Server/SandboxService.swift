@@ -54,13 +54,46 @@ public actor SandboxService {
     private static let sshAuthSocketGuestPath = "/run/host-services/ssh-auth.sock"
     private static let sshAuthSocketEnvVar = "SSH_AUTH_SOCK"
 
-    private static func sshAuthSocketHostUrl(config: ContainerConfiguration) -> URL? {
-        if config.ssh, let sshSocket = Foundation.ProcessInfo.processInfo.environment[Self.sshAuthSocketEnvVar] {
-            return URL(fileURLWithPath: sshSocket)
+    private enum SSHAuthSocketSource: String {
+        /// Path supplied by client at bootstrap time (current shell's SSH_AUTH_SOCK).
+        case bootstrap = "bootstrap"
+    }
+
+    private static func isUnixSocket(path: String) -> Bool {
+        (try? File.info(path).isSocket) ?? false
+    }
+
+    /// Resolves the host path for SSH agent socket forwarding. Uses only the path passed by the
+    /// client at bootstrap time; the sandbox does not read SSH_AUTH_SOCK from its own environment
+    /// or launchctl (the client is responsible for passing the current value).
+    private static func resolveSSHAuthSocketHostPath(config: ContainerConfiguration, bootstrapOverridePath: String? = nil) -> (path: String, source: SSHAuthSocketSource)? {
+        guard config.ssh else {
+            return nil
         }
+
+        if let bootstrapOverridePath,
+            Self.isUnixSocket(path: bootstrapOverridePath)
+        {
+            return (bootstrapOverridePath, .bootstrap)
+        }
+
         return nil
     }
 
+    private static func sshAuthSocketHostUrl(config: ContainerConfiguration, bootstrapOverridePath: String? = nil) -> URL? {
+        guard let resolved = Self.resolveSSHAuthSocketHostPath(config: config, bootstrapOverridePath: bootstrapOverridePath) else {
+            return nil
+        }
+        return URL(fileURLWithPath: resolved.path)
+    }
+
+    /// Create an instance with a bundle that describes the container.
+    ///
+    /// - Parameters:
+    ///   - root: The file URL for the bundle root.
+    ///   - interfaceStrategy: The strategy for producing network interface
+    ///     objects for each network to which the container attaches.
+    ///   - log: The destination for log messages.
     public init(
         root: URL,
         interfaceStrategies: [NetworkPluginInfo: InterfaceStrategy],
@@ -123,6 +156,31 @@ public actor SandboxService {
             try bundle.createLogFile()
 
             var config = try bundle.configuration
+            // Extract sshAuthSocketPath from the XPC request; if present and config.ssh is true,
+            // we mount the socket and set SSH_AUTH_SOCK in the process environment (replacing the
+            // previous behavior that used the sandbox's launch env).
+            let bootstrapSshAuthPath = message.string(key: SandboxKeys.sshAuthSocketPath.rawValue)
+
+            if config.ssh {
+                if let resolved = Self.resolveSSHAuthSocketHostPath(config: config, bootstrapOverridePath: bootstrapSshAuthPath) {
+                    self.log.info(
+                        "ssh agent forwarding requested",
+                        metadata: [
+                            "hostSocketPath": "\(resolved.path)",
+                            "hostSocketSource": "\(resolved.source.rawValue)",
+                            "guestSocketPath": "\(Self.sshAuthSocketGuestPath)",
+                        ]
+                    )
+                } else {
+                    self.log.warning(
+                        "ssh agent forwarding requested but no valid SSH_AUTH_SOCK source found",
+                        metadata: [
+                            "envVar": "\(Self.sshAuthSocketEnvVar)",
+                            "bootstrapPath": "\(bootstrapSshAuthPath ?? "")",
+                        ]
+                    )
+                }
+            }
 
             var kernel = try bundle.kernel
             kernel.commandLine.kernelArgs.append("oops=panic")
@@ -194,7 +252,7 @@ public actor SandboxService {
             let id = config.id
             let rootfs = try bundle.containerRootfs.asMount
             let container = try LinuxContainer(id, rootfs: rootfs, vmm: vmm, logger: self.log) { czConfig in
-                try Self.configureContainer(czConfig: &czConfig, config: config)
+                try Self.configureContainer(czConfig: &czConfig, config: config, bootstrapOverridePath: bootstrapSshAuthPath)
                 czConfig.interfaces = interfaces
                 czConfig.process.stdout = stdout
                 czConfig.process.stderr = stderr
@@ -839,7 +897,8 @@ public actor SandboxService {
 
     private static func configureContainer(
         czConfig: inout LinuxContainer.Configuration,
-        config: ContainerConfiguration
+        config: ContainerConfiguration,
+        bootstrapOverridePath: String? = nil
     ) throws {
         czConfig.cpus = config.resources.cpus
         czConfig.memoryInBytes = config.resources.memoryInBytes
@@ -872,7 +931,7 @@ public actor SandboxService {
             czConfig.sockets.append(socketConfig)
         }
 
-        if let socketUrl = Self.sshAuthSocketHostUrl(config: config) {
+        if let socketUrl = Self.sshAuthSocketHostUrl(config: config, bootstrapOverridePath: bootstrapOverridePath) {
             let socketPath = socketUrl.path(percentEncoded: false)
             let attrs = try? FileManager.default.attributesOfItem(atPath: socketPath)
             let permissions = (attrs?[.posixPermissions] as? NSNumber)
@@ -898,7 +957,7 @@ public actor SandboxService {
                 searchDomains: dns.searchDomains, options: dns.options)
         }
 
-        try Self.configureInitialProcess(czConfig: &czConfig, config: config)
+        try Self.configureInitialProcess(czConfig: &czConfig, config: config, bootstrapOverridePath: bootstrapOverridePath)
     }
 
     private func getDefaultNameservers(allocatedAttachments: [AllocatedAttachment]) async throws -> [String] {
@@ -915,14 +974,15 @@ public actor SandboxService {
 
     private static func configureInitialProcess(
         czConfig: inout LinuxContainer.Configuration,
-        config: ContainerConfiguration
+        config: ContainerConfiguration,
+        bootstrapOverridePath: String? = nil
     ) throws {
         let process = config.initProcess
 
         czConfig.process.arguments = [process.executable] + process.arguments
         czConfig.process.environmentVariables = process.environment
 
-        if Self.sshAuthSocketHostUrl(config: config) != nil {
+        if Self.sshAuthSocketHostUrl(config: config, bootstrapOverridePath: bootstrapOverridePath) != nil {
             if !czConfig.process.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
                 czConfig.process.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
             }

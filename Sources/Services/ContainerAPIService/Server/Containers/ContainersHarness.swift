@@ -55,7 +55,8 @@ public struct ContainersHarness: Sendable {
             )
         }
         let stdio = message.stdio()
-        try await service.bootstrap(id: id, stdio: stdio)
+        let sshAuthSocketPath = message.string(key: .sshAuthSocketPath)
+        try await service.bootstrap(id: id, stdio: stdio, sshAuthSocketPath: sshAuthSocketPath)
         return message.reply()
     }
 

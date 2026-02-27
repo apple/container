@@ -352,7 +352,11 @@ let package = Package(
             dependencies: [
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationExtras", package: "containerization"),
+<<<<<<< sshFlagAuthSocketFix
+                .product(name: "ContainerizationOCI", package: "containerization"),
+=======
                 "ContainerAPIService",
+>>>>>>> main
                 "ContainerResource",
             ]
         ),
