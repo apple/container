@@ -38,8 +38,12 @@ public struct AttachmentOptions: Codable, Sendable {
     /// The MAC address associated with the attachment (optional).
     public let macAddress: MACAddress?
 
-    public init(hostname: String, macAddress: MACAddress? = nil) {
+    /// The MTU for the network interface (optional). Defaults to 1280 if not specified.
+    public let mtu: UInt32?
+
+    public init(hostname: String, macAddress: MACAddress? = nil, mtu: UInt32? = nil) {
         self.hostname = hostname
         self.macAddress = macAddress
+        self.mtu = mtu
     }
 }

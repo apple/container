@@ -55,12 +55,16 @@ extension NetworkClient {
 
     public func allocate(
         hostname: String,
-        macAddress: MACAddress? = nil
+        macAddress: MACAddress? = nil,
+        mtu: UInt32? = nil
     ) async throws -> (attachment: Attachment, additionalData: XPCMessage?) {
         let request = XPCMessage(route: NetworkRoutes.allocate.rawValue)
         request.set(key: NetworkKeys.hostname.rawValue, value: hostname)
         if let macAddress = macAddress {
             request.set(key: NetworkKeys.macAddress.rawValue, value: macAddress.description)
+        }
+        if let mtu = mtu {
+            request.set(key: NetworkKeys.mtu.rawValue, value: String(mtu))
         }
 
         let client = createClient()

@@ -31,6 +31,8 @@ public struct Attachment: Codable, Sendable {
     public let ipv6Address: CIDRv6?
     /// The MAC address associated with the attachment (optional).
     public let macAddress: MACAddress?
+    /// The MTU for the network interface (optional). Defaults to 1280 if not specified.
+    public let mtu: UInt32?
 
     public init(
         network: String,
@@ -38,7 +40,8 @@ public struct Attachment: Codable, Sendable {
         ipv4Address: CIDRv4,
         ipv4Gateway: IPv4Address,
         ipv6Address: CIDRv6?,
-        macAddress: MACAddress?
+        macAddress: MACAddress?,
+        mtu: UInt32? = nil
     ) {
         self.network = network
         self.hostname = hostname
@@ -46,5 +49,6 @@ public struct Attachment: Codable, Sendable {
         self.ipv4Gateway = ipv4Gateway
         self.ipv6Address = ipv6Address
         self.macAddress = macAddress
+        self.mtu = mtu
     }
 }

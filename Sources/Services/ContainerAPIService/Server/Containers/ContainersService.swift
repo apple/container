@@ -415,7 +415,8 @@ public actor ContainersService {
                     let allocatedAttach = try await self.networksService?.allocate(
                         id: n.network,
                         hostname: n.options.hostname,
-                        macAddress: n.options.macAddress
+                        macAddress: n.options.macAddress,
+                        mtu: n.options.mtu
                     )
                     guard let allocatedAttach = allocatedAttach else {
                         throw ContainerizationError(.internalError, message: "failed to allocate a network")

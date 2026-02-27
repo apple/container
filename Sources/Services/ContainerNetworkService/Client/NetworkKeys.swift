@@ -20,6 +20,7 @@ public enum NetworkKeys: String {
     case attachment
     case hostname
     case macAddress
+    case mtu
     case network
     case state
 }

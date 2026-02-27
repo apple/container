@@ -27,6 +27,7 @@ public actor NetworkService: Sendable {
     private let log: Logger
     private var allocator: AttachmentAllocator
     private var macAddresses: [UInt32: MACAddress]
+    private var mtus: [UInt32: UInt32]
 
     /// Set up a network service for the specified network.
     public init(
@@ -43,6 +44,7 @@ public actor NetworkService: Sendable {
         let size = Int(subnet.upper.value - subnet.lower.value - 3)
         self.allocator = try AttachmentAllocator(lower: subnet.lower.value + 2, size: size)
         self.macAddresses = [:]
+        self.mtus = [:]
         self.network = network
         self.log = log
     }
@@ -70,6 +72,12 @@ public actor NetworkService: Sendable {
             try message.string(key: NetworkKeys.macAddress.rawValue)
             .map { try MACAddress($0) }
             ?? MACAddress((UInt64.random(in: 0...UInt64.max) & 0x0cff_ffff_ffff) | 0xf200_0000_0000)
+        let mtu = try message.string(key: NetworkKeys.mtu.rawValue).map {
+            guard let value = UInt32($0), value > 0 else {
+                throw ContainerizationError(.invalidArgument, message: "invalid mtu value: \($0)")
+            }
+            return value
+        }
         let index = try await allocator.allocate(hostname: hostname)
         let ipv6Address = try status.ipv6Subnet
             .map { try CIDRv6(macAddress.ipv6Address(network: $0.lower), prefix: $0.prefix) }
@@ -80,7 +88,8 @@ public actor NetworkService: Sendable {
             ipv4Address: try CIDRv4(ip, prefix: status.ipv4Subnet.prefix),
             ipv4Gateway: status.ipv4Gateway,
             ipv6Address: ipv6Address,
-            macAddress: macAddress
+            macAddress: macAddress,
+            mtu: mtu
         )
         log.info(
             "allocated attachment",
@@ -99,6 +108,9 @@ public actor NetworkService: Sendable {
             }
         }
         macAddresses[index] = macAddress
+        if let mtu {
+            mtus[index] = mtu
+        }
         return reply
     }
 
@@ -110,6 +122,7 @@ public actor NetworkService: Sendable {
         let hostname = try message.hostname()
         if let index = try await allocator.deallocate(hostname: hostname) {
             macAddresses.removeValue(forKey: index)
+            mtus.removeValue(forKey: index)
         }
         log.info("released attachments", metadata: ["hostname": "\(hostname)"])
         return message.reply()
@@ -145,7 +158,8 @@ public actor NetworkService: Sendable {
             ipv4Address: ipv4Address,
             ipv4Gateway: status.ipv4Gateway,
             ipv6Address: ipv6Address,
-            macAddress: macAddress
+            macAddress: macAddress,
+            mtu: mtus[index]
         )
         log.debug(
             "lookup attachment",
