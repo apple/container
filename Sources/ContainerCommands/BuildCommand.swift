@@ -204,24 +204,11 @@ extension Application {
                     throw ValidationError("builder is not running")
                 }
 
-                let buildFilePath: String
-                if let file = self.file {
-                    buildFilePath = file
-                } else {
-                    guard
-                        let resolvedPath = try BuildFile.resolvePath(
-                            contextDir: self.contextDir,
-                            log: log
-                        )
-                    else {
-                        throw ValidationError("failed to find Dockerfile or Containerfile in the context directory \(self.contextDir)")
-                    }
-                    buildFilePath = resolvedPath
-                }
-
                 let buildFileData: Data
+                var buildFilePath: String? = nil
+                var ignoreFileData: Data? = nil
                 // Dockerfile should be read from stdin
-                if file == "-" {
+                if let file = self.file, file == "-" {
                     let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("Dockerfile-\(UUID().uuidString)")
                     defer {
                         try? FileManager.default.removeItem(at: tempFile)
@@ -244,7 +231,24 @@ extension Application {
                     try fileHandle.close()
                     buildFileData = try Data(contentsOf: URL(filePath: tempFile.path()))
                 } else {
-                    buildFileData = try Data(contentsOf: URL(filePath: buildFilePath))
+                    let path = try file ?? BuildFile.resolvePath(contextDir: self.contextDir, log: log)
+
+                    guard let path else {
+                        throw ValidationError("failed to find Dockerfile or Containerfile in the context directory \(self.contextDir)")
+                    }
+
+                    let ignoreFileURL = URL(filePath: path + ".dockerignore")
+                    ignoreFileData = try? Data(contentsOf: ignoreFileURL)
+
+                    if ignoreFileData != nil {
+                        let hiddenDirName = ".\(UUID().uuidString)"
+                        let buildFileName = URL(filePath: path).lastPathComponent
+
+                        buildFilePath = "\(hiddenDirName)/\(buildFileName)"
+                        ignoreFileData?.append("\n\(hiddenDirName)".data(using: .utf8) ?? Data())
+                    }
+
+                    buildFileData = try Data(contentsOf: URL(filePath: path))
                 }
 
                 let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
@@ -316,13 +320,15 @@ extension Application {
                         }
                         return results
                     }()
-                    group.addTask { [terminal, buildArg, contextDir, label, noCache, target, quiet, cacheIn, cacheOut, pull] in
+                    group.addTask { [terminal, buildArg, contextDir, buildFilePath, ignoreFileData, label, noCache, target, quiet, cacheIn, cacheOut, pull] in
                         let config = Builder.BuildConfig(
                             buildID: buildID,
                             contentStore: RemoteContentStoreClient(),
                             buildArgs: buildArg,
                             contextDir: contextDir,
+                            dockerfilePath: buildFilePath,
                             dockerfile: buildFileData,
+                            dockerignore: ignoreFileData,
                             labels: label,
                             noCache: noCache,
                             platforms: [Platform](platforms),
