@@ -233,7 +233,7 @@ public actor SandboxService {
             } catch {
                 do {
                     try await self.cleanUpContainer(containerInfo: ctrInfo)
-                    await self.setState(.created)
+                    await self.setState(.stopped(nil))
                 } catch {
                     self.log.error("failed to clean up container", metadata: ["error": "\(error)"])
                 }
@@ -697,7 +697,7 @@ public actor SandboxService {
             try await self.monitor.track(id: id, waitingOn: waitFunc)
         } catch {
             try? await self.cleanUpContainer(containerInfo: info)
-            self.setState(.created)
+            self.setState(.stopped(nil))
             throw error
         }
     }
@@ -1358,7 +1358,7 @@ extension SandboxService {
         /// At the beginning of stop() .running will be transitioned to .stopping.
         case stopping
         /// Once a stop is successful, .stopping will transition to .stopped.
-        case stopped(Int32)
+        case stopped(Int32?)
         /// .shuttingDown will be the last state the sandbox service will ever be in. Shortly
         /// afterwards the process will exit.
         case shuttingDown
