@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerResource
 import ContainerizationOCI
 import ContainerizationOS
 import Foundation
@@ -38,8 +39,8 @@ extension Application {
             aliases: ["ls"])
 
         public func run() async throws {
-            let keychain = KeychainHelper(securityDomain: Constants.keychainID)
-            let registries = try keychain.list()
+            let client = RegistryKeychainClient()
+            let registries = try await client.list()
             try printRegistries(registries: registries, format: format)
         }
 
@@ -47,20 +48,16 @@ extension Application {
             [["HOSTNAME", "USERNAME", "MODIFIED", "CREATED"]]
         }
 
-        private func printRegistries(registries: [RegistryInfo], format: ListFormat) throws {
+        private func printRegistries(registries: [RegistryResource], format: ListFormat) throws {
             if format == .json {
-                let printables = registries.map {
-                    PrintableRegistry($0)
-                }
-                let data = try JSONEncoder().encode(printables)
+                let data = try JSONEncoder().encode(registries)
                 print(String(decoding: data, as: UTF8.self))
-
                 return
             }
 
             if self.quiet {
                 registries.forEach {
-                    print($0.hostname)
+                    print($0.name)
                 }
                 return
             }
@@ -75,26 +72,13 @@ extension Application {
         }
     }
 }
-extension RegistryInfo {
+extension RegistryResource {
     fileprivate var asRow: [String] {
         [
-            self.hostname,
+            self.name,
             self.username,
-            self.modifiedDate.ISO8601Format(),
-            self.createdDate.ISO8601Format(),
+            self.modificationDate.ISO8601Format(),
+            self.creationDate.ISO8601Format(),
         ]
-    }
-}
-struct PrintableRegistry: Codable {
-    let hostname: String
-    let username: String
-    let modifiedDate: Date
-    let createdDate: Date
-
-    init(_ registry: RegistryInfo) {
-        self.hostname = registry.hostname
-        self.username = registry.username
-        self.modifiedDate = registry.modifiedDate
-        self.createdDate = registry.createdDate
     }
 }
