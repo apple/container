@@ -69,6 +69,16 @@ extension Application {
                 }
                 DefaultsStore.set(value: value, key: key)
                 return
+            case .defaultContainerCPUs:
+                guard let cpuCount = Int(value), cpuCount > 0 else {
+                    throw ContainerizationError(.invalidArgument, message: "invalid CPU count: \(value)")
+                }
+                DefaultsStore.set(value: value, key: key)
+            case .defaultContainerMemory:
+                guard let memoryMiB = try? Parser.memoryString(value), memoryMiB > 0 else {
+                    throw ContainerizationError(.invalidArgument, message: "invalid memory value: \(value)")
+                }
+                DefaultsStore.set(value: value, key: key)
             case .defaultSubnet:
                 guard (try? CIDRv4(value)) != nil else {
                     throw ContainerizationError(.invalidArgument, message: "invalid CIDRv4 address: \(value)")

@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerPersistence
 import ContainerResource
 import Containerization
 import ContainerizationError
@@ -90,9 +91,15 @@ public struct Parser {
         var resource = ContainerConfiguration.Resources()
         if let cpus {
             resource.cpus = Int(cpus)
+        } else if let cpuStr = DefaultsStore.getOptional(key: .defaultContainerCPUs),
+            let cpuVal = Int(cpuStr), cpuVal > 0
+        {
+            resource.cpus = cpuVal
         }
         if let memory {
             resource.memoryInBytes = try Parser.memoryString(memory).mib()
+        } else if let memStr = DefaultsStore.getOptional(key: .defaultContainerMemory) {
+            resource.memoryInBytes = try Parser.memoryString(memStr).mib()
         }
         return resource
     }
