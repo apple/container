@@ -30,10 +30,4 @@ public struct ContainerCLI: AsyncParsableCommand {
     public static func main() async throws {
         try await Application.main()
     }
-
-    public func run() async throws {
-        var application = try Application.parse(arguments)
-        try application.validate()
-        try application.run()
-    }
 }
