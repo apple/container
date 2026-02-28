@@ -202,12 +202,12 @@ public actor SandboxService {
                 // NOTE: We can support a user providing new entries eventually, but for now craft
                 // a default /etc/hosts.
                 var hostsEntries = [Hosts.Entry.localHostIPV4()]
-                if !interfaces.isEmpty {
+                if !interfaces.isEmpty, let hostname = czConfig.hostname {
                     let primaryIfaceAddr = interfaces[0].ipv4Address
                     hostsEntries.append(
                         Hosts.Entry(
                             ipAddress: primaryIfaceAddr.address.description,
-                            hostnames: [czConfig.hostname],
+                            hostnames: [hostname],
                         ))
                 }
                 czConfig.hosts = Hosts(entries: hostsEntries)
