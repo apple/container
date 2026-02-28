@@ -133,14 +133,15 @@ To test changes that require the `container-builder-shim` project:
 
 1. Clone the [container-builder-shim](https://github.com/apple/container-builder-shim) repository and navigate to its directory.
 
-2. Make the appropriate changes, then build and configure the custom builder image:
+2. After making the necessary changes, build the custom builder image, set it as the active builder image, and remove the existing `buildkit` container so the new image will be used:
 
 ```bash
 container build -t builder .
-container system property set image.builder builder:latest # Use the local builder image
-container rm -f buildkit # Remove the already existing buildkit container
+container system property set image.builder builder:latest
+container rm -f buildkit
 ```
-3. Run the container build as usual:
+
+3. Run the `container` build as usual:
 
 ```bash
 container build ...
