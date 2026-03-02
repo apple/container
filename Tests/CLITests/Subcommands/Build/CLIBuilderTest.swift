@@ -168,18 +168,24 @@ extension TestCLIBuildBase {
             let dockerfile: String =
                 """
                 FROM ghcr.io/linuxcontainers/alpine:3.20
-                ARG ADDRESS
-                RUN nc -zv ${ADDRESS%:*} ${ADDRESS##*:} || exit 1
+                ARG HTTP_PROXY
+                ARG HTTPS_PROXY
+                ARG NO_PROXY
+                ARG http_proxy
+                ARG https_proxy
+                ARG no_proxy
+                RUN apk add --no-cache curl
                 """
             try createContext(tempDir: tempDir, dockerfile: dockerfile)
             let imageName = "registry.local/build-network-access:\(UUID().uuidString)"
 
-            let proxyEnv = ProcessInfo.processInfo.environment["HTTP_PROXY"]
-            var address = "8.8.8.8:53"
-            if let proxyAddr = proxyEnv {
-                address = String(proxyAddr.trimmingPrefix("http://"))
+            var buildArgs: [String] = []
+            for key in ["HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"] {
+                if let value = ProcessInfo.processInfo.environment[key] {
+                    buildArgs.append("\(key)=\(value)")
+                }
             }
-            try self.build(tag: imageName, tempDir: tempDir, buildArgs: ["ADDRESS=\(address)"])
+            try self.build(tag: imageName, tempDir: tempDir, buildArgs: buildArgs)
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 

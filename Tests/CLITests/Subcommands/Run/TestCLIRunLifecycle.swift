@@ -112,4 +112,15 @@ class TestCLIRunLifecycle: CLITest {
         let status = try getContainerStatus(name)
         #expect(status == "stopped")
     }
+
+    @Test func testRunInvalidExcutable() async throws {
+        let name = getTestName()
+        #expect(throws: CLIError.self, "running invalid executable must throw error, not hang") {
+            try doLongRun(
+                name: name,
+                containerArgs: ["foobarbaz"]
+            )
+        }
+        try? doRemove(name: name)
+    }
 }
