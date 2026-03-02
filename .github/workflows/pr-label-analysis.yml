@@ -14,9 +14,11 @@ jobs:
     
     steps:
       - name: Save PR metadata
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           mkdir -p ./pr-metadata
-          echo "${{ github.event.pull_request.number }}" > ./pr-metadata/pr-number.txt
+          echo "${PR_NUMBER}" > ./pr-metadata/pr-number.txt
       
       - name: Upload PR metadata as artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
