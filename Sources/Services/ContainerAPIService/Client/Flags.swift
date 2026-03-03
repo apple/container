@@ -286,7 +286,7 @@ public struct Flags {
         )
         public var publishPorts: [String] = []
 
-        @Option(name: .long, help: "Platform for the image if it's multi-platform. This takes precedence over --os and --arch")
+        @Option(name: .long, help: "Platform for the image if it's multi-platform. This takes precedence over --os and --arch [environment: CONTAINER_DEFAULT_PLATFORM]")
         public var platform: String?
 
         @Option(
