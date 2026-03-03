@@ -17,29 +17,38 @@
 import ContainerizationError
 import ContainerizationOCI
 import Foundation
+import Logging
 
 /// Resolves the default platform from the `CONTAINER_DEFAULT_PLATFORM` environment variable.
 ///
 /// When set, this variable overrides the native platform as the default for commands
 /// that support `--platform`. Explicit `--platform` flags always take precedence.
 public enum DefaultPlatform {
+    /// The name of the environment variable checked for a default platform.
     public static let environmentVariable = "CONTAINER_DEFAULT_PLATFORM"
 
     /// Reads and parses the `CONTAINER_DEFAULT_PLATFORM` environment variable.
     ///
-    /// - Parameter environment: The environment dictionary to read from. Defaults to the process environment.
+    /// When a valid platform is found and a logger is provided, a warning is emitted
+    /// to inform the user that the environment variable is being used.
+    ///
+    /// - Parameters:
+    ///   - environment: The environment dictionary to read from. Defaults to the current process environment.
+    ///   - log: An optional logger. When provided, a warning is logged if the environment variable is active.
     /// - Returns: The parsed platform, or `nil` if the variable is not set or empty.
-    /// - Throws: `ContainerizationError` if the variable is set but contains an invalid platform string.
+    /// - Throws: ContainerizationError if the variable is set but contains an invalid platform string.
     public static func fromEnvironment(
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        log: Logger? = nil
     ) throws -> ContainerizationOCI.Platform? {
         guard let value = environment[environmentVariable],
             !value.isEmpty
         else {
             return nil
         }
+        let platform: ContainerizationOCI.Platform
         do {
-            return try ContainerizationOCI.Platform(from: value)
+            platform = try ContainerizationOCI.Platform(from: value)
         } catch {
             throw ContainerizationError(
                 .invalidArgument,
@@ -47,22 +56,28 @@ public enum DefaultPlatform {
                 cause: error
             )
         }
-    }
-
-    /// Prints a notice to stderr indicating that the environment variable is being used.
-    public static func printNotice(_ platform: ContainerizationOCI.Platform) {
-        let message = "Notice: Using platform \"\(platform.description)\" from \(environmentVariable)\n"
-        FileHandle.standardError.write(Data(message.utf8))
+        logNotice(platform, log: log)
+        return platform
     }
 
     /// Resolves the platform for commands where `--os` and `--arch` are optional (image pull, push, save).
     ///
-    /// Precedence: `--platform` > `--os`/`--arch` > `CONTAINER_DEFAULT_PLATFORM` > nil
+    /// Precedence: `--platform` > `--os`/`--arch` > `CONTAINER_DEFAULT_PLATFORM` > `nil`.
+    ///
+    /// - Parameters:
+    ///   - platform: The value of the `--platform` flag, if provided.
+    ///   - os: The value of the `--os` flag, if provided.
+    ///   - arch: The value of the `--arch` flag, if provided.
+    ///   - environment: The environment dictionary to read from. Defaults to the current process environment.
+    ///   - log: An optional logger for environment variable notices.
+    /// - Returns: The resolved platform, or `nil` if no platform information is available.
+    /// - Throws: ContainerizationError if a platform string (from flags or environment) is invalid.
     public static func resolve(
         platform: String?,
         os: String?,
         arch: String?,
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        log: Logger? = nil
     ) throws -> ContainerizationOCI.Platform? {
         if let platform {
             return try ContainerizationOCI.Platform(from: platform)
@@ -73,29 +88,45 @@ public enum DefaultPlatform {
         if let os {
             return try ContainerizationOCI.Platform(from: "\(os)/\(arch ?? Arch.hostArchitecture().rawValue)")
         }
-        if let envPlatform = try fromEnvironment(environment: environment) {
-            printNotice(envPlatform)
-            return envPlatform
-        }
-        return nil
+        return try fromEnvironment(environment: environment, log: log)
     }
 
     /// Resolves the platform for commands where `--os` and `--arch` have defaults (run, create).
     ///
-    /// Precedence: `--platform` > `CONTAINER_DEFAULT_PLATFORM` > `--os`/`--arch` defaults
+    /// Precedence: `--platform` > `CONTAINER_DEFAULT_PLATFORM` > `--os`/`--arch` defaults.
+    ///
+    /// - Parameters:
+    ///   - platform: The value of the `--platform` flag, if provided.
+    ///   - os: The default OS value (always present).
+    ///   - arch: The default architecture value (always present).
+    ///   - environment: The environment dictionary to read from. Defaults to the current process environment.
+    ///   - log: An optional logger for environment variable notices.
+    /// - Returns: The resolved platform. Always returns a value since os/arch defaults are provided.
+    /// - Throws: ContainerizationError if a platform string (from flags or environment) is invalid.
     public static func resolveWithDefaults(
         platform: String?,
         os: String,
         arch: String,
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        log: Logger? = nil
     ) throws -> ContainerizationOCI.Platform {
         if let platform {
             return try Parser.platform(from: platform)
         }
-        if let envPlatform = try fromEnvironment(environment: environment) {
-            printNotice(envPlatform)
+        if let envPlatform = try fromEnvironment(environment: environment, log: log) {
             return envPlatform
         }
         return Parser.platform(os: os, arch: arch)
+    }
+
+    private static func logNotice(_ platform: ContainerizationOCI.Platform, log: Logger?) {
+        guard let log else { return }
+        log.warning(
+            "using platform from environment variable",
+            metadata: [
+                "platform": "\(platform.description)",
+                "variable": "\(environmentVariable)",
+            ]
+        )
     }
 }

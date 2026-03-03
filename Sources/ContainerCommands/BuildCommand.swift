@@ -306,8 +306,7 @@ extension Application {
                             return results
                         }
 
-                        if let envPlatform = try DefaultPlatform.fromEnvironment() {
-                            DefaultPlatform.printNotice(envPlatform)
+                        if let envPlatform = try DefaultPlatform.fromEnvironment(log: log) {
                             return [envPlatform]
                         }
 

@@ -60,7 +60,7 @@ extension Application {
         @Argument var references: [String]
 
         public func run() async throws {
-            let p = try DefaultPlatform.resolve(platform: platform, os: os, arch: arch)
+            let p = try DefaultPlatform.resolve(platform: platform, os: os, arch: arch, log: log)
 
             let progressConfig = try ProgressConfig(
                 description: "Saving image(s)"

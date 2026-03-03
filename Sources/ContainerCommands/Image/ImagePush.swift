@@ -55,7 +55,7 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let p = try DefaultPlatform.resolve(platform: platform, os: os, arch: arch)
+            let p = try DefaultPlatform.resolve(platform: platform, os: os, arch: arch, log: log)
 
             let scheme = try RequestScheme(registry.scheme)
             let image = try await ClientImage.get(reference: reference)

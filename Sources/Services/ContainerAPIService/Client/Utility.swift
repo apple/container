@@ -88,7 +88,8 @@ public struct Utility {
         let requestedPlatform = try DefaultPlatform.resolveWithDefaults(
             platform: management.platform,
             os: management.os,
-            arch: management.arch
+            arch: management.arch,
+            log: log
         )
         let scheme = try RequestScheme(registry.scheme)
 
