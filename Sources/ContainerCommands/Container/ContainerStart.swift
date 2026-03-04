@@ -87,7 +87,8 @@ extension Application {
                     try? io.close()
                 }
 
-                let process = try await client.bootstrap(id: container.id, stdio: io.stdio)
+                let sshAuthSocketPath = container.configuration.ssh ? ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] : nil
+                let process = try await client.bootstrap(id: container.id, stdio: io.stdio, sshAuthSocketPath: sshAuthSocketPath)
                 progress.finish()
 
                 if detach {
