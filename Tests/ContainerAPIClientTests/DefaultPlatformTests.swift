@@ -77,6 +77,16 @@ struct DefaultPlatformTests {
         #expect(result == nil)
     }
 
+    @Test
+    func testFromEnvironmentWithVariant() throws {
+        let env = ["CONTAINER_DEFAULT_PLATFORM": "linux/arm/v7"]
+        let result = try DefaultPlatform.fromEnvironment(environment: env)
+        #expect(result != nil)
+        #expect(result?.os == "linux")
+        #expect(result?.architecture == "arm")
+        #expect(result?.variant == "v7")
+    }
+
     // MARK: - resolve (optional os/arch, used by image pull/push/save)
 
     @Test
@@ -148,6 +158,16 @@ struct DefaultPlatformTests {
             platform: "linux/amd64", os: "linux", arch: "arm64", environment: env
         )
         #expect(result?.architecture == "amd64")
+    }
+
+    @Test
+    func testResolveExplicitPlatformIgnoresInvalidEnvVar() throws {
+        let env = ["CONTAINER_DEFAULT_PLATFORM": "garbage"]
+        let result = try DefaultPlatform.resolve(
+            platform: "linux/amd64", os: nil, arch: nil, environment: env
+        )
+        #expect(result?.architecture == "amd64")
+        #expect(result?.os == "linux")
     }
 
     // MARK: - resolveWithDefaults (required os/arch, used by run/create)
