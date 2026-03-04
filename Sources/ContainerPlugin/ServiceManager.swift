@@ -44,6 +44,10 @@ public struct ServiceManager {
         _ = try runLaunchctlCommand(args: ["bootout", label])
     }
 
+    public static func deregister(fullServiceLabel label: String, status: inout Int32) throws {
+        status = try runLaunchctlCommand(args: ["bootout", label])
+    }
+
     /// Restart a service by a launchd label.
     public static func kickstart(fullServiceLabel label: String) throws {
         _ = try runLaunchctlCommand(args: ["kickstart", "-k", label])
