@@ -297,15 +297,16 @@ public struct Utility {
             // attach the first network using the fqdn, and the rest using just the container ID
             return try networks.enumerated().map { item in
                 let macAddress = try item.element.macAddress.map { try MACAddress($0) }
+                let mtu = item.element.mtu ?? 1280
                 guard item.offset == 0 else {
                     return AttachmentConfiguration(
                         network: item.element.name,
-                        options: AttachmentOptions(hostname: containerId, macAddress: macAddress)
+                        options: AttachmentOptions(hostname: containerId, macAddress: macAddress, mtu: mtu)
                     )
                 }
                 return AttachmentConfiguration(
                     network: item.element.name,
-                    options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: macAddress)
+                    options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: macAddress, mtu: mtu)
                 )
             }
         }
@@ -314,7 +315,7 @@ public struct Utility {
         guard let builtinNetworkId else {
             throw ContainerizationError(.invalidState, message: "builtin network is not present")
         }
-        return [AttachmentConfiguration(network: builtinNetworkId, options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: nil))]
+        return [AttachmentConfiguration(network: builtinNetworkId, options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: nil, mtu: 1280))]
     }
 
     private static func getKernel(management: Flags.Management) async throws -> Kernel {

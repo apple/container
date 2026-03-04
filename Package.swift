@@ -23,7 +23,7 @@ import PackageDescription
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
 let builderShimVersion = "0.8.0"
-let scVersion = "0.26.4"
+let scVersion = "0.26.5"
 
 let package = Package(
     name: "container",
@@ -79,6 +79,7 @@ let package = Package(
                 .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
                 "ContainerBuild",
+                "ContainerLog",
                 "ContainerResource",
             ],
             path: "Tests/CLITests"

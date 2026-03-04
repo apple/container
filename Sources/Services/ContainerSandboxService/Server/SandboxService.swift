@@ -44,7 +44,7 @@ public actor SandboxService {
     private var container: ContainerInfo?
     private let monitor: ExitMonitor
     private let eventLoopGroup: any EventLoopGroup
-    private var waiters: [String: [CheckedContinuation<ExitStatus, Never>]] = [:]
+    private let waiters: Mutex<[String: [CheckedContinuation<ExitStatus, Never>]?]> = Mutex([:])
     private let lock: AsyncLock = AsyncLock()
     private let log: Logging.Logger
     private var state: State = .created
@@ -265,7 +265,7 @@ public actor SandboxService {
                     hostsEntries.append(
                         Hosts.Entry(
                             ipAddress: primaryIfaceAddr.address.description,
-                            hostnames: [czConfig.hostname],
+                            hostnames: [czConfig.hostname ?? id],
                         ))
                 }
                 czConfig.hosts = Hosts(entries: hostsEntries)
@@ -291,7 +291,7 @@ public actor SandboxService {
             } catch {
                 do {
                     try await self.cleanUpContainer(containerInfo: ctrInfo)
-                    await self.setState(.created)
+                    await self.setState(.stopped(nil))
                 } catch {
                     self.log.error("failed to clean up container", metadata: ["error": "\(error)"])
                 }
@@ -427,8 +427,12 @@ public actor SandboxService {
                                 message: "ProcessInfo missing for process \(id)"
                             )
                         }
-                        for cc in await self.waiters[id] ?? [] {
-                            cc.resume(returning: exitStatus)
+                        self.waiters.withLock {
+                            if let waiters = $0[id], let waiters {
+                                for cc in waiters {
+                                    cc.resume(returning: exitStatus)
+                                }
+                            }
                         }
                         await self.removeWaiters(for: id)
                         try await process.delete()
@@ -681,7 +685,9 @@ public actor SandboxService {
 
         let exitStatus = await withCheckedContinuation { cc in
             // Is this safe since we are in an actor? :(
-            self.addWaiter(id: id, cont: cc)
+            if !self.addWaiter(id: id, cont: cc) {
+                cc.resume(returning: ExitStatus(exitCode: -1))
+            }
         }
         let reply = message.reply()
         reply.set(key: SandboxKeys.exitCode.rawValue, value: Int64(exitStatus.exitCode))
@@ -755,7 +761,7 @@ public actor SandboxService {
             try await self.monitor.track(id: id, waitingOn: waitFunc)
         } catch {
             try? await self.cleanUpContainer(containerInfo: info)
-            self.setState(.created)
+            self.setState(.stopped(nil))
             throw error
         }
     }
@@ -1131,11 +1137,14 @@ public actor SandboxService {
         await self.stopSocketForwarders()
 
         let status = exitStatus ?? ExitStatus(exitCode: 255)
-        let waiters = self.waiters[id] ?? []
-        for cc in waiters {
-            cc.resume(returning: status)
+        self.waiters.withLock {
+            if let waiters = $0[id], let waiters {
+                for cc in waiters {
+                    cc.resume(returning: status)
+                }
+            }
         }
-        self.removeWaiters(for: id)
+        self.invalidateWaiters(for: id)
     }
 }
 
@@ -1355,14 +1364,34 @@ extension FileHandle: @retroactive ReaderStream, @retroactive Writer {
 // MARK: State handler and bundle creation helpers
 
 extension SandboxService {
-    private func addWaiter(id: String, cont: CheckedContinuation<ExitStatus, Never>) {
-        var current = self.waiters[id] ?? []
-        current.append(cont)
-        self.waiters[id] = current
+    private func addWaiter(id: String, cont: CheckedContinuation<ExitStatus, Never>) -> Bool {
+        self.waiters.withLock { waiters in
+            var current: [CheckedContinuation<ExitStatus, Never>]
+            switch waiters[id] {
+            case .none:
+                current = []
+            case .some(.some(let value)):
+                current = value
+            case .some(.none):
+                return false
+            }
+
+            current.append(cont)
+            waiters[id] = current
+            return true
+        }
     }
 
     private func removeWaiters(for id: String) {
-        self.waiters[id] = []
+        self.waiters.withLock { waiters in
+            waiters[id] = []
+        }
+    }
+
+    private func invalidateWaiters(for id: String) {
+        self.waiters.withLock { waiters in
+            waiters[id] = .some(nil)
+        }
     }
 
     private func setUnderlyingProcess(_ id: String, _ process: LinuxProcess) throws {
@@ -1418,7 +1447,7 @@ extension SandboxService {
         /// At the beginning of stop() .running will be transitioned to .stopping.
         case stopping
         /// Once a stop is successful, .stopping will transition to .stopped.
-        case stopped(Int32)
+        case stopped(Int32?)
         /// .shuttingDown will be the last state the sandbox service will ever be in. Shortly
         /// afterwards the process will exit.
         case shuttingDown
