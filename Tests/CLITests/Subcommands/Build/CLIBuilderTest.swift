@@ -93,7 +93,7 @@ extension TestCLIBuildBase {
         }
 
         @Test func testBuildAddFromSpecialDirs() throws {
-            let tempDir = URL(filePath: "/tmp/container/.clitests" + testUUID)
+            let tempDir = URL(filePath: "/tmp/container/.clitests/\(testSuite)/\(testName)")
             try! FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
 
             defer {

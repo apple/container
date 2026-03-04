@@ -417,8 +417,25 @@ public actor ContainersService {
                         hostname: n.options.hostname,
                         macAddress: n.options.macAddress
                     )
-                    guard let allocatedAttach = allocatedAttach else {
+                    guard var allocatedAttach = allocatedAttach else {
                         throw ContainerizationError(.internalError, message: "failed to allocate a network")
+                    }
+
+                    if let mtu = n.options.mtu {
+                        let a = allocatedAttach.attachment
+                        allocatedAttach = AllocatedAttachment(
+                            attachment: Attachment(
+                                network: a.network,
+                                hostname: a.hostname,
+                                ipv4Address: a.ipv4Address,
+                                ipv4Gateway: a.ipv4Gateway,
+                                ipv6Address: a.ipv6Address,
+                                macAddress: a.macAddress,
+                                mtu: mtu
+                            ),
+                            additionalData: allocatedAttach.additionalData,
+                            pluginInfo: allocatedAttach.pluginInfo
+                        )
                     }
                     allocatedAttachments.append(allocatedAttach)
                 }

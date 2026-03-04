@@ -207,7 +207,7 @@ public actor SandboxService {
                     hostsEntries.append(
                         Hosts.Entry(
                             ipAddress: primaryIfaceAddr.address.description,
-                            hostnames: [czConfig.hostname],
+                            hostnames: [czConfig.hostname ?? id],
                         ))
                 }
                 czConfig.hosts = Hosts(entries: hostsEntries)
