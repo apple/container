@@ -132,4 +132,22 @@ struct NetworkConfigurationTest {
         }
     }
 
+    @Test func testFullLabelLengthErrorMessage() throws {
+        // Test that the error message correctly mentions "full label length" instead of "key length"
+        let id = "foo"
+        let ipv4Subnet = try CIDRv4("192.168.64.1/24")
+        // Create a label where the full label (key=value) exceeds 4096 chars
+        let labels = ["test-key": String(repeating: "x", count: 4097 - "test-key=".count)]
+
+        #expect {
+            _ = try NetworkConfiguration(id: id, mode: .nat, ipv4Subnet: ipv4Subnet, labels: labels)
+        } throws: { error in
+            guard let err = error as? ContainerizationError else { return false }
+            #expect(err.code == .invalidArgument)
+            // Verify the error message mentions "full label length" not just "key length"
+            #expect(err.message.contains("full label length"))
+            return true
+        }
+    }
+
 }
