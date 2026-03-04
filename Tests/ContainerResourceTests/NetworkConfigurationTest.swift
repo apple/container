@@ -140,7 +140,13 @@ struct NetworkConfigurationTest {
         let labels = ["test-key": String(repeating: "x", count: 4097 - "test-key=".count)]
 
         #expect {
-            _ = try NetworkConfiguration(id: id, mode: .nat, ipv4Subnet: ipv4Subnet, labels: labels)
+            _ = try NetworkConfiguration(
+                id: id,
+                mode: .nat,
+                ipv4Subnet: ipv4Subnet,
+                labels: labels,
+                pluginInfo: defaultNetworkPluginInfo
+            )
         } throws: { error in
             guard let err = error as? ContainerizationError else { return false }
             #expect(err.code == .invalidArgument)
