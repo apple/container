@@ -44,7 +44,7 @@ public actor SandboxService {
     private var container: ContainerInfo?
     private let monitor: ExitMonitor
     private let eventLoopGroup: any EventLoopGroup
-    private let waiters: Mutex<[String: [CheckedContinuation<ExitStatus, Never>]?]> = Mutex([:])
+    private var waiters: [String: [CheckedContinuation<ExitStatus, Never>]] = [:]
     private let lock: AsyncLock = AsyncLock()
     private let log: Logging.Logger
     private var state: State = .created
@@ -225,6 +225,8 @@ public actor SandboxService {
 
             do {
                 try await container.create()
+
+                await self.initializeWaiters(for: id)
                 try await self.monitor.registerProcess(id: config.id, onExit: self.onContainerExit)
                 if !container.interfaces.isEmpty {
                     try await self.startSocketForwarders(attachment: attachments[0], publishedPorts: config.publishedPorts)
@@ -360,27 +362,27 @@ public actor SandboxService {
 
                 try await self.addNewProcess(id, config, stdio)
 
-                try await self.monitor.registerProcess(
-                    id: id,
-                    onExit: { id, exitStatus in
-                        guard let process = await self.processes[id]?.process else {
-                            throw ContainerizationError(
-                                .invalidState,
-                                message: "ProcessInfo missing for process \(id)"
-                            )
-                        }
-                        self.waiters.withLock {
-                            if let waiters = $0[id], let waiters {
-                                for cc in waiters {
-                                    cc.resume(returning: exitStatus)
-                                }
+                await self.initializeWaiters(for: id)
+                do {
+                    try await self.monitor.registerProcess(
+                        id: id,
+                        onExit: { id, exitStatus in
+                            await self.releaseWaiters(for: id, status: exitStatus)
+
+                            guard let process = await self.processes[id]?.process else {
+                                throw ContainerizationError(
+                                    .invalidState,
+                                    message: "ProcessInfo missing for process \(id)"
+                                )
                             }
+                            try await process.delete()
+                            try await self.setProcessState(id: id, state: .stopped(exitStatus.exitCode))
                         }
-                        await self.removeWaiters(for: id)
-                        try await process.delete()
-                        try await self.setProcessState(id: id, state: .stopped(exitStatus.exitCode))
-                    }
-                )
+                    )
+                } catch {
+                    await self.releaseWaiters(for: id, status: ExitStatus(exitCode: -1))
+                    throw error
+                }
 
                 return message.reply()
             default:
@@ -1077,14 +1079,7 @@ public actor SandboxService {
         await self.stopSocketForwarders()
 
         let status = exitStatus ?? ExitStatus(exitCode: 255)
-        self.waiters.withLock {
-            if let waiters = $0[id], let waiters {
-                for cc in waiters {
-                    cc.resume(returning: status)
-                }
-            }
-        }
-        self.invalidateWaiters(for: id)
+        self.releaseWaiters(for: id, status: status)
     }
 }
 
@@ -1304,34 +1299,28 @@ extension FileHandle: @retroactive ReaderStream, @retroactive Writer {
 // MARK: State handler and bundle creation helpers
 
 extension SandboxService {
+    private func initializeWaiters(for id: String) {
+        waiters[id] = []
+    }
+
     private func addWaiter(id: String, cont: CheckedContinuation<ExitStatus, Never>) -> Bool {
-        self.waiters.withLock { waiters in
-            var current: [CheckedContinuation<ExitStatus, Never>]
-            switch waiters[id] {
-            case .none:
-                current = []
-            case .some(.some(let value)):
-                current = value
-            case .some(.none):
-                return false
+        guard var current = waiters[id] else {
+            return false
+        }
+
+        current.append(cont)
+        waiters[id] = current
+        return true
+    }
+
+    private func releaseWaiters(for id: String, status: ExitStatus) {
+        if let current = waiters[id] {
+            for cc in current {
+                cc.resume(returning: status)
             }
-
-            current.append(cont)
-            waiters[id] = current
-            return true
         }
-    }
 
-    private func removeWaiters(for id: String) {
-        self.waiters.withLock { waiters in
-            waiters[id] = []
-        }
-    }
-
-    private func invalidateWaiters(for id: String) {
-        self.waiters.withLock { waiters in
-            waiters[id] = .some(nil)
-        }
+        waiters[id] = nil
     }
 
     private func setUnderlyingProcess(_ id: String, _ process: LinuxProcess) throws {
