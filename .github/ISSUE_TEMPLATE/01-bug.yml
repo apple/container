@@ -21,21 +21,20 @@ body:
     id: reproduce
     attributes:
       label: Steps to reproduce
-      description: Explain how to reproduce the incorrect behavior. 
+      description: |
+        Explain how to reproduce the incorrect behavior. 
+        
+        📖 **Need help?** See our guide: [How to write effective reproduction steps](../../docs/bug-report-how-to.md#steps-to-reproduce)
     validations:
       required: true
   - type: textarea
     id: what-happened
     attributes:
-      label: Current behavior
-      description: A concise description of what you're experiencing.
-    validations:
-      required: true
-  - type: textarea
-    id: expected
-    attributes:
-      label: Expected behavior
-      description: A concise description of what you expected to happen.
+      label: Problem description
+      description: |
+        Briefly describe your problem, and what you believe the correct behavior should be.
+        
+        📖 **Need help?** See our guide: [Problem Description](../../docs/bug-report-how-to.md#problem-description)
     validations:
       required: true
   - type: textarea
@@ -46,6 +45,8 @@ body:
           - **OS**: macOS 26.0 (25A354)
           - **Xcode**: Version 26.0 (17A324)
           - **Container**: Container CLI version 0.1.0
+        
+        📖 **Need help gathering this info?** See our guide: [Environment Information](../../docs/bug-report-how-to.md#environment-information)
       value: |
         - OS: 
         - Xcode: 
@@ -53,14 +54,6 @@ body:
       render: markdown
     validations:
       required: true
-  - type: textarea
-    id: logs
-    attributes:
-      label: Relevant log output
-      description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
-      value: |
-        N/A
-      render: shell
   - type: checkboxes
     id: terms
     attributes:
