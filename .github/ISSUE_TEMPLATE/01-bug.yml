@@ -24,7 +24,7 @@ body:
       description: |
         Explain how to reproduce the incorrect behavior. 
         
-        📖 **Need help?** See our guide: [How to write effective reproduction steps](../docs/issue-how-to.md#steps-to-reproduce)
+        📖 **Need help?** See our guide: [How to write effective reproduction steps](../../docs/bug-report-how-to.md#steps-to-reproduce)
     validations:
       required: true
   - type: textarea
@@ -34,7 +34,7 @@ body:
       description: |
         A concise description of what you're experiencing.
         
-        📖 **Need help?** See our guide: [Current Behavior](../docs/issue-how-to.md#current-behavior)
+        📖 **Need help?** See our guide: [Current Behavior](../../docs/bug-report-how-to.md#current-behavior)
     validations:
       required: true
   - type: textarea
@@ -44,7 +44,7 @@ body:
       description: |
         A concise description of what you expected to happen.
         
-        📖 **Need help?** See our guide: [Expected Behavior](../docs/issue-how-to.md#expected-behavior)
+        📖 **Need help?** See our guide: [Expected Behavior](../../docs/bug-report-how-to.md#expected-behavior)
     validations:
       required: true
   - type: textarea
@@ -56,7 +56,7 @@ body:
           - **Xcode**: Version 26.0 (17A324)
           - **Container**: Container CLI version 0.1.0
         
-        📖 **Need help gathering this info?** See our guide: [Environment Information](../docs/issue-how-to.md#environment-information)
+        📖 **Need help gathering this info?** See our guide: [Environment Information](../../docs/bug-report-how-to.md#environment-information)
       value: |
         - OS: 
         - Xcode: 
@@ -71,7 +71,7 @@ body:
       description: |
         Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
         
-        📖 **Need help finding logs?** See our guide: [Log Information](../docs/issue-how-to.md#log-information)
+        📖 **Need help finding logs?** See our guide: [Log Information](../../docs/bug-report-how-to.md#log-information)
       value: |
         N/A
       render: shell
