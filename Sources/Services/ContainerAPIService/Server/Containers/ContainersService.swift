@@ -106,7 +106,7 @@ public actor ContainersService {
                         instanceId: config.id)
 
                     var status: Int32 = -1
-                    try ServiceManager.deregister(fullServiceLabel: label, status: &status)
+                    try? ServiceManager.deregister(fullServiceLabel: label, status: &status)
                     if status == 0 {
                         log.info(
                             "reap auto-remove container",
