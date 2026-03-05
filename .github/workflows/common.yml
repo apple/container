@@ -49,9 +49,11 @@ jobs:
           DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
 
       - name: Set build configuration
+        env:
+          RELEASE: ${{ inputs.release }}
         run: |
           echo "BUILD_CONFIGURATION=debug" >> $GITHUB_ENV
-          if [[ "${{ inputs.release }}" == "true" ]]; then
+          if [[ "${RELEASE}" == "true" ]]; then
             echo "BUILD_CONFIGURATION=release" >> $GITHUB_ENV
           fi
 
@@ -65,8 +67,8 @@ jobs:
       - name: Create package
         run: |
           mkdir -p outputs
-          mv bin/${{ env.BUILD_CONFIGURATION }}/container-installer-unsigned.pkg outputs
-          mv bin/${{ env.BUILD_CONFIGURATION }}/bundle/container-dSYM.zip outputs
+          mv "bin/${BUILD_CONFIGURATION}/container-installer-unsigned.pkg" outputs
+          mv "bin/${BUILD_CONFIGURATION}/bundle/container-dSYM.zip" outputs
 
       - name: Test the container project
         run: |
@@ -87,6 +89,11 @@ jobs:
       - name: Archive test logs
         if: always()
         run: |
+          if [ -d "${APP_ROOT}/containers" ] && [ -n "${LOG_ROOT}" ]; then
+            rsync -a --include='*/' --include='*.log' --exclude='*' \
+              "${APP_ROOT}/containers/" \
+              "${LOG_ROOT}/containers/"
+          fi
           if [ -n "${LOG_ROOT}" ] && [ -d "${LOG_ROOT}" ] ; then
             echo "Collecting logs from ${LOG_ROOT}..."
             tar czf container-logs.tar.gz -C "$(dirname "${LOG_ROOT}")" "$(basename "${LOG_ROOT}")"
@@ -99,7 +106,7 @@ jobs:
 
       - name: Upload logs if present
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: container-test-logs
           path: container-logs.tar.gz
@@ -107,14 +114,14 @@ jobs:
           if-no-files-found: ignore
 
       - name: Save documentation artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: api-docs
           path: "./_site.tgz"
           retention-days: 14
 
       - name: Save package artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: container-package
           path: ${{ github.workspace }}/outputs
@@ -131,7 +138,7 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Download a single artifact
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: api-docs
 
