@@ -92,7 +92,7 @@ struct RegistryResourceTests {
         #expect(jsonString.contains("\"name\""), "JSON should contain name field")
         #expect(jsonString.contains("\"username\""), "JSON should contain username field")
         #expect(jsonString.contains("\"creationDate\""), "JSON should contain creationDate field")
-        #expect(jsonString.contains("\"modifiedDate\""), "JSON should contain modifiedDate field")
+        #expect(jsonString.contains("\"modificationDate\""), "JSON should contain modificationDate field")
         #expect(jsonString.contains(hostname), "JSON should contain the hostname")
         #expect(jsonString.contains(username), "JSON should contain the username")
     }
@@ -149,7 +149,7 @@ struct RegistryResourceTests {
             hostname: hostname,
             username: username,
             creationDate: Date(),
-            modifiedDate: Date(),
+            modificationDate: Date(),
             labels: labels
         )
 

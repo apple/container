@@ -54,15 +54,19 @@ extension ImagesHelper {
 
         var installRoot = InstallRoot.url
 
+        var logRoot = LogRoot.path
+
         private static let unpackStrategy = SnapshotStore.defaultUnpackStrategy
 
         func run() async throws {
             let commandName = ImagesHelper._commandName
-            let log = setupLogger()
-            log.info("starting \(commandName)")
+            let logPath = logRoot.map { $0.appending("\(commandName).log") }
+            let log = ServiceLogger.bootstrap(category: "ImagesHelper", debug: debug, logPath: logPath)
+            log.info("starting helper", metadata: ["name": "\(commandName)"])
             defer {
-                log.info("stopping \(commandName)")
+                log.info("stopping helper", metadata: ["name": "\(commandName)"])
             }
+
             do {
                 log.info("configuring XPC server")
                 var routes = [String: XPCServer.RouteHandler]()
@@ -76,7 +80,12 @@ extension ImagesHelper {
                 log.info("starting XPC server")
                 try await xpc.listen()
             } catch {
-                log.error("\(commandName) failed", metadata: ["error": "\(error)"])
+                log.error(
+                    "helper failed",
+                    metadata: [
+                        "name": "\(commandName)",
+                        "error": "\(error)",
+                    ])
                 ImagesHelper.exit(withError: error)
             }
         }
@@ -112,20 +121,6 @@ extension ImagesHelper {
             routes[ImagesServiceXPCRoute.contentIngestStart.rawValue] = harness.newIngestSession
             routes[ImagesServiceXPCRoute.contentIngestCancel.rawValue] = harness.cancelIngestSession
             routes[ImagesServiceXPCRoute.contentIngestComplete.rawValue] = harness.completeIngestSession
-        }
-
-        private func setupLogger() -> Logger {
-            LoggingSystem.bootstrap { label in
-                OSLogHandler(
-                    label: label,
-                    category: "ImagesHelper"
-                )
-            }
-            var log = Logger(label: "com.apple.container")
-            if debug {
-                log.logLevel = .debug
-            }
-            return log
         }
     }
 }

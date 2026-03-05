@@ -22,7 +22,6 @@ import ContainerizationOS
 import Foundation
 import Testing
 
-@Suite(.serialized)
 class TestCLINetwork: CLITest {
     private static let retries = 10
     private static let retryDelaySeconds = Int64(3)
@@ -190,6 +189,19 @@ class TestCLINetwork: CLITest {
             Issue.record("failed to safely delete network \(error)")
             return
         }
+    }
+
+    @Test func testNetworkMTU() async throws {
+        let name = getLowercasedTestName()
+        try? doStop(name: name)
+        try? doRemove(name: name)
+
+        try doLongRun(name: name, args: ["--network", "default,mtu=1500"])
+        defer { try? doStop(name: name) }
+
+        try waitForContainerRunning(name)
+        let output = try doExec(name: name, cmd: ["ip", "link", "show", "eth0"])
+        #expect(output.contains("mtu 1500"), "expected mtu 1500 in ip link output: \(output)")
     }
 
     @available(macOS 26, *)

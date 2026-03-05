@@ -21,9 +21,15 @@ import Testing
 @testable import ContainerResource
 
 struct NetworkConfigurationTest {
+    let defaultNetworkPluginInfo = NetworkPluginInfo(plugin: "container-network-vmnet")
+
     @Test func testValidationOkDefaults() throws {
         let id = "foo"
-        _ = try NetworkConfiguration(id: id, mode: .nat)
+        _ = try NetworkConfiguration(
+            id: id,
+            mode: .nat,
+            pluginInfo: defaultNetworkPluginInfo
+        )
     }
 
     @Test func testValidationGoodId() throws {
@@ -38,7 +44,13 @@ struct NetworkConfigurationTest {
                 "foo": "bar",
                 "baz": String(repeating: "0", count: 4096 - "baz".count - "=".count),
             ]
-            _ = try NetworkConfiguration(id: id, mode: .nat, ipv4Subnet: ipv4Subnet, labels: labels)
+            _ = try NetworkConfiguration(
+                id: id,
+                mode: .nat,
+                ipv4Subnet: ipv4Subnet,
+                labels: labels,
+                pluginInfo: defaultNetworkPluginInfo
+            )
         }
     }
 
@@ -56,7 +68,13 @@ struct NetworkConfigurationTest {
                 "baz": String(repeating: "0", count: 4096 - "baz".count - "=".count),
             ]
             #expect {
-                _ = try NetworkConfiguration(id: id, mode: .nat, ipv4Subnet: ipv4Subnet, labels: labels)
+                _ = try NetworkConfiguration(
+                    id: id,
+                    mode: .nat,
+                    ipv4Subnet: ipv4Subnet,
+                    labels: labels,
+                    pluginInfo: defaultNetworkPluginInfo
+                )
             } throws: { error in
                 guard let err = error as? ContainerizationError else { return false }
                 #expect(err.code == .invalidArgument)
@@ -76,7 +94,13 @@ struct NetworkConfigurationTest {
         for labels in allLabels {
             let id = "foo"
             let ipv4Subnet = try CIDRv4("192.168.64.1/24")
-            _ = try NetworkConfiguration(id: id, mode: .nat, ipv4Subnet: ipv4Subnet, labels: labels)
+            _ = try NetworkConfiguration(
+                id: id,
+                mode: .nat,
+                ipv4Subnet: ipv4Subnet,
+                labels: labels,
+                pluginInfo: defaultNetworkPluginInfo
+            )
         }
     }
 
@@ -92,7 +116,13 @@ struct NetworkConfigurationTest {
             let id = "foo"
             let ipv4Subnet = try CIDRv4("192.168.64.1/24")
             #expect {
-                _ = try NetworkConfiguration(id: id, mode: .nat, ipv4Subnet: ipv4Subnet, labels: labels)
+                _ = try NetworkConfiguration(
+                    id: id,
+                    mode: .nat,
+                    ipv4Subnet: ipv4Subnet,
+                    labels: labels,
+                    pluginInfo: defaultNetworkPluginInfo
+                )
             } throws: { error in
                 guard let err = error as? ContainerizationError else { return false }
                 #expect(err.code == .invalidArgument)

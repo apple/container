@@ -15,10 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerLog
 import ContainerVersion
-import Logging
-import OSLog
 
 @main
 struct RuntimeLinuxHelper: AsyncParsableCommand {
@@ -30,24 +27,4 @@ struct RuntimeLinuxHelper: AsyncParsableCommand {
             Start.self
         ]
     )
-
-    package static func setupLogger(debug: Bool, metadata: [String: Logging.Logger.Metadata.Value] = [:]) -> Logging.Logger {
-        LoggingSystem.bootstrap { label in
-            OSLogHandler(
-                label: label,
-                category: "RuntimeLinuxHelper"
-            )
-        }
-
-        var log = Logger(label: "com.apple.container")
-        if debug {
-            log.logLevel = .debug
-        }
-
-        for (key, val) in metadata {
-            log[metadataKey: key] = val
-        }
-
-        return log
-    }
 }

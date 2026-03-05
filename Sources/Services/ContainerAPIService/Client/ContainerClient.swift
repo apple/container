@@ -39,7 +39,7 @@ public struct ContainerClient: Sendable {
     @discardableResult
     private func xpcSend(
         message: XPCMessage,
-        timeout: Duration? = .seconds(15)
+        timeout: Duration? = XPCClient.xpcRegistrationTimeout
     ) async throws -> XPCMessage {
         try await xpcClient.send(message, responseTimeout: timeout)
     }
@@ -317,6 +317,22 @@ public struct ContainerClient: Sendable {
             throw ContainerizationError(
                 .internalError,
                 message: "failed to get statistics for container \(id)",
+                cause: error
+            )
+        }
+    }
+
+    public func export(id: String, archive: URL) async throws {
+        let request = XPCMessage(route: .containerExport)
+        request.set(key: .id, value: id)
+        request.set(key: .archive, value: archive.absolutePath())
+
+        do {
+            try await xpcClient.send(request)
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to export container",
                 cause: error
             )
         }

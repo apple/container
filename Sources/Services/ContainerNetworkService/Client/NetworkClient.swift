@@ -22,18 +22,23 @@ import Foundation
 
 /// A client for interacting with a single network.
 public struct NetworkClient: Sendable {
-    // FIXME: need more flexibility than a hard-coded constant?
-    static let label = "com.apple.container.network.container-network-vmnet"
+    static let label = "com.apple.container.network"
+
+    public static func machServiceLabel(id: String, plugin: String) -> String {
+        "\(Self.label).\(plugin).\(id)"
+    }
 
     private var machServiceLabel: String {
-        "\(Self.label).\(id)"
+        Self.machServiceLabel(id: id, plugin: plugin)
     }
 
     let id: String
+    let plugin: String
 
     /// Create a client for a network.
-    public init(id: String) {
+    public init(id: String, plugin: String) {
         self.id = id
+        self.plugin = plugin
     }
 }
 

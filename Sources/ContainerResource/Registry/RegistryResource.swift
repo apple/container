@@ -87,20 +87,20 @@ public struct RegistryResource: ManagedResource {
     ///   - hostname: The registry hostname (also used as the resource ID)
     ///   - username: The username for authentication
     ///   - creationDate: The time the resource was created
-    ///   - modifiedDate: The time the resource was last modified
+    ///   - modificationDate: The time the resource was last modified
     ///   - labels: Optional key-value labels for metadata (default: empty dictionary)
     public init(
         hostname: String,
         username: String,
         creationDate: Date,
-        modifiedDate: Date,
+        modificationDate: Date,
         labels: [String: String] = [:]
     ) {
         self.id = hostname
         self.name = hostname
         self.username = username
         self.creationDate = creationDate
-        self.modificationDate = modifiedDate
+        self.modificationDate = modificationDate
         self.labels = labels
     }
 }
@@ -114,7 +114,7 @@ extension RegistryResource {
             hostname: registryInfo.hostname,
             username: registryInfo.username,
             creationDate: registryInfo.createdDate,
-            modifiedDate: registryInfo.modifiedDate
+            modificationDate: registryInfo.modifiedDate
         )
     }
 }

@@ -18,8 +18,10 @@ import ArgumentParser
 import ContainerAPIClient
 import ContainerPersistence
 import ContainerPlugin
+import ContainerXPC
 import ContainerizationError
 import Foundation
+import SystemPackage
 import TerminalProgress
 
 extension Application {
@@ -41,11 +43,28 @@ extension Application {
             transform: { URL(filePath: $0) })
         var installRoot = InstallRoot.defaultURL
 
+        @Option(
+            name: .long,
+            help: "Path to the root directory for log data, using macOS log facility if not set",
+            transform: { FilePath($0) })
+        var logRoot: FilePath? = nil
+
         @Flag(
             name: .long,
             inversion: .prefixedEnableDisable,
             help: "Specify whether the default kernel should be installed or not (default: prompt user)")
         var kernelInstall: Bool?
+
+        @Option(
+            help: "Number of seconds to wait for API service to become responsive",
+            transform: {
+                guard let timeoutSeconds = Double($0) else {
+                    throw ValidationError("Invalid timeout value: \($0)")
+                }
+                return .seconds(timeoutSeconds)
+            }
+        )
+        var timeout: Duration = XPCClient.xpcRegistrationTimeout
 
         @OptionGroup
         public var logOptions: Flags.Logging
@@ -62,18 +81,23 @@ extension Application {
 
             var args = [executableUrl.absolutePath()]
 
+            args.append("start")
             if logOptions.debug {
                 args.append("--debug")
             }
 
-            args.append("start")
             let apiServerDataUrl = appRoot.appending(path: "apiserver")
             try! FileManager.default.createDirectory(at: apiServerDataUrl, withIntermediateDirectories: true)
 
             var env = PluginLoader.filterEnvironment()
             env[ApplicationRoot.environmentName] = appRoot.path(percentEncoded: false)
             env[InstallRoot.environmentName] = installRoot.path(percentEncoded: false)
-
+            if let logRoot {
+                env[LogRoot.environmentName] =
+                    logRoot.isAbsolute
+                    ? logRoot.string
+                    : FilePath(FileManager.default.currentDirectoryPath).appending(logRoot.components).string
+            }
             let plist = LaunchPlist(
                 label: "com.apple.container.apiserver",
                 arguments: args,
@@ -87,12 +111,13 @@ extension Application {
             let data = try plist.encode()
             try data.write(to: plistURL)
 
+            print("Registering API server with launchd...")
             try ServiceManager.register(plistPath: plistURL.path)
 
             // Now ping our friendly daemon. Fail if we don't get a response.
             do {
                 print("Verifying apiserver is running...")
-                _ = try await ClientHealthCheck.ping(timeout: .seconds(10))
+                _ = try await ClientHealthCheck.ping(timeout: timeout)
             } catch {
                 throw ContainerizationError(
                     .internalError,
@@ -118,7 +143,7 @@ extension Application {
             do {
                 try await pullCommand.run()
             } catch {
-                log.error("failed to install base container filesystem: \(error)")
+                log.error("failed to install base container filesystem", metadata: ["error": "\(error)"])
             }
         }
 

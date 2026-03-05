@@ -14,7 +14,8 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerNetworkServiceClient
+import ContainerAPIClient
+import ContainerOS
 import ContainerPersistence
 import ContainerResource
 import ContainerSandboxServiceClient
@@ -39,11 +40,11 @@ import struct ContainerizationOCI.Process
 public actor SandboxService {
     private let connection: xpc_connection_t
     private let root: URL
-    private let interfaceStrategy: InterfaceStrategy
+    private let interfaceStrategies: [NetworkPluginInfo: InterfaceStrategy]
     private var container: ContainerInfo?
     private let monitor: ExitMonitor
     private let eventLoopGroup: any EventLoopGroup
-    private var waiters: [String: [CheckedContinuation<ExitStatus, Never>]] = [:]
+    private let waiters: Mutex<[String: [CheckedContinuation<ExitStatus, Never>]?]> = Mutex([:])
     private let lock: AsyncLock = AsyncLock()
     private let log: Logging.Logger
     private var state: State = .created
@@ -60,22 +61,15 @@ public actor SandboxService {
         return nil
     }
 
-    /// Create an instance with a bundle that describes the container.
-    ///
-    /// - Parameters:
-    ///   - root: The file URL for the bundle root.
-    ///   - interfaceStrategy: The strategy for producing network interface
-    ///     objects for each network to which the container attaches.
-    ///   - log: The destination for log messages.
     public init(
         root: URL,
-        interfaceStrategy: InterfaceStrategy,
+        interfaceStrategies: [NetworkPluginInfo: InterfaceStrategy],
         eventLoopGroup: any EventLoopGroup,
         connection: xpc_connection_t,
         log: Logger
     ) {
         self.root = root
-        self.interfaceStrategy = interfaceStrategy
+        self.interfaceStrategies = interfaceStrategies
         self.log = log
         self.monitor = ExitMonitor(log: log)
         self.eventLoopGroup = eventLoopGroup
@@ -92,7 +86,9 @@ public actor SandboxService {
     ///     with the sandbox service.
     @Sendable
     public func createEndpoint(_ message: XPCMessage) async throws -> XPCMessage {
-        self.log.info("`createEndpoint` xpc handler")
+        self.log.debug("enter", metadata: ["func": "\(#function)"])
+        defer { self.log.debug("exit", metadata: ["func": "\(#function)"]) }
+
         let endpoint = xpc_endpoint_create(self.connection)
         let reply = message.reply()
         reply.set(key: SandboxKeys.sandboxServiceEndpoint.rawValue, value: endpoint)
@@ -107,7 +103,14 @@ public actor SandboxService {
     /// - Returns: An XPC message with no parameters.
     @Sendable
     public func bootstrap(_ message: XPCMessage) async throws -> XPCMessage {
-        self.log.info("`bootstrap` xpc handler")
+        self.log.debug("enter", metadata: ["func": "\(#function)"])
+        defer { self.log.debug("exit", metadata: ["func": "\(#function)"]) }
+
+        // Create the bundle if it doesn't exist yet
+        if !self.bundleExists(at: self.root) {
+            try self.createBundle()
+        }
+
         return try await self.lock.withLock { _ in
             guard await self.state == .created else {
                 throw ContainerizationError(
@@ -131,9 +134,11 @@ public actor SandboxService {
                 logger: self.log
             )
 
+            let allocatedAttachments = try message.getAllocatedAttachments()
+
             // Dynamically configure the DNS nameserver from a network if no explicit configuration
             if let dns = config.dns, dns.nameservers.isEmpty {
-                let defaultNameservers = try await self.getDefaultNameservers(attachmentConfigurations: config.networks)
+                let defaultNameservers = try await self.getDefaultNameservers(allocatedAttachments: allocatedAttachments)
                 if !defaultNameservers.isEmpty {
                     config.dns = ContainerConfiguration.DNSConfiguration(
                         nameservers: defaultNameservers,
@@ -146,16 +151,19 @@ public actor SandboxService {
 
             var attachments: [Attachment] = []
             var interfaces: [Interface] = []
-            for index in 0..<config.networks.count {
-                let network = config.networks[index]
-                let client = NetworkClient(id: network.network)
-                let (attachment, additionalData) = try await client.allocate(hostname: network.options.hostname, macAddress: network.options.macAddress)
-                attachments.append(attachment)
+            for index in 0..<allocatedAttachments.count {
+                let allocatedAttach = allocatedAttachments[index]
+                attachments.append(allocatedAttach.attachment)
 
-                let interface = try self.interfaceStrategy.toInterface(
-                    attachment: attachment,
+                guard let iStrategy = self.interfaceStrategies[allocatedAttach.pluginInfo] else {
+                    throw ContainerizationError(
+                        .internalError, message: "no available interface strategy for network \(allocatedAttach.attachment.network), \(allocatedAttach.pluginInfo)")
+                }
+
+                let interface = try iStrategy.toInterface(
+                    attachment: allocatedAttach.attachment,
                     interfaceIndex: index,
-                    additionalData: additionalData
+                    additionalData: allocatedAttach.additionalData
                 )
                 interfaces.append(interface)
             }
@@ -199,7 +207,7 @@ public actor SandboxService {
                     hostsEntries.append(
                         Hosts.Entry(
                             ipAddress: primaryIfaceAddr.address.description,
-                            hostnames: [czConfig.hostname],
+                            hostnames: [czConfig.hostname ?? id],
                         ))
                 }
                 czConfig.hosts = Hosts(entries: hostsEntries)
@@ -225,9 +233,9 @@ public actor SandboxService {
             } catch {
                 do {
                     try await self.cleanUpContainer(containerInfo: ctrInfo)
-                    await self.setState(.created)
+                    await self.setState(.stopped(nil))
                 } catch {
-                    self.log.error("Failed to clean up container: \(error)")
+                    self.log.error("failed to clean up container", metadata: ["error": "\(error)"])
                 }
                 throw error
             }
@@ -245,7 +253,9 @@ public actor SandboxService {
     /// - Returns: An XPC message with no parameters.
     @Sendable
     public func startProcess(_ message: XPCMessage) async throws -> XPCMessage {
-        self.log.info("`startProcess` xpc handler")
+        self.log.debug("enter", metadata: ["func": "\(#function)"])
+        defer { self.log.debug("exit", metadata: ["func": "\(#function)"]) }
+
         return try await self.lock.withLock { lock in
             let id = try message.id()
             let containerInfo = try await self.getContainer()
@@ -271,7 +281,9 @@ public actor SandboxService {
     ///   - statistics: JSON serialization of the `ContainerStats`.
     @Sendable
     public func statistics(_ message: XPCMessage) async throws -> XPCMessage {
-        self.log.info("`statistics` xpc handler")
+        self.log.debug("enter", metadata: ["func": "\(#function)"])
+        defer { self.log.debug("exit", metadata: ["func": "\(#function)"]) }
+
         return try await self.lock.withLock { lock in
             let containerInfo = try await self.getContainer()
             let stats = try await containerInfo.container.statistics()
@@ -303,7 +315,8 @@ public actor SandboxService {
     /// - Returns: An XPC message with no parameters.
     @Sendable
     public func shutdown(_ message: XPCMessage) async throws -> XPCMessage {
-        self.log.info("`shutdown` xpc handler")
+        self.log.debug("enter", metadata: ["func": "\(#function)"])
+        defer { self.log.debug("exit", metadata: ["func": "\(#function)"]) }
 
         return try await self.lock.withLock { _ in
             switch await self.state {
@@ -335,7 +348,9 @@ public actor SandboxService {
     /// - Returns: An XPC message with no parameters.
     @Sendable
     public func createProcess(_ message: XPCMessage) async throws -> XPCMessage {
-        log.info("`createProcess` xpc handler")
+        self.log.debug("enter", metadata: ["func": "\(#function)"])
+        defer { self.log.debug("exit", metadata: ["func": "\(#function)"]) }
+
         return try await self.lock.withLock { [self] _ in
             switch await self.state {
             case .running, .booted:
@@ -354,8 +369,12 @@ public actor SandboxService {
                                 message: "ProcessInfo missing for process \(id)"
                             )
                         }
-                        for cc in await self.waiters[id] ?? [] {
-                            cc.resume(returning: exitStatus)
+                        self.waiters.withLock {
+                            if let waiters = $0[id], let waiters {
+                                for cc in waiters {
+                                    cc.resume(returning: exitStatus)
+                                }
+                            }
                         }
                         await self.removeWaiters(for: id)
                         try await process.delete()
@@ -383,7 +402,9 @@ public actor SandboxService {
     ///     that contains the state information.
     @Sendable
     public func state(_ message: XPCMessage) async throws -> XPCMessage {
-        self.log.info("`state` xpc handler")
+        self.log.debug("enter", metadata: ["func": "\(#function)"])
+        defer { self.log.debug("exit", metadata: ["func": "\(#function)"]) }
+
         var status: RuntimeStatus = .unknown
         var networks: [Attachment] = []
         var cs: ContainerSnapshot?
@@ -427,7 +448,9 @@ public actor SandboxService {
     /// - Returns: An XPC message with no parameters.
     @Sendable
     public func stop(_ message: XPCMessage) async throws -> XPCMessage {
-        self.log.info("`stop` xpc handler")
+        self.log.debug("enter", metadata: ["func": "\(#function)"])
+        defer { self.log.debug("exit", metadata: ["func": "\(#function)"]) }
+
         return try await self.lock.withLock { _ in
             switch await self.state {
             case .running, .booted:
@@ -446,7 +469,7 @@ public actor SandboxService {
                     }
                     try await self.cleanUpContainer(containerInfo: ctr, exitStatus: exitStatus)
                 } catch {
-                    self.log.error("Failed to clean up container: \(error)")
+                    self.log.error("failed to clean up container", metadata: ["error": "\(error)"])
                 }
                 await self.setState(.stopped(exitStatus.exitCode))
             default:
@@ -466,7 +489,9 @@ public actor SandboxService {
     /// - Returns: An XPC message with no parameters.
     @Sendable
     public func kill(_ message: XPCMessage) async throws -> XPCMessage {
-        self.log.info("`kill` xpc handler")
+        self.log.debug("enter", metadata: ["func": "\(#function)"])
+        defer { self.log.debug("exit", metadata: ["func": "\(#function)"]) }
+
         return try await self.lock.withLock { [self] _ in
             switch await self.state {
             case .running:
@@ -507,7 +532,9 @@ public actor SandboxService {
     /// - Returns: An XPC message with no parameters.
     @Sendable
     public func resize(_ message: XPCMessage) async throws -> XPCMessage {
-        self.log.info("`resize` xpc handler")
+        self.log.trace("enter", metadata: ["func": "\(#function)"])
+        defer { self.log.trace("exit", metadata: ["func": "\(#function)"]) }
+
         switch self.state {
         case .running:
             let id = try message.id()
@@ -562,7 +589,9 @@ public actor SandboxService {
     ///   - exitCode: The exit code for the process.
     @Sendable
     public func wait(_ message: XPCMessage) async throws -> XPCMessage {
-        self.log.info("`wait` xpc handler")
+        self.log.debug("enter", metadata: ["func": "\(#function)"])
+        defer { self.log.debug("exit", metadata: ["func": "\(#function)"]) }
+
         guard let id = message.string(key: SandboxKeys.id.rawValue) else {
             throw ContainerizationError(.invalidArgument, message: "missing id in wait xpc message")
         }
@@ -598,7 +627,9 @@ public actor SandboxService {
 
         let exitStatus = await withCheckedContinuation { cc in
             // Is this safe since we are in an actor? :(
-            self.addWaiter(id: id, cont: cc)
+            if !self.addWaiter(id: id, cont: cc) {
+                cc.resume(returning: ExitStatus(exitCode: -1))
+            }
         }
         let reply = message.reply()
         reply.set(key: SandboxKeys.exitCode.rawValue, value: Int64(exitStatus.exitCode))
@@ -616,7 +647,9 @@ public actor SandboxService {
     ///   - fd: The file descriptor for the vsock.
     @Sendable
     public func dial(_ message: XPCMessage) async throws -> XPCMessage {
-        self.log.info("`dial` xpc handler")
+        self.log.debug("enter", metadata: ["func": "\(#function)"])
+        defer { self.log.debug("exit", metadata: ["func": "\(#function)"]) }
+
         switch self.state {
         case .running, .booted:
             let port = message.uint64(key: SandboxKeys.port.rawValue)
@@ -670,7 +703,7 @@ public actor SandboxService {
             try await self.monitor.track(id: id, waitingOn: waitFunc)
         } catch {
             try? await self.cleanUpContainer(containerInfo: info)
-            self.setState(.created)
+            self.setState(.stopped(nil))
             throw error
         }
     }
@@ -707,6 +740,11 @@ public actor SandboxService {
     }
 
     private func startSocketForwarders(attachment: Attachment, publishedPorts: [PublishPort]) async throws {
+        guard !publishedPorts.isEmpty else {
+            return
+        }
+        LocalNetworkPrivacy.triggerLocalNetworkPrivacyAlert()
+
         var forwarders: [SocketForwarderResult] = []
         guard !publishedPorts.hasOverlaps() else {
             throw ContainerizationError(.invalidArgument, message: "host ports for different publish port specs may not overlap")
@@ -784,7 +822,7 @@ public actor SandboxService {
     }
 
     private func onContainerExit(id: String, exitStatus: ExitStatus) async throws {
-        self.log.info("init process exited with: \(exitStatus)")
+        self.log.info("init process exited", metadata: ["status": "\(exitStatus)"])
 
         try await self.lock.withLock { [self] _ in
             let ctrInfo = try await getContainer()
@@ -799,7 +837,7 @@ public actor SandboxService {
             do {
                 try await cleanUpContainer(containerInfo: ctrInfo, exitStatus: exitStatus)
             } catch {
-                self.log.error("Failed to clean up container: \(error)")
+                self.log.error("failed to clean up container", metadata: ["error": "\(error)"])
             }
             await setState(.stopped(exitStatus.exitCode))
         }
@@ -816,6 +854,7 @@ public actor SandboxService {
         }
         // If the host doesn't support this, we'll throw on container creation.
         czConfig.virtualization = config.virtualization
+        czConfig.useInit = config.useInit
 
         for mount in config.mounts {
             if try mount.isSocket() {
@@ -868,10 +907,9 @@ public actor SandboxService {
         try Self.configureInitialProcess(czConfig: &czConfig, config: config)
     }
 
-    private func getDefaultNameservers(attachmentConfigurations: [AttachmentConfiguration]) async throws -> [String] {
-        for attachmentConfiguration in attachmentConfigurations {
-            let client = NetworkClient(id: attachmentConfiguration.network)
-            let state = try await client.state()
+    private func getDefaultNameservers(allocatedAttachments: [AllocatedAttachment]) async throws -> [String] {
+        for allocatedAttach in allocatedAttachments {
+            let state = try await ClientNetwork.get(id: allocatedAttach.attachment.network)
             guard case .running(_, let status) = state else {
                 continue
             }
@@ -1033,26 +1071,20 @@ public actor SandboxService {
         do {
             try await container.stop()
         } catch {
-            self.log.error("failed to stop container during cleanup: \(error)")
+            self.log.error("failed to stop container during cleanup", metadata: ["error": "\(error)"])
         }
 
-        // Give back our lovely IP(s)
         await self.stopSocketForwarders()
-        for attachment in containerInfo.attachments {
-            let client = NetworkClient(id: attachment.network)
-            do {
-                try await client.deallocate(hostname: attachment.hostname)
-            } catch {
-                self.log.error("failed to deallocate hostname \(attachment.hostname) on network \(attachment.network) during cleanup: \(error)")
-            }
-        }
 
         let status = exitStatus ?? ExitStatus(exitCode: 255)
-        let waiters = self.waiters[id] ?? []
-        for cc in waiters {
-            cc.resume(returning: status)
+        self.waiters.withLock {
+            if let waiters = $0[id], let waiters {
+                for cc in waiters {
+                    cc.resume(returning: status)
+                }
+            }
         }
-        self.removeWaiters(for: id)
+        self.invalidateWaiters(for: id)
     }
 }
 
@@ -1096,6 +1128,50 @@ extension XPCMessage {
             throw ContainerizationError(.invalidArgument, message: "empty process configuration")
         }
         return try JSONDecoder().decode(ProcessConfiguration.self, from: data)
+    }
+
+    fileprivate func getAllocatedAttachments() throws -> [AllocatedAttachment] {
+        guard let attachmentArray = xpc_dictionary_get_value(self.underlying, SandboxKeys.allocatedAttachments.rawValue) else {
+            throw ContainerizationError(.invalidArgument, message: "missing allocatedAttachments array in message")
+        }
+
+        var results = [AllocatedAttachment]()
+        let decoder = JSONDecoder()
+
+        let arrayCount = xpc_array_get_count(attachmentArray)
+
+        for i in 0..<arrayCount {
+            guard let allocatedAttach = xpc_array_get_dictionary(attachmentArray, i) else {
+                throw ContainerizationError(.invalidArgument, message: "invalid allocated attachment at index \(i)")
+            }
+
+            let allocatedAttachXPC = XPCMessage(object: allocatedAttach)
+
+            let attachmentData = allocatedAttachXPC.dataNoCopy(key: SandboxKeys.networkAttachment.rawValue)
+            let pluginInfoData = allocatedAttachXPC.dataNoCopy(key: SandboxKeys.networkPluginInfo.rawValue)
+
+            guard let attachmentData = attachmentData, let pluginInfoData = pluginInfoData else {
+                throw ContainerizationError(.invalidArgument, message: "must have attachment and plugin information for network")
+            }
+
+            let attachment = try decoder.decode(Attachment.self, from: attachmentData)
+            let pluginInfo = try decoder.decode(NetworkPluginInfo.self, from: pluginInfoData)
+
+            let additionalDataXPC: XPCMessage? = {
+                if let rawData = xpc_dictionary_get_dictionary(allocatedAttachXPC.underlying, SandboxKeys.networkAdditionalData.rawValue) {
+                    return XPCMessage(object: rawData)
+                }
+                return nil
+            }()
+
+            results.append(
+                AllocatedAttachment(
+                    attachment: attachment,
+                    additionalData: additionalDataXPC,
+                    pluginInfo: pluginInfo
+                ))
+        }
+        return results
     }
 }
 
@@ -1225,17 +1301,37 @@ extension FileHandle: @retroactive ReaderStream, @retroactive Writer {
     }
 }
 
-// MARK: State handler helpers
+// MARK: State handler and bundle creation helpers
 
 extension SandboxService {
-    private func addWaiter(id: String, cont: CheckedContinuation<ExitStatus, Never>) {
-        var current = self.waiters[id] ?? []
-        current.append(cont)
-        self.waiters[id] = current
+    private func addWaiter(id: String, cont: CheckedContinuation<ExitStatus, Never>) -> Bool {
+        self.waiters.withLock { waiters in
+            var current: [CheckedContinuation<ExitStatus, Never>]
+            switch waiters[id] {
+            case .none:
+                current = []
+            case .some(.some(let value)):
+                current = value
+            case .some(.none):
+                return false
+            }
+
+            current.append(cont)
+            waiters[id] = current
+            return true
+        }
     }
 
     private func removeWaiters(for id: String) {
-        self.waiters[id] = []
+        self.waiters.withLock { waiters in
+            waiters[id] = []
+        }
+    }
+
+    private func invalidateWaiters(for id: String) {
+        self.waiters.withLock { waiters in
+            waiters[id] = .some(nil)
+        }
     }
 
     private func setUnderlyingProcess(_ id: String, _ process: LinuxProcess) throws {
@@ -1291,7 +1387,7 @@ extension SandboxService {
         /// At the beginning of stop() .running will be transitioned to .stopping.
         case stopping
         /// Once a stop is successful, .stopping will transition to .stopped.
-        case stopped(Int32)
+        case stopped(Int32?)
         /// .shuttingDown will be the last state the sandbox service will ever be in. Shortly
         /// afterwards the process will exit.
         case shuttingDown
@@ -1299,5 +1395,39 @@ extension SandboxService {
 
     func setState(_ new: State) {
         self.state = new
+    }
+
+    /// Check if a bundle exists at the given path
+    private func bundleExists(at path: URL) -> Bool {
+        guard FileManager.default.fileExists(atPath: path.path) else {
+            return false
+        }
+
+        let bundle = ContainerResource.Bundle(path: path)
+        do {
+            _ = try bundle.configuration
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// Create bundle from RuntimeConfiguration
+    private func createBundle() throws {
+        do {
+            let runtimeConfig = try RuntimeConfiguration.readRuntimeConfiguration(from: self.root)
+            _ = try ContainerResource.Bundle.create(
+                path: runtimeConfig.path,
+                initialFilesystem: runtimeConfig.initialFilesystem,
+                kernel: runtimeConfig.kernel,
+                containerConfiguration: runtimeConfig.containerConfiguration,
+                containerRootFilesystem: runtimeConfig.containerRootFilesystem,
+                options: runtimeConfig.options
+            )
+            self.log.info("created bundle", metadata: ["configPath": "\(runtimeConfig.path)"])
+        } catch {
+            self.log.error("failed to create bundle", metadata: ["error": "\(error)"])
+            throw error
+        }
     }
 }

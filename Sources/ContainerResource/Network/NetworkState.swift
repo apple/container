@@ -72,4 +72,10 @@ public enum NetworkState: Codable, Sendable {
         case .created(let config), .running(let config, _): config.labels.isBuiltin
         }
     }
+
+    public var pluginInfo: NetworkPluginInfo? {
+        switch self {
+        case .created(let configuration), .running(let configuration, _): configuration.pluginInfo
+        }
+    }
 }
