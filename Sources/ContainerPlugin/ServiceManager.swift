@@ -44,6 +44,7 @@ public struct ServiceManager {
         _ = try runLaunchctlCommand(args: ["bootout", label])
     }
 
+    /// Deregister a service and pass return status
     public static func deregister(fullServiceLabel label: String, status: inout Int32) throws {
         status = try runLaunchctlCommand(args: ["bootout", label])
     }
