@@ -39,6 +39,43 @@ public struct NetworkStatus: Codable, Sendable {
         self.ipv4Gateway = ipv4Gateway
         self.ipv6Subnet = ipv6Subnet
     }
+
+    enum CodingKeys: String, CodingKey {
+        case ipv4Subnet
+        case ipv4Gateway
+        case ipv6Subnet
+        // TODO: retain for deserialization compatability for now, remove later
+        case address
+        case gateway
+    }
+
+    /// Create a configuration from the supplied Decoder, initializing missing
+    /// values where possible to reasonable defaults.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        if let address = try? container.decode(CIDRv4.self, forKey: .ipv4Subnet) {
+            ipv4Subnet = address
+        } else {
+            ipv4Subnet = try container.decode(CIDRv4.self, forKey: .address)
+        }
+        if let gateway = try? container.decode(IPv4Address.self, forKey: .ipv4Gateway) {
+            ipv4Gateway = gateway
+        } else {
+            ipv4Gateway = try container.decode(IPv4Address.self, forKey: .gateway)
+        }
+        ipv6Subnet = try container.decodeIfPresent(String.self, forKey: .ipv6Subnet)
+            .map { try CIDRv6($0) }
+    }
+
+    /// Encode the configuration to the supplied Encoder.
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        try container.encode(ipv4Subnet, forKey: .ipv4Subnet)
+        try container.encode(ipv4Gateway, forKey: .ipv4Gateway)
+        try container.encodeIfPresent(ipv6Subnet, forKey: .ipv6Subnet)
+    }
 }
 
 /// The configuration and runtime attributes for a network.
