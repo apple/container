@@ -106,10 +106,11 @@ public struct Application: AsyncLoggableCommand {
 
         let fullArgs = CommandLine.arguments
         let args = Array(fullArgs.dropFirst())
+        let normalizedArgs = Self.normalizeGlobalFlags(args)
 
         do {
             // container -> defaultHelpCommand
-            var command = try Application.parseAsRoot(args)
+            var command = try Application.parseAsRoot(normalizedArgs)
             if var asyncCommand = command as? AsyncParsableCommand {
                 try await asyncCommand.run()
             } else {
@@ -259,5 +260,40 @@ extension Application {
             }
             throw posixErr
         }
+    }
+
+    // ArgumentParser expects global flags to appear before the subcommand they
+    // apply to. Users frequently pass `--debug` after the subcommand (for example
+    // `container run --debug …`), which previously triggered the unhelpful
+    // "Unknown option" error. To provide the desired UX, collect any known
+    // global flags before that subcommand while respecting `--` passthrough so
+    // container process arguments remain untouched.
+    private static func normalizeGlobalFlags(_ arguments: [String]) -> [String] {
+        var collectedGlobals: [String] = []
+        var remaining: [String] = []
+        var passthrough = false
+
+        for argument in arguments {
+            if !passthrough {
+                if argument == "--" {
+                    passthrough = true
+                    remaining.append(argument)
+                    continue
+                }
+
+                if Self.globalFlags.contains(argument) {
+                    collectedGlobals.append(argument)
+                    continue
+                }
+            }
+
+            remaining.append(argument)
+        }
+
+        return collectedGlobals + remaining
+    }
+
+    private static var globalFlags: Set<String> {
+        ["--debug"]
     }
 }
