@@ -1048,6 +1048,34 @@ struct ParserTest {
     // MARK: - Parser.resources
 
     @Test
+    func testResourcesCustomDefaults() throws {
+        let result = try Parser.resources(
+            cpus: nil, memory: nil,
+            cpuPropertyKey: .defaultBuildCPUs, memoryPropertyKey: .defaultBuildMemory,
+            defaultCPUs: 2, defaultMemoryInBytes: 2048.mib()
+        )
+        #expect(result.cpus == 2)
+        #expect(result.memoryInBytes == 2048.mib())
+    }
+
+    @Test
+    func testResourcesBuildPropertyLookup() throws {
+        DefaultsStore.set(value: "8", key: .defaultBuildCPUs)
+        DefaultsStore.set(value: "4g", key: .defaultBuildMemory)
+        defer {
+            DefaultsStore.unset(key: .defaultBuildCPUs)
+            DefaultsStore.unset(key: .defaultBuildMemory)
+        }
+        let result = try Parser.resources(
+            cpus: nil, memory: nil,
+            cpuPropertyKey: .defaultBuildCPUs, memoryPropertyKey: .defaultBuildMemory,
+            defaultCPUs: 2, defaultMemoryInBytes: 2048.mib()
+        )
+        #expect(result.cpus == 8)
+        #expect(result.memoryInBytes == 4096.mib())
+    }
+
+    @Test
     func testResourcesCPUsFromProperty() throws {
         DefaultsStore.set(value: "8", key: .defaultContainerCPUs)
         defer { DefaultsStore.unset(key: .defaultContainerCPUs) }
@@ -1074,5 +1102,22 @@ struct ParserTest {
         let result = try Parser.resources(cpus: 1, memory: "256m")
         #expect(result.cpus == 1)
         #expect(result.memoryInBytes == 256.mib())
+    }
+
+    @Test
+    func testResourcesPropertyKeysAreIsolated() throws {
+        DefaultsStore.set(value: "16", key: .defaultContainerCPUs)
+        DefaultsStore.set(value: "8g", key: .defaultContainerMemory)
+        defer {
+            DefaultsStore.unset(key: .defaultContainerCPUs)
+            DefaultsStore.unset(key: .defaultContainerMemory)
+        }
+        let result = try Parser.resources(
+            cpus: nil, memory: nil,
+            cpuPropertyKey: .defaultBuildCPUs, memoryPropertyKey: .defaultBuildMemory,
+            defaultCPUs: 2, defaultMemoryInBytes: 2048.mib()
+        )
+        #expect(result.cpus == 2)
+        #expect(result.memoryInBytes == 2048.mib())
     }
 }

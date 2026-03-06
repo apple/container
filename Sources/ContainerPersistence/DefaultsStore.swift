@@ -24,6 +24,8 @@ public enum DefaultsStore {
 
     public enum Keys: String {
         case buildRosetta = "build.rosetta"
+        case defaultBuildCPUs = "build.cpus"
+        case defaultBuildMemory = "build.memory"
         case defaultContainerCPUs = "container.cpus"
         case defaultContainerMemory = "container.memory"
         case defaultDNSDomain = "dns.domain"
@@ -71,6 +73,8 @@ public enum DefaultsStore {
     public static func allValues() -> [DefaultsStoreValue] {
         let allKeys: [(Self.Keys, (Self.Keys) -> Any?)] = [
             (.buildRosetta, { Self.getBool(key: $0) }),
+            (.defaultBuildCPUs, { Self.getOptional(key: $0) }),
+            (.defaultBuildMemory, { Self.getOptional(key: $0) }),
             (.defaultContainerCPUs, { Self.getOptional(key: $0) }),
             (.defaultContainerMemory, { Self.getOptional(key: $0) }),
             (.defaultBuilderImage, { Self.get(key: $0) }),
@@ -126,6 +130,10 @@ extension DefaultsStore.Keys {
         switch self {
         case .buildRosetta:
             return "Build amd64 images on arm64 using Rosetta, instead of QEMU."
+        case .defaultBuildCPUs:
+            return "If defined, the default number of CPUs to allocate to the builder container."
+        case .defaultBuildMemory:
+            return "If defined, the default amount of memory to allocate to the builder container."
         case .defaultContainerCPUs:
             return "If defined, the default number of CPUs to allocate to a container."
         case .defaultContainerMemory:
@@ -153,6 +161,10 @@ extension DefaultsStore.Keys {
         switch self {
         case .buildRosetta:
             return Bool.self
+        case .defaultBuildCPUs:
+            return String.self
+        case .defaultBuildMemory:
+            return String.self
         case .defaultContainerCPUs:
             return String.self
         case .defaultContainerMemory:
@@ -181,6 +193,12 @@ extension DefaultsStore.Keys {
         case .buildRosetta:
             // This is a boolean key, not used with the string get() method
             return "true"
+        case .defaultBuildCPUs:
+            // This key is read with getOptional(), not get(); this value is never used
+            return "2"
+        case .defaultBuildMemory:
+            // This key is read with getOptional(), not get(); this value is never used
+            return "2048MB"
         case .defaultContainerCPUs:
             // This key is read with getOptional(), not get(); this value is never used
             return "4"

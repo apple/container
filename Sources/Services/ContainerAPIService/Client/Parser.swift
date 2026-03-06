@@ -87,18 +87,28 @@ public struct Parser {
         try .init(from: platform)
     }
 
-    public static func resources(cpus: Int64?, memory: String?) throws -> ContainerConfiguration.Resources {
+    public static func resources(
+        cpus: Int64?,
+        memory: String?,
+        cpuPropertyKey: DefaultsStore.Keys = .defaultContainerCPUs,
+        memoryPropertyKey: DefaultsStore.Keys = .defaultContainerMemory,
+        defaultCPUs: Int = 4,
+        defaultMemoryInBytes: UInt64 = 1024.mib()
+    ) throws -> ContainerConfiguration.Resources {
         var resource = ContainerConfiguration.Resources()
+        resource.cpus = defaultCPUs
+        resource.memoryInBytes = defaultMemoryInBytes
+
         if let cpus {
             resource.cpus = Int(cpus)
-        } else if let cpuStr = DefaultsStore.getOptional(key: .defaultContainerCPUs),
+        } else if let cpuStr = DefaultsStore.getOptional(key: cpuPropertyKey),
             let cpuVal = Int(cpuStr), cpuVal > 0
         {
             resource.cpus = cpuVal
         }
         if let memory {
             resource.memoryInBytes = try Parser.memoryStringAsMiB(memory).mib()
-        } else if let memStr = DefaultsStore.getOptional(key: .defaultContainerMemory) {
+        } else if let memStr = DefaultsStore.getOptional(key: memoryPropertyKey) {
             resource.memoryInBytes = try Parser.memoryStringAsMiB(memStr).mib()
         }
         return resource

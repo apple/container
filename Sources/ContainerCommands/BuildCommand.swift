@@ -67,7 +67,7 @@ extension Application {
         }()
 
         @Option(name: .shortAndLong, help: "Number of CPUs to allocate to the builder container")
-        var cpus: Int64 = 2
+        var cpus: Int64?
 
         @Option(name: .shortAndLong, help: ArgumentHelp("Path to Dockerfile", valueName: "path"))
         var file: String?
@@ -79,7 +79,7 @@ extension Application {
             name: .shortAndLong,
             help: "Amount of builder container memory (1MiByte granularity), with optional K, M, G, T, or P suffix"
         )
-        var memory: String = "2048MB"
+        var memory: String?
 
         @Flag(name: .long, help: "Do not use cache")
         var noCache: Bool = false

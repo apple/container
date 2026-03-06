@@ -51,6 +51,16 @@ extension Application {
                     throw ContainerizationError(.invalidArgument, message: "invalid boolean value: \(value)")
                 }
                 DefaultsStore.setBool(value: boolValue, key: key)
+            case .defaultBuildCPUs, .defaultContainerCPUs:
+                guard let cpuCount = Int(value), cpuCount > 0 else {
+                    throw ContainerizationError(.invalidArgument, message: "invalid CPU count: \(value)")
+                }
+                DefaultsStore.set(value: value, key: key)
+            case .defaultBuildMemory, .defaultContainerMemory:
+                guard let memoryMiB = try? Parser.memoryStringAsMiB(value), memoryMiB > 0 else {
+                    throw ContainerizationError(.invalidArgument, message: "invalid memory value: \(value)")
+                }
+                DefaultsStore.set(value: value, key: key)
             case .defaultDNSDomain, .defaultRegistryDomain:
                 guard Parser.isValidDomainName(value) else {
                     throw ContainerizationError(.invalidArgument, message: "invalid domain name: \(value)")
@@ -69,16 +79,6 @@ extension Application {
                 }
                 DefaultsStore.set(value: value, key: key)
                 return
-            case .defaultContainerCPUs:
-                guard let cpuCount = Int(value), cpuCount > 0 else {
-                    throw ContainerizationError(.invalidArgument, message: "invalid CPU count: \(value)")
-                }
-                DefaultsStore.set(value: value, key: key)
-            case .defaultContainerMemory:
-                guard let memoryMiB = try? Parser.memoryStringAsMiB(value), memoryMiB > 0 else {
-                    throw ContainerizationError(.invalidArgument, message: "invalid memory value: \(value)")
-                }
-                DefaultsStore.set(value: value, key: key)
             case .defaultSubnet:
                 guard (try? CIDRv4(value)) != nil else {
                     throw ContainerizationError(.invalidArgument, message: "invalid CIDRv4 address: \(value)")
