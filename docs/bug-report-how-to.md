@@ -30,8 +30,8 @@ Clear reproduction steps are essential for maintainers to understand and fix the
 
 ### Example
 ```
-1. Create new container: `container create --name test-app --image ubuntu:latest`
-2. Start the container: `container run test-app`
+1. Create new container: `container create --name test-app ubuntu:latest`
+2. Start the container: `container start test-app`
 3. Container fails during bootstrap with error:
    "failed to bootstrap container test-app"
 4. Container exits with code 1
@@ -129,16 +129,37 @@ container logs <container-name>
   container logs --follow <container-name>
   ```
   
+- `--boot`: Shows logs from container boot process
+  ```bash
+  container logs --boot <container-name>
+  ```
+  
 - Combine flags for maximum information:
   ```bash
   container logs --debug --follow <container-name>
   ```
 
 ### System Logs
-If the issue involves system-level problems, check Console.app or use:
+For system-level container issues, use the built-in system logs command:
 ```bash
-log show --predicate 'subsystem == "com.apple.container"' --last 1h
+container system logs
 ```
+
+#### Useful System Log Options
+- `--last <time>`: Get logs from a specific time period (e.g., `10m`, `2h`, `1d`)
+  ```bash
+  container system logs --last 30m
+  ```
+  
+- `--follow` (or `-f`): Stream new log entries in real-time
+  ```bash
+  container system logs --follow
+  ```
+  
+- `--debug`: Include debug-level information
+  ```bash
+  container system logs --debug --last 1h
+  ```
 
 ## Common Information Gaps
 
