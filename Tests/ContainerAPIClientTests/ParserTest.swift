@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerPersistence
 import ContainerizationError
 import ContainerizationExtras
 import Foundation
@@ -1043,4 +1044,5 @@ struct ParserTest {
         #expect(result[0].soft == UInt64.max - 1)
         #expect(result[0].hard == UInt64.max)
     }
+
 }

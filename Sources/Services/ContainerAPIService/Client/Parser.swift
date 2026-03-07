@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerPersistence
 import ContainerResource
 import Containerization
 import ContainerizationError
@@ -44,7 +45,7 @@ public enum VolumeOrFilesystem {
 }
 
 public struct Parser {
-    public static func memoryString(_ memory: String) throws -> Int64 {
+    public static func memoryStringAsMiB(_ memory: String) throws -> Int64 {
         let ram = try Measurement.parse(parsing: memory)
         let mb = ram.converted(to: .mebibytes)
         return Int64(mb.value)
@@ -86,13 +87,29 @@ public struct Parser {
         try .init(from: platform)
     }
 
-    public static func resources(cpus: Int64?, memory: String?) throws -> ContainerConfiguration.Resources {
+    public static func resources(
+        cpus: Int64?,
+        memory: String?,
+        cpuPropertyKey: DefaultsStore.Keys = .defaultContainerCPUs,
+        memoryPropertyKey: DefaultsStore.Keys = .defaultContainerMemory,
+        defaultCPUs: Int = 4,
+        defaultMemoryInBytes: UInt64 = 1024.mib()
+    ) throws -> ContainerConfiguration.Resources {
         var resource = ContainerConfiguration.Resources()
+        resource.cpus = defaultCPUs
+        resource.memoryInBytes = defaultMemoryInBytes
+
         if let cpus {
             resource.cpus = Int(cpus)
+        } else if let cpuStr = DefaultsStore.getOptional(key: cpuPropertyKey),
+            let cpuVal = Int(cpuStr), cpuVal > 0
+        {
+            resource.cpus = cpuVal
         }
         if let memory {
-            resource.memoryInBytes = try Parser.memoryString(memory).mib()
+            resource.memoryInBytes = try Parser.memoryStringAsMiB(memory).mib()
+        } else if let memStr = DefaultsStore.getOptional(key: memoryPropertyKey) {
+            resource.memoryInBytes = try Parser.memoryStringAsMiB(memStr).mib()
         }
         return resource
     }
@@ -396,7 +413,7 @@ public struct Parser {
                     throw ContainerizationError(.invalidArgument, message: "unsupported option size for \(type) mount")
                 }
                 var overflow: Bool
-                var memory = try Parser.memoryString(val)
+                var memory = try Parser.memoryStringAsMiB(val)
                 (memory, overflow) = memory.multipliedReportingOverflow(by: 1024 * 1024)
                 if overflow {
                     throw ContainerizationError(.invalidArgument, message: "overflow encountered when parsing memory string: \(val)")

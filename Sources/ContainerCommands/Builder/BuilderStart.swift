@@ -29,6 +29,9 @@ import TerminalProgress
 
 extension Application {
     public struct BuilderStart: AsyncLoggableCommand {
+        static let defaultCPUs = 2
+        static let defaultMemoryInBytes: UInt64 = 2048.mib()
+
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
             config.commandName = "start"
@@ -37,13 +40,13 @@ extension Application {
         }
 
         @Option(name: .shortAndLong, help: "Number of CPUs to allocate to the builder container")
-        var cpus: Int64 = 2
+        var cpus: Int64?
 
         @Option(
             name: .shortAndLong,
             help: "Amount of builder container memory (1MiByte granularity), with optional K, M, G, T, or P suffix"
         )
-        var memory: String = "2048MB"
+        var memory: String?
 
         @OptionGroup
         public var dns: Flags.DNS
@@ -135,23 +138,16 @@ extension Application {
 
                 // Check if we need to recreate the builder due to different image
                 let imageChanged = existingImage != builderImage
-                let cpuChanged = {
-                    if let cpus {
-                        if existingResources.cpus != cpus {
-                            return true
-                        }
-                    }
-                    return false
-                }()
-                let memChanged = try {
-                    if let memory {
-                        let memoryInBytes = try Parser.resources(cpus: nil, memory: memory).memoryInBytes
-                        if existingResources.memoryInBytes != memoryInBytes {
-                            return true
-                        }
-                    }
-                    return false
-                }()
+                let resolvedResources = try Parser.resources(
+                    cpus: cpus,
+                    memory: memory,
+                    cpuPropertyKey: .defaultBuildCPUs,
+                    memoryPropertyKey: .defaultBuildMemory,
+                    defaultCPUs: Self.defaultCPUs,
+                    defaultMemoryInBytes: Self.defaultMemoryInBytes
+                )
+                let cpuChanged = existingResources.cpus != resolvedResources.cpus
+                let memChanged = existingResources.memoryInBytes != resolvedResources.memoryInBytes
                 let dnsChanged = {
                     if !dnsNameservers.isEmpty {
                         return existingDNS?.nameservers != dnsNameservers
@@ -241,7 +237,11 @@ extension Application {
 
             let resources = try Parser.resources(
                 cpus: cpus,
-                memory: memory
+                memory: memory,
+                cpuPropertyKey: .defaultBuildCPUs,
+                memoryPropertyKey: .defaultBuildMemory,
+                defaultCPUs: Self.defaultCPUs,
+                defaultMemoryInBytes: Self.defaultMemoryInBytes
             )
 
             var config = ContainerConfiguration(id: Builder.builderContainerId, image: imageDesc, process: processConfig)

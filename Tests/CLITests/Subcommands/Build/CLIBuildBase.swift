@@ -45,10 +45,14 @@ class TestCLIBuildBase: CLITest {
         var attempt = 3
         while attempt > 0 {
             attempt -= 1
-            let response = try doExec(name: buildkitName, cmd: ["pidof", "-s", "container-builder-shim"])
-            if !response.isEmpty {
-                // found the init process running
-                return
+            do {
+                let response = try doExec(name: buildkitName, cmd: ["pidof", "-s", "container-builder-shim"])
+                if !response.isEmpty {
+                    // found the init process running
+                    return
+                }
+            } catch {
+                print("container-builder-shim check failed with \(error)")
             }
             sleep(1)
         }

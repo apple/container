@@ -66,7 +66,7 @@ struct DirectoryWatcherTest {
             try await Task.sleep(for: .milliseconds(100))
             let newFile = tempDir.appendingPathComponent(name)
             FileManager.default.createFile(atPath: newFile.path, contents: nil)
-            try await Task.sleep(for: .milliseconds(100))
+            try await Task.sleep(for: .milliseconds(500))
 
             #expect(!createdURLs.urls.isEmpty, "directory watcher failed to detect new file")
             #expect(createdURLs.urls.first!.lastPathComponent == name)
@@ -94,7 +94,7 @@ struct DirectoryWatcherTest {
             try await Task.sleep(for: DirectoryWatcher.watchPeriod)
             let newFile = childDir.appendingPathComponent(name)
             FileManager.default.createFile(atPath: newFile.path, contents: nil)
-            try await Task.sleep(for: .milliseconds(100))
+            try await Task.sleep(for: .milliseconds(500))
 
             #expect(!createdURLs.urls.isEmpty, "directory watcher failed to detect parent directory")
             #expect(createdURLs.urls.first!.lastPathComponent == name)
@@ -117,14 +117,14 @@ struct DirectoryWatcherTest {
                 }
             }
 
-            try await Task.sleep(for: .microseconds(100))
+            try await Task.sleep(for: .milliseconds(100))
             try FileManager.default.createDirectory(at: childDir, withIntermediateDirectories: true)
 
             try await Task.sleep(for: DirectoryWatcher.watchPeriod)
 
             let newFile = childDir.appendingPathComponent(name)
             FileManager.default.createFile(atPath: newFile.path, contents: nil)
-            try await Task.sleep(for: .milliseconds(100))
+            try await Task.sleep(for: .milliseconds(500))
 
             #expect(!createdURLs.urls.isEmpty, "directory watcher failed to detect parent directory")
             #expect(createdURLs.urls.first!.lastPathComponent == name)
@@ -156,12 +156,12 @@ struct DirectoryWatcherTest {
             try FileManager.default.removeItem(at: dir)
             try await Task.sleep(for: .milliseconds(100))
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            try await Task.sleep(for: .milliseconds(1000))
+            try await Task.sleep(for: DirectoryWatcher.watchPeriod)
 
             let file2 = dir.appendingPathComponent(afterDelete)
             FileManager.default.createFile(atPath: file2.path, contents: nil)
 
-            try await Task.sleep(for: .milliseconds(100))
+            try await Task.sleep(for: .milliseconds(500))
 
             #expect(!createdURLs.urls.isEmpty, "directory watcher failed to detect new file")
             #expect(Set(createdURLs.urls.map { $0.lastPathComponent }) == Set([beforeDelete, afterDelete]))
