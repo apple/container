@@ -21,21 +21,30 @@ body:
     id: reproduce
     attributes:
       label: Steps to reproduce
-      description: Explain how to reproduce the incorrect behavior. 
+      description: |
+        Explain how to reproduce the incorrect behavior. 
+        
+        📖 **Need help?** See our guide: [How to write effective reproduction steps](../../docs/bug-report-how-to.md#steps-to-reproduce)
     validations:
       required: true
   - type: textarea
     id: what-happened
     attributes:
       label: Current behavior
-      description: A concise description of what you're experiencing.
+      description: |
+        A concise description of what you're experiencing.
+        
+        📖 **Need help?** See our guide: [Current Behavior](../../docs/bug-report-how-to.md#current-behavior)
     validations:
       required: true
   - type: textarea
     id: expected
     attributes:
       label: Expected behavior
-      description: A concise description of what you expected to happen.
+      description: |
+        A concise description of what you expected to happen.
+        
+        📖 **Need help?** See our guide: [Expected Behavior](../../docs/bug-report-how-to.md#expected-behavior)
     validations:
       required: true
   - type: textarea
@@ -46,6 +55,8 @@ body:
           - **OS**: macOS 26.0 (25A354)
           - **Xcode**: Version 26.0 (17A324)
           - **Container**: Container CLI version 0.1.0
+        
+        📖 **Need help gathering this info?** See our guide: [Environment Information](../../docs/bug-report-how-to.md#environment-information)
       value: |
         - OS: 
         - Xcode: 
@@ -57,7 +68,10 @@ body:
     id: logs
     attributes:
       label: Relevant log output
-      description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
+      description: |
+        Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
+        
+        📖 **Need help finding logs?** See our guide: [Log Information](../../docs/bug-report-how-to.md#log-information)
       value: |
         N/A
       render: shell
