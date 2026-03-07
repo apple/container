@@ -264,6 +264,7 @@ public struct Builder: Sendable {
         public let buildID: String
         public let contentStore: ContentStore
         public let buildArgs: [String]
+        public let secrets: [String: Data]
         public let contextDir: String
         public let dockerfile: Data
         public let hiddenDockerDir: String?
@@ -283,6 +284,7 @@ public struct Builder: Sendable {
             buildID: String,
             contentStore: ContentStore,
             buildArgs: [String],
+            secrets: [String: Data],
             contextDir: String,
             dockerfile: Data,
             hiddenDockerDir: String?,
@@ -301,6 +303,7 @@ public struct Builder: Sendable {
             self.buildID = buildID
             self.contentStore = contentStore
             self.buildArgs = buildArgs
+            self.secrets = secrets
             self.contextDir = contextDir
             self.dockerfile = dockerfile
             self.hiddenDockerDir = hiddenDockerDir
@@ -343,6 +346,9 @@ public struct Builder: Sendable {
         }
         for buildArg in config.buildArgs {
             metadata.addString(buildArg, forKey: "build-args")
+        }
+        for (id, data) in config.secrets {
+            metadata.addString(id + "=" + data.base64EncodedString(), forKey: "secrets")
         }
         for output in config.exports {
             metadata.addString(try output.stringValue, forKey: "outputs")
