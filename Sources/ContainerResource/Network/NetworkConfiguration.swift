@@ -140,7 +140,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
 
         let fullLabel = "\(key)=\(value)"
         guard fullLabel.count <= labelLengthMax else {
-            throw ContainerizationError(.invalidArgument, message: "invalid label, key length is greater than \(labelLengthMax): \(fullLabel)")
+            throw ContainerizationError(.invalidArgument, message: "invalid label, full label length (key=value) is greater than \(labelLengthMax): \(fullLabel)")
         }
     }
 }
