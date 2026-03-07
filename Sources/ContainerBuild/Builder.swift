@@ -239,6 +239,7 @@ public struct Builder: Sendable {
         public let buildID: String
         public let contentStore: ContentStore
         public let buildArgs: [String]
+        public let secrets: [String: Data]
         public let contextDir: String
         public let dockerfile: Data
         public let labels: [String]
@@ -257,6 +258,7 @@ public struct Builder: Sendable {
             buildID: String,
             contentStore: ContentStore,
             buildArgs: [String],
+            secrets: [String: Data],
             contextDir: String,
             dockerfile: Data,
             labels: [String],
@@ -274,6 +276,7 @@ public struct Builder: Sendable {
             self.buildID = buildID
             self.contentStore = contentStore
             self.buildArgs = buildArgs
+            self.secrets = secrets
             self.contextDir = contextDir
             self.dockerfile = dockerfile
             self.labels = labels
@@ -333,6 +336,9 @@ extension CallOptions {
         }
         for buildArg in config.buildArgs {
             headers.append(("build-args", buildArg))
+        }
+        for (id, data) in config.secrets {
+            headers.append(("secrets", id + "=" + data.base64EncodedString()))
         }
         for output in config.exports {
             headers.append(("outputs", try output.stringValue))

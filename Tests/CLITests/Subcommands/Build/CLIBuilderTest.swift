@@ -163,6 +163,42 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
+        @Test func testBuildSecret() throws {
+            let tempDir: URL = try createTempDir()
+            let dockerfile: String =
+                """
+                FROM ghcr.io/linuxcontainers/alpine:3.20
+                RUN --mount=type=secret,id=ENV1 \
+                    --mount=type=secret,id=env2 \
+                    --mount=type=secret,id=env3 \
+                    test xyyzzz = "`cat /run/secrets/ENV1 /run/secrets/env2 /run/secrets/env3`"
+                RUN --mount=type=secret,id=file \
+                    awk 'BEGIN {for(i=0; i<17; i++) for(c=0; c<256; c++) printf("%c", c)}' > /tmp/foo && \
+                    cmp /tmp/foo /run/secrets/file && \
+                    rm /tmp/foo
+                RUN --mount=type=secret,id=empty \
+                    test \\! -e /run/secrets/file && \
+                    test -e /run/secrets/empty && \
+                    cmp /dev/null /run/secrets/empty
+                """
+            try createContext(tempDir: tempDir, dockerfile: dockerfile)
+            setenv("ENV1", "x", 1)
+            setenv("ENV_VAR", "yy", 1)
+            setenv("env3", "zzz", 1)
+            let testData = Data((0..<17).flatMap { _ in Array(0...255) })
+            let tempFile: URL = try createTempFile(suffix: "_f,i=l.e+", contents: testData)
+            let tempFile2: URL = try createTempFile(suffix: "file2", contents: Data())
+            let imageName: String = "registry.local/secrets:\(UUID().uuidString)"
+            try self.build(tag: imageName, tempDir: tempDir, otherArgs: [
+                "--secret", "id=ENV1",
+                "--secret", "id=env2,env=ENV_VAR",
+                "--secret", "id=env3,env=env3",
+                "--secret", "id=file,src="+tempFile.path,
+                "--secret", "id=empty,src="+tempFile2.path,
+            ])
+            #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
+        }
+
         @Test func testBuildNetworkAccess() throws {
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
