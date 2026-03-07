@@ -111,6 +111,9 @@ extension Application {
         @Flag(name: .shortAndLong, help: "Suppress build output")
         var quiet: Bool = false
 
+        @Option(name: .long, help: ArgumentHelp("Set build-time secrets (format: id=<key>[,env=<ENV_VAR>|,src=<local/path>])", valueName: "id=key,..."))
+        var secret: [String] = []
+
         @Option(name: [.short, .customLong("tag")], help: ArgumentHelp("Name for the built image", valueName: "name"))
         var targetImageNames: [String] = {
             [UUID().uuidString.lowercased()]
@@ -247,6 +250,32 @@ extension Application {
                     buildFileData = try Data(contentsOf: URL(filePath: buildFilePath))
                 }
 
+                var secretsData: [String: Data] = [:]
+                for secret in self.secret {
+                    let parts = secret.split(separator: ",", maxSplits: 1, omittingEmptySubsequences: false)
+                    guard parts[0].hasPrefix("id=") else {
+                        throw ContainerizationError(.invalidArgument, message: "secret must start with id=<key> \(secret)")
+                    }
+                    let key = String(parts[0].dropFirst(3))
+                    guard !key.contains("=") else {
+                        throw ContainerizationError(.invalidArgument, message: "secret id cannot contain '=' \(key)")
+                    }
+                    let data: Data
+                    if parts.count == 1 || parts[1].hasPrefix("env=") {
+                        let env = parts.count == 1 ? key : String(parts[1].dropFirst(4))
+                        guard let ptr = getenv(env) else {
+                            throw ContainerizationError(.invalidArgument, message: "secret env var doesn't exist \(env)")
+                        }
+                        data = Data(bytes: ptr, count: strlen(ptr))
+                    } else if parts[1].hasPrefix("src=") {
+                        let path = String(parts[1].dropFirst(4))
+                        data = try Data(contentsOf: URL(fileURLWithPath: path))
+                    } else {
+                        throw ContainerizationError(.invalidArgument, message: "secret bad value \(parts[1])")
+                    }
+                    secretsData[key] = data
+                }
+
                 let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
                 let exportPath = systemHealth.appRoot
                     .appendingPathComponent(Application.BuilderCommand.builderResourceDir)
@@ -316,11 +345,12 @@ extension Application {
                         }
                         return results
                     }()
-                    group.addTask { [terminal, buildArg, contextDir, label, noCache, target, quiet, cacheIn, cacheOut, pull] in
+                    group.addTask { [terminal, buildArg, secretsData, contextDir, label, noCache, target, quiet, cacheIn, cacheOut, pull] in
                         let config = Builder.BuildConfig(
                             buildID: buildID,
                             contentStore: RemoteContentStoreClient(),
                             buildArgs: buildArg,
+                            secrets: secretsData,
                             contextDir: contextDir,
                             dockerfile: buildFileData,
                             labels: label,
