@@ -17,7 +17,7 @@
 import Foundation
 
 /// Runtime status for a sandbox or container.
-public enum RuntimeStatus: String, CaseIterable, Sendable, Codable {
+public enum SandboxStatus: String, CaseIterable, Sendable, Codable {
     /// The object is in an unknown status.
     case unknown
     /// The object is currently stopped.
