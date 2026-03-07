@@ -16,7 +16,6 @@
 
 import ArgumentParser
 import ContainerAPIClient
-import ContainerResource
 import ContainerizationError
 import Foundation
 
@@ -54,49 +53,23 @@ extension Application {
         }
 
         public mutating func run() async throws {
-            let set = Set<String>(containerIds)
             let client = ContainerClient()
-            var containers = [ContainerSnapshot]()
+            let ids: [String]
 
             if all {
-                containers = try await client.list()
+                ids = try await client.list().map { $0.id }
             } else {
-                let ctrs = try await client.list()
-                containers = ctrs.filter { c in
-                    set.contains(c.id)
-                }
-                // If one of the containers requested isn't present, let's throw. We don't need to do
-                // this for --all as --all should be perfectly usable with no containers to remove; otherwise,
-                // it'd be quite clunky.
-                if containers.count != set.count {
-                    let missing = set.filter { id in
-                        !containers.contains { c in
-                            c.id == id
-                        }
-                    }
-                    throw ContainerizationError(
-                        .notFound,
-                        message: "failed to delete one or more containers: \(missing)"
-                    )
-                }
+                ids = containerIds
             }
 
             var errors: [any Error] = []
             let force = self.force
-            let all = self.all
-            try await withThrowingTaskGroup(of: (any Error)?.self) { group in
-                for container in containers {
+            await withTaskGroup(of: (any Error)?.self) { group in
+                for id in ids {
                     group.addTask {
                         do {
-                            if container.status == .running && !force {
-                                guard all else {
-                                    throw ContainerizationError(.invalidState, message: "container is running")
-                                }
-                                return nil  // Skip running container when using --all
-                            }
-
-                            try await client.delete(id: container.id, force: force)
-                            print(container.id)
+                            try await client.delete(id: id, force: force)
+                            print(id)
                             return nil
                         } catch {
                             return error
@@ -104,7 +77,7 @@ extension Application {
                     }
                 }
 
-                for try await error in group {
+                for await error in group {
                     if let error {
                         errors.append(error)
                     }

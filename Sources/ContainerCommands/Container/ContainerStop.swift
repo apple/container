@@ -56,15 +56,12 @@ extension Application {
         }
 
         public mutating func run() async throws {
-            let set = Set<String>(containerIds)
             let client = ContainerClient()
-            var containers = [ContainerSnapshot]()
+            let ids: [String]
             if self.all {
-                containers = try await client.list()
+                ids = try await client.list().map { $0.id }
             } else {
-                containers = try await client.list().filter { c in
-                    set.contains(c.id)
-                }
+                ids = containerIds
             }
 
             let opts = ContainerStopOptions(
@@ -73,19 +70,19 @@ extension Application {
             )
             try await Self.stopContainers(
                 client: client,
-                containers: containers,
+                containerIds: ids,
                 stopOptions: opts
             )
         }
 
-        static func stopContainers(client: ContainerClient, containers: [ContainerSnapshot], stopOptions: ContainerStopOptions) async throws {
+        static func stopContainers(client: ContainerClient, containerIds: [String], stopOptions: ContainerStopOptions) async throws {
             var errors: [any Error] = []
             await withTaskGroup(of: (any Error)?.self) { group in
-                for container in containers {
+                for id in containerIds {
                     group.addTask {
                         do {
-                            try await client.stop(id: container.id, opts: stopOptions)
-                            print(container.id)
+                            try await client.stop(id: id, opts: stopOptions)
+                            print(id)
                             return nil
                         } catch {
                             return error
