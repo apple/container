@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025-2026 Apple Inc. and the container project authors.
+// Copyright © 2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -56,15 +56,48 @@ public actor ImagesService {
     }
 
     public func list() async throws -> [ImageDescription] {
-        self.log.info("ImagesService: \(#function)")
+        self.log.debug(
+            "ImagesService: enter",
+            metadata: [
+                "func": "\(#function)"
+            ]
+        )
+        defer {
+            self.log.debug(
+                "ImagesService: exit",
+                metadata: [
+                    "func": "\(#function)"
+                ]
+            )
+        }
+
         return try await imageStore.list().map { $0.description.fromCZ }
     }
 
     public func pull(reference: String, platform: Platform?, insecure: Bool, progressUpdate: ProgressUpdateHandler?, maxConcurrentDownloads: Int = 3) async throws
         -> ImageDescription
     {
-        self.log.info(
-            "ImagesService: \(#function) - ref: \(reference), platform: \(String(describing: platform)), insecure: \(insecure), maxConcurrentDownloads: \(maxConcurrentDownloads)")
+        self.log.debug(
+            "ImagesService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "ref": "\(reference)",
+                "platform": "\(String(describing: platform))",
+                "insecure": "\(insecure)",
+                "maxConcurrentDownloads": "\(maxConcurrentDownloads)",
+            ]
+        )
+        defer {
+            self.log.debug(
+                "ImagesService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "ref": "\(reference)",
+                    "platform": "\(String(describing: platform))",
+                ]
+            )
+        }
+
         let img = try await Self.withAuthentication(ref: reference) { auth in
             try await self.imageStore.pull(
                 reference: reference, platform: platform, insecure: insecure, auth: auth, progress: ContainerizationProgressAdapter.handler(from: progressUpdate),
@@ -77,7 +110,26 @@ public actor ImagesService {
     }
 
     public func push(reference: String, platform: Platform?, insecure: Bool, progressUpdate: ProgressUpdateHandler?) async throws {
-        self.log.info("ImagesService: \(#function) - ref: \(reference), platform: \(String(describing: platform)), insecure: \(insecure)")
+        self.log.debug(
+            "ImagesService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "ref": "\(reference)",
+                "platform": "\(String(describing: platform))",
+                "insecure": "\(insecure)",
+            ]
+        )
+        defer {
+            self.log.debug(
+                "ImagesService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "ref": "\(reference)",
+                    "platform": "\(String(describing: platform))",
+                ]
+            )
+        }
+
         try await Self.withAuthentication(ref: reference) { auth in
             try await self.imageStore.push(
                 reference: reference, platform: platform, insecure: insecure, auth: auth, progress: ContainerizationProgressAdapter.handler(from: progressUpdate))
@@ -85,18 +137,68 @@ public actor ImagesService {
     }
 
     public func tag(old: String, new: String) async throws -> ImageDescription {
-        self.log.info("ImagesService: \(#function) - old: \(old), new: \(new)")
+        self.log.debug(
+            "ImagesService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "old": "\(old)",
+                "new": "\(new)",
+            ]
+        )
+        defer {
+            self.log.debug(
+                "ImagesService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "old": "\(old)",
+                    "new": "\(new)",
+                ]
+            )
+        }
+
         let img = try await self.imageStore.tag(existing: old, new: new)
         return img.description.fromCZ
     }
 
     public func delete(reference: String, garbageCollect: Bool) async throws {
-        self.log.info("ImagesService: \(#function) - ref: \(reference)")
+        self.log.debug(
+            "ImagesService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "ref": "\(reference)",
+            ]
+        )
+        defer {
+            self.log.debug(
+                "ImagesService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "ref": "\(reference)",
+                ]
+            )
+        }
+
         try await self.imageStore.delete(reference: reference, performCleanup: garbageCollect)
     }
 
     public func save(references: [String], out: URL, platform: Platform?) async throws {
-        self.log.info("ImagesService: \(#function) - references: \(references) , platform: \(String(describing: platform))")
+        self.log.debug(
+            "ImagesService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "references": "\(references)",
+            ]
+        )
+        defer {
+            self.log.debug(
+                "ImagesService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "references": "\(references)",
+                ]
+            )
+        }
+
         let tempDir = FileManager.default.uniqueTemporaryDirectory()
         defer {
             try? FileManager.default.removeItem(at: tempDir)
@@ -109,7 +211,23 @@ public actor ImagesService {
 
     public func load(from tarFile: URL, force: Bool) async throws -> ([ImageDescription], [String]) {
         let archivePathname = tarFile.absolutePath()
-        self.log.info("ImagesService: \(#function) from: \(archivePathname)")
+        self.log.debug(
+            "ImagesService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "archivePath": "\(archivePathname)",
+            ]
+        )
+        defer {
+            self.log.debug(
+                "ImagesService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "archivePath": "\(archivePathname)",
+                ]
+            )
+        }
+
         let reader = try ArchiveReader(file: tarFile)
         let tempDir = FileManager.default.uniqueTemporaryDirectory()
         defer {
@@ -129,6 +247,21 @@ public actor ImagesService {
     }
 
     public func cleanUpOrphanedBlobs() async throws -> ([String], UInt64) {
+        self.log.debug(
+            "ImagesService: enter",
+            metadata: [
+                "func": "\(#function)"
+            ]
+        )
+        defer {
+            self.log.debug(
+                "ImagesService: exit",
+                metadata: [
+                    "func": "\(#function)"
+                ]
+            )
+        }
+
         let images = try await self._list()
         let freedSnapshotBytes = try await self.snapshotStore.clean(keepingSnapshotsFor: images)
         let (deleted, freedContentBytes) = try await self.imageStore.cleanUpOrphanedBlobs()
@@ -139,6 +272,23 @@ public actor ImagesService {
     /// - Parameter activeReferences: Set of image references currently in use by containers
     /// - Returns: Tuple of (total count, active count, total size, reclaimable size)
     public func calculateDiskUsage(activeReferences: Set<String>) async throws -> (Int, Int, UInt64, UInt64) {
+        self.log.debug(
+            "ImagesService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "references": "\(activeReferences)",
+            ]
+        )
+        defer {
+            self.log.debug(
+                "ImagesService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "references": "\(activeReferences)",
+                ]
+            )
+        }
+
         let images = try await self._list()
         var totalSize: UInt64 = 0
         var reclaimableSize: UInt64 = 0
@@ -190,19 +340,73 @@ public actor ImagesService {
 
 extension ImagesService {
     public func unpack(description: ImageDescription, platform: Platform?, progressUpdate: ProgressUpdateHandler?) async throws {
-        self.log.info("ImagesService: \(#function) - description: \(description), platform: \(String(describing: platform))")
+        self.log.debug(
+            "ImagesService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "description": "\(description)",
+                "platform": "\(String(describing: platform))",
+            ]
+        )
+        defer {
+            self.log.debug(
+                "ImagesService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "description": "\(description)",
+                    "platform": "\(String(describing: platform))",
+                ]
+            )
+        }
+
         let img = try await self._get(description)
         try await self.snapshotStore.unpack(image: img, platform: platform, progressUpdate: progressUpdate)
     }
 
     public func deleteImageSnapshot(description: ImageDescription, platform: Platform?) async throws {
-        self.log.info("ImagesService: \(#function) - description: \(description), platform: \(String(describing: platform))")
+        self.log.debug(
+            "ImagesService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "description": "\(description)",
+                "platform": "\(String(describing: platform))",
+            ]
+        )
+        defer {
+            self.log.debug(
+                "ImagesService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "description": "\(description)",
+                    "platform": "\(String(describing: platform))",
+                ]
+            )
+        }
+
         let img = try await self._get(description)
         try await self.snapshotStore.delete(for: img, platform: platform)
     }
 
     public func getImageSnapshot(description: ImageDescription, platform: Platform) async throws -> Filesystem {
-        self.log.info("ImagesService: \(#function) - description: \(description), platform: \(String(describing: platform))")
+        self.log.debug(
+            "ImagesService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "description": "\(description)",
+                "platform": "\(String(describing: platform))",
+            ]
+        )
+        defer {
+            self.log.debug(
+                "ImagesService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "description": "\(description)",
+                    "platform": "\(String(describing: platform))",
+                ]
+            )
+        }
+
         let img = try await self._get(description)
         return try await self.snapshotStore.get(for: img, platform: platform)
     }

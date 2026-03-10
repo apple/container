@@ -85,11 +85,12 @@ public struct Utility {
         progressUpdate: @escaping ProgressUpdateHandler,
         log: Logger
     ) async throws -> (ContainerConfiguration, Kernel, String?) {
-        var requestedPlatform = Parser.platform(os: management.os, arch: management.arch)
-        // Prefer --platform
-        if let platform = management.platform {
-            requestedPlatform = try Parser.platform(from: platform)
-        }
+        let requestedPlatform = try DefaultPlatform.resolveWithDefaults(
+            platform: management.platform,
+            os: management.os,
+            arch: management.arch,
+            log: log
+        )
         let scheme = try RequestScheme(registry.scheme)
 
         await progressUpdate([
@@ -248,6 +249,7 @@ public struct Utility {
 
         config.ssh = management.ssh
         config.readOnly = management.readOnly
+        config.useInit = management.useInit
 
         if let runtime = management.runtime {
             config.runtimeHandler = runtime
@@ -296,15 +298,16 @@ public struct Utility {
             // attach the first network using the fqdn, and the rest using just the container ID
             return try networks.enumerated().map { item in
                 let macAddress = try item.element.macAddress.map { try MACAddress($0) }
+                let mtu = item.element.mtu ?? 1280
                 guard item.offset == 0 else {
                     return AttachmentConfiguration(
                         network: item.element.name,
-                        options: AttachmentOptions(hostname: containerId, macAddress: macAddress)
+                        options: AttachmentOptions(hostname: containerId, macAddress: macAddress, mtu: mtu)
                     )
                 }
                 return AttachmentConfiguration(
                     network: item.element.name,
-                    options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: macAddress)
+                    options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: macAddress, mtu: mtu)
                 )
             }
         }
@@ -313,7 +316,7 @@ public struct Utility {
         guard let builtinNetworkId else {
             throw ContainerizationError(.invalidState, message: "builtin network is not present")
         }
-        return [AttachmentConfiguration(network: builtinNetworkId, options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: nil))]
+        return [AttachmentConfiguration(network: builtinNetworkId, options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: nil, mtu: 1280))]
     }
 
     private static func getKernel(management: Flags.Management) async throws -> Kernel {

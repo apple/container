@@ -36,7 +36,7 @@ extension ClientNetwork {
     private static func xpcSend(
         client: XPCClient,
         message: XPCMessage,
-        timeout: Duration? = .seconds(15)
+        timeout: Duration? = XPCClient.xpcRegistrationTimeout
     ) async throws -> XPCMessage {
         try await client.send(message, responseTimeout: timeout)
     }

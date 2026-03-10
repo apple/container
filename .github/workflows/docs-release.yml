@@ -14,7 +14,9 @@ jobs:
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags') || startsWith(github.ref, 'refs/heads/release')
     steps:
       - name: Branch validation
-        run: echo "Branch ${{ github.ref_name }} is allowed"
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: echo "Branch ${REF_NAME} is allowed"
 
   buildSite:
     name: Build application website

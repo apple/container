@@ -67,7 +67,7 @@ extension Application {
         }()
 
         @Option(name: .shortAndLong, help: "Number of CPUs to allocate to the builder container")
-        var cpus: Int64 = 2
+        var cpus: Int64?
 
         @Option(name: .shortAndLong, help: ArgumentHelp("Path to Dockerfile", valueName: "path"))
         var file: String?
@@ -79,7 +79,7 @@ extension Application {
             name: .shortAndLong,
             help: "Amount of builder container memory (1MiByte granularity), with optional K, M, G, T, or P suffix"
         )
-        var memory: String = "2048MB"
+        var memory: String?
 
         @Flag(name: .long, help: "Do not use cache")
         var noCache: Bool = false
@@ -100,7 +100,7 @@ extension Application {
 
         @Option(
             name: .long,
-            help: "Add the platform to the build (format: os/arch[/variant], takes precedence over --os and --arch)",
+            help: "Add the platform to the build (format: os/arch[/variant], takes precedence over --os and --arch) [environment: CONTAINER_DEFAULT_PLATFORM]",
             transform: { val in val.split(separator: ",").map { String($0) } }
         )
         var platform: [[String]] = [[]]
@@ -304,6 +304,10 @@ extension Application {
 
                         if !results.isEmpty {
                             return results
+                        }
+
+                        if let envPlatform = try DefaultPlatform.fromEnvironment(log: log) {
+                            return [envPlatform]
                         }
 
                         for o in (self.os.flatMap { $0 }) {

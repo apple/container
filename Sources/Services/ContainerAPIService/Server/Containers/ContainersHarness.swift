@@ -305,4 +305,26 @@ public struct ContainersHarness: Sendable {
         reply.set(key: .statistics, value: data)
         return reply
     }
+
+    @Sendable
+    public func export(_ message: XPCMessage) async throws -> XPCMessage {
+        let id = message.string(key: .id)
+        guard let id else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "id cannot be empty"
+            )
+        }
+        let archive = message.string(key: .archive)
+        guard let archive else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "archive cannot be empty"
+            )
+        }
+        let archiveUrl = URL(fileURLWithPath: archive)
+
+        try await service.exportRootfs(id: id, archive: archiveUrl)
+        return message.reply()
+    }
 }

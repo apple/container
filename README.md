@@ -16,18 +16,40 @@ You need a Mac with Apple silicon to run `container`. To build it, see the [BUIL
 
 `container` is supported on macOS 26, since it takes advantage of new features and enhancements to virtualization and networking in this release. We do not support older versions of macOS and the `container` maintainers typically will not address issues that cannot be reproduced on the macOS 26.
 
-### Install or upgrade
-
-If you're upgrading, first stop and uninstall your existing `container` (the `-k` flag keeps your user data, while `-d` removes it):
-
-```bash
-container system stop
-/usr/local/bin/uninstall-container.sh -k
-```
+### Initial install
 
 Download the latest signed installer package for `container` from the [GitHub release page](https://github.com/apple/container/releases).
 
 To install the tool, double-click the package file and follow the instructions. Enter your administrator password when prompted, to give the installer permission to place the installed files under `/usr/local`.
+
+Start the system service with:
+
+```bash
+container system start
+```
+
+### Upgrade or downgrade
+
+For both upgrading and downgrading, you can manually download and install the signed installer package by following the steps from [initial install](#initial-install) or use the `update-container.sh` script (installed to `/usr/local/bin`).
+
+If you're upgrading and downgrading, you must stop your existing `container`:
+
+```bash
+container system stop
+```
+
+For upgrading to the latest release version, simply run the command below:
+
+```bash
+/usr/local/bin/update-container.sh
+```
+
+If you're downgrading, you must uninstall your existing `container` (the `-k` flag keeps your user data, while `-d` removes it):
+
+```bash
+/usr/local/bin/uninstall-container.sh -k
+/usr/local/bin/update-container.sh -v 0.3.0
+```
 
 Start the system service with:
 

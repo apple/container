@@ -487,6 +487,74 @@ class TestCLIRunCommand2: CLITest {
             return
         }
     }
+
+    @Test func testRunCommandInit() throws {
+        do {
+            let name = getTestName()
+            try doLongRun(name: name, args: ["--init"])
+            defer {
+                try? doStop(name: name)
+            }
+            let inspectResp = try inspectContainer(name)
+            #expect(inspectResp.configuration.useInit == true, "expected useInit to be true in container configuration")
+
+            // With --init, PID 1 should be the init process, not "sleep".
+            var output = try doExec(name: name, cmd: ["cat", "/proc/1/cmdline"])
+            output = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(
+                !output.hasPrefix("sleep"),
+                "expected PID 1 to be init process, not 'sleep', got '\(output)'"
+            )
+            try doStop(name: name)
+        } catch {
+            Issue.record("failed to run container with --init: \(error)")
+            return
+        }
+    }
+
+    @Test func testRunCommandInitReapsZombies() throws {
+        do {
+            let name = getTestName()
+            try doLongRun(name: name, args: ["--init"])
+            defer {
+                try? doStop(name: name)
+            }
+
+            _ = try doExec(
+                name: name,
+                cmd: [
+                    "sh", "-c",
+                    "sh -c 'sh -c \"exit 0\" &' && sleep 1",
+                ])
+
+            let psOutput = try doExec(name: name, cmd: ["sh", "-c", "ps aux | grep -c '\\[sh\\]' || true"])
+            let zombieCount = Int(psOutput.trimmingCharacters(in: .whitespacesAndNewlines)) ?? -1
+            #expect(
+                zombieCount == 0,
+                "expected no zombie processes with --init, found \(zombieCount)"
+            )
+            try doStop(name: name)
+        } catch {
+            Issue.record("failed to verify zombie reaping with --init: \(error)")
+            return
+        }
+    }
+
+    @Test func testRunCommandWithoutInitDefault() throws {
+        do {
+            let name = getTestName()
+            try doLongRun(name: name, args: [])
+            defer {
+                try? doStop(name: name)
+            }
+            let inspectResp = try inspectContainer(name)
+            #expect(inspectResp.configuration.useInit == false, "expected useInit to be false by default")
+            try doStop(name: name)
+        } catch {
+            Issue.record("failed to run container without --init: \(error)")
+            return
+        }
+    }
 }
 
 class TestCLIRunCommand3: CLITest {
