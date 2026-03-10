@@ -61,6 +61,7 @@ public enum XPCKeys: String {
     case ping
     case appRoot
     case installRoot
+    case logRoot
     case apiServerVersion
     case apiServerCommit
     case apiServerBuild

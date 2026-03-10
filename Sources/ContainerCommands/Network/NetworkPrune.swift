@@ -55,7 +55,12 @@ extension Application.NetworkCommand {
                     // Note: This failure may occur due to a race condition between the network/
                     // container collection above and a container run command that attaches to a
                     // network listed in the networksToPrune collection.
-                    log.error("failed to prune network", metadata: ["id": "\(network.id)", "error": "\(error)"])
+                    log.error(
+                        "failed to prune network",
+                        metadata: [
+                            "id": "\(network.id)",
+                            "error": "\(error)",
+                        ])
                 }
             }
 

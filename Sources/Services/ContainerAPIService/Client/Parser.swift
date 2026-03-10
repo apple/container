@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerPersistence
 import ContainerResource
 import Containerization
 import ContainerizationError
@@ -44,7 +45,7 @@ public enum VolumeOrFilesystem {
 }
 
 public struct Parser {
-    public static func memoryString(_ memory: String) throws -> Int64 {
+    public static func memoryStringAsMiB(_ memory: String) throws -> Int64 {
         let ram = try Measurement.parse(parsing: memory)
         let mb = ram.converted(to: .mebibytes)
         return Int64(mb.value)
@@ -86,26 +87,48 @@ public struct Parser {
         try .init(from: platform)
     }
 
-    public static func resources(cpus: Int64?, memory: String?) throws -> ContainerConfiguration.Resources {
+    public static func resources(
+        cpus: Int64?,
+        memory: String?,
+        cpuPropertyKey: DefaultsStore.Keys = .defaultContainerCPUs,
+        memoryPropertyKey: DefaultsStore.Keys = .defaultContainerMemory,
+        defaultCPUs: Int = 4,
+        defaultMemoryInBytes: UInt64 = 1024.mib()
+    ) throws -> ContainerConfiguration.Resources {
         var resource = ContainerConfiguration.Resources()
+        resource.cpus = defaultCPUs
+        resource.memoryInBytes = defaultMemoryInBytes
+
         if let cpus {
             resource.cpus = Int(cpus)
+        } else if let cpuStr = DefaultsStore.getOptional(key: cpuPropertyKey),
+            let cpuVal = Int(cpuStr), cpuVal > 0
+        {
+            resource.cpus = cpuVal
         }
         if let memory {
-            resource.memoryInBytes = try Parser.memoryString(memory).mib()
+            resource.memoryInBytes = try Parser.memoryStringAsMiB(memory).mib()
+        } else if let memStr = DefaultsStore.getOptional(key: memoryPropertyKey) {
+            resource.memoryInBytes = try Parser.memoryStringAsMiB(memStr).mib()
         }
         return resource
     }
 
     public static func allEnv(imageEnvs: [String], envFiles: [String], envs: [String]) throws -> [String] {
-        var output: [String] = []
-        output.append(contentsOf: Parser.env(envList: imageEnvs))
+        var combined: [String] = []
+        combined.append(contentsOf: Parser.env(envList: imageEnvs))
         for envFile in envFiles {
             let content = try Parser.envFile(path: envFile)
-            output.append(contentsOf: content)
+            combined.append(contentsOf: content)
         }
-        output.append(contentsOf: Parser.env(envList: envs))
-        return output
+        combined.append(contentsOf: Parser.env(envList: envs))
+
+        let deduped = combined.reduce(into: [String: String]()) { map, entry in
+            let key = String(entry.split(separator: "=", maxSplits: 1).first ?? Substring(entry))
+            map[key] = entry
+        }
+
+        return deduped.map { $0.value }
     }
 
     public static func envFile(path: String) throws -> [String] {
@@ -390,7 +413,7 @@ public struct Parser {
                     throw ContainerizationError(.invalidArgument, message: "unsupported option size for \(type) mount")
                 }
                 var overflow: Bool
-                var memory = try Parser.memoryString(val)
+                var memory = try Parser.memoryStringAsMiB(val)
                 (memory, overflow) = memory.multipliedReportingOverflow(by: 1024 * 1024)
                 if overflow {
                     throw ContainerizationError(.invalidArgument, message: "overflow encountered when parsing memory string: \(val)")
@@ -789,16 +812,18 @@ public struct Parser {
     public struct ParsedNetwork {
         public let name: String
         public let macAddress: String?
+        public let mtu: UInt32?
 
-        public init(name: String, macAddress: String? = nil) {
+        public init(name: String, macAddress: String? = nil, mtu: UInt32? = nil) {
             self.name = name
             self.macAddress = macAddress
+            self.mtu = mtu
         }
     }
 
     /// Parse network attachment with optional properties
-    /// Format: network_name[,mac=XX:XX:XX:XX:XX:XX]
-    /// Example: "backend,mac=02:42:ac:11:00:02"
+    /// Format: network_name[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE]
+    /// Example: "backend,mac=02:42:ac:11:00:02,mtu=1500"
     public static func network(_ networkSpec: String) throws -> ParsedNetwork {
         guard !networkSpec.isEmpty else {
             throw ContainerizationError(.invalidArgument, message: "network specification cannot be empty")
@@ -816,6 +841,7 @@ public struct Parser {
         }
 
         var macAddress: String?
+        var mtu: UInt32?
 
         // Parse properties if any
         for part in parts.dropFirst() {
@@ -842,15 +868,23 @@ public struct Parser {
                     )
                 }
                 macAddress = value
+            case "mtu":
+                guard let mtuValue = UInt32(value), mtuValue >= 1280, mtuValue <= 65535 else {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "invalid mtu value '\(value)': must be between 1280 and 65535"
+                    )
+                }
+                mtu = mtuValue
             default:
                 throw ContainerizationError(
                     .invalidArgument,
-                    message: "unknown network property '\(key)'. Available properties: mac"
+                    message: "unknown network property '\(key)'. Available properties: mac, mtu"
                 )
             }
         }
 
-        return ParsedNetwork(name: networkName, macAddress: macAddress)
+        return ParsedNetwork(name: networkName, macAddress: macAddress, mtu: mtu)
     }
 
     // MARK: DNS

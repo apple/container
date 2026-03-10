@@ -17,6 +17,7 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerAPIService
+import ContainerLog
 import ContainerNetworkService
 import ContainerPlugin
 import ContainerResource
@@ -24,6 +25,7 @@ import ContainerXPC
 import DNSServer
 import Foundation
 import Logging
+import SystemPackage
 
 extension APIServer {
     struct Start: AsyncParsableCommand {
@@ -43,9 +45,12 @@ extension APIServer {
 
         var installRoot = InstallRoot.url
 
+        var logRoot = LogRoot.path
+
         func run() async throws {
-            let commandName = Self.configuration.commandName ?? "container-apiserver"
-            let log = APIServer.setupLogger(debug: debug)
+            let commandName = APIServer._commandName
+            let logPath = logRoot.map { $0.appending("\(commandName).log") }
+            let log = ServiceLogger.bootstrap(category: "APIServer", debug: debug, logPath: logPath)
             log.info("starting helper", metadata: ["name": "\(commandName)"])
             defer {
                 log.info("stopping helper", metadata: ["name": "\(commandName)"])
@@ -86,11 +91,17 @@ extension APIServer {
                             $0[$1.key.rawValue] = $1.value
                         }), log: log)
 
-                await withThrowingTaskGroup(of: Void.self) { group in
+                await withTaskGroup(of: Result<Void, Error>.self) { group in
                     group.addTask {
                         log.info("starting XPC server")
-                        try await server.listen()
+                        do {
+                            try await server.listen()
+                            return .success(())
+                        } catch {
+                            return .failure(error)
+                        }
                     }
+
                     // start up host table DNS
                     group.addTask {
                         let hostsResolver = ContainerDNSHandler(networkService: networkService)
@@ -105,33 +116,55 @@ extension APIServer {
                                 "port": "\(Self.dnsPort)",
                             ]
                         )
-                        try await dnsServer.run(host: Self.listenAddress, port: Self.dnsPort)
+                        do {
+                            try await dnsServer.run(host: Self.listenAddress, port: Self.dnsPort)
+                            return .success(())
+                        } catch {
+                            return .failure(error)
+                        }
 
                     }
 
                     // start up realhost DNS
-                    /*
                     group.addTask {
-                        let localhostResolver = LocalhostDNSHandler(log: log)
-                        try localhostResolver.monitorResolvers()
-                    
-                        let nxDomainResolver = NxDomainResolver()
-                        let compositeResolver = CompositeResolver(handlers: [localhostResolver, nxDomainResolver])
-                        let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
-                        let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
-                        log.info(
-                            "starting DNS resolver for localhost",
-                            metadata: [
-                                "host": "\(Self.listenAddress)",
-                                "port": "\(Self.localhostDNSPort)",
-                            ]
-                        )
-                        try await dnsServer.run(host: Self.listenAddress, port: Self.localhostDNSPort)
+                        do {
+                            let localhostResolver = LocalhostDNSHandler(log: log)
+                            await localhostResolver.monitorResolvers()
+
+                            let nxDomainResolver = NxDomainResolver()
+                            let compositeResolver = CompositeResolver(handlers: [localhostResolver, nxDomainResolver])
+                            let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
+                            let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
+                            log.info(
+                                "starting DNS resolver for localhost",
+                                metadata: [
+                                    "host": "\(Self.listenAddress)",
+                                    "port": "\(Self.localhostDNSPort)",
+                                ]
+                            )
+                            try await dnsServer.run(host: Self.listenAddress, port: Self.localhostDNSPort)
+                            return .success(())
+                        } catch {
+                            return .failure(error)
+                        }
                     }
-                    */
+
+                    for await result in group {
+                        switch result {
+                        case .success():
+                            continue
+                        case .failure(let error):
+                            log.error("API server task failed: \(error)")
+                        }
+                    }
                 }
             } catch {
-                log.error("helper failed", metadata: ["name": "\(commandName)", "error": "\(error)"])
+                log.error(
+                    "helper failed",
+                    metadata: [
+                        "name": "\(commandName)",
+                        "error": "\(error)",
+                    ])
                 APIServer.exit(withError: error)
             }
         }
@@ -178,6 +211,7 @@ extension APIServer {
             return try PluginLoader(
                 appRoot: appRoot,
                 installRoot: installRoot,
+                logRoot: logRoot,
                 pluginDirectories: pluginDirectories,
                 pluginFactories: pluginFactories,
                 log: log
@@ -209,7 +243,12 @@ extension APIServer {
         private func initializeHealthCheckService(log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) {
             log.info("initializing health check service")
 
-            let svc = HealthCheckHarness(appRoot: appRoot, installRoot: installRoot, log: log)
+            let svc = HealthCheckHarness(
+                appRoot: appRoot,
+                installRoot: installRoot,
+                logRoot: logRoot,
+                log: log
+            )
             routes[XPCRoute.ping] = svc.ping
         }
 

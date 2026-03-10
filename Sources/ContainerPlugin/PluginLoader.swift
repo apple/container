@@ -17,11 +17,14 @@
 import ContainerizationOS
 import Foundation
 import Logging
+import SystemPackage
 
 public struct PluginLoader: Sendable {
     private let appRoot: URL
 
     private let installRoot: URL
+
+    private let logRoot: FilePath?
 
     private let pluginDirectories: [URL]
 
@@ -39,6 +42,7 @@ public struct PluginLoader: Sendable {
     public init(
         appRoot: URL,
         installRoot: URL,
+        logRoot: FilePath?,
         pluginDirectories: [URL],
         pluginFactories: [PluginFactory],
         log: Logger? = nil
@@ -48,6 +52,7 @@ public struct PluginLoader: Sendable {
         self.pluginResourceRoot = pluginResourceRoot
         self.appRoot = appRoot
         self.installRoot = installRoot
+        self.logRoot = logRoot
         self.pluginDirectories = pluginDirectories
         self.pluginFactories = pluginFactories
         self.log = log
@@ -223,6 +228,12 @@ extension PluginLoader {
         var env = Self.filterEnvironment()
         env[ApplicationRoot.environmentName] = appRoot.path(percentEncoded: false)
         env[InstallRoot.environmentName] = installRoot.path(percentEncoded: false)
+        if let logRoot {
+            env[LogRoot.environmentName] =
+                logRoot.isAbsolute
+                ? logRoot.string
+                : FilePath(FileManager.default.currentDirectoryPath).appending(logRoot.components).string
+        }
 
         let processedArgs = (args ?? ["start"]) + (debug ? ["--debug"] : [])
         let plist = LaunchPlist(

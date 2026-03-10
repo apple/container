@@ -17,6 +17,7 @@
 import ContainerXPC
 import ContainerizationError
 import Foundation
+import SystemPackage
 
 public enum ClientHealthCheck {
     static let serviceIdentifier = "com.apple.container.apiserver"
@@ -37,6 +38,7 @@ extension ClientHealthCheck {
         guard let installRootValue = reply.string(key: .installRoot), let installRoot = URL(string: installRootValue) else {
             throw ContainerizationError(.internalError, message: "failed to decode installRoot in health check")
         }
+        let logRoot = reply.string(key: .logRoot).map { FilePath($0) }
         guard let apiServerVersion = reply.string(key: .apiServerVersion) else {
             throw ContainerizationError(.internalError, message: "failed to decode apiServerVersion in health check")
         }
@@ -52,6 +54,7 @@ extension ClientHealthCheck {
         return .init(
             appRoot: appRoot,
             installRoot: installRoot,
+            logRoot: logRoot,
             apiServerVersion: apiServerVersion,
             apiServerCommit: apiServerCommit,
             apiServerBuild: apiServerBuild,

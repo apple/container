@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
+import ContainerOS
 import ContainerPersistence
 import ContainerResource
 import ContainerSandboxServiceClient
@@ -43,7 +44,7 @@ public actor SandboxService {
     private var container: ContainerInfo?
     private let monitor: ExitMonitor
     private let eventLoopGroup: any EventLoopGroup
-    private var waiters: [String: [CheckedContinuation<ExitStatus, Never>]] = [:]
+    private var waiters: [String: ExitWaiter] = [:]
     private let lock: AsyncLock = AsyncLock()
     private let log: Logging.Logger
     private var state: State = .created
@@ -52,6 +53,27 @@ public actor SandboxService {
 
     private static let sshAuthSocketGuestPath = "/run/host-services/ssh-auth.sock"
     private static let sshAuthSocketEnvVar = "SSH_AUTH_SOCK"
+
+    class ExitWaiter {
+        public var exitCode: Int32? = nil
+        public var continuations: [CheckedContinuation<ExitStatus, Never>] = []
+
+        public func register(_ cc: CheckedContinuation<ExitStatus, Never>) {
+            continuations.append(cc)
+        }
+
+        public func doExit(code: Int32) {
+            for cc in continuations {
+                cc.resume(returning: ExitStatus(exitCode: code))
+            }
+
+            exitCode = code
+        }
+
+        public func exited() -> Bool {
+            exitCode != nil
+        }
+    }
 
     private static func sshAuthSocketHostUrl(config: ContainerConfiguration) -> URL? {
         if config.ssh, let sshSocket = Foundation.ProcessInfo.processInfo.environment[Self.sshAuthSocketEnvVar] {
@@ -206,7 +228,7 @@ public actor SandboxService {
                     hostsEntries.append(
                         Hosts.Entry(
                             ipAddress: primaryIfaceAddr.address.description,
-                            hostnames: [czConfig.hostname],
+                            hostnames: [czConfig.hostname ?? id],
                         ))
                 }
                 czConfig.hosts = Hosts(entries: hostsEntries)
@@ -224,6 +246,8 @@ public actor SandboxService {
 
             do {
                 try await container.create()
+
+                try await self.initializeWaiters(for: id)
                 try await self.monitor.registerProcess(id: config.id, onExit: self.onContainerExit)
                 if !container.interfaces.isEmpty {
                     try await self.startSocketForwarders(attachment: attachments[0], publishedPorts: config.publishedPorts)
@@ -232,7 +256,7 @@ public actor SandboxService {
             } catch {
                 do {
                     try await self.cleanUpContainer(containerInfo: ctrInfo)
-                    await self.setState(.created)
+                    await self.setState(.stopped)
                 } catch {
                     self.log.error("failed to clean up container", metadata: ["error": "\(error)"])
                 }
@@ -319,7 +343,7 @@ public actor SandboxService {
 
         return try await self.lock.withLock { _ in
             switch await self.state {
-            case .created, .stopped(_), .stopping:
+            case .created, .stopped, .stopping:
                 await self.setState(.shuttingDown)
 
             default:
@@ -359,23 +383,27 @@ public actor SandboxService {
 
                 try await self.addNewProcess(id, config, stdio)
 
-                try await self.monitor.registerProcess(
-                    id: id,
-                    onExit: { id, exitStatus in
-                        guard let process = await self.processes[id]?.process else {
-                            throw ContainerizationError(
-                                .invalidState,
-                                message: "ProcessInfo missing for process \(id)"
-                            )
+                try await self.initializeWaiters(for: id)
+                do {
+                    try await self.monitor.registerProcess(
+                        id: id,
+                        onExit: { id, exitStatus in
+                            await self.releaseWaiters(for: id, status: exitStatus)
+
+                            guard let process = await self.processes[id]?.process else {
+                                throw ContainerizationError(
+                                    .invalidState,
+                                    message: "ProcessInfo missing for process \(id)"
+                                )
+                            }
+                            try await process.delete()
+                            try await self.setProcessState(id: id, state: .stopped)
                         }
-                        for cc in await self.waiters[id] ?? [] {
-                            cc.resume(returning: exitStatus)
-                        }
-                        await self.removeWaiters(for: id)
-                        try await process.delete()
-                        try await self.setProcessState(id: id, state: .stopped(exitStatus.exitCode))
-                    }
-                )
+                    )
+                } catch {
+                    await self.releaseWaiters(for: id, status: ExitStatus(exitCode: -1))
+                    throw error
+                }
 
                 return message.reply()
             default:
@@ -405,7 +433,7 @@ public actor SandboxService {
         var cs: ContainerSnapshot?
 
         switch state {
-        case .created, .stopped(_), .booted, .shuttingDown:
+        case .created, .stopped, .booted, .shuttingDown:
             status = .stopped
         case .stopping:
             status = .stopping
@@ -459,14 +487,14 @@ public actor SandboxService {
                 )
 
                 do {
-                    if case .stopped(_) = await self.state {
+                    if case .stopped = await self.state {
                         return message.reply()
                     }
                     try await self.cleanUpContainer(containerInfo: ctr, exitStatus: exitStatus)
                 } catch {
                     self.log.error("failed to clean up container", metadata: ["error": "\(error)"])
                 }
-                await self.setState(.stopped(exitStatus.exitCode))
+                await self.setState(.stopped)
             default:
                 break
             }
@@ -591,38 +619,12 @@ public actor SandboxService {
             throw ContainerizationError(.invalidArgument, message: "missing id in wait xpc message")
         }
 
-        let cachedCode: Int32? = try await self.lock.withLock { _ in
-            let ctrInfo = try await self.getContainer()
-            let ctr = ctrInfo.container
-            if id == ctr.id {
-                switch await self.state {
-                case .stopped(let code):
-                    return code
-                default:
-                    break
-                }
-            } else {
-                guard let processInfo = await self.processes[id] else {
-                    throw ContainerizationError(.notFound, message: "process with id \(id)")
-                }
-                switch processInfo.state {
-                case .stopped(let code):
-                    return code
-                default:
-                    break
-                }
-            }
-            return nil
-        }
-        if let cachedCode {
-            let reply = message.reply()
-            reply.set(key: SandboxKeys.exitCode.rawValue, value: Int64(cachedCode))
-            return reply
-        }
-
         let exitStatus = await withCheckedContinuation { cc in
             // Is this safe since we are in an actor? :(
-            self.addWaiter(id: id, cont: cc)
+            let (added, exitCode) = self.addWaiter(id: id, cont: cc)
+            if !added {
+                cc.resume(returning: ExitStatus(exitCode: exitCode ?? -1))
+            }
         }
         let reply = message.reply()
         reply.set(key: SandboxKeys.exitCode.rawValue, value: Int64(exitStatus.exitCode))
@@ -781,7 +783,7 @@ public actor SandboxService {
             try await self.monitor.track(id: id, waitingOn: waitFunc)
         } catch {
             try? await self.cleanUpContainer(containerInfo: info)
-            self.setState(.created)
+            self.setState(.stopped)
             throw error
         }
     }
@@ -818,6 +820,11 @@ public actor SandboxService {
     }
 
     private func startSocketForwarders(attachment: Attachment, publishedPorts: [PublishPort]) async throws {
+        guard !publishedPorts.isEmpty else {
+            return
+        }
+        LocalNetworkPrivacy.triggerLocalNetworkPrivacyAlert()
+
         var forwarders: [SocketForwarderResult] = []
         guard !publishedPorts.hasOverlaps() else {
             throw ContainerizationError(.invalidArgument, message: "host ports for different publish port specs may not overlap")
@@ -901,7 +908,7 @@ public actor SandboxService {
             let ctrInfo = try await getContainer()
 
             switch await self.state {
-            case .stopped(_), .stopping:
+            case .stopped, .stopping:
                 return
             default:
                 break
@@ -912,7 +919,7 @@ public actor SandboxService {
             } catch {
                 self.log.error("failed to clean up container", metadata: ["error": "\(error)"])
             }
-            await setState(.stopped(exitStatus.exitCode))
+            await setState(.stopped)
         }
     }
 
@@ -927,6 +934,7 @@ public actor SandboxService {
         }
         // If the host doesn't support this, we'll throw on container creation.
         czConfig.virtualization = config.virtualization
+        czConfig.useInit = config.useInit
 
         for mount in config.mounts {
             if try mount.isSocket() {
@@ -1149,11 +1157,7 @@ public actor SandboxService {
         await self.stopSocketForwarders()
 
         let status = exitStatus ?? ExitStatus(exitCode: 255)
-        let waiters = self.waiters[id] ?? []
-        for cc in waiters {
-            cc.resume(returning: status)
-        }
-        self.removeWaiters(for: id)
+        self.releaseWaiters(for: id, status: status)
     }
 }
 
@@ -1373,14 +1377,31 @@ extension FileHandle: @retroactive ReaderStream, @retroactive Writer {
 // MARK: State handler and bundle creation helpers
 
 extension SandboxService {
-    private func addWaiter(id: String, cont: CheckedContinuation<ExitStatus, Never>) {
-        var current = self.waiters[id] ?? []
-        current.append(cont)
-        self.waiters[id] = current
+    private func initializeWaiters(for id: String) throws {
+        guard waiters[id] == nil else {
+            throw ContainerizationError(.invalidState, message: "waiter for \(id) already initialized")
+        }
+        waiters[id] = ExitWaiter()
     }
 
-    private func removeWaiters(for id: String) {
-        self.waiters[id] = []
+    private func addWaiter(id: String, cont: CheckedContinuation<ExitStatus, Never>) -> (Bool, Int32?) {
+        guard let current = waiters[id] else {
+            // No waiter initialized at all
+            return (false, nil)
+        }
+
+        if current.exited() {
+            // Waiter initialzed but already exited
+            return (false, current.exitCode)
+        }
+
+        // Waiter initialized and not exited. Guaranteed to exit later.
+        current.register(cont)
+        return (true, nil)
+    }
+
+    private func releaseWaiters(for id: String, status: ExitStatus) {
+        waiters[id]?.doExit(code: status.exitCode)
     }
 
     private func setUnderlyingProcess(_ id: String, _ process: LinuxProcess) throws {
@@ -1436,7 +1457,7 @@ extension SandboxService {
         /// At the beginning of stop() .running will be transitioned to .stopping.
         case stopping
         /// Once a stop is successful, .stopping will transition to .stopped.
-        case stopped(Int32)
+        case stopped
         /// .shuttingDown will be the last state the sandbox service will ever be in. Shortly
         /// afterwards the process will exit.
         case shuttingDown

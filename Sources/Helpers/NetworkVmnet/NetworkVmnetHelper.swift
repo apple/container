@@ -15,9 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import ContainerLog
 import ContainerVersion
-import Logging
 
 @main
 struct NetworkVmnetHelper: AsyncParsableCommand {
@@ -29,19 +27,4 @@ struct NetworkVmnetHelper: AsyncParsableCommand {
             Start.self
         ]
     )
-
-    static func setupLogger(id: String, debug: Bool) -> Logger {
-        LoggingSystem.bootstrap { label in
-            OSLogHandler(
-                label: label,
-                category: "NetworkVmnetHelper"
-            )
-        }
-        var log = Logger(label: "com.apple.container")
-        if debug {
-            log.logLevel = .debug
-        }
-        log[metadataKey: "id"] = "\(id)"
-        return log
-    }
 }
