@@ -91,7 +91,7 @@ public struct Filesystem: Sendable, Codable {
     /// A block based filesystem.
     public static func block(
         format: String, source: String, destination: String, options: MountOptions, cache: CacheMode = .on,
-        sync: SyncMode = .fsync
+        sync: SyncMode = .full
     ) -> Filesystem {
         .init(
             type: .block(format: format, cache: cache, sync: sync),
@@ -104,7 +104,7 @@ public struct Filesystem: Sendable, Codable {
     /// A named volume filesystem.
     public static func volume(
         name: String, format: String, source: String, destination: String, options: MountOptions,
-        cache: CacheMode = .on, sync: SyncMode = .fsync
+        cache: CacheMode = .on, sync: SyncMode = .full
     ) -> Filesystem {
         .init(
             type: .volume(name: name, format: format, cache: cache, sync: sync),
