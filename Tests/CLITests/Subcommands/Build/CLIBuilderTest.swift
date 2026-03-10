@@ -755,6 +755,10 @@ extension TestCLIBuildBase {
         // Test 1: Basic .dockerignore
         @Test func testDockerIgnoreBasic() throws {
             let tempDir: URL = try createTempDir()
+            defer {
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
             let dockerfile =
                 """
                 FROM ghcr.io/linuxcontainers/alpine:3.20
@@ -792,6 +796,10 @@ extension TestCLIBuildBase {
         // Test 2: Dockerfile-specific ignore file (Dockerfile.dockerignore takes precedence over .dockerignore)
         @Test func testDockerIgnoreDockerfileSpecific() throws {
             let tempDir: URL = try createTempDir()
+            defer {
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
             let dockerfile =
                 """
                 FROM ghcr.io/linuxcontainers/alpine:3.20
@@ -836,6 +844,10 @@ extension TestCLIBuildBase {
 
         @Test func testDockerIgnoreOutsideContext() throws {
             let tempDir: URL = try createTempDir()
+            defer {
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
             let dockerfile =
                 """
                 FROM ghcr.io/linuxcontainers/alpine:3.20
@@ -878,6 +890,10 @@ extension TestCLIBuildBase {
         // Test 5: Build succeeds when Dockerfile is listed in .dockerignore
         @Test func testDockerIgnoreIgnoredDockerfile() async throws {
             let tempDir: URL = try createTempDir()
+            defer {
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
             let dockerfile =
                 """
                 FROM ghcr.io/linuxcontainers/alpine:3.20
@@ -919,6 +935,10 @@ extension TestCLIBuildBase {
         // Test 8: Dockerfile in nested subdirectory; Dockerfile.dockerignore next to it takes precedence over root .dockerignore
         @Test func testDockerIgnoreSubdirDockerfile() throws {
             let tempDir: URL = try createTempDir()
+            defer {
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
             let dockerfile =
                 """
                 FROM ghcr.io/linuxcontainers/alpine:3.20
@@ -967,6 +987,10 @@ extension TestCLIBuildBase {
         // Test 9: Custom-named Dockerfile (app1.Dockerfile) uses app1.Dockerfile.dockerignore
         @Test func testDockerIgnoreCustomDockerfileName() throws {
             let tempDir: URL = try createTempDir()
+            defer {
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
             let dockerfile =
                 """
                 FROM ghcr.io/linuxcontainers/alpine:3.20
@@ -1012,6 +1036,10 @@ extension TestCLIBuildBase {
         // Test 10: Custom-named Dockerfile in subdirectory uses its co-located .dockerignore
         @Test func testDockerIgnoreCustomNameSubdir() throws {
             let tempDir: URL = try createTempDir()
+            defer {
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
             let dockerfile =
                 """
                 FROM ghcr.io/linuxcontainers/alpine:3.20
@@ -1062,6 +1090,10 @@ extension TestCLIBuildBase {
         // Test 11: app.Dockerfile coexists with Dockerfile; app.Dockerfile.dockerignore is used, not Dockerfile.dockerignore
         @Test func testDockerIgnoreCoexistingDockerfiles() throws {
             let tempDir: URL = try createTempDir()
+            defer {
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
             let appDockerfile =
                 """
                 FROM ghcr.io/linuxcontainers/alpine:3.20
@@ -1103,8 +1135,31 @@ extension TestCLIBuildBase {
             #expect(includedResult.status == 0, "included.txt should be present")
         }
 
+        @Test func testNonExistingDockerfile() throws {
+            let tempDir: URL = try createTempDir()
+            defer {
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
+            let imageName = "registry.local/non-existing-dockerfile:\(UUID().uuidString)"
+
+            var args = ["build", "-f", "non-existing-path", "-t", imageName, tempDir.path]
+            var response = try run(arguments: args)
+
+            #expect(response.status != 0)
+
+            args = ["build", "-t", imageName, tempDir.path]
+            response = try run(arguments: args)
+
+            #expect(response.status != 0)
+        }
+
         @Test func testBuildNoCachePullLatestImage() throws {
             let tempDir: URL = try createTempDir()
+            defer {
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
             let dockerfile =
                 """
                 FROM \(alpine)

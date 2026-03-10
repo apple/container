@@ -72,6 +72,8 @@ extension Application {
         @Option(name: .shortAndLong, help: ArgumentHelp("Path to Dockerfile", valueName: "path"))
         var file: String?
 
+        var dockerfile: String = "-"
+
         @Option(name: .shortAndLong, help: ArgumentHelp("Set a label", valueName: "key=val"))
         var label: [String] = []
 
@@ -208,7 +210,7 @@ extension Application {
                 var buildFilePath: String? = nil
                 var ignoreFileData: Data? = nil
                 // Dockerfile should be read from stdin
-                if let file = self.file, file == "-" {
+                if dockerfile == "-" {
                     let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("Dockerfile-\(UUID().uuidString)")
                     defer {
                         try? FileManager.default.removeItem(at: tempFile)
@@ -231,24 +233,18 @@ extension Application {
                     try fileHandle.close()
                     buildFileData = try Data(contentsOf: URL(filePath: tempFile.path()))
                 } else {
-                    let path = try file ?? BuildFile.resolvePath(contextDir: self.contextDir, log: log)
-
-                    guard let path else {
-                        throw ValidationError("failed to find Dockerfile or Containerfile in the context directory \(self.contextDir)")
-                    }
-
-                    let ignoreFileURL = URL(filePath: path + ".dockerignore")
+                    let ignoreFileURL = URL(filePath: dockerfile + ".dockerignore")
                     ignoreFileData = try? Data(contentsOf: ignoreFileURL)
 
                     if ignoreFileData != nil {
                         let hiddenDirName = ".\(UUID().uuidString)"
-                        let buildFileName = URL(filePath: path).lastPathComponent
+                        let buildFileName = URL(filePath: dockerfile).lastPathComponent
 
                         buildFilePath = "\(hiddenDirName)/\(buildFileName)"
                         ignoreFileData?.append("\n\(hiddenDirName)".data(using: .utf8) ?? Data())
                     }
 
-                    buildFileData = try Data(contentsOf: URL(filePath: path))
+                    buildFileData = try Data(contentsOf: URL(filePath: dockerfile))
                 }
 
                 let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
@@ -418,7 +414,7 @@ extension Application {
             }
         }
 
-        public func validate() throws {
+        public mutating func validate() throws {
             // NOTE: We'll "validate" the Dockerfile later.
             guard FileManager.default.fileExists(atPath: contextDir) else {
                 throw ValidationError("context dir does not exist \(contextDir)")
@@ -427,6 +423,31 @@ extension Application {
                 guard let _ = try? Reference.parse(name) else {
                     throw ValidationError("invalid reference \(name)")
                 }
+            }
+
+            switch file {
+            case "-":
+                dockerfile = "-"
+                break
+            case .some(let filepath):
+                let fileURL = URL(fileURLWithPath: filepath, relativeTo: .currentDirectory())
+                guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                    throw ValidationError("dockerfile does not exist \(filepath)")
+                }
+
+                dockerfile = fileURL.path
+                break
+            case .none:
+                guard let defaultDockerfile = try BuildFile.resolvePath(contextDir: contextDir) else {
+                    throw ValidationError("dockerfile not found in context dir")
+                }
+
+                guard FileManager.default.fileExists(atPath: defaultDockerfile) else {
+                    throw ValidationError("dockerfile does not exist \(defaultDockerfile)")
+                }
+
+                dockerfile = defaultDockerfile
+                break
             }
         }
     }
