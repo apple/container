@@ -44,11 +44,14 @@ done
 if $ALL_DOMAINS; then
     uid=$(id -u)
     for domain in "gui/$uid" "user/$uid" "system"; do
+        if [ "$domain" = "system" ] && [ "$uid" -ne 0 ]; then
+            continue
+        fi
         launchctl print "$domain" 2>/dev/null \
             | grep -oE 'com\.apple\.container\.[^ ]+' \
             | sort -u \
             | while read -r service; do
-                launchctl bootout "$domain/$service"
+                launchctl bootout "$domain/$service" 2>/dev/null || true
             done
     done
 else
