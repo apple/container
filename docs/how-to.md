@@ -497,6 +497,21 @@ container run --name nested-virtualization --virtualization --kernel /path/to/a/
 [    0.017893] kvm [1]: Hyp mode initialized successfully
 ```
 
+## Run a container with a provided init process
+
+By default, the command you specify in `container run` runs as PID 1 inside the container. This means it is responsible for reaping zombie processes and handling signals, which many applications are not designed to do. The `--init` flag runs a lightweight init process as PID 1 that automatically forwards signals and reaps orphaned child processes.
+
+```bash
+container run --init ubuntu:latest my-app
+```
+
+The init process is also available with `container create`:
+
+```bash
+container create --init --name my-container ubuntu:latest my-app
+container start my-container
+```
+
 ## Use a custom init image
 
 The `--init-image` flag allows you to specify a custom init filesystem image for the lightweight VM that runs your container. This enables:

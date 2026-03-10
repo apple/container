@@ -15,50 +15,53 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
+import ContainerOS
 import ContainerPersistence
 import ContainerizationError
 import DNS
 import DNSServer
 import Foundation
 import Logging
+import Synchronization
 
-class LocalhostDNSHandler: DNSHandler {
+actor LocalhostDNSHandler: DNSHandler {
     private let ttl: UInt32
     private let watcher: DirectoryWatcher
 
-    private var dns: [String: IPv4]
+    private let dns: Mutex<[String: IPv4]>
 
     public init(resolversURL: URL = HostDNSResolver.defaultConfigPath, ttl: UInt32 = 5, log: Logger) {
         self.ttl = ttl
 
         self.watcher = DirectoryWatcher(directoryURL: resolversURL, log: log)
-        self.dns = [:]
+        self.dns = Mutex([:])
     }
 
-    public func monitorResolvers() throws {
-        try self.watcher.startWatching { fileURLs in
-            var dns: [String: IPv4] = [:]
+    public func monitorResolvers() async {
+        await self.watcher.startWatching { fileURLs in
+            var dns: [String: String] = [:]
             let regex = try Regex(HostDNSResolver.localhostOptionsRegex)
 
             for file in fileURLs.filter({ $0.lastPathComponent.starts(with: HostDNSResolver.containerizationPrefix) }) {
                 let content = try String(contentsOf: file, encoding: .utf8)
 
                 if let match = content.firstMatch(of: regex),
-                    let ipv4 = IPv4(String(match[1].substring ?? ""))
+                    let ipv4 = (match[1].substring.map { String($0) })
                 {
                     let name = String(file.lastPathComponent.dropFirst(HostDNSResolver.containerizationPrefix.count))
                     dns[name + "."] = ipv4
                 }
             }
-            self.dns = dns
+            self.dns.withLock { $0 = dns.compactMapValues { IPv4($0) } }
         }
     }
 
-    public func answer(query: Message) async throws -> Message? {
+    nonisolated public func answer(query: Message) async throws -> Message? {
         let question = query.questions[0]
         var record: ResourceRecord?
         switch question.type {
         case ResourceRecordType.host:
+            let dns = dns.withLock { $0 }
             if let ip = dns[question.name] {
                 record = HostRecord<IPv4>(name: question.name, ttl: ttl, ip: ip)
             }

@@ -191,6 +191,7 @@ public struct Flags {
             runtime: String?,
             ssh: Bool,
             tmpFs: [String],
+            useInit: Bool,
             virtualization: Bool,
             volumes: [String]
         ) {
@@ -216,6 +217,7 @@ public struct Flags {
             self.runtime = runtime
             self.ssh = ssh
             self.tmpFs = tmpFs
+            self.useInit = useInit
             self.virtualization = virtualization
             self.volumes = volumes
         }
@@ -241,6 +243,15 @@ public struct Flags {
         )
         public var entrypoint: String?
 
+        @Flag(name: .customLong("init"), help: "Run an init process inside the container that forwards signals and reaps processes")
+        public var useInit = false
+
+        @Option(
+            name: .long,
+            help: .init("Use a custom init image instead of the default", valueName: "image")
+        )
+        public var initImage: String?
+
         @Option(
             name: .shortAndLong,
             help: .init("Set a custom kernel path", valueName: "path"),
@@ -251,12 +262,6 @@ public struct Flags {
         )
         public var kernel: String?
 
-        @Option(
-            name: .long,
-            help: .init("Use a custom init image instead of the default", valueName: "image")
-        )
-        public var initImage: String?
-
         @Option(name: [.short, .customLong("label")], help: "Add a key=value label to the container")
         public var labels: [String] = []
 
@@ -266,7 +271,7 @@ public struct Flags {
         @Option(name: .long, help: "Use the specified name as the container ID")
         public var name: String?
 
-        @Option(name: [.customLong("network")], help: "Attach the container to a network (format: <name>[,mac=XX:XX:XX:XX:XX:XX])")
+        @Option(name: [.customLong("network")], help: "Attach the container to a network (format: <name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE])")
         public var networks: [String] = []
 
         @Flag(name: [.customLong("no-dns")], help: "Do not configure DNS in the container")
@@ -284,7 +289,7 @@ public struct Flags {
         )
         public var publishPorts: [String] = []
 
-        @Option(name: .long, help: "Platform for the image if it's multi-platform. This takes precedence over --os and --arch")
+        @Option(name: .long, help: "Platform for the image if it's multi-platform. This takes precedence over --os and --arch [environment: CONTAINER_DEFAULT_PLATFORM]")
         public var platform: String?
 
         @Option(
@@ -308,6 +313,9 @@ public struct Flags {
         @Flag(name: .long, help: "Enable Rosetta in the container")
         public var rosetta = false
 
+        @Option(name: .long, help: "Set the runtime handler for the container (default: container-runtime-linux)")
+        public var runtime: String?
+
         @Flag(name: .long, help: "Forward SSH agent socket to container")
         public var ssh = false
 
@@ -323,9 +331,6 @@ public struct Flags {
 
         @Option(name: [.customLong("volume"), .short], help: "Bind mount a volume into the container")
         public var volumes: [String] = []
-
-        @Option(name: .long, help: "Set the runtime handler for the container (default: container-runtime-linux)")
-        public var runtime: String?
     }
 
     public struct Progress: ParsableArguments {

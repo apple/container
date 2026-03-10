@@ -499,7 +499,7 @@ public actor ContainersService {
     }
 
     /// Bootstrap the init process of the container.
-    public func bootstrap(id: String, stdio: [FileHandle?], variant: String? = nil) async throws {
+    public func bootstrap(id: String, stdio: [FileHandle?]) async throws {
         log.debug(
             "ContainersService: enter",
             metadata: [
@@ -538,15 +538,32 @@ public actor ContainersService {
                         hostname: n.options.hostname,
                         macAddress: n.options.macAddress
                     )
-                    guard let allocatedAttach = allocatedAttach else {
+                    guard var allocatedAttach = allocatedAttach else {
                         throw ContainerizationError(.internalError, message: "failed to allocate a network")
+                    }
+
+                    if let mtu = n.options.mtu {
+                        let a = allocatedAttach.attachment
+                        allocatedAttach = AllocatedAttachment(
+                            attachment: Attachment(
+                                network: a.network,
+                                hostname: a.hostname,
+                                ipv4Address: a.ipv4Address,
+                                ipv4Gateway: a.ipv4Gateway,
+                                ipv6Address: a.ipv6Address,
+                                macAddress: a.macAddress,
+                                mtu: mtu
+                            ),
+                            additionalData: allocatedAttach.additionalData,
+                            pluginInfo: allocatedAttach.pluginInfo
+                        )
                     }
                     allocatedAttachments.append(allocatedAttach)
                 }
 
                 try Self.registerService(
-                    loader: self.pluginLoader,
                     plugin: self.runtimePlugins.first { $0.name == config.runtimeHandler }!,
+                    loader: self.pluginLoader,
                     configuration: config,
                     path: path,
                     debug: self.debugHelpers
@@ -1248,17 +1265,14 @@ public actor ContainersService {
     }
 
     private static func registerService(
-        loader: PluginLoader,
         plugin: Plugin,
-        variant: String? = nil,
+        loader: PluginLoader,
         configuration: ContainerConfiguration,
         path: URL,
         debug: Bool
     ) throws {
         let args = [
             "start",
-            variant != nil ? "--variant" : nil,
-            variant,
             "--root", path.path,
             "--uuid", configuration.id,
             debug ? "--debug" : nil,
@@ -1351,9 +1365,5 @@ extension XPCMessage {
             throw ContainerizationError(.invalidArgument, message: "empty process configuration")
         }
         return try JSONDecoder().decode(ProcessConfiguration.self, from: data)
-    }
-
-    func variant() -> String? {
-        self.string(key: .variant)
     }
 }

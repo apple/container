@@ -111,6 +111,8 @@ $(STAGING_DIR):
 	@install "$(BUILD_BIN_DIR)/container-core-images" "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin/container-core-images)"
 	@install config/container-core-images-config.json "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/config.json)"
 
+	@echo Install update script
+	@install scripts/update-container.sh "$(join $(STAGING_DIR), bin/update-container.sh)"
 	@echo Install uninstaller script
 	@install scripts/uninstall-container.sh "$(join $(STAGING_DIR), bin/uninstall-container.sh)"
 
@@ -185,6 +187,7 @@ integration: init-block
 	echo "Starting CLI integration tests" && \
 	{ \
 		exit_code=0; \
+		CLITEST_LOG_ROOT=$(LOG_ROOT) && export CLITEST_LOG_ROOT ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLINetwork || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunLifecycle || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIExecCommand || exit_code=1 ; \

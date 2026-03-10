@@ -113,7 +113,7 @@ public struct ContainerClient: Sendable {
     }
 
     /// Bootstrap the container's init process.
-    public func bootstrap(id: String, stdio: [FileHandle?], variant: String? = nil) async throws -> ClientProcess {
+    public func bootstrap(id: String, stdio: [FileHandle?]) async throws -> ClientProcess {
         let request = XPCMessage(route: .containerBootstrap)
 
         for (i, h) in stdio.enumerated() {
@@ -130,10 +130,6 @@ public struct ContainerClient: Sendable {
             if let h {
                 request.set(key: key, value: h)
             }
-        }
-
-        if let variant {
-            request.set(key: .variant, value: variant)
         }
 
         do {

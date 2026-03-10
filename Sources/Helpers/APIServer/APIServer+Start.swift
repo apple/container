@@ -91,10 +91,15 @@ extension APIServer {
                             $0[$1.key.rawValue] = $1.value
                         }), log: log)
 
-                await withThrowingTaskGroup(of: Void.self) { group in
+                await withTaskGroup(of: Result<Void, Error>.self) { group in
                     group.addTask {
                         log.info("starting XPC server")
-                        try await server.listen()
+                        do {
+                            try await server.listen()
+                            return .success(())
+                        } catch {
+                            return .failure(error)
+                        }
                     }
 
                     // start up host table DNS
@@ -111,35 +116,47 @@ extension APIServer {
                                 "port": "\(Self.dnsPort)",
                             ]
                         )
-                        try await dnsServer.run(host: Self.listenAddress, port: Self.dnsPort)
+                        do {
+                            try await dnsServer.run(host: Self.listenAddress, port: Self.dnsPort)
+                            return .success(())
+                        } catch {
+                            return .failure(error)
+                        }
 
                     }
 
                     // start up realhost DNS
-                    /*
                     group.addTask {
-                        let localhostResolver = LocalhostDNSHandler(log: log)
                         do {
-                            try localhostResolver.monitorResolvers()
+                            let localhostResolver = LocalhostDNSHandler(log: log)
+                            await localhostResolver.monitorResolvers()
+
+                            let nxDomainResolver = NxDomainResolver()
+                            let compositeResolver = CompositeResolver(handlers: [localhostResolver, nxDomainResolver])
+                            let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
+                            let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
+                            log.info(
+                                "starting DNS resolver for localhost",
+                                metadata: [
+                                    "host": "\(Self.listenAddress)",
+                                    "port": "\(Self.localhostDNSPort)",
+                                ]
+                            )
+                            try await dnsServer.run(host: Self.listenAddress, port: Self.localhostDNSPort)
+                            return .success(())
                         } catch {
-                            log.error("could not initialize resolver monitor", metadata: ["error": "\(error)"])
-                            throw error
+                            return .failure(error)
                         }
-                    
-                        let nxDomainResolver = NxDomainResolver()
-                        let compositeResolver = CompositeResolver(handlers: [localhostResolver, nxDomainResolver])
-                        let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
-                        let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
-                        log.info(
-                            "starting DNS resolver for localhost",
-                            metadata: [
-                                "host": "\(Self.listenAddress)",
-                                "port": "\(Self.localhostDNSPort)",
-                            ]
-                        )
-                        try await dnsServer.run(host: Self.listenAddress, port: Self.localhostDNSPort)
                     }
-                    */
+
+                    for await result in group {
+                        switch result {
+                        case .success():
+                            continue
+                        case .failure(let error):
+                            log.error("API server task failed: \(error)")
+                        }
+                    }
                 }
             } catch {
                 log.error(

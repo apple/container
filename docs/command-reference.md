@@ -50,6 +50,7 @@ container run [<options>] <image> [<arguments> ...]
 *   `--dns-option <option>`: DNS options
 *   `--dns-search <domain>`: DNS search domains
 *   `--entrypoint <cmd>`: Override the entrypoint of the image
+*   `--init`: Run an init process inside the container that forwards signals and reaps processes
 *   `--init-image <image>`: Use a custom init image instead of the default. This allows customizing boot-time behavior before the OCI container starts, such as running VM-level daemons, configuring eBPF filters, or debugging the init process.
 *   `-k, --kernel <path>`: Set a custom kernel path
 *   `-l, --label <label>`: Add a key=value label to the container
@@ -61,13 +62,14 @@ container run [<options>] <image> [<arguments> ...]
 *   `-p, --publish <spec>`: Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])
 *   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
 *   `--publish-socket <spec>`: Publish a socket from container to host (format: host_path:container_path)
+*   `--read-only`: Mount the container's root filesystem as read-only
 *   `--rm, --remove`: Remove the container after it stops
 *   `--rosetta`: Enable Rosetta in the container
+*   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)
 *   `--ssh`: Forward SSH agent socket to container
 *   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
 *   `-v, --volume <volume>`: Bind mount a volume into the container
 *   `--virtualization`: Expose virtualization capabilities to the container (requires host and guest support)
-*   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)
 
 **Registry Options**
 
@@ -103,6 +105,9 @@ container run -e NODE_ENV=production --cpus 2 --memory 1G node:18
 
 # run a container with a specific MAC address
 container run --network default,mac=02:42:ac:11:00:02 ubuntu:latest
+
+# run a container with an init process to reap zombies and forward signals
+container run --init ubuntu:latest my-app
 
 # run a container with a custom init image for boot customization
 container run --init-image local/custom-init:latest ubuntu:latest
@@ -205,6 +210,7 @@ container create [<options>] <image> [<arguments> ...]
 *   `--dns-option <option>`: DNS options
 *   `--dns-search <domain>`: DNS search domains
 *   `--entrypoint <cmd>`: Override the entrypoint of the image
+*   `--init`: Run an init process inside the container that forwards signals and reaps processes
 *   `--init-image <image>`: Use a custom init image instead of the default. This allows customizing boot-time behavior before the OCI container starts, such as running VM-level daemons, configuring eBPF filters, or debugging the init process.
 *   `-k, --kernel <path>`: Set a custom kernel path
 *   `-l, --label <label>`: Add a key=value label to the container
@@ -216,13 +222,14 @@ container create [<options>] <image> [<arguments> ...]
 *   `-p, --publish <spec>`: Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])
 *   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
 *   `--publish-socket <spec>`: Publish a socket from container to host (format: host_path:container_path)
+*   `--read-only`: Mount the container's root filesystem as read-only
 *   `--rm, --remove`: Remove the container after it stops
 *   `--rosetta`: Enable Rosetta in the container
+*   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)  
 *   `--ssh`: Forward SSH agent socket to container
 *   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
 *   `-v, --volume <volume>`: Bind mount a volume into the container
 *   `--virtualization`: Expose virtualization capabilities to the container (requires host and guest support)
-*   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)  
 
 **Registry Options**
 

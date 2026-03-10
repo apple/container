@@ -15,13 +15,18 @@
 //===----------------------------------------------------------------------===//
 
 import AsyncHTTPClient
+import ContainerLog
 import ContainerResource
 import Containerization
 import ContainerizationOS
 import Foundation
+import Logging
+import Synchronization
+import SystemPackage
 import Testing
 
 class CLITest {
+    private static let commandSeq = Mutex<Int>(0)
     struct Image: Codable {
         let reference: String
     }
@@ -46,14 +51,35 @@ class CLITest {
         let status: NetworkStatus?
     }
 
-    init() throws {}
+    let testName: String
+    let testSuite: String
+    var log: Logger
 
-    let testUUID = UUID().uuidString
+    init() throws {
+        let name = Test.current.map { $0.name.hasSuffix("()") ? String($0.name.dropLast(2)) : $0.name } ?? UUID().uuidString
+        let suite = "\(type(of: self))"
+        self.testName = name
+        self.testSuite = suite
+        let logger = Logger(label: "com.apple.container.test") { label in
+            if let logRootString = ProcessInfo.processInfo.environment["CLITEST_LOG_ROOT"],
+                !logRootString.isEmpty
+            {
+                let logPath = FilePath(logRootString).appending("clitests").appending(suite).appending(name + ".log")
+                if let handler = try? FileLogHandler(label: label, category: "clitests", path: logPath) {
+                    return handler
+                }
+            }
+            return StderrLogHandler()
+        }
+        self.log = logger
+        self.log[metadataKey: "testID"] = "\(name)"
+        self.log[metadataKey: "suite"] = "\(suite)"
+    }
 
     var testDir: URL! {
         let tempDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent(".clitests")
-            .appendingPathComponent(testUUID)
+            .appendingPathComponent(testName)
         try! FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         return tempDir
     }
@@ -110,6 +136,18 @@ class CLITest {
     }
 
     func run(arguments: [String], stdin: Data? = nil, currentDirectory: URL? = nil) throws -> (outputData: Data, output: String, error: String, status: Int32) {
+        let seq = CLITest.commandSeq.withLock { counter in
+            defer { counter += 1 }
+            return counter
+        }
+        log.info(
+            "command start",
+            metadata: [
+                "seq": "\(seq)",
+                "args": "\(arguments.joined(separator: " "))",
+            ]
+        )
+
         let process = Process()
         process.executableURL = try executablePath
         process.arguments = arguments
@@ -141,6 +179,16 @@ class CLITest {
 
         let output = String(data: outputData, encoding: .utf8) ?? ""
         let error = String(data: errorData, encoding: .utf8) ?? ""
+
+        log.info(
+            "command end",
+            metadata: [
+                "seq": "\(seq)",
+                "status": "\(process.terminationStatus)",
+                "stdout": "\(String(output.prefix(64)).debugDescription)",
+                "stderr": "\(String(error.prefix(64)).debugDescription)",
+            ]
+        )
 
         return (outputData: outputData, output: output, error: error, status: process.terminationStatus)
     }
