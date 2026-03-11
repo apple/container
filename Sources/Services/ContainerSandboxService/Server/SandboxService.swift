@@ -632,7 +632,7 @@ public actor SandboxService {
         return reply
     }
 
-    /// Copy a file from the host into the container.
+    /// Copy a file or directory from the host into the container.
     ///
     /// - Parameters:
     ///   - message: An XPC message with the following parameters:
@@ -676,7 +676,7 @@ public actor SandboxService {
         }
     }
 
-    /// Copy a file from the container to the host.
+    /// Copy a file or directory from the container to the host.
     ///
     /// - Parameters:
     ///   - message: An XPC message with the following parameters:

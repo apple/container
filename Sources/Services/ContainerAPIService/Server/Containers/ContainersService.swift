@@ -776,7 +776,7 @@ public actor ContainersService {
         }
     }
 
-    /// Copy a file from the host into the container.
+    /// Copy a file or directory from the host into the container.
     public func copyIn(id: String, source: String, destination: String, mode: UInt32) async throws {
         self.log.debug("\(#function)")
 
@@ -788,7 +788,7 @@ public actor ContainersService {
         try await client.copyIn(source: source, destination: destination, mode: mode)
     }
 
-    /// Copy a file from the container to the host.
+    /// Copy a file or directory from the container to the host.
     public func copyOut(id: String, source: String, destination: String) async throws {
         self.log.debug("\(#function)")
 

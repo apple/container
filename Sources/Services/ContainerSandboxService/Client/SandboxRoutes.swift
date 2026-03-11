@@ -41,8 +41,8 @@ public enum SandboxRoutes: String {
     case shutdown = "com.apple.container.sandbox/shutdown"
     /// Get statistics for the sandbox.
     case statistics = "com.apple.container.sandbox/statistics"
-    /// Copy a file into the container.
+    /// Copy a file or directory into the container.
     case copyIn = "com.apple.container.sandbox/copyIn"
-    /// Copy a file out of the container.
+    /// Copy a file or directory out of the container.
     case copyOut = "com.apple.container.sandbox/copyOut"
 }

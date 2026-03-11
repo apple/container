@@ -299,7 +299,7 @@ public struct ContainerClient: Sendable {
         return fh
     }
 
-    /// Copy a file from the host into the container.
+    /// Copy a file or directory from the host into the container.
     public func copyIn(id: String, source: URL, destination: URL, mode: UInt32 = 0o644) async throws {
         let request = XPCMessage(route: .containerCopyIn)
         request.set(key: .id, value: id)
@@ -318,7 +318,7 @@ public struct ContainerClient: Sendable {
         }
     }
 
-    /// Copy a file from the container to the host.
+    /// Copy a file or directory from the container to the host.
     public func copyOut(id: String, source: URL, destination: URL) async throws {
         let request = XPCMessage(route: .containerCopyOut)
         request.set(key: .id, value: id)
