@@ -124,7 +124,7 @@ public enum XPCKeys: String {
     case volumeContainerId
 
     /// Container statistics
-    case statisticshttps://github.com/apple/container/pull/1190/conflict?name=Sources%252FHelpers%252FAPIServer%252FAPIServer%252BStart.swift&ancestor_oid=53175b91c6a1d7019854596f41660d0e45600ba0&base_oid=155d6c3448d8a05053ad3494b8ab58ef619757b2&head_oid=f5de594190fdf80b039e02950c732a203ddaeca0
+    case statistics
     case containerSize
 
     /// Container list filters
