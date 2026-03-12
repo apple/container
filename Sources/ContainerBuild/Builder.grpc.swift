@@ -45,7 +45,8 @@ public enum Com_Apple_Container_Build_V1_Builder: Sendable {
             /// Descriptor for "CreateBuild".
             public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "com.apple.container.build.v1.Builder"),
-                method: "CreateBuild"
+                method: "CreateBuild",
+                type: .unary
             )
         }
         /// Namespace for "PerformBuild" metadata.
@@ -57,7 +58,8 @@ public enum Com_Apple_Container_Build_V1_Builder: Sendable {
             /// Descriptor for "PerformBuild".
             public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "com.apple.container.build.v1.Builder"),
-                method: "PerformBuild"
+                method: "PerformBuild",
+                type: .bidirectionalStreaming
             )
         }
         /// Namespace for "Info" metadata.
@@ -69,7 +71,8 @@ public enum Com_Apple_Container_Build_V1_Builder: Sendable {
             /// Descriptor for "Info".
             public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "com.apple.container.build.v1.Builder"),
-                method: "Info"
+                method: "Info",
+                type: .unary
             )
         }
         /// Descriptors for all methods in the "com.apple.container.build.v1.Builder" service.
