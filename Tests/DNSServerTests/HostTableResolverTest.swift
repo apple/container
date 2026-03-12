@@ -14,16 +14,14 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import DNS
+import ContainerizationExtras
 import Testing
 
 @testable import DNSServer
 
 struct HostTableResolverTest {
     @Test func testUnsupportedQuestionType() async throws {
-        guard let ip = IPv4("1.2.3.4") else {
-            throw DNSResolverError.serverError("cannot create IP address in test")
-        }
+        let ip = try IPv4Address("1.2.3.4")
         let handler = HostTableResolver(hosts4: ["foo": ip])
 
         let query = Message(
@@ -43,9 +41,7 @@ struct HostTableResolverTest {
     }
 
     @Test func testAAAAQueryReturnsNoDataWhenARecordExists() async throws {
-        guard let ip = IPv4("1.2.3.4") else {
-            throw DNSResolverError.serverError("cannot create IP address in test")
-        }
+        let ip = try IPv4Address("1.2.3.4")
         let handler = HostTableResolver(hosts4: ["foo": ip])
 
         let query = Message(
@@ -67,9 +63,7 @@ struct HostTableResolverTest {
     }
 
     @Test func testAAAAQueryReturnsNilWhenHostDoesNotExist() async throws {
-        guard let ip = IPv4("1.2.3.4") else {
-            throw DNSResolverError.serverError("cannot create IP address in test")
-        }
+        let ip = try IPv4Address("1.2.3.4")
         let handler = HostTableResolver(hosts4: ["foo": ip])
 
         let query = Message(
@@ -86,9 +80,7 @@ struct HostTableResolverTest {
     }
 
     @Test func testHostNotPresent() async throws {
-        guard let ip = IPv4("1.2.3.4") else {
-            throw DNSResolverError.serverError("cannot create IP address in test")
-        }
+        let ip = try IPv4Address("1.2.3.4")
         let handler = HostTableResolver(hosts4: ["foo": ip])
 
         let query = Message(
@@ -104,9 +96,7 @@ struct HostTableResolverTest {
     }
 
     @Test func testHostPresent() async throws {
-        guard let ip = IPv4("1.2.3.4") else {
-            throw DNSResolverError.serverError("cannot create IP address in test")
-        }
+        let ip = try IPv4Address("1.2.3.4")
         let handler = HostTableResolver(hosts4: ["foo": ip])
 
         let query = Message(
@@ -125,7 +115,7 @@ struct HostTableResolverTest {
         #expect("foo" == response?.questions[0].name)
         #expect(.host == response?.questions[0].type)
         #expect(1 == response?.answers.count)
-        let answer = response?.answers[0] as? HostRecord<IPv4>
-        #expect(IPv4("1.2.3.4") == answer?.ip)
+        let answer = response?.answers[0] as? HostRecord<IPv4Address>
+        #expect(try IPv4Address("1.2.3.4") == answer?.ip)
     }
 }

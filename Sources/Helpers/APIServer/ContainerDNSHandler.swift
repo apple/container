@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIService
-import DNS
+import ContainerizationExtras
 import DNSServer
 
 /// Handler that uses table lookup to resolve hostnames.
@@ -50,28 +50,11 @@ struct ContainerDNSHandler: DNSHandler {
                 )
             }
             record = result.record
-        case ResourceRecordType.nameServer,
-            ResourceRecordType.alias,
-            ResourceRecordType.startOfAuthority,
-            ResourceRecordType.pointer,
-            ResourceRecordType.mailExchange,
-            ResourceRecordType.text,
-            ResourceRecordType.service,
-            ResourceRecordType.incrementalZoneTransfer,
-            ResourceRecordType.standardZoneTransfer,
-            ResourceRecordType.all:
-            return Message(
-                id: query.id,
-                type: .response,
-                returnCode: .notImplemented,
-                questions: query.questions,
-                answers: []
-            )
         default:
             return Message(
                 id: query.id,
                 type: .response,
-                returnCode: .formatError,
+                returnCode: .notImplemented,
                 questions: query.questions,
                 answers: []
             )
@@ -95,11 +78,11 @@ struct ContainerDNSHandler: DNSHandler {
             return nil
         }
         let ipv4 = ipAllocation.ipv4Address.address.description
-        guard let ip = IPv4(ipv4) else {
+        guard let ip = try? IPv4Address(ipv4) else {
             throw DNSResolverError.serverError("failed to parse IP address: \(ipv4)")
         }
 
-        return HostRecord<IPv4>(name: question.name, ttl: ttl, ip: ip)
+        return HostRecord<IPv4Address>(name: question.name, ttl: ttl, ip: ip)
     }
 
     private func answerHost6(question: Question) async throws -> (record: ResourceRecord?, hostnameExists: Bool) {
@@ -110,10 +93,10 @@ struct ContainerDNSHandler: DNSHandler {
             return (nil, true)
         }
         let ipv6 = ipv6Address.address.description
-        guard let ip = IPv6(ipv6) else {
+        guard let ip = try? IPv6Address(ipv6) else {
             throw DNSResolverError.serverError("failed to parse IPv6 address: \(ipv6)")
         }
 
-        return (HostRecord<IPv6>(name: question.name, ttl: ttl, ip: ip), true)
+        return (HostRecord<IPv6Address>(name: question.name, ttl: ttl, ip: ip), true)
     }
 }
