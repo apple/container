@@ -207,7 +207,6 @@ extension Application {
                 }
 
                 let buildFileData: Data
-                var buildFilePath: String? = nil
                 var ignoreFileData: Data? = nil
                 // Dockerfile should be read from stdin
                 if dockerfile == "-" {
@@ -234,17 +233,8 @@ extension Application {
                     buildFileData = try Data(contentsOf: URL(filePath: tempFile.path()))
                 } else {
                     let ignoreFileURL = URL(filePath: dockerfile + ".dockerignore")
-                    ignoreFileData = try? Data(contentsOf: ignoreFileURL)
-
-                    if ignoreFileData != nil {
-                        let hiddenDirName = ".\(UUID().uuidString)"
-                        let buildFileName = URL(filePath: dockerfile).lastPathComponent
-
-                        buildFilePath = "\(hiddenDirName)/\(buildFileName)"
-                        ignoreFileData?.append("\n\(hiddenDirName)".data(using: .utf8) ?? Data())
-                    }
-
                     buildFileData = try Data(contentsOf: URL(filePath: dockerfile))
+                    ignoreFileData = try? Data(contentsOf: ignoreFileURL)
                 }
 
                 let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
@@ -316,13 +306,12 @@ extension Application {
                         }
                         return results
                     }()
-                    group.addTask { [terminal, buildArg, contextDir, buildFilePath, ignoreFileData, label, noCache, target, quiet, cacheIn, cacheOut, pull] in
+                    group.addTask { [terminal, buildArg, contextDir, ignoreFileData, label, noCache, target, quiet, cacheIn, cacheOut, pull] in
                         let config = Builder.BuildConfig(
                             buildID: buildID,
                             contentStore: RemoteContentStoreClient(),
                             buildArgs: buildArg,
                             contextDir: contextDir,
-                            dockerfilePath: buildFilePath,
                             dockerfile: buildFileData,
                             dockerignore: ignoreFileData,
                             labels: label,
