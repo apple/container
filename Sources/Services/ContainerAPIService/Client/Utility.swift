@@ -85,11 +85,12 @@ public struct Utility {
         progressUpdate: @escaping ProgressUpdateHandler,
         log: Logger
     ) async throws -> (ContainerConfiguration, Kernel, String?) {
-        var requestedPlatform = Parser.platform(os: management.os, arch: management.arch)
-        // Prefer --platform
-        if let platform = management.platform {
-            requestedPlatform = try Parser.platform(from: platform)
-        }
+        let requestedPlatform = try DefaultPlatform.resolveWithDefaults(
+            platform: management.platform,
+            os: management.os,
+            arch: management.arch,
+            log: log
+        )
         let scheme = try RequestScheme(registry.scheme)
 
         await progressUpdate([

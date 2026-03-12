@@ -100,7 +100,7 @@ extension Application {
 
         @Option(
             name: .long,
-            help: "Add the platform to the build (format: os/arch[/variant], takes precedence over --os and --arch)",
+            help: "Add the platform to the build (format: os/arch[/variant], takes precedence over --os and --arch) [environment: CONTAINER_DEFAULT_PLATFORM]",
             transform: { val in val.split(separator: ",").map { String($0) } }
         )
         var platform: [[String]] = [[]]
@@ -304,6 +304,10 @@ extension Application {
 
                         if !results.isEmpty {
                             return results
+                        }
+
+                        if let envPlatform = try DefaultPlatform.fromEnvironment(log: log) {
+                            return [envPlatform]
                         }
 
                         for o in (self.os.flatMap { $0 }) {

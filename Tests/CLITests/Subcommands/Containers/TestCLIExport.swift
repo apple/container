@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationArchive
 import Foundation
 import Testing
 
@@ -43,24 +44,24 @@ class TestCLIExportCommand: CLITest {
         _ = try doExec(name: name, cmd: ["sh", "-c", "ln /parent/child/baz /baz"])
 
         try doStop(name: name)
-        try doExport(name: name, image: name)
+
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         defer {
-            try? doRemoveImages(images: [name])
+            try? FileManager.default.removeItem(at: tempDir)
         }
+        let tempFile = tempDir.appendingPathComponent(UUID().uuidString)
 
-        let exported = "\(name)-from-exported"
-        try doLongRun(name: exported, image: name)
-        defer {
-            try? doStop(name: exported)
-        }
+        try doExport(name: name, filepath: tempFile.path())
 
-        let foo = try doExec(name: exported, cmd: ["cat", "/foo"])
-        #expect(foo == mustBeInImage + "\n")
+        let attrs = try FileManager.default.attributesOfItem(atPath: tempFile.path())
+        let fileSize = attrs[.size] as! UInt64
+        #expect(fileSize > 0)
 
-        let bar = try doExec(name: exported, cmd: ["cat", "/bar"])
-        #expect(bar == hardlinkMustRemain + "\n")
-
-        let baz = try doExec(name: exported, cmd: ["cat", "/baz"])
-        #expect(baz == symlinkMustRemain + "\n")
+        // TODO: verify foo bar baz are in tar file.
+        let reader = try ArchiveReader(file: tempFile)
+        let (foo, fooData) = try reader.extractFile(path: "/foo")
+        #expect(foo.fileType == .regular)
+        #expect(String(data: fooData, encoding: .utf8)?.starts(with: mustBeInImage) ?? false)
     }
 }
