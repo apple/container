@@ -423,7 +423,7 @@ extension Application {
         }
 
         public mutating func validate() throws {
-            // NOTE: We'll "validate" the Dockerfile later.
+            // NOTE: Here we check the Dockerfile exists, and set `dockerfile` to point the valid Dockerfile path or stdin
             guard FileManager.default.fileExists(atPath: contextDir) else {
                 throw ValidationError("context dir does not exist \(contextDir)")
             }
