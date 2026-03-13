@@ -208,6 +208,7 @@ extension Application {
 
                 let buildFileData: Data
                 var ignoreFileData: Data? = nil
+                var hiddenDockerDir: String? = nil
                 // Dockerfile should be read from stdin
                 if dockerfile == "-" {
                     let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("Dockerfile-\(UUID().uuidString)")
@@ -235,6 +236,22 @@ extension Application {
                     let ignoreFileURL = URL(filePath: dockerfile + ".dockerignore")
                     buildFileData = try Data(contentsOf: URL(filePath: dockerfile))
                     ignoreFileData = try? Data(contentsOf: ignoreFileURL)
+
+                    if let ignoreFileData {
+                        hiddenDockerDir = ".hidden-docker-dir"
+                        let hiddenDirInContext = URL(fileURLWithPath: contextDir).appendingPathComponent(hiddenDockerDir!)
+
+                        try FileManager.default.createDirectory(at: hiddenDirInContext, withIntermediateDirectories: true)
+                        try buildFileData.write(to: hiddenDirInContext.appendingPathComponent("Dockerfile"))
+                        try ignoreFileData.write(to: hiddenDirInContext.appendingPathComponent("Dockerfile.dockerignore"))
+                    }
+                }
+
+                defer {
+                    if let hiddenDockerDir {
+                        let hiddenDirInContext = URL(fileURLWithPath: contextDir).appendingPathComponent(hiddenDockerDir)
+                        try? FileManager.default.removeItem(at: hiddenDirInContext)
+                    }
                 }
 
                 let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
@@ -306,14 +323,14 @@ extension Application {
                         }
                         return results
                     }()
-                    group.addTask { [terminal, buildArg, contextDir, ignoreFileData, label, noCache, target, quiet, cacheIn, cacheOut, pull] in
+                    group.addTask { [terminal, buildArg, contextDir, hiddenDockerDir, label, noCache, target, quiet, cacheIn, cacheOut, pull] in
                         let config = Builder.BuildConfig(
                             buildID: buildID,
                             contentStore: RemoteContentStoreClient(),
                             buildArgs: buildArg,
                             contextDir: contextDir,
                             dockerfile: buildFileData,
-                            dockerignore: ignoreFileData,
+                            hiddenDockerDir: hiddenDockerDir,
                             labels: label,
                             noCache: noCache,
                             platforms: [Platform](platforms),
