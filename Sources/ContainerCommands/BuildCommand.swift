@@ -28,6 +28,8 @@ import TerminalProgress
 
 extension Application {
     public struct BuildCommand: AsyncLoggableCommand {
+        private static let hiddenDockerDir = ".com.apple.container.dockerfiles"
+
         public init() {}
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
@@ -238,13 +240,13 @@ extension Application {
                     ignoreFileData = try? Data(contentsOf: ignoreFileURL)
 
                     if var ignoreFileData {
-                        hiddenDockerDir = ".hidden-docker-dir"
-                        let hiddenDirInContext = URL(fileURLWithPath: contextDir).appendingPathComponent(hiddenDockerDir!)
+                        hiddenDockerDir = Self.hiddenDockerDir
+                        let hiddenDirInContext = URL(fileURLWithPath: contextDir).appendingPathComponent(Self.hiddenDockerDir)
 
                         try FileManager.default.createDirectory(at: hiddenDirInContext, withIntermediateDirectories: true)
                         try buildFileData.write(to: hiddenDirInContext.appendingPathComponent("Dockerfile"))
 
-                        ignoreFileData.append("\n\(hiddenDockerDir!)".data(using: .utf8) ?? Data())
+                        ignoreFileData.append("\n\(Self.hiddenDockerDir)".data(using: .utf8) ?? Data())
                         try ignoreFileData.write(to: hiddenDirInContext.appendingPathComponent("Dockerfile.dockerignore"))
                     }
                 }
