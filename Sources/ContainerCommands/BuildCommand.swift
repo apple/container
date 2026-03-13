@@ -237,12 +237,14 @@ extension Application {
                     buildFileData = try Data(contentsOf: URL(filePath: dockerfile))
                     ignoreFileData = try? Data(contentsOf: ignoreFileURL)
 
-                    if let ignoreFileData {
+                    if var ignoreFileData {
                         hiddenDockerDir = ".hidden-docker-dir"
                         let hiddenDirInContext = URL(fileURLWithPath: contextDir).appendingPathComponent(hiddenDockerDir!)
 
                         try FileManager.default.createDirectory(at: hiddenDirInContext, withIntermediateDirectories: true)
                         try buildFileData.write(to: hiddenDirInContext.appendingPathComponent("Dockerfile"))
+
+                        ignoreFileData.append("\n\(hiddenDockerDir!)".data(using: .utf8) ?? Data())
                         try ignoreFileData.write(to: hiddenDirInContext.appendingPathComponent("Dockerfile.dockerignore"))
                     }
                 }
