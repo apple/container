@@ -26,15 +26,19 @@ extension Application {
         public static var configuration: CommandConfiguration {
             CommandConfiguration(
                 commandName: "export",
-                abstract: "Export a container state to an image",
+                abstract: "Export a container's filesystem as a tar archive",
             )
         }
 
         @OptionGroup
         public var logOptions: Flags.Logging
 
-        @Option(name: .long, help: "image name")
-        var image: String?
+        @Option(
+            name: .shortAndLong, help: "Pathname for the saved container filesystem (defaults to stdout)", completion: .file(),
+            transform: { str in
+                URL(fileURLWithPath: str, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false)
+            })
+        var output: String?
 
         @Argument(help: "container ID")
         var id: String
@@ -48,20 +52,23 @@ extension Application {
                 try? FileManager.default.removeItem(at: tempDir)
             }
 
-            let imageName = image ?? id
-
             let archive = tempDir.appendingPathComponent("archive.tar")
             try await client.export(id: id, archive: archive)
 
-            let dockerfile = """
-                FROM scratch
-                ADD archive.tar .
-                """
-            try dockerfile.data(using: .utf8)!.write(to: tempDir.appendingPathComponent("Dockerfile"), options: .atomic)
-
-            let builder = try BuildCommand.parse(["-t", imageName, tempDir.absolutePath()])
-
-            try await builder.run()
+            if output == nil {
+                guard let fileHandle = try? FileHandle(forReadingFrom: archive) else {
+                    throw ContainerizationError(.internalError, message: "unable to open archive for reading")
+                }
+                let bufferSize = 4096
+                while true {
+                    let chunk = fileHandle.readData(ofLength: bufferSize)
+                    if chunk.isEmpty { break }
+                    FileHandle.standardOutput.write(chunk)
+                }
+                try fileHandle.close()
+            } else {
+                try FileManager.default.moveItem(at: archive, to: URL(fileURLWithPath: output!))
+            }
         }
     }
 }
