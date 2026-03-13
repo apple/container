@@ -96,6 +96,60 @@ struct RecordsTests {
                 _ = try name.appendBuffer(&buffer, offset: 0)
             }
         }
+
+        @Test("Lowercase labels on init")
+        func lowercaseLabelsOnInit() {
+            let name = DNSName("EXAMPLE.COM")
+            #expect(name.labels == ["example", "com"])
+        }
+
+        @Test("Lowercase labels on init with trailing dot")
+        func lowercaseLabelsOnInitTrailingDot() {
+            let name = DNSName("Example.Com.")
+            #expect(name.labels == ["example", "com"])
+        }
+
+        @Test("Lowercase labels from wire format")
+        func lowercaseLabelsFromWire() throws {
+            // Wire-encode "EXAMPLE.COM" with uppercase bytes, then decode
+            let upper = DNSName(labels: ["EXAMPLE", "COM"])
+            var buffer = [UInt8](repeating: 0, count: 64)
+            _ = try upper.appendBuffer(&buffer, offset: 0)
+
+            var parsed = DNSName()
+            _ = try parsed.bindBuffer(&buffer, offset: 0)
+            #expect(parsed.labels == ["example", "com"])
+        }
+
+        @Test("Reject forward compression pointer")
+        func rejectForwardCompressionPointer() throws {
+            // Craft a packet with a forward compression pointer at offset 12 pointing to offset 20
+            // Header (12 bytes) + pointer bytes
+            var buffer = [UInt8](repeating: 0, count: 32)
+            // At offset 0: compression pointer to offset 20 (forward)
+            buffer[0] = 0xC0
+            buffer[1] = 0x14  // points to offset 20, which is > 0
+
+            #expect(throws: DNSBindError.self) {
+                var b = buffer
+                var name = DNSName()
+                _ = try name.bindBuffer(&b, offset: 0)
+            }
+        }
+
+        @Test("Reject self-referential compression pointer")
+        func rejectSelfReferentialCompressionPointer() throws {
+            var buffer = [UInt8](repeating: 0, count: 16)
+            // At offset 0: compression pointer pointing back to offset 0 (same location)
+            buffer[0] = 0xC0
+            buffer[1] = 0x00  // points to offset 0 == current offset, not prior
+
+            #expect(throws: DNSBindError.self) {
+                var b = buffer
+                var name = DNSName()
+                _ = try name.bindBuffer(&b, offset: 0)
+            }
+        }
     }
 
     // MARK: - Question Tests

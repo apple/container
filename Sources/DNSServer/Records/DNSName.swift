@@ -33,7 +33,7 @@ public struct DNSName: Sendable, Hashable, CustomStringConvertible {
     public init(_ string: String) {
         // Remove trailing dot if present, then split
         let normalized = string.hasSuffix(".") ? String(string.dropLast()) : string
-        self.labels = normalized.isEmpty ? [] : normalized.split(separator: ".").map(String.init)
+        self.labels = normalized.isEmpty ? [] : normalized.split(separator: ".").map { String($0).lowercased() }
     }
 
     /// The wire format size of this name in bytes.
@@ -112,7 +112,11 @@ public struct DNSName: Sendable, Hashable, CustomStringConvertible {
 
                 // Calculate pointer offset from message start
                 let pointer = Int(length & 0x3F) << 8 | Int(buffer[offset + 1])
-                offset = messageStart + pointer
+                let pointerTarget = messageStart + pointer
+                guard pointerTarget < offset else {
+                    throw DNSBindError.unmarshalFailure(type: "DNSName", field: "compression pointer not prior")
+                }
+                offset = pointerTarget
                 jumped = true
                 continue
             }
@@ -133,7 +137,7 @@ public struct DNSName: Sendable, Hashable, CustomStringConvertible {
                 throw DNSBindError.unmarshalFailure(type: "DNSName", field: "label encoding")
             }
 
-            labels.append(label)
+            labels.append(label.lowercased())
             offset += Int(length)
         }
 
