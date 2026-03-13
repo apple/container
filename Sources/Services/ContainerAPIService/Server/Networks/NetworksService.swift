@@ -339,8 +339,12 @@ public actor NetworksService {
     }
 
     /// Perform a hostname lookup on all networks.
-    public func lookup(hostname: String) async throws -> Attachment? {
-        try await self.stateLock.withLock { _ in
+    ///
+    /// - Parameter dnsHostname: A DNS-format hostname, optionally with a trailing dot
+    ///   (e.g. `"example.com."` or `"example.com"`). The trailing dot is stripped before lookup.
+    public func lookup(dnsHostname: String) async throws -> Attachment? {
+        let hostname = dnsHostname.hasSuffix(".") ? String(dnsHostname.dropLast()) : dnsHostname
+        return try await self.stateLock.withLock { _ in
             for state in await self.serviceStates.values {
                 guard let allocation = try await state.client.lookup(hostname: hostname) else {
                     continue

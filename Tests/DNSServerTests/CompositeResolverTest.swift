@@ -29,7 +29,7 @@ struct CompositeResolverTest {
             id: UInt16(1),
             type: .query,
             questions: [
-                Question(name: "foo", type: .host)
+                Question(name: "foo.", type: .host)
             ])
 
         let fooResponse = try await resolver.answer(query: fooQuery)
@@ -43,7 +43,7 @@ struct CompositeResolverTest {
             id: UInt16(1),
             type: .query,
             questions: [
-                Question(name: "bar", type: .host)
+                Question(name: "bar.", type: .host)
             ])
 
         let barResponse = try await resolver.answer(query: barQuery)
@@ -57,7 +57,7 @@ struct CompositeResolverTest {
             id: UInt16(1),
             type: .query,
             questions: [
-                Question(name: "other", type: .host)
+                Question(name: "other.", type: .host)
             ])
 
         let otherResponse = try await resolver.answer(query: otherQuery)

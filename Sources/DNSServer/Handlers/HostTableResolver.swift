@@ -17,10 +17,19 @@
 import ContainerizationExtras
 
 /// Handler that uses table lookup to resolve hostnames.
+///
+/// All keys in `hosts4` must be canonical DNS names — fully-qualified with a
+/// trailing dot (e.g. `"example.com."`). This matches the canonical form used
+/// by `Question.name` when decoded from the wire.
 public struct HostTableResolver: DNSHandler {
     public let hosts4: [String: IPv4Address]
     private let ttl: UInt32
 
+    /// Creates a resolver backed by a static IPv4 host table.
+    ///
+    /// - Parameter hosts4: A dictionary mapping fully-qualified domain names (with trailing dot)
+    ///   to IPv4 addresses. Keys without a trailing dot will not match wire-decoded queries.
+    /// - Parameter ttl: The TTL in seconds to set on answer records.
     public init(hosts4: [String: IPv4Address], ttl: UInt32 = 300) {
         self.hosts4 = hosts4
         self.ttl = ttl

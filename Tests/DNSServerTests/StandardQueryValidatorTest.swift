@@ -28,7 +28,7 @@ struct StandardQueryValidatorTest {
             id: UInt16(1),
             type: .response,
             questions: [
-                Question(name: "foo", type: .host)
+                Question(name: "foo.", type: .host)
             ])
 
         let response = try await handler.answer(query: query)
@@ -37,7 +37,7 @@ struct StandardQueryValidatorTest {
         #expect(1 == response?.id)
         #expect(.response == response?.type)
         #expect(1 == response?.questions.count)
-        #expect("foo" == response?.questions[0].name)
+        #expect("foo." == response?.questions[0].name)
         #expect(.host == response?.questions[0].type)
         #expect(0 == response?.answers.count)
     }
@@ -51,7 +51,7 @@ struct StandardQueryValidatorTest {
             type: .query,
             operationCode: .notify,
             questions: [
-                Question(name: "foo", type: .host)
+                Question(name: "foo.", type: .host)
             ])
 
         let response = try await handler.answer(query: query)
@@ -60,7 +60,7 @@ struct StandardQueryValidatorTest {
         #expect(2 == response?.id)
         #expect(.response == response?.type)
         #expect(1 == response?.questions.count)
-        #expect("foo" == response?.questions[0].name)
+        #expect("foo." == response?.questions[0].name)
         #expect(.host == response?.questions[0].type)
         #expect(0 == response?.answers.count)
     }
@@ -73,8 +73,8 @@ struct StandardQueryValidatorTest {
             id: UInt16(2),
             type: .query,
             questions: [
-                Question(name: "foo", type: .host),
-                Question(name: "bar", type: .host),
+                Question(name: "foo.", type: .host),
+                Question(name: "bar.", type: .host),
             ])
 
         let response = try await handler.answer(query: query)
@@ -83,9 +83,9 @@ struct StandardQueryValidatorTest {
         #expect(2 == response?.id)
         #expect(.response == response?.type)
         #expect(2 == response?.questions.count)
-        #expect("foo" == response?.questions[0].name)
+        #expect("foo." == response?.questions[0].name)
         #expect(.host == response?.questions[0].type)
-        #expect("bar" == response?.questions[1].name)
+        #expect("bar." == response?.questions[1].name)
         #expect(.host == response?.questions[1].type)
         #expect(0 == response?.answers.count)
     }
@@ -98,7 +98,7 @@ struct StandardQueryValidatorTest {
             id: UInt16(2),
             type: .query,
             questions: [
-                Question(name: "foo", type: .host)
+                Question(name: "foo.", type: .host)
             ])
 
         let response = try await handler.answer(query: query)
@@ -107,7 +107,7 @@ struct StandardQueryValidatorTest {
         #expect(2 == response?.id)
         #expect(.response == response?.type)
         #expect(1 == response?.questions.count)
-        #expect("foo" == response?.questions[0].name)
+        #expect("foo." == response?.questions[0].name)
         #expect(.host == response?.questions[0].type)
         #expect(1 == response?.answers.count)
         let answer = response?.answers[0] as? HostRecord<IPv4Address>

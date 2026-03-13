@@ -17,8 +17,12 @@
 import Foundation
 
 /// A DNS question (query).
+///
+/// All domain names in a `Question` are canonical DNS names — fully-qualified
+/// with a trailing dot (e.g. `"example.com."`). This invariant is not enforced
+/// automatically; callers are responsible for supplying canonical names.
 public struct Question: Sendable, CustomStringConvertible {
-    /// The domain name being queried.
+    /// The fully-qualified domain name being queried, with a trailing dot (e.g. `"example.com."`).
     public var name: String
 
     /// The record type being requested.
@@ -27,6 +31,13 @@ public struct Question: Sendable, CustomStringConvertible {
     /// The record class (usually .internet).
     public var recordClass: ResourceRecordClass
 
+    /// Creates a DNS question.
+    ///
+    /// - Parameter name: The fully-qualified domain name to query, with a trailing dot
+    ///   (e.g. `"example.com."`). Supplying a name without a trailing dot will produce
+    ///   lookup mismatches against canonically-stored records.
+    /// - Parameter type: The record type being requested.
+    /// - Parameter recordClass: The record class (usually `.internet`).
     public init(
         name: String,
         type: ResourceRecordType = .host,

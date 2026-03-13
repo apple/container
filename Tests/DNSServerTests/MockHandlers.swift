@@ -21,7 +21,7 @@ import Testing
 
 struct FooHandler: DNSHandler {
     public func answer(query: Message) async throws -> Message? {
-        if query.questions[0].name == "foo" {
+        if query.questions[0].name == "foo." {
             let ip = try IPv4Address("1.2.3.4")
             return Message(
                 id: query.id,
@@ -38,7 +38,7 @@ struct FooHandler: DNSHandler {
 struct BarHandler: DNSHandler {
     public func answer(query: Message) async throws -> Message? {
         let question = query.questions[0]
-        if question.name == "foo" || question.name == "bar" {
+        if question.name == "foo." || question.name == "bar." {
             let ip = try IPv4Address("5.6.7.8")
             return Message(
                 id: query.id,

@@ -22,13 +22,13 @@ import Testing
 struct HostTableResolverTest {
     @Test func testUnsupportedQuestionType() async throws {
         let ip = try IPv4Address("1.2.3.4")
-        let handler = HostTableResolver(hosts4: ["foo": ip])
+        let handler = HostTableResolver(hosts4: ["foo.": ip])
 
         let query = Message(
             id: UInt16(1),
             type: .query,
             questions: [
-                Question(name: "foo", type: .mailExchange)
+                Question(name: "foo.", type: .mailExchange)
             ])
 
         let response = try await handler.answer(query: query)
@@ -42,13 +42,13 @@ struct HostTableResolverTest {
 
     @Test func testAAAAQueryReturnsNoDataWhenARecordExists() async throws {
         let ip = try IPv4Address("1.2.3.4")
-        let handler = HostTableResolver(hosts4: ["foo": ip])
+        let handler = HostTableResolver(hosts4: ["foo.": ip])
 
         let query = Message(
             id: UInt16(1),
             type: .query,
             questions: [
-                Question(name: "foo", type: .host6)
+                Question(name: "foo.", type: .host6)
             ])
 
         let response = try await handler.answer(query: query)
@@ -64,13 +64,13 @@ struct HostTableResolverTest {
 
     @Test func testAAAAQueryReturnsNilWhenHostDoesNotExist() async throws {
         let ip = try IPv4Address("1.2.3.4")
-        let handler = HostTableResolver(hosts4: ["foo": ip])
+        let handler = HostTableResolver(hosts4: ["foo.": ip])
 
         let query = Message(
             id: UInt16(1),
             type: .query,
             questions: [
-                Question(name: "bar", type: .host6)
+                Question(name: "bar.", type: .host6)
             ])
 
         let response = try await handler.answer(query: query)
@@ -81,13 +81,13 @@ struct HostTableResolverTest {
 
     @Test func testHostNotPresent() async throws {
         let ip = try IPv4Address("1.2.3.4")
-        let handler = HostTableResolver(hosts4: ["foo": ip])
+        let handler = HostTableResolver(hosts4: ["foo.": ip])
 
         let query = Message(
             id: UInt16(1),
             type: .query,
             questions: [
-                Question(name: "bar", type: .host)
+                Question(name: "bar.", type: .host)
             ])
 
         let response = try await handler.answer(query: query)
@@ -97,13 +97,13 @@ struct HostTableResolverTest {
 
     @Test func testHostPresent() async throws {
         let ip = try IPv4Address("1.2.3.4")
-        let handler = HostTableResolver(hosts4: ["foo": ip])
+        let handler = HostTableResolver(hosts4: ["foo.": ip])
 
         let query = Message(
             id: UInt16(1),
             type: .query,
             questions: [
-                Question(name: "foo", type: .host)
+                Question(name: "foo.", type: .host)
             ])
 
         let response = try await handler.answer(query: query)
@@ -112,7 +112,7 @@ struct HostTableResolverTest {
         #expect(1 == response?.id)
         #expect(.response == response?.type)
         #expect(1 == response?.questions.count)
-        #expect("foo" == response?.questions[0].name)
+        #expect("foo." == response?.questions[0].name)
         #expect(.host == response?.questions[0].type)
         #expect(1 == response?.answers.count)
         let answer = response?.answers[0] as? HostRecord<IPv4Address>
