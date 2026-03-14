@@ -632,12 +632,12 @@ class CLITest {
             .flatMap { (key, val) in ["-e", "\(key)=\(val)"] }
     }
 
-    func doExport(name: String, image: String) throws {
+    func doExport(name: String, filepath: String) throws {
         let (_, _, error, status) = try run(arguments: [
             "export",
-            "--image",
-            image,
             name,
+            "-o",
+            filepath,
         ])
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
