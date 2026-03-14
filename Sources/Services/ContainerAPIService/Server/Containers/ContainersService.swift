@@ -398,7 +398,8 @@ public actor ContainersService {
     }
 
     /// Bootstrap the init process of the container.
-    public func bootstrap(id: String, stdio: [FileHandle?]) async throws {
+    /// - Parameter dynamicEnv: Optional start-time environment overrides passed from the client.
+    public func bootstrap(id: String, stdio: [FileHandle?], dynamicEnv: [String: String] = [:]) async throws {
         log.debug(
             "ContainersService: enter",
             metadata: [
@@ -473,7 +474,7 @@ public actor ContainersService {
                     id: id,
                     runtime: runtime
                 )
-                try await sandboxClient.bootstrap(stdio: stdio, allocatedAttachments: allocatedAttachments)
+                try await sandboxClient.bootstrap(stdio: stdio, allocatedAttachments: allocatedAttachments, dynamicEnv: dynamicEnv)
 
                 try await self.exitMonitor.registerProcess(
                     id: id,

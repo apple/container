@@ -113,8 +113,8 @@ public struct ContainerClient: Sendable {
     }
 
     /// Bootstrap the container's init process.
-    /// - Parameter sshAuthSocketPath: Optional path to the current shell's SSH agent socket, supplied at bootstrap time when SSH forwarding is enabled.
-    public func bootstrap(id: String, stdio: [FileHandle?], sshAuthSocketPath: String? = nil) async throws -> ClientProcess {
+    /// - Parameter dynamicEnv: Optional start-time environment overrides passed through bootstrap.
+    public func bootstrap(id: String, stdio: [FileHandle?], dynamicEnv: [String: String] = [:]) async throws -> ClientProcess {
         let request = XPCMessage(route: .containerBootstrap)
 
         for (i, h) in stdio.enumerated() {
@@ -135,8 +135,9 @@ public struct ContainerClient: Sendable {
 
         do {
             request.set(key: .id, value: id)
-            if let sshAuthSocketPath {
-                request.set(key: .sshAuthSocketPath, value: sshAuthSocketPath)
+            if !dynamicEnv.isEmpty {
+                let encodedDynamicEnv = try JSONEncoder().encode(dynamicEnv)
+                request.set(key: .dynamicEnv, value: encodedDynamicEnv)
             }
             try await xpcClient.send(request)
             return ClientProcessImpl(containerId: id, xpcClient: xpcClient)
