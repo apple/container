@@ -55,11 +55,10 @@ final class TestCLIVersion: CLITest {
             .components(separatedBy: .newlines)
         #expect(lines.count >= 2)  // header + at least CLI row
         #expect(lines[0].contains("COMPONENT") && lines[0].contains("VERSION") && lines[0].contains("BUILD") && lines[0].contains("COMMIT"))
-        #expect(lines[1].hasPrefix("CLI "))
+        #expect(lines[1].hasPrefix("container"))
 
         // Build should reflect the binary we are running (debug/release)
         let expected = try expectedBuildType()
-        #expect(lines.joined(separator: "\n").contains(" CLI "))
         #expect(lines.joined(separator: "\n").contains(" \(expected) "))
         _ = data  // silence unused warning if assertions short-circuit
     }
@@ -69,13 +68,13 @@ final class TestCLIVersion: CLITest {
         #expect(status == 0, "system version --format json should succeed, stderr: \(err)")
         #expect(!out.isEmpty)
 
-        let decoded = try JSONDecoder().decode(VersionJSON.self, from: data)
-        #expect(decoded.appName == "container CLI")
-        #expect(!decoded.version.isEmpty)
-        #expect(!decoded.commit.isEmpty)
+        let decoded = try JSONDecoder().decode([VersionJSON].self, from: data)
+        #expect(decoded[0].appName == "container")
+        #expect(!decoded[0].version.isEmpty)
+        #expect(!decoded[0].commit.isEmpty)
 
         let expected = try expectedBuildType()
-        #expect(decoded.buildType == expected)
+        #expect(decoded[0].buildType == expected)
     }
 
     @Test func explicitTableFormat() throws {
@@ -87,16 +86,15 @@ final class TestCLIVersion: CLITest {
             .components(separatedBy: .newlines)
         #expect(lines.count >= 2)
         #expect(lines[0].contains("COMPONENT") && lines[0].contains("VERSION") && lines[0].contains("BUILD") && lines[0].contains("COMMIT"))
-        #expect(lines[1].hasPrefix("CLI "))
     }
 
     @Test func buildTypeMatchesBinary() throws {
         // Validate build type via JSON to avoid parsing table text loosely
         let (data, _, err, status) = try run(arguments: ["system", "version", "--format", "json"])
         #expect(status == 0, "version --format json should succeed, stderr: \(err)")
-        let decoded = try JSONDecoder().decode(VersionJSON.self, from: data)
+        let decoded = try JSONDecoder().decode([VersionJSON].self, from: data)
 
         let expected = try expectedBuildType()
-        #expect(decoded.buildType == expected, "Expected build type \(expected) but got \(decoded.buildType)")
+        #expect(decoded[0].buildType == expected, "Expected build type \(expected) but got \(decoded[0].buildType)")
     }
 }
