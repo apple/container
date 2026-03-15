@@ -496,6 +496,8 @@ extension Application {
                 }
                 if parts.count == 1 || parts[1].hasPrefix("env=") {
                     let env = parts.count == 1 ? key : String(parts[1].dropFirst(4))
+                    // Using getenv/strlen over processInfo.environment to support
+                    // non-UTF-8 env var data.
                     guard let ptr = getenv(env) else {
                         throw ValidationError("secret env var doesn't exist \(env)")
                     }
