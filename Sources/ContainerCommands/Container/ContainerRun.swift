@@ -51,6 +51,9 @@ extension Application {
         @OptionGroup(title: "Image fetch options")
         var imageFetchFlags: Flags.ImageFetch
 
+        @OptionGroup(title: "GPU options")
+        var gpuFlags: Flags.GPU
+
         @OptionGroup
         public var logOptions: Flags.Logging
 
@@ -94,7 +97,7 @@ extension Application {
                 )
             }
 
-            let ck = try await Utility.containerConfigFromFlags(
+            var ck = try await Utility.containerConfigFromFlags(
                 id: id,
                 image: image,
                 arguments: arguments,
@@ -106,6 +109,29 @@ extension Application {
                 progressUpdate: progress.handler,
                 log: log
             )
+
+            // GPU support: inject vsock environment variables so the guest can
+            // reach the MLX Container Daemon on the host.
+            if gpuFlags.gpu {
+                let gpuEnv = [
+                    "MLX_VSOCK_CID=2",
+                    "MLX_VSOCK_PORT=\(gpuFlags.gpuPort)",
+                    "MLX_GPU_ENABLED=1",
+                ]
+                if var config = ck.0 as? ContainerConfiguration {
+                    config.process.env.append(contentsOf: gpuEnv)
+                    if let model = gpuFlags.gpuModel {
+                        config.process.env.append("MLX_GPU_MODEL=\(model)")
+                    }
+                    if let mem = gpuFlags.gpuMemory {
+                        config.process.env.append("MLX_GPU_MEMORY=\(mem)")
+                    }
+                }
+                log.info("GPU enabled: vsock port \(gpuFlags.gpuPort)")
+                if let model = gpuFlags.gpuModel {
+                    log.info("GPU model: \(model)")
+                }
+            }
 
             progress.set(description: "Starting container")
 

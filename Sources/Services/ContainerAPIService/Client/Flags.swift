@@ -353,4 +353,53 @@ public struct Flags {
         @Option(name: .long, help: "Maximum number of concurrent downloads (default: 3)")
         public var maxConcurrentDownloads: Int = 3
     }
+
+    /// GPU acceleration flags for MLX inference on Apple Silicon.
+    ///
+    /// When `--gpu` is passed, the container runtime starts the MLX Container
+    /// Daemon on the host (if not already running) and injects vsock environment
+    /// variables into the guest VM.  Code inside the container can then use the
+    /// `mlx-container` Python package to run Metal-accelerated inference without
+    /// installing MLX or Metal drivers in the Linux guest.
+    ///
+    /// Requires: container-toolkit-mlx
+    /// https://github.com/RobotFlow-Labs/container-toolkit-mlx
+    public struct GPU: ParsableArguments {
+        public init() {}
+
+        public init(
+            gpu: Bool,
+            gpuMemory: UInt64?,
+            gpuModel: String?,
+            gpuMaxTokens: Int,
+            gpuPort: UInt32
+        ) {
+            self.gpu = gpu
+            self.gpuMemory = gpuMemory
+            self.gpuModel = gpuModel
+            self.gpuMaxTokens = gpuMaxTokens
+            self.gpuPort = gpuPort
+        }
+
+        @Flag(name: .long, help: "Enable GPU access via the MLX Container Toolkit")
+        public var gpu: Bool = false
+
+        @Option(
+            name: .customLong("gpu-memory"),
+            help: ArgumentHelp("GPU memory budget in GB (0 = share all available)", valueName: "gb")
+        )
+        public var gpuMemory: UInt64?
+
+        @Option(
+            name: .customLong("gpu-model"),
+            help: ArgumentHelp("HuggingFace model to pre-load (e.g. mlx-community/Llama-3.2-1B-4bit)", valueName: "id")
+        )
+        public var gpuModel: String?
+
+        @Option(name: .customLong("gpu-max-tokens"), help: "Maximum tokens per inference request (default: 4096)")
+        public var gpuMaxTokens: Int = 4096
+
+        @Option(name: .customLong("gpu-port"), help: "vsock port for the GPU daemon (default: 2048)")
+        public var gpuPort: UInt32 = 2048
+    }
 }
