@@ -67,14 +67,9 @@ extension Application {
                 let destURL = URL(fileURLWithPath: localPath).standardizedFileURL
                 var isDirectory: ObjCBool = false
                 let exists = FileManager.default.fileExists(atPath: destURL.path, isDirectory: &isDirectory)
-                if localPath.hasSuffix("/") {
-                    guard exists && isDirectory.boolValue else {
-                        throw ContainerizationError(.invalidArgument, message: "destination path is not a directory: \(localPath)")
-                    }
-                }
-                let appendFilename = localPath.hasSuffix("/") || (exists && isDirectory.boolValue)
+                let appendFilename = exists && isDirectory.boolValue
                 let finalDestURL = appendFilename ? destURL.appendingPathComponent(srcURL.lastPathComponent) : destURL
-                try await client.copyOut(id: id, source: srcURL, destination: finalDestURL)
+                try await client.copyOut(id: id, source: srcURL, destination: finalDestURL, destinationIsDirectory: localPath.hasSuffix("/") && !appendFilename)
             case (.local(let localPath), .container(let id, let path)):
                 let srcURL = URL(fileURLWithPath: localPath).standardizedFileURL
                 var isDirectory: ObjCBool = false
@@ -84,9 +79,8 @@ extension Application {
                 if localPath.hasSuffix("/") && !isDirectory.boolValue {
                     throw ContainerizationError(.invalidArgument, message: "source path is not a directory: \(localPath)")
                 }
-                let containerDest = path.hasSuffix("/") ? path + srcURL.lastPathComponent : path
-                let destURL = URL(fileURLWithPath: containerDest)
-                try await client.copyIn(id: id, source: srcURL, destination: destURL)
+                let destURL = URL(fileURLWithPath: path)
+                try await client.copyIn(id: id, source: srcURL, destination: destURL, destinationIsDirectory: path.hasSuffix("/"))
             case (.container, .container):
                 throw ContainerizationError(.invalidArgument, message: "copying between containers is not supported")
             case (.local, .local):

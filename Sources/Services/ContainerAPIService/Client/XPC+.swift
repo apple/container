@@ -137,6 +137,7 @@ public enum XPCKeys: String {
     case sourcePath
     case destinationPath
     case fileMode
+    case destinationIsDirectory
 }
 
 public enum XPCRoute: String {

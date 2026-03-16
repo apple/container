@@ -300,12 +300,13 @@ public struct ContainerClient: Sendable {
     }
 
     /// Copy a file or directory from the host into the container.
-    public func copyIn(id: String, source: URL, destination: URL, mode: UInt32 = 0o644) async throws {
+    public func copyIn(id: String, source: URL, destination: URL, mode: UInt32 = 0o644, destinationIsDirectory: Bool = false) async throws {
         let request = XPCMessage(route: .containerCopyIn)
         request.set(key: .id, value: id)
         request.set(key: .sourcePath, value: source.path)
         request.set(key: .destinationPath, value: destination.path)
         request.set(key: .fileMode, value: UInt64(mode))
+        request.set(key: .destinationIsDirectory, value: destinationIsDirectory)
 
         do {
             try await xpcSend(message: request, timeout: .seconds(300))
@@ -319,11 +320,12 @@ public struct ContainerClient: Sendable {
     }
 
     /// Copy a file or directory from the container to the host.
-    public func copyOut(id: String, source: URL, destination: URL) async throws {
+    public func copyOut(id: String, source: URL, destination: URL, destinationIsDirectory: Bool = false) async throws {
         let request = XPCMessage(route: .containerCopyOut)
         request.set(key: .id, value: id)
         request.set(key: .sourcePath, value: source.path)
         request.set(key: .destinationPath, value: destination.path)
+        request.set(key: .destinationIsDirectory, value: destinationIsDirectory)
 
         do {
             try await xpcSend(message: request, timeout: .seconds(300))
