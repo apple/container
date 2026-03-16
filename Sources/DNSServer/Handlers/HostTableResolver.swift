@@ -29,7 +29,7 @@ public struct HostTableResolver: DNSHandler {
     ///
     /// - Parameter hosts4: A dictionary mapping fully-qualified domain names (with trailing dot)
     ///   to IPv4 addresses. Keys without a trailing dot will not match wire-decoded queries.
-    /// - Parameter ttl: The TTL in seconds to set on answer records.
+    /// - Parameter ttl: The TTL in seconds to set on answer records (default is 300).
     public init(hosts4: [String: IPv4Address], ttl: UInt32 = 300) {
         self.hosts4 = hosts4
         self.ttl = ttl
