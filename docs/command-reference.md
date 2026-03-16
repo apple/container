@@ -358,6 +358,35 @@ container exec [--detach] [--env <env> ...] [--env-file <env-file> ...] [--gid <
 *   `--uid <uid>`: Set the user ID for the process
 *   `-w, --workdir, --cwd <dir>`: Set the initial working directory inside the container
 
+### `container export`
+
+Exports a stopped container's filesystem as a tar archive. The container must be stopped before exporting. If no output file is specified, the tar stream is written to stdout.
+
+**Usage**
+
+```bash
+container export [-o <output>] [--debug] <container-id>
+```
+
+**Arguments**
+
+*   `<container-id>`: Container ID
+
+**Options**
+
+*   `-o, --output <output>`: Pathname for the saved container filesystem (defaults to stdout)
+
+**Examples**
+
+```bash
+# export a container's filesystem to a file
+container stop mycontainer
+container export -o mycontainer.tar mycontainer
+
+# export to stdout and pipe to another tool
+container export mycontainer > mycontainer.tar
+```
+
 ### `container logs`
 
 Fetches logs from a container. You can follow the logs (`-f`/`--follow`), restrict the number of lines shown, or view boot logs.

@@ -268,7 +268,7 @@ public struct Flags {
         @Option(name: .long, help: "Use the specified name as the container ID")
         public var name: String?
 
-        @Option(name: [.customLong("network")], help: "Attach the container to a network (format: <name>[,mac=XX:XX:XX:XX:XX:XX])")
+        @Option(name: [.customLong("network")], help: "Attach the container to a network (format: <name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE])")
         public var networks: [String] = []
 
         @Flag(name: [.customLong("no-dns")], help: "Do not configure DNS in the container")
@@ -286,7 +286,7 @@ public struct Flags {
         )
         public var publishPorts: [String] = []
 
-        @Option(name: .long, help: "Platform for the image if it's multi-platform. This takes precedence over --os and --arch")
+        @Option(name: .long, help: "Platform for the image if it's multi-platform. This takes precedence over --os and --arch [environment: CONTAINER_DEFAULT_PLATFORM]")
         public var platform: String?
 
         @Option(

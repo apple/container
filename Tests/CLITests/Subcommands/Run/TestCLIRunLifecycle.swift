@@ -123,4 +123,19 @@ class TestCLIRunLifecycle: CLITest {
         }
         try? doRemove(name: name)
     }
+
+    @Test func testExecInvalidExcutable() async throws {
+        let name = getTestName()
+        try doLongRun(name: name)
+        defer {
+            try? doStop(name: name)
+        }
+
+        #expect(throws: CLIError.self, "executing invalid executable must throw error, not hang") {
+            try doExec(
+                name: name,
+                cmd: ["foobarbaz"]
+            )
+        }
+    }
 }
