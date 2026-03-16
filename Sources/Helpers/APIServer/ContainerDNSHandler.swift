@@ -74,7 +74,7 @@ struct ContainerDNSHandler: DNSHandler {
     }
 
     private func answerHost(question: Question) async throws -> ResourceRecord? {
-        guard let ipAllocation = try await networkService.lookup(dnsHostname: question.name) else {
+        guard let ipAllocation = try await networkService.lookup(hostname: question.name) else {
             return nil
         }
         let ipv4 = ipAllocation.ipv4Address.address.description
@@ -86,7 +86,7 @@ struct ContainerDNSHandler: DNSHandler {
     }
 
     private func answerHost6(question: Question) async throws -> (record: ResourceRecord?, hostnameExists: Bool) {
-        guard let ipAllocation = try await networkService.lookup(dnsHostname: question.name) else {
+        guard let ipAllocation = try await networkService.lookup(hostname: question.name) else {
             return (nil, false)
         }
         guard let ipv6Address = ipAllocation.ipv6Address else {
