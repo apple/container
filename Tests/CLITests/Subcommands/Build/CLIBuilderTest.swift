@@ -189,13 +189,15 @@ extension TestCLIBuildBase {
             let tempFile: URL = try createTempFile(suffix: " _f,i=l.e+ ", contents: testData)
             let tempFile2: URL = try createTempFile(suffix: "file2", contents: Data())
             let imageName: String = "registry.local/secrets:\(UUID().uuidString)"
-            try self.build(tag: imageName, tempDir: tempDir, otherArgs: [
-                "--secret", "id=ENV1",
-                "--secret", "id=env2,env=ENV_VAR",
-                "--secret", "id=env3,env=env3",
-                "--secret", "id=file,src="+tempFile.path,
-                "--secret", "id=empty,src="+tempFile2.path,
-            ])
+            try self.build(
+                tag: imageName, tempDir: tempDir,
+                otherArgs: [
+                    "--secret", "id=ENV1",
+                    "--secret", "id=env2,env=ENV_VAR",
+                    "--secret", "id=env3,env=env3",
+                    "--secret", "id=file,src=" + tempFile.path,
+                    "--secret", "id=empty,src=" + tempFile2.path,
+                ])
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
