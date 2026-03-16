@@ -25,15 +25,19 @@ public struct DNSName: Sendable, Hashable, CustomStringConvertible {
     public var labels: [String]
 
     /// Creates a DNS name from an array of labels.
+    ///
+    /// Labels are lowercased to normalize for case-insensitive DNS comparison.
     public init(labels: [String] = []) {
-        self.labels = labels
+        self.labels = labels.map { $0.lowercased() }
     }
 
-    /// Creates a DNS name from a dot-separated string (e.g., "example.com.").
+    /// Creates a DNS name from a dot-separated string (e.g., "example.com." or "example.com").
+    ///
+    /// A trailing dot is accepted but not required. Labels are lowercased to normalize
+    /// for case-insensitive DNS comparison.
     public init(_ string: String) {
-        // Remove trailing dot if present, then split
         let normalized = string.hasSuffix(".") ? String(string.dropLast()) : string
-        self.labels = normalized.isEmpty ? [] : normalized.split(separator: ".").map { String($0).lowercased() }
+        self.init(labels: normalized.isEmpty ? [] : normalized.split(separator: ".").map { String($0) })
     }
 
     /// The wire format size of this name in bytes.

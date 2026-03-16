@@ -118,4 +118,52 @@ struct HostTableResolverTest {
         let answer = response?.answers[0] as? HostRecord<IPv4Address>
         #expect(try IPv4Address("1.2.3.4") == answer?.ip)
     }
+
+    @Test func testHostPresentUppercaseTable() async throws {
+        let ip = try IPv4Address("1.2.3.4")
+        let handler = HostTableResolver(hosts4: ["FOO.": ip])
+
+        let query = Message(
+            id: UInt16(1),
+            type: .query,
+            questions: [
+                Question(name: "foo.", type: .host)
+            ])
+
+        let response = try await handler.answer(query: query)
+
+        #expect(.noError == response?.returnCode)
+        #expect(1 == response?.id)
+        #expect(.response == response?.type)
+        #expect(1 == response?.questions.count)
+        #expect("foo." == response?.questions[0].name)
+        #expect(.host == response?.questions[0].type)
+        #expect(1 == response?.answers.count)
+        let answer = response?.answers[0] as? HostRecord<IPv4Address>
+        #expect(try IPv4Address("1.2.3.4") == answer?.ip)
+    }
+
+    @Test func testHostPresentUppercaseQuestion() async throws {
+        let ip = try IPv4Address("1.2.3.4")
+        let handler = HostTableResolver(hosts4: ["foo.": ip])
+
+        let query = Message(
+            id: UInt16(1),
+            type: .query,
+            questions: [
+                Question(name: "FOO.", type: .host)
+            ])
+
+        let response = try await handler.answer(query: query)
+
+        #expect(.noError == response?.returnCode)
+        #expect(1 == response?.id)
+        #expect(.response == response?.type)
+        #expect(1 == response?.questions.count)
+        #expect("FOO." == response?.questions[0].name)
+        #expect(.host == response?.questions[0].type)
+        #expect(1 == response?.answers.count)
+        let answer = response?.answers[0] as? HostRecord<IPv4Address>
+        #expect(try IPv4Address("1.2.3.4") == answer?.ip)
+    }
 }

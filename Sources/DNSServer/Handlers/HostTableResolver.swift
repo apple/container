@@ -18,20 +18,20 @@ import ContainerizationExtras
 
 /// Handler that uses table lookup to resolve hostnames.
 ///
-/// All keys in `hosts4` must be canonical DNS names — fully-qualified with a
-/// trailing dot (e.g. `"example.com."`). This matches the canonical form used
-/// by `Question.name` when decoded from the wire.
+/// Keys in `hosts4` are normalized to `DNSName` on construction, so lookups
+/// are case-insensitive and trailing dots are optional.
 public struct HostTableResolver: DNSHandler {
-    public let hosts4: [String: IPv4Address]
+    public let hosts4: [DNSName: IPv4Address]
     private let ttl: UInt32
 
     /// Creates a resolver backed by a static IPv4 host table.
     ///
-    /// - Parameter hosts4: A dictionary mapping fully-qualified domain names (with trailing dot)
-    ///   to IPv4 addresses. Keys without a trailing dot will not match wire-decoded queries.
+    /// - Parameter hosts4: A dictionary mapping domain names to IPv4 addresses.
+    ///   Keys are normalized to `DNSName` (lowercased, trailing dot stripped), so
+    ///   `"FOO."`, `"foo."`, and `"foo"` all refer to the same entry.
     /// - Parameter ttl: The TTL in seconds to set on answer records (default is 300).
     public init(hosts4: [String: IPv4Address], ttl: UInt32 = 300) {
-        self.hosts4 = hosts4
+        self.hosts4 = Dictionary(uniqueKeysWithValues: hosts4.map { (DNSName($0.key), $0.value) })
         self.ttl = ttl
     }
 
@@ -46,7 +46,7 @@ public struct HostTableResolver: DNSHandler {
             // This is required because musl libc has issues when A record exists but AAAA returns NXDOMAIN.
             // musl treats NXDOMAIN on AAAA as "domain doesn't exist" and fails DNS resolution entirely.
             // NODATA correctly indicates "no IPv6 address available, but domain exists".
-            if hosts4[question.name] != nil {
+            if hosts4[DNSName(question.name)] != nil {
                 return Message(
                     id: query.id,
                     type: .response,
@@ -81,7 +81,7 @@ public struct HostTableResolver: DNSHandler {
     }
 
     private func answerHost(question: Question) -> ResourceRecord? {
-        guard let ip = hosts4[question.name] else {
+        guard let ip = hosts4[DNSName(question.name)] else {
             return nil
         }
 
