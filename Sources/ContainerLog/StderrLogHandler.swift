@@ -46,42 +46,31 @@ public struct StderrLogHandler: LogHandler {
         let data: Data
         switch logLevel {
         case .debug, .trace:
-            let timestamp = isoTimestamp()
+            let timestamp = ISO8601DateFormatter().string(from: Date())
             if let metadata, !metadata.isEmpty {
                 data =
-                    "\(timestamp) \(message.description): \(metadata.description)\n"
+                    "\(timestamp) \(message.description): \(metadata.description)"
                     .data(using: .utf8) ?? Data()
             } else {
                 data =
-                    "\(timestamp) \(message.description)\n"
+                    "\(timestamp) \(message.description)"
                     .data(using: .utf8) ?? Data()
             }
         default:
             if let metadata, !metadata.isEmpty {
                 data =
-                    "\(message.description): \(metadata.description)\n"
+                    "\(message.description): \(metadata.description)"
                     .data(using: .utf8) ?? Data()
             } else {
                 data =
-                    "\(message.description)\n"
+                    message.description
                     .data(using: .utf8) ?? Data()
             }
         }
 
-        FileHandle.standardError.write(data)
-    }
-
-    private func isoTimestamp() -> String {
-        let date = Date()
-        var time = time_t(date.timeIntervalSince1970)
-        var ms = Int(date.timeIntervalSince1970 * 1000) % 1000
-        if ms < 0 { ms += 1000 }
-        var tm = tm()
-        gmtime_r(&time, &tm)
-        let buf = withUnsafeTemporaryAllocation(of: CChar.self, capacity: 32) { ptr -> String in
-            strftime(ptr.baseAddress!, 32, "%Y-%m-%dT%H:%M:%S", &tm)
-            return String(cString: ptr.baseAddress!)
-        }
-        return String(format: "%@.%03dZ", buf, ms)
+        // Use a single write call for atomicity
+        var output = data
+        output.append("\n".data(using: .utf8)!)
+        FileHandle.standardError.write(output)
     }
 }

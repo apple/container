@@ -18,7 +18,7 @@ import ContainerAPIClient
 import Containerization
 import ContainerizationOCI
 import Foundation
-import GRPCCore
+import GRPC
 import Logging
 import TerminalProgress
 

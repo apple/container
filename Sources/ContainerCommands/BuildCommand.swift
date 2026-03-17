@@ -176,7 +176,7 @@ extension Application {
                                 let fh = try await client.dial(id: "buildkit", port: vsockPort)
 
                                 let threadGroup: MultiThreadedEventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
-                                let b = try Builder(socket: fh, group: threadGroup, logger: log)
+                                let b = try Builder(socket: fh, group: threadGroup)
 
                                 // If this call succeeds, then BuildKit is running.
                                 let _ = try await b.info()

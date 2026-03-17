@@ -19,72 +19,58 @@ import Containerization
 import ContainerizationOCI
 import ContainerizationOS
 import Foundation
-import GRPCCore
-import GRPCNIOTransportHTTP2
-import Logging
+import GRPC
 import NIO
-import NIOCore
 import NIOHPACK
 import NIOHTTP2
-import NIOPosix
 
 public struct Builder: Sendable {
     public static let builderContainerId = "buildkit"
 
-    let client: Com_Apple_Container_Build_V1_Builder.Client<HTTP2ClientTransport.WrappedChannel>
-    let grpcClient: GRPCClient<HTTP2ClientTransport.WrappedChannel>
+    let client: BuilderClientProtocol
+    let clientAsync: BuilderClientAsyncProtocol
     let group: EventLoopGroup
     let builderShimSocket: FileHandle
-    let clientTask: Task<Void, any Swift.Error>
-    let logger: Logger
+    let channel: GRPCChannel
 
-    public init(socket: FileHandle, group: EventLoopGroup, logger: Logger) throws {
+    public init(socket: FileHandle, group: EventLoopGroup) throws {
         try socket.setSendBufSize(4 << 20)
         try socket.setRecvBufSize(2 << 20)
-
-        let channel = try ClientBootstrap(group: group)
-            .channelInitializer { channel in
-                channel.eventLoop.makeCompletedFuture(withResultOf: {
-                    try channel.pipeline.syncOperations.addHandler(HTTP2ConnectBufferingHandler())
-                })
-            }
-            .withConnectedSocket(socket.fileDescriptor)
-            .wait()
-
-        let transport = HTTP2ClientTransport.WrappedChannel.wrapping(
-            channel: channel
+        var config = ClientConnection.Configuration.default(
+            target: .connectedSocket(socket.fileDescriptor),
+            eventLoopGroup: group
         )
+        config.connectionIdleTimeout = TimeAmount(.seconds(600))
+        config.connectionKeepalive = .init(
+            interval: TimeAmount(.seconds(600)),
+            timeout: TimeAmount(.seconds(500)),
+            permitWithoutCalls: true
+        )
+        config.connectionBackoff = .init(
+            initialBackoff: TimeInterval(1),
+            maximumBackoff: TimeInterval(10)
+        )
+        config.callStartBehavior = .fastFailure
+        config.httpMaxFrameSize = 8 << 10
+        config.maximumReceiveMessageLength = 512 << 20
+        config.httpTargetWindowSize = 16 << 10
 
-        let grpcClient = GRPCClient(transport: transport)
-        self.grpcClient = grpcClient
-        self.client = Com_Apple_Container_Build_V1_Builder.Client(wrapping: grpcClient)
+        let channel = ClientConnection(configuration: config)
+        self.channel = channel
+        self.clientAsync = BuilderClientAsync(channel: channel)
+        self.client = BuilderClient(channel: channel)
         self.group = group
         self.builderShimSocket = socket
-        self.logger = logger
+    }
 
-        // Start the client connection loop in a background task
-        self.clientTask = Task {
-            do {
-                try await grpcClient.runConnections()
-            } catch is CancellationError {
-                // Expected during graceful shutdown - re-throw
-                throw CancellationError()
-            } catch let error as RPCError where error.code == .unavailable {
-                // Connection closed - this is expected when the container stops
-                logger.debug("gRPC connection closed: \(error)")
-                throw error
-            } catch {
-                // Log unexpected connection errors
-                logger.error("gRPC client connection error: \(error)")
-                throw error
-            }
-        }
+    public func info() throws -> InfoResponse {
+        let resp = self.client.info(InfoRequest(), callOptions: CallOptions())
+        return try resp.response.wait()
     }
 
     public func info() async throws -> InfoResponse {
-        var opts = CallOptions.defaults
-        opts.timeout = .seconds(30)
-        return try await self.client.info(InfoRequest(), options: opts)
+        let opts = CallOptions(timeLimit: .timeout(.seconds(30)))
+        return try await self.clientAsync.info(InfoRequest(), callOptions: opts)
     }
 
     // TODO
@@ -133,23 +119,12 @@ public struct Builder: Sendable {
             }
         }
 
+        let respStream = self.clientAsync.performBuild(reqStream, callOptions: try CallOptions(config))
         let pipeline = try await BuildPipeline(config)
         do {
-            try await self.client.performBuild(
-                metadata: try Self.buildMetadata(config),
-                options: .defaults,
-                requestProducer: { writer in
-                    for await message in reqStream {
-                        try await writer.write(message)
-                    }
-                },
-                onResponse: { response in
-                    try await pipeline.run(sender: continuation, receiver: response.messages)
-                }
-            )
+            try await pipeline.run(sender: continuation, receiver: respStream)
         } catch Error.buildComplete {
-            self.grpcClient.beginGracefulShutdown()
-            self.clientTask.cancel()
+            _ = channel.close()
             try await group.shutdownGracefully()
             return
         }
@@ -320,48 +295,6 @@ public struct Builder: Sendable {
             self.pull = pull
         }
     }
-
-    static func buildMetadata(_ config: BuildConfig) throws -> Metadata {
-        var metadata = Metadata()
-        metadata.addString(config.buildID, forKey: "build-id")
-        metadata.addString(URL(filePath: config.contextDir).path(percentEncoded: false), forKey: "context")
-        metadata.addString(config.dockerfile.base64EncodedString(), forKey: "dockerfile")
-        metadata.addString(config.terminal != nil ? "tty" : "plain", forKey: "progress")
-        metadata.addString(config.target, forKey: "target")
-
-        if let hiddenDockerDir = config.hiddenDockerDir {
-            metadata.addString(hiddenDockerDir, forKey: "hidden-docker-dir")
-        }
-        for tag in config.tags {
-            metadata.addString(tag, forKey: "tag")
-        }
-        for platform in config.platforms {
-            metadata.addString(platform.description, forKey: "platforms")
-        }
-        if config.noCache {
-            metadata.addString("", forKey: "no-cache")
-        }
-        for label in config.labels {
-            metadata.addString(label, forKey: "labels")
-        }
-        for buildArg in config.buildArgs {
-            metadata.addString(buildArg, forKey: "build-args")
-        }
-        for (id, data) in config.secrets {
-            metadata.addString(id + "=" + data.base64EncodedString(), forKey: "secrets")
-        }
-        for output in config.exports {
-            metadata.addString(try output.stringValue, forKey: "outputs")
-        }
-        for cacheIn in config.cacheIn {
-            metadata.addString(cacheIn, forKey: "cache-in")
-        }
-        for cacheOut in config.cacheOut {
-            metadata.addString(cacheOut, forKey: "cache-out")
-        }
-
-        return metadata
-    }
 }
 
 extension Builder {
@@ -380,6 +313,52 @@ extension Builder {
                 return "export entry \(exp) is invalid: \(reason)"
             }
         }
+    }
+}
+
+extension CallOptions {
+    public init(_ config: Builder.BuildConfig) throws {
+        var headers: [(String, String)] = [
+            ("build-id", config.buildID),
+            ("context", URL(filePath: config.contextDir).path(percentEncoded: false)),
+            ("dockerfile", config.dockerfile.base64EncodedString()),
+            ("progress", config.terminal != nil ? "tty" : "plain"),
+            ("target", config.target),
+        ]
+        if let hiddenDockerDir = config.hiddenDockerDir {
+            headers.append(("hidden-docker-dir", hiddenDockerDir))
+        }
+        for tag in config.tags {
+            headers.append(("tag", tag))
+        }
+        for platform in config.platforms {
+            headers.append(("platforms", platform.description))
+        }
+        if config.noCache {
+            headers.append(("no-cache", ""))
+        }
+        for label in config.labels {
+            headers.append(("labels", label))
+        }
+        for buildArg in config.buildArgs {
+            headers.append(("build-args", buildArg))
+        }
+        for (id, data) in config.secrets {
+            headers.append(("secrets", id + "=" + data.base64EncodedString()))
+        }
+        for output in config.exports {
+            headers.append(("outputs", try output.stringValue))
+        }
+        for cacheIn in config.cacheIn {
+            headers.append(("cache-in", cacheIn))
+        }
+        for cacheOut in config.cacheOut {
+            headers.append(("cache-out", cacheOut))
+        }
+
+        self.init(
+            customMetadata: HPACKHeaders(headers)
+        )
     }
 }
 
@@ -423,51 +402,5 @@ extension FileHandle {
         if res == -1 {
             throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EPERM)
         }
-    }
-}
-
-/// Buffers incoming bytes until the full gRPC HTTP/2 pipeline is configured, then replays them.
-///
-/// See the equivalent in Containerization/Vminitd.swift for a full explanation.
-private final class HTTP2ConnectBufferingHandler: ChannelDuplexHandler, RemovableChannelHandler {
-    typealias InboundIn = ByteBuffer
-    typealias InboundOut = ByteBuffer
-    typealias OutboundIn = ByteBuffer
-    typealias OutboundOut = ByteBuffer
-
-    private var removalScheduled = false
-    private var bufferedReads: [NIOAny] = []
-
-    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        bufferedReads.append(data)
-    }
-
-    func channelReadComplete(context: ChannelHandlerContext) {}
-
-    func flush(context: ChannelHandlerContext) {
-        if !removalScheduled {
-            removalScheduled = true
-            context.eventLoop.assumeIsolatedUnsafeUnchecked().execute {
-                context.pipeline.syncOperations.removeHandler(self, promise: nil)
-            }
-        }
-        context.flush()
-    }
-
-    func removeHandler(context: ChannelHandlerContext, removalToken: ChannelHandlerContext.RemovalToken) {
-        var didRead = false
-        while !bufferedReads.isEmpty {
-            context.fireChannelRead(bufferedReads.removeFirst())
-            didRead = true
-        }
-        if didRead {
-            context.fireChannelReadComplete()
-        }
-        context.leavePipeline(removalToken: removalToken)
-    }
-
-    func channelInactive(context: ChannelHandlerContext) {
-        bufferedReads.removeAll()
-        context.fireChannelInactive()
     }
 }

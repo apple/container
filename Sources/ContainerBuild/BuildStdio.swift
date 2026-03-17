@@ -16,7 +16,7 @@
 
 import ContainerizationOS
 import Foundation
-import GRPCCore
+import GRPC
 import NIO
 
 actor BuildStdio: BuildPipelineHandler {
