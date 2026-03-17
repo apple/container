@@ -192,4 +192,4 @@ Run `make pre-commit` to install a pre-commit hook that ensures that your change
 
 ## Troubleshooting
 
-If you run into build or runtime issues, check the [troubleshooting guide](TROUBLESHOOTING.md).
+If you run into build or runtime issues, check the [troubleshooting guide](docs/troubleshooting.md).
