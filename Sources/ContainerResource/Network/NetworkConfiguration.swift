@@ -60,7 +60,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         ipv4Subnet: CIDRv4? = nil,
         ipv6Subnet: CIDRv6? = nil,
         labels: [String: String] = [:],
-        pluginInfo: NetworkPluginInfo,
+        pluginInfo: NetworkPluginInfo
     ) throws {
         self.id = id
         self.creationDate = Date()

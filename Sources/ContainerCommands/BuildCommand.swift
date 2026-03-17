@@ -28,6 +28,8 @@ import TerminalProgress
 
 extension Application {
     public struct BuildCommand: AsyncLoggableCommand {
+        private static let hiddenDockerDir = ".com.apple.container.dockerfiles"
+
         public init() {}
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
@@ -42,6 +44,11 @@ extension Application {
             case auto
             case plain
             case tty
+        }
+
+        enum SecretType: Decodable {
+            case data(Data)
+            case file(String)
         }
 
         @Option(
@@ -71,6 +78,8 @@ extension Application {
 
         @Option(name: .shortAndLong, help: ArgumentHelp("Path to Dockerfile", valueName: "path"))
         var file: String?
+
+        var dockerfile: String = "-"
 
         @Option(name: .shortAndLong, help: ArgumentHelp("Set a label", valueName: "key=val"))
         var label: [String] = []
@@ -110,6 +119,11 @@ extension Application {
 
         @Flag(name: .shortAndLong, help: "Suppress build output")
         var quiet: Bool = false
+
+        @Option(name: .long, help: ArgumentHelp("Set build-time secrets (format: id=<key>[,env=<ENV_VAR>|,src=<local/path>])", valueName: "id=key,..."))
+        var secret: [String] = []
+
+        var secrets: [String: SecretType] = [:]
 
         @Option(name: [.short, .customLong("tag")], help: ArgumentHelp("Name for the built image", valueName: "name"))
         var targetImageNames: [String] = {
@@ -162,7 +176,7 @@ extension Application {
                                 let fh = try await client.dial(id: "buildkit", port: vsockPort)
 
                                 let threadGroup: MultiThreadedEventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
-                                let b = try Builder(socket: fh, group: threadGroup)
+                                let b = try Builder(socket: fh, group: threadGroup, logger: log)
 
                                 // If this call succeeds, then BuildKit is running.
                                 let _ = try await b.info()
@@ -204,24 +218,11 @@ extension Application {
                     throw ValidationError("builder is not running")
                 }
 
-                let buildFilePath: String
-                if let file = self.file {
-                    buildFilePath = file
-                } else {
-                    guard
-                        let resolvedPath = try BuildFile.resolvePath(
-                            contextDir: self.contextDir,
-                            log: log
-                        )
-                    else {
-                        throw ValidationError("failed to find Dockerfile or Containerfile in the context directory \(self.contextDir)")
-                    }
-                    buildFilePath = resolvedPath
-                }
-
                 let buildFileData: Data
+                var ignoreFileData: Data? = nil
+                var hiddenDockerDir: String? = nil
                 // Dockerfile should be read from stdin
-                if file == "-" {
+                if dockerfile == "-" {
                     let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("Dockerfile-\(UUID().uuidString)")
                     defer {
                         try? FileManager.default.removeItem(at: tempFile)
@@ -244,7 +245,36 @@ extension Application {
                     try fileHandle.close()
                     buildFileData = try Data(contentsOf: URL(filePath: tempFile.path()))
                 } else {
-                    buildFileData = try Data(contentsOf: URL(filePath: buildFilePath))
+                    let ignoreFileURL = URL(filePath: dockerfile + ".dockerignore")
+                    buildFileData = try Data(contentsOf: URL(filePath: dockerfile))
+                    ignoreFileData = try? Data(contentsOf: ignoreFileURL)
+
+                    if var ignoreFileData {
+                        hiddenDockerDir = Self.hiddenDockerDir
+                        let hiddenDirInContext = URL(fileURLWithPath: contextDir).appendingPathComponent(Self.hiddenDockerDir)
+
+                        try FileManager.default.createDirectory(at: hiddenDirInContext, withIntermediateDirectories: true)
+                        try buildFileData.write(to: hiddenDirInContext.appendingPathComponent("Dockerfile"))
+
+                        ignoreFileData.append("\n\(Self.hiddenDockerDir)".data(using: .utf8) ?? Data())
+                        try ignoreFileData.write(to: hiddenDirInContext.appendingPathComponent("Dockerfile.dockerignore"))
+                    }
+                }
+
+                defer {
+                    if let hiddenDockerDir {
+                        let hiddenDirInContext = URL(fileURLWithPath: contextDir).appendingPathComponent(hiddenDockerDir)
+                        try? FileManager.default.removeItem(at: hiddenDirInContext)
+                    }
+                }
+
+                let secretsData: [String: Data] = try self.secrets.mapValues { secret in
+                    switch secret {
+                    case .data(let data):
+                        return data
+                    case .file(let path):
+                        return try Data(contentsOf: URL(fileURLWithPath: path))
+                    }
                 }
 
                 let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
@@ -320,13 +350,15 @@ extension Application {
                         }
                         return results
                     }()
-                    group.addTask { [terminal, buildArg, contextDir, label, noCache, target, quiet, cacheIn, cacheOut, pull] in
+                    group.addTask { [terminal, buildArg, secretsData, contextDir, hiddenDockerDir, label, noCache, target, quiet, cacheIn, cacheOut, pull] in
                         let config = Builder.BuildConfig(
                             buildID: buildID,
                             contentStore: RemoteContentStoreClient(),
                             buildArgs: buildArg,
+                            secrets: secretsData,
                             contextDir: contextDir,
                             dockerfile: buildFileData,
+                            hiddenDockerDir: hiddenDockerDir,
                             labels: label,
                             noCache: noCache,
                             platforms: [Platform](platforms),
@@ -416,14 +448,65 @@ extension Application {
             }
         }
 
-        public func validate() throws {
-            // NOTE: We'll "validate" the Dockerfile later.
+        public mutating func validate() throws {
+            // NOTE: Here we check the Dockerfile exists, and set `dockerfile` to point the valid Dockerfile path or stdin
             guard FileManager.default.fileExists(atPath: contextDir) else {
                 throw ValidationError("context dir does not exist \(contextDir)")
             }
             for name in targetImageNames {
                 guard let _ = try? Reference.parse(name) else {
                     throw ValidationError("invalid reference \(name)")
+                }
+            }
+
+            switch file {
+            case "-":
+                dockerfile = "-"
+                break
+            case .some(let filepath):
+                let fileURL = URL(fileURLWithPath: filepath, relativeTo: .currentDirectory())
+                guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                    throw ValidationError("dockerfile does not exist \(filepath)")
+                }
+
+                dockerfile = fileURL.path
+                break
+            case .none:
+                guard let defaultDockerfile = try BuildFile.resolvePath(contextDir: contextDir) else {
+                    throw ValidationError("dockerfile not found in context dir")
+                }
+
+                guard FileManager.default.fileExists(atPath: defaultDockerfile) else {
+                    throw ValidationError("dockerfile does not exist \(defaultDockerfile)")
+                }
+
+                dockerfile = defaultDockerfile
+                break
+            }
+
+            // Parse --secret args
+            for secret in self.secret {
+                let parts = secret.split(separator: ",", maxSplits: 1, omittingEmptySubsequences: false)
+                guard parts[0].hasPrefix("id=") else {
+                    throw ValidationError("secret must start with id=<key> \(secret)")
+                }
+                let key = String(parts[0].dropFirst(3))
+                guard !key.contains("=") else {
+                    throw ValidationError("secret id cannot contain '=' \(key)")
+                }
+                if parts.count == 1 || parts[1].hasPrefix("env=") {
+                    let env = parts.count == 1 ? key : String(parts[1].dropFirst(4))
+                    // Using getenv/strlen over processInfo.environment to support
+                    // non-UTF-8 env var data.
+                    guard let ptr = getenv(env) else {
+                        throw ValidationError("secret env var doesn't exist \(env)")
+                    }
+                    self.secrets[key] = .data(Data(bytes: ptr, count: strlen(ptr)))
+                } else if parts[1].hasPrefix("src=") {
+                    let path = String(parts[1].dropFirst(4))
+                    self.secrets[key] = .file(path)
+                } else {
+                    throw ValidationError("secret bad value \(parts[1])")
                 }
             }
         }
