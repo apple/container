@@ -59,6 +59,7 @@ public struct Attachment: Codable, Sendable {
         case ipv4Gateway
         case ipv6Address
         case macAddress
+        case mtu
         // TODO: retain for deserialization compatibility for now, remove later
         case address
         case gateway
@@ -83,6 +84,7 @@ public struct Attachment: Codable, Sendable {
         }
         ipv6Address = try container.decodeIfPresent(CIDRv6.self, forKey: .ipv6Address)
         macAddress = try container.decodeIfPresent(MACAddress.self, forKey: .macAddress)
+        mtu = try container.decodeIfPresent(UInt32.self, forKey: .mtu)
     }
 
     /// Encode the configuration to the supplied Encoder.
@@ -95,5 +97,6 @@ public struct Attachment: Codable, Sendable {
         try container.encode(ipv4Gateway, forKey: .ipv4Gateway)
         try container.encodeIfPresent(ipv6Address, forKey: .ipv6Address)
         try container.encodeIfPresent(macAddress, forKey: .macAddress)
+        try container.encodeIfPresent(mtu, forKey: .mtu)
     }
 }
