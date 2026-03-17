@@ -228,6 +228,7 @@ extension PluginLoader {
         var env = Self.filterEnvironment()
         env[ApplicationRoot.environmentName] = appRoot.path(percentEncoded: false)
         env[InstallRoot.environmentName] = installRoot.path(percentEncoded: false)
+        env[PluginStateRoot.environmentName] = rootURL.path(percentEncoded: false)
         if let logRoot {
             env[LogRoot.environmentName] =
                 logRoot.isAbsolute
