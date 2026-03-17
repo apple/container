@@ -16,9 +16,11 @@
 
 public struct ContainerCreateOptions: Codable, Sendable {
     public let autoRemove: Bool
+    public let rootFsOverride: Filesystem?
 
-    public init(autoRemove: Bool) {
+    public init(autoRemove: Bool, rootFsOverride: Filesystem? = nil) {
         self.autoRemove = autoRemove
+        self.rootFsOverride = rootFsOverride
     }
 
     public static let `default` = ContainerCreateOptions(autoRemove: false)
