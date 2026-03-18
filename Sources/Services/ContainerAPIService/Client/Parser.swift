@@ -515,8 +515,8 @@ public struct Parser {
             let src = String(parts[0])
             let dst = String(parts[1])
 
-            // Check if it's a filesystem path
-            guard src.contains("/") else {
+            // Check if it's a filesystem path (absolute, or relative like ".", "..", "./foo", "../foo")
+            guard src.contains("/") || src == "." || src == ".." else {
                 // Named volume - validate name syntax only
                 guard VolumeStorage.isValidVolumeName(src) else {
                     throw ContainerizationError(.invalidArgument, message: "invalid volume name '\(src)': must match \(VolumeStorage.volumeNamePattern)")
