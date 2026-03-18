@@ -64,12 +64,22 @@ extension DNSServer {
 
             self.log?.debug("serializing response")
             responseData = try response.serialize()
+        } catch let error as DNSBindError {
+            self.log?.error("format error processing message from \(query): \(error)")
+            let response = Message(
+                id: query.id,
+                type: .response,
+                returnCode: .formatError,
+                questions: query.questions,
+                answers: []
+            )
+            responseData = try response.serialize()
         } catch {
             self.log?.error("error processing message from \(query): \(error)")
             let response = Message(
                 id: query.id,
                 type: .response,
-                returnCode: .notImplemented,
+                returnCode: .serverFailure,
                 questions: query.questions,
                 answers: []
             )
