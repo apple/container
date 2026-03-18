@@ -65,6 +65,12 @@ class TestCLIBuildBase: CLITest {
         return tempDir
     }
 
+    func createTempFile(suffix: String, contents: Data) throws -> URL {
+        let tempFile = testDir.appendingPathComponent(UUID().uuidString + suffix)
+        try contents.write(to: tempFile, options: .atomic)
+        return tempFile
+    }
+
     func createContext(tempDir: URL, dockerfile: String, context: [FileSystemEntry]? = nil) throws {
         let dockerfileBytes = dockerfile.data(using: .utf8)!
         try dockerfileBytes.write(to: tempDir.appendingPathComponent("Dockerfile"), options: .atomic)

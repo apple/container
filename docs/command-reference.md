@@ -144,6 +144,7 @@ container build [<options>] [<context-dir>]
 *   `--progress <type>`: Progress type (format: auto|plain|tty) (default: auto)
 *   `--pull`: Pull latest image
 *   `-q, --quiet`: Suppress build output
+*   `--secret <id=key,...>`: Set build-time secrets (format: id=<key>[,env=<ENV_VAR>|,src=<local/path>])
 *   `-t, --tag <name>`: Name for the built image (can be specified multiple times)
 *   `--target <stage>`: Set the target build stage
 *   `--vsock-port <port>`: Builder shim vsock port (default: 8088)
