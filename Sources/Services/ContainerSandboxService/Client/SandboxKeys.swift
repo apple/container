@@ -43,6 +43,11 @@ public enum SandboxKeys: String {
     /// Container statistics
     case statistics
 
+    /// Copy parameters
+    case sourcePath
+    case destinationPath
+    case fileMode
+    case createParents
     /// Network resource keys.
     case allocatedAttachments
     case networkAdditionalData
