@@ -218,6 +218,19 @@ public struct Message: Sendable {
         offset = newOffset
 
         // Write counts
+        guard questions.count <= UInt16.max else {
+            throw DNSBindError.marshalFailure(type: "Message", field: "qdcount")
+        }
+        guard answers.count <= UInt16.max else {
+            throw DNSBindError.marshalFailure(type: "Message", field: "ancount")
+        }
+        guard authorities.count <= UInt16.max else {
+            throw DNSBindError.marshalFailure(type: "Message", field: "nscount")
+        }
+        guard additional.count <= UInt16.max else {
+            throw DNSBindError.marshalFailure(type: "Message", field: "arcount")
+        }
+
         guard let newOffset = buffer.copyIn(as: UInt16.self, value: UInt16(questions.count).bigEndian, offset: offset) else {
             throw DNSBindError.marshalFailure(type: "Message", field: "qdcount")
         }

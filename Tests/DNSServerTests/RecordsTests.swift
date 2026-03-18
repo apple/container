@@ -509,6 +509,25 @@ struct RecordsTests {
             #expect(parsed.questions[0].type == .host)
             #expect(parsed.questions[1].type == .host6)
         }
+
+        @Test("Reject too many questions")
+        func rejectTooManyQuestions() {
+            let questions = Array(repeating: Question(name: "a.com.", type: .host), count: Int(UInt16.max) + 1)
+            let msg = Message(id: 0, type: .query, questions: questions)
+            #expect(throws: DNSBindError.self) {
+                _ = try msg.serialize()
+            }
+        }
+
+        @Test("Reject too many answers")
+        func rejectTooManyAnswers() throws {
+            let ip = try IPv4Address("1.2.3.4")
+            let answers = Array(repeating: HostRecord(name: "a.com.", ttl: 0, ip: ip), count: Int(UInt16.max) + 1)
+            let msg = Message(id: 0, type: .response, answers: answers)
+            #expect(throws: DNSBindError.self) {
+                _ = try msg.serialize()
+            }
+        }
     }
 
     // MARK: - Wire Format Tests
