@@ -67,9 +67,24 @@ extension Application {
                 let destURL = URL(fileURLWithPath: localPath).standardizedFileURL
                 var isDirectory: ObjCBool = false
                 let exists = FileManager.default.fileExists(atPath: destURL.path, isDirectory: &isDirectory)
-                let appendFilename = exists && isDirectory.boolValue
-                let finalDestURL = appendFilename ? destURL.appendingPathComponent(srcURL.lastPathComponent) : destURL
-                try await client.copyOut(id: id, source: srcURL, destination: finalDestURL, destinationIsDirectory: localPath.hasSuffix("/") && !appendFilename)
+
+                if exists && isDirectory.boolValue {
+                    let finalDest = destURL.appendingPathComponent(srcURL.lastPathComponent)
+                    try await client.copyOut(id: id, source: srcURL, destination: finalDest)
+                } else if localPath.hasSuffix("/") {
+                    try await client.copyOut(id: id, source: srcURL, destination: destURL)
+                    var resultIsDir: ObjCBool = false
+                    if FileManager.default.fileExists(atPath: destURL.path, isDirectory: &resultIsDir),
+                       !resultIsDir.boolValue
+                    {
+                        try? FileManager.default.removeItem(at: destURL)
+                        throw ContainerizationError(
+                            .invalidArgument,
+                            message: "destination is not a directory: \(localPath)")
+                    }
+                } else {
+                    try await client.copyOut(id: id, source: srcURL, destination: destURL)
+                }
             case (.local(let localPath), .container(let id, let path)):
                 let srcURL = URL(fileURLWithPath: localPath).standardizedFileURL
                 var isDirectory: ObjCBool = false
@@ -79,8 +94,22 @@ extension Application {
                 if localPath.hasSuffix("/") && !isDirectory.boolValue {
                     throw ContainerizationError(.invalidArgument, message: "source path is not a directory: \(localPath)")
                 }
+
                 let destURL = URL(fileURLWithPath: path)
-                try await client.copyIn(id: id, source: srcURL, destination: destURL, destinationIsDirectory: path.hasSuffix("/"))
+                let dstWithBasename = destURL.appendingPathComponent(srcURL.lastPathComponent)
+                do {
+                    try await client.copyIn(id: id, source: srcURL, destination: dstWithBasename, createParents: false)
+                } catch {
+                    if isDirectory.boolValue {
+                        try await client.copyIn(id: id, source: srcURL, destination: destURL)
+                    } else if path.hasSuffix("/") {
+                        throw ContainerizationError(
+                            .invalidArgument,
+                            message: "destination is not a directory: \(path)")
+                    } else {
+                        try await client.copyIn(id: id, source: srcURL, destination: destURL)
+                    }
+                }
             case (.container, .container):
                 throw ContainerizationError(.invalidArgument, message: "copying between containers is not supported")
             case (.local, .local):

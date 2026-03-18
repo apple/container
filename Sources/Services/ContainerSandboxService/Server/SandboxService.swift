@@ -659,14 +659,14 @@ public actor SandboxService {
                 )
             }
             let mode = UInt32(message.uint64(key: SandboxKeys.fileMode.rawValue))
-            let destinationIsDirectory = message.bool(key: SandboxKeys.destinationIsDirectory.rawValue)
+            let createParents = message.bool(key: SandboxKeys.createParents.rawValue)
 
             let ctr = try getContainer()
             try await ctr.container.copyIn(
                 from: URL(fileURLWithPath: source),
                 to: URL(fileURLWithPath: destination),
                 mode: mode,
-                destinationIsDirectory: destinationIsDirectory
+                createParents: createParents
             )
 
             return message.reply()
@@ -704,13 +704,13 @@ public actor SandboxService {
                 )
             }
 
-            let destinationIsDirectory = message.bool(key: SandboxKeys.destinationIsDirectory.rawValue)
+            let createParents = message.bool(key: SandboxKeys.createParents.rawValue)
 
             let ctr = try getContainer()
             try await ctr.container.copyOut(
                 from: URL(fileURLWithPath: source),
                 to: URL(fileURLWithPath: destination),
-                destinationIsDirectory: destinationIsDirectory
+                createParents: createParents
             )
 
             return message.reply()

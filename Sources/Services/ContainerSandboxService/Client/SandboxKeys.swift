@@ -47,7 +47,7 @@ public enum SandboxKeys: String {
     case sourcePath
     case destinationPath
     case fileMode
-    case destinationIsDirectory
+    case createParents
     /// Network resource keys.
     case allocatedAttachments
     case networkAdditionalData

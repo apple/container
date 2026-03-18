@@ -311,9 +311,9 @@ public struct ContainersHarness: Sendable {
             )
         }
         let mode = UInt32(message.uint64(key: .fileMode))
-        let destinationIsDirectory = message.bool(key: .destinationIsDirectory)
+        let createParents = message.bool(key: .createParents)
 
-        try await service.copyIn(id: id, source: sourcePath, destination: destinationPath, mode: mode, destinationIsDirectory: destinationIsDirectory)
+        try await service.copyIn(id: id, source: sourcePath, destination: destinationPath, mode: mode, createParents: createParents)
         return message.reply()
     }
 
@@ -338,9 +338,9 @@ public struct ContainersHarness: Sendable {
             )
         }
 
-        let destinationIsDirectory = message.bool(key: .destinationIsDirectory)
+        let createParents = message.bool(key: .createParents)
 
-        try await service.copyOut(id: id, source: sourcePath, destination: destinationPath, destinationIsDirectory: destinationIsDirectory)
+        try await service.copyOut(id: id, source: sourcePath, destination: destinationPath, createParents: createParents)
         return message.reply()
     }
 
