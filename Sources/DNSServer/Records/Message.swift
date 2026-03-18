@@ -124,12 +124,18 @@ public struct Message: Sendable {
 
         // Parse flags
         self.type = (flags & 0x8000) != 0 ? .response : .query
-        self.operationCode = OperationCode(rawValue: UInt8((flags >> 11) & 0x0F)) ?? .query
+        guard let opCode = OperationCode(rawValue: UInt8((flags >> 11) & 0x0F)) else {
+            throw DNSBindError.unmarshalFailure(type: "Message", field: "opcode")
+        }
+        self.operationCode = opCode
         self.authoritativeAnswer = (flags & 0x0400) != 0
         self.truncation = (flags & 0x0200) != 0
         self.recursionDesired = (flags & 0x0100) != 0
         self.recursionAvailable = (flags & 0x0080) != 0
-        self.returnCode = ReturnCode(rawValue: UInt8(flags & 0x000F)) ?? .noError
+        guard let returnCode = ReturnCode(rawValue: UInt8(flags & 0x000F)) else {
+            throw DNSBindError.unmarshalFailure(type: "Message", field: "rcode")
+        }
+        self.returnCode = returnCode
 
         // Read counts
         guard let (newOffset, rawQdCount) = buffer.copyOut(as: UInt16.self, offset: offset) else {

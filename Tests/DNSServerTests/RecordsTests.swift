@@ -538,5 +538,39 @@ struct RecordsTests {
             #expect(parsed.returnCode == original.returnCode)
             #expect(parsed.questions.count == original.questions.count)
         }
+
+        @Test("Reject unknown opcode")
+        func rejectUnknownOpcode() {
+            // Opcode occupies bits 14–11 of the flags word. Value 3 is reserved.
+            // Flags: 0x18 0x00 = QR=0, OPCODE=3, all other bits clear.
+            let bytes: [UInt8] = [
+                0x00, 0x01,  // ID
+                0x18, 0x00,  // Flags: OPCODE=3 (reserved)
+                0x00, 0x00,  // QDCOUNT=0
+                0x00, 0x00,  // ANCOUNT=0
+                0x00, 0x00,  // NSCOUNT=0
+                0x00, 0x00,  // ARCOUNT=0
+            ]
+            #expect(throws: DNSBindError.self) {
+                _ = try Message(deserialize: Data(bytes))
+            }
+        }
+
+        @Test("Reject unknown RCODE")
+        func rejectUnknownRcode() {
+            // RCODE occupies bits 3–0 of the flags word. Value 12 is reserved.
+            // Flags: 0x00 0x0C = QR=0, OPCODE=0, RCODE=12.
+            let bytes: [UInt8] = [
+                0x00, 0x01,  // ID
+                0x00, 0x0C,  // Flags: RCODE=12 (reserved)
+                0x00, 0x00,  // QDCOUNT=0
+                0x00, 0x00,  // ANCOUNT=0
+                0x00, 0x00,  // NSCOUNT=0
+                0x00, 0x00,  // ARCOUNT=0
+            ]
+            #expect(throws: DNSBindError.self) {
+                _ = try Message(deserialize: Data(bytes))
+            }
+        }
     }
 }
