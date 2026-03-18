@@ -69,6 +69,8 @@ struct RecordsTests {
             var parsed = DNSName()
             let readOffset = try parsed.bindBuffer(&buffer, offset: 0)
 
+            // [4]test[7]example[3]com[0] = 5+8+4+1 = 18
+            #expect(endOffset == 18)
             #expect(readOffset == endOffset)
             #expect(parsed.labels == original.labels)
         }
@@ -78,11 +80,14 @@ struct RecordsTests {
             let name = DNSName("a.b.c.d.example.com")
             var buffer = [UInt8](repeating: 0, count: 64)
 
-            _ = try name.appendBuffer(&buffer, offset: 0)
+            let endOffset = try name.appendBuffer(&buffer, offset: 0)
 
             var parsed = DNSName()
-            _ = try parsed.bindBuffer(&buffer, offset: 0)
+            let readOffset = try parsed.bindBuffer(&buffer, offset: 0)
 
+            // [1]a[1]b[1]c[1]d[7]example[3]com[0] = 2+2+2+2+8+4+1 = 21
+            #expect(endOffset == 21)
+            #expect(readOffset == endOffset)
             #expect(parsed.labels == ["a", "b", "c", "d", "example", "com"])
         }
 
@@ -114,11 +119,37 @@ struct RecordsTests {
             // Wire-encode "EXAMPLE.COM" with uppercase bytes, then decode
             let upper = DNSName(labels: ["EXAMPLE", "COM"])
             var buffer = [UInt8](repeating: 0, count: 64)
-            _ = try upper.appendBuffer(&buffer, offset: 0)
+            let endOffset = try upper.appendBuffer(&buffer, offset: 0)
 
             var parsed = DNSName()
-            _ = try parsed.bindBuffer(&buffer, offset: 0)
+            let readOffset = try parsed.bindBuffer(&buffer, offset: 0)
+
+            // [7]example[3]com[0] = 8+4+1 = 13
+            #expect(endOffset == 13)
+            #expect(readOffset == endOffset)
             #expect(parsed.labels == ["example", "com"])
+        }
+
+        @Test("Follow valid compression pointer")
+        func followCompressionPointer() throws {
+            // Build a buffer with two names:
+            //   offset  0: "example.com." — [7]example[3]com[0] (13 bytes)
+            //   offset 13: "test."        — [4]test 0xC0 0x00   ( 7 bytes)
+            // The pointer 0xC0 0x00 points back to offset 0.
+            var buffer: [UInt8] = [
+                0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65,  // [7]example
+                0x03, 0x63, 0x6f, 0x6d,  // [3]com
+                0x00,  // null terminator
+                0x04, 0x74, 0x65, 0x73, 0x74,  // [4]test
+                0xC0, 0x00,  // pointer to offset 0
+            ]
+
+            var name = DNSName()
+            let readOffset = try name.bindBuffer(&buffer, offset: 13)
+
+            // Pointer bytes are at offset 18–19; returnOffset = 18 + 2 = 20
+            #expect(readOffset == 20)
+            #expect(name.labels == ["test", "example", "com"])
         }
 
         @Test("Reject forward compression pointer")
@@ -174,6 +205,8 @@ struct RecordsTests {
             var parsed = Question(name: "")
             let readOffset = try parsed.bindBuffer(&buffer, offset: 0)
 
+            // name([7]example[3]com[0]=13) + type(2) + class(2) = 17
+            #expect(endOffset == 17)
             #expect(readOffset == endOffset)
             #expect(parsed.type == .host)
             #expect(parsed.recordClass == .internet)
@@ -184,11 +217,14 @@ struct RecordsTests {
             let original = Question(name: "example.com.", type: .host6, recordClass: .internet)
             var buffer = [UInt8](repeating: 0, count: 64)
 
-            _ = try original.appendBuffer(&buffer, offset: 0)
+            let endOffset = try original.appendBuffer(&buffer, offset: 0)
 
             var parsed = Question(name: "")
-            _ = try parsed.bindBuffer(&buffer, offset: 0)
+            let readOffset = try parsed.bindBuffer(&buffer, offset: 0)
 
+            // name([7]example[3]com[0]=13) + type(2) + class(2) = 17
+            #expect(endOffset == 17)
+            #expect(readOffset == endOffset)
             #expect(parsed.type == .host6)
         }
     }
@@ -226,15 +262,14 @@ struct RecordsTests {
 
             let endOffset = try record.appendBuffer(&buffer, offset: 0)
 
-            // Should have written: name + type(2) + class(2) + ttl(4) + rdlen(2) + rdata(4)
-            #expect(endOffset > 0)
+            // name([4]test[3]com[0]=10) + type(2) + class(2) + ttl(4) + rdlen(2) + rdata(4) = 24
+            #expect(endOffset == 24)
 
-            // Verify IP bytes are at the end
-            let ipStart = endOffset - 4
-            #expect(buffer[ipStart] == 10)
-            #expect(buffer[ipStart + 1] == 0)
-            #expect(buffer[ipStart + 2] == 0)
-            #expect(buffer[ipStart + 3] == 1)
+            // Verify IP bytes at the end
+            #expect(buffer[endOffset - 4] == 10)
+            #expect(buffer[endOffset - 3] == 0)
+            #expect(buffer[endOffset - 2] == 0)
+            #expect(buffer[endOffset - 1] == 1)
         }
 
         @Test("Serialize AAAA record")
@@ -245,7 +280,8 @@ struct RecordsTests {
 
             let endOffset = try record.appendBuffer(&buffer, offset: 0)
 
-            // Verify last byte is 1 (::1)
+            // name([4]test[3]com[0]=10) + type(2) + class(2) + ttl(4) + rdlen(2) + rdata(16) = 36
+            #expect(endOffset == 36)
             #expect(buffer[endOffset - 1] == 1)
         }
     }
