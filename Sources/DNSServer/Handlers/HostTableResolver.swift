@@ -30,23 +30,25 @@ public struct HostTableResolver: DNSHandler {
     ///   Keys are normalized to `DNSName` (lowercased, trailing dot stripped), so
     ///   `"FOO."`, `"foo."`, and `"foo"` all refer to the same entry.
     /// - Parameter ttl: The TTL in seconds to set on answer records (default is 300).
-    public init(hosts4: [String: IPv4Address], ttl: UInt32 = 300) {
-        self.hosts4 = Dictionary(uniqueKeysWithValues: hosts4.map { (DNSName($0.key), $0.value) })
+    /// - Throws: `DNSBindError.invalidName` if any key is not a valid DNS name.
+    public init(hosts4: [String: IPv4Address], ttl: UInt32 = 300) throws {
+        self.hosts4 = try Dictionary(uniqueKeysWithValues: hosts4.map { (try DNSName($0.key), $0.value) })
         self.ttl = ttl
     }
 
     public func answer(query: Message) async throws -> Message? {
         let question = query.questions[0]
+        let key = try DNSName(question.name)
         let record: ResourceRecord?
         switch question.type {
         case ResourceRecordType.host:
-            record = answerHost(question: question)
+            record = answerHost(question: question, key: key)
         case ResourceRecordType.host6:
             // Return NODATA (noError with empty answers) for AAAA queries ONLY if A record exists.
             // This is required because musl libc has issues when A record exists but AAAA returns NXDOMAIN.
             // musl treats NXDOMAIN on AAAA as "domain doesn't exist" and fails DNS resolution entirely.
             // NODATA correctly indicates "no IPv6 address available, but domain exists".
-            if hosts4[DNSName(question.name)] != nil {
+            if hosts4[key] != nil {
                 return Message(
                     id: query.id,
                     type: .response,
@@ -80,8 +82,8 @@ public struct HostTableResolver: DNSHandler {
         )
     }
 
-    private func answerHost(question: Question) -> ResourceRecord? {
-        guard let ip = hosts4[DNSName(question.name)] else {
+    private func answerHost(question: Question, key: DNSName) -> ResourceRecord? {
+        guard let ip = hosts4[key] else {
             return nil
         }
 

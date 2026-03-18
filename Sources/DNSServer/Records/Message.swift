@@ -180,10 +180,10 @@ public struct Message: Sendable {
         // Calculate buffer size (estimate)
         var bufferSize = Self.headerSize
         for question in questions {
-            bufferSize += DNSName(question.name).size + 4  // name + type + class
+            bufferSize += (try DNSName(question.name)).size + 4  // name + type + class
         }
         for answer in answers {
-            bufferSize += DNSName(answer.name).size + 10 + 16  // name + type + class + ttl + rdlen + rdata (max)
+            bufferSize += (try DNSName(answer.name)).size + 10 + 16  // name + type + class + ttl + rdlen + rdata (max)
         }
         bufferSize += 64  // padding for safety
 

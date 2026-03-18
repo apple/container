@@ -28,40 +28,40 @@ struct RecordsTests {
     @Suite("DNSName")
     struct DNSNameTests {
         @Test("Create from string")
-        func createFromString() {
-            let name = DNSName("example.com")
+        func createFromString() throws {
+            let name = try DNSName("example.com")
             #expect(name.labels == ["example", "com"])
         }
 
         @Test("Create from string with trailing dot")
-        func createFromStringTrailingDot() {
-            let name = DNSName("example.com.")
+        func createFromStringTrailingDot() throws {
+            let name = try DNSName("example.com.")
             #expect(name.labels == ["example", "com"])
         }
 
         @Test("Description includes trailing dot")
-        func descriptionTrailingDot() {
-            let name = DNSName("example.com")
+        func descriptionTrailingDot() throws {
+            let name = try DNSName("example.com")
             #expect(name.description == "example.com.")
         }
 
         @Test("Root domain")
-        func rootDomain() {
-            let name = DNSName("")
+        func rootDomain() throws {
+            let name = try DNSName("")
             #expect(name.labels == [])
             #expect(name.description == ".")
         }
 
         @Test("Size calculation")
-        func sizeCalculation() {
-            let name = DNSName("example.com")
+        func sizeCalculation() throws {
+            let name = try DNSName("example.com")
             // [7]example[3]com[0] = 1 + 7 + 1 + 3 + 1 = 13
             #expect(name.size == 13)
         }
 
         @Test("Serialize and deserialize")
         func serializeDeserialize() throws {
-            let original = DNSName("test.example.com")
+            let original = try DNSName("test.example.com")
             var buffer = [UInt8](repeating: 0, count: 64)
 
             let endOffset = try original.appendBuffer(&buffer, offset: 0)
@@ -77,7 +77,7 @@ struct RecordsTests {
 
         @Test("Serialize subdomain")
         func serializeSubdomain() throws {
-            let name = DNSName("a.b.c.d.example.com")
+            let name = try DNSName("a.b.c.d.example.com")
             var buffer = [UInt8](repeating: 0, count: 64)
 
             let endOffset = try name.appendBuffer(&buffer, offset: 0)
@@ -94,23 +94,86 @@ struct RecordsTests {
         @Test("Reject label too long")
         func rejectLabelTooLong() {
             let longLabel = String(repeating: "a", count: 64)
-            let name = DNSName(longLabel + ".com")
-            var buffer = [UInt8](repeating: 0, count: 128)
-
             #expect(throws: DNSBindError.self) {
-                _ = try name.appendBuffer(&buffer, offset: 0)
+                _ = try DNSName(longLabel + ".com")
+            }
+        }
+
+        @Test("Reject embedded carriage return")
+        func rejectEmbeddedCarriageReturn() {
+            #expect(throws: DNSBindError.self) {
+                _ = try DNSName("foo\r.com")
+            }
+        }
+
+        @Test("Reject embedded newline")
+        func rejectEmbeddedNewline() {
+            #expect(throws: DNSBindError.self) {
+                _ = try DNSName("foo\n.com")
+            }
+        }
+
+        @Test("Reject embedded null byte")
+        func rejectEmbeddedNullByte() {
+            #expect(throws: DNSBindError.self) {
+                _ = try DNSName("foo\0.com")
+            }
+        }
+
+        @Test("Reject empty label")
+        func rejectEmptyLabel() {
+            #expect(throws: DNSBindError.self) {
+                _ = try DNSName("foo..com")
+            }
+        }
+
+        @Test("Reject name too long")
+        func rejectNameTooLong() {
+            // 9 labels * (1 + 30) bytes + 1 null = 280 bytes > 255
+            let label = String(repeating: "a", count: 30)
+            let name = Array(repeating: label, count: 9).joined(separator: ".")
+            #expect(throws: DNSBindError.self) {
+                _ = try DNSName(name)
+            }
+        }
+
+        @Test("Reject leading hyphen")
+        func rejectLeadingHyphen() {
+            #expect(throws: DNSBindError.self) {
+                _ = try DNSName("-foo.com")
+            }
+        }
+
+        @Test("Reject trailing hyphen")
+        func rejectTrailingHyphen() {
+            #expect(throws: DNSBindError.self) {
+                _ = try DNSName("foo-.com")
+            }
+        }
+
+        @Test("Reject leading underscore")
+        func rejectLeadingUnderscore() {
+            #expect(throws: DNSBindError.self) {
+                _ = try DNSName("_foo.com")
+            }
+        }
+
+        @Test("Reject trailing underscore")
+        func rejectTrailingUnderscore() {
+            #expect(throws: DNSBindError.self) {
+                _ = try DNSName("foo_.com")
             }
         }
 
         @Test("Lowercase labels on init")
-        func lowercaseLabelsOnInit() {
-            let name = DNSName("EXAMPLE.COM")
+        func lowercaseLabelsOnInit() throws {
+            let name = try DNSName("EXAMPLE.COM")
             #expect(name.labels == ["example", "com"])
         }
 
         @Test("Lowercase labels on init with trailing dot")
-        func lowercaseLabelsOnInitTrailingDot() {
-            let name = DNSName("Example.Com.")
+        func lowercaseLabelsOnInitTrailingDot() throws {
+            let name = try DNSName("Example.Com.")
             #expect(name.labels == ["example", "com"])
         }
 

@@ -22,7 +22,7 @@ import Testing
 struct HostTableResolverTest {
     @Test func testUnsupportedQuestionType() async throws {
         let ip = try IPv4Address("1.2.3.4")
-        let handler = HostTableResolver(hosts4: ["foo.": ip])
+        let handler = try HostTableResolver(hosts4: ["foo.": ip])
 
         let query = Message(
             id: UInt16(1),
@@ -42,7 +42,7 @@ struct HostTableResolverTest {
 
     @Test func testAAAAQueryReturnsNoDataWhenARecordExists() async throws {
         let ip = try IPv4Address("1.2.3.4")
-        let handler = HostTableResolver(hosts4: ["foo.": ip])
+        let handler = try HostTableResolver(hosts4: ["foo.": ip])
 
         let query = Message(
             id: UInt16(1),
@@ -64,7 +64,7 @@ struct HostTableResolverTest {
 
     @Test func testAAAAQueryReturnsNilWhenHostDoesNotExist() async throws {
         let ip = try IPv4Address("1.2.3.4")
-        let handler = HostTableResolver(hosts4: ["foo.": ip])
+        let handler = try HostTableResolver(hosts4: ["foo.": ip])
 
         let query = Message(
             id: UInt16(1),
@@ -81,7 +81,7 @@ struct HostTableResolverTest {
 
     @Test func testHostNotPresent() async throws {
         let ip = try IPv4Address("1.2.3.4")
-        let handler = HostTableResolver(hosts4: ["foo.": ip])
+        let handler = try HostTableResolver(hosts4: ["foo.": ip])
 
         let query = Message(
             id: UInt16(1),
@@ -97,7 +97,7 @@ struct HostTableResolverTest {
 
     @Test func testHostPresent() async throws {
         let ip = try IPv4Address("1.2.3.4")
-        let handler = HostTableResolver(hosts4: ["foo.": ip])
+        let handler = try HostTableResolver(hosts4: ["foo.": ip])
 
         let query = Message(
             id: UInt16(1),
@@ -121,7 +121,7 @@ struct HostTableResolverTest {
 
     @Test func testHostPresentUppercaseTable() async throws {
         let ip = try IPv4Address("1.2.3.4")
-        let handler = HostTableResolver(hosts4: ["FOO.": ip])
+        let handler = try HostTableResolver(hosts4: ["FOO.": ip])
 
         let query = Message(
             id: UInt16(1),
@@ -145,7 +145,7 @@ struct HostTableResolverTest {
 
     @Test func testHostPresentUppercaseQuestion() async throws {
         let ip = try IPv4Address("1.2.3.4")
-        let handler = HostTableResolver(hosts4: ["foo.": ip])
+        let handler = try HostTableResolver(hosts4: ["foo.": ip])
 
         let query = Message(
             id: UInt16(1),

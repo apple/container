@@ -27,17 +27,53 @@ public struct DNSName: Sendable, Hashable, CustomStringConvertible {
     /// Creates a DNS name from an array of labels.
     ///
     /// Labels are lowercased to normalize for case-insensitive DNS comparison.
+    /// This initializer is intended for trusted inputs such as wire-decoded names;
+    /// it performs no character validation. Use `init(_ string:)` for user-supplied input.
     public init(labels: [String] = []) {
         self.labels = labels.map { $0.lowercased() }
     }
 
-    /// Creates a DNS name from a dot-separated string (e.g., "example.com." or "example.com").
+    /// Creates a validated DNS name from a dot-separated string
+    /// (e.g., `"example.com."` or `"example.com"`).
     ///
-    /// A trailing dot is accepted but not required. Labels are lowercased to normalize
-    /// for case-insensitive DNS comparison.
-    public init(_ string: String) {
+    /// A trailing dot is accepted but not required. Labels are lowercased.
+    /// An empty string produces the root name without error.
+    ///
+    /// - Throws: `DNSBindError.invalidName` if any label is empty, does not match
+    ///   `[a-zA-Z0-9]([a-zA-Z0-9\-_]*[a-zA-Z0-9])?` (i.e. must start and end with
+    ///   a letter or digit), exceeds 63 bytes, or if the total wire representation
+    ///   exceeds 255 bytes.
+    public init(_ string: String) throws {
         let normalized = string.hasSuffix(".") ? String(string.dropLast()) : string
-        self.init(labels: normalized.isEmpty ? [] : normalized.split(separator: ".").map { String($0) })
+        guard !normalized.isEmpty else {
+            self.init(labels: [])
+            return
+        }
+
+        // Labels must start and end with a letter or digit; interior characters
+        // may also include hyphens and underscores.
+        let labelRegex = /[a-zA-Z0-9](?:[a-zA-Z0-9\-_]*[a-zA-Z0-9])?/
+        let parts = normalized.split(separator: ".", omittingEmptySubsequences: false).map { String($0) }
+        for part in parts {
+            guard !part.isEmpty else {
+                throw DNSBindError.invalidName("empty label in \"\(string)\"")
+            }
+            guard part.utf8.count <= 63 else {
+                throw DNSBindError.invalidName("label too long in \"\(string)\"")
+            }
+            guard part.wholeMatch(of: labelRegex) != nil else {
+                throw DNSBindError.invalidName("label must start and end with a letter or digit and contain only letters, digits, hyphens, or underscores: \"\(part)\"")
+            }
+        }
+
+        // Wire length: 1-byte length prefix per label + label bytes + 1-byte null terminator.
+        // ASCII letter case doesn't affect byte count, so we can compute this before lowercasing.
+        let wireLength = parts.reduce(1) { $0 + 1 + $1.utf8.count }
+        guard wireLength <= 255 else {
+            throw DNSBindError.invalidName("name too long: \"\(string)\"")
+        }
+
+        self.init(labels: parts)
     }
 
     /// The wire format size of this name in bytes.

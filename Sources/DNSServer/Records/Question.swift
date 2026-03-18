@@ -57,7 +57,7 @@ public struct Question: Sendable, CustomStringConvertible {
         var offset = offset
 
         // Write name
-        let dnsName = DNSName(name)
+        let dnsName = try DNSName(name)
         offset = try dnsName.appendBuffer(&buffer, offset: offset)
 
         // Write type (big-endian)

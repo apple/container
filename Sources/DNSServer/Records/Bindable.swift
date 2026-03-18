@@ -24,6 +24,7 @@ import Foundation
 public enum DNSBindError: Error, CustomStringConvertible {
     case marshalFailure(type: String, field: String)
     case unmarshalFailure(type: String, field: String)
+    case invalidName(String)
 
     public var description: String {
         switch self {
@@ -31,6 +32,8 @@ public enum DNSBindError: Error, CustomStringConvertible {
             return "failed to marshal \(type).\(field)"
         case .unmarshalFailure(let type, let field):
             return "failed to unmarshal \(type).\(field)"
+        case .invalidName(let reason):
+            return "invalid DNS name: \(reason)"
         }
     }
 }
