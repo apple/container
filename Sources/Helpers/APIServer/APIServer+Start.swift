@@ -91,71 +91,43 @@ extension APIServer {
                             $0[$1.key.rawValue] = $1.value
                         }), log: log)
 
-                await withTaskGroup(of: Result<Void, Error>.self) { group in
+                try await withThrowingTaskGroup(of: Void.self) { group in
                     group.addTask {
                         log.info("starting XPC server")
-                        do {
-                            try await server.listen()
-                            return .success(())
-                        } catch {
-                            return .failure(error)
-                        }
+                        try await server.listen()
                     }
 
-                    // start up host table DNS
+                    // start up host table DNS (UDP and TCP)
+                    let hostsResolver = ContainerDNSHandler(networkService: networkService)
+                    let nxDomainResolver = NxDomainResolver()
+                    let compositeResolver = CompositeResolver(handlers: [hostsResolver, nxDomainResolver])
+                    let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
+                    let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
+
                     group.addTask {
-                        let hostsResolver = ContainerDNSHandler(networkService: networkService)
-                        let nxDomainResolver = NxDomainResolver()
-                        let compositeResolver = CompositeResolver(handlers: [hostsResolver, nxDomainResolver])
-                        let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
-                        let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
                         log.info(
-                            "starting DNS resolver for container hostnames",
+                            "starting DNS resolver for container hostnames (UDP)",
                             metadata: [
                                 "host": "\(Self.listenAddress)",
                                 "port": "\(Self.dnsPort)",
                             ]
                         )
-                        do {
-                            try await dnsServer.run(host: Self.listenAddress, port: Self.dnsPort)
-                            return .success(())
-                        } catch {
-                            return .failure(error)
-                        }
-
+                        try await dnsServer.run(host: Self.listenAddress, port: Self.dnsPort)
                     }
 
-                    // start up realhost DNS
                     group.addTask {
-                        do {
-                            let localhostResolver = LocalhostDNSHandler(log: log)
-                            await localhostResolver.monitorResolvers()
-
-                            let nxDomainResolver = NxDomainResolver()
-                            let compositeResolver = CompositeResolver(handlers: [localhostResolver, nxDomainResolver])
-                            let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
-                            let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
-                            log.info(
-                                "starting DNS resolver for localhost",
-                                metadata: [
-                                    "host": "\(Self.listenAddress)",
-                                    "port": "\(Self.localhostDNSPort)",
-                                ]
-                            )
-                            try await dnsServer.run(host: Self.listenAddress, port: Self.localhostDNSPort)
-                            return .success(())
-                        } catch {
-                            return .failure(error)
-                        }
+                        log.info(
+                            "starting DNS resolver for container hostnames (TCP)",
+                            metadata: [
+                                "host": "\(Self.listenAddress)",
+                                "port": "\(Self.dnsPort)",
+                            ]
+                        )
+                        try await dnsServer.runTCP(host: Self.listenAddress, port: Self.dnsPort)
                     }
 
-                    for await result in group {
-                        switch result {
-                        case .success():
-                            continue
-                        case .failure(let error):
-                            log.error("API server task failed: \(error)")
-                        }
+                    for try await _ in group {
+                        continue
                     }
                 }
             } catch {
