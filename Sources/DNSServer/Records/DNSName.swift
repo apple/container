@@ -132,6 +132,7 @@ public struct DNSName: Sendable, Hashable, CustomStringConvertible {
         labels = []
         var jumped = false
         var returnOffset = offset
+        var pointerHops = 0
 
         while true {
             guard offset < buffer.count else {
@@ -144,6 +145,11 @@ public struct DNSName: Sendable, Hashable, CustomStringConvertible {
             if (length & 0xC0) == 0xC0 {
                 guard offset + 1 < buffer.count else {
                     throw DNSBindError.unmarshalFailure(type: "DNSName", field: "compression pointer")
+                }
+
+                pointerHops += 1
+                guard pointerHops <= 10 else {
+                    throw DNSBindError.unmarshalFailure(type: "DNSName", field: "compression pointer hop limit exceeded")
                 }
 
                 if !jumped {

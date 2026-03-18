@@ -244,6 +244,40 @@ struct RecordsTests {
                 _ = try name.bindBuffer(&b, offset: 0)
             }
         }
+
+        @Test("Reject compression pointer hop limit exceeded")
+        func rejectCompressionPointerHopLimit() throws {
+            // Build a chain of backward pointers:
+            //   offset  0: [1]a[0]          — terminal name (3 bytes)
+            //   offset  3: 0xC0 0x00        — pointer → 0
+            //   offset  5: 0xC0 0x03        — pointer → 3
+            //   ...each entry points to the one before it...
+            //   offset 23: 0xC0 0x15        — pointer → 21
+            //   offset 25: 0xC0 0x17        — pointer → 23
+            //
+            // Reading from offset 25 follows 11 hops (25→23→21→...→3→0),
+            // which exceeds the limit of 10.
+            var buffer: [UInt8] = [
+                0x01, 0x61, 0x00,  // offset  0: [1]a[0]
+                0xC0, 0x00,  // offset  3: → 0
+                0xC0, 0x03,  // offset  5: → 3
+                0xC0, 0x05,  // offset  7: → 5
+                0xC0, 0x07,  // offset  9: → 7
+                0xC0, 0x09,  // offset 11: → 9
+                0xC0, 0x0B,  // offset 13: → 11
+                0xC0, 0x0D,  // offset 15: → 13
+                0xC0, 0x0F,  // offset 17: → 15
+                0xC0, 0x11,  // offset 19: → 17
+                0xC0, 0x13,  // offset 21: → 19
+                0xC0, 0x15,  // offset 23: → 21
+                0xC0, 0x17,  // offset 25: → 23
+            ]
+
+            #expect(throws: DNSBindError.self) {
+                var name = DNSName()
+                _ = try name.bindBuffer(&buffer, offset: 25)
+            }
+        }
     }
 
     // MARK: - Question Tests
