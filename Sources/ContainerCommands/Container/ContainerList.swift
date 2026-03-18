@@ -99,7 +99,7 @@ extension ContainerSnapshot {
 }
 
 struct PrintableContainer: Codable {
-    let status: RuntimeStatus
+    let status: ContainerStatus
     let configuration: ContainerConfiguration
     let networks: [Attachment]
     let startedDate: Date?

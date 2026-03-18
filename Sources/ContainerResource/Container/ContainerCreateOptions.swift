@@ -14,13 +14,32 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+public enum RestartPolicy: String, Sendable, Codable {
+    case no
+    case onFailure
+    case always
+}
+
 public struct ContainerCreateOptions: Codable, Sendable {
     public let autoRemove: Bool
+    public let restartPolicy: RestartPolicy
 
-    public init(autoRemove: Bool) {
+    public init(autoRemove: Bool, restartPolicy: RestartPolicy) {
         self.autoRemove = autoRemove
+        self.restartPolicy = restartPolicy
     }
 
-    public static let `default` = ContainerCreateOptions(autoRemove: false)
+    public static let `default` = ContainerCreateOptions(autoRemove: false, restartPolicy: .no)
 
+    enum CodingKeys: String, CodingKey {
+        case autoRemove
+        case restartPolicy
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        autoRemove = try container.decode(Bool.self, forKey: .autoRemove)
+        restartPolicy = try container.decodeIfPresent(RestartPolicy.self, forKey: .restartPolicy) ?? .no
+    }
 }
