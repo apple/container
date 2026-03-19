@@ -20,44 +20,6 @@ import Foundation
 // bit-fiddling types from ContainerizationExtras, instead
 // of copying them here.
 
-/// Errors that can occur during DNS message serialization/deserialization.
-public enum DNSBindError: Error, CustomStringConvertible {
-    case marshalFailure(type: String, field: String)
-    case unmarshalFailure(type: String, field: String)
-    case unsupportedValue(type: String, field: String)
-    case invalidName(String)
-    case unexpectedOffset(type: String, expected: Int, actual: Int)
-
-    public var description: String {
-        switch self {
-        case .marshalFailure(let type, let field):
-            return "failed to marshal \(type).\(field)"
-        case .unmarshalFailure(let type, let field):
-            return "failed to unmarshal \(type).\(field)"
-        case .unsupportedValue(let type, let field):
-            return "unsupported value for \(type).\(field)"
-        case .invalidName(let reason):
-            return "invalid DNS name: \(reason)"
-        case .unexpectedOffset(let type, let expected, let actual):
-            return "unexpected offset serializing \(type): expected \(expected), got \(actual)"
-        }
-    }
-}
-
-/// Protocol for types that can be serialized to/from a byte buffer.
-protocol Bindable: Sendable {
-    /// The fixed size of this type in bytes, if applicable.
-    static var size: Int { get }
-
-    /// Serialize this value into the buffer at the given offset.
-    /// - Returns: The new offset after writing.
-    func appendBuffer(_ buffer: inout [UInt8], offset: Int) throws -> Int
-
-    /// Deserialize this value from the buffer at the given offset.
-    /// - Returns: The new offset after reading.
-    mutating func bindBuffer(_ buffer: inout [UInt8], offset: Int) throws -> Int
-}
-
 extension [UInt8] {
     /// Copy a value into the buffer at the given offset.
     /// - Returns: The new offset after writing, or nil if the buffer is too small.
