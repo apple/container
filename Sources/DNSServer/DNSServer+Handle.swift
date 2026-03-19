@@ -110,7 +110,11 @@ extension DNSServer {
 
         self.log?.debug("sending response")
         let rData = ByteBuffer(bytes: responseData)
-        try? await outbound.write(AddressedEnvelope(remoteAddress: packet.remoteAddress, data: rData))
+        do {
+            try await outbound.write(AddressedEnvelope(remoteAddress: packet.remoteAddress, data: rData))
+        } catch {
+            self.log?.error("failed to send DNS response: \(error)")
+        }
 
         self.log?.debug("processing done")
 
