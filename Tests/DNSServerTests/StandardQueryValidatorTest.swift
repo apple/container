@@ -65,6 +65,20 @@ struct StandardQueryValidatorTest {
         #expect(0 == response?.answers.count)
     }
 
+    @Test func testRejectNoQuestions() async throws {
+        let fooHandler = FooHandler()
+        let handler = StandardQueryValidator(handler: fooHandler)
+
+        let query = Message(id: UInt16(3), type: .query, questions: [])
+
+        let response = try await handler.answer(query: query)
+
+        #expect(.formatError == response?.returnCode)
+        #expect(3 == response?.id)
+        #expect(.response == response?.type)
+        #expect(0 == response?.answers.count)
+    }
+
     @Test func testRejectMultipleQuestions() async throws {
         let fooHandler = FooHandler()
         let handler = StandardQueryValidator(handler: fooHandler)

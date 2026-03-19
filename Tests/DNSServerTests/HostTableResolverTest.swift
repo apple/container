@@ -20,6 +20,17 @@ import Testing
 @testable import DNSServer
 
 struct HostTableResolverTest {
+    @Test func testEmptyQuestionsReturnsNil() async throws {
+        let ip = try IPv4Address("1.2.3.4")
+        let handler = try HostTableResolver(hosts4: ["foo.": ip])
+
+        let query = Message(id: UInt16(1), type: .query, questions: [])
+
+        let response = try await handler.answer(query: query)
+
+        #expect(nil == response)
+    }
+
     @Test func testUnsupportedQuestionType() async throws {
         let ip = try IPv4Address("1.2.3.4")
         let handler = try HostTableResolver(hosts4: ["foo.": ip])

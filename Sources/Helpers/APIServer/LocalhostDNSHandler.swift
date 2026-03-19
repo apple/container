@@ -57,7 +57,9 @@ actor LocalhostDNSHandler: DNSHandler {
     }
 
     public func answer(query: Message) async throws -> Message? {
-        let question = query.questions[0]
+        guard let question = query.questions.first else {
+            return nil
+        }
         var record: ResourceRecord?
         switch question.type {
         case ResourceRecordType.host:
