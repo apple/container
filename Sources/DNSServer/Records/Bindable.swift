@@ -24,7 +24,9 @@ import Foundation
 public enum DNSBindError: Error, CustomStringConvertible {
     case marshalFailure(type: String, field: String)
     case unmarshalFailure(type: String, field: String)
+    case unsupportedValue(type: String, field: String)
     case invalidName(String)
+    case unexpectedOffset(type: String, expected: Int, actual: Int)
 
     public var description: String {
         switch self {
@@ -32,8 +34,12 @@ public enum DNSBindError: Error, CustomStringConvertible {
             return "failed to marshal \(type).\(field)"
         case .unmarshalFailure(let type, let field):
             return "failed to unmarshal \(type).\(field)"
+        case .unsupportedValue(let type, let field):
+            return "unsupported value for \(type).\(field)"
         case .invalidName(let reason):
             return "invalid DNS name: \(reason)"
+        case .unexpectedOffset(let type, let expected, let actual):
+            return "unexpected offset serializing \(type): expected \(expected), got \(actual)"
         }
     }
 }

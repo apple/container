@@ -56,10 +56,12 @@ public struct HostRecord<T: IPAddressProtocol>: ResourceRecord {
     }
 
     public func appendBuffer(_ buffer: inout [UInt8], offset: Int) throws -> Int {
+        let startOffset = offset
         var offset = offset
 
         // Write name
-        let dnsName = try DNSName(name)
+        let normalized = name.hasSuffix(".") ? String(name.dropLast()) : name
+        let dnsName = try DNSName(labels: normalized.isEmpty ? [] : normalized.split(separator: ".", omittingEmptySubsequences: false).map(String.init))
         offset = try dnsName.appendBuffer(&buffer, offset: offset)
 
         // Write type (big-endian)
@@ -92,6 +94,10 @@ public struct HostRecord<T: IPAddressProtocol>: ResourceRecord {
             throw DNSBindError.marshalFailure(type: "HostRecord", field: "rdata")
         }
 
+        let expectedOffset = startOffset + dnsName.size + 10 + T.size
+        guard newOffset == expectedOffset else {
+            throw DNSBindError.unexpectedOffset(type: "HostRecord", expected: expectedOffset, actual: newOffset)
+        }
         return newOffset
     }
 }

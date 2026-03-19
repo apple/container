@@ -54,10 +54,12 @@ public struct Question: Sendable, CustomStringConvertible {
 
     /// Serialize this question into the buffer.
     public func appendBuffer(_ buffer: inout [UInt8], offset: Int) throws -> Int {
+        let startOffset = offset
         var offset = offset
 
         // Write name
-        let dnsName = try DNSName(name)
+        let normalized = name.hasSuffix(".") ? String(name.dropLast()) : name
+        let dnsName = try DNSName(labels: normalized.isEmpty ? [] : normalized.split(separator: ".", omittingEmptySubsequences: false).map(String.init))
         offset = try dnsName.appendBuffer(&buffer, offset: offset)
 
         // Write type (big-endian)
@@ -71,6 +73,10 @@ public struct Question: Sendable, CustomStringConvertible {
             throw DNSBindError.marshalFailure(type: "Question", field: "class")
         }
 
+        let expectedOffset = startOffset + dnsName.size + 4
+        guard newOffset == expectedOffset else {
+            throw DNSBindError.unexpectedOffset(type: "Question", expected: expectedOffset, actual: newOffset)
+        }
         return newOffset
     }
 
@@ -88,7 +94,7 @@ public struct Question: Sendable, CustomStringConvertible {
             throw DNSBindError.unmarshalFailure(type: "Question", field: "type")
         }
         guard let qtype = ResourceRecordType(rawValue: UInt16(bigEndian: rawType)) else {
-            throw DNSBindError.unmarshalFailure(type: "Question", field: "type value")
+            throw DNSBindError.unsupportedValue(type: "Question", field: "type")
         }
         self.type = qtype
         offset = newOffset
@@ -98,7 +104,7 @@ public struct Question: Sendable, CustomStringConvertible {
             throw DNSBindError.unmarshalFailure(type: "Question", field: "class")
         }
         guard let qclass = ResourceRecordClass(rawValue: UInt16(bigEndian: rawClass)) else {
-            throw DNSBindError.unmarshalFailure(type: "Question", field: "class value")
+            throw DNSBindError.unsupportedValue(type: "Question", field: "class")
         }
         self.recordClass = qclass
 

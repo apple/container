@@ -165,6 +165,12 @@ struct RecordsTests {
             }
         }
 
+        @Test("Accept service labels via init(labels:)")
+        func acceptServiceLabels() throws {
+            let name = try DNSName(labels: ["_dns-sd", "_udp", "local"])
+            #expect(name.labels == ["_dns-sd", "_udp", "local"])
+        }
+
         @Test("Lowercase labels on init")
         func lowercaseLabelsOnInit() throws {
             let name = try DNSName("EXAMPLE.COM")
@@ -180,7 +186,7 @@ struct RecordsTests {
         @Test("Lowercase labels from wire format")
         func lowercaseLabelsFromWire() throws {
             // Wire-encode "EXAMPLE.COM" with uppercase bytes, then decode
-            let upper = DNSName(labels: ["EXAMPLE", "COM"])
+            let upper = try DNSName(labels: ["EXAMPLE", "COM"])
             var buffer = [UInt8](repeating: 0, count: 64)
             let endOffset = try upper.appendBuffer(&buffer, offset: 0)
 
@@ -620,6 +626,44 @@ struct RecordsTests {
                 0x00, 0x00,  // ANCOUNT=0
                 0x00, 0x00,  // NSCOUNT=0
                 0x00, 0x00,  // ARCOUNT=0
+            ]
+            #expect(throws: DNSBindError.self) {
+                _ = try Message(deserialize: Data(bytes))
+            }
+        }
+
+        @Test("Reject unknown query type")
+        func rejectUnknownQueryType() {
+            // Type 54 is unassigned in the IANA DNS parameters registry.
+            let bytes: [UInt8] = [
+                0x00, 0x01,  // ID
+                0x00, 0x00,  // Flags: standard query
+                0x00, 0x01,  // QDCOUNT=1
+                0x00, 0x00,  // ANCOUNT=0
+                0x00, 0x00,  // NSCOUNT=0
+                0x00, 0x00,  // ARCOUNT=0
+                0x01, 0x61, 0x00,  // name: [1]a[0]
+                0x00, 0x36,  // QTYPE=54 (unassigned)
+                0x00, 0x01,  // QCLASS=IN
+            ]
+            #expect(throws: DNSBindError.self) {
+                _ = try Message(deserialize: Data(bytes))
+            }
+        }
+
+        @Test("Reject unknown record class")
+        func rejectUnknownRecordClass() {
+            // Class 2 is unassigned in the IANA DNS parameters registry.
+            let bytes: [UInt8] = [
+                0x00, 0x01,  // ID
+                0x00, 0x00,  // Flags: standard query
+                0x00, 0x01,  // QDCOUNT=1
+                0x00, 0x00,  // ANCOUNT=0
+                0x00, 0x00,  // NSCOUNT=0
+                0x00, 0x00,  // ARCOUNT=0
+                0x01, 0x61, 0x00,  // name: [1]a[0]
+                0x00, 0x01,  // QTYPE=A
+                0x00, 0x02,  // QCLASS=2 (unassigned)
             ]
             #expect(throws: DNSBindError.self) {
                 _ = try Message(deserialize: Data(bytes))

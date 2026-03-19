@@ -38,12 +38,13 @@ extension DNSServer {
         }
 
         self.log?.debug("deserializing message")
-        let query = try Message(deserialize: data)
-        self.log?.debug("processing query: \(query.questions)")
 
         // always send response
         let responseData: Data
         do {
+            let query = try Message(deserialize: data)
+            self.log?.debug("processing query: \(query.questions)")
+
             self.log?.debug("awaiting processing")
             var response =
                 try await handler.answer(query: query)
@@ -65,28 +66,41 @@ extension DNSServer {
             self.log?.debug("serializing response")
             responseData = try response.serialize()
         } catch let error as DNSBindError {
-            self.log?.error("format error processing message from \(query): \(error)")
+            // Best-effort: echo the transaction ID from the first two bytes of the raw packet.
+            let rawId = data.count >= 2 ? data[0..<2].withUnsafeBytes { $0.load(as: UInt16.self) } : 0
+            let id = UInt16(bigEndian: rawId)
+            let returnCode: ReturnCode
+            switch error {
+            case .unsupportedValue:
+                self.log?.error("not implemented processing DNS message: \(error)")
+                returnCode = .notImplemented
+            default:
+                self.log?.error("format error processing DNS message: \(error)")
+                returnCode = .formatError
+            }
             let response = Message(
-                id: query.id,
+                id: id,
                 type: .response,
-                returnCode: .formatError,
-                questions: query.questions,
+                returnCode: returnCode,
+                questions: [],
                 answers: []
             )
             responseData = try response.serialize()
         } catch {
-            self.log?.error("error processing message from \(query): \(error)")
+            let rawId = data.count >= 2 ? data[0..<2].withUnsafeBytes { $0.load(as: UInt16.self) } : 0
+            let id = UInt16(bigEndian: rawId)
+            self.log?.error("error processing DNS message: \(error)")
             let response = Message(
-                id: query.id,
+                id: id,
                 type: .response,
                 returnCode: .serverFailure,
-                questions: query.questions,
+                questions: [],
                 answers: []
             )
             responseData = try response.serialize()
         }
 
-        self.log?.debug("sending response for \(query.id)")
+        self.log?.debug("sending response")
         let rData = ByteBuffer(bytes: responseData)
         try? await outbound.write(AddressedEnvelope(remoteAddress: packet.remoteAddress, data: rData))
 

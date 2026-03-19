@@ -38,7 +38,8 @@ public struct HostTableResolver: DNSHandler {
 
     public func answer(query: Message) async throws -> Message? {
         let question = query.questions[0]
-        let key = try DNSName(question.name)
+        let n = question.name.hasSuffix(".") ? String(question.name.dropLast()) : question.name
+        let key = try DNSName(labels: n.isEmpty ? [] : n.split(separator: ".", omittingEmptySubsequences: false).map(String.init))
         let record: ResourceRecord?
         switch question.type {
         case ResourceRecordType.host:

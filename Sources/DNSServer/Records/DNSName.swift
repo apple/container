@@ -24,56 +24,63 @@ public struct DNSName: Sendable, Hashable, CustomStringConvertible {
     /// The labels that make up this name (e.g., ["example", "com"]).
     public var labels: [String]
 
-    /// Creates a DNS name from an array of labels.
+    /// Creates a DNS name representing the root (empty label list).
+    public init() {
+        self.labels = []
+    }
+
+    /// Creates a validated DNS name from an array of labels.
     ///
+    /// Validates structural RFC 1035 constraints only: no empty labels, each label ≤ 63
+    /// bytes, total wire length ≤ 255 bytes. Does not enforce hostname character rules.
     /// Labels are lowercased to normalize for case-insensitive DNS comparison.
-    /// This initializer is intended for trusted inputs such as wire-decoded names;
-    /// it performs no character validation. Use `init(_ string:)` for user-supplied input.
-    public init(labels: [String] = []) {
+    ///
+    /// - Throws: `DNSBindError.invalidName` if any label is empty, exceeds 63 bytes,
+    ///   or if the total wire representation exceeds 255 bytes.
+    public init(labels: [String]) throws {
+        for label in labels {
+            guard !label.isEmpty else {
+                throw DNSBindError.invalidName("empty label")
+            }
+            guard label.utf8.count <= 63 else {
+                throw DNSBindError.invalidName("label too long: \"\(label)\"")
+            }
+        }
+        let wireLength = labels.reduce(1) { $0 + 1 + $1.utf8.count }
+        guard wireLength <= 255 else {
+            throw DNSBindError.invalidName("name too long")
+        }
         self.labels = labels.map { $0.lowercased() }
     }
 
-    /// Creates a validated DNS name from a dot-separated string
+    /// Creates a validated DNS name from a dot-separated hostname string
     /// (e.g., `"example.com."` or `"example.com"`).
     ///
-    /// A trailing dot is accepted but not required. Labels are lowercased.
+    /// A trailing dot is accepted but not required.
     /// An empty string produces the root name without error.
     ///
-    /// - Throws: `DNSBindError.invalidName` if any label is empty, does not match
-    ///   `[a-zA-Z0-9]([a-zA-Z0-9\-_]*[a-zA-Z0-9])?` (i.e. must start and end with
-    ///   a letter or digit), exceeds 63 bytes, or if the total wire representation
-    ///   exceeds 255 bytes.
-    public init(_ string: String) throws {
-        let normalized = string.hasSuffix(".") ? String(string.dropLast()) : string
+    /// Labels must start and end with a letter or digit (LDH hostname rule).
+    /// Use `init(labels:)` directly when working with wire-decoded names that
+    /// may contain non-hostname labels (e.g. service-discovery labels like `"_dns"`).
+    ///
+    /// - Throws: `DNSBindError.invalidName` if any label violates the character rules,
+    ///   or if structural limits are exceeded (see `init(labels:)`).
+    public init(_ hostname: String) throws {
+        let normalized = hostname.hasSuffix(".") ? String(hostname.dropLast()) : hostname
         guard !normalized.isEmpty else {
-            self.init(labels: [])
+            self.init()
             return
         }
-
-        // Labels must start and end with a letter or digit; interior characters
-        // may also include hyphens and underscores.
-        let labelRegex = /[a-zA-Z0-9](?:[a-zA-Z0-9\-_]*[a-zA-Z0-9])?/
         let parts = normalized.split(separator: ".", omittingEmptySubsequences: false).map { String($0) }
+        let hostnameRegex = /[a-zA-Z0-9](?:[a-zA-Z0-9\-_]*[a-zA-Z0-9])?/
         for part in parts {
-            guard !part.isEmpty else {
-                throw DNSBindError.invalidName("empty label in \"\(string)\"")
-            }
-            guard part.utf8.count <= 63 else {
-                throw DNSBindError.invalidName("label too long in \"\(string)\"")
-            }
-            guard part.wholeMatch(of: labelRegex) != nil else {
-                throw DNSBindError.invalidName("label must start and end with a letter or digit and contain only letters, digits, hyphens, or underscores: \"\(part)\"")
+            guard part.wholeMatch(of: hostnameRegex) != nil else {
+                throw DNSBindError.invalidName(
+                    "label must start and end with a letter or digit: \"\(part)\""
+                )
             }
         }
-
-        // Wire length: 1-byte length prefix per label + label bytes + 1-byte null terminator.
-        // ASCII letter case doesn't affect byte count, so we can compute this before lowercasing.
-        let wireLength = parts.reduce(1) { $0 + 1 + $1.utf8.count }
-        guard wireLength <= 255 else {
-            throw DNSBindError.invalidName("name too long: \"\(string)\"")
-        }
-
-        self.init(labels: parts)
+        try self.init(labels: parts)
     }
 
     /// The wire format size of this name in bytes.
@@ -89,16 +96,17 @@ public struct DNSName: Sendable, Hashable, CustomStringConvertible {
 
     /// Serialize this name into the buffer at the given offset.
     public func appendBuffer(_ buffer: inout [UInt8], offset: Int) throws -> Int {
+        let startOffset = offset
         var offset = offset
 
         for label in labels {
             let bytes = Array(label.utf8)
             guard bytes.count <= 63 else {
-                throw DNSBindError.marshalFailure(type: "DNSName", field: "label too long")
+                throw DNSBindError.marshalFailure(type: "DNSName", field: "label")
             }
 
             guard let newOffset = buffer.copyIn(as: UInt8.self, value: UInt8(bytes.count), offset: offset) else {
-                throw DNSBindError.marshalFailure(type: "DNSName", field: "label length")
+                throw DNSBindError.marshalFailure(type: "DNSName", field: "label")
             }
             offset = newOffset
 
@@ -113,6 +121,9 @@ public struct DNSName: Sendable, Hashable, CustomStringConvertible {
             throw DNSBindError.marshalFailure(type: "DNSName", field: "terminator")
         }
 
+        guard newOffset == startOffset + size else {
+            throw DNSBindError.unexpectedOffset(type: "DNSName", expected: startOffset + size, actual: newOffset)
+        }
         return newOffset
     }
 
@@ -129,14 +140,14 @@ public struct DNSName: Sendable, Hashable, CustomStringConvertible {
         messageStart: Int = 0
     ) throws -> Int {
         var offset = offset
-        labels = []
+        var collectedLabels: [String] = []
         var jumped = false
         var returnOffset = offset
         var pointerHops = 0
 
         while true {
             guard offset < buffer.count else {
-                throw DNSBindError.unmarshalFailure(type: "DNSName", field: "unexpected end")
+                throw DNSBindError.unmarshalFailure(type: "DNSName", field: "name")
             }
 
             let length = buffer[offset]
@@ -144,12 +155,12 @@ public struct DNSName: Sendable, Hashable, CustomStringConvertible {
             // Check for compression pointer (top 2 bits set)
             if (length & 0xC0) == 0xC0 {
                 guard offset + 1 < buffer.count else {
-                    throw DNSBindError.unmarshalFailure(type: "DNSName", field: "compression pointer")
+                    throw DNSBindError.unmarshalFailure(type: "DNSName", field: "pointer")
                 }
 
                 pointerHops += 1
                 guard pointerHops <= 10 else {
-                    throw DNSBindError.unmarshalFailure(type: "DNSName", field: "compression pointer hop limit exceeded")
+                    throw DNSBindError.unmarshalFailure(type: "DNSName", field: "pointer")
                 }
 
                 if !jumped {
@@ -160,7 +171,7 @@ public struct DNSName: Sendable, Hashable, CustomStringConvertible {
                 let pointer = Int(length & 0x3F) << 8 | Int(buffer[offset + 1])
                 let pointerTarget = messageStart + pointer
                 guard pointerTarget < offset else {
-                    throw DNSBindError.unmarshalFailure(type: "DNSName", field: "compression pointer not prior")
+                    throw DNSBindError.unmarshalFailure(type: "DNSName", field: "pointer")
                 }
                 offset = pointerTarget
                 jumped = true
@@ -180,13 +191,14 @@ public struct DNSName: Sendable, Hashable, CustomStringConvertible {
 
             let labelBytes = Array(buffer[offset..<offset + Int(length)])
             guard let label = String(bytes: labelBytes, encoding: .utf8) else {
-                throw DNSBindError.unmarshalFailure(type: "DNSName", field: "label encoding")
+                throw DNSBindError.unmarshalFailure(type: "DNSName", field: "label")
             }
 
-            labels.append(label.lowercased())
+            collectedLabels.append(label)
             offset += Int(length)
         }
 
+        self = try DNSName(labels: collectedLabels)
         return jumped ? returnOffset : offset
     }
 }

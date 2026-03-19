@@ -125,7 +125,7 @@ public struct Message: Sendable {
         // Parse flags
         self.type = (flags & 0x8000) != 0 ? .response : .query
         guard let opCode = OperationCode(rawValue: UInt8((flags >> 11) & 0x0F)) else {
-            throw DNSBindError.unmarshalFailure(type: "Message", field: "opcode")
+            throw DNSBindError.unsupportedValue(type: "Message", field: "opcode")
         }
         self.operationCode = opCode
         self.authoritativeAnswer = (flags & 0x0400) != 0
@@ -133,7 +133,7 @@ public struct Message: Sendable {
         self.recursionDesired = (flags & 0x0100) != 0
         self.recursionAvailable = (flags & 0x0080) != 0
         guard let returnCode = ReturnCode(rawValue: UInt8(flags & 0x000F)) else {
-            throw DNSBindError.unmarshalFailure(type: "Message", field: "rcode")
+            throw DNSBindError.unsupportedValue(type: "Message", field: "rcode")
         }
         self.returnCode = returnCode
 
@@ -183,15 +183,19 @@ public struct Message: Sendable {
 
     /// Serialize this message to raw data.
     public func serialize() throws -> Data {
-        // Calculate buffer size (estimate)
+        // Calculate exact buffer size.
         var bufferSize = Self.headerSize
         for question in questions {
-            bufferSize += (try DNSName(question.name)).size + 4  // name + type + class
+            // name + type + class
+            let n = question.name.hasSuffix(".") ? String(question.name.dropLast()) : question.name
+            bufferSize += (try DNSName(labels: n.isEmpty ? [] : n.split(separator: ".", omittingEmptySubsequences: false).map(String.init))).size + 4
         }
         for answer in answers {
-            bufferSize += (try DNSName(answer.name)).size + 10 + 16  // name + type + class + ttl + rdlen + rdata (max)
+            // name + type + class + ttl + rdlen + rdata
+            let n = answer.name.hasSuffix(".") ? String(answer.name.dropLast()) : answer.name
+            let rdataSize = answer.type == .host ? 4 : 16
+            bufferSize += (try DNSName(labels: n.isEmpty ? [] : n.split(separator: ".", omittingEmptySubsequences: false).map(String.init))).size + 10 + rdataSize
         }
-        bufferSize += 64  // padding for safety
 
         var buffer = [UInt8](repeating: 0, count: bufferSize)
         var offset = 0
@@ -271,6 +275,9 @@ public struct Message: Sendable {
             offset = try record.appendBuffer(&buffer, offset: offset)
         }
 
+        guard offset == bufferSize else {
+            throw DNSBindError.unexpectedOffset(type: "Message", expected: bufferSize, actual: offset)
+        }
         return Data(buffer[0..<offset])
     }
 }
