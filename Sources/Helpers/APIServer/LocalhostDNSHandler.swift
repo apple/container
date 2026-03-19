@@ -46,10 +46,13 @@ actor LocalhostDNSHandler: DNSHandler {
                 let content = try String(contentsOf: file, encoding: .utf8)
 
                 if let match = content.firstMatch(of: regex),
-                    let ipv4 = (match[1].substring.map { try? IPv4Address(String($0)) })
+                    let ipv4 = (match[1].substring.flatMap { try? IPv4Address(String($0)) })
                 {
                     let name = String(file.lastPathComponent.dropFirst(HostDNSResolver.containerizationPrefix.count))
-                    dns[name + "."] = ipv4
+                    guard let dnsName = try? DNSName(name) else {
+                        continue
+                    }
+                    dns[dnsName.description] = ipv4
                 }
             }
             Task { await self?.updateDNS(dns) }
@@ -67,6 +70,9 @@ actor LocalhostDNSHandler: DNSHandler {
                 record = HostRecord<IPv4Address>(name: question.name, ttl: ttl, ip: ip)
             }
         case ResourceRecordType.host6:
+            guard dns[question.name] != nil else {
+                return nil
+            }
             return Message(
                 id: query.id,
                 type: .response,
@@ -100,5 +106,4 @@ actor LocalhostDNSHandler: DNSHandler {
     private func updateDNS(_ dns: [String: IPv4Address]) {
         self.dns = dns
     }
-
 }
