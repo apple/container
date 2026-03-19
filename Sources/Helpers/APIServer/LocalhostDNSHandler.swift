@@ -28,18 +28,18 @@ actor LocalhostDNSHandler: DNSHandler {
     private let ttl: UInt32
     private let watcher: DirectoryWatcher
 
-    private var dns: [String: IPv4Address]
+    private var dns: [DNSName: IPv4Address]
 
     public init(resolversURL: URL = HostDNSResolver.defaultConfigPath, ttl: UInt32 = 5, log: Logger) {
         self.ttl = ttl
 
         self.watcher = DirectoryWatcher(directoryURL: resolversURL, log: log)
-        self.dns = [:]
+        self.dns = [DNSName: IPv4Address]()
     }
 
     public func monitorResolvers() async {
         await self.watcher.startWatching { [weak self] fileURLs in
-            var dns: [String: IPv4Address] = [:]
+            var dns: [DNSName: IPv4Address] = [:]
             let regex = try Regex(HostDNSResolver.localhostOptionsRegex)
 
             for file in fileURLs.filter({ $0.lastPathComponent.starts(with: HostDNSResolver.containerizationPrefix) }) {
@@ -52,7 +52,7 @@ actor LocalhostDNSHandler: DNSHandler {
                     guard let dnsName = try? DNSName(name) else {
                         continue
                     }
-                    dns[dnsName.description] = ipv4
+                    dns[dnsName] = ipv4
                 }
             }
             Task { await self?.updateDNS(dns) }
@@ -63,14 +63,16 @@ actor LocalhostDNSHandler: DNSHandler {
         guard let question = query.questions.first else {
             return nil
         }
+        let n = question.name.hasSuffix(".") ? String(question.name.dropLast()) : question.name
+        let key = try DNSName(labels: n.isEmpty ? [] : n.split(separator: ".", omittingEmptySubsequences: false).map(String.init))
         var record: ResourceRecord?
         switch question.type {
         case ResourceRecordType.host:
-            if let ip = dns[question.name] {
+            if let ip = dns[key] {
                 record = HostRecord<IPv4Address>(name: question.name, ttl: ttl, ip: ip)
             }
         case ResourceRecordType.host6:
-            guard dns[question.name] != nil else {
+            guard dns[key] != nil else {
                 return nil
             }
             return Message(
@@ -103,7 +105,7 @@ actor LocalhostDNSHandler: DNSHandler {
         )
     }
 
-    private func updateDNS(_ dns: [String: IPv4Address]) {
+    private func updateDNS(_ dns: [DNSName: IPv4Address]) {
         self.dns = dns
     }
 }
