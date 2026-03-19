@@ -22,7 +22,7 @@ import Foundation
 /// For example, "example.com" becomes: `[7]example[3]com[0]`
 public struct DNSName: Sendable, Hashable, CustomStringConvertible {
     /// The labels that make up this name (e.g., ["example", "com"]).
-    public var labels: [String]
+    public private(set) var labels: [String]
 
     /// Creates a DNS name representing the root (empty label list).
     public init() {
