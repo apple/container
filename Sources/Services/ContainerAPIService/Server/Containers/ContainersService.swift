@@ -364,7 +364,7 @@ public actor ContainersService {
                         "ref": "\(configuration.image.reference)",
                     ])
                 let containerImage = ClientImage(description: configuration.image)
-                let imageFs = try await containerImage.getCreateSnapshot(platform: configuration.platform)
+                let imageFs = try await options.rootFsOverride == nil ? containerImage.getCreateSnapshot(platform: configuration.platform) : nil
 
                 self.log.debug(
                     "configure runtime",

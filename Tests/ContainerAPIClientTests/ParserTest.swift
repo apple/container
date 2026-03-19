@@ -392,6 +392,48 @@ struct ParserTest {
                 #expect(Bool(false), "Expected filesystem mount, got volume")
             }
         }
+
+        // Test volume with bare "." as source (current directory)
+        do {
+            let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("test-volume-dot-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer {
+                try? FileManager.default.removeItem(at: tempDir)
+            }
+
+            let result = try Parser.volume(".:/docs:ro", relativeTo: tempDir)
+
+            switch result {
+            case .filesystem(let fs):
+                let expectedPath = tempDir.standardizedFileURL.path
+                #expect(fs.source.trimmingCharacters(in: CharacterSet(charactersIn: "/")) == expectedPath.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
+                #expect(fs.destination == "/docs")
+                #expect(fs.options.contains("ro"))
+            case .volume:
+                #expect(Bool(false), "Expected filesystem mount, got volume")
+            }
+        }
+
+        // Test volume with ".." as source (parent directory)
+        do {
+            let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("test-volume-dotdot-\(UUID().uuidString)")
+            let childDir = tempDir.appendingPathComponent("child")
+            try FileManager.default.createDirectory(at: childDir, withIntermediateDirectories: true)
+            defer {
+                try? FileManager.default.removeItem(at: tempDir)
+            }
+
+            let result = try Parser.volume("..:/data", relativeTo: childDir)
+
+            switch result {
+            case .filesystem(let fs):
+                let expectedPath = tempDir.standardizedFileURL.path
+                #expect(fs.source.trimmingCharacters(in: CharacterSet(charactersIn: "/")) == expectedPath.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
+                #expect(fs.destination == "/data")
+            case .volume:
+                #expect(Bool(false), "Expected filesystem mount, got volume")
+            }
+        }
     }
 
     @Test
