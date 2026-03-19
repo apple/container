@@ -27,12 +27,20 @@ extension DNSServer {
         outbound: NIOAsyncChannelOutboundWriter<AddressedEnvelope<ByteBuffer>>,
         packet: inout AddressedEnvelope<ByteBuffer>
     ) async throws {
-        let chunkSize = 512
-        var data = Data()
+        // RFC 1035 §2.3.4 limits UDP DNS messages to 512 bytes. We don't implement
+        // EDNS0 (RFC 6891), and this server only resolves host A/AAAA queries, so a
+        // legitimate query will never approach this limit. Reject oversized packets
+        // before reading to avoid allocating memory for malformed or malicious datagrams.
+        let maxPacketSize = 512
+        guard packet.data.readableBytes <= maxPacketSize else {
+            self.log?.error("dropping oversized DNS packet: \(packet.data.readableBytes) bytes")
+            return
+        }
 
+        var data = Data()
         self.log?.debug("reading data")
         while packet.data.readableBytes > 0 {
-            if let chunk = packet.data.readBytes(length: min(chunkSize, packet.data.readableBytes)) {
+            if let chunk = packet.data.readBytes(length: packet.data.readableBytes) {
                 data.append(contentsOf: chunk)
             }
         }
