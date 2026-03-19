@@ -170,7 +170,7 @@ public struct DNSName: Sendable, Hashable, CustomStringConvertible {
                 // Calculate pointer offset from message start
                 let pointer = Int(length & 0x3F) << 8 | Int(buffer[offset + 1])
                 let pointerTarget = messageStart + pointer
-                guard pointerTarget < offset else {
+                guard pointerTarget >= 0 && pointerTarget < offset && pointerTarget < buffer.count else {
                     throw DNSBindError.unmarshalFailure(type: "DNSName", field: "pointer")
                 }
                 offset = pointerTarget

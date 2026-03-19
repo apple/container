@@ -16,9 +16,10 @@
 
 import Foundation
 
-// TODO: Look for a way that we can make use of the
-// bit-fiddling types from ContainerizationExtras, instead
-// of copying them here.
+// TODO: This copies some of the Bindable code from Containerization,
+// but we can't use Bindable as it presumes a fixed length record.
+// We can look at refining this later to see if we can use some common
+// bit fiddling code everywhere.
 
 extension [UInt8] {
     /// Copy a value into the buffer at the given offset.
