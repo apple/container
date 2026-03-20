@@ -302,12 +302,6 @@ public actor NetworksService {
                     )
                 }
 
-                // disable the allocator so nothing else can attach
-                // TODO: remove this from the network helper later, not necesssary now that withContainerList is here
-                guard try await serviceState.client.disableAllocator() else {
-                    throw ContainerizationError(.invalidState, message: "cannot delete subnet \(id) because the IP allocator cannot be disabled with active containers")
-                }
-
                 // start network deletion, this is the last place we'll want to throw
                 do {
                     try await self.deregisterService(configuration: netConfig)
