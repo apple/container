@@ -71,7 +71,7 @@ Still stuck? Check for stale launchd services:
 launchctl list | grep com.apple.container
 ```
 
-You can clean these up with `scripts/ensure-container-stopped.sh -a`. See [#1280](https://github.com/apple/container/issues/1280) and [#1306](https://github.com/apple/container/issues/1306) for related issues.
+You can clean these up with `scripts/ensure-container-stopped.sh -a`. See [#1280](https://github.com/apple/container/issues/1280) for a related issue.
 
 ## vmnet fails under ~/Documents or ~/Desktop
 
