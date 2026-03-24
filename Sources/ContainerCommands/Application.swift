@@ -118,8 +118,7 @@ public struct Application: AsyncLoggableCommand {
         } catch {
             // Regular ol `command` with no args will get caught by DefaultCommand. --help
             // on the root command will land here.
-            let containsHelp = fullArgs.contains("-h") || fullArgs.contains("--help")
-            if fullArgs.count <= 2 && containsHelp {
+            if Self.isHelpRequest(fullArgs) {
                 let pluginLoader = try? await createPluginLoader()
                 await Self.printModifiedHelpText(pluginLoader: pluginLoader)
                 return
@@ -228,6 +227,12 @@ public struct Application: AsyncLoggableCommand {
                 progressBar.resetCursor()
             }
         }
+    }
+
+    private static func isHelpRequest(_ args: [String]) -> Bool {
+        let helpFlags: Set<String> = ["-h", "--help", "help"]
+        let nonFlagArgs = args.dropFirst().filter { !$0.hasPrefix("-") || helpFlags.contains($0) }
+        return nonFlagArgs.allSatisfy { helpFlags.contains($0) } && nonFlagArgs.contains(where: { helpFlags.contains($0) })
     }
 }
 
