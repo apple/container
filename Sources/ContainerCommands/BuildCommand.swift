@@ -220,7 +220,6 @@ extension Application {
 
                 let buildFileData: Data
                 var ignoreFileData: Data? = nil
-                var hiddenDockerDir: String? = nil
                 // Dockerfile should be read from stdin
                 if dockerfile == "-" {
                     let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("Dockerfile-\(UUID().uuidString)")
@@ -248,24 +247,6 @@ extension Application {
                     let ignoreFileURL = URL(filePath: dockerfile + ".dockerignore")
                     buildFileData = try Data(contentsOf: URL(filePath: dockerfile))
                     ignoreFileData = try? Data(contentsOf: ignoreFileURL)
-
-                    if var ignoreFileData {
-                        hiddenDockerDir = Self.hiddenDockerDir
-                        let hiddenDirInContext = URL(fileURLWithPath: contextDir).appendingPathComponent(Self.hiddenDockerDir)
-
-                        try FileManager.default.createDirectory(at: hiddenDirInContext, withIntermediateDirectories: true)
-                        try buildFileData.write(to: hiddenDirInContext.appendingPathComponent("Dockerfile"))
-
-                        ignoreFileData.append("\n\(Self.hiddenDockerDir)".data(using: .utf8) ?? Data())
-                        try ignoreFileData.write(to: hiddenDirInContext.appendingPathComponent("Dockerfile.dockerignore"))
-                    }
-                }
-
-                defer {
-                    if let hiddenDockerDir {
-                        let hiddenDirInContext = URL(fileURLWithPath: contextDir).appendingPathComponent(hiddenDockerDir)
-                        try? FileManager.default.removeItem(at: hiddenDirInContext)
-                    }
                 }
 
                 let secretsData: [String: Data] = try self.secrets.mapValues { secret in
@@ -350,7 +331,7 @@ extension Application {
                         }
                         return results
                     }()
-                    group.addTask { [terminal, buildArg, secretsData, contextDir, hiddenDockerDir, label, noCache, target, quiet, cacheIn, cacheOut, pull] in
+                    group.addTask { [terminal, buildArg, secretsData, contextDir, ignoreFileData, label, noCache, target, quiet, cacheIn, cacheOut, pull] in
                         let config = Builder.BuildConfig(
                             buildID: buildID,
                             contentStore: RemoteContentStoreClient(),
@@ -358,7 +339,7 @@ extension Application {
                             secrets: secretsData,
                             contextDir: contextDir,
                             dockerfile: buildFileData,
-                            hiddenDockerDir: hiddenDockerDir,
+                            dockerignore: ignoreFileData,
                             labels: label,
                             noCache: noCache,
                             platforms: [Platform](platforms),
