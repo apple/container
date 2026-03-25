@@ -1211,14 +1211,14 @@ extension TestCLIBuildBase {
             )
 
             let dockerfilePath = tempDir.appendingPathComponent("Dockerfile")
-            let imageName = "registry.local/dockerignore-readonly-context:\(UUID().uuidString)"
+            let imageName = "registry.local/dockerignore-readonly-context:\(UUID().uuidString.prefix(6))"
             let args = ["build", "-f", dockerfilePath.path, "-t", imageName, contextDir.path]
             let response = try run(arguments: args)
             if response.status != 0 {
                 throw CLIError.executionFailed("build failed: stdout=\(response.output) stderr=\(response.error)")
             }
 
-            let containerName = "dockerignore-readonly-context-\(UUID().uuidString)"
+            let containerName = "dockerignore-readonly-context-\(UUID().uuidString.prefix(6))"
             try self.doLongRun(name: containerName, image: imageName)
             defer { try? self.doStop(name: containerName) }
 
