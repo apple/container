@@ -17,6 +17,7 @@
 
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
+import CompilerPluginSupport
 import Foundation
 import PackageDescription
 
@@ -57,6 +58,7 @@ let package = Package(
         .package(url: "https://github.com/grpc/grpc-swift.git", from: "1.26.0"),
         .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.20.1"),
         .package(url: "https://github.com/swiftlang/swift-docc-plugin.git", from: "1.1.0"),
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "602.0.0"),
     ],
     targets: [
         .executableTarget(
@@ -187,6 +189,7 @@ let package = Package(
                 "ContainerResource",
                 "ContainerXPC",
                 "TerminalProgress",
+                "HelperMacros",
             ],
             path: "Sources/Services/ContainerAPIService/Client"
         ),
@@ -471,6 +474,17 @@ let package = Package(
                 .define("RELEASE_VERSION", to: "\"\(releaseVersion)\""),
                 .define("BUILDER_SHIM_VERSION", to: "\"\(builderShimVersion)\""),
             ],
+        ),
+        .macro(
+            name: "HelperMacrosMacros",
+            dependencies: [
+                .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
+                .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
+            ]
+        ),
+        .target(
+            name: "HelperMacros",
+            dependencies: ["HelperMacrosMacros"]
         ),
         .target(
             name: "CAuditToken",
