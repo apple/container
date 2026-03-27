@@ -62,22 +62,42 @@ public struct ImagesServiceHarness: Sendable {
 
     @Sendable
     public func push(_ message: XPCMessage) async throws -> XPCMessage {
-        let ref = message.string(key: .imageReference)
-        guard let ref else {
-            throw ContainerizationError(
-                .invalidArgument,
-                message: "missing image reference"
-            )
-        }
         let platformData = message.dataNoCopy(key: .ociPlatform)
         var platform: Platform? = nil
         if let platformData {
             platform = try JSONDecoder().decode(ContainerizationOCI.Platform.self, from: platformData)
         }
         let insecure = message.bool(key: .insecureFlag)
+        let allTags = message.bool(key: .allTags)
 
         let progressUpdateService = ProgressUpdateService(message: message)
-        try await service.push(reference: ref, platform: platform, insecure: insecure, progressUpdate: progressUpdateService?.handler)
+        if allTags {
+            let repository = message.string(key: .imageRepository)
+            guard let repository else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "missing image repository"
+                )
+            }
+            let maxConcurrentUploads = message.int64(key: .maxConcurrentUploads)
+            let pushed = try await service.pushAllTags(
+                repositoryName: repository, platform: platform, insecure: insecure,
+                maxConcurrentUploads: Int(maxConcurrentUploads), progressUpdate: progressUpdateService?.handler)
+
+            let reply = message.reply()
+            let imageData = try JSONEncoder().encode(pushed)
+            reply.set(key: .imageDescriptions, value: imageData)
+            return reply
+        } else {
+            let ref = message.string(key: .imageReference)
+            guard let ref else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "missing image reference"
+                )
+            }
+            try await service.push(reference: ref, platform: platform, insecure: insecure, progressUpdate: progressUpdateService?.handler)
+        }
 
         let reply = message.reply()
         return reply

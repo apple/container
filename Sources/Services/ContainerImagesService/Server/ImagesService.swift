@@ -136,6 +136,96 @@ public actor ImagesService {
         }
     }
 
+    public func pushAllTags(repositoryName: String, platform: Platform?, insecure: Bool, maxConcurrentUploads: Int, progressUpdate: ProgressUpdateHandler?) async throws
+        -> [ImageDescription]
+    {
+        self.log.debug(
+            "ImagesService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "repositoryName": "\(repositoryName)",
+                "platform": "\(String(describing: platform))",
+                "insecure": "\(insecure)",
+                "maxConcurrentUploads": "\(maxConcurrentUploads)",
+            ]
+        )
+        defer {
+            self.log.debug(
+                "ImagesService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "repositoryName": "\(repositoryName)",
+                    "platform": "\(String(describing: platform))",
+                ]
+            )
+        }
+
+        let allImages = try await imageStore.list()
+        let matchingImages = allImages.filter { image in
+            guard !Utility.isInfraImage(name: image.reference) else { return false }
+            guard let ref = try? Reference.parse(image.reference) else { return false }
+            let resolvedName: String
+            if let resolved = ref.resolvedDomain {
+                resolvedName = "\(resolved)/\(ref.path)"
+            } else {
+                resolvedName = ref.name
+            }
+            return resolvedName == repositoryName
+        }
+
+        guard !matchingImages.isEmpty else {
+            throw ContainerizationError(.notFound, message: "no tags found for repository \(repositoryName)")
+        }
+
+        let maxConcurrent = maxConcurrentUploads > 0 ? maxConcurrentUploads : 3
+
+        try await Self.withAuthentication(ref: repositoryName) { auth in
+            let progress = ContainerizationProgressAdapter.handler(from: progressUpdate)
+            var iterator = matchingImages.makeIterator()
+            var failures: [(reference: String, message: String)] = []
+
+            await withTaskGroup(of: (String, String?).self) { group in
+                for _ in 0..<maxConcurrent {
+                    guard let image = iterator.next() else { break }
+                    let ref = image.reference
+                    group.addTask {
+                        do {
+                            try await self.imageStore.push(
+                                reference: ref, platform: platform, insecure: insecure, auth: auth, progress: progress)
+                            return (ref, nil)
+                        } catch {
+                            return (ref, String(describing: error))
+                        }
+                    }
+                }
+                for await (ref, error) in group {
+                    if let error {
+                        failures.append((ref, error))
+                    }
+                    if let image = iterator.next() {
+                        let nextRef = image.reference
+                        group.addTask {
+                            do {
+                                try await self.imageStore.push(
+                                    reference: nextRef, platform: platform, insecure: insecure, auth: auth, progress: progress)
+                                return (nextRef, nil)
+                            } catch {
+                                return (nextRef, String(describing: error))
+                            }
+                        }
+                    }
+                }
+            }
+
+            if !failures.isEmpty {
+                let details = failures.map { "\($0.reference): \($0.message)" }.joined(separator: "\n")
+                throw ContainerizationError(.internalError, message: "failed to push one or more tags:\n\(details)")
+            }
+        }
+
+        return matchingImages.map { $0.description.fromCZ }
+    }
+
     public func tag(old: String, new: String) async throws -> ImageDescription {
         self.log.debug(
             "ImagesService: enter",

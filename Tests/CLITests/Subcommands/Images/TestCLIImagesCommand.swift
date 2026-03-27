@@ -311,6 +311,49 @@ class TestCLIImagesCommand: CLITest {
             "Expected validation error message in output")
     }
 
+    @Test func testAllTagsRejectsTaggedReference() throws {
+        let (_, _, error, status) = try run(arguments: [
+            "image",
+            "push",
+            "--all-tags",
+            "alpine:latest",
+        ])
+
+        #expect(status != 0, "Expected --all-tags with a tag to fail")
+        #expect(
+            error.contains("tag can't be used with --all-tags"),
+            "Expected tag validation error message in output")
+    }
+
+    @Test func testAllTagsRejectsDigestReference() throws {
+        let (_, _, error, status) = try run(arguments: [
+            "image",
+            "push",
+            "--all-tags",
+            "alpine@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        ])
+
+        #expect(status != 0, "Expected --all-tags with a digest to fail")
+        #expect(
+            error.contains("digest can't be used with --all-tags"),
+            "Expected digest validation error message in output")
+    }
+
+    @Test func testMaxConcurrentUploadsValidation() throws {
+        let (_, _, error, status) = try run(arguments: [
+            "image",
+            "push",
+            "--all-tags",
+            "--max-concurrent-uploads", "0",
+            "alpine",
+        ])
+
+        #expect(status != 0, "Expected command to fail with maxConcurrentUploads=0")
+        #expect(
+            error.contains("maximum number of concurrent uploads must be greater than 0"),
+            "Expected validation error message in output")
+    }
+
     @Test func testImageLoadRejectsInvalidMembersWithoutForce() throws {
         do {
             // 0. Generate unique malicious filename for this test run

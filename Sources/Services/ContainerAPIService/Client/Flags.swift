@@ -353,4 +353,15 @@ public struct Flags {
         @Option(name: .long, help: "Maximum number of concurrent downloads (default: 3)")
         public var maxConcurrentDownloads: Int = 3
     }
+
+    public struct ImageUpload: ParsableArguments {
+        public init() {}
+
+        public init(maxConcurrentUploads: Int) {
+            self.maxConcurrentUploads = maxConcurrentUploads
+        }
+
+        @Option(name: .long, help: ArgumentHelp("Maximum number of concurrent uploads with --all-tags", valueName: "count"))
+        public var maxConcurrentUploads: Int = 3
+    }
 }
