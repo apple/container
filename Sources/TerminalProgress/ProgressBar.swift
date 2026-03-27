@@ -235,7 +235,7 @@ extension ProgressBar {
         if config.showProgressBar, total > 0, allowProgress {
             let usedWidth = components.joined(separator: " ").count + 45
             let remainingWidth = max(config.width - usedWidth, 1)
-            let barLength = state.finished ? remainingWidth : Int(Int64(remainingWidth) * value / total)
+            let barLength = min(remainingWidth, state.finished ? remainingWidth : Int(Int64(remainingWidth) * value / total))
             let barPaddingLength = remainingWidth - barLength
             let bar = "\(String(repeating: config.theme.bar, count: barLength))\(String(repeating: " ", count: barPaddingLength))"
             components.append("|\(bar)|")
