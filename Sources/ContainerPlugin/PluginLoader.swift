@@ -223,6 +223,8 @@ extension PluginLoader {
         let id = plugin.getLaunchdLabel(instanceId: instanceId)
         log?.info("Registering plugin", metadata: ["id": "\(id)"])
         let rootURL = pluginStateRoot ?? self.pluginResourceRoot.appending(path: plugin.name)
+        let resourceURL = plugin.resourceURL
+
         try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
 
         var env = Self.filterEnvironment()
@@ -235,7 +237,7 @@ extension PluginLoader {
                 : FilePath(FileManager.default.currentDirectoryPath).appending(logRoot.components).string
         }
 
-        let processedArgs = (args ?? ["start"]) + (debug ? ["--debug"] : [])
+        let processedArgs = (args ?? ["start"]) + (resourceURL.map { ["--resources", $0.path] } ?? []) + (debug ? ["--debug"] : [])
         let plist = LaunchPlist(
             label: id,
             arguments: [plugin.binaryURL.path] + processedArgs + serviceConfig.defaultArguments,

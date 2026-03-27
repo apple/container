@@ -48,7 +48,11 @@ public struct DefaultPluginFactory: PluginFactory {
             return nil
         }
 
-        return Plugin(binaryURL: binaryURL, config: config)
+        var resourceURL: URL? = nil
+        if case let url = installURL.appending(path: "resources"), fm.fileExists(atPath: url.path) {
+            resourceURL = url
+        }
+        return Plugin(binaryURL: binaryURL, config: config, resourceURL: resourceURL)
     }
 
     public func create(parentURL: URL, name: String) throws -> Plugin? {
@@ -92,7 +96,17 @@ public struct AppBundlePluginFactory: PluginFactory {
             return nil
         }
 
-        return Plugin(binaryURL: binaryURL, config: config)
+        let contentResources =
+            installURL
+            .appending(path: "Contents")
+            .appending(path: "Resources")
+
+        var resourceURL: URL? = nil
+        if case let url = contentResources.appending(path: "resources"), fm.fileExists(atPath: url.path) {
+            resourceURL = url
+        }
+
+        return Plugin(binaryURL: binaryURL, config: config, resourceURL: resourceURL)
     }
 
     public func create(parentURL: URL, name: String) throws -> Plugin? {
