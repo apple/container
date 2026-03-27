@@ -189,3 +189,7 @@ Attach debugger to the XPC helpers using their launchd service labels:
 ## Pre-commit hook
 
 Run `make pre-commit` to install a pre-commit hook that ensures that your changes have correct formatting and license headers when you run `git commit`.
+
+## Troubleshooting
+
+If you run into build or runtime issues, check the [troubleshooting guide](docs/troubleshooting.md).

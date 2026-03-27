@@ -23,6 +23,7 @@ test_results/
 *.ext4
 *.pkg
 *.swp
+.editorconfig
 
 # API docs for local preview only.
 _site/
