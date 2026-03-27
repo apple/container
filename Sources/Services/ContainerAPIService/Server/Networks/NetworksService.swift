@@ -76,13 +76,15 @@ public actor NetworksService {
         self.networkPlugins = networkPlugins
 
         let configurations = try await store.list()
-        for var configuration in configurations {
+        for configuration in configurations {
             // Ensure the network with id "default" is marked as builtin.
+            var updatedLabels: [String: String]?
             if configuration.id == ClientNetwork.defaultNetworkName {
                 let role = configuration.labels[ResourceLabelKeys.role]
                 if role == nil || role != ResourceRoleValues.builtin {
-                    configuration.labels[ResourceLabelKeys.role] = ResourceRoleValues.builtin
-                    try await store.update(configuration)
+                    var labels = configuration.labels.dictionary
+                    labels[ResourceLabelKeys.role] = ResourceRoleValues.builtin
+                    updatedLabels = labels
                 }
             }
 
@@ -90,9 +92,17 @@ public actor NetworksService {
             // Before this field was added, the code always assumed we were using the
             // container-network-vmnet network plugin, so it should be safe to fallback to that
             // if no info was found in an on disk configuration.
-            if configuration.pluginInfo == nil {
-                configuration.pluginInfo = NetworkPluginInfo(plugin: "container-network-vmnet")
-                try await store.update(configuration)
+            if updatedLabels != nil || configuration.pluginInfo == nil {
+                let updatedConfiguration = try NetworkConfiguration(
+                    id: configuration.id,
+                    mode: configuration.mode,
+                    ipv4Subnet: configuration.ipv4Subnet,
+                    ipv6Subnet: configuration.ipv6Subnet,
+                    labels: updatedLabels.map { try .init($0) } ?? configuration.labels,
+                    pluginInfo: configuration.pluginInfo ?? NetworkPluginInfo(plugin: "container-network-vmnet")
+                )
+                try await store.update(updatedConfiguration)
+
             }
 
             // Start up the network.
@@ -118,14 +128,28 @@ public actor NetworksService {
             // by what comes back from the network helper, which messes up creationDate.
             // FIXME: Temporarily need to override the plugin information with the info from
             // the helper, so we can ensure that older networks get a variant value.
-            var finalConfig = configuration
+            let finalConfiguration: NetworkConfiguration
             switch networkState {
             case .created(let helperConfig):
-                finalConfig.pluginInfo = helperConfig.pluginInfo
-                networkState = NetworkState.created(finalConfig)
+                finalConfiguration = try NetworkConfiguration(
+                    id: configuration.id,
+                    mode: configuration.mode,
+                    ipv4Subnet: configuration.ipv4Subnet,
+                    ipv6Subnet: configuration.ipv6Subnet,
+                    labels: updatedLabels.map { try .init($0) } ?? configuration.labels,
+                    pluginInfo: helperConfig.pluginInfo
+                )
+                networkState = NetworkState.created(finalConfiguration)
             case .running(let helperConfig, let status):
-                finalConfig.pluginInfo = helperConfig.pluginInfo
-                networkState = NetworkState.running(finalConfig, status)
+                finalConfiguration = try NetworkConfiguration(
+                    id: configuration.id,
+                    mode: configuration.mode,
+                    ipv4Subnet: configuration.ipv4Subnet,
+                    ipv6Subnet: configuration.ipv6Subnet,
+                    labels: updatedLabels.map { try .init($0) } ?? configuration.labels,
+                    pluginInfo: helperConfig.pluginInfo
+                )
+                networkState = NetworkState.running(finalConfiguration, status)
             }
 
             let state = NetworkServiceState(
@@ -133,13 +157,13 @@ public actor NetworksService {
                 client: client
             )
 
-            serviceStates[finalConfig.id] = state
+            serviceStates[finalConfiguration.id] = state
 
             guard case .running = networkState else {
                 log.error(
                     "network failed to start",
                     metadata: [
-                        "id": "\(finalConfig.id)",
+                        "id": "\(finalConfiguration.id)",
                         "state": "\(networkState.state)",
                     ])
                 return
@@ -204,26 +228,33 @@ public actor NetworksService {
             guard case .running(let helperConfig, let status) = try await client.state() else {
                 throw ContainerizationError(.invalidState, message: "network \(configuration.id) failed to start")
             }
-            var finalConfig = configuration
-            finalConfig.pluginInfo = helperConfig.pluginInfo
 
-            let networkState: NetworkState = .running(finalConfig, status)
+            let finalConfiguration = try NetworkConfiguration(
+                id: configuration.id,
+                mode: configuration.mode,
+                ipv4Subnet: configuration.ipv4Subnet,
+                ipv6Subnet: configuration.ipv6Subnet,
+                labels: configuration.labels,
+                pluginInfo: helperConfig.pluginInfo
+            )
+
+            let networkState: NetworkState = .running(finalConfiguration, status)
             let serviceState = NetworkServiceState(networkState: networkState, client: client)
-            await self.setServiceState(key: finalConfig.id, value: serviceState)
+            await self.setServiceState(key: finalConfiguration.id, value: serviceState)
 
             // Persist the configuration data.
             do {
-                try await self.store.create(finalConfig)
+                try await self.store.create(finalConfiguration)
                 return networkState
             } catch {
-                await self.removeServiceState(key: finalConfig.id)
+                await self.removeServiceState(key: finalConfiguration.id)
                 do {
-                    try await self.deregisterService(configuration: finalConfig)
+                    try await self.deregisterService(configuration: finalConfiguration)
                 } catch {
                     self.log.error(
                         "failed to deregister network service after failed creation",
                         metadata: [
-                            "id": "\(finalConfig.id)",
+                            "id": "\(finalConfiguration.id)",
                             "error": "\(error.localizedDescription)",
                         ])
                 }

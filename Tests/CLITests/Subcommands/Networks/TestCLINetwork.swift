@@ -182,7 +182,7 @@ class TestCLINetwork: CLITest {
                 "foo": "bar",
                 "baz": "qux",
             ]
-            #expect(expectedLabels == networks[0].config.labels)
+            #expect(expectedLabels == networks[0].config.labels.dictionary)
 
             // delete should succeed
             _ = try run(arguments: networkDeleteArgs)
