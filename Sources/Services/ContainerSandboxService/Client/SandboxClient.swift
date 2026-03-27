@@ -77,7 +77,8 @@ public struct SandboxClient: Sendable {
 
 // Runtime Methods
 extension SandboxClient {
-    public func bootstrap(stdio: [FileHandle?], allocatedAttachments: [AllocatedAttachment]) async throws {
+    /// - Parameter dynamicEnv: Optional start-time environment overrides passed from the API service.
+    public func bootstrap(stdio: [FileHandle?], allocatedAttachments: [AllocatedAttachment], dynamicEnv: [String: String] = [:]) async throws {
         let request = XPCMessage(route: SandboxRoutes.bootstrap.rawValue)
 
         for (i, h) in stdio.enumerated() {
@@ -94,6 +95,11 @@ extension SandboxClient {
             if let h {
                 request.set(key: key.rawValue, value: h)
             }
+        }
+
+        if !dynamicEnv.isEmpty {
+            let encodedDynamicEnv = try JSONEncoder().encode(dynamicEnv)
+            request.set(key: SandboxKeys.dynamicEnv.rawValue, value: encodedDynamicEnv)
         }
 
         do {

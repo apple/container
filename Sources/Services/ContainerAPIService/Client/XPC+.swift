@@ -112,6 +112,9 @@ public enum XPCKeys: String {
     /// Init image reference
     case initImage
 
+    /// SSH agent socket path supplied at bootstrap time (current client shell).
+    case dynamicEnv
+
     /// Volume
     case volume
     case volumes

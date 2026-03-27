@@ -128,7 +128,11 @@ extension Application {
                     try? io.close()
                 }
 
-                let process = try await client.bootstrap(id: id, stdio: io.stdio)
+                var dynamicEnv: [String: String] = [:]
+                if ck.0.ssh, let sshAuthSock = ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] {
+                    dynamicEnv["SSH_AUTH_SOCK"] = sshAuthSock
+                }
+                let process = try await client.bootstrap(id: id, stdio: io.stdio, dynamicEnv: dynamicEnv)
                 progress.finish()
 
                 if !self.managementFlags.cidfile.isEmpty {
