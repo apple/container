@@ -18,6 +18,7 @@ import ArgumentParser
 import ContainerAPIClient
 import ContainerVersion
 import Foundation
+import Yams
 
 extension Application {
     public struct SystemVersion: AsyncLoggableCommand {
@@ -63,6 +64,8 @@ extension Application {
                 printVersionTable(versions: versions)
             case .json:
                 try printVersionJSON(versions: versions)
+            case .yaml:
+                try printVersionYAML(versions: versions)
             }
         }
 
@@ -77,6 +80,11 @@ extension Application {
         private func printVersionJSON(versions: [VersionInfo]) throws {
             let data = try JSONEncoder().encode(versions)
             print(String(data: data, encoding: .utf8) ?? "[]")
+        }
+
+        private func printVersionYAML(versions: [VersionInfo]) throws {
+            let data = try YAMLEncoder().encode(versions)
+            print(data)
         }
     }
 
