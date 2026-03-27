@@ -32,22 +32,22 @@ public struct RegistryResource: ManagedResource {
     ///
     /// This value must be a valid DNS hostname or IPv6 address, optionally
     /// followed by a port number (e.g., "docker.io", "localhost:5000", "[::1]:5000").
-    public var name: String
+    public let name: String
 
     /// The username used for authentication with this registry.
     public let username: String
 
     /// The time at which the system created this registry resource.
-    public var creationDate: Date
+    public let creationDate: Date
 
     /// The time at which the registry resource was last modified.
-    public var modificationDate: Date
+    public let modificationDate: Date
 
     /// Key-value properties for the resource.
     ///
     /// The user and system may both make use of labels to read and write
     /// annotations or other metadata.
-    public var labels: [String: String]
+    public let labels: ResourceLabels
 
     /// Validates a registry hostname according to OCI distribution specification.
     ///
@@ -94,7 +94,7 @@ public struct RegistryResource: ManagedResource {
         username: String,
         creationDate: Date,
         modificationDate: Date,
-        labels: [String: String] = [:]
+        labels: ResourceLabels = .init()
     ) {
         self.id = hostname
         self.name = hostname
