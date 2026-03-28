@@ -391,6 +391,7 @@ let package = Package(
             dependencies: [
                 .product(name: "Containerization", package: "containerization"),
                 "ContainerResource",
+                "ContainerSandboxService",
                 "ContainerSandboxServiceClient",
             ]
         ),

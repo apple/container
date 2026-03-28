@@ -35,6 +35,8 @@ public struct ContainerConfiguration: Sendable, Codable {
     public var networks: [AttachmentConfiguration] = []
     /// The DNS configuration for the container.
     public var dns: DNSConfiguration? = nil
+    /// Additional hosts entries to inject into /etc/hosts.
+    public var hosts: [HostEntry] = []
     /// Whether to enable rosetta x86-64 translation for the container.
     public var rosetta: Bool = false
     /// Initial or main process of the container.
@@ -64,6 +66,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         case sysctls
         case networks
         case dns
+        case hosts
         case rosetta
         case initProcess
         case platform
@@ -95,6 +98,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         }
 
         dns = try container.decodeIfPresent(DNSConfiguration.self, forKey: .dns)
+        hosts = try container.decodeIfPresent([HostEntry].self, forKey: .hosts) ?? []
         rosetta = try container.decodeIfPresent(Bool.self, forKey: .rosetta) ?? false
         initProcess = try container.decode(ProcessConfiguration.self, forKey: .initProcess)
         platform = try container.decodeIfPresent(ContainerizationOCI.Platform.self, forKey: .platform) ?? .current
@@ -124,6 +128,16 @@ public struct ContainerConfiguration: Sendable, Codable {
             self.domain = domain
             self.searchDomains = searchDomains
             self.options = options
+        }
+    }
+
+    public struct HostEntry: Sendable, Codable, Equatable {
+        public let ipAddress: String
+        public let hostnames: [String]
+
+        public init(ipAddress: String, hostnames: [String]) {
+            self.ipAddress = ipAddress
+            self.hostnames = hostnames
         }
     }
 
