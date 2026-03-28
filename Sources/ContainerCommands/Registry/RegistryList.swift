@@ -39,10 +39,8 @@ extension Application {
             aliases: ["ls"])
 
         public func run() async throws {
-            let keychain = KeychainHelper(securityDomain: Constants.keychainID)
-            let registryInfos = try keychain.list()
-            let registries = registryInfos.map { RegistryResource(from: $0) }
-
+            let client = RegistryKeychainClient()
+            let registries = try await client.list()
             try printRegistries(registries: registries, format: format)
         }
 
