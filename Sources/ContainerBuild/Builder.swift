@@ -242,7 +242,7 @@ public struct Builder: Sendable {
         public let secrets: [String: Data]
         public let contextDir: String
         public let dockerfile: Data
-        public let hiddenDockerDir: String?
+        public let dockerignore: Data?
         public let labels: [String]
         public let noCache: Bool
         public let platforms: [Platform]
@@ -262,7 +262,7 @@ public struct Builder: Sendable {
             secrets: [String: Data],
             contextDir: String,
             dockerfile: Data,
-            hiddenDockerDir: String?,
+            dockerignore: Data?,
             labels: [String],
             noCache: Bool,
             platforms: [Platform],
@@ -281,7 +281,7 @@ public struct Builder: Sendable {
             self.secrets = secrets
             self.contextDir = contextDir
             self.dockerfile = dockerfile
-            self.hiddenDockerDir = hiddenDockerDir
+            self.dockerignore = dockerignore
             self.labels = labels
             self.noCache = noCache
             self.platforms = platforms
@@ -325,8 +325,8 @@ extension CallOptions {
             ("progress", config.terminal != nil ? "tty" : "plain"),
             ("target", config.target),
         ]
-        if let hiddenDockerDir = config.hiddenDockerDir {
-            headers.append(("hidden-docker-dir", hiddenDockerDir))
+        if let dockerignore = config.dockerignore {
+            headers.append(("dockerignore", dockerignore.base64EncodedString()))
         }
         for tag in config.tags {
             headers.append(("tag", tag))
