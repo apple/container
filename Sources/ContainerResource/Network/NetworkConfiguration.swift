@@ -145,6 +145,56 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     }
 }
 
+/// Intermediate representation for loading network configuration from a JSON file.
+///
+/// Only `mode` is required. All other fields have sensible defaults.
+/// The network name (ID) is provided separately via the CLI argument, not the file.
+public struct NetworkConfigurationFile: Codable, Sendable {
+    /// The network type (e.g. "nat", "hostOnly").
+    public let mode: NetworkMode
+
+    /// The preferred CIDR address for the IPv4 subnet, if specified.
+    public let ipv4Subnet: String?
+
+    /// The preferred CIDR address for the IPv6 subnet, if specified.
+    public let ipv6Subnet: String?
+
+    /// Key-value labels for the network.
+    public let labels: [String: String]?
+
+    /// Details about the network plugin that manages this network.
+    public let pluginInfo: NetworkPluginInfo?
+
+    public init(
+        mode: NetworkMode,
+        ipv4Subnet: String? = nil,
+        ipv6Subnet: String? = nil,
+        labels: [String: String]? = nil,
+        pluginInfo: NetworkPluginInfo? = nil
+    ) {
+        self.mode = mode
+        self.ipv4Subnet = ipv4Subnet
+        self.ipv6Subnet = ipv6Subnet
+        self.labels = labels
+        self.pluginInfo = pluginInfo
+    }
+
+    /// Convert to a full ``NetworkConfiguration`` using the supplied network ID.
+    public func toNetworkConfiguration(id: String) throws -> NetworkConfiguration {
+        let v4 = try ipv4Subnet.map { try CIDRv4($0) }
+        let v6 = try ipv6Subnet.map { try CIDRv6($0) }
+        let plugin = pluginInfo ?? NetworkPluginInfo(plugin: "container-network-vmnet")
+        return try NetworkConfiguration(
+            id: id,
+            mode: mode,
+            ipv4Subnet: v4,
+            ipv6Subnet: v6,
+            labels: labels ?? [:],
+            pluginInfo: plugin
+        )
+    }
+}
+
 extension String {
     /// Ensure that the network ID has the correct syntax.
     fileprivate func isValidNetworkID() -> Bool {
