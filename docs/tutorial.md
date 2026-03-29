@@ -258,7 +258,7 @@ Your web server is accessible from other containers as well as from your host. L
 > [!NOTE]
 > Container relies on the new features and enhancements present in macOS 26.
 > As a result, the functionality of accessing the web server from another container will not work on macOS 15.
-> See https://github.com/apple/container/blob/main/docs/technical-overview.md#macos-15-limitations for more details.
+> See [technical overview](technical-overview.md#macos-15-limitations) for more details.
 
 ```bash
 container run -it --rm web-test curl http://192.168.64.3
