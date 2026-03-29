@@ -72,7 +72,7 @@ extension ProgressBar {
 
         init(
             description: String = "", subDescription: String = "", itemsName: String = "", tasks: Int = 0, totalTasks: Int? = nil, items: Int = 0, totalItems: Int? = nil,
-            size: Int64 = 0, totalSize: Int64? = nil, startTime: DispatchTime = .now(), lastPlainRenderTime: DispatchTime = .now()
+            size: Int64 = 0, totalSize: Int64? = nil, startTime: DispatchTime = .now(), lastPlainRenderTime: DispatchTime = .init(uptimeNanoseconds: 0)
         ) {
             self.description = description
             self.subDescription = subDescription
