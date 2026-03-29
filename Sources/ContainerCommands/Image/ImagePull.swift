@@ -83,6 +83,16 @@ extension Application {
                     ignoreSmallSize: true,
                     totalTasks: 2
                 )
+            case .plain:
+                progressConfig = try ProgressConfig(
+                    showSpinner: false,
+                    showTasks: true,
+                    showItems: true,
+                    ignoreSmallSize: true,
+                    totalTasks: 2,
+                    clearOnFinish: false,
+                    outputMode: .plain
+                )
             }
 
             let progress = ProgressBar(config: progressConfig)

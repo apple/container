@@ -33,13 +33,23 @@ public final class ProgressBar: Sendable {
     /// - Parameter config: The configuration for the progress bar.
     public init(config: ProgressConfig) {
         self.config = config
-        term = isatty(config.terminal.fileDescriptor) == 1 ? config.terminal : nil
+        switch config.outputMode {
+        case .ansi:
+            term = isatty(config.terminal.fileDescriptor) == 1 ? config.terminal : nil
+        case .plain:
+            term = config.terminal
+        }
         let state = State(
             description: config.initialDescription, itemsName: config.initialItemsName, totalTasks: config.initialTotalTasks,
             totalItems: config.initialTotalItems,
             totalSize: config.initialTotalSize)
         self.state = Mutex(state)
-        display(EscapeSequence.hideCursor)
+        switch config.outputMode {
+        case .ansi:
+            display(EscapeSequence.hideCursor)
+        case .plain:
+            break
+        }
     }
 
     /// Allows resetting the progress state.
@@ -129,7 +139,12 @@ public final class ProgressBar: Sendable {
             if shouldClear {
                 clear(state: &s)
             }
-            resetCursor()
+            switch config.outputMode {
+            case .ansi:
+                resetCursor()
+            case .plain:
+                break
+            }
         }
     }
 }
@@ -157,6 +172,16 @@ extension ProgressBar {
         guard force || !state.finished else {
             return
         }
+
+        if config.outputMode == .plain && !force {
+            let now = DispatchTime.now()
+            let elapsed = now.uptimeNanoseconds - state.lastPlainRenderTime.uptimeNanoseconds
+            guard elapsed >= 1_000_000_000 else {
+                return
+            }
+            state.lastPlainRenderTime = now
+        }
+
         let output = draw(state: state)
         displayText(output, state: &state)
     }

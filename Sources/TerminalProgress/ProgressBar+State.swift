@@ -66,12 +66,13 @@ extension ProgressBar {
         }
 
         var startTime: DispatchTime
+        var lastPlainRenderTime: DispatchTime
         var output = ""
         var renderTask: Task<Void, Never>?
 
         init(
             description: String = "", subDescription: String = "", itemsName: String = "", tasks: Int = 0, totalTasks: Int? = nil, items: Int = 0, totalItems: Int? = nil,
-            size: Int64 = 0, totalSize: Int64? = nil, startTime: DispatchTime = .now()
+            size: Int64 = 0, totalSize: Int64? = nil, startTime: DispatchTime = .now(), lastPlainRenderTime: DispatchTime = .now()
         ) {
             self.description = description
             self.subDescription = subDescription
@@ -83,6 +84,7 @@ extension ProgressBar {
             self.size = size
             self.totalSize = totalSize
             self.startTime = startTime
+            self.lastPlainRenderTime = lastPlainRenderTime
         }
 
         private mutating func calculateSizeSpeed() {

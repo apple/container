@@ -65,6 +65,9 @@ public struct ProgressConfig: Sendable {
     public let clearOnFinish: Bool
     /// The flag indicating whether to update the progress bar.
     public let disableProgressUpdates: Bool
+    /// The output mode for progress rendering.
+    public let outputMode: OutputMode
+
     /// Creates a new instance of `ProgressConfig`.
     /// - Parameters:
     ///   - terminal: The file handle for progress updates. The default value is `FileHandle.standardError`.
@@ -88,6 +91,7 @@ public struct ProgressConfig: Sendable {
     ///   - theme: The theme of the progress bar. The default value is `nil`.
     ///   - clearOnFinish: The flag indicating whether to clear the progress bar before resetting the cursor. The default is `true`.
     ///   - disableProgressUpdates: The flag indicating whether to update the progress bar. The default is `false`.
+    ///   - outputMode: The output mode for progress rendering. The default is `.ansi`.
     public init(
         terminal: FileHandle = .standardError,
         description: String = "",
@@ -109,7 +113,8 @@ public struct ProgressConfig: Sendable {
         width: Int = 120,
         theme: ProgressTheme? = nil,
         clearOnFinish: Bool = true,
-        disableProgressUpdates: Bool = false
+        disableProgressUpdates: Bool = false,
+        outputMode: OutputMode = .ansi
     ) throws {
         if let totalTasks {
             guard totalTasks > 0 else {
@@ -151,10 +156,19 @@ public struct ProgressConfig: Sendable {
         self.theme = theme ?? DefaultProgressTheme()
         self.clearOnFinish = clearOnFinish
         self.disableProgressUpdates = disableProgressUpdates
+        self.outputMode = outputMode
     }
 }
 
 extension ProgressConfig {
+    /// The output mode for progress rendering.
+    public enum OutputMode: Sendable {
+        /// ANSI escape code mode with cursor control and line overwriting.
+        case ansi
+        /// Plain text mode with newline-separated output, no ANSI codes.
+        case plain
+    }
+
     /// An enumeration of errors that can occur when creating a `ProgressConfig`.
     public enum Error: Swift.Error, CustomStringConvertible {
         case invalid(String)
