@@ -52,6 +52,22 @@ class TestCLIRunCommand1: CLITest {
         }
     }
 
+    @Test func testRunDebugCommand() throws {
+        // Test argument reordering when --debug is after the subcommand.
+        do {
+            let name = getTestName()
+            try doLongRun(name: name, args: ["--debug"])
+            defer {
+                try? doStop(name: name)
+            }
+            let _ = try doExec(name: name, cmd: ["date"])
+            try doStop(name: name)
+        } catch {
+            Issue.record("failed to run container \(error)")
+            return
+        }
+    }
+
     @Test func testRunCommandCWD() throws {
         do {
             let name = getTestName()
