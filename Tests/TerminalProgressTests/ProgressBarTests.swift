@@ -750,4 +750,112 @@ final class ProgressBarTests: XCTestCase {
         let output = progress.draw()
         XCTAssertEqual(output, "⠋ Task 50% (1 of 2 files) [0s]")
     }
+
+    func testPlainModeConfig() async throws {
+        let config = try ProgressConfig(
+            description: "Task",
+            showSpinner: false,
+            outputMode: .plain
+        )
+        XCTAssertEqual(config.outputMode, .plain)
+    }
+
+    func testPlainModeDraw() async throws {
+        let config = try ProgressConfig(
+            description: "Task",
+            showSpinner: false,
+            outputMode: .plain
+        )
+        let progress = ProgressBar(config: config)
+        let output = progress.draw()
+        XCTAssertEqual(output, "Task [0s]")
+    }
+
+    func testPlainModeDrawWithTasks() async throws {
+        let config = try ProgressConfig(
+            description: "Task",
+            showSpinner: false,
+            showTasks: true,
+            totalTasks: 2,
+            outputMode: .plain
+        )
+        let progress = ProgressBar(config: config)
+        let output = progress.draw()
+        XCTAssertEqual(output, "[0/2] Task [0s]")
+    }
+
+    func testPlainModeDrawWithPercent() async throws {
+        let config = try ProgressConfig(
+            description: "Task",
+            showSpinner: false,
+            showItems: true,
+            totalItems: 2,
+            outputMode: .plain
+        )
+        let progress = ProgressBar(config: config)
+        progress.set(items: 1)
+        let output = progress.draw()
+        XCTAssertEqual(output, "Task 50% (1 of 2 it) [0s]")
+    }
+
+    func testPlainModeFinished() async throws {
+        let config = try ProgressConfig(
+            description: "Task",
+            showSpinner: false,
+            showTasks: true,
+            totalTasks: 2,
+            clearOnFinish: false,
+            outputMode: .plain
+        )
+        let progress = ProgressBar(config: config)
+        progress.set(tasks: 2)
+        progress.finish()
+        let output = progress.draw()
+        XCTAssertEqual(output, "[2/2] Task [0s]")
+    }
+
+    func testPlainModeWithSize() async throws {
+        let config = try ProgressConfig(
+            description: "Task",
+            showSpinner: false,
+            showSize: true,
+            showSpeed: false,
+            totalSize: 4,
+            outputMode: .plain
+        )
+        let progress = ProgressBar(config: config)
+        progress.set(size: 2)
+        let output = progress.draw()
+        XCTAssertEqual(output, "Task 50% (2/4 bytes) [0s]")
+    }
+
+    func testPlainModeNoProgressBar() async throws {
+        let config = try ProgressConfig(
+            description: "Task",
+            showSpinner: false,
+            showProgressBar: false,
+            totalItems: 2,
+            outputMode: .plain
+        )
+        let progress = ProgressBar(config: config)
+        progress.set(items: 1)
+        let output = progress.draw()
+        XCTAssertEqual(output, "Task 50% [0s]")
+    }
+
+    func testPlainModeNoAnsiEscapes() async throws {
+        let config = try ProgressConfig(
+            description: "Task",
+            showSpinner: false,
+            outputMode: .plain
+        )
+        let progress = ProgressBar(config: config)
+        let output = progress.draw()
+        XCTAssertFalse(output.contains("\u{001B}"))
+    }
+
+    func testOutputModeDefaultIsAnsi() async throws {
+        let config = try ProgressConfig(description: "Task")
+        XCTAssertEqual(config.outputMode, .ansi)
+    }
 }

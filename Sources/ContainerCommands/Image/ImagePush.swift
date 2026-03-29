@@ -71,6 +71,17 @@ extension Application {
                     showSpeed: false,
                     ignoreSmallSize: true
                 )
+            case .plain:
+                progressConfig = try ProgressConfig(
+                    description: "Pushing image \(image.reference)",
+                    itemsName: "blobs",
+                    showSpinner: false,
+                    showItems: true,
+                    showSpeed: false,
+                    ignoreSmallSize: true,
+                    clearOnFinish: false,
+                    outputMode: .plain
+                )
             }
 
             let progress = ProgressBar(config: progressConfig)
