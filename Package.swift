@@ -145,7 +145,7 @@ let package = Package(
                 "ContainerOS",
                 "DNSServer",
             ],
-            path: "Sources/Helpers/APIServer"
+            path: "Sources/APIServer"
         ),
         .target(
             name: "ContainerAPIService",
@@ -211,7 +211,8 @@ let package = Package(
                 "ContainerVersion",
                 "ContainerXPC",
             ],
-            path: "Sources/Helpers/Images"
+            path: "Sources/Plugins/CoreImages",
+            exclude: ["config.json"]
         ),
         .target(
             name: "ContainerImagesService",
@@ -259,7 +260,8 @@ let package = Package(
                 "ContainerVersion",
                 "ContainerXPC",
             ],
-            path: "Sources/Helpers/NetworkVmnet"
+            path: "Sources/Plugins/NetworkVmnet",
+            exclude: ["config.json"]
         ),
         .target(
             name: "ContainerNetworkService",
@@ -308,7 +310,8 @@ let package = Package(
                 "ContainerVersion",
                 "ContainerXPC",
             ],
-            path: "Sources/Helpers/RuntimeLinux"
+            path: "Sources/Plugins/RuntimeLinux",
+            exclude: ["config.json"]
         ),
         .target(
             name: "ContainerSandboxService",
