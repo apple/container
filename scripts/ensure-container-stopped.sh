@@ -51,7 +51,7 @@ if $ALL_DOMAINS; then
             | grep -oE 'com\.apple\.container\.[^ ]+' \
             | sort -u \
             | while read -r service; do
-                launchctl bootout "$domain/$service" 2>/dev/null || true
+                launchctl bootout "$domain/$service"
             done
     done
 else
