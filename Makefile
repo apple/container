@@ -182,8 +182,13 @@ coverage: init-block
 integration: init-block
 	@echo Ensuring apiserver stopped before the CLI integration tests...
 	@bin/container system stop && sleep 3 && scripts/ensure-container-stopped.sh
+	@if [ -n "$(APP_ROOT)" ]; then \
+		echo "Clearing application data under $(APP_ROOT) (preserving kernels)..." ; \
+		mkdir -p $(APP_ROOT) ; \
+		find "$(APP_ROOT)" -mindepth 1 -maxdepth 1 ! -name kernels -exec rm -rf {} + ; \
+	fi
 	@echo Running the integration tests...
-	@bin/container --debug system start --timeout 60 $(SYSTEM_START_OPTS) && \
+	@bin/container --debug system start --timeout 60 --enable-kernel-install $(SYSTEM_START_OPTS) && \
 	echo "Starting CLI integration tests" && \
 	{ \
 		exit_code=0; \
