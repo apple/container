@@ -267,17 +267,14 @@ extension Application {
             guard let defaultNetwork = try await ClientNetwork.builtin else {
                 throw ContainerizationError(.invalidState, message: "default network is not present")
             }
-            guard case .running(_, let networkStatus) = defaultNetwork else {
+            guard case .running(_, _) = defaultNetwork else {
                 throw ContainerizationError(.invalidState, message: "default network is not running")
             }
             config.networks = [
                 AttachmentConfiguration(network: defaultNetwork.id, options: AttachmentOptions(hostname: Builder.builderContainerId))
             ]
-            let subnet = networkStatus.ipv4Subnet
-            let nameserver = IPv4Address(subnet.lower.value + 1).description
-            let nameservers = dnsNameservers.isEmpty ? [nameserver] : dnsNameservers
             config.dns = ContainerConfiguration.DNSConfiguration(
-                nameservers: nameservers,
+                nameservers: dnsNameservers,
                 domain: dnsDomain,
                 searchDomains: dnsSearchDomains,
                 options: dnsOptions
