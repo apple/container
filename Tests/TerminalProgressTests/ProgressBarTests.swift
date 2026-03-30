@@ -738,6 +738,17 @@ final class ProgressBarTests: XCTestCase {
         XCTAssertEqual(output, "⠋ Task [0s]")
     }
 
+    func testProgressBarSizeExceedsTotal() async throws {
+        let config = try ProgressConfig(
+            description: "Task",
+            showProgressBar: true,
+            totalSize: 50
+        )
+        let progress = ProgressBar(config: config)
+        progress.set(size: 100)
+        let _ = progress.draw()
+    }
+
     func testItemsName() async throws {
         let config = try ProgressConfig(
             description: "Task",

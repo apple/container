@@ -55,7 +55,9 @@ actor LocalhostDNSHandler: DNSHandler {
                     dns[dnsName] = ipv4
                 }
             }
-            Task { await self?.updateDNS(dns) }
+            if let self {
+                Task { await self.updateDNS(dns) }
+            }
         }
     }
 
