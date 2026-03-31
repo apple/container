@@ -171,7 +171,7 @@ public actor ContainersService {
             let snapshot = state.snapshot
 
             if !filters.ids.isEmpty {
-                guard filters.ids.contains(snapshot.id) else {
+                guard filters.ids.contains(where: { snapshot.id == $0 || snapshot.id.hasPrefix($0) }) else {
                     return nil
                 }
             }
@@ -418,6 +418,7 @@ public actor ContainersService {
 
         try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
             var state = try await self.getContainerState(id: id, context: context)
+            let resolvedID = state.snapshot.id
 
             // We've already bootstrapped this container. Ideally we should be able to
             // return some sort of error code from the sandbox svc to check here, but this
@@ -426,7 +427,7 @@ public actor ContainersService {
                 return
             }
 
-            let path = self.containerRoot.appendingPathComponent(id)
+            let path = self.containerRoot.appendingPathComponent(resolvedID)
             let (config, _) = try Self.getContainerConfiguration(at: path)
 
             var allocatedAttachments = [AllocatedAttachment]()
@@ -470,19 +471,19 @@ public actor ContainersService {
 
                 let runtime = state.snapshot.configuration.runtimeHandler
                 let sandboxClient = try await SandboxClient.create(
-                    id: id,
+                    id: resolvedID,
                     runtime: runtime
                 )
                 try await sandboxClient.bootstrap(stdio: stdio, allocatedAttachments: allocatedAttachments)
 
                 try await self.exitMonitor.registerProcess(
-                    id: id,
+                    id: resolvedID,
                     onExit: self.handleContainerExit
                 )
 
                 state.client = sandboxClient
                 state.allocatedAttachments = allocatedAttachments
-                await self.setContainerState(id, state, context: context)
+                await self.setContainerState(resolvedID, state, context: context)
             } catch {
                 for allocatedAttach in allocatedAttachments {
                     do {
@@ -491,7 +492,7 @@ public actor ContainersService {
                         self.log.error(
                             "failed to deallocate network attachment",
                             metadata: [
-                                "id": "\(id)",
+                                "id": "\(resolvedID)",
                                 "network": "\(allocatedAttach.attachment.network)",
                                 "error": "\(error)",
                             ])
@@ -500,10 +501,10 @@ public actor ContainersService {
 
                 let label = Self.fullLaunchdServiceLabel(
                     runtimeName: config.runtimeHandler,
-                    instanceId: id
+                    instanceId: resolvedID
                 )
 
-                await self.exitMonitor.stopTracking(id: id)
+                await self.exitMonitor.stopTracking(id: resolvedID)
                 try? ServiceManager.deregister(fullServiceLabel: label)
                 throw error
             }
@@ -570,8 +571,9 @@ public actor ContainersService {
 
         try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)", "processId": "\(processID)"]) { context in
             var state = try await self.getContainerState(id: id, context: context)
+            let resolvedID = state.snapshot.id
 
-            let isInit = Self.isInitProcess(id: id, processID: processID)
+            let isInit = Self.isInitProcess(id: resolvedID, processID: processID)
             if state.snapshot.status == .running && isInit {
                 return
             }
@@ -587,25 +589,25 @@ public actor ContainersService {
                 let log = self.log
                 let waitFunc: ExitMonitor.WaitHandler = {
                     log.info("registering container with exit monitor")
-                    let code = try await client.wait(id)
+                    let code = try await client.wait(resolvedID)
                     log.info(
                         "container finished in exit monitor",
                         metadata: [
-                            "id": "\(id)",
+                            "id": "\(resolvedID)",
                             "rc": "\(code)",
                         ])
 
                     return code
                 }
-                try await self.exitMonitor.track(id: id, waitingOn: waitFunc)
+                try await self.exitMonitor.track(id: resolvedID, waitingOn: waitFunc)
 
                 let sandboxSnapshot = try await client.state()
                 state.snapshot.status = .running
                 state.snapshot.networks = sandboxSnapshot.networks
                 state.snapshot.startedDate = Date()
-                await self.setContainerState(id, state, context: context)
+                await self.setContainerState(resolvedID, state, context: context)
             } catch {
-                await self.exitMonitor.stopTracking(id: id)
+                await self.exitMonitor.stopTracking(id: resolvedID)
                 try? await client.stop(options: ContainerStopOptions.default)
                 throw error
             }
@@ -660,6 +662,7 @@ public actor ContainersService {
         }
 
         let state = try self._getContainerState(id: id)
+        let resolvedID = state.snapshot.id
 
         // Stop should be idempotent.
         let client: SandboxClient
@@ -676,7 +679,7 @@ public actor ContainersService {
                 throw err
             }
         }
-        try await handleContainerExit(id: id)
+        try await handleContainerExit(id: resolvedID)
     }
 
     public func dial(id: String, port: UInt32) async throws -> FileHandle {
@@ -781,8 +784,8 @@ public actor ContainersService {
         // first try and get the container state so we get a nicer error message
         // (container foo not found) however.
         do {
-            _ = try _getContainerState(id: id)
-            let path = self.containerRoot.appendingPathComponent(id)
+            let state = try _getContainerState(id: id)
+            let path = self.containerRoot.appendingPathComponent(state.snapshot.id)
             let bundle = ContainerResource.Bundle(path: path)
             return [
                 try FileHandle(forReadingFrom: bundle.containerLog),
@@ -841,12 +844,13 @@ public actor ContainersService {
         }
 
         let state = try self._getContainerState(id: id)
+        let resolvedID = state.snapshot.id
         switch state.snapshot.status {
         case .running:
             if !force {
                 throw ContainerizationError(
                     .invalidState,
-                    message: "container \(id) is \(state.snapshot.status) and can not be deleted"
+                    message: "container \(resolvedID) is \(state.snapshot.status) and can not be deleted"
                 )
             }
             let opts = ContainerStopOptions(
@@ -855,31 +859,31 @@ public actor ContainersService {
             )
             let client = try state.getClient()
             try await client.stop(options: opts)
-            try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
+            try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(resolvedID)"]) { context in
                 self.log.info(
                     "ContainersService: attempt cleanup",
                     metadata: [
                         "func": "\(#function)",
-                        "id": "\(id)",
+                        "id": "\(resolvedID)",
                     ]
                 )
-                try await self.cleanUp(id: id, context: context)
+                try await self.cleanUp(id: resolvedID, context: context)
                 self.log.info(
                     "ContainersService: successful cleanup",
                     metadata: [
                         "func": "\(#function)",
-                        "id": "\(id)",
+                        "id": "\(resolvedID)",
                     ]
                 )
             }
         case .stopping:
             throw ContainerizationError(
                 .invalidState,
-                message: "container \(id) is \(state.snapshot.status) and can not be deleted"
+                message: "container \(resolvedID) is \(state.snapshot.status) and can not be deleted"
             )
         default:
-            try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
-                try await self.cleanUp(id: id, context: context)
+            try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(resolvedID)"]) { context in
+                try await self.cleanUp(id: resolvedID, context: context)
             }
         }
     }
@@ -902,7 +906,8 @@ public actor ContainersService {
             )
         }
 
-        let containerPath = self.containerRoot.appendingPathComponent(id).path
+        let state = try self._getContainerState(id: id)
+        let containerPath = self.containerRoot.appendingPathComponent(state.snapshot.id).path
 
         return Self.calculateDirectorySize(at: containerPath)
     }
@@ -915,7 +920,7 @@ public actor ContainersService {
             throw ContainerizationError(.invalidState, message: "container is not stopped")
         }
 
-        let path = self.containerRoot.appendingPathComponent(id)
+        let path = self.containerRoot.appendingPathComponent(state.snapshot.id)
         let bundle = ContainerResource.Bundle(path: path)
         let rootfs = bundle.containerRootfsBlock
         try EXT4.EXT4Reader(blockDevice: FilePath(rootfs)).export(archive: FilePath(archive))
@@ -1144,14 +1149,27 @@ public actor ContainersService {
     }
 
     private func _getContainerState(id: String) throws -> ContainerState {
-        let state = self.containers[id]
-        guard let state else {
+        // Fast path: exact match.
+        if let state = self.containers[id] {
+            return state
+        }
+
+        // Slow path: prefix match.
+        let matches = self.containers.keys.filter { $0.hasPrefix(id) }
+        switch matches.count {
+        case 1:
+            return self.containers[matches[0]]!
+        case let n where n > 1:
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "multiple containers found with prefix \(id)"
+            )
+        default:
             throw ContainerizationError(
                 .notFound,
                 message: "container with ID \(id) not found"
             )
         }
-        return state
     }
 
     private static func isInitProcess(id: String, processID: String) -> Bool {
