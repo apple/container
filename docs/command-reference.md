@@ -522,17 +522,19 @@ Pushes an image to a registry. The flags mirror those for `image pull` with the 
 **Usage**
 
 ```bash
-container image push [--scheme <scheme>] [--progress <type>] [--arch <arch>] [--os <os>] [--platform <platform>] [--debug] <reference>
+container image push [--scheme <scheme>] [--progress <type>] [--arch <arch>] [--os <os>] [--platform <platform>] [--all-tags] [--max-concurrent-uploads <count>] [--debug] <reference>
 ```
 
 **Arguments**
 
-*   `<reference>`: Image reference to push
+*   `<reference>`: Image reference to push. When using `--all-tags`, this should be a repository name without a tag.
 
 **Options**
 
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
 *   `--progress <type>`: Progress type (format: none|ansi) (default: ansi)
+*   `--all-tags`: Push all tags of an image
+*   `--max-concurrent-uploads <count>`: Maximum number of concurrent uploads with --all-tags (default: 3)
 *   `-a, --arch <arch>`: Limit the push to the specified architecture
 *   `--os <os>`: Limit the push to the specified OS
 *   `--platform <platform>`: Limit the push to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)
