@@ -854,6 +854,69 @@ final class ProgressBarTests: XCTestCase {
         XCTAssertFalse(output.contains("\u{001B}"))
     }
 
+    func testPlainModeTerminalOutput() async throws {
+        let pipe = Pipe()
+        let config = try ProgressConfig(
+            terminal: pipe.fileHandleForWriting,
+            description: "Task",
+            showSpinner: false,
+            clearOnFinish: false,
+            outputMode: .plain
+        )
+        let progress = ProgressBar(config: config)
+        progress.render(force: true)
+        progress.finish()
+        try pipe.fileHandleForWriting.close()
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: data, encoding: .utf8) ?? ""
+        let lines = output.components(separatedBy: "\n").filter { !$0.isEmpty }
+        // Expect exactly 2 lines: one from render, one from finish
+        XCTAssertEqual(lines.count, 2)
+        XCTAssertTrue(lines[0].contains("Task"))
+        XCTAssertTrue(lines[1].contains("Task"))
+    }
+
+    func testPlainModeTerminalOutputNoAnsiEscapes() async throws {
+        let pipe = Pipe()
+        let config = try ProgressConfig(
+            terminal: pipe.fileHandleForWriting,
+            description: "Task",
+            showSpinner: false,
+            clearOnFinish: false,
+            outputMode: .plain
+        )
+        let progress = ProgressBar(config: config)
+        progress.render(force: true)
+        progress.finish()
+        try pipe.fileHandleForWriting.close()
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: data, encoding: .utf8) ?? ""
+        XCTAssertFalse(output.contains("\u{001B}"))
+    }
+
+    func testPlainModeTerminalOutputUsesNewlines() async throws {
+        let pipe = Pipe()
+        let config = try ProgressConfig(
+            terminal: pipe.fileHandleForWriting,
+            description: "Task",
+            showSpinner: false,
+            clearOnFinish: false,
+            outputMode: .plain
+        )
+        let progress = ProgressBar(config: config)
+        progress.render(force: true)
+        progress.finish()
+        try pipe.fileHandleForWriting.close()
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: data, encoding: .utf8) ?? ""
+        // Plain mode should use newlines, not carriage returns
+        XCTAssertFalse(output.contains("\r"))
+        XCTAssertTrue(output.contains("\n"))
+    }
+
     func testOutputModeDefaultIsAnsi() async throws {
         let config = try ProgressConfig(description: "Task")
         XCTAssertEqual(config.outputMode, .ansi)

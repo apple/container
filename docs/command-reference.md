@@ -89,7 +89,7 @@ container run [<options>] <image> [<arguments> ...]
 
 **Progress Options**
 
-*   `--progress <type>`: Progress type (format: none|ansi) (default: ansi)
+*   `--progress <type>`: Progress type (format: none|ansi|plain) (default: ansi)
 
 **Examples**
 
@@ -510,7 +510,7 @@ container image pull [--debug] [--scheme <scheme>] [--progress <type>] [--arch <
 **Options**
 
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
-*   `--progress <type>`: Progress type (format: none|ansi) (default: ansi)
+*   `--progress <type>`: Progress type (format: none|ansi|plain) (default: ansi)
 *   `-a, --arch <arch>`: Limit the pull to the specified architecture
 *   `--os <os>`: Limit the pull to the specified OS
 *   `--platform <platform>`: Limit the pull to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)
@@ -532,7 +532,7 @@ container image push [--scheme <scheme>] [--progress <type>] [--arch <arch>] [--
 **Options**
 
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
-*   `--progress <type>`: Progress type (format: none|ansi) (default: ansi)
+*   `--progress <type>`: Progress type (format: none|ansi|plain) (default: ansi)
 *   `-a, --arch <arch>`: Limit the push to the specified architecture
 *   `--os <os>`: Limit the push to the specified OS
 *   `--platform <platform>`: Limit the push to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)
