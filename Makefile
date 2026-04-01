@@ -105,11 +105,11 @@ $(STAGING_DIR):
 	@install "$(BUILD_BIN_DIR)/container" "$(join $(STAGING_DIR), bin/container)"
 	@install "$(BUILD_BIN_DIR)/container-apiserver" "$(join $(STAGING_DIR), bin/container-apiserver)"
 	@install "$(BUILD_BIN_DIR)/container-runtime-linux" "$(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/bin/container-runtime-linux)"
-	@install config/container-runtime-linux-config.json "$(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/config.json)"
+	@install Sources/Plugins/RuntimeLinux/config.json "$(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/config.json)"
 	@install "$(BUILD_BIN_DIR)/container-network-vmnet" "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin/container-network-vmnet)"
-	@install config/container-network-vmnet-config.json "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/config.json)"
+	@install Sources/Plugins/NetworkVmnet/config.json "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/config.json)"
 	@install "$(BUILD_BIN_DIR)/container-core-images" "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin/container-core-images)"
-	@install config/container-core-images-config.json "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/config.json)"
+	@install Sources/Plugins/CoreImages/config.json "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/config.json)"
 
 	@echo Install update script
 	@install scripts/update-container.sh "$(join $(STAGING_DIR), bin/update-container.sh)"
