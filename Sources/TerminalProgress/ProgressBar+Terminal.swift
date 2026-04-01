@@ -88,7 +88,7 @@ extension ProgressBar {
         switch config.outputMode {
         case .plain:
             guard !text.isEmpty else { return }
-            display("\(text)\n")
+            display("\(text)\(terminating)")
         case .ansi:
             // Clears previously printed lines.
             var lines = ""

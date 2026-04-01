@@ -64,27 +64,12 @@ extension Application {
             var exitCode: Int32 = 127
             let id = Utility.createContainerID(name: self.managementFlags.name)
 
-            var progressConfig: ProgressConfig
-            switch self.progressFlags.progress {
-            case .none: progressConfig = try ProgressConfig(disableProgressUpdates: true)
-            case .ansi:
-                progressConfig = try ProgressConfig(
-                    showTasks: true,
-                    showItems: true,
-                    ignoreSmallSize: true,
-                    totalTasks: 6
-                )
-            case .plain:
-                progressConfig = try ProgressConfig(
-                    showSpinner: false,
-                    showTasks: true,
-                    showItems: true,
-                    ignoreSmallSize: true,
-                    totalTasks: 6,
-                    clearOnFinish: false,
-                    outputMode: .plain
-                )
-            }
+            let progressConfig = try self.progressFlags.makeConfig(
+                showTasks: true,
+                showItems: true,
+                ignoreSmallSize: true,
+                totalTasks: 6
+            )
 
             let progress = ProgressBar(config: progressConfig)
             defer {

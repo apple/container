@@ -73,27 +73,12 @@ extension Application {
 
             let processedReference = try ClientImage.normalizeReference(reference)
 
-            var progressConfig: ProgressConfig
-            switch self.progressFlags.progress {
-            case .none: progressConfig = try ProgressConfig(disableProgressUpdates: true)
-            case .ansi:
-                progressConfig = try ProgressConfig(
-                    showTasks: true,
-                    showItems: true,
-                    ignoreSmallSize: true,
-                    totalTasks: 2
-                )
-            case .plain:
-                progressConfig = try ProgressConfig(
-                    showSpinner: false,
-                    showTasks: true,
-                    showItems: true,
-                    ignoreSmallSize: true,
-                    totalTasks: 2,
-                    clearOnFinish: false,
-                    outputMode: .plain
-                )
-            }
+            let progressConfig = try self.progressFlags.makeConfig(
+                showTasks: true,
+                showItems: true,
+                ignoreSmallSize: true,
+                totalTasks: 2
+            )
 
             let progress = ProgressBar(config: progressConfig)
             defer {

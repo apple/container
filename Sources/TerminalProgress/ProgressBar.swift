@@ -175,15 +175,18 @@ extension ProgressBar {
 
         if config.outputMode == .plain && !force {
             let now = DispatchTime.now()
-            let elapsed = now.uptimeNanoseconds - state.lastPlainRenderTime.uptimeNanoseconds
-            guard elapsed >= 1_000_000_000 else {
-                return
+            if let lastRender = state.lastPlainRenderTime {
+                let elapsed = now.uptimeNanoseconds - lastRender.uptimeNanoseconds
+                guard elapsed >= 1_000_000_000 else {
+                    return
+                }
             }
             state.lastPlainRenderTime = now
         }
 
         let output = draw(state: state)
-        displayText(output, state: &state)
+        let terminating = config.outputMode == .plain ? "\n" : "\r"
+        displayText(output, state: &state, terminating: terminating)
     }
 
     /// Detail levels for progressive truncation.
