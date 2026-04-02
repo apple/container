@@ -84,7 +84,13 @@ extension ClientKernel {
                 throw err
             }
             throw ContainerizationError(
-                .notFound, message: "default kernel not configured for architecture \(platform.architecture), please use the `container system kernel set` command to configure it")
+                .notFound,
+                message: """
+                    no Linux kernel is configured for the '\(platform.architecture)' architecture. \
+                    container requires a Linux kernel to provide the virtualization environment for running containers. \
+                    To automatically download and install the recommended kernel, run:\n\n  container system kernel set --recommended
+                    """
+            )
         }
     }
 }
