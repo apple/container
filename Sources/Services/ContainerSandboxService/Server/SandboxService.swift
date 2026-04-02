@@ -956,6 +956,10 @@ public actor SandboxService {
                 username: ""
             )
         }
+
+        if process.user.isExplicitlyNonRoot {
+            czConfig.process.capabilities = Containerization.LinuxCapabilities()
+        }
     }
 
     private nonisolated func configureProcessConfig(config: ProcessConfiguration, stdio: [FileHandle?], containerConfig: ContainerConfiguration)
@@ -1001,6 +1005,10 @@ public actor SandboxService {
                 additionalGids: config.supplementalGroups,
                 username: ""
             )
+        }
+
+        if config.user.isExplicitlyNonRoot {
+            proc.capabilities = Containerization.LinuxCapabilities()
         }
 
         return proc

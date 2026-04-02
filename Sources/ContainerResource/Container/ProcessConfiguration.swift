@@ -68,6 +68,24 @@ public struct ProcessConfiguration: Sendable, Codable {
                 return name
             }
         }
+
+        /// Returns true when the user specification explicitly resolves to a non-root user.
+        /// Unknown named users are treated as non-root for safer default behavior.
+        public var isExplicitlyNonRoot: Bool {
+            switch self {
+            case .id(let uid, _):
+                return uid != 0
+            case .raw(let userString):
+                let primaryToken = userString
+                    .split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+                    .first
+                    .map(String.init) ?? ""
+                if let uid = UInt32(primaryToken) {
+                    return uid != 0
+                }
+                return primaryToken.lowercased() != "root"
+            }
+        }
     }
 
     public init(

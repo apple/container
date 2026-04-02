@@ -136,4 +136,39 @@ class TestCLIExecCommand: CLITest {
             }
         }
     }
+
+    @Test func testExecUserRespectsFilePermissions() throws {
+        let name = getTestName()
+        try doLongRun(name: name)
+        defer {
+            try? doStop(name: name)
+        }
+
+        let (_, idOutput, idError, idStatus) = try run(arguments: [
+            "exec",
+            "-u",
+            "nobody",
+            name,
+            "id",
+        ])
+        try #require(idStatus == 0, "id should run as nobody: stderr=\(idError)")
+        #expect(idOutput.contains("uid=65534"), "expected uid 65534 for nobody, got: \(idOutput)")
+
+        let (_, output, error, status) = try run(arguments: [
+            "exec",
+            "-u",
+            "nobody",
+            name,
+            "cat",
+            "/etc/shadow",
+        ])
+
+        #expect(status != 0, "expected permission failure, got success with output: \(output)")
+
+        let combined = "\(output)\n\(error)"
+        #expect(
+            combined.localizedCaseInsensitiveContains("permission denied"),
+            "expected permission denied error, got: \(combined)"
+        )
+    }
 }
