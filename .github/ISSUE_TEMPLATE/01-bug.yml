@@ -24,7 +24,7 @@ body:
       description: |
         Explain how to reproduce the incorrect behavior. 
         
-        📖 **Need help?** See our guide: [How to write effective reproduction steps](../../docs/bug-report-how-to.md#steps-to-reproduce)
+        📖 **Need help?** See our guide: [How to write effective reproduction steps](https://github.com/apple/container/blob/main/docs/bug-report-how-to.md#steps-to-reproduce)
     validations:
       required: true
   - type: textarea
@@ -34,7 +34,7 @@ body:
       description: |
         Briefly describe your problem, and what you believe the correct behavior should be.
         
-        📖 **Need help?** See our guide: [Problem Description](../../docs/bug-report-how-to.md#problem-description)
+        📖 **Need help?** See our guide: [Problem Description](https://github.com/apple/container/blob/main/docs/bug-report-how-to.md#problem-description)
     validations:
       required: true
   - type: textarea
@@ -46,7 +46,7 @@ body:
           - **Xcode**: Version 26.0 (17A324)
           - **Container**: Container CLI version 0.1.0
         
-        📖 **Need help gathering this info?** See our guide: [Environment Information](../../docs/bug-report-how-to.md#environment-information)
+        📖 **Need help gathering this info?** See our guide: [Environment Information](https://github.com/apple/container/blob/main/docs/bug-report-how-to.md#environment-information)
       value: |
         - OS: 
         - Xcode: 
