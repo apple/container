@@ -29,7 +29,7 @@ extension Application.VolumeCommand {
         )
 
         @Option(name: .long, help: "Format of the output")
-        var format: Application.ListFormat = .table
+        var format: ListFormat = .table
 
         @Flag(name: .shortAndLong, help: "Only output the volume name")
         var quiet: Bool = false
@@ -41,52 +41,45 @@ extension Application.VolumeCommand {
 
         public func run() async throws {
             let volumes = try await ClientVolume.list()
-            try printVolumes(volumes: volumes, format: format)
-        }
 
-        private func createHeader() -> [[String]] {
-            [["NAME", "TYPE", "DRIVER", "OPTIONS"]]
-        }
-
-        func printVolumes(volumes: [Volume], format: Application.ListFormat) throws {
             if format == .json {
-                let data = try JSONEncoder().encode(volumes)
-                print(String(decoding: data, as: UTF8.self))
+                try emit(renderJSON(volumes))
                 return
             }
 
-            if quiet {
-                volumes.forEach {
-                    print($0.name)
-                }
-                return
-            }
-
-            // Sort volumes by creation time (newest first)
-            let sortedVolumes = volumes.sorted { v1, v2 in
-                v1.createdAt > v2.createdAt
-            }
-
-            var rows = createHeader()
-            for volume in sortedVolumes {
-                rows.append(volume.asRow)
-            }
-
-            let formatter = TableOutput(rows: rows)
-            print(formatter.format())
+            // Sort by creation time (newest first) for table display only,
+            // matching the original behavior where JSON and quiet emit unsorted.
+            let items = quiet ? volumes : volumes.sorted { $0.createdAt > $1.createdAt }
+            emit(renderList(items.map { PrintableVolume($0) }, quiet: quiet))
         }
     }
 }
 
-extension Volume {
-    var asRow: [String] {
-        let volumeType = self.isAnonymous ? "anonymous" : "named"
-        let optionsString = options.isEmpty ? "" : options.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
-        return [
-            self.name,
-            volumeType,
-            self.driver,
-            optionsString,
-        ]
+private struct PrintableVolume: ListDisplayable {
+    let name: String
+    let volumeType: String
+    let driver: String
+    let optionsString: String
+
+    init(_ volume: Volume) {
+        self.name = volume.name
+        self.volumeType = volume.isAnonymous ? "anonymous" : "named"
+        self.driver = volume.driver
+        self.optionsString =
+            volume.options.isEmpty
+            ? ""
+            : volume.options.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" }.joined(separator: ",")
+    }
+
+    static var tableHeader: [String] {
+        ["NAME", "TYPE", "DRIVER", "OPTIONS"]
+    }
+
+    var tableRow: [String] {
+        [name, volumeType, driver, optionsString]
+    }
+
+    var quietValue: String {
+        name
     }
 }

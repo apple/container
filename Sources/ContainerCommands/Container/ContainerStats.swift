@@ -104,8 +104,7 @@ extension Application {
 
             if format == .json {
                 let jsonStats = statsData.map { $0.stats2 }
-                let data = try JSONEncoder().encode(jsonStats)
-                print(String(decoding: data, as: UTF8.self))
+                try emit(renderJSON(jsonStats))
                 return
             }
 
