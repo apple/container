@@ -247,6 +247,7 @@ extension Application {
             var config = ContainerConfiguration(id: Builder.builderContainerId, image: imageDesc, process: processConfig)
             config.resources = resources
             config.labels = [ResourceLabelKeys.role: ResourceRoleValues.builder]
+            config.capAdd = ["ALL"]
             config.mounts = [
                 .init(
                     type: .tmpfs,

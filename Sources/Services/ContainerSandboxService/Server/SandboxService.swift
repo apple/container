@@ -938,6 +938,10 @@ public actor SandboxService {
                 soft: $0.soft
             )
         }
+        czConfig.process.capabilities = try Self.effectiveCapabilities(
+            capAdd: config.capAdd,
+            capDrop: config.capDrop
+        )
         switch process.user {
         case .raw(let name):
             czConfig.process.user = .init(
@@ -984,6 +988,10 @@ public actor SandboxService {
                 soft: $0.soft
             )
         }
+        proc.capabilities = try Self.effectiveCapabilities(
+            capAdd: containerConfig.capAdd,
+            capDrop: containerConfig.capDrop
+        )
         switch config.user {
         case .raw(let name):
             proc.user = .init(
@@ -1004,6 +1012,37 @@ public actor SandboxService {
         }
 
         return proc
+    }
+
+    /// Compute effective Linux capabilities from the OCI default set, capAdd, and capDrop.
+    /// Steps are processed in order, so later steps override earlier ones:
+    /// 1. If "ALL" in capDrop, start empty; otherwise start from OCI defaults.
+    /// 2. If "ALL" in capAdd, replace with all caps (overriding step 1); otherwise add individual caps.
+    /// 3. Remove individual capDrop entries (skipping "ALL" sentinel).
+    private static func effectiveCapabilities(capAdd: [String], capDrop: [String]) throws -> Containerization.LinuxCapabilities {
+        // Step 1: Determine base set
+        var caps: Set<CapabilityName>
+        if capDrop.contains("ALL") {
+            caps = []
+        } else {
+            caps = Set(Containerization.LinuxCapabilities.defaultOCICapabilities.effective)
+        }
+
+        // Step 2: Process adds
+        if capAdd.contains("ALL") {
+            caps = Set(CapabilityName.allCases)
+        } else {
+            for name in capAdd {
+                caps.insert(try CapabilityName(rawValue: name))
+            }
+        }
+
+        // Step 3: Remove individual drops (skip "ALL" sentinel)
+        for name in capDrop where name != "ALL" {
+            caps.remove(try CapabilityName(rawValue: name))
+        }
+
+        return Containerization.LinuxCapabilities(capabilities: Array(caps))
     }
 
     private nonisolated func closeHandle(_ handle: Int32) throws {
