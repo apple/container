@@ -62,6 +62,7 @@ public struct ProgressConfig: Sendable {
     /// The theme of the progress bar.
     public let theme: ProgressTheme
     /// The flag indicating whether to clear the progress bar before resetting the cursor.
+    /// In `.plain` mode, `finish()` only emits a final line when this value is `false`.
     public let clearOnFinish: Bool
     /// The flag indicating whether to update the progress bar.
     public let disableProgressUpdates: Bool
@@ -89,7 +90,8 @@ public struct ProgressConfig: Sendable {
     ///   - totalSize: The initial total size of the progress bar. The default value is `nil`.
     ///   - width: The width of the progress bar in characters. The default value is `120`.
     ///   - theme: The theme of the progress bar. The default value is `nil`.
-    ///   - clearOnFinish: The flag indicating whether to clear the progress bar before resetting the cursor. The default is `true`.
+    ///   - clearOnFinish: The flag indicating whether to clear the progress bar before resetting the cursor. In `.plain` mode,
+    ///     `finish()` only emits a final line when this value is `false`. The default is `true`.
     ///   - disableProgressUpdates: The flag indicating whether to update the progress bar. The default is `false`.
     ///   - outputMode: The output mode for progress rendering. The default is `.ansi`.
     public init(

@@ -880,7 +880,7 @@ final class ProgressBarTests: XCTestCase {
         try pipe.fileHandleForWriting.close()
 
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        let output = String(data: data, encoding: .utf8) ?? ""
+        let output = String(decoding: data, as: UTF8.self)
         let lines = output.components(separatedBy: "\n").filter { !$0.isEmpty }
         // Expect exactly 2 lines: one from render, one from finish
         XCTAssertEqual(lines.count, 2)
@@ -903,7 +903,7 @@ final class ProgressBarTests: XCTestCase {
         try pipe.fileHandleForWriting.close()
 
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        let output = String(data: data, encoding: .utf8) ?? ""
+        let output = String(decoding: data, as: UTF8.self)
         XCTAssertFalse(output.contains("\u{001B}"))
     }
 
@@ -922,10 +922,30 @@ final class ProgressBarTests: XCTestCase {
         try pipe.fileHandleForWriting.close()
 
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        let output = String(data: data, encoding: .utf8) ?? ""
+        let output = String(decoding: data, as: UTF8.self)
         // Plain mode should use newlines, not carriage returns
         XCTAssertFalse(output.contains("\r"))
         XCTAssertTrue(output.contains("\n"))
+    }
+
+    func testPlainModeDefaultClearOnFinishOmitsFinalLine() async throws {
+        let pipe = Pipe()
+        let config = try ProgressConfig(
+            terminal: pipe.fileHandleForWriting,
+            description: "Task",
+            showSpinner: false,
+            outputMode: .plain
+        )
+        let progress = ProgressBar(config: config)
+        progress.render(force: true)
+        progress.finish()
+        try pipe.fileHandleForWriting.close()
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(decoding: data, as: UTF8.self)
+        let lines = output.components(separatedBy: "\n").filter { !$0.isEmpty }
+        XCTAssertEqual(lines.count, 1)
+        XCTAssertEqual(lines.first, "Task [0s]")
     }
 
     func testOutputModeDefaultIsAnsi() async throws {
