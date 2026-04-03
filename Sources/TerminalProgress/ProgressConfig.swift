@@ -169,6 +169,8 @@ extension ProgressConfig {
         case ansi
         /// Plain text mode with newline-separated output, no ANSI codes.
         case plain
+        /// ANSI escape code mode with cursor control and color-coded output.
+        case color
     }
 
     /// An enumeration of errors that can occur when creating a `ProgressConfig`.

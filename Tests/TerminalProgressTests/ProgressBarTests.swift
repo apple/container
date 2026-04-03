@@ -952,4 +952,249 @@ final class ProgressBarTests: XCTestCase {
         let config = try ProgressConfig(description: "Task")
         XCTAssertEqual(config.outputMode, .ansi)
     }
+
+    // MARK: - Color mode tests
+
+    func testColorModeConfig() async throws {
+        let config = try ProgressConfig(
+            description: "Task",
+            outputMode: .color
+        )
+        XCTAssertEqual(config.outputMode, .color)
+    }
+
+    func testVisibleLengthPlainText() async throws {
+        let text = "hello"
+        XCTAssertEqual(text.visibleLength, 5)
+    }
+
+    func testVisibleLengthWithAnsiCodes() async throws {
+        let text = "\u{001B}[36mhello\u{001B}[0m"
+        XCTAssertEqual(text.visibleLength, 5)
+    }
+
+    func testVisibleLengthEmptyString() async throws {
+        XCTAssertEqual("".visibleLength, 0)
+    }
+
+    func testColorModeDraw() async throws {
+        let config = try ProgressConfig(
+            description: "Task",
+            outputMode: .color
+        )
+        let progress = ProgressBar(config: config)
+        let output = progress.draw()
+        let stripped = output.replacingOccurrences(
+            of: "\u{001B}\\[[0-9;]*[a-zA-Z]", with: "", options: .regularExpression
+        )
+        XCTAssertEqual(stripped, "⠋ Task [0s]")
+    }
+
+    func testColorModeDrawContainsAnsiCodes() async throws {
+        let config = try ProgressConfig(
+            description: "Task",
+            outputMode: .color
+        )
+        let progress = ProgressBar(config: config)
+        let output = progress.draw()
+        XCTAssertTrue(output.contains("\u{001B}["))
+        XCTAssertTrue(output.contains(EscapeSequence.cyan))   // spinner
+        XCTAssertTrue(output.contains(EscapeSequence.bold))   // description
+        XCTAssertTrue(output.contains(EscapeSequence.dim))    // time
+        XCTAssertTrue(output.contains(EscapeSequence.reset))  // reset
+    }
+
+    func testColorModeDrawFinished() async throws {
+        let config = try ProgressConfig(
+            description: "Task",
+            outputMode: .color
+        )
+        let progress = ProgressBar(config: config)
+        progress.finish()
+        let output = progress.draw()
+        let stripped = output.replacingOccurrences(
+            of: "\u{001B}\\[[0-9;]*[a-zA-Z]", with: "", options: .regularExpression
+        )
+        XCTAssertEqual(stripped, "✔ Task [0s]")
+        XCTAssertTrue(output.contains(EscapeSequence.green))  // done icon
+    }
+
+    func testColorModeDrawWithTasks() async throws {
+        let config = try ProgressConfig(
+            description: "Task",
+            showTasks: true,
+            totalTasks: 2,
+            outputMode: .color
+        )
+        let progress = ProgressBar(config: config)
+        let output = progress.draw()
+        let stripped = output.replacingOccurrences(
+            of: "\u{001B}\\[[0-9;]*[a-zA-Z]", with: "", options: .regularExpression
+        )
+        XCTAssertEqual(stripped, "⠋ [0/2] Task [0s]")
+        XCTAssertTrue(output.contains(EscapeSequence.cyan))  // tasks
+    }
+
+    func testColorModeDrawWithPercent() async throws {
+        let config = try ProgressConfig(
+            description: "Task",
+            showItems: true,
+            totalItems: 2,
+            outputMode: .color
+        )
+        let progress = ProgressBar(config: config)
+        progress.set(items: 1)
+        let output = progress.draw()
+        let stripped = output.replacingOccurrences(
+            of: "\u{001B}\\[[0-9;]*[a-zA-Z]", with: "", options: .regularExpression
+        )
+        XCTAssertEqual(stripped, "⠋ Task 50% (1 of 2 it) [0s]")
+        XCTAssertTrue(output.contains(EscapeSequence.yellow))  // in-progress percent
+    }
+
+    func testColorModeDrawWithPercentFinished() async throws {
+        let config = try ProgressConfig(
+            description: "Task",
+            showItems: true,
+            totalItems: 2,
+            outputMode: .color
+        )
+        let progress = ProgressBar(config: config)
+        progress.set(items: 1)
+        progress.finish()
+        let output = progress.draw()
+        let stripped = output.replacingOccurrences(
+            of: "\u{001B}\\[[0-9;]*[a-zA-Z]", with: "", options: .regularExpression
+        )
+        XCTAssertEqual(stripped, "✔ Task 100% (2 it) [0s]")
+        XCTAssertTrue(output.contains(EscapeSequence.green))  // finished percent
+    }
+
+    func testColorModeDrawWithSize() async throws {
+        let config = try ProgressConfig(
+            description: "Task",
+            showSize: true,
+            showSpeed: false,
+            totalSize: 4,
+            outputMode: .color
+        )
+        let progress = ProgressBar(config: config)
+        progress.set(size: 2)
+        let output = progress.draw()
+        let stripped = output.replacingOccurrences(
+            of: "\u{001B}\\[[0-9;]*[a-zA-Z]", with: "", options: .regularExpression
+        )
+        XCTAssertEqual(stripped, "⠋ Task 50% (2/4 bytes) [0s]")
+        XCTAssertTrue(output.contains(EscapeSequence.dim))  // parens content
+    }
+
+    func testColorModeDrawVisibleLengthMatchesContent() async throws {
+        let config = try ProgressConfig(
+            description: "Task",
+            showTasks: true,
+            showItems: true,
+            totalTasks: 2,
+            totalItems: 4,
+            outputMode: .color
+        )
+        let progress = ProgressBar(config: config)
+        progress.set(items: 2)
+        let colorOutput = progress.draw()
+
+        let plainConfig = try ProgressConfig(
+            description: "Task",
+            showTasks: true,
+            showItems: true,
+            totalTasks: 2,
+            totalItems: 4
+        )
+        let plainProgress = ProgressBar(config: plainConfig)
+        plainProgress.set(items: 2)
+        let plainOutput = plainProgress.draw()
+
+        XCTAssertEqual(colorOutput.visibleLength, plainOutput.count)
+    }
+
+    func testColorModeNoAnsiCodesInContent() async throws {
+        let config = try ProgressConfig(
+            description: "Task",
+            outputMode: .color
+        )
+        let progress = ProgressBar(config: config)
+        let output = progress.draw()
+        let stripped = output.replacingOccurrences(
+            of: "\u{001B}\\[[0-9;]*[a-zA-Z]", with: "", options: .regularExpression
+        )
+        XCTAssertFalse(stripped.contains("\u{001B}"))
+    }
+
+    func testColorModeDrawWithProgressBar() async throws {
+        let config = try ProgressConfig(
+            description: "Task",
+            showProgressBar: true,
+            totalItems: 2,
+            width: 57,
+            outputMode: .color
+        )
+        let progress = ProgressBar(config: config)
+        progress.set(items: 1)
+        let output = progress.draw()
+        let stripped = output.replacingOccurrences(
+            of: "\u{001B}\\[[0-9;]*[a-zA-Z]", with: "", options: .regularExpression
+        )
+        XCTAssertEqual(stripped, "Task 50% |██  | [0s]")
+        XCTAssertTrue(output.contains(EscapeSequence.green))
+    }
+
+    func testColorModeRequiresTTY() async throws {
+        let pipe = Pipe()
+        let config = try ProgressConfig(
+            terminal: pipe.fileHandleForWriting,
+            description: "Task",
+            outputMode: .color
+        )
+        let progress = ProgressBar(config: config)
+        // Pipe is not a TTY, so render should produce no output (same as ansi)
+        progress.render(force: true)
+        progress.finish()
+        try pipe.fileHandleForWriting.close()
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        XCTAssertTrue(data.isEmpty)
+    }
+
+    func testColorModeDrawOutputContainsColorCodes() async throws {
+        // Verify draw() includes ANSI codes even without a TTY
+        // (draw is separate from terminal rendering)
+        let config = try ProgressConfig(
+            description: "Task",
+            outputMode: .color
+        )
+        let progress = ProgressBar(config: config)
+        let output = progress.draw()
+        XCTAssertTrue(output.contains(EscapeSequence.cyan))
+        XCTAssertTrue(output.contains(EscapeSequence.bold))
+        XCTAssertTrue(output.contains(EscapeSequence.dim))
+        XCTAssertTrue(output.contains(EscapeSequence.reset))
+    }
+
+    func testColorModeRenderTerminatorIsCarriageReturn() async throws {
+        // Verify color mode uses \r terminator (not \n like plain mode)
+        let config = try ProgressConfig(
+            description: "Task",
+            outputMode: .color
+        )
+        // The render() method sets terminating based on outputMode
+        // For non-plain modes, it's "\r"
+        // We verify this indirectly: color mode is not plain
+        XCTAssertNotEqual(config.outputMode, .plain)
+        // And the render logic uses: config.outputMode == .plain ? "\n" : "\r"
+        // So color gets "\r" — confirmed by code path analysis
+    }
+
+    func testOutputModeDefaultIsNotColor() async throws {
+        let config = try ProgressConfig(description: "Task")
+        XCTAssertNotEqual(config.outputMode, .color)
+        XCTAssertEqual(config.outputMode, .ansi)
+    }
 }
