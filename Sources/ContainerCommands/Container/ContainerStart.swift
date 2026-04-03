@@ -87,7 +87,11 @@ extension Application {
                     try? io.close()
                 }
 
-                let process = try await client.bootstrap(id: container.id, stdio: io.stdio)
+                var dynamicEnv: [String: String] = [:]
+                if container.configuration.ssh, let sshAuthSock = ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] {
+                    dynamicEnv["SSH_AUTH_SOCK"] = sshAuthSock
+                }
+                let process = try await client.bootstrap(id: container.id, stdio: io.stdio, dynamicEnv: dynamicEnv)
                 progress.finish()
 
                 if detach {
