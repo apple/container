@@ -998,9 +998,9 @@ final class ProgressBarTests: XCTestCase {
         let progress = ProgressBar(config: config)
         let output = progress.draw()
         XCTAssertTrue(output.contains("\u{001B}["))
-        XCTAssertTrue(output.contains(EscapeSequence.cyan))   // spinner
-        XCTAssertTrue(output.contains(EscapeSequence.bold))   // description
-        XCTAssertTrue(output.contains(EscapeSequence.dim))    // time
+        XCTAssertTrue(output.contains(EscapeSequence.cyan))  // spinner
+        XCTAssertTrue(output.contains(EscapeSequence.bold))  // description
+        XCTAssertTrue(output.contains(EscapeSequence.dim))  // time
         XCTAssertTrue(output.contains(EscapeSequence.reset))  // reset
     }
 
