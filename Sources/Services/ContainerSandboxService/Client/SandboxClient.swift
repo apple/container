@@ -176,9 +176,8 @@ extension SandboxClient {
         let data = try JSONEncoder().encode(options)
         request.set(key: SandboxKeys.stopOptions.rawValue, value: data)
 
-        let responseTimeout = Duration(.seconds(Int64(options.timeoutInSeconds + 1)))
         do {
-            try await self.client.send(request, responseTimeout: responseTimeout)
+            try await self.client.send(request)
         } catch {
             throw ContainerizationError(
                 .internalError,
