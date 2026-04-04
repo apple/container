@@ -22,7 +22,8 @@ extension Flags.Progress {
     ///
     /// For `.none`, progress updates are disabled. For `.ansi`, the given parameters
     /// are used as-is. For `.plain`, ANSI-incompatible features (spinner, clear on finish)
-    /// are disabled and the output mode is set to `.plain`.
+    /// are disabled and the output mode is set to `.plain`. For `.color`, behavior matches
+    /// `.ansi` but the output mode is set to `.color` to enable color-coded output.
     func makeConfig(
         description: String = "",
         itemsName: String = "it",
@@ -35,7 +36,7 @@ extension Flags.Progress {
         switch progress {
         case .none:
             return try ProgressConfig(disableProgressUpdates: true)
-        case .ansi, .plain:
+        case .ansi, .plain, .color:
             let isPlain = progress == .plain
             return try ProgressConfig(
                 description: description,
@@ -47,7 +48,7 @@ extension Flags.Progress {
                 ignoreSmallSize: ignoreSmallSize,
                 totalTasks: totalTasks,
                 clearOnFinish: !isPlain,
-                outputMode: isPlain ? .plain : .ansi
+                outputMode: isPlain ? .plain : (progress == .color ? .color : .ansi)
             )
         }
     }

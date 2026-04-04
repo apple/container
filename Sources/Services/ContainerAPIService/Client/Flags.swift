@@ -338,9 +338,10 @@ public struct Flags {
             case none
             case ansi
             case plain
+            case color
         }
 
-        @Option(name: .long, help: ArgumentHelp("Progress type (format: none|ansi|plain)", valueName: "type"))
+        @Option(name: .long, help: ArgumentHelp("Progress type (format: none|ansi|plain|color)", valueName: "type"))
         public var progress: ProgressType = .ansi
     }
 

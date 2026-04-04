@@ -22,6 +22,19 @@ enum EscapeSequence {
     static let showCursor = "\u{001B}[?25h"
     static let moveUp = "\u{001B}[1A"
     static let clearToEndOfLine = "\u{001B}[K"
+
+    // Color codes
+    static let reset = "\u{001B}[0m"
+    static let bold = "\u{001B}[1m"
+    static let dim = "\u{001B}[2m"
+    static let green = "\u{001B}[32m"
+    static let yellow = "\u{001B}[33m"
+    static let cyan = "\u{001B}[36m"
+
+    /// Wraps text in an ANSI color code with a reset suffix.
+    static func colored(_ text: String, _ code: String) -> String {
+        "\(code)\(text)\(reset)"
+    }
 }
 
 extension ProgressBar {
@@ -41,7 +54,7 @@ extension ProgressBar {
         state.withLock { s in
             clear(state: &s)
             switch config.outputMode {
-            case .ansi:
+            case .ansi, .color:
                 resetCursor()
             case .plain:
                 break
@@ -89,11 +102,12 @@ extension ProgressBar {
         case .plain:
             guard !text.isEmpty else { return }
             display("\(text)\(terminating)")
-        case .ansi:
+        case .ansi, .color:
             // Clears previously printed lines.
             var lines = ""
             if terminating.hasSuffix("\r") && termWidth > 0 {
-                let lineCount = (text.count - 1) / termWidth
+                let textLength = config.outputMode == .color ? text.visibleLength : text.count
+                let lineCount = (textLength - 1) / termWidth
                 for _ in 0..<lineCount {
                     lines += EscapeSequence.moveUp
                 }
@@ -102,5 +116,12 @@ extension ProgressBar {
             let output = "\(text)\(EscapeSequence.clearToEndOfLine)\(terminating)\(lines)"
             display(output)
         }
+    }
+}
+
+extension String {
+    /// The visible character count, excluding ANSI escape sequences.
+    var visibleLength: Int {
+        replacingOccurrences(of: "\u{001B}\\[[0-9;]*[a-zA-Z]", with: "", options: .regularExpression).count
     }
 }
