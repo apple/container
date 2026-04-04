@@ -36,9 +36,9 @@ extension Application {
 
         public func run() async throws {
             let client = ContainerClient()
-            let objects: [any Codable] = try await client.list().filter {
-                containerIds.contains($0.id)
-            }.map {
+            let objects: [any Codable] = try await client.list(
+                filters: ContainerListFilters(ids: containerIds)
+            ).map {
                 PrintableContainer($0)
             }
             print(try objects.jsonArray())
