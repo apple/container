@@ -36,12 +36,12 @@ extension Application {
 
         public func run() async throws {
             let client = ContainerClient()
-            let objects: [any Codable] = try await client.list().filter {
+            let containers = try await client.list().filter {
                 containerIds.contains($0.id)
             }.map {
                 PrintableContainer($0)
             }
-            print(try objects.jsonArray())
+            try emit(renderJSON(containers))
         }
     }
 }

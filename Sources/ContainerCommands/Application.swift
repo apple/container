@@ -245,11 +245,6 @@ extension Application {
         print(altered)
     }
 
-    public enum ListFormat: String, CaseIterable, ExpressibleByArgument {
-        case json
-        case table
-    }
-
     func isTranslated() throws -> Bool {
         do {
             return try Sysctl.byName("sysctl.proc_translated") == 1

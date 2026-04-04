@@ -46,59 +46,43 @@ extension Application {
             let client = ContainerClient()
             let filters = self.all ? ContainerListFilters.all : ContainerListFilters(status: .running)
             let containers = try await client.list(filters: filters)
-            try printContainers(containers: containers, format: format)
-        }
+            let items = containers.map { PrintableContainer($0) }
 
-        private func createHeader() -> [[String]] {
-            [["ID", "IMAGE", "OS", "ARCH", "STATE", "ADDR", "CPUS", "MEMORY", "STARTED"]]
-        }
-
-        private func printContainers(containers: [ContainerSnapshot], format: ListFormat) throws {
             if format == .json {
-                let printables = containers.map {
-                    PrintableContainer($0)
-                }
-                let data = try JSONEncoder().encode(printables)
-                print(String(decoding: data, as: UTF8.self))
-
+                try emit(renderJSON(items))
                 return
             }
 
-            if self.quiet {
-                containers.forEach {
-                    print($0.id)
-                }
-                return
-            }
-
-            var rows = createHeader()
-            for container in containers {
-                rows.append(container.asRow)
-            }
-
-            let formatter = TableOutput(rows: rows)
-            print(formatter.format())
+            emit(renderList(items, quiet: quiet))
         }
     }
 }
 
-extension ContainerSnapshot {
-    fileprivate var asRow: [String] {
+extension PrintableContainer: ListDisplayable {
+    static var tableHeader: [String] {
+        ["ID", "IMAGE", "OS", "ARCH", "STATE", "ADDR", "CPUS", "MEMORY", "STARTED"]
+    }
+
+    var tableRow: [String] {
         [
-            self.id,
+            self.configuration.id,
             self.configuration.image.reference,
-            self.platform.os,
-            self.platform.architecture,
+            self.configuration.platform.os,
+            self.configuration.platform.architecture,
             self.status.rawValue,
-            self.networks.compactMap { $0.ipv4Address.description }.joined(separator: ","),
+            self.networks.map { $0.ipv4Address.description }.joined(separator: ","),
             "\(self.configuration.resources.cpus)",
             "\(self.configuration.resources.memoryInBytes / (1024 * 1024)) MB",
-            self.startedDate.map { ISO8601DateFormatter().string(from: $0) } ?? "",
+            self.startedDate?.ISO8601Format() ?? "",
         ]
+    }
+
+    var quietValue: String {
+        self.configuration.id
     }
 }
 
-struct PrintableContainer: Codable {
+struct PrintableContainer: Codable, Sendable {
     let status: RuntimeStatus
     let configuration: ContainerConfiguration
     let networks: [Attachment]

@@ -261,4 +261,40 @@ class TestCLINetwork: CLITest {
             #expect(failed == 6, "external connection should fail")
         }
     }
+
+    @Test func testNetworkListTableFormat() throws {
+        let name = getLowercasedTestName()
+        _ = try? run(arguments: ["network", "delete", name])
+        let createResult = try run(arguments: ["network", "create", name])
+        if createResult.status != 0 {
+            throw CLIError.executionFailed("network create failed: \(createResult.error)")
+        }
+        defer { _ = try? run(arguments: ["network", "delete", name]) }
+
+        let (_, output, error, status) = try run(arguments: ["network", "list"])
+        #expect(status == 0, "network list should succeed, stderr: \(error)")
+
+        let headers = ["NETWORK", "STATE", "SUBNET"]
+        #expect(headers.allSatisfy { output.contains($0) }, "table should contain all headers")
+        #expect(output.contains(name), "table should contain the created network")
+    }
+
+    @Test func testNetworkListJSONFormat() throws {
+        let name = getLowercasedTestName()
+        _ = try? run(arguments: ["network", "delete", name])
+        let createResult = try run(arguments: ["network", "create", name])
+        if createResult.status != 0 {
+            throw CLIError.executionFailed("network create failed: \(createResult.error)")
+        }
+        defer { _ = try? run(arguments: ["network", "delete", name]) }
+
+        let (data, _, error, status) = try run(arguments: ["network", "list", "--format", "json"])
+        #expect(status == 0, "network list --format json should succeed, stderr: \(error)")
+
+        guard let json = try JSONSerialization.jsonObject(with: data, options: []) as? [[String: Any]] else {
+            Issue.record("JSON output should be an array of objects")
+            return
+        }
+        #expect(json.contains { ($0["id"] as? String) == name }, "JSON should contain the created network")
+    }
 }

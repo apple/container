@@ -529,6 +529,17 @@ class TestCLIImagesCommand: CLITest {
         #expect(!size.isEmpty, "expected image to have non-empty 'fullSize' field: \(image)")
     }
 
+    @Test func testImageListTableFormat() throws {
+        try doPull(imageName: alpine)
+
+        let (_, output, error, status) = try run(arguments: ["image", "ls"])
+        #expect(status == 0, "image ls should succeed, stderr: \(error)")
+
+        let headers = ["NAME", "TAG", "DIGEST"]
+        #expect(headers.allSatisfy { output.contains($0) }, "table should contain all headers")
+        #expect(output.contains("alpine"), "table should contain pulled image name")
+    }
+
     private func addInvalidMemberToTar(tarPath: String, maliciousFilename: String) throws {
         // Create a malicious entry with path traversal
         let evilEntryName = "../../../../../../../../../../../tmp/\(maliciousFilename)"

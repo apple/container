@@ -16,11 +16,11 @@
 
 import Foundation
 
-public struct TableOutput {
+struct TableOutput {
     private let rows: [[String]]
     private let spacing: Int
 
-    public init(
+    init(
         rows: [[String]],
         spacing: Int = 2
     ) {
@@ -28,7 +28,7 @@ public struct TableOutput {
         self.spacing = spacing
     }
 
-    public func format() -> String {
+    func format() -> String {
         var output = ""
         let maxLengths = self.maxLength()
 

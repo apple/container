@@ -34,12 +34,12 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let objects: [any Codable] = try await ClientNetwork.list().filter {
+            let items = try await ClientNetwork.list().filter {
                 networks.contains($0.id)
             }.map {
                 PrintableNetwork($0)
             }
-            print(try objects.jsonArray())
+            try emit(renderJSON(items))
         }
     }
 }
