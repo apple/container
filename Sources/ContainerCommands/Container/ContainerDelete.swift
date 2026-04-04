@@ -67,7 +67,7 @@ extension Application {
                     return c.id
                 }
             } else {
-                containers = containerIds
+                containers = Array(Set(containerIds))
             }
 
             var errors: [any Error] = []
