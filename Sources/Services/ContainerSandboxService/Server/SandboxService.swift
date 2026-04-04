@@ -220,18 +220,13 @@ public actor SandboxService {
                 czConfig.process.stdout = stdout
                 czConfig.process.stderr = stderr
                 czConfig.process.stdin = stdin
-                // NOTE: We can support a user providing new entries eventually, but for now craft
-                // a default /etc/hosts.
-                var hostsEntries = [Hosts.Entry.localHostIPV4()]
-                if !interfaces.isEmpty {
-                    let primaryIfaceAddr = interfaces[0].ipv4Address
-                    hostsEntries.append(
-                        Hosts.Entry(
-                            ipAddress: primaryIfaceAddr.address.description,
-                            hostnames: [czConfig.hostname ?? id],
-                        ))
-                }
-                czConfig.hosts = Hosts(entries: hostsEntries)
+                czConfig.hosts = Hosts(entries: Self.resolvedHosts(
+                    hostname: czConfig.hostname ?? id,
+                    primaryAddress: interfaces.first?.ipv4Address.address.description,
+                    extraHosts: config.hosts
+                ).map {
+                    Hosts.Entry(ipAddress: $0.ipAddress, hostnames: $0.hostnames)
+                })
                 czConfig.bootLog = BootLog.file(path: bundle.bootlog, append: true)
             }
 
@@ -1292,6 +1287,22 @@ extension FileHandle: @retroactive ReaderStream, @retroactive Writer {
 // MARK: State handler and bundle creation helpers
 
 extension SandboxService {
+    static func resolvedHosts(
+        hostname: String,
+        primaryAddress: String?,
+        extraHosts: [ContainerConfiguration.HostEntry]
+    ) -> [ContainerConfiguration.HostEntry] {
+        var hosts = [ContainerConfiguration.HostEntry(ipAddress: "127.0.0.1", hostnames: ["localhost"])]
+
+        if let primaryAddress {
+            let ip = String(primaryAddress.split(separator: "/")[0])
+            hosts.append(ContainerConfiguration.HostEntry(ipAddress: ip, hostnames: [hostname]))
+        }
+
+        hosts.append(contentsOf: extraHosts)
+        return hosts
+    }
+
     private func initializeWaiters(for id: String) throws {
         guard waiters[id] == nil else {
             throw ContainerizationError(.invalidState, message: "waiter for \(id) already initialized")
