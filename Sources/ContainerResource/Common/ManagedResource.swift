@@ -33,7 +33,7 @@ public protocol ManagedResource: Identifiable, Sendable, Codable {
     /// Key-value properties for the resource. The user and system may both
     /// make use of labels to read and write annotations or other metadata.
     /// A good practice is to use
-    var labels: [String: String] { get }
+    var labels: ResourceLabels { get }
 
     /// Generates a unique resource ID value.
     static func generateId() -> String
@@ -53,6 +53,6 @@ extension ManagedResource {
 }
 
 // FIXME: This moves to ManagedResource and/or a ResourceLabels typealias eventually.
-extension [String: String] {
+extension ResourceLabels {
     public var isBuiltin: Bool { self.contains { $0 == ResourceLabelKeys.role && $1 == ResourceRoleValues.builtin } }
 }

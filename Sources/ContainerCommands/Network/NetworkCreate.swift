@@ -63,7 +63,7 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let parsedLabels = Utility.parseKeyValuePairs(labels)
+            let parsedLabels = try ResourceLabels(Utility.parseKeyValuePairs(labels))
             let mode: NetworkMode = hostOnly ? .hostOnly : .nat
             let config = try NetworkConfiguration(
                 id: self.name,
