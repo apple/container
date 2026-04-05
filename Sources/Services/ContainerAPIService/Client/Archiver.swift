@@ -160,86 +160,14 @@ public final class Archiver: Sendable {
         let source = source.standardizedFileURL
         let destination = destination.standardizedFileURL
 
-        // TODO: ArchiveReader needs some enhancement to support buffered uncompression
         let reader = try ArchiveReader(
             format: .paxRestricted,
             filter: .gzip,
             file: source
         )
-
-        for (entry, data) in reader {
-            guard let path = entry.path else {
-                continue
-            }
-            let uncompressPath = destination.appendingPathComponent(path)
-
-            let fileManager = FileManager.default
-            switch entry.fileType {
-            case .blockSpecial, .characterSpecial, .socket:
-                continue
-            case .directory:
-                try fileManager.createDirectory(
-                    at: uncompressPath,
-                    withIntermediateDirectories: true,
-                    attributes: [
-                        FileAttributeKey.posixPermissions: entry.permissions
-                    ]
-                )
-            case .regular:
-                try fileManager.createDirectory(
-                    at: uncompressPath.deletingLastPathComponent(),
-                    withIntermediateDirectories: true,
-                    attributes: [
-                        FileAttributeKey.posixPermissions: 0o755
-                    ]
-                )
-                let success = fileManager.createFile(
-                    atPath: uncompressPath.path,
-                    contents: data,
-                    attributes: [
-                        FileAttributeKey.posixPermissions: entry.permissions
-                    ]
-                )
-                if !success {
-                    throw POSIXError.fromErrno()
-                }
-                try data.write(to: uncompressPath)
-            case .symbolicLink:
-                guard let target = entry.symlinkTarget else {
-                    continue
-                }
-                try fileManager.createDirectory(
-                    at: uncompressPath.deletingLastPathComponent(),
-                    withIntermediateDirectories: true,
-                    attributes: [
-                        FileAttributeKey.posixPermissions: 0o755
-                    ]
-                )
-                try fileManager.createSymbolicLink(atPath: uncompressPath.path, withDestinationPath: target)
-                continue
-            default:
-                continue
-            }
-
-            // FIXME: uid/gid for compress.
-            try fileManager.setAttributes(
-                [.posixPermissions: NSNumber(value: entry.permissions)],
-                ofItemAtPath: uncompressPath.path
-            )
-
-            if let creationDate = entry.creationDate {
-                try fileManager.setAttributes(
-                    [.creationDate: creationDate],
-                    ofItemAtPath: uncompressPath.path
-                )
-            }
-
-            if let modificationDate = entry.modificationDate {
-                try fileManager.setAttributes(
-                    [.modificationDate: modificationDate],
-                    ofItemAtPath: uncompressPath.path
-                )
-            }
+        let rejectedMembers = try reader.extractContents(to: destination)
+        if !rejectedMembers.isEmpty {
+            throw Error.rejectedArchiveMembers(rejectedMembers)
         }
     }
 
@@ -250,10 +178,6 @@ public final class Archiver: Sendable {
         writerConfiguration: ArchiveWriterConfiguration,
         hasher: inout SHA256
     ) throws {
-        let archivedPathsByHostPath = entryInfo.reduce(into: [String: [URL]]()) { result, info in
-            result[info.pathOnHost.path, default: []].append(info.pathInArchive)
-        }
-
         let archiver = try ArchiveWriter(configuration: writerConfiguration)
         try archiver.open(file: destination)
 
@@ -261,7 +185,7 @@ public final class Archiver: Sendable {
         encoder.outputFormatting = .sortedKeys
 
         for info in entryInfo {
-            guard let entry = try Self._createEntry(entryInfo: info, archivedPathsByHostPath: archivedPathsByHostPath) else {
+            guard let entry = try Self._createEntry(entryInfo: info) else {
                 throw Error.failedToCreateEntry
             }
             let hashInfo = ArchiveEntryHashInfo(
@@ -328,7 +252,6 @@ public final class Archiver: Sendable {
 
     private static func _createEntry(
         entryInfo: ArchiveEntryInfo,
-        archivedPathsByHostPath: [String: [URL]] = [:],
         pathPrefix: String = ""
     ) throws -> WriteEntry? {
         let entry = WriteEntry()
@@ -345,11 +268,8 @@ public final class Archiver: Sendable {
         case .symbolicLink:
             entry.fileType = .symbolicLink
             entry.size = 0
-            entry.symlinkTarget = Self._rewriteArchivedAbsoluteSymlinkTarget(
-                status.symlinkTarget ?? "",
-                entryInfo: entryInfo,
-                archivedPathsByHostPath: archivedPathsByHostPath
-            )
+            // Match Docker build-context semantics and preserve the original target verbatim.
+            entry.symlinkTarget = status.symlinkTarget
         }
 
         #if os(macOS)
@@ -473,51 +393,6 @@ public final class Archiver: Sendable {
         return trimmedPath
     }
 
-    private static func _rewriteArchivedAbsoluteSymlinkTarget(
-        _ symlinkTarget: String,
-        entryInfo: ArchiveEntryInfo,
-        archivedPathsByHostPath: [String: [URL]]
-    ) -> String {
-        guard symlinkTarget.hasPrefix("/") else {
-            return symlinkTarget
-        }
-
-        let targetPath = URL(fileURLWithPath: symlinkTarget)
-            .standardizedFileURL
-            .resolvingSymlinksInPath()
-            .path
-        guard let targetArchivePaths = archivedPathsByHostPath[targetPath], targetArchivePaths.count == 1, let targetArchivePath = targetArchivePaths.first else {
-            return symlinkTarget
-        }
-
-        let sourceDirectory = entryInfo.pathInArchive.deletingLastPathComponent().relativePath
-        return Self._relativeArchivePath(fromDirectory: sourceDirectory, to: targetArchivePath.relativePath)
-    }
-
-    private static func _relativeArchivePath(fromDirectory: String, to path: String) -> String {
-        let fromComponents = Self._archivePathComponents(fromDirectory)
-        let toComponents = Self._archivePathComponents(path)
-
-        var commonPrefixCount = 0
-        while commonPrefixCount < fromComponents.count,
-            commonPrefixCount < toComponents.count,
-            fromComponents[commonPrefixCount] == toComponents[commonPrefixCount]
-        {
-            commonPrefixCount += 1
-        }
-
-        let upwardTraversal = Array(repeating: "..", count: fromComponents.count - commonPrefixCount)
-        let remainder = Array(toComponents.dropFirst(commonPrefixCount))
-        let relativeComponents = upwardTraversal + remainder
-        return relativeComponents.isEmpty ? "." : relativeComponents.joined(separator: "/")
-    }
-
-    private static func _archivePathComponents(_ path: String) -> [String] {
-        NSString(string: path).pathComponents.filter { component in
-            component != "/" && component != "."
-        }
-    }
-
     private static func _isSymbolicLink(_ path: URL) throws -> Bool {
         let resourceValues = try path.resourceValues(forKeys: [.isSymbolicLinkKey])
         if let isSymbolicLink = resourceValues.isSymbolicLink {
@@ -530,9 +405,10 @@ public final class Archiver: Sendable {
 }
 
 extension Archiver {
-    public enum Error: Swift.Error, CustomStringConvertible {
+    public enum Error: Swift.Error, CustomStringConvertible, Equatable {
         case failedToCreateEntry
         case fileDoesNotExist(_ url: URL)
+        case rejectedArchiveMembers([String])
 
         public var description: String {
             switch self {
@@ -540,6 +416,8 @@ extension Archiver {
                 return "failed to create entry"
             case .fileDoesNotExist(let url):
                 return "file \(url.path) does not exist"
+            case .rejectedArchiveMembers(let members):
+                return "rejected archive members: \(members.joined(separator: ", "))"
             }
         }
     }
