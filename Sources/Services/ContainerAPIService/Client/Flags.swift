@@ -351,14 +351,15 @@ public struct Flags {
         }
 
         public enum ProgressType: String, ExpressibleByArgument {
+            case auto
             case none
             case ansi
             case plain
             case color
         }
 
-        @Option(name: .long, help: ArgumentHelp("Progress type (format: none|ansi|plain|color)", valueName: "type"))
-        public var progress: ProgressType = .ansi
+        @Option(name: .long, help: ArgumentHelp("Progress type (format: auto|none|ansi|plain|color)", valueName: "type"))
+        public var progress: ProgressType = .auto
     }
 
     public struct ImageFetch: ParsableArguments {

@@ -15,15 +15,32 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
+import Foundation
 import TerminalProgress
 
 extension Flags.Progress {
+    /// Resolves `.auto` into `.ansi` or `.plain` based on the terminal.
+    ///
+    /// When the progress type is `.auto`, the terminal file handle is checked
+    /// with `isatty`. If the output is a TTY, `.ansi` is used; otherwise
+    /// `.plain` is selected so that piped or redirected output still shows
+    /// simple line-by-line status text.
+    private func resolvedProgress(terminal: FileHandle = .standardError) -> ProgressType {
+        switch progress {
+        case .auto:
+            return isatty(terminal.fileDescriptor) == 1 ? .ansi : .plain
+        case .none, .ansi, .plain, .color:
+            return progress
+        }
+    }
+
     /// Creates a `ProgressConfig` based on the selected progress type.
     ///
     /// For `.none`, progress updates are disabled. For `.ansi`, the given parameters
     /// are used as-is. For `.plain`, ANSI-incompatible features (spinner, clear on finish)
     /// are disabled and the output mode is set to `.plain`. For `.color`, behavior matches
     /// `.ansi` but the output mode is set to `.color` to enable color-coded output.
+    /// For `.auto`, the type is resolved by checking whether stderr is a TTY.
     func makeConfig(
         description: String = "",
         itemsName: String = "it",
@@ -33,13 +50,14 @@ extension Flags.Progress {
         ignoreSmallSize: Bool = false,
         totalTasks: Int? = nil
     ) throws -> ProgressConfig {
-        switch progress {
+        let resolved = resolvedProgress()
+        switch resolved {
         case .none:
             return try ProgressConfig(disableProgressUpdates: true)
         case .ansi, .plain, .color:
-            let isPlain = progress == .plain
+            let isPlain = resolved == .plain
             let outputMode: ProgressConfig.OutputMode
-            switch progress {
+            switch resolved {
             case .plain: outputMode = .plain
             case .color: outputMode = .color
             default: outputMode = .ansi
@@ -56,6 +74,8 @@ extension Flags.Progress {
                 clearOnFinish: !isPlain,
                 outputMode: outputMode
             )
+        case .auto:
+            fatalError("unreachable: .auto should have been resolved")
         }
     }
 }
