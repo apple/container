@@ -9,6 +9,65 @@ Note: Command availability may vary depending on host operating system and macOS
 
 ## Core Commands
 
+### `container compose`
+
+Runs supported Docker Compose style workflows directly from the `container` CLI. The MVP implementation supports these default filenames in discovery order:
+
+```bash
+compose.yaml
+compose.yml
+docker-compose.yaml
+docker-compose.yml
+```
+
+The command currently targets common local-development Compose files. Unsupported keys fail validation instead of being ignored.
+
+**Usage**
+
+```bash
+container compose <subcommand> [<options>]
+```
+
+**Subcommands**
+
+* `container compose config`: Validate a Compose file and print the normalized project
+* `container compose up`: Build, create, and start services
+* `container compose down`: Stop and remove project containers, and optionally project volumes
+* `container compose ps`: List project services and backing containers
+* `container compose logs`: Print logs for project services
+
+**Shared Options**
+
+* `-f, --file <path>`: Path to the Compose file
+* `-p, --project-name <name>`: Override the Compose project name
+* `--profile <name>`: Enable a Compose profile (repeatable)
+* `--env-file <path>`: Additional env-file for Compose interpolation (repeatable)
+
+**Supported Compose Fields**
+
+* Top-level: `name`, `services`, `networks`, `volumes`
+* Service: `image`, `build.context`, `build.dockerfile`, `build.args`, `build.target`, `command`, `entrypoint`, `environment`, `env_file`, `ports`, `volumes`, `depends_on`, `depends_on.condition`, `networks`, `working_dir`, `user`, `tty`, `stdin_open`, `profiles`, `healthcheck`
+
+**Unsupported Compose Fields**
+
+The following currently fail validation: `deploy`, `secrets`, `configs`, `extends`, `develop`, `container_name`, replica/scaling settings, and `depends_on.condition=service_completed_successfully`.
+
+**Examples**
+
+```bash
+# validate and print the normalized project
+container compose config
+
+# build and start the project discovered from compose.yaml
+container compose up --build
+
+# follow logs for a single service
+container compose logs --follow web
+
+# stop the project and remove named volumes created for it
+container compose down --volumes
+```
+
 ### `container run`
 
 Runs a container from an image. If a command is provided, it will execute inside the container; otherwise the image's default command runs. By default the container runs in the foreground and stdin remains closed unless `-i`/`--interactive` is specified.

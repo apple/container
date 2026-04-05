@@ -7,6 +7,64 @@
 
 How to use the features of `container`.
 
+## Run a multi-service Compose project
+
+Use `container compose` to run supported local-development Compose files. The command discovers files in this order:
+
+```bash
+compose.yaml
+compose.yml
+docker-compose.yaml
+docker-compose.yml
+```
+
+For an implementation-oriented summary of how the feature works and what it currently supports, see the [Compose feature brief](./compose-feature-brief.md).
+
+This example starts a web service and a database, creating the project-scoped network and named volume automatically:
+
+```yaml
+name: sample
+services:
+  db:
+    image: postgres:16
+    volumes:
+      - data:/var/lib/postgresql/data
+  web:
+    image: nginx:latest
+    depends_on:
+      - db
+    ports:
+      - "8080:80"
+volumes:
+  data: {}
+```
+
+Validate the project:
+
+```bash
+container compose config
+```
+
+Build and start services:
+
+```bash
+container compose up --build
+```
+
+Inspect the resulting project containers:
+
+```bash
+container compose ps
+```
+
+Stop the project and remove the project volume:
+
+```bash
+container compose down --volumes
+```
+
+The MVP Compose support validates unsupported keys instead of ignoring them. It now supports service `healthcheck` plus `depends_on.condition: service_started|service_healthy`. It still rejects `deploy`, `secrets`, `configs`, `extends`, `develop`, `container_name`, and `depends_on.condition: service_completed_successfully`.
+
 ## Configure memory and CPUs for your containers
 
 Since the containers created by `container` are lightweight virtual machines, consider the needs of your containerized application when you use `container run`.  The `--memory` and `--cpus` options allow you to override the default memory and CPU limits for the virtual machine. The default values are 1 gigabyte of RAM and 4 CPUs. You can use abbreviations for memory units; for example, to run a container for image `big` with 8 CPUs and 32 GiBytes of memory, use:

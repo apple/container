@@ -75,6 +75,12 @@ public struct Application: AsyncLoggableCommand {
                 ]
             ),
             CommandGroup(
+                name: "Compose",
+                subcommands: [
+                    ComposeCommand.self
+                ]
+            ),
+            CommandGroup(
                 name: "Volume",
                 subcommands: [
                     VolumeCommand.self

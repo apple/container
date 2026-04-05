@@ -5,6 +5,9 @@
 >
 > Example: [release 0.4.1 tag](https://github.com/apple/container/tree/0.4.1)
 
+> [!NOTE]
+> For multi-service local-development setups, see `container compose` in the [command reference](./command-reference.md#container-compose) and [how-to guide](./how-to.md#run-a-multi-service-compose-project).
+
 Take a guided tour of `container` by building, running, and publishing a simple web server image.
 
 ## Try out the `container` CLI

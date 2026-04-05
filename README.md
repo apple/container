@@ -9,6 +9,10 @@ The tool consumes and produces [OCI-compatible container images](https://github.
 
 `container` uses the [Containerization](https://github.com/apple/containerization) Swift package for low level container, image, and process management.
 
+The CLI also includes an MVP `container compose` workflow for running common multi-service development setups from `compose.yaml`, `compose.yml`, `docker-compose.yaml`, or `docker-compose.yml` files.
+
+For a short implementation and design summary of the feature, see the [Compose feature brief](./docs/compose-feature-brief.md).
+
 ![introductory movie showing some basic commands](./docs/assets/landing-movie.gif)
 
 ## Get started
@@ -80,6 +84,8 @@ To retain your user data so that it is available should you reinstall later, run
 - Learn how to [use various `container` features](./docs/how-to.md).
 - Read a brief description and [technical overview](./docs/technical-overview.md) of `container`.
 - Browse the [full command reference](./docs/command-reference.md).
+- Use [`container compose`](./docs/command-reference.md#container-compose) for supported Compose-based local development workflows.
+- Read the [Compose feature brief](./docs/compose-feature-brief.md) for implementation notes and current limits.
 - [Build and run](./BUILDING.md) `container` on your own development system.
 - View the project [API documentation](https://apple.github.io/container/documentation/).
 
