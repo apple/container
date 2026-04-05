@@ -1087,4 +1087,100 @@ struct ParserTest {
         #expect(result[0].hard == UInt64.max)
     }
 
+    // MARK: - Capabilities Parser Tests
+
+    @Test
+    func testCapabilitiesParserEmpty() throws {
+        let result = try Parser.capabilities(capAdd: [], capDrop: [])
+        #expect(result.capAdd.isEmpty)
+        #expect(result.capDrop.isEmpty)
+    }
+
+    @Test
+    func testCapabilitiesParserAddSingle() throws {
+        let result = try Parser.capabilities(capAdd: ["CAP_NET_RAW"], capDrop: [])
+        #expect(result.capAdd == ["CAP_NET_RAW"])
+        #expect(result.capDrop.isEmpty)
+    }
+
+    @Test
+    func testCapabilitiesParserDropSingle() throws {
+        let result = try Parser.capabilities(capAdd: [], capDrop: ["CAP_MKNOD"])
+        #expect(result.capAdd.isEmpty)
+        #expect(result.capDrop == ["CAP_MKNOD"])
+    }
+
+    @Test
+    func testCapabilitiesParserWithoutPrefix() throws {
+        let result = try Parser.capabilities(capAdd: ["NET_RAW"], capDrop: ["MKNOD"])
+        #expect(result.capAdd == ["CAP_NET_RAW"])
+        #expect(result.capDrop == ["CAP_MKNOD"])
+    }
+
+    @Test
+    func testCapabilitiesParserCaseInsensitive() throws {
+        let result = try Parser.capabilities(capAdd: ["net_raw"], capDrop: ["mknod"])
+        #expect(result.capAdd == ["CAP_NET_RAW"])
+        #expect(result.capDrop == ["CAP_MKNOD"])
+    }
+
+    @Test
+    func testCapabilitiesParserLowercaseWithPrefix() throws {
+        let result = try Parser.capabilities(capAdd: ["cap_net_raw"], capDrop: [])
+        #expect(result.capAdd == ["CAP_NET_RAW"])
+    }
+
+    @Test
+    func testCapabilitiesParserALL() throws {
+        let result = try Parser.capabilities(capAdd: ["ALL"], capDrop: ["ALL"])
+        #expect(result.capAdd == ["ALL"])
+        #expect(result.capDrop == ["ALL"])
+    }
+
+    @Test
+    func testCapabilitiesParserDropALLWithAdd() throws {
+        let result = try Parser.capabilities(capAdd: ["CAP_NET_RAW", "CAP_MKNOD"], capDrop: ["ALL"])
+        #expect(result.capAdd == ["CAP_NET_RAW", "CAP_MKNOD"])
+        #expect(result.capDrop == ["ALL"])
+    }
+
+    @Test
+    func testCapabilitiesParserAddALLWithDrop() throws {
+        let result = try Parser.capabilities(capAdd: ["ALL"], capDrop: ["CAP_NET_ADMIN"])
+        #expect(result.capAdd == ["ALL"])
+        #expect(result.capDrop == ["CAP_NET_ADMIN"])
+    }
+
+    @Test
+    func testCapabilitiesParserMultiple() throws {
+        let result = try Parser.capabilities(
+            capAdd: ["CAP_NET_RAW", "CAP_SYS_ADMIN"],
+            capDrop: ["CAP_MKNOD", "CAP_CHOWN"]
+        )
+        #expect(result.capAdd.count == 2)
+        #expect(result.capAdd.contains("CAP_NET_RAW"))
+        #expect(result.capAdd.contains("CAP_SYS_ADMIN"))
+        #expect(result.capDrop.count == 2)
+        #expect(result.capDrop.contains("CAP_MKNOD"))
+        #expect(result.capDrop.contains("CAP_CHOWN"))
+    }
+
+    @Test
+    func testCapabilitiesParserInvalidAdd() throws {
+        #expect {
+            _ = try Parser.capabilities(capAdd: ["CHWOWZERS"], capDrop: [])
+        } throws: { _ in
+            true
+        }
+    }
+
+    @Test
+    func testCapabilitiesParserInvalidDrop() throws {
+        #expect {
+            _ = try Parser.capabilities(capAdd: [], capDrop: ["CHWOWZERS"])
+        } throws: { _ in
+            true
+        }
+    }
+
 }
