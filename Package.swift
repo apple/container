@@ -22,7 +22,7 @@ import PackageDescription
 
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
-let builderShimVersion = "0.10.0"
+let builderShimVersion = "0.11.0"
 let scVersion = "0.29.0"
 
 let package = Package(
@@ -153,7 +153,7 @@ let package = Package(
                 "ContainerOS",
                 "DNSServer",
             ],
-            path: "Sources/Helpers/APIServer"
+            path: "Sources/APIServer"
         ),
         .target(
             name: "ContainerAPIService",
@@ -219,7 +219,8 @@ let package = Package(
                 "ContainerVersion",
                 "ContainerXPC",
             ],
-            path: "Sources/Helpers/Images"
+            path: "Sources/Plugins/CoreImages",
+            exclude: ["config.json"]
         ),
         .target(
             name: "ContainerImagesService",
@@ -267,7 +268,8 @@ let package = Package(
                 "ContainerVersion",
                 "ContainerXPC",
             ],
-            path: "Sources/Helpers/NetworkVmnet"
+            path: "Sources/Plugins/NetworkVmnet",
+            exclude: ["config.json"]
         ),
         .target(
             name: "ContainerNetworkService",
@@ -316,7 +318,8 @@ let package = Package(
                 "ContainerVersion",
                 "ContainerXPC",
             ],
-            path: "Sources/Helpers/RuntimeLinux"
+            path: "Sources/Plugins/RuntimeLinux",
+            exclude: ["config.json"]
         ),
         .target(
             name: "ContainerSandboxService",

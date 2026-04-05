@@ -19,6 +19,7 @@ import ContainerAPIClient
 import ContainerResource
 import ContainerizationError
 import ContainerizationExtras
+import ContainerizationOS
 import Foundation
 
 extension Application {
@@ -57,7 +58,24 @@ extension Application {
                     fflush(stdout)
                 }
 
-                try await runStreaming()
+                let containerIds = containers
+                try await withThrowingTaskGroup(of: Void.self) { group in
+                    defer { group.cancelAll() }
+                    group.addTask {
+                        let handler = AsyncSignalHandler.create(notify: [SIGINT, SIGTERM])
+                        for await _ in handler.signals {
+                            throw CancellationError()
+                        }
+                    }
+                    group.addTask { [containerIds] in
+                        try await Self.runStreaming(containerIds: containerIds)
+                    }
+                    do {
+                        try await group.next()
+                    } catch is CancellationError {
+                        // Normal exit on signal, defer will restore the terminal
+                    }
+                }
             }
         }
 
@@ -82,7 +100,7 @@ extension Application {
                 }
             }
 
-            let statsData = try await collectStats(client: client, for: containersToShow)
+            let statsData = try await Self.collectStats(client: client, for: containersToShow)
 
             if format == .json {
                 let jsonStats = statsData.map { $0.stats2 }
@@ -91,16 +109,16 @@ extension Application {
                 return
             }
 
-            printStatsTable(statsData)
+            Self.printStatsTable(statsData)
         }
 
-        private func runStreaming() async throws {
+        private static func runStreaming(containerIds: [String]) async throws {
             let client = ContainerClient()
 
             // If containers were specified, validate they all exist upfront
-            if !containers.isEmpty {
-                let specifiedContainers = try await client.list(filters: ContainerListFilters(ids: containers))
-                for containerId in containers {
+            if !containerIds.isEmpty {
+                let specifiedContainers = try await client.list(filters: ContainerListFilters(ids: containerIds))
+                for containerId in containerIds {
                     guard specifiedContainers.contains(where: { $0.id == containerId }) else {
                         throw ContainerizationError(
                             .notFound,
@@ -117,10 +135,10 @@ extension Application {
             while true {
                 do {
                     let containersToShow: [ContainerSnapshot]
-                    if containers.isEmpty {
+                    if containerIds.isEmpty {
                         containersToShow = try await client.list(filters: ContainerListFilters(status: .running))
                     } else {
-                        containersToShow = try await client.list(filters: ContainerListFilters(ids: containers))
+                        containersToShow = try await client.list(filters: ContainerListFilters(ids: containerIds))
                     }
 
                     let statsData = try await collectStats(client: client, for: containersToShow)
@@ -146,7 +164,7 @@ extension Application {
             let stats2: ContainerResource.ContainerStats
         }
 
-        private func collectStats(client: ContainerClient, for containers: [ContainerSnapshot]) async throws -> [StatsSnapshot] {
+        private static func collectStats(client: ContainerClient, for containers: [ContainerSnapshot]) async throws -> [StatsSnapshot] {
             var snapshots: [StatsSnapshot] = []
 
             // First sample
@@ -218,7 +236,7 @@ extension Application {
             }
         }
 
-        private func printStatsTable(_ statsData: [StatsSnapshot]) {
+        private static func printStatsTable(_ statsData: [StatsSnapshot]) {
             let headerRow = ["Container ID", "Cpu %", "Memory Usage", "Net Rx/Tx", "Block I/O", "Pids"]
             let notAvailable = "--"
             var rows = [headerRow]
@@ -263,7 +281,7 @@ extension Application {
             print(formatter.format())
         }
 
-        private func clearScreen() {
+        private static func clearScreen() {
             // Move cursor to home position and clear from cursor to end of screen
             print("\u{001B}[H\u{001B}[J", terminator: "")
             fflush(stdout)

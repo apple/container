@@ -40,7 +40,12 @@ extension ProgressBar {
     public func clearAndResetCursor() {
         state.withLock { s in
             clear(state: &s)
-            resetCursor()
+            switch config.outputMode {
+            case .ansi:
+                resetCursor()
+            case .plain:
+                break
+            }
         }
     }
 
@@ -80,16 +85,22 @@ extension ProgressBar {
     func displayText(_ text: String, state: inout State, terminating: String = "\r") {
         state.output = text
 
-        // Clears previously printed lines.
-        var lines = ""
-        if terminating.hasSuffix("\r") && termWidth > 0 {
-            let lineCount = (text.count - 1) / termWidth
-            for _ in 0..<lineCount {
-                lines += EscapeSequence.moveUp
+        switch config.outputMode {
+        case .plain:
+            guard !text.isEmpty else { return }
+            display("\(text)\(terminating)")
+        case .ansi:
+            // Clears previously printed lines.
+            var lines = ""
+            if terminating.hasSuffix("\r") && termWidth > 0 {
+                let lineCount = (text.count - 1) / termWidth
+                for _ in 0..<lineCount {
+                    lines += EscapeSequence.moveUp
+                }
             }
-        }
 
-        let output = "\(text)\(EscapeSequence.clearToEndOfLine)\(terminating)\(lines)"
-        display(output)
+            let output = "\(text)\(EscapeSequence.clearToEndOfLine)\(terminating)\(lines)"
+            display(output)
+        }
     }
 }

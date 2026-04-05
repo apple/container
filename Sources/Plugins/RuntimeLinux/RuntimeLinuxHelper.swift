@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025-2026 Apple Inc. and the container project authors.
+// Copyright © 2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,11 +18,11 @@ import ArgumentParser
 import ContainerVersion
 
 @main
-struct NetworkVmnetHelper: AsyncParsableCommand {
+struct RuntimeLinuxHelper: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "container-network-vmnet",
-        abstract: "XPC service for managing a vmnet network",
-        version: ReleaseVersion.singleLine(appName: "container-network-vmnet"),
+        commandName: "container-runtime-linux",
+        abstract: "XPC Service for managing a Linux sandbox",
+        version: ReleaseVersion.singleLine(appName: "container-runtime-linux"),
         subcommands: [
             Start.self
         ]
