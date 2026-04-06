@@ -104,10 +104,11 @@ extension NetworkVmnetHelper {
                     identifier: serviceIdentifier,
                     routes: [
                         NetworkRoutes.state.rawValue: server.state,
-                        NetworkRoutes.allocate.rawValue: server.allocate,
-                        NetworkRoutes.deallocate.rawValue: server.deallocate,
                         NetworkRoutes.lookup.rawValue: server.lookup,
                         NetworkRoutes.disableAllocator.rawValue: server.disableAllocator,
+                    ],
+                    persistentRoutes: [
+                        NetworkRoutes.allocate.rawValue: server.allocate
                     ],
                     log: log
                 )

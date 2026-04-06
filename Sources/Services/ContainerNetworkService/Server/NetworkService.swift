@@ -56,7 +56,7 @@ public actor NetworkService: Sendable {
     }
 
     @Sendable
-    public func allocate(_ message: XPCMessage) async throws -> XPCMessage {
+    public func allocate(_ message: XPCMessage) async throws -> (XPCMessage, (@Sendable () async -> Void)?) {
         log.debug("enter", metadata: ["func": "\(#function)"])
         defer { log.debug("exit", metadata: ["func": "\(#function)"]) }
 
@@ -99,20 +99,22 @@ public actor NetworkService: Sendable {
             }
         }
         macAddresses[index] = macAddress
-        return reply
+
+        // Return a cleanup closure that releases this allocation when the peer connection closes.
+        let onClose: @Sendable () async -> Void = { [weak self, hostname, index] in
+            await self?.releaseAllocation(hostname: hostname, index: index)
+        }
+        return (reply, onClose)
     }
 
-    @Sendable
-    public func deallocate(_ message: XPCMessage) async throws -> XPCMessage {
-        log.debug("enter", metadata: ["func": "\(#function)"])
-        defer { log.debug("exit", metadata: ["func": "\(#function)"]) }
-
-        let hostname = try message.hostname()
-        if let index = try await allocator.deallocate(hostname: hostname) {
-            macAddresses.removeValue(forKey: index)
+    private func releaseAllocation(hostname: String, index: UInt32) async {
+        macAddresses.removeValue(forKey: index)
+        do {
+            try await allocator.deallocate(hostname: hostname)
+        } catch {
+            log.error("failed to release allocation on connection close", metadata: ["hostname": "\(hostname)", "error": "\(error)"])
         }
-        log.info("released attachments", metadata: ["hostname": "\(hostname)"])
-        return message.reply()
+        log.info("released attachment on connection close", metadata: ["hostname": "\(hostname)"])
     }
 
     @Sendable

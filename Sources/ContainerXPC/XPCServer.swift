@@ -24,15 +24,26 @@ import Synchronization
 
 public struct XPCServer: Sendable {
     public typealias RouteHandler = @Sendable (XPCMessage) async throws -> XPCMessage
+    /// A persistent route handler returns a reply and an optional cleanup closure that is
+    /// invoked when the peer connection closes (normally or due to peer exit/crash).
+    /// The connection is kept alive until the peer disconnects, making connection lifetime
+    /// equivalent to the resource lifetime of whatever was allocated in the handler.
+    public typealias PersistentRouteHandler = @Sendable (XPCMessage) async throws -> (XPCMessage, (@Sendable () async -> Void)?)
 
     private let routes: [String: RouteHandler]
+    private let persistentRoutes: [String: PersistentRouteHandler]
     // Access to `connection` is protected by a lock.
     private nonisolated(unsafe) let connection: xpc_connection_t
     private let lock = NSLock()
 
     let log: Logging.Logger
 
-    public init(identifier: String, routes: [String: RouteHandler], log: Logging.Logger) {
+    public init(
+        identifier: String,
+        routes: [String: RouteHandler],
+        persistentRoutes: [String: PersistentRouteHandler] = [:],
+        log: Logging.Logger
+    ) {
         let connection = xpc_connection_create_mach_service(
             identifier,
             nil,
@@ -40,12 +51,19 @@ public struct XPCServer: Sendable {
         )
 
         self.routes = routes
+        self.persistentRoutes = persistentRoutes
         self.connection = connection
         self.log = log
     }
 
-    public init(connection: xpc_connection_t, routes: [String: RouteHandler], log: Logging.Logger) {
+    public init(
+        connection: xpc_connection_t,
+        routes: [String: RouteHandler],
+        persistentRoutes: [String: PersistentRouteHandler] = [:],
+        log: Logging.Logger
+    ) {
         self.routes = routes
+        self.persistentRoutes = persistentRoutes
         self.connection = connection
         self.log = log
     }
@@ -100,6 +118,7 @@ public struct XPCServer: Sendable {
 
     func handleClientConnection(connection: xpc_connection_t) async throws {
         let replySent = Mutex(false)
+        let onClose = Mutex<(@Sendable () async -> Void)?>(nil)
 
         let objects = AsyncStream<xpc_object_t> { cont in
             xpc_connection_set_event_handler(connection) { object in
@@ -140,7 +159,7 @@ public struct XPCServer: Sendable {
                 // `object` isn't used concurrently.
                 nonisolated(unsafe) let object = object
                 let added = group.addTaskUnlessCancelled { @Sendable in
-                    try await self.handleMessage(connection: connection, object: object)
+                    try await self.handleMessage(connection: connection, object: object, onClose: onClose)
                     replySent.withLock { $0 = true }
                 }
                 if !added {
@@ -149,9 +168,14 @@ public struct XPCServer: Sendable {
             }
             group.cancelAll()
         }
+
+        // Connection has closed — run any cleanup registered by a persistent route handler.
+        if let cleanup = onClose.withLock({ $0 }) {
+            await cleanup()
+        }
     }
 
-    func handleMessage(connection: xpc_connection_t, object: xpc_object_t) async throws {
+    func handleMessage(connection: xpc_connection_t, object: xpc_object_t, onClose: borrowing Mutex<(@Sendable () async -> Void)?>) async throws {
         // All requests are dictionary-valued.
         guard xpc_get_type(object) == XPC_TYPE_DICTIONARY else {
             log.error("invalid request - not a dictionary")
@@ -193,7 +217,36 @@ public struct XPCServer: Sendable {
             return
         }
 
-        if let handler = routes[route] {
+        if let handler = persistentRoutes[route] {
+            do {
+                let message = XPCMessage(object: object)
+                let (response, cleanup) = try await handler(message)
+                xpc_connection_send_message(connection, response.underlying)
+                if let cleanup {
+                    onClose.withLock { $0 = cleanup }
+                }
+            } catch let error as ContainerizationError {
+                log.error(
+                    "persistent route handler threw an error",
+                    metadata: [
+                        "route": "\(route)",
+                        "error": "\(error)",
+                    ])
+                Self.replyWithError(connection: connection, object: object, err: error)
+            } catch {
+                log.error(
+                    "persistent route handler threw an error",
+                    metadata: [
+                        "route": "\(route)",
+                        "error": "\(error)",
+                    ])
+                let message = XPCMessage(object: object)
+                let reply = message.reply()
+                let err = ContainerizationError(.unknown, message: String(describing: error))
+                reply.set(error: err)
+                xpc_connection_send_message(connection, reply.underlying)
+            }
+        } else if let handler = routes[route] {
             do {
                 let message = XPCMessage(object: object)
                 let response = try await handler(message)

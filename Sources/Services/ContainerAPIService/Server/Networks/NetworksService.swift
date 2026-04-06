@@ -347,26 +347,14 @@ public actor NetworksService {
         }
     }
 
-    public func allocate(id: String, hostname: String, macAddress: MACAddress?) async throws -> AllocatedAttachment {
+    public func pluginInfo(for id: String) async throws -> NetworkPluginInfo {
         guard let serviceState = serviceStates[id] else {
             throw ContainerizationError(.notFound, message: "no network for id \(id)")
         }
         guard let pluginInfo = serviceState.networkState.pluginInfo else {
             throw ContainerizationError(.internalError, message: "network \(id) missing plugin information")
         }
-        let (attach, additionalData) = try await serviceState.client.allocate(hostname: hostname, macAddress: macAddress)
-        return AllocatedAttachment(
-            attachment: attach,
-            additionalData: additionalData,
-            pluginInfo: pluginInfo
-        )
-    }
-
-    public func deallocate(attachment: Attachment) async throws {
-        guard let serviceState = serviceStates[attachment.network] else {
-            throw ContainerizationError(.notFound, message: "no network for id \(attachment.network)")
-        }
-        return try await serviceState.client.deallocate(hostname: attachment.hostname)
+        return pluginInfo
     }
 
     private static func getClient(configuration: NetworkConfiguration) throws -> NetworkClient {

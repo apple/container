@@ -44,8 +44,8 @@ public enum SandboxKeys: String {
     case statistics
 
     /// Network resource keys.
-    case allocatedAttachments
-    case networkAdditionalData
-    case networkAttachment
-    case networkPluginInfo
+    /// Parallel array of JSON-encoded NetworkPluginInfo, one per entry in the container's
+    /// AttachmentConfiguration array. The sandbox uses these to connect directly to each
+    /// network plugin and call allocate().
+    case networkPluginInfos
 }
