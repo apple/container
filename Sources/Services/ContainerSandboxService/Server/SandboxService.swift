@@ -55,23 +55,24 @@ public actor SandboxService {
     private static let sshAuthSocketEnvVar = "SSH_AUTH_SOCK"
 
     class ExitWaiter {
-        public var exitCode: Int32? = nil
+        public var exitStatus: ExitStatus? = nil
         public var continuations: [CheckedContinuation<ExitStatus, Never>] = []
 
-        public func register(_ cc: CheckedContinuation<ExitStatus, Never>) {
+        public func wait(_ cc: CheckedContinuation<ExitStatus, Never>) {
+            if let exitStatus = exitStatus {
+                // `doExit` has already been called for this waiter
+                cc.resume(returning: exitStatus)
+                return
+            }
             continuations.append(cc)
         }
 
-        public func doExit(code: Int32) {
+        public func doExit(exitStatus: ExitStatus) {
             for cc in continuations {
-                cc.resume(returning: ExitStatus(exitCode: code))
+                cc.resume(returning: exitStatus)
             }
 
-            exitCode = code
-        }
-
-        public func exited() -> Bool {
-            exitCode != nil
+            self.exitStatus = exitStatus
         }
     }
 
@@ -620,11 +621,7 @@ public actor SandboxService {
         }
 
         let exitStatus = await withCheckedContinuation { cc in
-            // Is this safe since we are in an actor? :(
-            let (added, exitCode) = self.addWaiter(id: id, cont: cc)
-            if !added {
-                cc.resume(returning: ExitStatus(exitCode: exitCode ?? -1))
-            }
+            self.waitForExit(id: id, cont: cc)
         }
         let reply = message.reply()
         reply.set(key: SandboxKeys.exitCode.rawValue, value: Int64(exitStatus.exitCode))
@@ -1299,24 +1296,18 @@ extension SandboxService {
         waiters[id] = ExitWaiter()
     }
 
-    private func addWaiter(id: String, cont: CheckedContinuation<ExitStatus, Never>) -> (Bool, Int32?) {
-        guard let current = waiters[id] else {
-            // No waiter initialized at all
-            return (false, nil)
+    private func waitForExit(id: String, cont: CheckedContinuation<ExitStatus, Never>) {
+        guard let waiter = waiters[id] else {
+            // No waiter was initialized at all, resume immediately
+            cont.resume(returning: ExitStatus(exitCode: -1))
+            return
         }
 
-        if current.exited() {
-            // Waiter initialzed but already exited
-            return (false, current.exitCode)
-        }
-
-        // Waiter initialized and not exited. Guaranteed to exit later.
-        current.register(cont)
-        return (true, nil)
+        waiter.wait(cont)
     }
 
     private func releaseWaiters(for id: String, status: ExitStatus) {
-        waiters[id]?.doExit(code: status.exitCode)
+        waiters[id]?.doExit(exitStatus: status)
     }
 
     private func setUnderlyingProcess(_ id: String, _ process: LinuxProcess) throws {
