@@ -57,6 +57,7 @@ let package = Package(
         .package(url: "https://github.com/grpc/grpc-swift.git", from: "1.26.0"),
         .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.20.1"),
         .package(url: "https://github.com/swiftlang/swift-docc-plugin.git", from: "1.1.0"),
+        .package(url: "https://github.com/jpsim/Yams.git", from: "6.2.1"),
     ],
     targets: [
         .executableTarget(
@@ -79,6 +80,7 @@ let package = Package(
                 "ContainerBuild",
                 "ContainerLog",
                 "ContainerResource",
+                "Yams",
             ],
             path: "Tests/CLITests"
         ),
@@ -101,6 +103,7 @@ let package = Package(
                 "ContainerVersion",
                 "ContainerXPC",
                 "TerminalProgress",
+                "Yams",
             ],
             path: "Sources/ContainerCommands"
         ),

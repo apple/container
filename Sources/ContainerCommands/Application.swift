@@ -248,6 +248,7 @@ extension Application {
     public enum ListFormat: String, CaseIterable, ExpressibleByArgument {
         case json
         case table
+        case yaml
     }
 
     func isTranslated() throws -> Bool {

@@ -1033,7 +1033,7 @@ container system version [--format <format>]
 
 **Options**
 
-*   `--format <format>`: Output format (values: json, table; default: table)
+*   `--format <format>`: Output format (values: json, table, yaml; default: table)
 
 **Table Output**
 
@@ -1068,6 +1068,21 @@ Backward-compatible with previous CLI-only output. Top-level fields describe the
     "appName": "container API Server"
   }
 }
+```
+
+**YAML Output**
+
+Equivalent to the JSON output but in YAML format. Each entry in the array represents a component.
+
+```yaml
+- version: 1.2.3
+  buildType: debug
+  commit: abcdef1
+  appName: container
+- version: 1.2.3
+  buildType: release
+  commit: 1234abc
+  appName: container-apiserver
 ```
 
 ### `container system logs`

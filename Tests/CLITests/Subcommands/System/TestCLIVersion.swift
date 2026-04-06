@@ -16,6 +16,7 @@
 
 import Foundation
 import Testing
+import Yams
 
 /// Tests for `container system version` output formats and build type detection.
 final class TestCLIVersion: CLITest {
@@ -26,7 +27,7 @@ final class TestCLIVersion: CLITest {
         let appName: String
     }
 
-    struct VersionJSON: Codable {
+    struct VersionOutput: Codable {
         let version: String
         let buildType: String
         let commit: String
@@ -68,7 +69,21 @@ final class TestCLIVersion: CLITest {
         #expect(status == 0, "system version --format json should succeed, stderr: \(err)")
         #expect(!out.isEmpty)
 
-        let decoded = try JSONDecoder().decode([VersionJSON].self, from: data)
+        let decoded = try JSONDecoder().decode([VersionOutput].self, from: data)
+        #expect(decoded[0].appName == "container")
+        #expect(!decoded[0].version.isEmpty)
+        #expect(!decoded[0].commit.isEmpty)
+
+        let expected = try expectedBuildType()
+        #expect(decoded[0].buildType == expected)
+    }
+
+    @Test func yamlFormat() throws {
+        let (data, out, err, status) = try run(arguments: ["system", "version", "--format", "yaml"])
+        #expect(status == 0, "system version --format yaml should succeed, stderr: \(err)")
+        #expect(!out.isEmpty)
+
+        let decoded = try YAMLDecoder().decode([VersionOutput].self, from: data)
         #expect(decoded[0].appName == "container")
         #expect(!decoded[0].version.isEmpty)
         #expect(!decoded[0].commit.isEmpty)
@@ -92,7 +107,7 @@ final class TestCLIVersion: CLITest {
         // Validate build type via JSON to avoid parsing table text loosely
         let (data, _, err, status) = try run(arguments: ["system", "version", "--format", "json"])
         #expect(status == 0, "version --format json should succeed, stderr: \(err)")
-        let decoded = try JSONDecoder().decode([VersionJSON].self, from: data)
+        let decoded = try JSONDecoder().decode([VersionOutput].self, from: data)
 
         let expected = try expectedBuildType()
         #expect(decoded[0].buildType == expected, "Expected build type \(expected) but got \(decoded[0].buildType)")
