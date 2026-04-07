@@ -73,7 +73,7 @@ extension Application {
 
             for mount in container.configuration.mounts where mount.isVirtiofs {
                 if !FileManager.default.fileExists(atPath: mount.source) {
-                    throw ContainerizationError(.invalidState, message: "path '\(mount.source)' is not a directory")
+                    throw ContainerizationError(.invalidState, message: "mount source path '\(mount.source)' does not exist")
                 }
             }
 

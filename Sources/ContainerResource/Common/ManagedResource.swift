@@ -32,7 +32,9 @@ public protocol ManagedResource: Identifiable, Sendable, Codable {
 
     /// Key-value properties for the resource. The user and system may both
     /// make use of labels to read and write annotations or other metadata.
-    /// A good practice is to use
+    /// A good practice when using labels for automation is to use reverse
+    /// domain name notation (example: `com.example.mytool.role`) for
+    /// label names.
     var labels: ResourceLabels { get }
 
     /// Generates a unique resource ID value.
@@ -52,7 +54,7 @@ extension ManagedResource {
     }
 }
 
-// FIXME: This moves to ManagedResource and/or a ResourceLabels typealias eventually.
 extension ResourceLabels {
+    /// Returns true if for a resource that the system automatically manages.
     public var isBuiltin: Bool { self.contains { $0 == ResourceLabelKeys.role && $1 == ResourceRoleValues.builtin } }
 }
