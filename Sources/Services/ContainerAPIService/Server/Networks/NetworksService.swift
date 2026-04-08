@@ -30,7 +30,7 @@ import Logging
 public actor NetworksService {
     struct NetworkServiceState {
         var networkState: NetworkState
-        var client: NetworkClient
+        var client: ContainerNetworkServiceClient.NetworkClient
     }
 
     private let pluginLoader: PluginLoader
@@ -79,7 +79,7 @@ public actor NetworksService {
         for configuration in configurations {
             // Ensure the network with id "default" is marked as builtin.
             var updatedLabels: [String: String]?
-            if configuration.id == ClientNetwork.defaultNetworkName {
+            if configuration.id == NetworkClient.defaultNetworkName {
                 let role = configuration.labels[ResourceLabelKeys.role]
                 if role == nil || role != ResourceRoleValues.builtin {
                     var labels = configuration.labels.dictionary
@@ -201,7 +201,7 @@ public actor NetworksService {
         }
 
         //Ensure that the network is not named "none"
-        if configuration.id == ClientNetwork.noNetworkName {
+        if configuration.id == NetworkClient.noNetworkName {
             throw ContainerizationError(.unsupported, message: "network \(configuration.id) is not a valid name")
         }
 
@@ -400,7 +400,7 @@ public actor NetworksService {
         return try await serviceState.client.deallocate(hostname: attachment.hostname)
     }
 
-    private static func getClient(configuration: NetworkConfiguration) throws -> NetworkClient {
+    private static func getClient(configuration: NetworkConfiguration) throws -> ContainerNetworkServiceClient.NetworkClient {
         guard let pluginInfo = configuration.pluginInfo else {
             throw ContainerizationError(.internalError, message: "network \(configuration.id) missing plugin information")
         }

@@ -264,7 +264,8 @@ extension Application {
             // Enable Rosetta only if the user didn't ask to disable it
             config.rosetta = useRosetta
 
-            guard let defaultNetwork = try await ClientNetwork.builtin else {
+            let networkClient = NetworkClient()
+            guard let defaultNetwork = try await networkClient.builtin else {
                 throw ContainerizationError(.invalidState, message: "default network is not present")
             }
             guard case .running(_, _) = defaultNetwork else {

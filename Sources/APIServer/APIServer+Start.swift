@@ -314,7 +314,7 @@ extension APIServer {
             if defaultNetwork == nil {
                 // FIXME: default network should be configurable elsewhere
                 let config = try NetworkConfiguration(
-                    id: ClientNetwork.defaultNetworkName,
+                    id: NetworkClient.defaultNetworkName,
                     mode: .nat,
                     labels: try .init([ResourceLabelKeys.role: ResourceRoleValues.builtin]),
                     pluginInfo: NetworkPluginInfo(plugin: "container-network-vmnet")

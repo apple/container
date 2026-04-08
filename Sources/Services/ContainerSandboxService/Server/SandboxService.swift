@@ -900,8 +900,9 @@ public actor SandboxService {
     }
 
     private func getDefaultNameservers(allocatedAttachments: [AllocatedAttachment]) async throws -> [String] {
+        let networkClient = NetworkClient()
         for allocatedAttach in allocatedAttachments {
-            let state = try await ClientNetwork.get(id: allocatedAttach.attachment.network)
+            let state = try await networkClient.get(id: allocatedAttach.attachment.network)
             guard case .running(_, let status) = state else {
                 continue
             }

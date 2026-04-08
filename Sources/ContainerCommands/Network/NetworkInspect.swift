@@ -34,7 +34,8 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let items = try await ClientNetwork.list().filter {
+            let networkClient = NetworkClient()
+            let items = try await networkClient.list().filter {
                 networks.contains($0.id)
             }.map {
                 PrintableNetwork($0)

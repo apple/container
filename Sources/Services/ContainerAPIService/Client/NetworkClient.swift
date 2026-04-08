@@ -21,35 +21,35 @@ import ContainerizationExtras
 import ContainerizationOS
 import Foundation
 
-public struct ClientNetwork {
-    static let serviceIdentifier = "com.apple.container.apiserver"
+public struct NetworkClient: Sendable {
+    public static let defaultServiceIdentifier = "com.apple.container.apiserver"
 
     public static let defaultNetworkName = "default"
     public static let noNetworkName = "none"
-}
 
-extension ClientNetwork {
-    private static func newClient() -> XPCClient {
-        XPCClient(service: serviceIdentifier)
+    private let xpcClient: XPCClient
+
+    /// Creates a new network client with a connection to the API server.
+    public init(serviceIdentifier: String = Self.defaultServiceIdentifier) {
+        self.xpcClient = XPCClient(service: serviceIdentifier)
     }
 
-    private static func xpcSend(
-        client: XPCClient,
+    @discardableResult
+    private func xpcSend(
         message: XPCMessage,
         timeout: Duration? = XPCClient.xpcRegistrationTimeout
     ) async throws -> XPCMessage {
-        try await client.send(message, responseTimeout: timeout)
+        try await xpcClient.send(message, responseTimeout: timeout)
     }
 
-    public static func create(configuration: NetworkConfiguration) async throws -> NetworkState {
-        let client = Self.newClient()
+    public func create(configuration: NetworkConfiguration) async throws -> NetworkState {
         let request = XPCMessage(route: .networkCreate)
         request.set(key: .networkId, value: configuration.id)
 
         let data = try JSONEncoder().encode(configuration)
         request.set(key: .networkConfig, value: data)
 
-        let response = try await xpcSend(client: client, message: request)
+        let response = try await xpcSend(message: request)
         let responseData = response.dataNoCopy(key: .networkState)
         guard let responseData else {
             throw ContainerizationError(.invalidArgument, message: "network configuration not received")
@@ -58,11 +58,10 @@ extension ClientNetwork {
         return state
     }
 
-    public static func list() async throws -> [NetworkState] {
-        let client = Self.newClient()
+    public func list() async throws -> [NetworkState] {
         let request = XPCMessage(route: .networkList)
 
-        let response = try await xpcSend(client: client, message: request, timeout: .seconds(1))
+        let response = try await xpcSend(message: request, timeout: .seconds(1))
         let responseData = response.dataNoCopy(key: .networkStates)
         guard let responseData else {
             return []
@@ -72,7 +71,7 @@ extension ClientNetwork {
     }
 
     /// Get the network for the provided id.
-    public static func get(id: String) async throws -> NetworkState {
+    public func get(id: String) async throws -> NetworkState {
         let networks = try await list()
         guard let network = networks.first(where: { $0.id == id }) else {
             throw ContainerizationError(.notFound, message: "network \(id) not found")
@@ -81,15 +80,14 @@ extension ClientNetwork {
     }
 
     /// Delete the network with the given id.
-    public static func delete(id: String) async throws {
-        let client = Self.newClient()
+    public func delete(id: String) async throws {
         let request = XPCMessage(route: .networkDelete)
         request.set(key: .networkId, value: id)
-        let _ = try await xpcSend(client: client, message: request)
+        try await xpcSend(message: request)
     }
 
     /// Retrieve the builtin network.
-    public static var builtin: NetworkState? {
+    public var builtin: NetworkState? {
         get async throws {
             try await list().first { $0.isBuiltin }
         }

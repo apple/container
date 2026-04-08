@@ -40,7 +40,8 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let networks = try await ClientNetwork.list()
+            let networkClient = NetworkClient()
+            let networks = try await networkClient.list()
             let items = networks.map { PrintableNetwork($0) }
             try Output.render(json: items, display: items, format: format, quiet: quiet)
         }

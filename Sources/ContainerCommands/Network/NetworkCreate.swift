@@ -73,7 +73,8 @@ extension Application {
                 labels: parsedLabels,
                 pluginInfo: NetworkPluginInfo(plugin: self.plugin, variant: self.pluginVariant)
             )
-            let state = try await ClientNetwork.create(configuration: config)
+            let networkClient = NetworkClient()
+            let state = try await networkClient.create(configuration: config)
             print(state.id)
         }
     }

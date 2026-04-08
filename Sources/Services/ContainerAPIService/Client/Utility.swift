@@ -195,20 +195,21 @@ public struct Utility {
 
         // Parse network specifications with properties
         let parsedNetworks = try management.networks.map { try Parser.network($0) }
-        if management.networks.contains(ClientNetwork.noNetworkName) {
+        if management.networks.contains(NetworkClient.noNetworkName) {
             guard management.networks.count == 1 else {
-                throw ContainerizationError(.unsupported, message: "no other networks may be created along with network \(ClientNetwork.noNetworkName)")
+                throw ContainerizationError(.unsupported, message: "no other networks may be created along with network \(NetworkClient.noNetworkName)")
             }
             config.networks = []
         } else {
-            let builtinNetworkId = try await ClientNetwork.builtin?.id
+            let networkClient = NetworkClient()
+            let builtinNetworkId = try await networkClient.builtin?.id
             config.networks = try getAttachmentConfigurations(
                 containerId: config.id,
                 builtinNetworkId: builtinNetworkId,
                 networks: parsedNetworks
             )
             for attachmentConfiguration in config.networks {
-                let network: NetworkState = try await ClientNetwork.get(id: attachmentConfiguration.network)
+                let network: NetworkState = try await networkClient.get(id: attachmentConfiguration.network)
                 guard case .running(_, _) = network else {
                     throw ContainerizationError(.invalidState, message: "network \(attachmentConfiguration.network) is not running")
                 }
