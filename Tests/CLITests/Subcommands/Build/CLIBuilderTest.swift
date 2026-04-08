@@ -357,13 +357,13 @@ extension TestCLIBuildBase {
                 // test 1
                 .directory("Test1Source"),
                 .directory("Test1Source2"),
-                .file("Test1Source/test.yaml", content: .zeroFilled(size: 1)),
+                .file("Test1Source/test.yaml", content: .zeroFilled(size: 200)),
                 .symbolicLink("Test1Source2/test.yaml", target: "Test1Source/test.yaml"),
 
                 // test 2
                 .directory("Test2Source"),
                 .directory("Test2Source2"),
-                .file("Test2Source/Test/Test/test.yaml", content: .zeroFilled(size: 1)),
+                .file("Test2Source/Test/Test/test.yaml", content: .zeroFilled(size: 300)),
                 .symbolicLink("Test2Source2/Test/test.yaml", target: "Test2Source/Test/Test/test.yaml"),
 
                 // test 3

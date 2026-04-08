@@ -96,7 +96,7 @@ public final class Archiver: Sendable {
                 guard let entry = try Self._createEntry(entryInfo: info) else {
                     throw Error.failedToCreateEntry
                 }
-                hasher.update(data: try encoder.encode(info))
+                hasher.update(data: try encoder.encode(entry))
                 try Self._compressFile(item: info.pathOnHost, entry: entry, archiver: archiver, hasher: &hasher)
             }
             try archiver.finishEncoding()
@@ -233,5 +233,36 @@ extension Archiver {
                 return "failed to create input stream for \(url.path)"
             }
         }
+    }
+}
+
+extension WriteEntry: @retroactive Encodable {
+    enum CodingKeys: String, CodingKey {
+        case path
+        case fileType
+        case size
+        case permissions
+        case owner
+        case group
+        case symlinkTarget
+        case hardlink
+        case creationDate
+        case modificationDate
+        case contentAccessDate
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(fileType.rawValue, forKey: .fileType)
+        try container.encodeIfPresent(permissions, forKey: .permissions)
+        try container.encodeIfPresent(path, forKey: .path)
+        try container.encodeIfPresent(size, forKey: .size)
+        try container.encodeIfPresent(owner, forKey: .owner)
+        try container.encodeIfPresent(group, forKey: .group)
+        try container.encodeIfPresent(symlinkTarget, forKey: .symlinkTarget)
+        try container.encodeIfPresent(hardlink, forKey: .hardlink)
+        try container.encodeIfPresent(creationDate, forKey: .creationDate)
+        try container.encodeIfPresent(modificationDate, forKey: .modificationDate)
+        try container.encodeIfPresent(contentAccessDate, forKey: .contentAccessDate)
     }
 }
