@@ -272,6 +272,7 @@ extension ProgressBar {
         // Progress bar - always shown if configured
         if config.showProgressBar, total > 0, allowProgress {
             let joinedComponents = components.joined(separator: " ")
+            // 45 reserves space for components rendered after the bar (size, speed, time, etc.)
             let usedWidth = (useColor ? joinedComponents.visibleLength : joinedComponents.count) + 45
             let remainingWidth = max(config.width - usedWidth, 1)
             let barLength = min(remainingWidth, state.finished ? remainingWidth : Int(Int64(remainingWidth) * value / total))

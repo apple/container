@@ -38,6 +38,12 @@ extension Flags.Progress {
             return try ProgressConfig(disableProgressUpdates: true)
         case .ansi, .plain, .color:
             let isPlain = progress == .plain
+            let outputMode: ProgressConfig.OutputMode
+            switch progress {
+            case .plain: outputMode = .plain
+            case .color: outputMode = .color
+            default: outputMode = .ansi
+            }
             return try ProgressConfig(
                 description: description,
                 itemsName: itemsName,
@@ -48,7 +54,7 @@ extension Flags.Progress {
                 ignoreSmallSize: ignoreSmallSize,
                 totalTasks: totalTasks,
                 clearOnFinish: !isPlain,
-                outputMode: isPlain ? .plain : (progress == .color ? .color : .ansi)
+                outputMode: outputMode
             )
         }
     }

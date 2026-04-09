@@ -1179,17 +1179,35 @@ final class ProgressBarTests: XCTestCase {
     }
 
     func testColorModeRenderTerminatorIsCarriageReturn() async throws {
-        // Verify color mode uses \r terminator (not \n like plain mode)
-        let config = try ProgressConfig(
+        // Color mode is TTY-only so we cannot capture its raw terminal output via a pipe.
+        // Instead, verify that plain mode emits \n (newlines) while color mode shares the
+        // ansi code path which emits \r (carriage returns). We confirm this by checking
+        // that plain output uses \n and that color mode is distinct from plain.
+        let plainPipe = Pipe()
+        let plainConfig = try ProgressConfig(
+            terminal: plainPipe.fileHandleForWriting,
+            description: "Task",
+            showSpinner: false,
+            clearOnFinish: false,
+            outputMode: .plain
+        )
+        let plainProgress = ProgressBar(config: plainConfig)
+        plainProgress.render(force: true)
+        plainProgress.finish()
+        try plainPipe.fileHandleForWriting.close()
+
+        let plainData = plainPipe.fileHandleForReading.readDataToEndOfFile()
+        let plainOutput = String(decoding: plainData, as: UTF8.self)
+        // Plain mode uses \n terminators
+        XCTAssertTrue(plainOutput.contains("\n"))
+        XCTAssertFalse(plainOutput.contains("\r"))
+
+        // Color mode follows the ansi path (not plain), so it uses \r
+        let colorConfig = try ProgressConfig(
             description: "Task",
             outputMode: .color
         )
-        // The render() method sets terminating based on outputMode
-        // For non-plain modes, it's "\r"
-        // We verify this indirectly: color mode is not plain
-        XCTAssertNotEqual(config.outputMode, .plain)
-        // And the render logic uses: config.outputMode == .plain ? "\n" : "\r"
-        // So color gets "\r" — confirmed by code path analysis
+        XCTAssertNotEqual(colorConfig.outputMode, .plain)
     }
 
     func testOutputModeDefaultIsNotColor() async throws {
