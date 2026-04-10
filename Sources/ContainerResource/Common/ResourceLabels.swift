@@ -14,7 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import Collections
+import OrderedCollections
 
 /// Metadata for a managed resource.
 public struct ResourceLabels: Sendable, Equatable {

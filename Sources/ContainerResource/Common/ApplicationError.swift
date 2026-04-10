@@ -17,7 +17,7 @@
 /// Protocol for errors with a stable code and structured metadata.
 /// This allows the client to present the error as it chooses.
 
-import Collections
+import OrderedCollections
 
 public protocol AppError: Error {
     var code: AppErrorCode { get }
