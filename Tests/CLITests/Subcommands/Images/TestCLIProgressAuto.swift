@@ -19,55 +19,52 @@ import Testing
 
 class TestCLIProgressAuto: CLITest {
     @Test func testAutoProgressFallsBackToPlainWhenPiped() throws {
-        do {
-            let (_, _, error, status) = try run(arguments: [
-                "image", "pull",
-                "--progress", "auto",
-                alpine,
-            ])
-            #expect(status == 0, "image pull should succeed, stderr: \(error)")
-            let lines = error.components(separatedBy: .newlines)
-                .filter { !$0.contains("Warning! Running debug build") && !$0.isEmpty }
-            #expect(!lines.isEmpty, "expected plain progress output on stderr when piped")
-            #expect(!error.contains("\u{1B}["), "expected no ANSI escapes in piped output")
-        } catch {
-            Issue.record("failed to test auto progress: \(error)")
-            return
-        }
+        let (_, _, error, status) = try run(arguments: [
+            "image", "pull",
+            "--progress", "auto",
+            alpine,
+        ])
+        #expect(status == 0, "image pull should succeed, stderr: \(error)")
+        let lines = error.components(separatedBy: .newlines)
+            .filter { !$0.contains("Warning! Running debug build") && !$0.isEmpty }
+        #expect(!lines.isEmpty, "expected plain progress output on stderr when piped")
+        #expect(!error.contains("\u{1B}["), "expected no ANSI escapes in piped output")
     }
 
     @Test func testExplicitPlainProgress() throws {
-        do {
-            let (_, _, error, status) = try run(arguments: [
-                "image", "pull",
-                "--progress", "plain",
-                alpine,
-            ])
-            #expect(status == 0, "image pull --progress plain should succeed, stderr: \(error)")
-            let lines = error.components(separatedBy: .newlines)
-                .filter { !$0.contains("Warning! Running debug build") && !$0.isEmpty }
-            #expect(!lines.isEmpty, "expected plain progress output on stderr")
-            #expect(!error.contains("\u{1B}["), "expected no ANSI escapes with --progress plain")
-        } catch {
-            Issue.record("failed to test plain progress: \(error)")
-            return
-        }
+        let (_, _, error, status) = try run(arguments: [
+            "image", "pull",
+            "--progress", "plain",
+            alpine,
+        ])
+        #expect(status == 0, "image pull --progress plain should succeed, stderr: \(error)")
+        let lines = error.components(separatedBy: .newlines)
+            .filter { !$0.contains("Warning! Running debug build") && !$0.isEmpty }
+        #expect(!lines.isEmpty, "expected plain progress output on stderr")
+        #expect(!error.contains("\u{1B}["), "expected no ANSI escapes with --progress plain")
+    }
+
+    @Test func testExplicitAnsiProgress() throws {
+        let (_, _, error, status) = try run(arguments: [
+            "image", "pull",
+            "--progress", "ansi",
+            alpine,
+        ])
+        #expect(status == 0, "image pull --progress ansi should succeed, stderr: \(error)")
+        let lines = error.components(separatedBy: .newlines)
+            .filter { !$0.contains("Warning! Running debug build") && !$0.isEmpty }
+        #expect(!lines.isEmpty, "expected ansi progress output on stderr")
     }
 
     @Test func testNoneProgressSuppressesOutput() throws {
-        do {
-            let (_, _, error, status) = try run(arguments: [
-                "image", "pull",
-                "--progress", "none",
-                alpine,
-            ])
-            #expect(status == 0, "image pull --progress none should succeed, stderr: \(error)")
-            let lines = error.components(separatedBy: .newlines)
-                .filter { !$0.contains("Warning! Running debug build") && !$0.isEmpty }
-            #expect(lines.isEmpty, "expected no progress output on stderr with --progress none")
-        } catch {
-            Issue.record("failed to test none progress: \(error)")
-            return
-        }
+        let (_, _, error, status) = try run(arguments: [
+            "image", "pull",
+            "--progress", "none",
+            alpine,
+        ])
+        #expect(status == 0, "image pull --progress none should succeed, stderr: \(error)")
+        let lines = error.components(separatedBy: .newlines)
+            .filter { !$0.contains("Warning! Running debug build") && !$0.isEmpty }
+        #expect(lines.isEmpty, "expected no progress output on stderr with --progress none")
     }
 }

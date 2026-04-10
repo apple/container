@@ -19,16 +19,11 @@ import Foundation
 import TerminalProgress
 
 extension Flags.Progress {
-    /// Resolves `.auto` into `.ansi` or `.plain` based on the terminal.
-    ///
-    /// When the progress type is `.auto`, the terminal file handle is checked
-    /// with `isatty`. If the output is a TTY, `.ansi` is used; otherwise
-    /// `.plain` is selected so that piped or redirected output still shows
-    /// simple line-by-line status text.
-    private func resolvedProgress(terminal: FileHandle = .standardError) -> ProgressType {
+    /// Resolves `.auto` into `.ansi` or `.plain` based on whether stderr is a TTY.
+    private func resolvedProgress() -> ProgressType {
         switch progress {
         case .auto:
-            return isatty(terminal.fileDescriptor) == 1 ? .ansi : .plain
+            return isatty(FileHandle.standardError.fileDescriptor) == 1 ? .ansi : .plain
         case .none, .ansi, .plain, .color:
             return progress
         }
