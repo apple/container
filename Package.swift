@@ -350,6 +350,7 @@ let package = Package(
         .target(
             name: "ContainerResource",
             dependencies: [
+                .product(name: "Collections", package: "swift-collections"),
                 .product(name: "Containerization", package: "containerization"),
                 "ContainerXPC",
                 "CAuditToken",
