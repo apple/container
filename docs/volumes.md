@@ -118,6 +118,80 @@ Or with `--mount`:
 container run -it --rm --mount type=volume,source=foo,target=/mnt/foo alpine sh
 ```
 
+## Mount an SMB share in a container
+
+You can mount an SMB/CIFS network share directly inside a container using the `smb` volume driver. The share is mounted natively by the Linux guest via CIFS — no host-side mount is required.
+
+First, create a named volume pointing at your SMB share:
+
+```bash
+container volume create --driver smb \
+  --opt share=//fileserver/share \
+  --opt username=alice \
+  --opt password=secret \
+  myshare
+```
+
+Then use it with `-v` exactly like a local volume:
+
+```bash
+container run -v myshare:/data alpine ls /data
+```
+
+The volume persists as a named resource. Any container can reference it by name:
+
+```bash
+container run -v myshare:/mnt/share --rm alpine sh -c "cp /mnt/share/report.csv /tmp/"
+```
+
+To remove the volume when it is no longer needed:
+
+```bash
+container volume delete myshare
+```
+
+> [!NOTE]
+> The Linux guest kernel must have CIFS support to mount SMB volumes. Verify that your kernel configuration includes `CONFIG_CIFS`.
+
+## Mount an NFS export in a container
+
+You can mount an NFS export directly inside a container using the `nfs` volume driver. The share is mounted natively by the Linux guest — no host-side mount is required.
+
+First, create a named volume pointing at your NFS export:
+
+```bash
+container volume create --driver nfs \
+  --opt share=nas.local:/exports/data \
+  --opt addr=nas.local \
+  --opt vers=3 \
+  --opt proto=tcp \
+  myexport
+```
+
+> [!NOTE]
+> `addr` must match the server hostname or IP in `share`. The guest kernel's NFS client requires it explicitly when mounting without a userspace helper. Use `proto=tcp` if your kernel was built with `CONFIG_NFS_DISABLE_UDP_SUPPORT=y` (the default container kernel config).
+
+Then use it with `-v` exactly like a local volume:
+
+```bash
+container run -v myexport:/data alpine ls /data
+```
+
+The volume persists as a named resource. Any container can reference it by name:
+
+```bash
+container run -v myexport:/mnt/data --rm alpine sh -c "cp /mnt/data/report.csv /tmp/"
+```
+
+To remove the volume when it is no longer needed:
+
+```bash
+container volume delete myexport
+```
+
+> [!NOTE]
+> The Linux guest kernel must have NFS client support to mount NFS volumes. Verify that your kernel configuration includes `CONFIG_NFS_FS`.
+
 ## Anonymous volumes
 
 Using `-v /path` or `--mount type=volume,target=/path` without specifying a source creates
@@ -247,8 +321,12 @@ container run --rm --tmpfs /tmpfsmount1:size=64M,mode=1777 alpine sh
 
 ### Options for `container volume create`
 
-| Key | Values | Description |
-|---|---|---|
-| `size` | for example `10g` | Size of the volume's filesystem image, fixed at creation time. |
-| `journal` | `ordered` (default), `writeback`, `journal`, each optionally as `<mode>:<size>` | The `ext4` journal mode, and optionally the journal size — for example `writeback:64m`. |
+| Key | Values | Driver | Description |
+|---|---|---|---|
+| `size` | for example `10g` | `local` | Size of the volume's filesystem image, fixed at creation time. |
+| `journal` | `ordered` (default), `writeback`, `journal`, each optionally as `<mode>:<size>` | `local` | The `ext4` journal mode, and optionally the journal size — for example `writeback:64m`. |
+| `share` | `//server/share` (`smb`) or `server:/export/path` (`nfs`) | `smb`, `nfs` | Network share or export path to mount inside the guest (required). |
+| `username`, `password`, `domain` | string | `smb` | SMB authentication credentials and domain/workgroup. |
+| `addr`, `vers`, `proto`, `nolock` | mount option value | `nfs` | NFS client mount options passed to the guest kernel mount. |
+
 

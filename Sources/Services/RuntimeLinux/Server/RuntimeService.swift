@@ -1523,6 +1523,20 @@ extension Filesystem {
                     "\(Filesystem.SyncMode.vzRuntimeOptionKey)=\(syncMode.asVZRuntimeOption)",
                 ],
             )
+        case .smb(_, let share, _):
+            return .any(
+                type: "cifs",
+                source: share,
+                destination: self.destination,
+                options: self.resolvedMountOptions
+            )
+        case .nfs(_, let share, _):
+            return .any(
+                type: "nfs",
+                source: share,
+                destination: self.destination,
+                options: self.resolvedMountOptions
+            )
         }
     }
 
