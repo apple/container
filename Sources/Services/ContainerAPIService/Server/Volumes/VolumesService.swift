@@ -325,30 +325,67 @@ public actor VolumesService {
             throw VolumeError.volumeAlreadyExists(name)
         }
 
-        try createVolumeDirectory(for: name)
+        let volume: VolumeConfiguration
+        switch driver {
+        case "smb":
+            guard let share = driverOpts["share"], !share.isEmpty else {
+                throw VolumeError.storageError("smb driver requires --opt share=//server/share")
+            }
+            if driverOpts["size"] != nil {
+                throw VolumeError.storageError("size option is not supported for smb driver")
+            }
+            volume = VolumeConfiguration(
+                name: name,
+                driver: "smb",
+                format: "cifs",
+                source: share,
+                labels: labels,
+                options: driverOpts,
+                sizeInBytes: nil
+            )
+        case "nfs":
+            guard let share = driverOpts["share"], !share.isEmpty else {
+                throw VolumeError.storageError("nfs driver requires --opt share=server:/export/path")
+            }
+            if driverOpts["size"] != nil {
+                throw VolumeError.storageError("size option is not supported for nfs driver")
+            }
+            volume = VolumeConfiguration(
+                name: name,
+                driver: "nfs",
+                format: "nfs",
+                source: share,
+                labels: labels,
+                options: driverOpts,
+                sizeInBytes: nil
+            )
+        case "local":
+            try createVolumeDirectory(for: name)
 
-        // Parse size from driver options (default 512GB)
-        let sizeInBytes: UInt64
-        if let sizeString = driverOpts["size"] {
-            sizeInBytes = try parseSize(sizeString)
-        } else {
-            sizeInBytes = VolumeStorage.defaultVolumeSizeBytes
+            // Parse size from driver options (default 512GB)
+            let sizeInBytes: UInt64
+            if let sizeString = driverOpts["size"] {
+                sizeInBytes = try parseSize(sizeString)
+            } else {
+                sizeInBytes = VolumeStorage.defaultVolumeSizeBytes
+            }
+
+            let journalConfig = try driverOpts["journal"].map { try Self.parseJournalConfig($0) }
+
+            try createVolumeImage(for: name, sizeInBytes: sizeInBytes, journal: journalConfig)
+
+            volume = VolumeConfiguration(
+                name: name,
+                driver: "local",
+                format: "ext4",
+                source: blockPath(for: name),
+                labels: labels,
+                options: driverOpts,
+                sizeInBytes: sizeInBytes
+            )
+        default:
+            throw VolumeError.driverNotSupported(driver)
         }
-
-        let journalConfig = try driverOpts["journal"].map { try Self.parseJournalConfig($0) }
-
-        try createVolumeImage(for: name, sizeInBytes: sizeInBytes, journal: journalConfig)
-
-        let volume = VolumeConfiguration(
-            name: name,
-            driver: driver,
-            format: "ext4",
-            source: blockPath(for: name),
-            labels: labels,
-            options: driverOpts,
-            sizeInBytes: sizeInBytes
-        )
-
         try await store.create(volume)
 
         log.info(

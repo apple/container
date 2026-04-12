@@ -58,6 +58,8 @@ public struct Filesystem: Sendable, Codable {
 
         case block(format: String, cache: CacheMode, sync: SyncMode)
         case volume(name: String, format: String, cache: CacheMode, sync: SyncMode)
+        case smb(name: String? = nil, share: String, mountOptions: [String: String])
+        case nfs(name: String? = nil, share: String, mountOptions: [String: String])
         case virtiofs
         case tmpfs
     }
@@ -115,6 +117,30 @@ public struct Filesystem: Sendable, Codable {
         )
     }
 
+    /// An SMB share mounted directly inside the guest via CIFS.
+    public static func smb(
+        name: String? = nil, share: String, mountOptions: [String: String], destination: String, options: MountOptions
+    ) -> Filesystem {
+        .init(
+            type: .smb(name: name, share: share, mountOptions: mountOptions),
+            source: share,
+            destination: destination,
+            options: options
+        )
+    }
+
+    /// An NFS share mounted directly inside the guest.
+    public static func nfs(
+        name: String? = nil, share: String, mountOptions: [String: String], destination: String, options: MountOptions
+    ) -> Filesystem {
+        .init(
+            type: .nfs(name: name, share: share, mountOptions: mountOptions),
+            source: share,
+            destination: destination,
+            options: options
+        )
+    }
+
     /// A vritiofs backed filesystem providing a directory.
     public static func virtiofs(source: String, destination: String, options: MountOptions) -> Filesystem {
         .init(
@@ -134,6 +160,22 @@ public struct Filesystem: Sendable, Codable {
         )
     }
 
+    /// Returns true if the Filesystem is an SMB volume.
+    public var isSMB: Bool {
+        switch type {
+        case .smb(_, _, _): true
+        default: false
+        }
+    }
+
+    /// Returns true if the Filesystem is an NFS volume.
+    public var isNFS: Bool {
+        switch type {
+        case .nfs(_, _, _): true
+        default: false
+        }
+    }
+
     /// Returns true if the Filesystem is backed by a block device.
     public var isBlock: Bool {
         switch type {
@@ -145,17 +187,30 @@ public struct Filesystem: Sendable, Codable {
 
     /// Returns true if the Filesystem is a named volume.
     public var isVolume: Bool {
-        switch type {
-        case .volume(_, _, _, _): true
-        default: false
-        }
+        volumeName != nil
     }
 
     /// Returns the volume name if this is a volume filesystem, nil otherwise.
     public var volumeName: String? {
         switch type {
         case .volume(let name, _, _, _): name
+        case .smb(let name, _, _): name
+        case .nfs(let name, _, _): name
         default: nil
+        }
+    }
+
+    /// Returns the combined mount options for this filesystem, merging any
+    /// driver-specific mount options (excluding `share`) in deterministic key order
+    /// with the general mount options.
+    package var resolvedMountOptions: MountOptions {
+        switch type {
+        case .smb(_, _, let mountOptions), .nfs(_, _, let mountOptions):
+            return mountOptions.filter { $0.key != "share" }
+                .sorted { $0.key < $1.key }
+                .map { $0.value.isEmpty ? $0.key : "\($0.key)=\($0.value)" } + self.options
+        default:
+            return self.options
         }
     }
 
