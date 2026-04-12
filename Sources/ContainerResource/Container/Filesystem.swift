@@ -57,6 +57,8 @@ public struct Filesystem: Sendable, Codable {
 
         case block(format: String, cache: CacheMode, sync: SyncMode)
         case volume(name: String, format: String, cache: CacheMode, sync: SyncMode)
+        case smb(share: String, mountOptions: [String: String])
+        case nfs(share: String, mountOptions: [String: String])
         case virtiofs
         case tmpfs
     }
@@ -114,6 +116,26 @@ public struct Filesystem: Sendable, Codable {
         )
     }
 
+    /// An SMB share mounted directly inside the guest via CIFS.
+    public static func smb(share: String, mountOptions: [String: String], destination: String, options: MountOptions) -> Filesystem {
+        .init(
+            type: .smb(share: share, mountOptions: mountOptions),
+            source: share,
+            destination: destination,
+            options: options
+        )
+    }
+
+    /// An NFS share mounted directly inside the guest.
+    public static func nfs(share: String, mountOptions: [String: String], destination: String, options: MountOptions) -> Filesystem {
+        .init(
+            type: .nfs(share: share, mountOptions: mountOptions),
+            source: share,
+            destination: destination,
+            options: options
+        )
+    }
+
     /// A vritiofs backed filesystem providing a directory.
     public static func virtiofs(source: String, destination: String, options: MountOptions) -> Filesystem {
         .init(
@@ -131,6 +153,22 @@ public struct Filesystem: Sendable, Codable {
             destination: destination,
             options: options
         )
+    }
+
+    /// Returns true if the Filesystem is an SMB volume.
+    public var isSMB: Bool {
+        switch type {
+        case .smb(_, _): true
+        default: false
+        }
+    }
+
+    /// Returns true if the Filesystem is an NFS volume.
+    public var isNFS: Bool {
+        switch type {
+        case .nfs(_, _): true
+        default: false
+        }
     }
 
     /// Returns true if the Filesystem is backed by a block device.

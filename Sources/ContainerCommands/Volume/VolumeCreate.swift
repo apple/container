@@ -25,6 +25,9 @@ extension Application.VolumeCommand {
             abstract: "Create a new volume"
         )
 
+        @Option(name: .customLong("driver"), help: "Volume driver (default: local)")
+        var driver: String = "local"
+
         @Option(name: .customLong("label"), help: "Set metadata for a volume")
         var labels: [String] = []
 
@@ -53,7 +56,7 @@ extension Application.VolumeCommand {
 
             let volume = try await ClientVolume.create(
                 name: name,
-                driver: "local",
+                driver: driver,
                 driverOpts: parsedDriverOpts,
                 labels: parsedLabels
             )
