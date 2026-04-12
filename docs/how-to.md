@@ -60,6 +60,80 @@ total 4
 %
 </pre>
 
+## Mount an SMB share in a container
+
+You can mount an SMB/CIFS network share directly inside a container using the `smb` volume driver. The share is mounted natively by the Linux guest via CIFS — no host-side mount is required.
+
+First, create a named volume pointing at your SMB share:
+
+```bash
+container volume create --driver smb \
+  --opt share=//fileserver/share \
+  --opt username=alice \
+  --opt password=secret \
+  myshare
+```
+
+Then use it with `-v` exactly like a local volume:
+
+```bash
+container run -v myshare:/data alpine ls /data
+```
+
+The volume persists as a named resource. Any container can reference it by name:
+
+```bash
+container run -v myshare:/mnt/share --rm alpine sh -c "cp /mnt/share/report.csv /tmp/"
+```
+
+To remove the volume when it is no longer needed:
+
+```bash
+container volume delete myshare
+```
+
+> [!NOTE]
+> The Linux guest kernel must have CIFS support to mount SMB volumes. Verify that your kernel configuration includes `CONFIG_CIFS`.
+
+## Mount an NFS export in a container
+
+You can mount an NFS export directly inside a container using the `nfs` volume driver. The share is mounted natively by the Linux guest — no host-side mount is required.
+
+First, create a named volume pointing at your NFS export:
+
+```bash
+container volume create --driver nfs \
+  --opt share=nas.local:/exports/data \
+  --opt addr=nas.local \
+  --opt vers=3 \
+  --opt proto=tcp \
+  myexport
+```
+
+> [!NOTE]
+> `addr` must match the server hostname or IP in `share`. The guest kernel's NFS client requires it explicitly when mounting without a userspace helper. Use `proto=tcp` if your kernel was built with `CONFIG_NFS_DISABLE_UDP_SUPPORT=y` (the default container kernel config).
+
+Then use it with `-v` exactly like a local volume:
+
+```bash
+container run -v myexport:/data alpine ls /data
+```
+
+The volume persists as a named resource. Any container can reference it by name:
+
+```bash
+container run -v myexport:/mnt/data --rm alpine sh -c "cp /mnt/data/report.csv /tmp/"
+```
+
+To remove the volume when it is no longer needed:
+
+```bash
+container volume delete myexport
+```
+
+> [!NOTE]
+> The Linux guest kernel must have NFS client support to mount NFS volumes. Verify that your kernel configuration includes `CONFIG_NFS_FS`.
+
 ## Build and run a multiplatform image
 
 Using the [project from the tutorial example](tutorial.md#set-up-a-simple-project), you can create an image to use both on Apple silicon Macs and on x86-64 servers.
