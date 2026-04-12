@@ -178,13 +178,30 @@ public struct Utility {
                 resolvedMounts.append(fs)
             case .volume(let parsed):
                 let volume = try await getOrCreateVolume(parsed: parsed, log: log)
-                let volumeMount = Filesystem.volume(
-                    name: parsed.name,
-                    format: volume.format,
-                    source: volume.source,
-                    destination: parsed.destination,
-                    options: parsed.options
-                )
+                let volumeMount: Filesystem
+                if volume.driver == "smb" {
+                    volumeMount = Filesystem.smb(
+                        share: volume.source,
+                        mountOptions: volume.options,
+                        destination: parsed.destination,
+                        options: parsed.options
+                    )
+                } else if volume.driver == "nfs" {
+                    volumeMount = Filesystem.nfs(
+                        share: volume.source,
+                        mountOptions: volume.options,
+                        destination: parsed.destination,
+                        options: parsed.options
+                    )
+                } else {
+                    volumeMount = Filesystem.volume(
+                        name: parsed.name,
+                        format: volume.format,
+                        source: volume.source,
+                        destination: parsed.destination,
+                        options: parsed.options
+                    )
+                }
                 resolvedMounts.append(volumeMount)
             }
         }

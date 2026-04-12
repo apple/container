@@ -1250,6 +1250,22 @@ extension Filesystem {
                     "\(Filesystem.SyncMode.vzRuntimeOptionKey)=\(syncMode.asVZRuntimeOption)",
                 ],
             )
+        case .smb(let share, let mountOptions):
+            let opts = mountOptions.filter { $0.key != "share" }.map { $0.value.isEmpty ? $0.key : "\($0.key)=\($0.value)" } + self.options
+            return .any(
+                type: "cifs",
+                source: share,
+                destination: self.destination,
+                options: opts
+            )
+        case .nfs(let share, let mountOptions):
+            let opts = mountOptions.filter { $0.key != "share" }.map { $0.value.isEmpty ? $0.key : "\($0.key)=\($0.value)" } + self.options
+            return .any(
+                type: "nfs",
+                source: share,
+                destination: self.destination,
+                options: opts
+            )
         }
     }
 
