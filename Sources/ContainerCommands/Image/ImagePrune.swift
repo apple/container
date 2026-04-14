@@ -32,7 +32,15 @@ extension Application {
         @Flag(name: .shortAndLong, help: "Remove all unused images, not just dangling ones")
         var all: Bool = false
 
+        @Flag(name: .shortAndLong, help: "Accepted for Docker compatibility; has no effect.")
+        var force: Bool = false
+
         public func run() async throws {
+            if force {
+                let warning = "Warning: '-f' has no effect; prune does not prompt for confirmation.\n"
+                FileHandle.standardError.write(Data(warning.utf8))
+            }
+
             let allImages = try await ClientImage.list()
 
             let imagesToPrune: [ClientImage]

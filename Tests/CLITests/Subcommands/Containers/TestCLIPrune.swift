@@ -32,6 +32,16 @@ class TestCLIPruneCommand: CLITest {
         #expect(output.contains("Reclaimed Zero KB in disk space"), "should show no containers message")
     }
 
+    @Test func testContainerPruneForceFlagIsNoOp() throws {
+        let (_, output, error, status) = try run(arguments: ["prune", "-f"])
+        if status != 0 {
+            throw CLIError.executionFailed("container prune -f failed: \(error)")
+        }
+
+        #expect(error.contains("has no effect"), "should print a warning about -f being a no-op")
+        #expect(output.contains("Reclaimed"), "should still perform prune normally")
+    }
+
     @Test func testContainerPruneStoppedContainers() throws {
         let testName = getTestName()
         let npcName = "\(testName)_wont_be_pruned"
