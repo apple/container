@@ -135,7 +135,9 @@ class CLITest {
         }
     }
 
-    func run(arguments: [String], stdin: Data? = nil, currentDirectory: URL? = nil, env: [String: String] = [:]) throws -> (outputData: Data, output: String, error: String, status: Int32) {
+    func run(arguments: [String], stdin: Data? = nil, currentDirectory: URL? = nil, env: [String: String] = [:]) throws -> (
+        outputData: Data, output: String, error: String, status: Int32
+    ) {
         let seq = CLITest.commandSeq.withLock { counter in
             defer { counter += 1 }
             return counter
