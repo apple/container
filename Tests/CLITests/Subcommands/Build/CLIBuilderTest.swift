@@ -1411,5 +1411,89 @@ extension TestCLIBuildBase {
             try self.build(tag: imageName, tempDir: tempDir)
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
+
+        @Test func testCopyRenameFromStage() throws {
+            let tempDir: URL = try createTempDir()
+            defer {
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
+            let dockerfile =
+                """
+                FROM scratch AS builder
+                ADD hello.txt /hello.txt
+
+                FROM ghcr.io/linuxcontainers/alpine:3.20
+                COPY --from=builder /hello.txt /renamed.txt
+                RUN cat /renamed.txt
+                """
+            let context: [FileSystemEntry] = [
+                .file("hello.txt", content: .data("hello\n".data(using: .utf8)!))
+            ]
+            try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
+
+            let imageName = "registry.local/copy-rename:\(UUID().uuidString)"
+            try self.build(tag: imageName, tempDir: tempDir)
+            #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
+        }
+
+        @Test func testCopyMissingFileFails() throws {
+            let tempDir: URL = try createTempDir()
+            defer {
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
+            let dockerfile =
+                """
+                FROM scratch AS builder
+
+                FROM ghcr.io/linuxcontainers/alpine:3.20
+                COPY --from=builder /does-not-exist.txt /copied.txt
+                """
+            try createContext(tempDir: tempDir, dockerfile: dockerfile)
+
+            let imageName = "registry.local/copy-missing:\(UUID().uuidString)"
+            #expect(throws: Error.self) {
+                try self.build(tag: imageName, tempDir: tempDir)
+            }
+        }
+    }
+
+    @Test func testCopyInvalidStageFails() throws {
+        let tempDir: URL = try createTempDir()
+        defer {
+            try! FileManager.default.removeItem(at: tempDir)
+        }
+
+        let dockerfile =
+            """
+            FROM ghcr.io/linuxcontainers/alpine:3.20
+            COPY --from=not_a_stage /hello.txt /copied.txt
+            """
+        try createContext(tempDir: tempDir, dockerfile: dockerfile)
+
+        let imageName = "registry.local/copy-invalid-stage:\(UUID().uuidString)"
+        #expect(throws: Error.self) {
+            try self.build(tag: imageName, tempDir: tempDir)
+        }
+    }
+
+    @Test func testCopyFromNonexistentImageFails() throws {
+        let tempDir: URL = try createTempDir()
+        defer {
+            try! FileManager.default.removeItem(at: tempDir)
+        }
+
+        let dockerfile =
+            """
+            FROM ghcr.io/linuxcontainers/alpine:3.20
+            COPY --from=doesnotexist:latest /hello.txt /copied.txt
+            """
+        try createContext(tempDir: tempDir, dockerfile: dockerfile)
+
+        let imageName = "registry.local/copy-bad-image:\(UUID().uuidString)"
+        #expect(throws: Error.self) {
+            try self.build(tag: imageName, tempDir: tempDir)
+        }
     }
 }
