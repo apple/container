@@ -162,8 +162,8 @@ public struct Application: AsyncLoggableCommand {
         ].compactMap { $0 }
 
         let pluginFactories: [any PluginFactory] = [
-            DefaultPluginFactory(),
-            AppBundlePluginFactory(),
+            DefaultPluginFactory(logger: bootstrapLogger),
+            AppBundlePluginFactory(logger: bootstrapLogger),
         ]
 
         guard let systemHealth = try? await ClientHealthCheck.ping(timeout: .seconds(10)) else {

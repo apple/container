@@ -200,8 +200,8 @@ extension APIServer {
             ].compactMap { $0 }
 
             let pluginFactories: [PluginFactory] = [
-                DefaultPluginFactory(),
-                AppBundlePluginFactory(),
+                DefaultPluginFactory(logger: log),
+                AppBundlePluginFactory(logger: log),
             ]
 
             for pluginDirectory in pluginDirectories {

@@ -57,6 +57,7 @@ let package = Package(
         .package(url: "https://github.com/grpc/grpc-swift.git", from: "1.26.0"),
         .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.20.1"),
         .package(url: "https://github.com/swiftlang/swift-docc-plugin.git", from: "1.1.0"),
+        .package(url: "https://github.com/mattt/swift-toml.git", from: "2.0.0"),
     ],
     targets: [
         .executableTarget(
@@ -219,7 +220,7 @@ let package = Package(
                 "ContainerXPC",
             ],
             path: "Sources/Plugins/CoreImages",
-            exclude: ["config.json"]
+            exclude: ["config.toml"]
         ),
         .target(
             name: "ContainerImagesService",
@@ -268,7 +269,7 @@ let package = Package(
                 "ContainerXPC",
             ],
             path: "Sources/Plugins/NetworkVmnet",
-            exclude: ["config.json"]
+            exclude: ["config.toml"]
         ),
         .target(
             name: "ContainerNetworkService",
@@ -318,7 +319,7 @@ let package = Package(
                 "ContainerXPC",
             ],
             path: "Sources/Plugins/RuntimeLinux",
-            exclude: ["config.json"]
+            exclude: ["config.toml"]
         ),
         .target(
             name: "ContainerSandboxService",
@@ -388,6 +389,7 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "ContainerizationOS", package: "containerization"),
                 .product(name: "SystemPackage", package: "swift-system"),
+                .product(name: "TOML", package: "swift-toml"),
                 "ContainerVersion",
             ]
         ),
