@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
+import ContainerPersistence
 import Containerization
 import ContainerizationOCI
 import ContainerizationOS
@@ -279,6 +280,7 @@ public struct Builder: Sendable {
         public let cacheIn: [String]
         public let cacheOut: [String]
         public let pull: Bool
+        public let containerSystemConfig: ContainerSystemConfig
 
         public init(
             buildID: String,
@@ -298,7 +300,8 @@ public struct Builder: Sendable {
             exports: [BuildExport],
             cacheIn: [String],
             cacheOut: [String],
-            pull: Bool
+            pull: Bool,
+            containerSystemConfig: ContainerSystemConfig
         ) {
             self.buildID = buildID
             self.contentStore = contentStore
@@ -318,6 +321,7 @@ public struct Builder: Sendable {
             self.cacheIn = cacheIn
             self.cacheOut = cacheOut
             self.pull = pull
+            self.containerSystemConfig = containerSystemConfig
         }
     }
 

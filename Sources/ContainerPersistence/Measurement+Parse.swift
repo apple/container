@@ -16,7 +16,7 @@
 
 import Foundation
 
-private let binaryUnits: [Character: UnitInformationStorage] = [
+let binaryUnits: [Character: UnitInformationStorage] = [
     "b": .bytes,
     "k": .kibibytes,
     "m": .mebibytes,

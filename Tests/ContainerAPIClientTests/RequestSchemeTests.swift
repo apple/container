@@ -14,15 +14,13 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerPersistence
 import ContainerizationError
-import Foundation
 import Testing
 
 @testable import ContainerAPIClient
 
 struct RequestSchemeTests {
-    static let defaultDnsDomain = DefaultsStore.get(key: .defaultDNSDomain)
+    static let defaultDnsDomain = "test"
 
     internal struct TestArg {
         let scheme: String
@@ -50,13 +48,13 @@ struct RequestSchemeTests {
 
     func testIsConnectionSecure(arg: TestArg) throws {
         let requestScheme = RequestScheme(rawValue: arg.scheme)!
-        #expect(try requestScheme.schemeFor(host: arg.host) == arg.expected)
+        #expect(try requestScheme.schemeFor(host: arg.host, internalDnsDomain: Self.defaultDnsDomain) == arg.expected)
     }
 
     func testEmptyHostThrowsError() throws {
         #expect(throws: (any Error).self) {
             let requestScheme = RequestScheme(rawValue: "https")!
-            _ = try requestScheme.schemeFor(host: "")
+            _ = try requestScheme.schemeFor(host: "", internalDnsDomain: Self.defaultDnsDomain)
         }
     }
 }

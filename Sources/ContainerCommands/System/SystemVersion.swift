@@ -65,6 +65,8 @@ extension Application {
                 try Output.emit(Output.renderJSON(versions))
             case .yaml:
                 try Output.emit(Output.renderYAML(versions))
+            case .toml:
+                try Output.emit(Output.renderTOML(versions))
             }
         }
 

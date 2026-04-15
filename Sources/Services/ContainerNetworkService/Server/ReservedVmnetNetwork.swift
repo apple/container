@@ -119,7 +119,7 @@ public final class ReservedVmnetNetwork: Network {
         let ipv4Subnet = configuration.ipv4Subnet
         let ipv6Subnet = configuration.ipv6Subnet
 
-        // set the IPv4 subnet if the caller provided one
+        // set the IPv4 subnet
         if let ipv4Subnet {
             let gateway = IPv4Address(ipv4Subnet.lower.value + 1)
             var gatewayAddr = in_addr()
@@ -137,7 +137,7 @@ public final class ReservedVmnetNetwork: Network {
             }
         }
 
-        // set the IPv6 network prefix if the caller provided one
+        // set the IPv6 network prefix
         if let ipv6Subnet {
             let gateway = IPv6Address(ipv6Subnet.lower.value + 1)
             var gatewayAddr = in6_addr()
