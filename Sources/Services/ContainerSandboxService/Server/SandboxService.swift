@@ -76,11 +76,17 @@ public actor SandboxService {
         }
     }
 
-    private static func sshAuthSocketHostUrl(config: ContainerConfiguration) -> URL? {
-        if config.ssh, let sshSocket = Foundation.ProcessInfo.processInfo.environment[Self.sshAuthSocketEnvVar] {
-            return URL(fileURLWithPath: sshSocket)
+    private static func sshAuthSocketHostUrl(config: ContainerConfiguration, hostEnv: [String: String], log: Logger? = nil) -> URL? {
+        guard config.ssh else {
+            return nil
         }
-        return nil
+
+        guard let sshSocket = hostEnv[Self.sshAuthSocketEnvVar] else {
+            log?.warning("ssh forwarding requested but no \(Self.sshAuthSocketEnvVar) found")
+            return nil
+        }
+
+        return URL(fileURLWithPath: sshSocket)
     }
 
     public init(
@@ -140,6 +146,8 @@ public actor SandboxService {
                     message: "container expected to be in created state, got: \(await self.state)"
                 )
             }
+
+            let env = try message.env()
 
             let bundle = ContainerResource.Bundle(path: self.root)
             try bundle.createLogFile()
@@ -216,7 +224,7 @@ public actor SandboxService {
             let id = config.id
             let rootfs = try bundle.containerRootfs.asMount
             let container = try LinuxContainer(id, rootfs: rootfs, vmm: vmm, logger: self.log) { czConfig in
-                try Self.configureContainer(czConfig: &czConfig, config: config)
+                try Self.configureContainer(czConfig: &czConfig, config: config, hostEnv: env, log: self.log)
                 czConfig.interfaces = interfaces
                 czConfig.process.stdout = stdout
                 czConfig.process.stderr = stderr
@@ -710,7 +718,7 @@ public actor SandboxService {
         let czConfig = try self.configureProcessConfig(
             config: processInfo.config,
             stdio: processInfo.io,
-            containerConfig: containerInfo.config
+            containerConfig: containerInfo.config,
         )
 
         let process = try await container.exec(id, configuration: czConfig)
@@ -837,7 +845,9 @@ public actor SandboxService {
 
     private static func configureContainer(
         czConfig: inout LinuxContainer.Configuration,
-        config: ContainerConfiguration
+        config: ContainerConfiguration,
+        hostEnv: [String: String],
+        log: Logger? = nil,
     ) throws {
         czConfig.cpus = config.resources.cpus
         czConfig.memoryInBytes = config.resources.memoryInBytes
@@ -870,7 +880,7 @@ public actor SandboxService {
             czConfig.sockets.append(socketConfig)
         }
 
-        if let socketUrl = Self.sshAuthSocketHostUrl(config: config) {
+        if let socketUrl = Self.sshAuthSocketHostUrl(config: config, hostEnv: hostEnv, log: log) {
             let socketPath = socketUrl.path(percentEncoded: false)
             let attrs = try? FileManager.default.attributesOfItem(atPath: socketPath)
             let permissions = (attrs?[.posixPermissions] as? NSNumber)
@@ -914,14 +924,14 @@ public actor SandboxService {
 
     private static func configureInitialProcess(
         czConfig: inout LinuxContainer.Configuration,
-        config: ContainerConfiguration
+        config: ContainerConfiguration,
     ) throws {
         let process = config.initProcess
 
         czConfig.process.arguments = [process.executable] + process.arguments
         czConfig.process.environmentVariables = process.environment
 
-        if Self.sshAuthSocketHostUrl(config: config) != nil {
+        if config.ssh {
             if !czConfig.process.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
                 czConfig.process.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
             }
@@ -971,7 +981,7 @@ public actor SandboxService {
         proc.arguments = [config.executable] + config.arguments
         proc.environmentVariables = config.environment
 
-        if Self.sshAuthSocketHostUrl(config: containerConfig) != nil {
+        if containerConfig.ssh {
             if !proc.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
                 proc.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
             }
@@ -1153,6 +1163,13 @@ extension XPCMessage {
             throw ContainerizationError(.invalidArgument, message: "empty process configuration")
         }
         return try JSONDecoder().decode(ProcessConfiguration.self, from: data)
+    }
+
+    fileprivate func env() throws -> [String: String] {
+        guard let data = self.dataNoCopy(key: SandboxKeys.env.rawValue) else {
+            throw ContainerizationError(.invalidArgument, message: "empty env")
+        }
+        return try JSONDecoder().decode([String: String].self, from: data)
     }
 
     fileprivate func getAllocatedAttachments() throws -> [AllocatedAttachment] {

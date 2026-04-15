@@ -43,6 +43,9 @@ public enum SandboxKeys: String {
     /// Container statistics
     case statistics
 
+    /// Environment variables passed from terminal.
+    case env
+
     /// Network resource keys.
     case allocatedAttachments
     case networkAdditionalData
