@@ -287,7 +287,7 @@ class CLITest {
             runArgs.append(contentsOf: defaultContainerArgs)
         }
 
-        let (_, _, error, status) = try run(arguments: runArgs)
+        let (_, _, error, status) = try run(arguments: runArgs, env: env)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
