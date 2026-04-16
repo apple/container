@@ -183,7 +183,7 @@ class TestCLIRunLifecycle: CLITest {
 
         defer { try? doStop(name: name) }
 
-        try doLongRun(name: name, args: ["--ssh"])  //, env: ["SSH_AUTH_SOCK": socketPath])
+        try doLongRun(name: name, args: ["--ssh"], env: ["SSH_AUTH_SOCK": socketPath])
         try waitForContainerRunning(name)
 
         // Verify SSH_AUTH_SOCK is set to the expected guest path inside the container.
