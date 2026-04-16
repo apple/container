@@ -113,7 +113,7 @@ public struct ContainerClient: Sendable {
     }
 
     /// Bootstrap the container's init process.
-    public func bootstrap(id: String, stdio: [FileHandle?], env: [String: String]) async throws -> ClientProcess {
+    public func bootstrap(id: String, stdio: [FileHandle?], env: [String: String] = [:]) async throws -> ClientProcess {
         let request = XPCMessage(route: .containerBootstrap)
 
         for (i, h) in stdio.enumerated() {
