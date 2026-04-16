@@ -19,9 +19,11 @@ import ContainerAPIClient
 import ContainerAPIService
 import ContainerLog
 import ContainerNetworkService
+import ContainerPersistence
 import ContainerPlugin
 import ContainerResource
 import ContainerXPC
+import ContainerizationExtras
 import DNSServer
 import Foundation
 import Logging
@@ -316,6 +318,8 @@ extension APIServer {
                 let config = try NetworkConfiguration(
                     id: NetworkClient.defaultNetworkName,
                     mode: .nat,
+                    ipv4Subnet: try? DefaultsStore.getOptional(key: .defaultSubnet).map { try CIDRv4($0) },
+                    ipv6Subnet: try? DefaultsStore.getOptional(key: .defaultIPv6Subnet).map { try CIDRv6($0) },
                     labels: try .init([ResourceLabelKeys.role: ResourceRoleValues.builtin]),
                     pluginInfo: NetworkPluginInfo(plugin: "container-network-vmnet")
                 )
@@ -324,9 +328,13 @@ extension APIServer {
 
             let harness = NetworksHarness(service: service, log: log)
 
-            routes[XPCRoute.networkCreate] = harness.create
-            routes[XPCRoute.networkDelete] = harness.delete
-            routes[XPCRoute.networkList] = harness.list
+            // network creation/deletion/list is not supported pre-macOS 26 (refer to AllocationOnlyVmnetNetwork)
+            if #available(macOS 26, *) {
+                routes[XPCRoute.networkCreate] = harness.create
+                routes[XPCRoute.networkDelete] = harness.delete
+                routes[XPCRoute.networkList] = harness.list
+            }
+
             return service
         }
 
