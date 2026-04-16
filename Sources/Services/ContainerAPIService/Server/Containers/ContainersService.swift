@@ -398,7 +398,7 @@ public actor ContainersService {
     }
 
     /// Bootstrap the init process of the container.
-    public func bootstrap(id: String, stdio: [FileHandle?], env: [String: String]) async throws {
+    public func bootstrap(id: String, stdio: [FileHandle?], env: [String: String] = [:]) async throws {
         log.debug(
             "ContainersService: enter",
             metadata: [
