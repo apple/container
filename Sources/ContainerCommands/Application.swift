@@ -45,7 +45,8 @@ public struct Application: AsyncLoggableCommand {
         abstract: "A container platform for macOS",
         version: ReleaseVersion.singleLine(appName: "container CLI"),
         subcommands: [
-            DefaultCommand.self
+            DefaultCommand.self,
+            HelpCommand.self,
         ],
         groupedSubcommands: [
             CommandGroup(
@@ -54,6 +55,7 @@ public struct Application: AsyncLoggableCommand {
                     ContainerCreate.self,
                     ContainerDelete.self,
                     ContainerExec.self,
+                    ContainerExport.self,
                     ContainerInspect.self,
                     ContainerKill.self,
                     ContainerList.self,
@@ -107,7 +109,6 @@ public struct Application: AsyncLoggableCommand {
         let args = Array(fullArgs.dropFirst())
 
         do {
-            // container -> defaultHelpCommand
             var command = try Application.parseAsRoot(args)
             if var asyncCommand = command as? AsyncParsableCommand {
                 try await asyncCommand.run()
@@ -115,8 +116,8 @@ public struct Application: AsyncLoggableCommand {
                 try command.run()
             }
         } catch {
-            // Regular ol `command` with no args will get caught by DefaultCommand. --help
-            // on the root command will land here.
+            // --help/-h on the root command (e.g. `container --help`) is intercepted
+            // by ArgumentParser and lands here.
             let containsHelp = fullArgs.contains("-h") || fullArgs.contains("--help")
             if fullArgs.count <= 2 && containsHelp {
                 let pluginLoader = try? await createPluginLoader()
@@ -171,6 +172,7 @@ public struct Application: AsyncLoggableCommand {
         return try PluginLoader(
             appRoot: systemHealth.appRoot,
             installRoot: systemHealth.installRoot,
+            logRoot: systemHealth.logRoot,
             pluginDirectories: pluginDirectories,
             pluginFactories: pluginFactories,
             log: bootstrapLogger
@@ -241,11 +243,6 @@ extension Application {
         }
         let altered = pluginLoader.alterCLIHelpText(original: original)
         print(altered)
-    }
-
-    public enum ListFormat: String, CaseIterable, ExpressibleByArgument {
-        case json
-        case table
     }
 
     func isTranslated() throws -> Bool {

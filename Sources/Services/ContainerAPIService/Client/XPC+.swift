@@ -54,11 +54,14 @@ public enum XPCKeys: String {
     case pluginName
     case plugins
     case plugin
+    /// Archive path to export rootfs
+    case archive
 
     /// Health check request.
     case ping
     case appRoot
     case installRoot
+    case logRoot
     case apiServerVersion
     case apiServerCommit
     case apiServerBuild
@@ -106,6 +109,9 @@ public enum XPCKeys: String {
     case systemPlatform
     case kernelForce
 
+    /// Init image reference
+    case initImage
+
     /// Volume
     case volume
     case volumes
@@ -120,6 +126,9 @@ public enum XPCKeys: String {
     /// Container statistics
     case statistics
     case containerSize
+
+    /// Container list filters
+    case listFilters
 
     /// Disk usage
     case diskUsageStats
@@ -142,6 +151,7 @@ public enum XPCRoute: String {
     case containerEvent
     case containerStats
     case containerDiskUsage
+    case containerExport
 
     case pluginLoad
     case pluginGet

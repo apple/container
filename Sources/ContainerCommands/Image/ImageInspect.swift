@@ -17,6 +17,7 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerLog
+import ContainerResource
 import ContainerizationError
 import Foundation
 import Logging
@@ -42,7 +43,7 @@ extension Application {
         }
 
         public func run() async throws {
-            var printable = [any Codable]()
+            var printable: [ImageDetail] = []
             var succeededImages: [String] = []
             var allErrors: [(String, Error)] = []
 
@@ -59,13 +60,17 @@ extension Application {
             }
 
             if !printable.isEmpty {
-                print(try printable.jsonArray())
+                try Output.emit(Output.renderJSON(printable))
             }
 
             if !allErrors.isEmpty {
-                let logger = Logger(label: "ImageInspect", factory: { _ in StderrLogHandler() })
                 for (name, error) in allErrors {
-                    logger.error("\(name): \(error.localizedDescription)")
+                    log.error(
+                        "image inspect failed",
+                        metadata: [
+                            "name": "\(name)",
+                            "error": "\(error.localizedDescription)",
+                        ])
                 }
 
                 throw InspectError(succeeded: succeededImages, failed: allErrors)

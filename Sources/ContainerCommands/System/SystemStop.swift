@@ -64,7 +64,7 @@ extension Application {
                 let client = ContainerClient()
                 log.info("stopping containers", metadata: ["stopTimeoutSeconds": "\(Self.stopTimeoutSeconds)"])
                 do {
-                    let containers = try await client.list()
+                    let containers = try await client.list().map { $0.id }
                     let signal = try Signals.parseSignal("SIGTERM")
                     let opts = ContainerStopOptions(timeoutInSeconds: Self.stopTimeoutSeconds, signal: signal)
                     try await ContainerStop.stopContainers(
@@ -79,9 +79,8 @@ extension Application {
                 log.info("waiting for containers to exit")
                 do {
                     for _ in 0..<Self.shutdownTimeoutSeconds {
-                        let anyRunning = try await client.list()
-                            .contains { $0.status == .running }
-                        guard anyRunning else {
+                        let runningContainers = try await client.list(filters: ContainerListFilters(status: .running))
+                        guard !runningContainers.isEmpty else {
                             break
                         }
                         try await Task.sleep(for: .seconds(1))

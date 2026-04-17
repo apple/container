@@ -28,6 +28,7 @@ struct PluginLoaderTest {
         let loader = try PluginLoader(
             appRoot: tempURL,
             installRoot: URL(filePath: "/usr/local/"),
+            logRoot: nil,
             pluginDirectories: [tempURL],
             pluginFactories: [factory]
         )
@@ -60,6 +61,7 @@ struct PluginLoaderTest {
         let loader = try PluginLoader(
             appRoot: tempURL,
             installRoot: URL(filePath: "/usr/local/"),
+            logRoot: nil,
             pluginDirectories: [tempURL],
             pluginFactories: [factory]
         )
@@ -76,6 +78,7 @@ struct PluginLoaderTest {
         let loader = try PluginLoader(
             appRoot: tempURL,
             installRoot: URL(filePath: "/usr/local/"),
+            logRoot: nil,
             pluginDirectories: [tempURL],
             pluginFactories: [factory]
         )
@@ -171,6 +174,87 @@ struct PluginLoaderTest {
         let filtered = PluginLoader.filterEnvironment(env: env, additionalAllowKeys: [])
 
         #expect(filtered.isEmpty)
+    }
+
+    @Test
+    func testRegisterWithLaunchdDebugTrue() async throws {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let factory = try setupMock(tempURL: tempURL)
+        let loader = try PluginLoader(
+            appRoot: tempURL,
+            installRoot: URL(filePath: "/usr/local/"),
+            logRoot: nil,
+            pluginDirectories: [tempURL],
+            pluginFactories: [factory]
+        )
+
+        let plugin = loader.findPlugin(name: "service")!
+        let stateRoot = tempURL.appendingPathComponent("test-state")
+        try loader.registerWithLaunchd(plugin: plugin, pluginStateRoot: stateRoot, debug: true)
+
+        let plistURL = stateRoot.appendingPathComponent("service.plist")
+        #expect(FileManager.default.fileExists(atPath: plistURL.path))
+
+        let plistData = try Data(contentsOf: plistURL)
+        let plist = try PropertyListSerialization.propertyList(from: plistData, format: nil) as! [String: Any]
+        let programArguments = plist["ProgramArguments"] as! [String]
+
+        #expect(programArguments.contains("--debug"))
+    }
+
+    @Test
+    func testRegisterWithLaunchdDebugFalse() async throws {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let factory = try setupMock(tempURL: tempURL)
+        let loader = try PluginLoader(
+            appRoot: tempURL,
+            installRoot: URL(filePath: "/usr/local/"),
+            logRoot: nil,
+            pluginDirectories: [tempURL],
+            pluginFactories: [factory]
+        )
+
+        let plugin = loader.findPlugin(name: "service")!
+        let stateRoot = tempURL.appendingPathComponent("test-state")
+        try loader.registerWithLaunchd(plugin: plugin, pluginStateRoot: stateRoot, debug: false)
+
+        let plistURL = stateRoot.appendingPathComponent("service.plist")
+        #expect(FileManager.default.fileExists(atPath: plistURL.path))
+
+        let plistData = try Data(contentsOf: plistURL)
+        let plist = try PropertyListSerialization.propertyList(from: plistData, format: nil) as! [String: Any]
+        let programArguments = plist["ProgramArguments"] as! [String]
+
+        #expect(!programArguments.contains("--debug"))
+    }
+
+    @Test
+    func testRegisterWithLaunchdDebugDefault() async throws {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let factory = try setupMock(tempURL: tempURL)
+        let loader = try PluginLoader(
+            appRoot: tempURL,
+            installRoot: URL(filePath: "/usr/local/"),
+            logRoot: nil,
+            pluginDirectories: [tempURL],
+            pluginFactories: [factory]
+        )
+
+        let plugin = loader.findPlugin(name: "service")!
+        let stateRoot = tempURL.appendingPathComponent("test-state")
+        try loader.registerWithLaunchd(plugin: plugin, pluginStateRoot: stateRoot)
+
+        let plistURL = stateRoot.appendingPathComponent("service.plist")
+        #expect(FileManager.default.fileExists(atPath: plistURL.path))
+
+        let plistData = try Data(contentsOf: plistURL)
+        let plist = try PropertyListSerialization.propertyList(from: plistData, format: nil) as! [String: Any]
+        let programArguments = plist["ProgramArguments"] as! [String]
+
+        #expect(!programArguments.contains("--debug"))
     }
 
     private func setupMock(tempURL: URL) throws -> MockPluginFactory {

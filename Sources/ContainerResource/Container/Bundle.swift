@@ -38,7 +38,7 @@ public struct Bundle: Sendable {
         self.path.appendingPathComponent("vminitd.log")
     }
 
-    private var containerRootfsBlock: URL {
+    public var containerRootfsBlock: URL {
         self.path.appendingPathComponent(Self.containerRootFsBlockFilename)
     }
 
@@ -82,7 +82,9 @@ extension Bundle {
         path: URL,
         initialFilesystem: Filesystem,
         kernel: Kernel,
-        containerConfiguration: ContainerConfiguration? = nil
+        containerConfiguration: ContainerConfiguration? = nil,
+        containerRootFilesystem: Filesystem? = nil,
+        options: ContainerCreateOptions? = nil
     ) throws -> Bundle {
         try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true)
         let kbin = path.appendingPathComponent(Self.kernelBinaryFilename)
@@ -107,6 +109,17 @@ extension Bundle {
         if let containerConfiguration {
             try bundle.write(filename: Self.containerConfigFilename, value: containerConfiguration)
         }
+
+        if let rootFsOverride = options?.rootFsOverride {
+            try bundle.setContainerRootFs(fs: rootFsOverride)
+        } else if let containerRootFilesystem {
+            let readonly = containerConfiguration?.readOnly ?? false
+            try bundle.cloneContainerRootFs(cloning: containerRootFilesystem, readonly: readonly)
+        }
+
+        if let options {
+            try bundle.write(filename: "options.json", value: options)
+        }
         return bundle
     }
 }
@@ -122,14 +135,18 @@ extension Bundle {
         path.appendingPathComponent(name)
     }
 
-    public func setContainerRootFs(cloning fs: Filesystem, readonly: Bool = false) throws {
+    public func setContainerRootFs(fs: Filesystem) throws {
+        let fsData = try JSONEncoder().encode(fs)
+        try fsData.write(to: self.containerRootfsConfig)
+    }
+
+    public func cloneContainerRootFs(cloning fs: Filesystem, readonly: Bool = false) throws {
         var mutableFs = fs
         if readonly && !mutableFs.options.contains("ro") {
             mutableFs.options.append("ro")
         }
         let cloned = try mutableFs.clone(to: self.containerRootfsBlock.absolutePath())
-        let fsData = try JSONEncoder().encode(cloned)
-        try fsData.write(to: self.containerRootfsConfig)
+        try setContainerRootFs(fs: cloned)
     }
 
     /// Delete the bundle and all of the resources contained inside.

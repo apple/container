@@ -44,7 +44,7 @@ extension Application {
         )
         var os: String?
 
-        @Option(help: "Limit the push to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)")
+        @Option(help: "Limit the push to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch) [environment: CONTAINER_DEFAULT_PLATFORM]")
         var platform: String?
 
         @OptionGroup
@@ -55,30 +55,18 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            var p: Platform?
-            if let platform {
-                p = try Platform(from: platform)
-            } else if let arch {
-                p = try Platform(from: "\(os ?? "linux")/\(arch)")
-            } else if let os {
-                p = try Platform(from: "\(os)/\(arch ?? Arch.hostArchitecture().rawValue)")
-            }
+            let p = try DefaultPlatform.resolve(platform: platform, os: os, arch: arch, log: log)
 
             let scheme = try RequestScheme(registry.scheme)
             let image = try await ClientImage.get(reference: reference)
 
-            var progressConfig: ProgressConfig
-            switch self.progressFlags.progress {
-            case .none: progressConfig = try ProgressConfig(disableProgressUpdates: true)
-            case .ansi:
-                progressConfig = try ProgressConfig(
-                    description: "Pushing image \(image.reference)",
-                    itemsName: "blobs",
-                    showItems: true,
-                    showSpeed: false,
-                    ignoreSmallSize: true
-                )
-            }
+            let progressConfig = try self.progressFlags.makeConfig(
+                description: "Pushing image \(image.reference)",
+                itemsName: "blobs",
+                showItems: true,
+                showSpeed: false,
+                ignoreSmallSize: true
+            )
 
             let progress = ProgressBar(config: progressConfig)
             defer {

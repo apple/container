@@ -13,10 +13,53 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [-a APP_ROOT | --app-root APP_ROOT] [-l LOG_ROOT | --log-root LOG_ROOT] [-h | --help]
+
+Install the init image for container system.
+
+Options:
+    -a, --app-root APP_ROOT    Install the init image under the APP_ROOT path
+    -l, --log-root LOG_ROOT    Install the init image under the LOG_ROOT path
+    -h, --help                 Show this help message
+
+EOF
+    exit 0
+}
+
+# Parse command line options
+START_ARGS=()
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -a|--app-root)
+            if [[ -z "$2" || "$2" == -* ]]; then
+                echo "Option $1 requires an argument." >&2
+                usage
+            fi
+            START_ARGS+=(--app-root "$2")
+            shift 2
+            ;;
+        -l|--log-root)
+            if [[ -z "$2" || "$2" == -* ]]; then
+                echo "Option $1 requires an argument." >&2
+                usage
+            fi
+            START_ARGS+=(--log-root "$2")
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            ;;
+        *)
+            echo "Invalid option: $1" >&2
+            usage
+            ;;
+    esac
+done
+
 SWIFT="/usr/bin/swift"
 IMAGE_NAME="vminit:latest"
-DEST_DIR="${1:-$(git rev-parse --show-toplevel)/bin}"
-mkdir -p "${DEST_DIR}"
 
 CONTAINERIZATION_VERSION="$(${SWIFT} package show-dependencies --format json | jq -r '.dependencies[] | select(.identity == "containerization") | .version')"
 if [ "${CONTAINERIZATION_VERSION}" == "unspecified" ] ; then
@@ -28,8 +71,12 @@ if [ "${CONTAINERIZATION_VERSION}" == "unspecified" ] ; then
 	echo "Creating InitImage"
 	make -C ${CONTAINERIZATION_PATH} init
 	${CONTAINERIZATION_PATH}/bin/cctl images save -o /tmp/init.tar ${IMAGE_NAME}
+
 	# Sleep because commands after stop and start are racy.
-	bin/container system stop && sleep 3 && bin/container system start && sleep 3
+	bin/container system stop
+    sleep 3
+	bin/container --debug system start "${START_ARGS[@]}"
+	sleep 3
 	bin/container i load -i /tmp/init.tar
 	rm /tmp/init.tar
 fi

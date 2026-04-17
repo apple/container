@@ -18,6 +18,16 @@ import ContainerizationError
 import ContainerizationExtras
 import Foundation
 
+public struct NetworkPluginInfo: Codable, Sendable, Hashable {
+    public let plugin: String
+    public let variant: String?
+
+    public init(plugin: String, variant: String? = nil) {
+        self.plugin = plugin
+        self.variant = variant
+    }
+}
+
 /// Configuration parameters for network creation.
 public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     /// A unique identifier for the network
@@ -36,7 +46,13 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     public let ipv6Subnet: CIDRv6?
 
     /// Key-value labels for the network.
-    public var labels: [String: String] = [:]
+    /// Resource labels should not be mutated, except while building a network configurations.
+    public let labels: ResourceLabels
+
+    /// Details about the network plugin that manages this network.
+    /// FIXME: This field only needs to be optional while we wait for the field
+    /// to be proliferated to most users when they update container.
+    public let pluginInfo: NetworkPluginInfo?
 
     /// Creates a network configuration
     public init(
@@ -44,7 +60,8 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         mode: NetworkMode,
         ipv4Subnet: CIDRv4? = nil,
         ipv6Subnet: CIDRv6? = nil,
-        labels: [String: String] = [:]
+        labels: ResourceLabels = .init(),
+        pluginInfo: NetworkPluginInfo?
     ) throws {
         self.id = id
         self.creationDate = Date()
@@ -52,6 +69,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         self.ipv4Subnet = ipv4Subnet
         self.ipv6Subnet = ipv6Subnet
         self.labels = labels
+        self.pluginInfo = pluginInfo
         try validate()
     }
 
@@ -62,7 +80,8 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         case ipv4Subnet
         case ipv6Subnet
         case labels
-        // TODO: retain for deserialization compatability for now, remove later
+        case pluginInfo
+        // TODO: retain for deserialization compatibility for now, remove later
         case subnet
     }
 
@@ -80,7 +99,9 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         ipv4Subnet = try subnetText.map { try CIDRv4($0) }
         ipv6Subnet = try container.decodeIfPresent(String.self, forKey: .ipv6Subnet)
             .map { try CIDRv6($0) }
-        labels = try container.decodeIfPresent([String: String].self, forKey: .labels) ?? [:]
+        let decodedLabels = try container.decodeIfPresent([String: String].self, forKey: .labels) ?? [:]
+        labels = try .init(decodedLabels)
+        pluginInfo = try container.decodeIfPresent(NetworkPluginInfo.self, forKey: .pluginInfo)
         try validate()
     }
 
@@ -94,33 +115,12 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         try container.encodeIfPresent(ipv4Subnet, forKey: .ipv4Subnet)
         try container.encodeIfPresent(ipv6Subnet, forKey: .ipv6Subnet)
         try container.encode(labels, forKey: .labels)
+        try container.encodeIfPresent(pluginInfo, forKey: .pluginInfo)
     }
 
     private func validate() throws {
         guard id.isValidNetworkID() else {
             throw ContainerizationError(.invalidArgument, message: "invalid network ID: \(id)")
-        }
-
-        for (key, value) in labels {
-            try validateLabel(key: key, value: value)
-        }
-    }
-
-    /// TODO: Extract when we clean up client dependencies.
-    private func validateLabel(key: String, value: String) throws {
-        let keyLengthMax = 128
-        let labelLengthMax = 4096
-        guard key.count <= keyLengthMax else {
-            throw ContainerizationError(.invalidArgument, message: "invalid label, key length is greater than \(keyLengthMax): \(key)")
-        }
-
-        guard key.isValidLabelKey() else {
-            throw ContainerizationError(.invalidArgument, message: "invalid label key: \(key)")
-        }
-
-        let fullLabel = "\(key)=\(value)"
-        guard fullLabel.count <= labelLengthMax else {
-            throw ContainerizationError(.invalidArgument, message: "invalid label, key length is greater than \(labelLengthMax): \(fullLabel)")
         }
     }
 }
@@ -130,15 +130,5 @@ extension String {
     fileprivate func isValidNetworkID() -> Bool {
         let pattern = #"^[a-z0-9](?:[a-z0-9._-]{0,61}[a-z0-9])?$"#
         return self.range(of: pattern, options: .regularExpression) != nil
-    }
-
-    /// Ensure label key conforms to OCI or Docker label guidelines.
-    /// TODO: Extract when we clean up client dependencies.
-    fileprivate func isValidLabelKey() -> Bool {
-        let dockerPattern = #/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*$/#
-        let ociPattern = #/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*(?:/(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*))*$/#
-        let dockerMatch = !self.ranges(of: dockerPattern).isEmpty
-        let ociMatch = !self.ranges(of: ociPattern).isEmpty
-        return dockerMatch || ociMatch
     }
 }

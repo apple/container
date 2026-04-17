@@ -50,7 +50,7 @@ extension Application {
         var output: String?
 
         @Option(
-            help: "Platform for the saved image (format: os/arch[/variant], takes precedence over --os and --arch)"
+            help: "Platform for the saved image (format: os/arch[/variant], takes precedence over --os and --arch) [environment: CONTAINER_DEFAULT_PLATFORM]"
         )
         var platform: String?
 
@@ -60,14 +60,7 @@ extension Application {
         @Argument var references: [String]
 
         public func run() async throws {
-            var p: Platform?
-            if let platform {
-                p = try Platform(from: platform)
-            } else if let arch {
-                p = try Platform(from: "\(os ?? "linux")/\(arch)")
-            } else if let os {
-                p = try Platform(from: "\(os)/\(arch ?? Arch.hostArchitecture().rawValue)")
-            }
+            let p = try DefaultPlatform.resolve(platform: platform, os: os, arch: arch, log: log)
 
             let progressConfig = try ProgressConfig(
                 description: "Saving image(s)"
