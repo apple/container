@@ -474,7 +474,7 @@ public actor ContainersService {
                     id: id,
                     runtime: runtime
                 )
-                try await sandboxClient.bootstrap(stdio: stdio, allocatedAttachments: allocatedAttachments, env: env ?? [:])
+                try await sandboxClient.bootstrap(stdio: stdio, allocatedAttachments: allocatedAttachments, env: env)
 
                 try await self.exitMonitor.registerProcess(
                     id: id,

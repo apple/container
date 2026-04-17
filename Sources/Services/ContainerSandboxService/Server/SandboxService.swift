@@ -76,12 +76,12 @@ public actor SandboxService {
         }
     }
 
-    private static func sshAuthSocketHostUrl(config: ContainerConfiguration, hostEnv: [String: String], log: Logger? = nil) -> URL? {
+    private static func sshAuthSocketHostUrl(config: ContainerConfiguration, hostEnv: [String: String]?, log: Logger? = nil) -> URL? {
         guard config.ssh else {
             return nil
         }
 
-        guard let sshSocket = hostEnv[Self.sshAuthSocketEnvVar] else {
+        guard let sshSocket = hostEnv?[Self.sshAuthSocketEnvVar] else {
             log?.warning("ssh forwarding requested but no \(Self.sshAuthSocketEnvVar) found")
             return nil
         }
@@ -846,7 +846,7 @@ public actor SandboxService {
     private static func configureContainer(
         czConfig: inout LinuxContainer.Configuration,
         config: ContainerConfiguration,
-        hostEnv: [String: String],
+        hostEnv: [String: String]?,
         log: Logger? = nil,
     ) throws {
         czConfig.cpus = config.resources.cpus
@@ -1165,11 +1165,11 @@ extension XPCMessage {
         return try JSONDecoder().decode(ProcessConfiguration.self, from: data)
     }
 
-    fileprivate func env() throws -> [String: String] {
+    fileprivate func env() throws -> [String: String]? {
         guard let data = self.dataNoCopy(key: SandboxKeys.env.rawValue) else {
             throw ContainerizationError(.invalidArgument, message: "empty env")
         }
-        return try JSONDecoder().decode([String: String].self, from: data)
+        return try JSONDecoder().decode([String: String]?.self, from: data)
     }
 
     fileprivate func getAllocatedAttachments() throws -> [AllocatedAttachment] {

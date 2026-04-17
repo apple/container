@@ -77,7 +77,7 @@ public struct SandboxClient: Sendable {
 
 // Runtime Methods
 extension SandboxClient {
-    public func bootstrap(stdio: [FileHandle?], allocatedAttachments: [AllocatedAttachment], env: [String: String] = [:]) async throws {
+    public func bootstrap(stdio: [FileHandle?], allocatedAttachments: [AllocatedAttachment], env: [String: String]? = nil) async throws {
         let request = XPCMessage(route: SandboxRoutes.bootstrap.rawValue)
 
         for (i, h) in stdio.enumerated() {

@@ -62,7 +62,7 @@ public struct ContainersHarness: Sendable {
                 message: "env cannot be empty"
             )
         }
-        let env = try JSONDecoder().decode([String: String].self, from: data)
+        let env = try JSONDecoder().decode([String: String]?.self, from: data)
 
         try await service.bootstrap(id: id, stdio: stdio, env: env)
         return message.reply()
