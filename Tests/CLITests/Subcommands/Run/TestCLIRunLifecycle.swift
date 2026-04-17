@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerizationError
+import Foundation
 import Testing
 
 class TestCLIRunLifecycle: CLITest {
@@ -137,5 +138,44 @@ class TestCLIRunLifecycle: CLITest {
                 cmd: ["foobarbaz"]
             )
         }
+    }
+
+    @Test func testRunStartWithSSHSetsGuestAuthSockPath() throws {
+        guard ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] != nil else {
+            return
+        }
+
+        let name = getTestName()
+        defer {
+            try? doStop(name: name)
+            try? doRemove(name: name, force: true)
+        }
+
+        try doLongRun(name: name, args: ["--ssh"], autoRemove: false)
+        try waitForContainerRunning(name)
+
+        var output = try doExec(name: name, cmd: ["sh", "-lc", "echo -n ${SSH_AUTH_SOCK:-}"])
+        #expect(output.trimmingCharacters(in: .whitespacesAndNewlines) == "/run/host-services/ssh-auth.sock")
+
+        try doStop(name: name)
+        try doStart(name: name)
+        try waitForContainerRunning(name)
+
+        output = try doExec(name: name, cmd: ["sh", "-lc", "echo -n ${SSH_AUTH_SOCK:-}"])
+        #expect(output.trimmingCharacters(in: .whitespacesAndNewlines) == "/run/host-services/ssh-auth.sock")
+    }
+
+    @Test func testRunWithoutSSHDoesNotSetGuestAuthSockPath() throws {
+        let name = getTestName()
+        defer {
+            try? doStop(name: name)
+            try? doRemove(name: name, force: true)
+        }
+
+        try doLongRun(name: name, autoRemove: false)
+        try waitForContainerRunning(name)
+
+        let output = try doExec(name: name, cmd: ["sh", "-lc", "echo -n ${SSH_AUTH_SOCK:-}"])
+        #expect(output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 }
