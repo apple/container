@@ -329,7 +329,8 @@ extension Application {
                         }
                         return results
                     }()
-                    group.addTask { [terminal, buildArg, secretsData, contextDir, ignoreFileData, label, noCache, target, quiet, cacheIn, cacheOut, pull] in
+                    group.addTask {
+                        [terminal, buildArg, secretsData, contextDir, ignoreFileData, label, noCache, target, quiet, cacheIn, cacheOut, pull, exports, imageNames, tempURL, log] in
                         let config = Builder.BuildConfig(
                             buildID: buildID,
                             contentStore: RemoteContentStoreClient(),
