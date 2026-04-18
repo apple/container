@@ -28,8 +28,6 @@ import TerminalProgress
 
 extension Application {
     public struct BuildCommand: AsyncLoggableCommand {
-        private static let hiddenDockerDir = ".com.apple.container.dockerfiles"
-
         public init() {}
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
