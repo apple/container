@@ -33,13 +33,23 @@ public final class ProgressBar: Sendable {
     /// - Parameter config: The configuration for the progress bar.
     public init(config: ProgressConfig) {
         self.config = config
-        term = isatty(config.terminal.fileDescriptor) == 1 ? config.terminal : nil
+        switch config.outputMode {
+        case .ansi, .color:
+            term = isatty(config.terminal.fileDescriptor) == 1 ? config.terminal : nil
+        case .plain:
+            term = config.terminal
+        }
         let state = State(
             description: config.initialDescription, itemsName: config.initialItemsName, totalTasks: config.initialTotalTasks,
             totalItems: config.initialTotalItems,
             totalSize: config.initialTotalSize)
         self.state = Mutex(state)
-        display(EscapeSequence.hideCursor)
+        switch config.outputMode {
+        case .ansi, .color:
+            display(EscapeSequence.hideCursor)
+        case .plain:
+            break
+        }
     }
 
     /// Allows resetting the progress state.
@@ -129,7 +139,12 @@ public final class ProgressBar: Sendable {
             if shouldClear {
                 clear(state: &s)
             }
-            resetCursor()
+            switch config.outputMode {
+            case .ansi, .color:
+                resetCursor()
+            case .plain:
+                break
+            }
         }
     }
 }
@@ -157,8 +172,21 @@ extension ProgressBar {
         guard force || !state.finished else {
             return
         }
+
+        if config.outputMode == .plain && !force {
+            let now = DispatchTime.now()
+            if let lastRender = state.lastPlainRenderTime {
+                let elapsed = now.uptimeNanoseconds - lastRender.uptimeNanoseconds
+                guard elapsed >= 1_000_000_000 else {
+                    return
+                }
+            }
+            state.lastPlainRenderTime = now
+        }
+
         let output = draw(state: state)
-        displayText(output, state: &state)
+        let terminating = config.outputMode == .plain ? "\n" : "\r"
+        displayText(output, state: &state, terminating: terminating)
     }
 
     /// Detail levels for progressive truncation.
@@ -185,7 +213,8 @@ extension ProgressBar {
 
         for detail in DetailLevel.allCases {
             let output = draw(state: state, detail: detail)
-            if output.count <= targetWidth {
+            let length = config.outputMode == .color ? output.visibleLength : output.count
+            if length <= targetWidth {
                 return output
             }
         }
@@ -194,30 +223,37 @@ extension ProgressBar {
     }
 
     func draw(state: State, detail: DetailLevel) -> String {
+        let useColor = config.outputMode == .color
+
+        /// Wraps text in ANSI color when color mode is active; returns text unchanged otherwise.
+        func colored(_ text: String, _ code: String) -> String {
+            useColor ? EscapeSequence.colored(text, code) : text
+        }
+
         var components = [String]()
 
         // Spinner - always shown if configured (unless using progress bar)
         if config.showSpinner && !config.showProgressBar {
             if !state.finished {
                 let spinnerIcon = config.theme.getSpinnerIcon(state.iteration)
-                components.append("\(spinnerIcon)")
+                components.append(colored("\(spinnerIcon)", EscapeSequence.cyan))
             } else {
-                components.append("\(config.theme.done)")
+                components.append(colored("\(config.theme.done)", EscapeSequence.green))
             }
         }
 
         // Tasks [x/y] - always shown if configured
         if config.showTasks, let totalTasks = state.totalTasks {
             let tasks = min(state.tasks, totalTasks)
-            components.append("[\(tasks)/\(totalTasks)]")
+            components.append(colored("[\(tasks)/\(totalTasks)]", EscapeSequence.cyan))
         }
 
         // Description - dropped at noDescription level
         if detail.rawValue < DetailLevel.noDescription.rawValue {
             if config.showDescription && !state.description.isEmpty {
-                components.append("\(state.description)")
+                components.append(colored("\(state.description)", EscapeSequence.bold))
                 if !state.subDescription.isEmpty {
-                    components.append("\(state.subDescription)")
+                    components.append(colored("\(state.subDescription)", EscapeSequence.bold))
                 }
             }
         }
@@ -228,17 +264,27 @@ extension ProgressBar {
 
         // Percent - always shown if configured
         if config.showPercent && total > 0 && allowProgress {
-            components.append("\(state.finished ? "100%" : state.percent)")
+            let percentText = state.finished ? "100%" : state.percent
+            let percentColor = state.finished ? EscapeSequence.green : EscapeSequence.yellow
+            components.append(colored(percentText, percentColor))
         }
 
         // Progress bar - always shown if configured
         if config.showProgressBar, total > 0, allowProgress {
-            let usedWidth = components.joined(separator: " ").count + 45
+            let joinedComponents = components.joined(separator: " ")
+            // 45 reserves space for components rendered after the bar (size, speed, time, etc.)
+            let usedWidth = (useColor ? joinedComponents.visibleLength : joinedComponents.count) + 45
             let remainingWidth = max(config.width - usedWidth, 1)
-            let barLength = state.finished ? remainingWidth : Int(Int64(remainingWidth) * value / total)
+            let barLength = min(remainingWidth, state.finished ? remainingWidth : Int(Int64(remainingWidth) * value / total))
             let barPaddingLength = remainingWidth - barLength
-            let bar = "\(String(repeating: config.theme.bar, count: barLength))\(String(repeating: " ", count: barPaddingLength))"
-            components.append("|\(bar)|")
+            if useColor {
+                let filledBar = EscapeSequence.colored(String(repeating: config.theme.bar, count: barLength), EscapeSequence.green)
+                let emptyBar = String(repeating: " ", count: barPaddingLength)
+                components.append("|\(filledBar)\(emptyBar)|")
+            } else {
+                let bar = "\(String(repeating: config.theme.bar, count: barLength))\(String(repeating: " ", count: barPaddingLength))"
+                components.append("|\(bar)|")
+            }
         }
 
         // Additional components in parens - progressively dropped
@@ -312,7 +358,7 @@ extension ProgressBar {
 
             if additionalComponents.count > 0 {
                 let joinedAdditionalComponents = additionalComponents.joined(separator: ", ")
-                components.append("(\(joinedAdditionalComponents))")
+                components.append(colored("(\(joinedAdditionalComponents))", EscapeSequence.dim))
             }
         }
 
@@ -320,7 +366,7 @@ extension ProgressBar {
         if detail.rawValue < DetailLevel.noTime.rawValue && config.showTime {
             let timeDifferenceSeconds = secondsSinceStart(from: state.startTime)
             let formattedTime = timeDifferenceSeconds.formattedTime()
-            components.append("[\(formattedTime)]")
+            components.append(colored("[\(formattedTime)]", EscapeSequence.dim))
         }
 
         return components.joined(separator: " ")

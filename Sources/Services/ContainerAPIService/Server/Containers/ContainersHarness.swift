@@ -55,7 +55,16 @@ public struct ContainersHarness: Sendable {
             )
         }
         let stdio = message.stdio()
-        try await service.bootstrap(id: id, stdio: stdio)
+
+        guard let data = message.dataNoCopy(key: .env) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "env cannot be empty"
+            )
+        }
+        let env = try JSONDecoder().decode([String: String]?.self, from: data)
+
+        try await service.bootstrap(id: id, stdio: stdio, env: env)
         return message.reply()
     }
 

@@ -22,8 +22,8 @@ import PackageDescription
 
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
-let builderShimVersion = "0.10.0"
-let scVersion = "0.29.0"
+let builderShimVersion = "0.11.0"
+let scVersion = "0.30.1"
 
 let package = Package(
     name: "container",
@@ -57,6 +57,7 @@ let package = Package(
         .package(url: "https://github.com/grpc/grpc-swift.git", from: "1.26.0"),
         .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.20.1"),
         .package(url: "https://github.com/swiftlang/swift-docc-plugin.git", from: "1.1.0"),
+        .package(url: "https://github.com/mattt/swift-toml.git", from: "2.0.0"),
     ],
     targets: [
         .executableTarget(
@@ -122,6 +123,13 @@ let package = Package(
                 "ContainerBuild"
             ]
         ),
+        .testTarget(
+            name: "ContainerCommandsTests",
+            dependencies: [
+                "ContainerCommands",
+                "ContainerResource",
+            ]
+        ),
         .executableTarget(
             name: "container-apiserver",
             dependencies: [
@@ -145,7 +153,7 @@ let package = Package(
                 "ContainerOS",
                 "DNSServer",
             ],
-            path: "Sources/Helpers/APIServer"
+            path: "Sources/APIServer"
         ),
         .target(
             name: "ContainerAPIService",
@@ -211,7 +219,8 @@ let package = Package(
                 "ContainerVersion",
                 "ContainerXPC",
             ],
-            path: "Sources/Helpers/Images"
+            path: "Sources/Plugins/CoreImages",
+            exclude: ["config.toml"]
         ),
         .target(
             name: "ContainerImagesService",
@@ -259,7 +268,8 @@ let package = Package(
                 "ContainerVersion",
                 "ContainerXPC",
             ],
-            path: "Sources/Helpers/NetworkVmnet"
+            path: "Sources/Plugins/NetworkVmnet",
+            exclude: ["config.toml"]
         ),
         .target(
             name: "ContainerNetworkService",
@@ -308,7 +318,8 @@ let package = Package(
                 "ContainerVersion",
                 "ContainerXPC",
             ],
-            path: "Sources/Helpers/RuntimeLinux"
+            path: "Sources/Plugins/RuntimeLinux",
+            exclude: ["config.toml"]
         ),
         .target(
             name: "ContainerSandboxService",
@@ -340,6 +351,7 @@ let package = Package(
         .target(
             name: "ContainerResource",
             dependencies: [
+                .product(name: "Collections", package: "swift-collections"),
                 .product(name: "Containerization", package: "containerization"),
                 "ContainerXPC",
                 "CAuditToken",
@@ -377,6 +389,7 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "ContainerizationOS", package: "containerization"),
                 .product(name: "SystemPackage", package: "swift-system"),
+                .product(name: "TOML", package: "swift-toml"),
                 "ContainerVersion",
             ]
         ),

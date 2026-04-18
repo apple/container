@@ -40,55 +40,32 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let networks = try await ClientNetwork.list()
-            try printNetworks(networks: networks, format: format)
-        }
-
-        private func createHeader() -> [[String]] {
-            [["NETWORK", "STATE", "SUBNET"]]
-        }
-
-        func printNetworks(networks: [NetworkState], format: ListFormat) throws {
-            if format == .json {
-                let printables = networks.map {
-                    PrintableNetwork($0)
-                }
-                let data = try JSONEncoder().encode(printables)
-                print(String(decoding: data, as: UTF8.self))
-
-                return
-            }
-
-            if self.quiet {
-                networks.forEach {
-                    print($0.id)
-                }
-                return
-            }
-
-            var rows = createHeader()
-            for network in networks {
-                rows.append(network.asRow)
-            }
-
-            let formatter = TableOutput(rows: rows)
-            print(formatter.format())
+            let networkClient = NetworkClient()
+            let networks = try await networkClient.list()
+            let items = networks.map { PrintableNetwork($0) }
+            try Output.render(json: items, display: items, format: format, quiet: quiet)
         }
     }
 }
 
-extension NetworkState {
-    var asRow: [String] {
-        switch self {
-        case .created(_):
-            return [self.id, self.state, "none"]
-        case .running(_, let status):
+extension PrintableNetwork: ListDisplayable {
+    public static var tableHeader: [String] {
+        ["NETWORK", "STATE", "SUBNET"]
+    }
+
+    public var tableRow: [String] {
+        if let status {
             return [self.id, self.state, status.ipv4Subnet.description]
         }
+        return [self.id, self.state, "none"]
+    }
+
+    public var quietValue: String {
+        self.id
     }
 }
 
-public struct PrintableNetwork: Codable {
+public struct PrintableNetwork: Codable, Sendable {
     let id: String
     let state: String
     let config: NetworkConfiguration

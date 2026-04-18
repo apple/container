@@ -55,31 +55,38 @@ public actor SandboxService {
     private static let sshAuthSocketEnvVar = "SSH_AUTH_SOCK"
 
     class ExitWaiter {
-        public var exitCode: Int32? = nil
+        public var exitStatus: ExitStatus? = nil
         public var continuations: [CheckedContinuation<ExitStatus, Never>] = []
 
-        public func register(_ cc: CheckedContinuation<ExitStatus, Never>) {
+        public func wait(_ cc: CheckedContinuation<ExitStatus, Never>) {
+            if let exitStatus = exitStatus {
+                // `doExit` has already been called for this waiter
+                cc.resume(returning: exitStatus)
+                return
+            }
             continuations.append(cc)
         }
 
-        public func doExit(code: Int32) {
+        public func doExit(exitStatus: ExitStatus) {
             for cc in continuations {
-                cc.resume(returning: ExitStatus(exitCode: code))
+                cc.resume(returning: exitStatus)
             }
 
-            exitCode = code
-        }
-
-        public func exited() -> Bool {
-            exitCode != nil
+            self.exitStatus = exitStatus
         }
     }
 
-    private static func sshAuthSocketHostUrl(config: ContainerConfiguration) -> URL? {
-        if config.ssh, let sshSocket = Foundation.ProcessInfo.processInfo.environment[Self.sshAuthSocketEnvVar] {
-            return URL(fileURLWithPath: sshSocket)
+    private static func sshAuthSocketHostUrl(config: ContainerConfiguration, hostEnv: [String: String]?, log: Logger? = nil) -> URL? {
+        guard config.ssh else {
+            return nil
         }
-        return nil
+
+        guard let sshSocket = hostEnv?[Self.sshAuthSocketEnvVar] else {
+            log?.warning("ssh forwarding requested but no \(Self.sshAuthSocketEnvVar) found")
+            return nil
+        }
+
+        return URL(fileURLWithPath: sshSocket)
     }
 
     public init(
@@ -139,6 +146,8 @@ public actor SandboxService {
                     message: "container expected to be in created state, got: \(await self.state)"
                 )
             }
+
+            let env = try message.env()
 
             let bundle = ContainerResource.Bundle(path: self.root)
             try bundle.createLogFile()
@@ -215,7 +224,7 @@ public actor SandboxService {
             let id = config.id
             let rootfs = try bundle.containerRootfs.asMount
             let container = try LinuxContainer(id, rootfs: rootfs, vmm: vmm, logger: self.log) { czConfig in
-                try Self.configureContainer(czConfig: &czConfig, config: config)
+                try Self.configureContainer(czConfig: &czConfig, config: config, hostEnv: env, log: self.log)
                 czConfig.interfaces = interfaces
                 czConfig.process.stdout = stdout
                 czConfig.process.stderr = stderr
@@ -620,11 +629,7 @@ public actor SandboxService {
         }
 
         let exitStatus = await withCheckedContinuation { cc in
-            // Is this safe since we are in an actor? :(
-            let (added, exitCode) = self.addWaiter(id: id, cont: cc)
-            if !added {
-                cc.resume(returning: ExitStatus(exitCode: exitCode ?? -1))
-            }
+            self.waitForExit(id: id, cont: cc)
         }
         let reply = message.reply()
         reply.set(key: SandboxKeys.exitCode.rawValue, value: Int64(exitStatus.exitCode))
@@ -713,7 +718,7 @@ public actor SandboxService {
         let czConfig = try self.configureProcessConfig(
             config: processInfo.config,
             stdio: processInfo.io,
-            containerConfig: containerInfo.config
+            containerConfig: containerInfo.config,
         )
 
         let process = try await container.exec(id, configuration: czConfig)
@@ -840,7 +845,9 @@ public actor SandboxService {
 
     private static func configureContainer(
         czConfig: inout LinuxContainer.Configuration,
-        config: ContainerConfiguration
+        config: ContainerConfiguration,
+        hostEnv: [String: String]?,
+        log: Logger? = nil,
     ) throws {
         czConfig.cpus = config.resources.cpus
         czConfig.memoryInBytes = config.resources.memoryInBytes
@@ -873,7 +880,7 @@ public actor SandboxService {
             czConfig.sockets.append(socketConfig)
         }
 
-        if let socketUrl = Self.sshAuthSocketHostUrl(config: config) {
+        if let socketUrl = Self.sshAuthSocketHostUrl(config: config, hostEnv: hostEnv, log: log) {
             let socketPath = socketUrl.path(percentEncoded: false)
             let attrs = try? FileManager.default.attributesOfItem(atPath: socketPath)
             let permissions = (attrs?[.posixPermissions] as? NSNumber)
@@ -903,8 +910,9 @@ public actor SandboxService {
     }
 
     private func getDefaultNameservers(allocatedAttachments: [AllocatedAttachment]) async throws -> [String] {
+        let networkClient = NetworkClient()
         for allocatedAttach in allocatedAttachments {
-            let state = try await ClientNetwork.get(id: allocatedAttach.attachment.network)
+            let state = try await networkClient.get(id: allocatedAttach.attachment.network)
             guard case .running(_, let status) = state else {
                 continue
             }
@@ -916,14 +924,14 @@ public actor SandboxService {
 
     private static func configureInitialProcess(
         czConfig: inout LinuxContainer.Configuration,
-        config: ContainerConfiguration
+        config: ContainerConfiguration,
     ) throws {
         let process = config.initProcess
 
         czConfig.process.arguments = [process.executable] + process.arguments
         czConfig.process.environmentVariables = process.environment
 
-        if Self.sshAuthSocketHostUrl(config: config) != nil {
+        if config.ssh {
             if !czConfig.process.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
                 czConfig.process.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
             }
@@ -938,6 +946,10 @@ public actor SandboxService {
                 soft: $0.soft
             )
         }
+        czConfig.process.capabilities = try Self.effectiveCapabilities(
+            capAdd: config.capAdd,
+            capDrop: config.capDrop
+        )
         switch process.user {
         case .raw(let name):
             czConfig.process.user = .init(
@@ -969,7 +981,7 @@ public actor SandboxService {
         proc.arguments = [config.executable] + config.arguments
         proc.environmentVariables = config.environment
 
-        if Self.sshAuthSocketHostUrl(config: containerConfig) != nil {
+        if containerConfig.ssh {
             if !proc.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
                 proc.environmentVariables.append("\(Self.sshAuthSocketEnvVar)=\(Self.sshAuthSocketGuestPath)")
             }
@@ -984,6 +996,10 @@ public actor SandboxService {
                 soft: $0.soft
             )
         }
+        proc.capabilities = try Self.effectiveCapabilities(
+            capAdd: containerConfig.capAdd,
+            capDrop: containerConfig.capDrop
+        )
         switch config.user {
         case .raw(let name):
             proc.user = .init(
@@ -1004,6 +1020,37 @@ public actor SandboxService {
         }
 
         return proc
+    }
+
+    /// Compute effective Linux capabilities from the OCI default set, capAdd, and capDrop.
+    /// Steps are processed in order, so later steps override earlier ones:
+    /// 1. If "ALL" in capDrop, start empty; otherwise start from OCI defaults.
+    /// 2. If "ALL" in capAdd, replace with all caps (overriding step 1); otherwise add individual caps.
+    /// 3. Remove individual capDrop entries (skipping "ALL" sentinel).
+    private static func effectiveCapabilities(capAdd: [String], capDrop: [String]) throws -> Containerization.LinuxCapabilities {
+        // Step 1: Determine base set
+        var caps: Set<CapabilityName>
+        if capDrop.contains("ALL") {
+            caps = []
+        } else {
+            caps = Set(Containerization.LinuxCapabilities.defaultOCICapabilities.effective)
+        }
+
+        // Step 2: Process adds
+        if capAdd.contains("ALL") {
+            caps = Set(CapabilityName.allCases)
+        } else {
+            for name in capAdd {
+                caps.insert(try CapabilityName(rawValue: name))
+            }
+        }
+
+        // Step 3: Remove individual drops (skip "ALL" sentinel)
+        for name in capDrop where name != "ALL" {
+            caps.remove(try CapabilityName(rawValue: name))
+        }
+
+        return Containerization.LinuxCapabilities(capabilities: Array(caps))
     }
 
     private nonisolated func closeHandle(_ handle: Int32) throws {
@@ -1116,6 +1163,13 @@ extension XPCMessage {
             throw ContainerizationError(.invalidArgument, message: "empty process configuration")
         }
         return try JSONDecoder().decode(ProcessConfiguration.self, from: data)
+    }
+
+    fileprivate func env() throws -> [String: String]? {
+        guard let data = self.dataNoCopy(key: SandboxKeys.env.rawValue) else {
+            throw ContainerizationError(.invalidArgument, message: "empty env")
+        }
+        return try JSONDecoder().decode([String: String]?.self, from: data)
     }
 
     fileprivate func getAllocatedAttachments() throws -> [AllocatedAttachment] {
@@ -1299,24 +1353,18 @@ extension SandboxService {
         waiters[id] = ExitWaiter()
     }
 
-    private func addWaiter(id: String, cont: CheckedContinuation<ExitStatus, Never>) -> (Bool, Int32?) {
-        guard let current = waiters[id] else {
-            // No waiter initialized at all
-            return (false, nil)
+    private func waitForExit(id: String, cont: CheckedContinuation<ExitStatus, Never>) {
+        guard let waiter = waiters[id] else {
+            // No waiter was initialized at all, resume immediately
+            cont.resume(returning: ExitStatus(exitCode: -1))
+            return
         }
 
-        if current.exited() {
-            // Waiter initialzed but already exited
-            return (false, current.exitCode)
-        }
-
-        // Waiter initialized and not exited. Guaranteed to exit later.
-        current.register(cont)
-        return (true, nil)
+        waiter.wait(cont)
     }
 
     private func releaseWaiters(for id: String, status: ExitStatus) {
-        waiters[id]?.doExit(code: status.exitCode)
+        waiters[id]?.doExit(exitStatus: status)
     }
 
     private func setUnderlyingProcess(_ id: String, _ process: LinuxProcess) throws {

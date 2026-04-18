@@ -64,17 +64,12 @@ extension Application {
             var exitCode: Int32 = 127
             let id = Utility.createContainerID(name: self.managementFlags.name)
 
-            var progressConfig: ProgressConfig
-            switch self.progressFlags.progress {
-            case .none: progressConfig = try ProgressConfig(disableProgressUpdates: true)
-            case .ansi:
-                progressConfig = try ProgressConfig(
-                    showTasks: true,
-                    showItems: true,
-                    ignoreSmallSize: true,
-                    totalTasks: 6
-                )
-            }
+            let progressConfig = try self.progressFlags.makeConfig(
+                showTasks: true,
+                showItems: true,
+                ignoreSmallSize: true,
+                totalTasks: 6
+            )
 
             let progress = ProgressBar(config: progressConfig)
             defer {
@@ -128,7 +123,12 @@ extension Application {
                     try? io.close()
                 }
 
-                let process = try await client.bootstrap(id: id, stdio: io.stdio)
+                var env: [String: String] = [:]
+                if let sshAuthSock = ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] {
+                    env["SSH_AUTH_SOCK"] = sshAuthSock
+                }
+
+                let process = try await client.bootstrap(id: id, stdio: io.stdio, env: env)
                 progress.finish()
 
                 if !self.managementFlags.cidfile.isEmpty {

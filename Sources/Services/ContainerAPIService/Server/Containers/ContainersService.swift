@@ -398,12 +398,13 @@ public actor ContainersService {
     }
 
     /// Bootstrap the init process of the container.
-    public func bootstrap(id: String, stdio: [FileHandle?]) async throws {
+    public func bootstrap(id: String, stdio: [FileHandle?], env: [String: String]?) async throws {
         log.debug(
             "ContainersService: enter",
             metadata: [
                 "func": "\(#function)",
                 "id": "\(id)",
+                "env": "\(env ?? [:])",
             ]
         )
         defer {
@@ -473,7 +474,7 @@ public actor ContainersService {
                     id: id,
                     runtime: runtime
                 )
-                try await sandboxClient.bootstrap(stdio: stdio, allocatedAttachments: allocatedAttachments)
+                try await sandboxClient.bootstrap(stdio: stdio, allocatedAttachments: allocatedAttachments, env: env)
 
                 try await self.exitMonitor.registerProcess(
                     id: id,

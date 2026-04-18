@@ -38,38 +38,34 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let resolver: HostDNSResolver = HostDNSResolver()
+            let resolver = HostDNSResolver()
             let domains = resolver.listDomains()
-            try printDomains(domains: domains, format: format)
+
+            try Output.render(
+                json: domains,
+                display: domains.map { PrintableDomain($0) },
+                format: format, quiet: quiet
+            )
         }
+    }
+}
 
-        private func createHeader() -> [[String]] {
-            [["DOMAIN"]]
-        }
+private struct PrintableDomain: ListDisplayable {
+    let domain: String
 
-        func printDomains(domains: [String], format: ListFormat) throws {
-            if format == .json {
-                let data = try JSONEncoder().encode(domains)
-                print(String(decoding: data, as: UTF8.self))
+    init(_ domain: String) {
+        self.domain = domain
+    }
 
-                return
-            }
+    static var tableHeader: [String] {
+        ["DOMAIN"]
+    }
 
-            if self.quiet {
-                domains.forEach { domain in
-                    print(domain)
-                }
-                return
-            }
+    var tableRow: [String] {
+        [domain]
+    }
 
-            var rows = createHeader()
-            for domain in domains {
-                rows.append([domain])
-            }
-
-            let formatter = TableOutput(rows: rows)
-            print(formatter.format())
-        }
-
+    var quietValue: String {
+        domain
     }
 }

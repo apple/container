@@ -15,8 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-
-private let configFilename: String = "config.json"
+import Logging
 
 /// Describes the configuration and binary file locations for a plugin.
 public protocol PluginFactory: Sendable {
@@ -28,13 +27,36 @@ public protocol PluginFactory: Sendable {
 
 /// Default layout which uses a Unix-like structure.
 public struct DefaultPluginFactory: PluginFactory {
-    public init() {}
+    // Order matters: earlier entries take priority during config file discovery.
+    private static let configFilenames: [String] = ["config.toml", "config.json"]
+    private let logger: Logger
+
+    public init(logger: Logger) {
+        self.logger = logger
+    }
+
+    /// Returns the URL of the first config file found in `directory`, preferring TOML over JSON.
+    static func findConfigURL(in directory: URL, logger: Logger) -> URL? {
+        let fm = FileManager.default
+        for filename in configFilenames {
+            let url = directory.appending(path: filename)
+            if fm.fileExists(atPath: url.path) {
+                if url.pathExtension == "json" {
+                    logger.warning(
+                        "Plugin using legacy config.json; please migrate to config.toml",
+                        metadata: ["path": "\(url.path)"]
+                    )
+                }
+                return url
+            }
+        }
+        return nil
+    }
 
     public func create(installURL: URL) throws -> Plugin? {
         let fm = FileManager.default
 
-        let configURL = installURL.appending(path: configFilename)
-        guard fm.fileExists(atPath: configURL.path) else {
+        guard let configURL = Self.findConfigURL(in: installURL, logger: logger) else {
             return nil
         }
 
@@ -48,7 +70,11 @@ public struct DefaultPluginFactory: PluginFactory {
             return nil
         }
 
-        return Plugin(binaryURL: binaryURL, config: config)
+        var resourceURL: URL? = nil
+        if case let url = installURL.appending(path: "resources"), fm.fileExists(atPath: url.path) {
+            resourceURL = url
+        }
+        return Plugin(binaryURL: binaryURL, config: config, resourceURL: resourceURL)
     }
 
     public func create(parentURL: URL, name: String) throws -> Plugin? {
@@ -59,18 +85,21 @@ public struct DefaultPluginFactory: PluginFactory {
 /// Layout which uses a macOS application bundle structure.
 public struct AppBundlePluginFactory: PluginFactory {
     private static let appSuffix = ".app"
+    private let logger: Logger
 
-    public init() {}
+    public init(logger: Logger) {
+        self.logger = logger
+    }
 
     public func create(installURL: URL) throws -> Plugin? {
         let fm = FileManager.default
 
-        let configURL =
+        let contentResources =
             installURL
             .appending(path: "Contents")
             .appending(path: "Resources")
-            .appending(path: configFilename)
-        guard fm.fileExists(atPath: configURL.path) else {
+
+        guard let configURL = DefaultPluginFactory.findConfigURL(in: contentResources, logger: logger) else {
             return nil
         }
 
@@ -92,7 +121,12 @@ public struct AppBundlePluginFactory: PluginFactory {
             return nil
         }
 
-        return Plugin(binaryURL: binaryURL, config: config)
+        var resourceURL: URL? = nil
+        if case let url = contentResources.appending(path: "resources"), fm.fileExists(atPath: url.path) {
+            resourceURL = url
+        }
+
+        return Plugin(binaryURL: binaryURL, config: config, resourceURL: resourceURL)
     }
 
     public func create(parentURL: URL, name: String) throws -> Plugin? {

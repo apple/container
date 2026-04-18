@@ -43,6 +43,8 @@ container run [<options>] <image> [<arguments> ...]
 **Management Options**
 
 *   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: arm64)
+*   `--cap-add <cap>`: Add a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
+*   `--cap-drop <cap>`: Drop a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
 *   `--cidfile <cidfile>`: Write the container ID to the path provided
 *   `-d, --detach`: Run the container and detach from the process
 *   `--dns <ip>`: DNS nameserver IP address
@@ -89,7 +91,7 @@ container run [<options>] <image> [<arguments> ...]
 
 **Progress Options**
 
-*   `--progress <type>`: Progress type (format: none|ansi) (default: ansi)
+*   `--progress <type>`: Progress type (format: none|ansi|plain|color) (default: ansi)
 
 **Examples**
 
@@ -204,6 +206,8 @@ container create [<options>] <image> [<arguments> ...]
 **Management Options**
 
 *   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: arm64)
+*   `--cap-add <cap>`: Add a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
+*   `--cap-drop <cap>`: Drop a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
 *   `--cidfile <cidfile>`: Write the container ID to the path provided
 *   `-d, --detach`: Run the container and detach from the process
 *   `--dns <ip>`: DNS nameserver IP address
@@ -510,7 +514,7 @@ container image pull [--debug] [--scheme <scheme>] [--progress <type>] [--arch <
 **Options**
 
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
-*   `--progress <type>`: Progress type (format: none|ansi) (default: ansi)
+*   `--progress <type>`: Progress type (format: none|ansi|plain|color) (default: ansi)
 *   `-a, --arch <arch>`: Limit the pull to the specified architecture
 *   `--os <os>`: Limit the pull to the specified OS
 *   `--platform <platform>`: Limit the pull to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)
@@ -532,7 +536,7 @@ container image push [--scheme <scheme>] [--progress <type>] [--arch <arch>] [--
 **Options**
 
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
-*   `--progress <type>`: Progress type (format: none|ansi) (default: ansi)
+*   `--progress <type>`: Progress type (format: none|ansi|plain|color) (default: ansi)
 *   `-a, --arch <arch>`: Limit the push to the specified architecture
 *   `--os <os>`: Limit the push to the specified OS
 *   `--platform <platform>`: Limit the push to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)

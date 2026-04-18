@@ -73,7 +73,7 @@ extension Application {
 
             for mount in container.configuration.mounts where mount.isVirtiofs {
                 if !FileManager.default.fileExists(atPath: mount.source) {
-                    throw ContainerizationError(.invalidState, message: "path '\(mount.source)' is not a directory")
+                    throw ContainerizationError(.invalidState, message: "mount source path '\(mount.source)' does not exist")
                 }
             }
 
@@ -87,7 +87,12 @@ extension Application {
                     try? io.close()
                 }
 
-                let process = try await client.bootstrap(id: container.id, stdio: io.stdio)
+                var env: [String: String] = [:]
+                if let sshAuthSock = ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] {
+                    env["SSH_AUTH_SOCK"] = sshAuthSock
+                }
+
+                let process = try await client.bootstrap(id: container.id, stdio: io.stdio, env: env)
                 progress.finish()
 
                 if detach {

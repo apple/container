@@ -29,7 +29,7 @@ extension Application {
         @Option(name: .long, help: "Format of the output")
         var format: ListFormat = .table
 
-        @Flag(name: .shortAndLong, help: "Only output the registry name")
+        @Flag(name: .shortAndLong, help: "Only output the registry hostname")
         var quiet = false
 
         public init() {}
@@ -43,44 +43,36 @@ extension Application {
             let registryInfos = try keychain.list()
             let registries = registryInfos.map { RegistryResource(from: $0) }
 
-            try printRegistries(registries: registries, format: format)
-        }
-
-        private func createHeader() -> [[String]] {
-            [["HOSTNAME", "USERNAME", "MODIFIED", "CREATED"]]
-        }
-
-        private func printRegistries(registries: [RegistryResource], format: ListFormat) throws {
-            if format == .json {
-                let data = try JSONEncoder().encode(registries)
-                print(String(decoding: data, as: UTF8.self))
-                return
-            }
-
-            if self.quiet {
-                registries.forEach {
-                    print($0.name)
-                }
-                return
-            }
-
-            var rows = createHeader()
-            for registry in registries {
-                rows.append(registry.asRow)
-            }
-
-            let formatter = TableOutput(rows: rows)
-            print(formatter.format())
+            try Output.render(
+                json: registries,
+                display: registries.map { PrintableRegistry($0) },
+                format: format, quiet: quiet
+            )
         }
     }
 }
-extension RegistryResource {
-    fileprivate var asRow: [String] {
+
+private struct PrintableRegistry: ListDisplayable {
+    let registry: RegistryResource
+
+    init(_ registry: RegistryResource) {
+        self.registry = registry
+    }
+
+    static var tableHeader: [String] {
+        ["HOSTNAME", "USERNAME", "MODIFIED", "CREATED"]
+    }
+
+    var tableRow: [String] {
         [
-            self.name,
-            self.username,
-            self.modificationDate.ISO8601Format(),
-            self.creationDate.ISO8601Format(),
+            registry.name,
+            registry.username,
+            registry.modificationDate.ISO8601Format(),
+            registry.creationDate.ISO8601Format(),
         ]
+    }
+
+    var quietValue: String {
+        registry.name
     }
 }

@@ -357,13 +357,13 @@ extension TestCLIBuildBase {
                 // test 1
                 .directory("Test1Source"),
                 .directory("Test1Source2"),
-                .file("Test1Source/test.yaml", content: .zeroFilled(size: 1)),
+                .file("Test1Source/test.yaml", content: .zeroFilled(size: 200)),
                 .symbolicLink("Test1Source2/test.yaml", target: "Test1Source/test.yaml"),
 
                 // test 2
                 .directory("Test2Source"),
                 .directory("Test2Source2"),
-                .file("Test2Source/Test/Test/test.yaml", content: .zeroFilled(size: 1)),
+                .file("Test2Source/Test/Test/test.yaml", content: .zeroFilled(size: 300)),
                 .symbolicLink("Test2Source2/Test/test.yaml", target: "Test2Source/Test/Test/test.yaml"),
 
                 // test 3
@@ -1268,6 +1268,142 @@ extension TestCLIBuildBase {
                 tags: [imageName],
                 tempDir: tempDir,
                 otherArgs: ["--pull", "--no-cache"]
+            )
+            #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
+        }
+
+        @Test func testBuildQuotedImageDockerfileArg() throws {
+            let tempDir: URL = try createTempDir()
+            defer {
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
+            let dockerfile: String =
+                """
+                ARG IMAGE="ghcr.io/linuxcontainers/alpine:3.20"
+                FROM $IMAGE
+                RUN test -f /etc/alpine-release
+                """
+            try createContext(tempDir: tempDir, dockerfile: dockerfile)
+
+            let imageName = "registry.local/quoted-image-dockerfile-arg:\(UUID().uuidString)"
+            try self.build(tag: imageName, tempDir: tempDir)
+            #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
+        }
+
+        @Test func testBuildQuotedStringDockerfileArg() throws {
+            let tempDir: URL = try createTempDir()
+            defer {
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
+            let dockerfile: String =
+                """
+                FROM ghcr.io/linuxcontainers/alpine:3.20
+                ARG MYSTRING='"Hello, world!"'
+                RUN test "$MYSTRING" = '"Hello, world!"'
+                """
+            try createContext(tempDir: tempDir, dockerfile: dockerfile)
+
+            let imageName = "registry.local/quoted-string-dockerfile-arg:\(UUID().uuidString)"
+            try self.build(tag: imageName, tempDir: tempDir)
+            #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
+        }
+
+        @Test func testBuildForwardReferencedDockerfileArg() throws {
+            let tempDir: URL = try createTempDir()
+            defer {
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
+            let dockerfile: String =
+                """
+                ARG ALPINE="ghcr.io/linuxcontainers/alpine"
+                ARG IMAGE="${ALPINE}:3.20"
+                FROM $IMAGE
+                RUN test -f /etc/alpine-release
+                """
+            try createContext(tempDir: tempDir, dockerfile: dockerfile)
+
+            let imageName = "registry.local/forward-referenced-dockerfile-arg:\(UUID().uuidString)"
+            try self.build(tag: imageName, tempDir: tempDir)
+            #expect(
+                try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)"
+            )
+        }
+
+        @Test func testBuildQuotedImageBuildArg() throws {
+            let tempDir: URL = try createTempDir()
+            defer {
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
+            let dockerfile: String =
+                """
+                ARG IMAGE
+                FROM $IMAGE
+                RUN test -f /etc/alpine-release
+                """
+            try createContext(tempDir: tempDir, dockerfile: dockerfile)
+
+            let imageName = "registry.local/quoted-image-build-arg:\(UUID().uuidString)"
+            try self.build(
+                tag: imageName,
+                tempDir: tempDir,
+                buildArgs: [
+                    "IMAGE=ghcr.io/linuxcontainers/alpine:3.20"
+                ]
+            )
+            #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
+        }
+
+        @Test func testBuildQuotedStringBuildArg() throws {
+            let tempDir: URL = try createTempDir()
+            defer {
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
+            let dockerfile: String =
+                """
+                FROM ghcr.io/linuxcontainers/alpine:3.20
+                ARG MYSTRING
+                RUN test "$MYSTRING" = '"Hello, world!"'
+                """
+            try createContext(tempDir: tempDir, dockerfile: dockerfile)
+
+            let imageName = "registry.local/quoted-string-build-arg:\(UUID().uuidString)"
+            try self.build(
+                tag: imageName,
+                tempDir: tempDir,
+                buildArgs: [
+                    "MYSTRING=\"Hello, world!\""
+                ]
+            )
+            #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
+        }
+
+        @Test func testBuildForwardReferencedBuildArg() throws {
+            let tempDir: URL = try createTempDir()
+            defer {
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
+            let dockerfile: String =
+                """
+                ARG ALPINE
+                ARG IMAGE="$ALPINE:3.20"
+                FROM $IMAGE
+                RUN test -f /etc/alpine-release
+                """
+            try createContext(tempDir: tempDir, dockerfile: dockerfile)
+
+            let imageName = "registry.local/forward-referenced-build-arg:\(UUID().uuidString)"
+            try self.build(
+                tag: imageName,
+                tempDir: tempDir,
+                buildArgs: [
+                    "ALPINE=ghcr.io/linuxcontainers/alpine"
+                ]
             )
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }

@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025-2026 Apple Inc. and the container project authors.
+// Copyright © 2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,17 +14,23 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ArgumentParser
-import ContainerVersion
+/// Protocol for errors with a stable code and structured metadata.
+/// This allows the client to present the error as it chooses.
 
-@main
-struct NetworkVmnetHelper: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
-        commandName: "container-network-vmnet",
-        abstract: "XPC service for managing a vmnet network",
-        version: ReleaseVersion.singleLine(appName: "container-network-vmnet"),
-        subcommands: [
-            Start.self
-        ]
-    )
+import OrderedCollections
+
+public protocol AppError: Error {
+    var code: AppErrorCode { get }
+    var metadata: OrderedDictionary<String, String> { get }
+    var underlyingError: Error? { get }
+}
+
+public struct AppErrorCode: RawRepresentable, Hashable, Sendable {
+    public let rawValue: String
+
+    public init(rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    public static let invalidArgument = AppErrorCode(rawValue: "invalid_argument")
 }

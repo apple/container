@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025-2026 Apple Inc. and the container project authors.
+// Copyright © 2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,10 +14,9 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import Foundation
+import ArgumentParser
 
-extension [any Codable] {
-    func jsonArray() throws -> String {
-        "[\(try self.map { String(decoding: try JSONEncoder().encode($0), as: UTF8.self) }.joined(separator: ","))]"
-    }
+public enum ListFormat: String, CaseIterable, ExpressibleByArgument, Sendable {
+    case json
+    case table
 }
