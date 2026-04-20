@@ -20,7 +20,7 @@ import ContainerizationArchive
 import ContainerizationOCI
 import CryptoKit
 import Foundation
-import GRPC
+import GRPCCore
 
 actor BuildFSSync: BuildPipelineHandler {
     let contextDir: URL
