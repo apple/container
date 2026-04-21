@@ -76,12 +76,16 @@ public actor SandboxService {
         }
     }
 
-    private static func sshAuthSocketHostUrl(config: ContainerConfiguration, hostEnv: [String: String]?, log: Logger? = nil) -> URL? {
+    private static func sshAuthSocketHostUrl(
+        config: ContainerConfiguration,
+        dynamicEnv: [String: String] = [:],
+        log: Logger? = nil
+    ) -> URL? {
         guard config.ssh else {
             return nil
         }
 
-        guard let sshSocket = hostEnv?[Self.sshAuthSocketEnvVar] else {
+        guard let sshSocket = dynamicEnv[Self.sshAuthSocketEnvVar] else {
             log?.warning("ssh forwarding requested but no \(Self.sshAuthSocketEnvVar) found")
             return nil
         }
@@ -147,7 +151,7 @@ public actor SandboxService {
                 )
             }
 
-            let env = try message.env()
+            let dynamicEnv = try message.dynamicEnv()
 
             let bundle = ContainerResource.Bundle(path: self.root)
             try bundle.createLogFile()
@@ -224,7 +228,7 @@ public actor SandboxService {
             let id = config.id
             let rootfs = try bundle.containerRootfs.asMount
             let container = try LinuxContainer(id, rootfs: rootfs, vmm: vmm, logger: self.log) { czConfig in
-                try Self.configureContainer(czConfig: &czConfig, config: config, hostEnv: env, log: self.log)
+                try Self.configureContainer(czConfig: &czConfig, config: config, dynamicEnv: dynamicEnv, log: self.log)
                 czConfig.interfaces = interfaces
                 czConfig.process.stdout = stdout
                 czConfig.process.stderr = stderr
@@ -846,7 +850,7 @@ public actor SandboxService {
     private static func configureContainer(
         czConfig: inout LinuxContainer.Configuration,
         config: ContainerConfiguration,
-        hostEnv: [String: String]?,
+        dynamicEnv: [String: String] = [:],
         log: Logger? = nil,
     ) throws {
         czConfig.cpus = config.resources.cpus
@@ -880,7 +884,7 @@ public actor SandboxService {
             czConfig.sockets.append(socketConfig)
         }
 
-        if let socketUrl = Self.sshAuthSocketHostUrl(config: config, hostEnv: hostEnv, log: log) {
+        if let socketUrl = Self.sshAuthSocketHostUrl(config: config, dynamicEnv: dynamicEnv, log: log) {
             let socketPath = socketUrl.path(percentEncoded: false)
             let attrs = try? FileManager.default.attributesOfItem(atPath: socketPath)
             let permissions = (attrs?[.posixPermissions] as? NSNumber)
@@ -1165,11 +1169,10 @@ extension XPCMessage {
         return try JSONDecoder().decode(ProcessConfiguration.self, from: data)
     }
 
-    fileprivate func env() throws -> [String: String]? {
-        guard let data = self.dataNoCopy(key: SandboxKeys.env.rawValue) else {
-            throw ContainerizationError(.invalidArgument, message: "empty env")
-        }
-        return try JSONDecoder().decode([String: String]?.self, from: data)
+    fileprivate func dynamicEnv() throws -> [String: String] {
+        let data = self.dataNoCopy(key: SandboxKeys.dynamicEnv.rawValue)
+        let dynamicEnv = try data.map { try JSONDecoder().decode([String: String].self, from: $0) } ?? [:]
+        return dynamicEnv
     }
 
     fileprivate func getAllocatedAttachments() throws -> [AllocatedAttachment] {
