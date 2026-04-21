@@ -247,6 +247,7 @@ extension Application {
             var config = ContainerConfiguration(id: Builder.builderContainerId, image: imageDesc, process: processConfig)
             config.resources = resources
             config.labels = [ResourceLabelKeys.role: ResourceRoleValues.builder]
+            config.capAdd = ["ALL"]
             config.mounts = [
                 .init(
                     type: .tmpfs,
@@ -264,7 +265,8 @@ extension Application {
             // Enable Rosetta only if the user didn't ask to disable it
             config.rosetta = useRosetta
 
-            guard let defaultNetwork = try await ClientNetwork.builtin else {
+            let networkClient = NetworkClient()
+            guard let defaultNetwork = try await networkClient.builtin else {
                 throw ContainerizationError(.invalidState, message: "default network is not present")
             }
             guard case .running(_, _) = defaultNetwork else {
@@ -324,7 +326,12 @@ private func startBuildKit(
         )
         defer { try? io.close() }
 
-        let process = try await client.bootstrap(id: id, stdio: io.stdio)
+        var env: [String: String] = [:]
+        if let sshAuthSock = ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] {
+            env["SSH_AUTH_SOCK"] = sshAuthSock
+        }
+
+        let process = try await client.bootstrap(id: id, stdio: io.stdio, env: env)
         try await process.start()
         await taskManager?.finish()
         try io.closeAfterStart()

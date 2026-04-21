@@ -77,7 +77,7 @@ public struct SandboxClient: Sendable {
 
 // Runtime Methods
 extension SandboxClient {
-    public func bootstrap(stdio: [FileHandle?], allocatedAttachments: [AllocatedAttachment]) async throws {
+    public func bootstrap(stdio: [FileHandle?], allocatedAttachments: [AllocatedAttachment], env: [String: String]? = nil) async throws {
         let request = XPCMessage(route: SandboxRoutes.bootstrap.rawValue)
 
         for (i, h) in stdio.enumerated() {
@@ -97,6 +97,9 @@ extension SandboxClient {
         }
 
         do {
+            let env = try JSONEncoder().encode(env)
+            request.set(key: SandboxKeys.env.rawValue, value: env)
+
             try request.setAllocatedAttachments(allocatedAttachments)
             try await self.client.send(request)
         } catch {
@@ -176,9 +179,8 @@ extension SandboxClient {
         let data = try JSONEncoder().encode(options)
         request.set(key: SandboxKeys.stopOptions.rawValue, value: data)
 
-        let responseTimeout = Duration(.seconds(Int64(options.timeoutInSeconds + 1)))
         do {
-            try await self.client.send(request, responseTimeout: responseTimeout)
+            try await self.client.send(request)
         } catch {
             throw ContainerizationError(
                 .internalError,

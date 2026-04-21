@@ -135,7 +135,9 @@ class CLITest {
         }
     }
 
-    func run(arguments: [String], stdin: Data? = nil, currentDirectory: URL? = nil) throws -> (outputData: Data, output: String, error: String, status: Int32) {
+    func run(arguments: [String], stdin: Data? = nil, currentDirectory: URL? = nil, env: [String: String] = [:]) throws -> (
+        outputData: Data, output: String, error: String, status: Int32
+    ) {
         let seq = CLITest.commandSeq.withLock { counter in
             defer { counter += 1 }
             return counter
@@ -153,6 +155,13 @@ class CLITest {
         process.arguments = arguments
         if let directory = currentDirectory {
             process.currentDirectoryURL = directory
+        }
+        if !env.isEmpty {
+            var processEnv = ProcessInfo.processInfo.environment
+            for (key, value) in env {
+                processEnv[key] = value
+            }
+            process.environment = processEnv
         }
 
         let inputPipe = Pipe()
@@ -246,7 +255,8 @@ class CLITest {
         image: String? = nil,
         args: [String]? = nil,
         containerArgs: [String]? = nil,
-        autoRemove: Bool = true
+        autoRemove: Bool = true,
+        env: [String: String] = [:]
     ) throws {
         var runArgs = [
             "run"
@@ -277,7 +287,7 @@ class CLITest {
             runArgs.append(contentsOf: defaultContainerArgs)
         }
 
-        let (_, _, error, status) = try run(arguments: runArgs)
+        let (_, _, error, status) = try run(arguments: runArgs, env: env)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }

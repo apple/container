@@ -96,7 +96,7 @@ public final class Archiver: Sendable {
                 guard let entry = try Self._createEntry(entryInfo: info) else {
                     throw Error.failedToCreateEntry
                 }
-                hasher.update(data: try encoder.encode(info))
+                hasher.update(data: try encoder.encode(entry))
                 try Self._compressFile(item: info.pathOnHost, entry: entry, archiver: archiver, hasher: &hasher)
             }
             try archiver.finishEncoding()
@@ -110,30 +110,31 @@ public final class Archiver: Sendable {
 
     // MARK: private functions
     private static func _compressFile(item: URL, entry: WriteEntry, archiver: ArchiveWriter, hasher: inout SHA256) throws {
-        guard let stream = InputStream(url: item) else {
-            return
-        }
-
         let writer = archiver.makeTransactionWriter()
-
         let bufferSize = Int(1.mib())
         let readBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
-
-        stream.open()
         try writer.writeHeader(entry: entry)
-        while true {
-            let byteRead = stream.read(readBuffer, maxLength: bufferSize)
-            if byteRead <= 0 {
-                break
-            } else {
-                let data = Data(bytes: readBuffer, count: byteRead)
-                hasher.update(data: data)
-                try data.withUnsafeBytes { pointer in
-                    try writer.writeChunk(data: pointer)
+        if entry.fileType == .regular {
+            // We need to write the data into the archive only if its a regular file
+            // Symlinks and directories require us to only write the archive header
+            guard let stream = InputStream(url: item) else {
+                throw Error.failedToCreateInputStream(item)
+            }
+            stream.open()
+            while true {
+                let byteRead = stream.read(readBuffer, maxLength: bufferSize)
+                if byteRead <= 0 {
+                    break
+                } else {
+                    let data = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: readBuffer), count: byteRead, deallocator: .none)
+                    hasher.update(data: data)
+                    try data.withUnsafeBytes { pointer in
+                        try writer.writeChunk(data: pointer)
+                    }
                 }
             }
+            stream.close()
         }
-        stream.close()
         try writer.finish()
     }
 
@@ -214,22 +215,13 @@ public final class Archiver: Sendable {
         let trimmedPath = String(decodedPath.suffix(from: pathPrefix.endIndex))
         return trimmedPath
     }
-
-    private static func _isSymbolicLink(_ path: URL) throws -> Bool {
-        let resourceValues = try path.resourceValues(forKeys: [.isSymbolicLinkKey])
-        if let isSymbolicLink = resourceValues.isSymbolicLink {
-            if isSymbolicLink {
-                return true
-            }
-        }
-        return false
-    }
 }
 
 extension Archiver {
     public enum Error: Swift.Error, CustomStringConvertible {
         case failedToCreateEntry
         case fileDoesNotExist(_ url: URL)
+        case failedToCreateInputStream(_ url: URL)
 
         public var description: String {
             switch self {
@@ -237,7 +229,40 @@ extension Archiver {
                 return "failed to create entry"
             case .fileDoesNotExist(let url):
                 return "file \(url.path) does not exist"
+            case .failedToCreateInputStream(let url):
+                return "failed to create input stream for \(url.path)"
             }
         }
+    }
+}
+
+extension WriteEntry: @retroactive Encodable {
+    enum CodingKeys: String, CodingKey {
+        case path
+        case fileType
+        case size
+        case permissions
+        case owner
+        case group
+        case symlinkTarget
+        case hardlink
+        case creationDate
+        case modificationDate
+        case contentAccessDate
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(fileType.rawValue, forKey: .fileType)
+        try container.encodeIfPresent(permissions, forKey: .permissions)
+        try container.encodeIfPresent(path, forKey: .path)
+        try container.encodeIfPresent(size, forKey: .size)
+        try container.encodeIfPresent(owner, forKey: .owner)
+        try container.encodeIfPresent(group, forKey: .group)
+        try container.encodeIfPresent(symlinkTarget, forKey: .symlinkTarget)
+        try container.encodeIfPresent(hardlink, forKey: .hardlink)
+        try container.encodeIfPresent(creationDate, forKey: .creationDate)
+        try container.encodeIfPresent(modificationDate, forKey: .modificationDate)
+        try container.encodeIfPresent(contentAccessDate, forKey: .contentAccessDate)
     }
 }

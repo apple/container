@@ -200,8 +200,8 @@ extension APIServer {
             ].compactMap { $0 }
 
             let pluginFactories: [PluginFactory] = [
-                DefaultPluginFactory(),
-                AppBundlePluginFactory(),
+                DefaultPluginFactory(logger: log),
+                AppBundlePluginFactory(logger: log),
             ]
 
             for pluginDirectory in pluginDirectories {
@@ -314,9 +314,9 @@ extension APIServer {
             if defaultNetwork == nil {
                 // FIXME: default network should be configurable elsewhere
                 let config = try NetworkConfiguration(
-                    id: ClientNetwork.defaultNetworkName,
+                    id: NetworkClient.defaultNetworkName,
                     mode: .nat,
-                    labels: [ResourceLabelKeys.role: ResourceRoleValues.builtin],
+                    labels: try .init([ResourceLabelKeys.role: ResourceRoleValues.builtin]),
                     pluginInfo: NetworkPluginInfo(plugin: "container-network-vmnet")
                 )
                 _ = try await service.create(configuration: config)

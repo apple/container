@@ -16,7 +16,7 @@
 
 import Foundation
 
-public struct TableOutput {
+public struct TableOutput: Sendable {
     private let rows: [[String]]
     private let spacing: Int
 

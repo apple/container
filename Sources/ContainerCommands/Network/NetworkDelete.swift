@@ -51,14 +51,15 @@ extension Application {
         }
 
         public mutating func run() async throws {
+            let networkClient = NetworkClient()
             let uniqueNetworkNames = Set<String>(networkNames)
             let networks: [NetworkState]
 
             if all {
-                networks = try await ClientNetwork.list()
+                networks = try await networkClient.list()
                     .filter { !$0.isBuiltin }
             } else {
-                networks = try await ClientNetwork.list()
+                networks = try await networkClient.list()
                     .filter { c in
                         guard uniqueNetworkNames.contains(c.id) else {
                             return false
@@ -96,7 +97,7 @@ extension Application {
                         do {
                             // Delete atomically disables the IP allocator, then deletes
                             // the allocator. The disable fails if any IPs are still in use.
-                            try await ClientNetwork.delete(id: network.id)
+                            try await networkClient.delete(id: network.id)
                             print(network.id)
                             return nil
                         } catch {

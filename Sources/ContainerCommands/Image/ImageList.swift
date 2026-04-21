@@ -23,7 +23,13 @@ import Foundation
 import SwiftProtobuf
 
 extension Application {
-    public struct ListImageOptions: ParsableArguments {
+    public struct ImageList: AsyncLoggableCommand {
+        public init() {}
+        public static let configuration = CommandConfiguration(
+            commandName: "list",
+            abstract: "List images",
+            aliases: ["ls"])
+
         @Option(name: .long, help: "Format of the output")
         var format: ListFormat = .table
 
@@ -33,26 +39,87 @@ extension Application {
         @Flag(name: .shortAndLong, help: "Verbose output")
         var verbose = false
 
-        public init() {}
-    }
+        @OptionGroup
+        public var logOptions: Flags.Logging
 
-    struct ListImageImplementation {
-        static func createHeader() -> [[String]] {
-            [["NAME", "TAG", "DIGEST"]]
+        public mutating func run() async throws {
+            try Self.validate(format: format, quiet: quiet, verbose: verbose)
+
+            var images = try await ClientImage.list().filter { img in
+                !Utility.isInfraImage(name: img.reference)
+            }
+            images.sort { $0.reference < $1.reference }
+
+            if format == .json {
+                try await Self.emitJSON(images: images)
+                return
+            }
+
+            if quiet {
+                for image in images {
+                    let processedReferenceString = try ClientImage.denormalizeReference(image.reference)
+                    print(processedReferenceString)
+                }
+                return
+            }
+
+            if verbose {
+                let items = try await Self.buildVerboseItems(images: images)
+                Output.emit(Output.renderTable(items))
+                return
+            }
+
+            let items = try await Self.buildTableItems(images: images)
+            Output.emit(Output.renderTable(items))
         }
 
-        static func createVerboseHeader() -> [[String]] {
-            [["NAME", "TAG", "INDEX DIGEST", "OS", "ARCH", "VARIANT", "FULL SIZE", "CREATED", "MANIFEST DIGEST"]]
+        private static func validate(format: ListFormat, quiet: Bool, verbose: Bool) throws {
+            if quiet && verbose {
+                throw ContainerizationError(.invalidArgument, message: "cannot use flag --quiet and --verbose together")
+            }
+            let modifier = quiet || verbose
+            if modifier && format == .json {
+                throw ContainerizationError(.invalidArgument, message: "cannot use flag --quiet or --verbose along with --format json")
+            }
         }
 
-        static func printImagesVerbose(images: [ClientImage]) async throws {
-
-            var rows = createVerboseHeader()
+        private static func emitJSON(images: [ClientImage]) async throws {
+            let formatter = ByteCountFormatter()
+            var printableImages: [PrintableImage] = []
             for image in images {
-                let formatter = ByteCountFormatter()
+                let size = try await ClientImage.getFullImageSize(image: image)
+                let formattedSize = formatter.string(fromByteCount: size)
+                printableImages.append(
+                    PrintableImage(reference: image.reference, fullSize: formattedSize, descriptor: image.descriptor)
+                )
+            }
+            try Output.emit(Output.renderJSON(printableImages))
+        }
+
+        private static func buildTableItems(images: [ClientImage]) async throws -> [ImageRow] {
+            var items: [ImageRow] = []
+            for image in images {
+                let processedReferenceString = try ClientImage.denormalizeReference(image.reference)
+                let reference = try ContainerizationOCI.Reference.parse(processedReferenceString)
+                let digest = try await image.resolved().digest
+                items.append(
+                    ImageRow(
+                        name: reference.name,
+                        tag: reference.tag ?? "<none>",
+                        trimmedDigest: Utility.trimDigest(digest: digest)
+                    ))
+            }
+            return items
+        }
+
+        private static func buildVerboseItems(images: [ClientImage]) async throws -> [VerboseImageRow] {
+            let formatter = ByteCountFormatter()
+            var items: [VerboseImageRow] = []
+            for image in images {
                 let imageDigest = try await image.resolved().digest
+                let processedReferenceString = try ClientImage.denormalizeReference(image.reference)
+                let reference = try ContainerizationOCI.Reference.parse(processedReferenceString)
                 for descriptor in try await image.index().manifests {
-                    // Don't list attestation manifests
                     if let referenceType = descriptor.annotations?["vnd.docker.reference.type"],
                         referenceType == "attestation-manifest"
                     {
@@ -62,10 +129,6 @@ extension Application {
                     guard let platform = descriptor.platform else {
                         continue
                     }
-
-                    let os = platform.os
-                    let arch = platform.architecture
-                    let variant = platform.variant ?? ""
 
                     var config: ContainerizationOCI.Image
                     var manifest: ContainerizationOCI.Manifest
@@ -77,126 +140,74 @@ extension Application {
                     }
 
                     let created = config.created ?? ""
-                    let size = descriptor.size + manifest.config.size + manifest.layers.reduce(0, { (l, r) in l + r.size })
+                    let size = descriptor.size + manifest.config.size + manifest.layers.reduce(0) { $0 + $1.size }
                     let formattedSize = formatter.string(fromByteCount: size)
 
-                    let processedReferenceString = try ClientImage.denormalizeReference(image.reference)
-                    let reference = try ContainerizationOCI.Reference.parse(processedReferenceString)
-                    let row = [
-                        reference.name,
-                        reference.tag ?? "<none>",
-                        Utility.trimDigest(digest: imageDigest),
-                        os,
-                        arch,
-                        variant,
-                        formattedSize,
-                        created,
-                        Utility.trimDigest(digest: descriptor.digest),
-                    ]
-                    rows.append(row)
+                    items.append(
+                        VerboseImageRow(
+                            name: reference.name,
+                            tag: reference.tag ?? "<none>",
+                            indexDigest: Utility.trimDigest(digest: imageDigest),
+                            os: platform.os,
+                            arch: platform.architecture,
+                            variant: platform.variant ?? "",
+                            fullSize: formattedSize,
+                            created: created,
+                            manifestDigest: Utility.trimDigest(digest: descriptor.digest)
+                        ))
                 }
             }
-
-            let formatter = TableOutput(rows: rows)
-            print(formatter.format())
-        }
-
-        static func printImages(images: [ClientImage], format: ListFormat, options: ListImageOptions) async throws {
-            var images = images
-            images.sort {
-                $0.reference < $1.reference
-            }
-
-            if format == .json {
-                var printableImages: [PrintableImage] = []
-                for image in images {
-                    let formatter = ByteCountFormatter()
-                    let size = try await ClientImage.getFullImageSize(image: image)
-                    let formattedSize = formatter.string(fromByteCount: size)
-
-                    printableImages.append(
-                        PrintableImage(reference: image.reference, fullSize: formattedSize, descriptor: image.descriptor)
-                    )
-                }
-                let data = try JSONEncoder().encode(printableImages)
-                print(String(decoding: data, as: UTF8.self))
-                return
-            }
-
-            if options.quiet {
-                try images.forEach { image in
-                    let processedReferenceString = try ClientImage.denormalizeReference(image.reference)
-                    print(processedReferenceString)
-                }
-                return
-            }
-
-            if options.verbose {
-                try await Self.printImagesVerbose(images: images)
-                return
-            }
-
-            var rows = createHeader()
-            for image in images {
-                let processedReferenceString = try ClientImage.denormalizeReference(image.reference)
-                let reference = try ContainerizationOCI.Reference.parse(processedReferenceString)
-                let digest = try await image.resolved().digest
-                rows.append([
-                    reference.name,
-                    reference.tag ?? "<none>",
-                    Utility.trimDigest(digest: digest),
-                ])
-            }
-            let formatter = TableOutput(rows: rows)
-            print(formatter.format())
-        }
-
-        static func validate(options: ListImageOptions) throws {
-            if options.quiet && options.verbose {
-                throw ContainerizationError(.invalidArgument, message: "cannot use flag --quiet and --verbose together")
-            }
-            let modifier = options.quiet || options.verbose
-            if modifier && options.format == .json {
-                throw ContainerizationError(.invalidArgument, message: "cannot use flag --quiet or --verbose along with --format json")
-            }
-        }
-
-        static func listImages(options: ListImageOptions) async throws {
-            let images = try await ClientImage.list().filter { img in
-                !Utility.isInfraImage(name: img.reference)
-            }
-            try await printImages(images: images, format: options.format, options: options)
+            return items
         }
 
         struct PrintableImage: Codable {
             let reference: String
             let fullSize: String
             let descriptor: Descriptor
-
-            init(reference: String, fullSize: String, descriptor: Descriptor) {
-                self.reference = reference
-                self.fullSize = fullSize
-                self.descriptor = descriptor
-            }
         }
     }
+}
 
-    public struct ImageList: AsyncLoggableCommand {
-        public init() {}
-        public static let configuration = CommandConfiguration(
-            commandName: "list",
-            abstract: "List images",
-            aliases: ["ls"])
+private struct ImageRow: ListDisplayable {
+    let name: String
+    let tag: String
+    let trimmedDigest: String
 
-        @OptionGroup
-        var options: ListImageOptions
+    static var tableHeader: [String] {
+        ["NAME", "TAG", "DIGEST"]
+    }
 
-        @OptionGroup
-        public var logOptions: Flags.Logging
+    var tableRow: [String] {
+        [name, tag, trimmedDigest]
+    }
 
-        public mutating func run() async throws {
-            try ListImageImplementation.validate(options: options)
-            try await ListImageImplementation.listImages(options: options)
-        }
+    // Required by ListDisplayable but unused — ImageList handles quiet mode
+    // separately to avoid expensive digest resolution.
+    var quietValue: String {
+        name
+    }
+}
+
+private struct VerboseImageRow: ListDisplayable {
+    let name: String
+    let tag: String
+    let indexDigest: String
+    let os: String
+    let arch: String
+    let variant: String
+    let fullSize: String
+    let created: String
+    let manifestDigest: String
+
+    static var tableHeader: [String] {
+        ["NAME", "TAG", "INDEX DIGEST", "OS", "ARCH", "VARIANT", "FULL SIZE", "CREATED", "MANIFEST DIGEST"]
+    }
+
+    var tableRow: [String] {
+        [name, tag, indexDigest, os, arch, variant, fullSize, created, manifestDigest]
+    }
+
+    var quietValue: String {
+        name
     }
 }

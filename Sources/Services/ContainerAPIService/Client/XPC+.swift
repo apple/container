@@ -56,6 +56,8 @@ public enum XPCKeys: String {
     case plugin
     /// Archive path to export rootfs
     case archive
+    /// Environment variables passed from terminal
+    case env
 
     /// Health check request.
     case ping

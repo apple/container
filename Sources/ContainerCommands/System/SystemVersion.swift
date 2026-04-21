@@ -62,7 +62,7 @@ extension Application {
             case .table:
                 printVersionTable(versions: versions)
             case .json:
-                try printVersionJSON(versions: versions)
+                try Output.emit(Output.renderJSON(versions))
             }
         }
 
@@ -72,11 +72,6 @@ extension Application {
 
             let table = TableOutput(rows: rows)
             print(table.format())
-        }
-
-        private func printVersionJSON(versions: [VersionInfo]) throws {
-            let data = try JSONEncoder().encode(versions)
-            print(String(data: data, encoding: .utf8) ?? "[]")
         }
     }
 

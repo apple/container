@@ -357,13 +357,13 @@ extension TestCLIBuildBase {
                 // test 1
                 .directory("Test1Source"),
                 .directory("Test1Source2"),
-                .file("Test1Source/test.yaml", content: .zeroFilled(size: 1)),
+                .file("Test1Source/test.yaml", content: .zeroFilled(size: 200)),
                 .symbolicLink("Test1Source2/test.yaml", target: "Test1Source/test.yaml"),
 
                 // test 2
                 .directory("Test2Source"),
                 .directory("Test2Source2"),
-                .file("Test2Source/Test/Test/test.yaml", content: .zeroFilled(size: 1)),
+                .file("Test2Source/Test/Test/test.yaml", content: .zeroFilled(size: 300)),
                 .symbolicLink("Test2Source2/Test/test.yaml", target: "Test2Source/Test/Test/test.yaml"),
 
                 // test 3
@@ -1171,6 +1171,62 @@ extension TestCLIBuildBase {
 
             let includedResult = try run(arguments: ["exec", containerName, "test", "-f", "/app/included.txt"])
             #expect(includedResult.status == 0, "included.txt should be present")
+        }
+
+        // Test: Build context is read-only; Dockerfile and Dockerfile.dockerignore live outside the context
+        @Test func testDockerIgnoreReadonlyContext() throws {
+            let tempDir: URL = try createTempDir()
+            let contextDir = tempDir.appendingPathComponent("context")
+            defer {
+                // Restore write permission so the directory can be removed
+                try? FileManager.default.setAttributes(
+                    [.posixPermissions: 0o755],
+                    ofItemAtPath: contextDir.path
+                )
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
+            let dockerfile =
+                """
+                FROM ghcr.io/linuxcontainers/alpine:3.20
+                WORKDIR /app
+                COPY . .
+                """
+            // Context contains two files; Dockerfile and Dockerfile.dockerignore are placed outside
+            // the context directory (co-located in tempDir).
+            let context: [FileSystemEntry] = [
+                .file("included.txt", content: .data("This file should be included.\n".data(using: .utf8)!)),
+                .file("secret.txt", content: .data("This file should be excluded by Dockerfile.dockerignore.\n".data(using: .utf8)!)),
+            ]
+            try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
+
+            // Write Dockerfile.dockerignore next to Dockerfile, both outside the context directory
+            let dockerignoreData = "secret.txt\n".data(using: .utf8)!
+            try dockerignoreData.write(to: tempDir.appendingPathComponent("Dockerfile.dockerignore"), options: .atomic)
+
+            // Make the context directory read-only before building
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o555],
+                ofItemAtPath: contextDir.path
+            )
+
+            let dockerfilePath = tempDir.appendingPathComponent("Dockerfile")
+            let imageName = "registry.local/dockerignore-readonly-context:\(UUID().uuidString.prefix(6))"
+            let args = ["build", "-f", dockerfilePath.path, "-t", imageName, contextDir.path]
+            let response = try run(arguments: args)
+            if response.status != 0 {
+                throw CLIError.executionFailed("build failed: stdout=\(response.output) stderr=\(response.error)")
+            }
+
+            let containerName = "dockerignore-readonly-context-\(UUID().uuidString.prefix(6))"
+            try self.doLongRun(name: containerName, image: imageName)
+            defer { try? self.doStop(name: containerName) }
+
+            let includedResult = try run(arguments: ["exec", containerName, "test", "-f", "/app/included.txt"])
+            #expect(includedResult.status == 0, "included.txt should be present")
+
+            let secretResult = try run(arguments: ["exec", containerName, "test", "-f", "/app/secret.txt"])
+            #expect(secretResult.status != 0, "secret.txt should NOT be present (excluded by Dockerfile.dockerignore)")
         }
 
         @Test func testNonExistingDockerfile() throws {

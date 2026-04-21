@@ -22,8 +22,8 @@ import PackageDescription
 
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
-let builderShimVersion = "0.11.0"
-let scVersion = "0.29.0"
+let builderShimVersion = "0.12.0"
+let scVersion = "0.30.1"
 
 let package = Package(
     name: "container",
@@ -52,11 +52,14 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.80.0"),
-        .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.29.0"),
-        .package(url: "https://github.com/apple/swift-system.git", from: "1.4.0"),
-        .package(url: "https://github.com/grpc/grpc-swift.git", from: "1.26.0"),
+        .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.36.0"),
+        .package(url: "https://github.com/apple/swift-system.git", from: "1.6.4"),
+        .package(url: "https://github.com/grpc/grpc-swift-2.git", from: "2.3.0"),
+        .package(url: "https://github.com/grpc/grpc-swift-nio-transport.git", from: "2.4.4"),
+        .package(url: "https://github.com/grpc/grpc-swift-protobuf.git", from: "2.2.0"),
         .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.20.1"),
         .package(url: "https://github.com/swiftlang/swift-docc-plugin.git", from: "1.1.0"),
+        .package(url: "https://github.com/mattt/swift-toml.git", from: "2.0.0"),
     ],
     targets: [
         .executableTarget(
@@ -109,10 +112,14 @@ let package = Package(
             dependencies: [
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "NIO", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationArchive", package: "containerization"),
                 .product(name: "ContainerizationOCI", package: "containerization"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "GRPCCore", package: "grpc-swift-2"),
+                .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
+                .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),
                 "ContainerAPIClient",
             ]
         ),
@@ -120,6 +127,13 @@ let package = Package(
             name: "ContainerBuildTests",
             dependencies: [
                 "ContainerBuild"
+            ]
+        ),
+        .testTarget(
+            name: "ContainerCommandsTests",
+            dependencies: [
+                "ContainerCommands",
+                "ContainerResource",
             ]
         ),
         .executableTarget(
@@ -131,7 +145,9 @@ let package = Package(
                 .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
                 .product(name: "ContainerizationEXT4", package: "containerization"),
-                .product(name: "GRPC", package: "grpc-swift"),
+                .product(name: "GRPCCore", package: "grpc-swift-2"),
+                .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
+                .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),
                 .product(name: "Logging", package: "swift-log"),
                 "ContainerAPIService",
                 "ContainerAPIClient",
@@ -212,7 +228,7 @@ let package = Package(
                 "ContainerXPC",
             ],
             path: "Sources/Plugins/CoreImages",
-            exclude: ["config.json"]
+            exclude: ["config.toml"]
         ),
         .target(
             name: "ContainerImagesService",
@@ -261,7 +277,7 @@ let package = Package(
                 "ContainerXPC",
             ],
             path: "Sources/Plugins/NetworkVmnet",
-            exclude: ["config.json"]
+            exclude: ["config.toml"]
         ),
         .target(
             name: "ContainerNetworkService",
@@ -300,7 +316,9 @@ let package = Package(
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Logging", package: "swift-log"),
-                .product(name: "GRPC", package: "grpc-swift"),
+                .product(name: "GRPCCore", package: "grpc-swift-2"),
+                .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
+                .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),
                 .product(name: "Containerization", package: "containerization"),
                 "ContainerLog",
                 "ContainerPlugin",
@@ -311,7 +329,7 @@ let package = Package(
                 "ContainerXPC",
             ],
             path: "Sources/Plugins/RuntimeLinux",
-            exclude: ["config.json"]
+            exclude: ["config.toml"]
         ),
         .target(
             name: "ContainerSandboxService",
@@ -343,6 +361,7 @@ let package = Package(
         .target(
             name: "ContainerResource",
             dependencies: [
+                .product(name: "Collections", package: "swift-collections"),
                 .product(name: "Containerization", package: "containerization"),
                 "ContainerXPC",
                 "CAuditToken",
@@ -380,6 +399,7 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "ContainerizationOS", package: "containerization"),
                 .product(name: "SystemPackage", package: "swift-system"),
+                .product(name: "TOML", package: "swift-toml"),
                 "ContainerVersion",
             ]
         ),

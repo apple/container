@@ -22,7 +22,6 @@ class TestCLIRegistry: CLITest {
         let (_, output, error, status) = try run(arguments: ["registry", "list"])
         #expect(status == 0, "registry list should succeed, stderr: \(error)")
 
-        // Check for table header
         let requiredHeaders = ["HOSTNAME", "USERNAME", "MODIFIED", "CREATED"]
         #expect(
             requiredHeaders.allSatisfy { output.contains($0) },
@@ -30,10 +29,19 @@ class TestCLIRegistry: CLITest {
         )
     }
 
+    @Test func testListJSONFormat() throws {
+        let (data, _, error, status) = try run(arguments: ["registry", "list", "--format", "json"])
+        #expect(status == 0, "registry list --format json should succeed, stderr: \(error)")
+
+        let json = try JSONSerialization.jsonObject(with: data, options: [])
+        #expect(json is [Any], "JSON output should be an array")
+    }
+
     @Test func testListQuietMode() throws {
         let (_, output, error, status) = try run(arguments: ["registry", "list", "-q"])
         #expect(status == 0, "registry list -q should succeed, stderr: \(error)")
 
         #expect(!output.contains("HOSTNAME"), "quiet mode should not contain headers")
+        #expect(!output.contains("USERNAME"), "quiet mode should not contain headers")
     }
 }

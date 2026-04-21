@@ -84,6 +84,27 @@ extension Application {
                 throw ContainerizationError(.invalidArgument, message: "failed to save image(s)")
             }
 
+            if let p {
+                for (reference, description) in zip(references, images) {
+                    let image = ClientImage(description: description)
+                    do {
+                        _ = try await image.manifest(for: p)
+                    } catch {
+                        var available: [String] = []
+                        if let index = try? await image.index() {
+                            available = index.manifests
+                                .compactMap { $0.platform?.description }
+                                .filter { $0 != "unknown/unknown" }
+                        }
+                        let availableStr = available.isEmpty ? "none" : available.joined(separator: ", ")
+                        throw ContainerizationError(
+                            .invalidArgument,
+                            message: "image \(reference) has no content for platform \(p.description); available platforms: \(availableStr)"
+                        )
+                    }
+                }
+            }
+
             // Write to stdout; otherwise write to the output file
             if output == nil {
                 let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).tar")

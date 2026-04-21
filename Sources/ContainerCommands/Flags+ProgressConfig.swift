@@ -15,14 +15,27 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
+import Foundation
 import TerminalProgress
 
 extension Flags.Progress {
+    /// Resolves `.auto` into `.ansi` or `.plain` based on whether stderr is a TTY.
+    private func resolvedProgress() -> ProgressType {
+        switch progress {
+        case .auto:
+            return isatty(FileHandle.standardError.fileDescriptor) == 1 ? .ansi : .plain
+        case .none, .ansi, .plain, .color:
+            return progress
+        }
+    }
+
     /// Creates a `ProgressConfig` based on the selected progress type.
     ///
     /// For `.none`, progress updates are disabled. For `.ansi`, the given parameters
     /// are used as-is. For `.plain`, ANSI-incompatible features (spinner, clear on finish)
-    /// are disabled and the output mode is set to `.plain`.
+    /// are disabled and the output mode is set to `.plain`. For `.color`, behavior matches
+    /// `.ansi` but the output mode is set to `.color` to enable color-coded output.
+    /// For `.auto`, the type is resolved by checking whether stderr is a TTY.
     func makeConfig(
         description: String = "",
         itemsName: String = "it",
@@ -32,11 +45,18 @@ extension Flags.Progress {
         ignoreSmallSize: Bool = false,
         totalTasks: Int? = nil
     ) throws -> ProgressConfig {
-        switch progress {
+        let resolved = resolvedProgress()
+        switch resolved {
         case .none:
             return try ProgressConfig(disableProgressUpdates: true)
-        case .ansi, .plain:
-            let isPlain = progress == .plain
+        case .ansi, .plain, .color:
+            let isPlain = resolved == .plain
+            let outputMode: ProgressConfig.OutputMode
+            switch resolved {
+            case .plain: outputMode = .plain
+            case .color: outputMode = .color
+            default: outputMode = .ansi
+            }
             return try ProgressConfig(
                 description: description,
                 itemsName: itemsName,
@@ -47,8 +67,10 @@ extension Flags.Progress {
                 ignoreSmallSize: ignoreSmallSize,
                 totalTasks: totalTasks,
                 clearOnFinish: !isPlain,
-                outputMode: isPlain ? .plain : .ansi
+                outputMode: outputMode
             )
+        case .auto:
+            fatalError("unreachable: .auto should have been resolved")
         }
     }
 }

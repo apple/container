@@ -15,6 +15,8 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerizationError
+import Darwin
+import Foundation
 import Testing
 
 class TestCLIRunLifecycle: CLITest {
@@ -137,5 +139,70 @@ class TestCLIRunLifecycle: CLITest {
                 cmd: ["foobarbaz"]
             )
         }
+    }
+
+    @Test func testSSHForwarding() throws {
+        let name = getTestName()
+
+        // Create a temp dir and socket path for the simulated SSH agent.
+        let socketDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: socketDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: socketDir) }
+
+        let socketPath = socketDir.appendingPathComponent("ssh-auth.sock").path
+
+        // Create a listening Unix domain socket to act as a fake SSH agent.
+        let serverFd = socket(AF_UNIX, SOCK_STREAM, 0)
+        precondition(serverFd >= 0, "socket() failed")
+        defer { Darwin.close(serverFd) }
+
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        withUnsafeMutableBytes(of: &addr.sun_path) { bytes in
+            socketPath.withCString { cStr in
+                bytes.copyMemory(from: UnsafeRawBufferPointer(start: cStr, count: socketPath.utf8.count + 1))
+            }
+        }
+        let bindResult = withUnsafePointer(to: addr) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
+                bind(serverFd, sockaddrPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        precondition(bindResult == 0, "bind() failed: \(errno)")
+        precondition(listen(serverFd, 5) == 0, "listen() failed")
+
+        // Accept and immediately close connections in background to keep the socket alive.
+        let acceptThread = Thread {
+            while true {
+                let clientFd = accept(serverFd, nil, nil)
+                if clientFd < 0 { break }
+                Darwin.close(clientFd)
+            }
+        }
+        acceptThread.start()
+
+        defer { try? doStop(name: name) }
+
+        try doLongRun(name: name, args: ["--ssh"], env: ["SSH_AUTH_SOCK": socketPath])
+        try waitForContainerRunning(name)
+
+        // Verify SSH_AUTH_SOCK is set to the expected guest path inside the container.
+        let sshSockValue = try doExec(name: name, cmd: ["sh", "-c", "echo $SSH_AUTH_SOCK"])
+        #expect(
+            sshSockValue.trimmingCharacters(in: .whitespacesAndNewlines) == "/run/host-services/ssh-auth.sock",
+            "expected SSH_AUTH_SOCK to point to guest socket path"
+        )
+
+        // Verify the forwarded socket file is present and is a socket.
+        let socketCheck = try doExec(
+            name: name,
+            cmd: ["sh", "-c", "[ -S /run/host-services/ssh-auth.sock ] && echo exists || echo missing"]
+        )
+        #expect(
+            socketCheck.trimmingCharacters(in: .whitespacesAndNewlines) == "exists",
+            "expected forwarded SSH socket to exist in container"
+        )
+
+        try doStop(name: name)
     }
 }
