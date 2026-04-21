@@ -326,12 +326,12 @@ private func startBuildKit(
         )
         defer { try? io.close() }
 
-        var env: [String: String] = [:]
+        var dynamicEnv: [String: String] = [:]
         if let sshAuthSock = ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] {
-            env["SSH_AUTH_SOCK"] = sshAuthSock
+            dynamicEnv["SSH_AUTH_SOCK"] = sshAuthSock
         }
 
-        let process = try await client.bootstrap(id: id, stdio: io.stdio, env: env)
+        let process = try await client.bootstrap(id: id, stdio: io.stdio, dynamicEnv: dynamicEnv)
         try await process.start()
         await taskManager?.finish()
         try io.closeAfterStart()
