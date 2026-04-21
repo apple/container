@@ -14,30 +14,44 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import DNS
+import ContainerizationExtras
 
 /// Handler that uses table lookup to resolve hostnames.
+///
+/// Keys in `hosts4` are normalized to `DNSName` on construction, so lookups
+/// are case-insensitive and trailing dots are optional.
 public struct HostTableResolver: DNSHandler {
-    public let hosts4: [String: IPv4]
+    public let hosts4: [DNSName: IPv4Address]
     private let ttl: UInt32
 
-    public init(hosts4: [String: IPv4], ttl: UInt32 = 300) {
-        self.hosts4 = hosts4
+    /// Creates a resolver backed by a static IPv4 host table.
+    ///
+    /// - Parameter hosts4: A dictionary mapping domain names to IPv4 addresses.
+    ///   Keys are normalized to `DNSName` (lowercased, trailing dot stripped), so
+    ///   `"FOO."`, `"foo."`, and `"foo"` all refer to the same entry.
+    /// - Parameter ttl: The TTL in seconds to set on answer records (default is 300).
+    /// - Throws: `DNSBindError.invalidName` if any key is not a valid DNS name.
+    public init(hosts4: [String: IPv4Address], ttl: UInt32 = 300) throws {
+        self.hosts4 = try Dictionary(uniqueKeysWithValues: hosts4.map { (try DNSName($0.key), $0.value) })
         self.ttl = ttl
     }
 
     public func answer(query: Message) async throws -> Message? {
-        let question = query.questions[0]
+        guard let question = query.questions.first else {
+            return nil
+        }
+        let n = question.name.hasSuffix(".") ? String(question.name.dropLast()) : question.name
+        let key = try DNSName(labels: n.isEmpty ? [] : n.split(separator: ".", omittingEmptySubsequences: false).map(String.init))
         let record: ResourceRecord?
         switch question.type {
         case ResourceRecordType.host:
-            record = answerHost(question: question)
+            record = answerHost(question: question, key: key)
         case ResourceRecordType.host6:
             // Return NODATA (noError with empty answers) for AAAA queries ONLY if A record exists.
             // This is required because musl libc has issues when A record exists but AAAA returns NXDOMAIN.
             // musl treats NXDOMAIN on AAAA as "domain doesn't exist" and fails DNS resolution entirely.
             // NODATA correctly indicates "no IPv6 address available, but domain exists".
-            if hosts4[question.name] != nil {
+            if hosts4[key] != nil {
                 return Message(
                     id: query.id,
                     type: .response,
@@ -48,28 +62,11 @@ public struct HostTableResolver: DNSHandler {
             }
             // If hostname doesn't exist, return nil which will become NXDOMAIN
             return nil
-        case ResourceRecordType.nameServer,
-            ResourceRecordType.alias,
-            ResourceRecordType.startOfAuthority,
-            ResourceRecordType.pointer,
-            ResourceRecordType.mailExchange,
-            ResourceRecordType.text,
-            ResourceRecordType.service,
-            ResourceRecordType.incrementalZoneTransfer,
-            ResourceRecordType.standardZoneTransfer,
-            ResourceRecordType.all:
-            return Message(
-                id: query.id,
-                type: .response,
-                returnCode: .notImplemented,
-                questions: query.questions,
-                answers: []
-            )
         default:
             return Message(
                 id: query.id,
                 type: .response,
-                returnCode: .formatError,
+                returnCode: .notImplemented,
                 questions: query.questions,
                 answers: []
             )
@@ -88,11 +85,11 @@ public struct HostTableResolver: DNSHandler {
         )
     }
 
-    private func answerHost(question: Question) -> ResourceRecord? {
-        guard let ip = hosts4[question.name] else {
+    private func answerHost(question: Question, key: DNSName) -> ResourceRecord? {
+        guard let ip = hosts4[key] else {
             return nil
         }
 
-        return HostRecord<IPv4>(name: question.name, ttl: ttl, ip: ip)
+        return HostRecord<IPv4Address>(name: question.name, ttl: ttl, ip: ip)
     }
 }

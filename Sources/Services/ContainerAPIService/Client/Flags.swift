@@ -174,6 +174,8 @@ public struct Flags {
 
         public init(
             arch: String,
+            capAdd: [String],
+            capDrop: [String],
             cidfile: String,
             detach: Bool,
             dns: Flags.DNS,
@@ -200,6 +202,8 @@ public struct Flags {
             volumes: [String]
         ) {
             self.arch = arch
+            self.capAdd = capAdd
+            self.capDrop = capDrop
             self.cidfile = cidfile
             self.detach = detach
             self.dns = dns
@@ -228,6 +232,18 @@ public struct Flags {
 
         @Option(name: .shortAndLong, help: "Set arch if image can target multiple architectures")
         public var arch: String = Arch.hostArchitecture().rawValue
+
+        @Option(
+            name: .customLong("cap-add"),
+            help: .init("Add a Linux capability (e.g. CAP_NET_RAW, or ALL)", valueName: "cap")
+        )
+        public var capAdd: [String] = []
+
+        @Option(
+            name: .customLong("cap-drop"),
+            help: .init("Drop a Linux capability (e.g. CAP_NET_RAW, or ALL)", valueName: "cap")
+        )
+        public var capDrop: [String] = []
 
         @Option(name: .long, help: "Write the container ID to the path provided")
         public var cidfile = ""
@@ -343,12 +359,15 @@ public struct Flags {
         }
 
         public enum ProgressType: String, ExpressibleByArgument {
+            case auto
             case none
             case ansi
+            case plain
+            case color
         }
 
-        @Option(name: .long, help: ArgumentHelp("Progress type (format: none|ansi)", valueName: "type"))
-        public var progress: ProgressType = .ansi
+        @Option(name: .long, help: ArgumentHelp("Progress type (format: auto|none|ansi|plain|color)", valueName: "type"))
+        public var progress: ProgressType = .auto
     }
 
     @OptionGroupPassthrough

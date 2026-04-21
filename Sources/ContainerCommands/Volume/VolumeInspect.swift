@@ -42,12 +42,11 @@ extension Application.VolumeCommand {
                 volumes.append(volume)
             }
 
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            encoder.dateEncodingStrategy = .iso8601
-
-            let data = try encoder.encode(volumes)
-            print(String(decoding: data, as: UTF8.self))
+            let options = JSONOptions(
+                outputFormatting: [.prettyPrinted, .sortedKeys],
+                dateEncodingStrategy: .iso8601
+            )
+            try Output.emit(Output.renderJSON(volumes, options: options))
         }
     }
 }

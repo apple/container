@@ -51,10 +51,10 @@ public struct HostDNSResolver {
 
         let dnsPort = localhost == nil ? "2053" : "1053"
         let options =
-            localhost == nil
-            ? ""
-            : HostDNSResolver.localhostOptionsRegex.replacingOccurrences(
-                of: #"\((.*?)\)"#, with: localhost!.description, options: .regularExpression)
+            localhost.map {
+                HostDNSResolver.localhostOptionsRegex.replacingOccurrences(
+                    of: #"\((.*?)\)"#, with: $0.description, options: .regularExpression)
+            } ?? ""
         let resolverText = """
             domain \(name)
             search \(name)

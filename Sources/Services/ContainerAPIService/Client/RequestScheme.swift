@@ -40,7 +40,7 @@ public enum RequestScheme: String, Sendable {
     /// Returns the prescribed protocol to use while making a HTTP request to a webserver
     /// - Parameter host: The domain or IP address of the webserver
     /// - Returns: RequestScheme
-    package func schemeFor(host: String) throws -> Self {
+    public func schemeFor(host: String) throws -> Self {
         guard host.count > 0 else {
             throw ContainerizationError(.invalidArgument, message: "host cannot be empty")
         }

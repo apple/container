@@ -40,41 +40,39 @@ extension Application {
 
         public func run() async throws {
             let vals = DefaultsStore.allValues()
-            try printValues(vals, format: format)
-        }
 
-        private func createHeader() -> [[String]] {
-            [["ID", "TYPE", "VALUE", "DESCRIPTION"]]
-        }
-
-        private func printValues(_ vals: [DefaultsStoreValue], format: ListFormat) throws {
-            if format == .json {
-                let data = try JSONEncoder().encode(vals)
-                print(String(decoding: data, as: UTF8.self))
-                return
-            }
-
-            if self.quiet {
-                vals.forEach {
-                    print($0.id)
-                }
-                return
-            }
-
-            var rows = createHeader()
-            for property in vals {
-                rows.append(property.asRow)
-            }
-
-            let formatter = TableOutput(rows: rows)
-            print(formatter.format())
+            try Output.render(
+                json: vals,
+                display: vals.map { PrintableProperty($0) },
+                format: format, quiet: quiet
+            )
         }
     }
 }
 
-extension DefaultsStoreValue {
-    var asRow: [String] {
-        [id, String(describing: type), value?.description.elided(to: 40) ?? "*undefined*", description]
+private struct PrintableProperty: ListDisplayable {
+    let id: String
+    let typeName: String
+    let valueDescription: String
+    let description: String
+
+    init(_ value: DefaultsStoreValue) {
+        self.id = value.id
+        self.typeName = String(describing: value.type)
+        self.valueDescription = value.value?.description.elided(to: 40) ?? "*undefined*"
+        self.description = value.description
+    }
+
+    static var tableHeader: [String] {
+        ["ID", "TYPE", "VALUE", "DESCRIPTION"]
+    }
+
+    var tableRow: [String] {
+        [id, typeName, valueDescription, description]
+    }
+
+    var quietValue: String {
+        id
     }
 }
 
@@ -86,7 +84,7 @@ extension String {
         }
 
         if maxCount < ellipsis.count {
-            return ellipsis
+            return String(ellipsis.prefix(maxCount))
         }
 
         let prefixCount = maxCount - ellipsis.count

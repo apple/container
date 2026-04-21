@@ -53,6 +53,10 @@ public struct ContainerConfiguration: Sendable, Codable {
     public var readOnly: Bool = false
     /// Whether to use a minimal init process inside the container.
     public var useInit: Bool = false
+    /// Linux capabilities to add (normalized CAP_* strings, or "ALL").
+    public var capAdd: [String] = []
+    /// Linux capabilities to drop (normalized CAP_* strings, or "ALL").
+    public var capDrop: [String] = []
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -73,6 +77,8 @@ public struct ContainerConfiguration: Sendable, Codable {
         case ssh
         case readOnly
         case useInit
+        case capAdd
+        case capDrop
     }
 
     /// Create a configuration from the supplied Decoder, initializing missing
@@ -104,6 +110,8 @@ public struct ContainerConfiguration: Sendable, Codable {
         ssh = try container.decodeIfPresent(Bool.self, forKey: .ssh) ?? false
         readOnly = try container.decodeIfPresent(Bool.self, forKey: .readOnly) ?? false
         useInit = try container.decodeIfPresent(Bool.self, forKey: .useInit) ?? false
+        capAdd = try container.decodeIfPresent([String].self, forKey: .capAdd) ?? []
+        capDrop = try container.decodeIfPresent([String].self, forKey: .capDrop) ?? []
     }
 
     public struct DNSConfiguration: Sendable, Codable {

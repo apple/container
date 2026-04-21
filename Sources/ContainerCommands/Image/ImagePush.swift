@@ -60,18 +60,13 @@ extension Application {
             let scheme = try RequestScheme(registry.scheme)
             let image = try await ClientImage.get(reference: reference)
 
-            var progressConfig: ProgressConfig
-            switch self.progressFlags.progress {
-            case .none: progressConfig = try ProgressConfig(disableProgressUpdates: true)
-            case .ansi:
-                progressConfig = try ProgressConfig(
-                    description: "Pushing image \(image.reference)",
-                    itemsName: "blobs",
-                    showItems: true,
-                    showSpeed: false,
-                    ignoreSmallSize: true
-                )
-            }
+            let progressConfig = try self.progressFlags.makeConfig(
+                description: "Pushing image \(image.reference)",
+                itemsName: "blobs",
+                showItems: true,
+                showSpeed: false,
+                ignoreSmallSize: true
+            )
 
             let progress = ProgressBar(config: progressConfig)
             defer {

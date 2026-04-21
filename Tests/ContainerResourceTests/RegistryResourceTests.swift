@@ -137,7 +137,7 @@ struct RegistryResourceTests {
     }
 
     @Test("RegistryResource can have labels")
-    func testRegistryResourceWithLabels() {
+    func testRegistryResourceWithLabels() throws {
         let hostname = "docker.io"
         let username = "testuser"
         let labels = [
@@ -150,7 +150,7 @@ struct RegistryResourceTests {
             username: username,
             creationDate: Date(),
             modificationDate: Date(),
-            labels: labels
+            labels: try .init(labels)
         )
 
         #expect(resource.labels.count == 2)

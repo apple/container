@@ -27,23 +27,32 @@ extension DNSServer {
         outbound: NIOAsyncChannelOutboundWriter<AddressedEnvelope<ByteBuffer>>,
         packet: inout AddressedEnvelope<ByteBuffer>
     ) async throws {
-        let chunkSize = 512
-        var data = Data()
+        // RFC 1035 §2.3.4 limits UDP DNS messages to 512 bytes. We don't implement
+        // EDNS0 (RFC 6891), and this server only resolves host A/AAAA queries, so a
+        // legitimate query will never approach this limit. Reject oversized packets
+        // before reading to avoid allocating memory for malformed or malicious datagrams.
+        let maxPacketSize = 512
+        guard packet.data.readableBytes <= maxPacketSize else {
+            self.log?.error("dropping oversized DNS packet: \(packet.data.readableBytes) bytes")
+            return
+        }
 
+        var data = Data()
         self.log?.debug("reading data")
         while packet.data.readableBytes > 0 {
-            if let chunk = packet.data.readBytes(length: min(chunkSize, packet.data.readableBytes)) {
+            if let chunk = packet.data.readBytes(length: packet.data.readableBytes) {
                 data.append(contentsOf: chunk)
             }
         }
 
         self.log?.debug("deserializing message")
-        let query = try Message(deserialize: data)
-        self.log?.debug("processing query: \(query.questions)")
 
         // always send response
         let responseData: Data
         do {
+            let query = try Message(deserialize: data)
+            self.log?.debug("processing query: \(query.questions)")
+
             self.log?.debug("awaiting processing")
             var response =
                 try await handler.answer(query: query)
@@ -64,21 +73,48 @@ extension DNSServer {
 
             self.log?.debug("serializing response")
             responseData = try response.serialize()
-        } catch {
-            self.log?.error("error processing message from \(query): \(error)")
+        } catch let error as DNSBindError {
+            // Best-effort: echo the transaction ID from the first two bytes of the raw packet.
+            let rawId = data.count >= 2 ? data[0..<2].withUnsafeBytes { $0.load(as: UInt16.self) } : 0
+            let id = UInt16(bigEndian: rawId)
+            let returnCode: ReturnCode
+            switch error {
+            case .unsupportedValue:
+                self.log?.error("not implemented processing DNS message: \(error)")
+                returnCode = .notImplemented
+            default:
+                self.log?.error("format error processing DNS message: \(error)")
+                returnCode = .formatError
+            }
             let response = Message(
-                id: query.id,
+                id: id,
                 type: .response,
-                returnCode: .notImplemented,
-                questions: query.questions,
+                returnCode: returnCode,
+                questions: [],
+                answers: []
+            )
+            responseData = try response.serialize()
+        } catch {
+            let rawId = data.count >= 2 ? data[0..<2].withUnsafeBytes { $0.load(as: UInt16.self) } : 0
+            let id = UInt16(bigEndian: rawId)
+            self.log?.error("error processing DNS message: \(error)")
+            let response = Message(
+                id: id,
+                type: .response,
+                returnCode: .serverFailure,
+                questions: [],
                 answers: []
             )
             responseData = try response.serialize()
         }
 
-        self.log?.debug("sending response for \(query.id)")
+        self.log?.debug("sending response")
         let rData = ByteBuffer(bytes: responseData)
-        try? await outbound.write(AddressedEnvelope(remoteAddress: packet.remoteAddress, data: rData))
+        do {
+            try await outbound.write(AddressedEnvelope(remoteAddress: packet.remoteAddress, data: rData))
+        } catch {
+            self.log?.error("failed to send DNS response: \(error)")
+        }
 
         self.log?.debug("processing done")
 
