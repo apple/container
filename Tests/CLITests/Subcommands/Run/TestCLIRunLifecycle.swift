@@ -189,14 +189,14 @@ class TestCLIRunLifecycle: CLITest {
         // Verify SSH_AUTH_SOCK is set to the expected guest path inside the container.
         let sshSockValue = try doExec(name: name, cmd: ["sh", "-c", "echo $SSH_AUTH_SOCK"])
         #expect(
-            sshSockValue.trimmingCharacters(in: .whitespacesAndNewlines) == "/run/host-services/ssh-auth.sock",
+            sshSockValue.trimmingCharacters(in: .whitespacesAndNewlines) == "/var/host-services/ssh-auth.sock",
             "expected SSH_AUTH_SOCK to point to guest socket path"
         )
 
         // Verify the forwarded socket file is present and is a socket.
         let socketCheck = try doExec(
             name: name,
-            cmd: ["sh", "-c", "[ -S /run/host-services/ssh-auth.sock ] && echo exists || echo missing"]
+            cmd: ["sh", "-c", "[ -S /var/host-services/ssh-auth.sock ] && echo exists || echo missing"]
         )
         #expect(
             socketCheck.trimmingCharacters(in: .whitespacesAndNewlines) == "exists",
