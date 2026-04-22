@@ -51,7 +51,7 @@ public actor SandboxService {
     private var processes: [String: ProcessInfo] = [:]
     private var socketForwarders: [SocketForwarderResult] = []
 
-    private static let sshAuthSocketGuestPath = "/run/host-services/ssh-auth.sock"
+    private static let sshAuthSocketGuestPath = "/var/host-services/ssh-auth.sock"
     private static let sshAuthSocketEnvVar = "SSH_AUTH_SOCK"
 
     class ExitWaiter {
