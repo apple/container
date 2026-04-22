@@ -36,7 +36,7 @@ extension Flags.Progress {
     /// are disabled and the output mode is set to `.plain`. For `.color`, behavior matches
     /// `.ansi` but the output mode is set to `.color` to enable color-coded output.
     /// For `.auto`, the type is resolved by checking whether stderr is a TTY.
-    func makeConfig(
+    public func makeConfig(
         description: String = "",
         itemsName: String = "it",
         showTasks: Bool = false,
