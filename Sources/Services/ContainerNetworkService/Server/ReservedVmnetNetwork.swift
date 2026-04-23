@@ -14,7 +14,6 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerPersistence
 import ContainerResource
 import ContainerXPC
 import Containerization
@@ -117,11 +116,8 @@ public final class ReservedVmnetNetwork: Network {
 
         vmnet_network_configuration_disable_dhcp(vmnetConfiguration)
 
-        // subnet priority is CLI argument, UserDefault, auto
-        let defaultIpv4Subnet = try DefaultsStore.getOptional(key: .defaultSubnet).map { try CIDRv4($0) }
-        let ipv4Subnet = configuration.ipv4Subnet ?? defaultIpv4Subnet
-        let defaultIpv6Subnet = try DefaultsStore.getOptional(key: .defaultIPv6Subnet).map { try CIDRv6($0) }
-        let ipv6Subnet = configuration.ipv6Subnet ?? defaultIpv6Subnet
+        let ipv4Subnet = configuration.ipv4Subnet
+        let ipv6Subnet = configuration.ipv6Subnet
 
         // set the IPv4 subnet if the caller provided one
         if let ipv4Subnet {

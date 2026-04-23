@@ -63,6 +63,8 @@ extension Application {
                 printVersionTable(versions: versions)
             case .json:
                 try Output.emit(Output.renderJSON(versions))
+            case .yaml:
+                try Output.emit(Output.renderYAML(versions))
             }
         }
 

@@ -296,6 +296,53 @@ class TestCLIImagesCommand: CLITest {
         }
     }
 
+    @Test func testImageSaveMissingPlatform() throws {
+        do {
+            // 1. pull image
+            try doPull(imageName: alpine)
+
+            // 2. tag image so we can safely remove later
+            let alpineRef: Reference = try Reference.parse(alpine)
+            let alpineTagged = "\(alpineRef.name):testImageSaveMissingPlatform"
+            try doImageTag(image: alpine, newName: alpineTagged)
+            let alpineTaggedImagePresent = try isImagePresent(targetImage: alpineTagged)
+            #expect(alpineTaggedImagePresent, "expected to see image \(alpineTagged) tagged")
+
+            defer {
+                try? doRemoveImages(images: [alpineTagged])
+            }
+
+            // 3. attempt to save with a platform that isn't in the image
+            let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer {
+                try? FileManager.default.removeItem(at: tempDir)
+            }
+            let tempFile = tempDir.appendingPathComponent(UUID().uuidString)
+            let saveArgs = [
+                "image",
+                "save",
+                alpineTagged,
+                "--platform",
+                "linux/arm/v5",
+                "--output",
+                tempFile.path(),
+            ]
+            let (_, _, error, status) = try run(arguments: saveArgs)
+
+            #expect(status != 0, "expected save to fail for missing platform")
+            #expect(
+                error.contains("has no content for platform"),
+                "expected error to describe missing platform, got: \(error)")
+            #expect(
+                error.contains("available platforms:"),
+                "expected error to list available platforms, got: \(error)")
+        } catch {
+            Issue.record("failed missing-platform save test \(error)")
+            return
+        }
+    }
+
     @Test func testMaxConcurrentDownloadsValidation() throws {
         // Test that invalid maxConcurrentDownloads value is rejected
         let (_, _, error, status) = try run(arguments: [

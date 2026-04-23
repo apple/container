@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import Yams
 
 /// Options for JSON rendering, wrapping the knobs on `JSONEncoder`.
 public struct JSONOptions: Sendable {
@@ -48,6 +49,12 @@ public enum Output {
         return String(decoding: data, as: UTF8.self)
     }
 
+    public static func renderYAML<T: Encodable>(_ value: T) throws -> String {
+        let encoder = YAMLEncoder()
+        let data = try encoder.encode(value)
+        return data
+    }
+
     /// Renders a list of displayable items as a table (with header) or quiet-mode identifiers.
     public static func renderList<T: ListDisplayable>(_ items: [T], quiet: Bool) -> String {
         if quiet {
@@ -74,6 +81,7 @@ public enum Output {
     ) throws {
         switch format {
         case .json: try emit(renderJSON(json))
+        case .yaml: try emit(renderYAML(json))
         case .table: emit(renderList(display, quiet: quiet))
         }
     }

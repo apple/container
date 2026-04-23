@@ -169,14 +169,20 @@ class TestCLIRunCommand1: CLITest {
     @Test func testRunCommandCPUs() throws {
         do {
             let name = getTestName()
-            let cpus = "2"
-            try doLongRun(name: name, args: ["--cpus", cpus])
+            let cpus = 2
+            try doLongRun(name: name, args: ["--cpus", "\(cpus)"])
             defer {
                 try? doStop(name: name)
             }
-            var output = try doExec(name: name, cmd: ["nproc"])
-            output = output.trimmingCharacters(in: .whitespacesAndNewlines)
-            #expect(output == cpus, "expected \(cpus), instead got \(output)")
+            let cpusPath = "/sys/fs/cgroup/cpu.max"
+            let output = try doExec(name: name, cmd: ["cat", cpusPath])
+            let fields = output.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: .whitespaces)
+            #expect(fields.count == 2, "expected 2 fields in \(cpusPath), instead got \(fields.count)")
+            let numerator = try #require(Int(fields[0]))
+            let denominator = try #require(Int(fields[1]))
+            #expect(denominator > 0, "expected positive denominator in \(cpusPath), instead got \(denominator)")
+            let expectedNumerator = cpus * denominator
+            #expect(expectedNumerator == numerator, "expected \(expectedNumerator) in \(cpusPath), instead got \(numerator)")
             try doStop(name: name)
         } catch {
             Issue.record("failed to run container \(error)")

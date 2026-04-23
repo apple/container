@@ -113,6 +113,7 @@ public final class Archiver: Sendable {
         let writer = archiver.makeTransactionWriter()
         let bufferSize = Int(1.mib())
         let readBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+        defer { readBuffer.deallocate() }
         try writer.writeHeader(entry: entry)
         if entry.fileType == .regular {
             // We need to write the data into the archive only if its a regular file
@@ -121,19 +122,23 @@ public final class Archiver: Sendable {
                 throw Error.failedToCreateInputStream(item)
             }
             stream.open()
+            defer { stream.close() }
             while true {
                 let byteRead = stream.read(readBuffer, maxLength: bufferSize)
-                if byteRead <= 0 {
+                if byteRead < 0 {
+                    // stream.read returns -1 on error (e.g. TCC access denial under /Users/)
+                    let streamError = stream.streamError
+                    throw Error.failedToReadFile(item, streamError)
+                }
+                if byteRead == 0 {
                     break
-                } else {
-                    let data = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: readBuffer), count: byteRead, deallocator: .none)
-                    hasher.update(data: data)
-                    try data.withUnsafeBytes { pointer in
-                        try writer.writeChunk(data: pointer)
-                    }
+                }
+                let data = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: readBuffer), count: byteRead, deallocator: .none)
+                hasher.update(data: data)
+                try data.withUnsafeBytes { pointer in
+                    try writer.writeChunk(data: pointer)
                 }
             }
-            stream.close()
         }
         try writer.finish()
     }
@@ -222,6 +227,7 @@ extension Archiver {
         case failedToCreateEntry
         case fileDoesNotExist(_ url: URL)
         case failedToCreateInputStream(_ url: URL)
+        case failedToReadFile(_ url: URL, _ underlying: Swift.Error?)
 
         public var description: String {
             switch self {
@@ -231,6 +237,11 @@ extension Archiver {
                 return "file \(url.path) does not exist"
             case .failedToCreateInputStream(let url):
                 return "failed to create input stream for \(url.path)"
+            case .failedToReadFile(let url, let underlying):
+                if let underlying {
+                    return "failed to read file \(url.path): \(underlying)"
+                }
+                return "failed to read file \(url.path)"
             }
         }
     }
