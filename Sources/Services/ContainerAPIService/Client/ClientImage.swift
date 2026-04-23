@@ -452,6 +452,11 @@ extension ClientImage {
         return fs
     }
 
+
+    /// Returns the unpacked snapshot size in bytes for the specified platform.
+    /// - Parameter platform: The platform to get the snapshot size for.
+    /// - Returns: The unpacked snapshot size in bytes.
+    /// - Throws: An error if the snapshot size cannot be retrieved.
     public func getSnapshotSize(platform: Platform) async throws -> UInt64 {
         let client = Self.newXPCClient()
         let request = Self.newRequest(.snapshotSize)
@@ -464,6 +469,9 @@ extension ClientImage {
     }
 
     /// Returns both OCI image size and snapshot size for the specified platform.
+    /// - Parameter platform: The platform to get the snapshot size for.
+    /// - Returns: An ``ImageSizeInfo`` containing the compressed OCI image size and the unpacked snapshot size.
+    /// - Throws: An error if the image sizes cannot be retrieved.
     public func getImageSizes(platform: Platform) async throws -> ImageSizeInfo {
         let ociSize = try await Self.getFullImageSize(image: self)
         let snapshotSize = (try? await self.getSnapshotSize(platform: platform)) ?? 0
