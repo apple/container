@@ -57,7 +57,12 @@ extension Application.VolumeCommand {
                     try await ClientVolume.delete(name: volume.name)
                     prunedVolumes.append(volume.name)
                 } catch {
-                    log.error("Failed to prune volume \(volume.name): \(error)")
+                    log.error(
+                        "failed to prune volume",
+                        metadata: [
+                            "id": "\(volume.name)",
+                            "error": "\(error)",
+                        ])
                 }
             }
 

@@ -33,10 +33,12 @@ DSYM_PATH := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM.zip
 CODESIGN_OPTS ?= --force --sign - --timestamp=none
 
 # Conditionally use a temporary data directory for integration tests
-ifeq ($(strip $(APP_ROOT)),)
-	SYSTEM_START_OPTS :=
-else
-	SYSTEM_START_OPTS := --app-root "$(strip $(APP_ROOT))"
+SYSTEM_START_OPTS :=
+ifneq ($(strip $(APP_ROOT)),)
+	SYSTEM_START_OPTS += --app-root "$(strip $(APP_ROOT))"
+endif
+ifneq ($(strip $(LOG_ROOT)),)
+	SYSTEM_START_OPTS += --log-root "$(strip $(LOG_ROOT))"
 endif
 
 MACOS_VERSION := $(shell sw_vers -productVersion)
@@ -77,7 +79,8 @@ release: all
 
 .PHONY: init-block
 init-block:
-	@scripts/install-init.sh
+	@echo Building initfs if containerization is in edit mode
+	@scripts/install-init.sh $(SYSTEM_START_OPTS)
 
 .PHONY: install
 install: installer-pkg
@@ -102,12 +105,14 @@ $(STAGING_DIR):
 	@install "$(BUILD_BIN_DIR)/container" "$(join $(STAGING_DIR), bin/container)"
 	@install "$(BUILD_BIN_DIR)/container-apiserver" "$(join $(STAGING_DIR), bin/container-apiserver)"
 	@install "$(BUILD_BIN_DIR)/container-runtime-linux" "$(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/bin/container-runtime-linux)"
-	@install config/container-runtime-linux-config.json "$(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/config.json)"
+	@install Sources/Plugins/RuntimeLinux/config.json "$(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/config.json)"
 	@install "$(BUILD_BIN_DIR)/container-network-vmnet" "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin/container-network-vmnet)"
-	@install config/container-network-vmnet-config.json "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/config.json)"
+	@install Sources/Plugins/NetworkVmnet/config.json "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/config.json)"
 	@install "$(BUILD_BIN_DIR)/container-core-images" "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin/container-core-images)"
-	@install config/container-core-images-config.json "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/config.json)"
+	@install Sources/Plugins/CoreImages/config.json "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/config.json)"
 
+	@echo Install update script
+	@install scripts/update-container.sh "$(join $(STAGING_DIR), bin/update-container.sh)"
 	@echo Install uninstaller script
 	@install scripts/uninstall-container.sh "$(join $(STAGING_DIR), bin/uninstall-container.sh)"
 
@@ -144,15 +149,17 @@ test:
 
 .PHONY: install-kernel
 install-kernel:
+	@echo Stopping system before installing kernel
 	@bin/container system stop || true
-	@bin/container system start --timeout 60 --enable-kernel-install $(SYSTEM_START_OPTS)
+	@echo Starting system to install kernel
+	@bin/container --debug system start --timeout 60 --enable-kernel-install $(SYSTEM_START_OPTS)
 
 .PHONY: coverage
 coverage: init-block
-	@echo Ensuring apiserver stopped before the CLI integration tests...
+	@echo Ensuring apiserver stopped before the coverage analysis
 	@bin/container system stop && sleep 3 && scripts/ensure-container-stopped.sh
-	@bin/container system start $(SYSTEM_START_OPTS) && \
-	echo "Starting unit tests" && \
+	@bin/container --debug system start $(SYSTEM_START_OPTS) && \
+	echo "Starting coverage analysis" && \
 	{ \
 		exit_code=0; \
 		$(SWIFT) test --no-parallel --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) || exit_code=1 ; \
@@ -175,13 +182,23 @@ coverage: init-block
 integration: init-block
 	@echo Ensuring apiserver stopped before the CLI integration tests...
 	@bin/container system stop && sleep 3 && scripts/ensure-container-stopped.sh
+	@if [ -n "$(APP_ROOT)" ]; then \
+		echo "Clearing application data under $(APP_ROOT) (preserving kernels)..." ; \
+		mkdir -p $(APP_ROOT) ; \
+		find "$(APP_ROOT)" -mindepth 1 -maxdepth 1 ! -name kernels -exec rm -rf {} + ; \
+	fi
 	@echo Running the integration tests...
-	@bin/container system start --timeout 60 $(SYSTEM_START_OPTS) && \
+	@bin/container --debug system start --timeout 60 --enable-kernel-install $(SYSTEM_START_OPTS) && \
 	echo "Starting CLI integration tests" && \
 	{ \
 		exit_code=0; \
+		CLITEST_LOG_ROOT=$(LOG_ROOT) && export CLITEST_LOG_ROOT ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIHelp || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIStatus || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIVersion || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLINetwork || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunLifecycle || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunCapabilities || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIExecCommand || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLICreateCommand || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunCommand1 || exit_code=1 ; \
@@ -194,9 +211,11 @@ integration: init-block
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunBase || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunInitImage || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIBuildBase || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIExportCommand || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIVolumes || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIKernelSet || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIAnonymousVolumes || exit_code=1 ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLINotFound || exit_code=1 ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLINoParallelCases || exit_code=1 ; \
 		echo Ensuring apiserver stopped after the CLI integration tests ; \
 		scripts/ensure-container-stopped.sh ; \

@@ -15,8 +15,10 @@ jobs:
       - name: Check all commits are signed
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          commits=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/commits --paginate)
+          commits=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/commits" --paginate)
           unsigned_commits=""
 
           while IFS='|' read -r sha author verified; do

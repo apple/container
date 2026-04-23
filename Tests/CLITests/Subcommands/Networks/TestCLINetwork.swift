@@ -36,7 +36,7 @@ class TestCLINetwork: CLITest {
     }
 
     @available(macOS 26, *)
-    @Test(.disabled()) func testNetworkCreateAndUse() async throws {
+    @Test func testNetworkCreateAndUse() async throws {
         do {
             let name = getLowercasedTestName()
             let networkDeleteArgs = ["network", "delete", name]
@@ -90,7 +90,7 @@ class TestCLINetwork: CLITest {
     }
 
     @available(macOS 26, *)
-    @Test(.disabled()) func testNetworkDeleteWithContainer() async throws {
+    @Test func testNetworkDeleteWithContainer() async throws {
         do {
             // prep: delete container and network, ignoring if it doesn't exist
             let name = getLowercasedTestName()
@@ -137,7 +137,7 @@ class TestCLINetwork: CLITest {
     }
 
     @available(macOS 26, *)
-    @Test(.disabled()) func testNetworkLabels() async throws {
+    @Test func testNetworkLabels() async throws {
         do {
             // prep: delete container and network, ignoring if it doesn't exist
             let name = getLowercasedTestName()
@@ -182,7 +182,7 @@ class TestCLINetwork: CLITest {
                 "foo": "bar",
                 "baz": "qux",
             ]
-            #expect(expectedLabels == networks[0].config.labels)
+            #expect(expectedLabels == networks[0].config.labels.dictionary)
 
             // delete should succeed
             _ = try run(arguments: networkDeleteArgs)
@@ -192,8 +192,21 @@ class TestCLINetwork: CLITest {
         }
     }
 
+    @Test func testNetworkMTU() async throws {
+        let name = getLowercasedTestName()
+        try? doStop(name: name)
+        try? doRemove(name: name)
+
+        try doLongRun(name: name, args: ["--network", "default,mtu=1500"])
+        defer { try? doStop(name: name) }
+
+        try waitForContainerRunning(name)
+        let output = try doExec(name: name, cmd: ["ip", "link", "show", "eth0"])
+        #expect(output.contains("mtu 1500"), "expected mtu 1500 in ip link output: \(output)")
+    }
+
     @available(macOS 26, *)
-    @Test(.disabled()) func testIsolatedNetwork() async throws {
+    @Test func testIsolatedNetwork() async throws {
         do {
             let name = getLowercasedTestName()
             let networkDeleteArgs = ["network", "delete", name]
@@ -247,5 +260,41 @@ class TestCLINetwork: CLITest {
 
             #expect(failed == 6, "external connection should fail")
         }
+    }
+
+    @Test func testNetworkListTableFormat() throws {
+        let name = getLowercasedTestName()
+        _ = try? run(arguments: ["network", "delete", name])
+        let createResult = try run(arguments: ["network", "create", name])
+        if createResult.status != 0 {
+            throw CLIError.executionFailed("network create failed: \(createResult.error)")
+        }
+        defer { _ = try? run(arguments: ["network", "delete", name]) }
+
+        let (_, output, error, status) = try run(arguments: ["network", "list"])
+        #expect(status == 0, "network list should succeed, stderr: \(error)")
+
+        let headers = ["NETWORK", "STATE", "SUBNET"]
+        #expect(headers.allSatisfy { output.contains($0) }, "table should contain all headers")
+        #expect(output.contains(name), "table should contain the created network")
+    }
+
+    @Test func testNetworkListJSONFormat() throws {
+        let name = getLowercasedTestName()
+        _ = try? run(arguments: ["network", "delete", name])
+        let createResult = try run(arguments: ["network", "create", name])
+        if createResult.status != 0 {
+            throw CLIError.executionFailed("network create failed: \(createResult.error)")
+        }
+        defer { _ = try? run(arguments: ["network", "delete", name]) }
+
+        let (data, _, error, status) = try run(arguments: ["network", "list", "--format", "json"])
+        #expect(status == 0, "network list --format json should succeed, stderr: \(error)")
+
+        guard let json = try JSONSerialization.jsonObject(with: data, options: []) as? [[String: Any]] else {
+            Issue.record("JSON output should be an array of objects")
+            return
+        }
+        #expect(json.contains { ($0["id"] as? String) == name }, "JSON should contain the created network")
     }
 }

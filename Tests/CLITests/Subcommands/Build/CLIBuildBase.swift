@@ -45,10 +45,14 @@ class TestCLIBuildBase: CLITest {
         var attempt = 3
         while attempt > 0 {
             attempt -= 1
-            let response = try doExec(name: buildkitName, cmd: ["pidof", "-s", "container-builder-shim"])
-            if !response.isEmpty {
-                // found the init process running
-                return
+            do {
+                let response = try doExec(name: buildkitName, cmd: ["pidof", "-s", "container-builder-shim"])
+                if !response.isEmpty {
+                    // found the init process running
+                    return
+                }
+            } catch {
+                print("container-builder-shim check failed with \(error)")
             }
             sleep(1)
         }
@@ -59,6 +63,12 @@ class TestCLIBuildBase: CLITest {
         let tempDir = testDir.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         return tempDir
+    }
+
+    func createTempFile(suffix: String, contents: Data) throws -> URL {
+        let tempFile = testDir.appendingPathComponent(UUID().uuidString + suffix)
+        try contents.write(to: tempFile, options: .atomic)
+        return tempFile
     }
 
     func createContext(tempDir: URL, dockerfile: String, context: [FileSystemEntry]? = nil) throws {

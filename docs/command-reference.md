@@ -43,6 +43,8 @@ container run [<options>] <image> [<arguments> ...]
 **Management Options**
 
 *   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: arm64)
+*   `--cap-add <cap>`: Add a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
+*   `--cap-drop <cap>`: Drop a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
 *   `--cidfile <cidfile>`: Write the container ID to the path provided
 *   `-d, --detach`: Run the container and detach from the process
 *   `--dns <ip>`: DNS nameserver IP address
@@ -50,6 +52,7 @@ container run [<options>] <image> [<arguments> ...]
 *   `--dns-option <option>`: DNS options
 *   `--dns-search <domain>`: DNS search domains
 *   `--entrypoint <cmd>`: Override the entrypoint of the image
+*   `--init`: Run an init process inside the container that forwards signals and reaps processes
 *   `--init-image <image>`: Use a custom init image instead of the default. This allows customizing boot-time behavior before the OCI container starts, such as running VM-level daemons, configuring eBPF filters, or debugging the init process.
 *   `-k, --kernel <path>`: Set a custom kernel path
 *   `-l, --label <label>`: Add a key=value label to the container
@@ -61,13 +64,14 @@ container run [<options>] <image> [<arguments> ...]
 *   `-p, --publish <spec>`: Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])
 *   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
 *   `--publish-socket <spec>`: Publish a socket from container to host (format: host_path:container_path)
+*   `--read-only`: Mount the container's root filesystem as read-only
 *   `--rm, --remove`: Remove the container after it stops
 *   `--rosetta`: Enable Rosetta in the container
+*   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)
 *   `--ssh`: Forward SSH agent socket to container
 *   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
 *   `-v, --volume <volume>`: Bind mount a volume into the container
 *   `--virtualization`: Expose virtualization capabilities to the container (requires host and guest support)
-*   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)
 
 **Registry Options**
 
@@ -87,7 +91,7 @@ container run [<options>] <image> [<arguments> ...]
 
 **Progress Options**
 
-*   `--progress <type>`: Progress type (format: none|ansi) (default: ansi)
+*   `--progress <type>`: Progress type (format: none|ansi|plain|color) (default: ansi)
 
 **Examples**
 
@@ -103,6 +107,9 @@ container run -e NODE_ENV=production --cpus 2 --memory 1G node:18
 
 # run a container with a specific MAC address
 container run --network default,mac=02:42:ac:11:00:02 ubuntu:latest
+
+# run a container with an init process to reap zombies and forward signals
+container run --init ubuntu:latest my-app
 
 # run a container with a custom init image for boot customization
 container run --init-image local/custom-init:latest ubuntu:latest
@@ -139,6 +146,7 @@ container build [<options>] [<context-dir>]
 *   `--progress <type>`: Progress type (format: auto|plain|tty) (default: auto)
 *   `--pull`: Pull latest image
 *   `-q, --quiet`: Suppress build output
+*   `--secret <id=key,...>`: Set build-time secrets (format: id=<key>[,env=<ENV_VAR>|,src=<local/path>])
 *   `-t, --tag <name>`: Name for the built image (can be specified multiple times)
 *   `--target <stage>`: Set the target build stage
 *   `--vsock-port <port>`: Builder shim vsock port (default: 8088)
@@ -198,6 +206,8 @@ container create [<options>] <image> [<arguments> ...]
 **Management Options**
 
 *   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: arm64)
+*   `--cap-add <cap>`: Add a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
+*   `--cap-drop <cap>`: Drop a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
 *   `--cidfile <cidfile>`: Write the container ID to the path provided
 *   `-d, --detach`: Run the container and detach from the process
 *   `--dns <ip>`: DNS nameserver IP address
@@ -205,6 +215,7 @@ container create [<options>] <image> [<arguments> ...]
 *   `--dns-option <option>`: DNS options
 *   `--dns-search <domain>`: DNS search domains
 *   `--entrypoint <cmd>`: Override the entrypoint of the image
+*   `--init`: Run an init process inside the container that forwards signals and reaps processes
 *   `--init-image <image>`: Use a custom init image instead of the default. This allows customizing boot-time behavior before the OCI container starts, such as running VM-level daemons, configuring eBPF filters, or debugging the init process.
 *   `-k, --kernel <path>`: Set a custom kernel path
 *   `-l, --label <label>`: Add a key=value label to the container
@@ -216,13 +227,14 @@ container create [<options>] <image> [<arguments> ...]
 *   `-p, --publish <spec>`: Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])
 *   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
 *   `--publish-socket <spec>`: Publish a socket from container to host (format: host_path:container_path)
+*   `--read-only`: Mount the container's root filesystem as read-only
 *   `--rm, --remove`: Remove the container after it stops
 *   `--rosetta`: Enable Rosetta in the container
+*   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)  
 *   `--ssh`: Forward SSH agent socket to container
 *   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
 *   `-v, --volume <volume>`: Bind mount a volume into the container
 *   `--virtualization`: Expose virtualization capabilities to the container (requires host and guest support)
-*   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)  
 
 **Registry Options**
 
@@ -351,6 +363,35 @@ container exec [--detach] [--env <env> ...] [--env-file <env-file> ...] [--gid <
 *   `--uid <uid>`: Set the user ID for the process
 *   `-w, --workdir, --cwd <dir>`: Set the initial working directory inside the container
 
+### `container export`
+
+Exports a stopped container's filesystem as a tar archive. The container must be stopped before exporting. If no output file is specified, the tar stream is written to stdout.
+
+**Usage**
+
+```bash
+container export [-o <output>] [--debug] <container-id>
+```
+
+**Arguments**
+
+*   `<container-id>`: Container ID
+
+**Options**
+
+*   `-o, --output <output>`: Pathname for the saved container filesystem (defaults to stdout)
+
+**Examples**
+
+```bash
+# export a container's filesystem to a file
+container stop mycontainer
+container export -o mycontainer.tar mycontainer
+
+# export to stdout and pipe to another tool
+container export mycontainer > mycontainer.tar
+```
+
 ### `container logs`
 
 Fetches logs from a container. You can follow the logs (`-f`/`--follow`), restrict the number of lines shown, or view boot logs.
@@ -473,7 +514,7 @@ container image pull [--debug] [--scheme <scheme>] [--progress <type>] [--arch <
 **Options**
 
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
-*   `--progress <type>`: Progress type (format: none|ansi) (default: ansi)
+*   `--progress <type>`: Progress type (format: none|ansi|plain|color) (default: ansi)
 *   `-a, --arch <arch>`: Limit the pull to the specified architecture
 *   `--os <os>`: Limit the pull to the specified OS
 *   `--platform <platform>`: Limit the pull to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)
@@ -495,7 +536,7 @@ container image push [--scheme <scheme>] [--progress <type>] [--arch <arch>] [--
 **Options**
 
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
-*   `--progress <type>`: Progress type (format: none|ansi) (default: ansi)
+*   `--progress <type>`: Progress type (format: none|ansi|plain|color) (default: ansi)
 *   `-a, --arch <arch>`: Limit the push to the specified architecture
 *   `--os <os>`: Limit the push to the specified OS
 *   `--platform <platform>`: Limit the push to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)
@@ -945,13 +986,14 @@ Starts the container services and (optionally) installs a default kernel. It wil
 **Usage**
 
 ```bash
-container system start [--app-root <app-root>] [--install-root <install-root>] [--enable-kernel-install] [--disable-kernel-install] [--debug]
+container system start [--app-root <app-root>] [--install-root <install-root>] [--log-root <log-root>] [--enable-kernel-install] [--disable-kernel-install] [--debug]
 ```
 
 **Options**
 
 *   `-a, --app-root <app-root>`: Path to the root directory for application data
 *   `--install-root <install-root>`: Path to the root directory for application executables and plugins
+*   `--log-root <log-root>`: Path to the root directory for log data, using macOS log facility if not set
 *   `--enable-kernel-install/--disable-kernel-install`: Specify whether the default kernel should be installed or not (default: prompt user)
 
 ### `container system stop`
@@ -970,17 +1012,18 @@ container system stop [--prefix <prefix>] [--debug]
 
 ### `container system status`
 
-Checks whether the container services are running and prints status information. It will ping the apiserver and report readiness.
+Checks whether the container services are running and prints status information. It sends a health check request to the API server, which returns basic system information.
 
 **Usage**
 
 ```bash
-container system status [--prefix <prefix>] [--debug]
+container system status [--prefix <prefix>] [--format <format>] [--debug]
 ```
 
 **Options**
 
 *   `-p, --prefix <prefix>`: Launchd prefix for services (default: com.apple.container.)
+*   `--format <format>`    : Format of the output (values: json, table; default: table)
 
 ### `container system version`
 

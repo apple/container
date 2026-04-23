@@ -53,7 +53,7 @@ public struct ProcessConfiguration: Sendable, Codable {
     }
 
     /// The User information for a Process.
-    public enum User: Sendable, Codable, CustomStringConvertible {
+    public enum User: Sendable, Codable, CustomStringConvertible, Equatable {
         /// Given the raw user string  of the form <uid:gid> or <user:group> or <user> lookup the uid/gid within
         /// the container before setting it for the Process.
         case raw(userString: String)

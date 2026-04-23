@@ -48,6 +48,12 @@ extension Application {
             })
         var ipv6Subnet: CIDRv6? = nil
 
+        @Option(name: .long, help: "Set the plugin to use to create this network.")
+        var plugin: String = "container-network-vmnet"
+
+        @Option(name: .long, help: "Set the variant of the network plugin to use.")
+        var pluginVariant: String?
+
         @OptionGroup
         public var logOptions: Flags.Logging
 
@@ -57,16 +63,18 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let parsedLabels = Utility.parseKeyValuePairs(labels)
+            let parsedLabels = try ResourceLabels(Utility.parseKeyValuePairs(labels))
             let mode: NetworkMode = hostOnly ? .hostOnly : .nat
             let config = try NetworkConfiguration(
                 id: self.name,
                 mode: mode,
                 ipv4Subnet: ipv4Subnet,
                 ipv6Subnet: ipv6Subnet,
-                labels: parsedLabels
+                labels: parsedLabels,
+                pluginInfo: NetworkPluginInfo(plugin: self.plugin, variant: self.pluginVariant)
             )
-            let state = try await ClientNetwork.create(configuration: config)
+            let networkClient = NetworkClient()
+            let state = try await networkClient.create(configuration: config)
             print(state.id)
         }
     }

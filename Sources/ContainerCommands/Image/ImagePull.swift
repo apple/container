@@ -48,7 +48,7 @@ extension Application {
         var os: String?
 
         @Option(
-            help: "Limit the pull to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)"
+            help: "Limit the pull to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch) [environment: CONTAINER_DEFAULT_PLATFORM]"
         )
         var platform: String?
 
@@ -67,30 +67,18 @@ extension Application {
         }
 
         public func run() async throws {
-            var p: Platform?
-            if let platform {
-                p = try Platform(from: platform)
-            } else if let arch {
-                p = try Platform(from: "\(os ?? "linux")/\(arch)")
-            } else if let os {
-                p = try Platform(from: "\(os)/\(arch ?? Arch.hostArchitecture().rawValue)")
-            }
+            let p = try DefaultPlatform.resolve(platform: platform, os: os, arch: arch, log: log)
 
             let scheme = try RequestScheme(registry.scheme)
 
             let processedReference = try ClientImage.normalizeReference(reference)
 
-            var progressConfig: ProgressConfig
-            switch self.progressFlags.progress {
-            case .none: progressConfig = try ProgressConfig(disableProgressUpdates: true)
-            case .ansi:
-                progressConfig = try ProgressConfig(
-                    showTasks: true,
-                    showItems: true,
-                    ignoreSmallSize: true,
-                    totalTasks: 2
-                )
-            }
+            let progressConfig = try self.progressFlags.makeConfig(
+                showTasks: true,
+                showItems: true,
+                ignoreSmallSize: true,
+                totalTasks: 2
+            )
 
             let progress = ProgressBar(config: progressConfig)
             defer {

@@ -471,6 +471,51 @@ You can also output statistics in JSON format for scripting:
 - **Block I/O**: Disk bytes read and written.
 - **Pids**: Number of processes running in the container.
 
+## Control Linux capabilities
+
+By default, containers start with a restricted set of Linux capabilities:
+
+`CAP_AUDIT_WRITE`, `CAP_CHOWN`, `CAP_DAC_OVERRIDE`, `CAP_FOWNER`, `CAP_FSETID`, `CAP_KILL`, `CAP_MKNOD`, `CAP_NET_BIND_SERVICE`, `CAP_NET_RAW`, `CAP_SETFCAP`, `CAP_SETGID`, `CAP_SETPCAP`, `CAP_SETUID`, `CAP_SYS_CHROOT`
+
+You can customize the capability set using `--cap-add` and `--cap-drop` with `container run` or `container create`.
+
+Capability names can be specified with or without the `CAP_` prefix, and are case-insensitive:
+
+These are equivalent:
+```bash
+container run --cap-add CAP_NET_ADMIN alpine ip link set lo down
+container run --cap-add NET_ADMIN alpine ip link set lo down
+container run --cap-add net_admin alpine ip link set lo down
+```
+
+To grant all capabilities:
+
+```bash
+container run --cap-add ALL alpine sh -c "ip link set lo down && echo ok"
+```
+
+To drop all capabilities and selectively re-add only what you need:
+
+```bash
+container run --cap-drop ALL --cap-add SETUID --cap-add SETGID alpine id
+```
+
+Adds are processed after drops, so `--cap-drop ALL --cap-add ALL` results in all capabilities being granted.
+
+To grant all capabilities except specific ones:
+
+```bash
+container run --cap-add ALL --cap-drop NET_ADMIN alpine sh
+```
+
+To drop a single capability from the default set:
+
+```console
+% container run --cap-drop CHOWN alpine chown 100 /tmp
+chown: /tmp: Operation not permitted
+```
+
+
 ## Expose virtualization capabilities to a container
 
 > [!NOTE]
@@ -495,6 +540,21 @@ container run --name nested-virtualization --virtualization --kernel /path/to/a/
 [    0.017506] kvm [1]: GIC system register CPU interface enabled
 [    0.017685] kvm [1]: vgic interrupt IRQ9
 [    0.017893] kvm [1]: Hyp mode initialized successfully
+```
+
+## Run a container with a provided init process
+
+By default, the command you specify in `container run` runs as PID 1 inside the container. This means it is responsible for reaping zombie processes and handling signals, which many applications are not designed to do. The `--init` flag runs a lightweight init process as PID 1 that automatically forwards signals and reaps orphaned child processes.
+
+```bash
+container run --init ubuntu:latest my-app
+```
+
+The init process is also available with `container create`:
+
+```bash
+container create --init --name my-container ubuntu:latest my-app
+container start my-container
 ```
 
 ## Use a custom init image
