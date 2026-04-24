@@ -443,4 +443,100 @@ struct ConfigSnapshotDecoderTests {
         #expect(config.service.endpoint == URL(string: "https://nested.example.com")!)
         #expect(config.service.name == "api")
     }
+
+    // MARK: - Float decoding
+
+    struct FloatConfig: Decodable, Equatable {
+        var temperature: Float
+        var ratio: Float
+    }
+
+    @Test func decodeFloat() throws {
+        let provider = InMemoryProvider(
+            name: "test",
+            values: [
+                "temperature": ConfigValue(.double(98.6), isSecret: false),
+                "ratio": ConfigValue(.double(0.333), isSecret: false),
+            ]
+        )
+        let reader = ConfigReader(provider: provider)
+        let snapshot = reader.snapshot()
+        let config = try ConfigSnapshotDecoder().decode(FloatConfig.self, from: snapshot)
+        #expect(config.temperature == Float(98.6))
+        #expect(config.ratio == Float(0.333))
+    }
+
+    // MARK: - Deeply nested structs (3+ levels)
+
+    struct AppConfig: Decodable, Equatable {
+        var cluster: ClusterConfig
+    }
+
+    struct ClusterConfig: Decodable, Equatable {
+        var primary: NodeConfig
+    }
+
+    struct NodeConfig: Decodable, Equatable {
+        var host: String
+        var port: Int
+    }
+
+    @Test func decodeDeeplyNestedStruct() throws {
+        let provider = InMemoryProvider(
+            name: "test",
+            values: [
+                "cluster.primary.host": ConfigValue(.string("node1.example.com"), isSecret: false),
+                "cluster.primary.port": ConfigValue(.int(9090), isSecret: false),
+            ]
+        )
+        let reader = ConfigReader(provider: provider)
+        let snapshot = reader.snapshot()
+        let config = try ConfigSnapshotDecoder().decode(AppConfig.self, from: snapshot)
+        #expect(config.cluster.primary.host == "node1.example.com")
+        #expect(config.cluster.primary.port == 9090)
+    }
+
+    // MARK: - Optional non-string types
+
+    struct OptionalIntConfig: Decodable, Equatable {
+        var name: String
+        var retries: Int?
+        var verbose: Bool?
+        var rate: Double?
+    }
+
+    @Test func decodeOptionalNonStringPresent() throws {
+        let provider = InMemoryProvider(
+            name: "test",
+            values: [
+                "name": ConfigValue(.string("test"), isSecret: false),
+                "retries": ConfigValue(.int(3), isSecret: false),
+                "verbose": ConfigValue(.bool(true), isSecret: false),
+                "rate": ConfigValue(.double(0.75), isSecret: false),
+            ]
+        )
+        let reader = ConfigReader(provider: provider)
+        let snapshot = reader.snapshot()
+        let config = try ConfigSnapshotDecoder().decode(OptionalIntConfig.self, from: snapshot)
+        #expect(config.name == "test")
+        #expect(config.retries == 3)
+        #expect(config.verbose == true)
+        #expect(config.rate == 0.75)
+    }
+
+    @Test func decodeOptionalNonStringMissing() throws {
+        let provider = InMemoryProvider(
+            name: "test",
+            values: [
+                "name": ConfigValue(.string("test"), isSecret: false)
+            ]
+        )
+        let reader = ConfigReader(provider: provider)
+        let snapshot = reader.snapshot()
+        let config = try ConfigSnapshotDecoder().decode(OptionalIntConfig.self, from: snapshot)
+        #expect(config.name == "test")
+        #expect(config.retries == nil)
+        #expect(config.verbose == nil)
+        #expect(config.rate == nil)
+    }
 }

@@ -17,31 +17,25 @@
 import Foundation
 
 /// A type that provides custom decoding logic for a specific `Decodable` type
-/// when using ``ConfigSnapshotDecoder``.
-///
-/// Pass decoding strategies to ``ConfigSnapshotDecoder/init(decodingStrategies:)``
-/// to intercept decoding for specific types before the default `Decodable`
-/// conformance.
+/// when using `ConfigSnapshotDecoder`. This enables modification of `Decodable` behavior
+/// for types that already conform to `Decodable`, such as `URL` and `Measurement`.
 public protocol ConfigDecodingStrategy: Sendable {
     associatedtype Value: Decodable
     func decode(from decoder: Decoder) throws -> Value
 }
 
 /// A type that provides custom encoding logic for a specific `Encodable` type.
-///
-/// Defined for forward compatibility. Not currently used by ``ConfigSnapshotDecoder``.
+/// This enables modification of `Encodable` behavior for types that already conform
+// to `Encodable`, such as `URL` and `Measurement`.
 public protocol ConfigEncodingStrategy: Sendable {
     associatedtype Value: Encodable
     func encode(_ value: Value, to encoder: Encoder) throws
 }
 
-/// A type that provides both custom encoding and decoding for the same type.
+/// A type that provides both custom encoding and decoding for the same type. Similar to `Codable`
 public typealias ConfigCodingStrategy = ConfigDecodingStrategy & ConfigEncodingStrategy
 
-/// Built-in strategy that decodes a `URL` from a string value.
-///
-/// Registered by default on ``ConfigSnapshotDecoder``. Reads a `String` via
-/// `singleValueContainer` and converts it using `URL(string:)`.
+/// Decodes a `URL` from a string value. e.g. "https://www.apple.com"
 public struct URLConfigDecodingStrategy: ConfigDecodingStrategy {
     public init() {}
 
@@ -60,16 +54,17 @@ public struct URLConfigDecodingStrategy: ConfigDecodingStrategy {
     }
 }
 
+// A type erased version of `ConfigDecodingStrategy`
 struct AnyConfigDecodingStrategy: Sendable {
     let valueTypeID: ObjectIdentifier
-    let _decode: @Sendable (Decoder) throws -> Any
+    private let decode: @Sendable (Decoder) throws -> Any
 
     init<S: ConfigDecodingStrategy>(_ strategy: S) {
         self.valueTypeID = ObjectIdentifier(S.Value.self)
-        self._decode = { decoder in try strategy.decode(from: decoder) as Any }
+        self.decode = { decoder in try strategy.decode(from: decoder) as Any }
     }
 
     func decode(from decoder: Decoder) throws -> Any {
-        try _decode(decoder)
+        try decode(decoder)
     }
 }

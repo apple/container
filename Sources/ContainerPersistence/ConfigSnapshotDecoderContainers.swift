@@ -17,7 +17,19 @@
 import Configuration
 import Foundation
 
-// MARK: - Keyed Container
+// MARK: - Shared helpers
+
+extension ConfigSnapshotReader {
+    // ConfigSnapshotReader stores typed values — string(forKey:) returns nil for
+    // int/double/bool values. Check all primitive accessors to avoid incorrectly
+    // treating non-string values as nil (e.g. Optional<Int> with an .int value).
+    func hasValue(forKey key: ConfigKey) -> Bool {
+        string(forKey: key) != nil
+            || int(forKey: key) != nil
+            || double(forKey: key) != nil
+            || bool(forKey: key) != nil
+    }
+}
 
 struct KeyedContainer<Key: CodingKey>: KeyedDecodingContainerProtocol {
     let snapshot: ConfigSnapshotReader
@@ -25,12 +37,16 @@ struct KeyedContainer<Key: CodingKey>: KeyedDecodingContainerProtocol {
     let userInfo: [CodingUserInfoKey: Any]
     let typeDecodingStrategies: [ObjectIdentifier: AnyConfigDecodingStrategy]
 
+    // ConfigSnapshotReader has no "key exists" API, so allKeys cannot enumerate
+    // available keys and contains always returns true. This works for structs with
+    // known properties. Types that iterate allKeys for dynamic keys (e.g. dictionaries)
+    // will see an empty collection.
     var allKeys: [Key] { [] }
 
     func contains(_ key: Key) -> Bool { true }
 
     func decodeNil(forKey key: Key) throws -> Bool {
-        snapshot.string(forKey: configKey(appending: key)) == nil
+        !snapshot.hasValue(forKey: configKey(appending: key))
     }
 
     func decode(_ type: Bool.Type, forKey key: Key) throws -> Bool {
@@ -97,7 +113,16 @@ struct KeyedContainer<Key: CodingKey>: KeyedDecodingContainerProtocol {
             typeDecodingStrategies: typeDecodingStrategies
         )
         if let strategy = typeDecodingStrategies[ObjectIdentifier(type)] {
-            return try strategy.decode(from: impl) as! T
+            guard let typed = try strategy.decode(from: impl) as? T else {
+                throw DecodingError.typeMismatch(
+                    T.self,
+                    DecodingError.Context(
+                        codingPath: codingPath + [key],
+                        debugDescription: "Strategy returned value of unexpected type for \(T.self)."
+                    )
+                )
+            }
+            return typed
         }
         return try T(from: impl)
     }
@@ -179,16 +204,21 @@ struct KeyedContainer<Key: CodingKey>: KeyedDecodingContainerProtocol {
     }
 }
 
-// MARK: - Single Value Container
-
 struct SingleValueContainer: SingleValueDecodingContainer {
     let snapshot: ConfigSnapshotReader
     let codingPath: [any CodingKey]
     let userInfo: [CodingUserInfoKey: Any]
     let typeDecodingStrategies: [ObjectIdentifier: AnyConfigDecodingStrategy]
 
+    // ConfigSnapshotReader stores typed values — string(forKey:) returns nil for
+    // int/double/bool values. Check all primitive accessors to avoid incorrectly
+    // treating non-string values as nil (e.g. Optional<Int> with an .int value).
     func decodeNil() -> Bool {
-        snapshot.string(forKey: configKey()) == nil
+        let key = configKey()
+        return snapshot.string(forKey: key) == nil
+            && snapshot.int(forKey: key) == nil
+            && snapshot.double(forKey: key) == nil
+            && snapshot.bool(forKey: key) == nil
     }
 
     func decode(_ type: Bool.Type) throws -> Bool {
@@ -229,7 +259,16 @@ struct SingleValueContainer: SingleValueDecodingContainer {
             typeDecodingStrategies: typeDecodingStrategies
         )
         if let strategy = typeDecodingStrategies[ObjectIdentifier(type)] {
-            return try strategy.decode(from: impl) as! T
+            guard let typed = try strategy.decode(from: impl) as? T else {
+                throw DecodingError.typeMismatch(
+                    T.self,
+                    DecodingError.Context(
+                        codingPath: codingPath,
+                        debugDescription: "Strategy returned value of unexpected type for \(T.self)."
+                    )
+                )
+            }
+            return typed
         }
         return try T(from: impl)
     }
@@ -269,8 +308,6 @@ struct SingleValueContainer: SingleValueDecodingContainer {
         return converted
     }
 }
-
-// MARK: - Unkeyed Container
 
 struct UnkeyedContainer: UnkeyedDecodingContainer {
     let snapshot: ConfigSnapshotReader
