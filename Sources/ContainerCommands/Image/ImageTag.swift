@@ -36,9 +36,7 @@ extension Application {
         public var logOptions: Flags.Logging
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(
-                configFile: SystemRuntimeOptions.configFileFromAppRoot(ApplicationRoot.url)
-            )
+            let containerSystemConfig: ContainerSystemConfig = try ConfigurationLoader.load()
             let existing = try await ClientImage.get(reference: source, containerSystemConfig: containerSystemConfig)
             let targetReference = try ClientImage.normalizeReference(target, containerSystemConfig: containerSystemConfig)
             try await existing.tag(new: targetReference)

@@ -72,12 +72,8 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(
-                configFile: SystemRuntimeOptions.configFileFromAppRoot(ApplicationRoot.url)
-            )
-            // Copy the user's config into appRoot/config/ so that all plugins
-            // and the apiserver subsequently read the same snapshot.
-            SystemRuntimeOptions.copyConfigToAppRoot(appRoot: appRoot)
+            try ConfigurationLoader.copyConfigToAppRoot()
+            let containerSystemConfig: ContainerSystemConfig = try ConfigurationLoader.load()
 
             // Without the true path to the binary in the plist, `container-apiserver` won't launch properly.
             // Resolve the symlink to get the true binary path before writing the launchd plist.

@@ -149,9 +149,7 @@ extension Application {
         var pull: Bool = false
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(
-                configFile: SystemRuntimeOptions.configFileFromAppRoot(ApplicationRoot.url)
-            )
+            let containerSystemConfig: ContainerSystemConfig = try ConfigurationLoader.load()
             do {
                 let timeout: Duration = .seconds(300)
                 let progressConfig = try ProgressConfig(
