@@ -45,9 +45,16 @@ import Configuration
 public struct ConfigSnapshotDecoder: Sendable {
 
     public var userInfo: [CodingUserInfoKey: any Sendable]
+    private let typeDecodingStrategies: [ObjectIdentifier: AnyConfigDecodingStrategy]
 
-    public init() {
+    public init(decodingStrategies: [any ConfigDecodingStrategy] = [URLConfigDecodingStrategy()]) {
         self.userInfo = [:]
+        var strategies: [ObjectIdentifier: AnyConfigDecodingStrategy] = [:]
+        for strategy in decodingStrategies {
+            let erased = AnyConfigDecodingStrategy(strategy)
+            strategies[erased.valueTypeID] = erased
+        }
+        self.typeDecodingStrategies = strategies
     }
 
     public func decode<T: Decodable>(
@@ -57,7 +64,8 @@ public struct ConfigSnapshotDecoder: Sendable {
         let decoder = ConfigSnapshotDecoderImpl(
             snapshot: snapshot,
             codingPath: [],
-            userInfo: userInfo.mapValues { $0 as Any }
+            userInfo: userInfo.mapValues { $0 as Any },
+            typeDecodingStrategies: typeDecodingStrategies
         )
         return try T(from: decoder)
     }
@@ -67,6 +75,7 @@ struct ConfigSnapshotDecoderImpl: Decoder {
     let snapshot: ConfigSnapshotReader
     let codingPath: [any CodingKey]
     let userInfo: [CodingUserInfoKey: Any]
+    let typeDecodingStrategies: [ObjectIdentifier: AnyConfigDecodingStrategy]
 
     func container<Key: CodingKey>(
         keyedBy type: Key.Type
@@ -75,7 +84,8 @@ struct ConfigSnapshotDecoderImpl: Decoder {
             KeyedContainer<Key>(
                 snapshot: snapshot,
                 codingPath: codingPath,
-                userInfo: userInfo
+                userInfo: userInfo,
+                typeDecodingStrategies: typeDecodingStrategies
             )
         )
     }
@@ -84,7 +94,8 @@ struct ConfigSnapshotDecoderImpl: Decoder {
         UnkeyedContainer(
             snapshot: snapshot,
             codingPath: codingPath,
-            userInfo: userInfo
+            userInfo: userInfo,
+            typeDecodingStrategies: typeDecodingStrategies
         )
     }
 
@@ -92,7 +103,8 @@ struct ConfigSnapshotDecoderImpl: Decoder {
         SingleValueContainer(
             snapshot: snapshot,
             codingPath: codingPath,
-            userInfo: userInfo
+            userInfo: userInfo,
+            typeDecodingStrategies: typeDecodingStrategies
         )
     }
 }

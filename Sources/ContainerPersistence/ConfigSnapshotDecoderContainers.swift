@@ -23,6 +23,7 @@ struct KeyedContainer<Key: CodingKey>: KeyedDecodingContainerProtocol {
     let snapshot: ConfigSnapshotReader
     let codingPath: [any CodingKey]
     let userInfo: [CodingUserInfoKey: Any]
+    let typeDecodingStrategies: [ObjectIdentifier: AnyConfigDecodingStrategy]
 
     var allKeys: [Key] { [] }
 
@@ -89,24 +90,16 @@ struct KeyedContainer<Key: CodingKey>: KeyedDecodingContainerProtocol {
     }
 
     func decode<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> T {
-        if type == URL.self {
-            let stringValue = try decode(String.self, forKey: key)
-            guard let url = URL(string: stringValue) else {
-                throw DecodingError.dataCorrupted(
-                    DecodingError.Context(
-                        codingPath: codingPath + [key],
-                        debugDescription: "Invalid URL string: \"\(stringValue)\"."
-                    )
-                )
-            }
-            return url as! T
-        }
-        let decoder = ConfigSnapshotDecoderImpl(
+        let impl = ConfigSnapshotDecoderImpl(
             snapshot: snapshot,
             codingPath: codingPath + [key],
-            userInfo: userInfo
+            userInfo: userInfo,
+            typeDecodingStrategies: typeDecodingStrategies
         )
-        return try T(from: decoder)
+        if let strategy = typeDecodingStrategies[ObjectIdentifier(type)] {
+            return try strategy.decode(from: impl) as! T
+        }
+        return try T(from: impl)
     }
 
     func nestedContainer<NestedKey: CodingKey>(
@@ -117,7 +110,8 @@ struct KeyedContainer<Key: CodingKey>: KeyedDecodingContainerProtocol {
             KeyedContainer<NestedKey>(
                 snapshot: snapshot,
                 codingPath: codingPath + [key],
-                userInfo: userInfo
+                userInfo: userInfo,
+                typeDecodingStrategies: typeDecodingStrategies
             )
         )
     }
@@ -126,7 +120,8 @@ struct KeyedContainer<Key: CodingKey>: KeyedDecodingContainerProtocol {
         UnkeyedContainer(
             snapshot: snapshot,
             codingPath: codingPath + [key],
-            userInfo: userInfo
+            userInfo: userInfo,
+            typeDecodingStrategies: typeDecodingStrategies
         )
     }
 
@@ -190,6 +185,7 @@ struct SingleValueContainer: SingleValueDecodingContainer {
     let snapshot: ConfigSnapshotReader
     let codingPath: [any CodingKey]
     let userInfo: [CodingUserInfoKey: Any]
+    let typeDecodingStrategies: [ObjectIdentifier: AnyConfigDecodingStrategy]
 
     func decodeNil() -> Bool {
         snapshot.string(forKey: configKey()) == nil
@@ -226,12 +222,16 @@ struct SingleValueContainer: SingleValueDecodingContainer {
     func decode(_ type: UInt64.Type) throws -> UInt64 { try integerValue() }
 
     func decode<T: Decodable>(_ type: T.Type) throws -> T {
-        let decoder = ConfigSnapshotDecoderImpl(
+        let impl = ConfigSnapshotDecoderImpl(
             snapshot: snapshot,
             codingPath: codingPath,
-            userInfo: userInfo
+            userInfo: userInfo,
+            typeDecodingStrategies: typeDecodingStrategies
         )
-        return try T(from: decoder)
+        if let strategy = typeDecodingStrategies[ObjectIdentifier(type)] {
+            return try strategy.decode(from: impl) as! T
+        }
+        return try T(from: impl)
     }
 
     // MARK: - Private helpers
@@ -276,6 +276,7 @@ struct UnkeyedContainer: UnkeyedDecodingContainer {
     let snapshot: ConfigSnapshotReader
     let codingPath: [any CodingKey]
     let userInfo: [CodingUserInfoKey: Any]
+    let typeDecodingStrategies: [ObjectIdentifier: AnyConfigDecodingStrategy]
 
     private enum ArrayValue {
         case strings([String])
@@ -305,10 +306,16 @@ struct UnkeyedContainer: UnkeyedDecodingContainer {
         }
     }
 
-    init(snapshot: ConfigSnapshotReader, codingPath: [any CodingKey], userInfo: [CodingUserInfoKey: Any]) {
+    init(
+        snapshot: ConfigSnapshotReader,
+        codingPath: [any CodingKey],
+        userInfo: [CodingUserInfoKey: Any],
+        typeDecodingStrategies: [ObjectIdentifier: AnyConfigDecodingStrategy]
+    ) {
         self.snapshot = snapshot
         self.codingPath = codingPath
         self.userInfo = userInfo
+        self.typeDecodingStrategies = typeDecodingStrategies
         self.resolved = .unsupported
     }
 

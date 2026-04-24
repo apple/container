@@ -296,6 +296,42 @@ struct ConfigSnapshotDecoderTests {
         #expect(config.endpoint == URL(string: "https://example.com/api")!)
     }
 
+    // MARK: - Custom decoding strategies
+
+    struct PrefixURLStrategy: ConfigDecodingStrategy {
+        let base: String
+
+        func decode(from decoder: Decoder) throws -> URL {
+            let container = try decoder.singleValueContainer()
+            let path = try container.decode(String.self)
+            guard let url = URL(string: base + path) else {
+                throw DecodingError.dataCorrupted(
+                    DecodingError.Context(
+                        codingPath: decoder.codingPath,
+                        debugDescription: "Invalid URL."
+                    )
+                )
+            }
+            return url
+        }
+    }
+
+    @Test func customStrategyOverridesURL() throws {
+        let provider = InMemoryProvider(
+            name: "test",
+            values: [
+                "endpoint": ConfigValue(.string("/api/v1"), isSecret: false)
+            ]
+        )
+        let reader = ConfigReader(provider: provider)
+        let snapshot = reader.snapshot()
+        let decoder = ConfigSnapshotDecoder(
+            decodingStrategies: [PrefixURLStrategy(base: "https://example.com")]
+        )
+        let config = try decoder.decode(URLConfig.self, from: snapshot)
+        #expect(config.endpoint == URL(string: "https://example.com/api/v1")!)
+    }
+
     // MARK: - Narrow integer types
 
     struct NarrowIntConfig: Decodable, Equatable {
@@ -331,5 +367,80 @@ struct ConfigSnapshotDecoderTests {
         #expect(throws: DecodingError.self) {
             try ConfigSnapshotDecoder().decode(NarrowIntConfig.self, from: snapshot)
         }
+    }
+
+    @Test func removeStrategyRevertsToDecodable() throws {
+        let provider = InMemoryProvider(
+            name: "test",
+            values: [
+                "endpoint": ConfigValue(.string("https://example.com/api"), isSecret: false)
+            ]
+        )
+        let reader = ConfigReader(provider: provider)
+        let snapshot = reader.snapshot()
+        let decoder = ConfigSnapshotDecoder(decodingStrategies: [])
+        // Without the URL strategy, URL.init(from:) is used. URL's default
+        // Decodable expects a keyed container with "relative" and optional
+        // "base" keys, so decoding a plain string should fail.
+        #expect(throws: DecodingError.self) {
+            try decoder.decode(URLConfig.self, from: snapshot)
+        }
+    }
+
+    struct Seconds: Decodable {
+        var value: Int
+    }
+
+    struct SecondsStrategy: ConfigDecodingStrategy {
+        func decode(from decoder: Decoder) throws -> Seconds {
+            let container = try decoder.singleValueContainer()
+            let raw = try container.decode(Int.self)
+            return Seconds(value: raw)
+        }
+    }
+
+    struct TimerConfig: Decodable {
+        var timeout: Seconds
+    }
+
+    @Test func customStrategyForUserType() throws {
+        let provider = InMemoryProvider(
+            name: "test",
+            values: [
+                "timeout": ConfigValue(.int(30), isSecret: false)
+            ]
+        )
+        let reader = ConfigReader(provider: provider)
+        let snapshot = reader.snapshot()
+        let decoder = ConfigSnapshotDecoder(decodingStrategies: [
+            URLConfigDecodingStrategy(),
+            SecondsStrategy(),
+        ])
+        let config = try decoder.decode(TimerConfig.self, from: snapshot)
+        #expect(config.timeout.value == 30)
+    }
+
+    struct NestedURLConfig: Decodable {
+        var service: ServiceConfig
+    }
+
+    struct ServiceConfig: Decodable {
+        var endpoint: URL
+        var name: String
+    }
+
+    @Test func strategyWorksInNestedStruct() throws {
+        let provider = InMemoryProvider(
+            name: "test",
+            values: [
+                "service.endpoint": ConfigValue(.string("https://nested.example.com"), isSecret: false),
+                "service.name": ConfigValue(.string("api"), isSecret: false),
+            ]
+        )
+        let reader = ConfigReader(provider: provider)
+        let snapshot = reader.snapshot()
+        let config = try ConfigSnapshotDecoder().decode(NestedURLConfig.self, from: snapshot)
+        #expect(config.service.endpoint == URL(string: "https://nested.example.com")!)
+        #expect(config.service.name == "api")
     }
 }
