@@ -250,10 +250,11 @@ struct PrintableNetworkDisplayTests {
 
 struct ListFormatTests {
     @Test
-    func hasJsonAndTableCases() {
-        #expect(ListFormat.allCases.count == 2)
+    func hasAllOutputFormatCases() {
+        #expect(ListFormat.allCases.count == 3)
         #expect(ListFormat.json.rawValue == "json")
         #expect(ListFormat.table.rawValue == "table")
+        #expect(ListFormat.yaml.rawValue == "yaml")
     }
 }
 

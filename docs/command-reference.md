@@ -821,7 +821,7 @@ container volume create [--driver <driver>] [--label <label> ...] [--opt <opt> .
 *   `--driver <driver>`: Volume driver to use (default: `local`)
 *   `--label <label>`: Set metadata for a volume
 *   `--opt <opt>`: Set driver specific options (format: key=value)
-*   `-s <s>`: Size of the volume in bytes, with optional K, M, G, T, or P suffix (local driver only)
+*   `-s <s>`: Size of the volume in bytes, with optional K, M, G, T, or P suffix. Takes precedence over `--opt size=` if both are specified.
 
 **Drivers**
 
@@ -839,6 +839,18 @@ container volume create [--driver <driver>] [--label <label> ...] [--opt <opt> .
     *   `nolock`: Disable NLM file locking — use if the server does not support the lock manager
     *   Any additional options are passed as mount options (e.g. `timeo=600`, `retrans=2`)
 
+**Driver Options**
+
+Driver options are passed with `--opt key=value`. The following options are supported for the default `local` driver:
+
+*   `size=<value>`: Volume size with optional unit suffix (K, M, G, T, P). Minimum 1 MiB. Equivalent to `-s`; if `-s` is also specified, `-s` takes precedence.
+*   `journal=<mode>[:<size>]`: Configure ext4 journaling on the volume. `<mode>` must be one of:
+    *   `ordered` — journals metadata only; data is written to disk before its metadata is committed (default kernel behavior, good balance of safety and performance)
+    *   `writeback` — journals metadata only; data ordering relative to metadata commits is not guaranteed (fastest, least safe)
+    *   `journal` — journals both metadata and data (safest, highest write amplification)
+
+    An optional `:<size>` suffix sets the journal size (same unit suffixes as `size`). If omitted, the kernel selects a default journal size.
+
 **Examples**
 
 ```bash
@@ -847,6 +859,15 @@ container volume create mydata
 
 # Create a local volume with a specific size
 container volume create -s 10G mydata
+
+# create a volume with ordered journaling
+container volume create --opt journal=ordered myvolume
+
+# create a volume with writeback journaling and a 64 MiB journal
+container volume create --opt journal=writeback:64m myvolume
+
+# create a volume with full data journaling and an explicit volume size
+container volume create --opt journal=journal --opt size=10g myvolume
 
 # Create an SMB volume
 container volume create --driver smb \
@@ -1079,7 +1100,7 @@ container system version [--format <format>]
 
 **Options**
 
-*   `--format <format>`: Output format (values: json, table; default: table)
+*   `--format <format>`: Output format (values: json, table, yaml; default: table)
 
 **Table Output**
 
@@ -1114,6 +1135,21 @@ Backward-compatible with previous CLI-only output. Top-level fields describe the
     "appName": "container API Server"
   }
 }
+```
+
+**YAML Output**
+
+Equivalent to the JSON output but in YAML format. Each entry in the array represents a component.
+
+```yaml
+- version: 1.2.3
+  buildType: debug
+  commit: abcdef1
+  appName: container
+- version: 1.2.3
+  buildType: release
+  commit: 1234abc
+  appName: container-apiserver
 ```
 
 ### `container system logs`

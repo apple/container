@@ -1173,6 +1173,62 @@ extension TestCLIBuildBase {
             #expect(includedResult.status == 0, "included.txt should be present")
         }
 
+        // Test: Build context is read-only; Dockerfile and Dockerfile.dockerignore live outside the context
+        @Test func testDockerIgnoreReadonlyContext() throws {
+            let tempDir: URL = try createTempDir()
+            let contextDir = tempDir.appendingPathComponent("context")
+            defer {
+                // Restore write permission so the directory can be removed
+                try? FileManager.default.setAttributes(
+                    [.posixPermissions: 0o755],
+                    ofItemAtPath: contextDir.path
+                )
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
+            let dockerfile =
+                """
+                FROM ghcr.io/linuxcontainers/alpine:3.20
+                WORKDIR /app
+                COPY . .
+                """
+            // Context contains two files; Dockerfile and Dockerfile.dockerignore are placed outside
+            // the context directory (co-located in tempDir).
+            let context: [FileSystemEntry] = [
+                .file("included.txt", content: .data("This file should be included.\n".data(using: .utf8)!)),
+                .file("secret.txt", content: .data("This file should be excluded by Dockerfile.dockerignore.\n".data(using: .utf8)!)),
+            ]
+            try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
+
+            // Write Dockerfile.dockerignore next to Dockerfile, both outside the context directory
+            let dockerignoreData = "secret.txt\n".data(using: .utf8)!
+            try dockerignoreData.write(to: tempDir.appendingPathComponent("Dockerfile.dockerignore"), options: .atomic)
+
+            // Make the context directory read-only before building
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o555],
+                ofItemAtPath: contextDir.path
+            )
+
+            let dockerfilePath = tempDir.appendingPathComponent("Dockerfile")
+            let imageName = "registry.local/dockerignore-readonly-context:\(UUID().uuidString.prefix(6))"
+            let args = ["build", "-f", dockerfilePath.path, "-t", imageName, contextDir.path]
+            let response = try run(arguments: args)
+            if response.status != 0 {
+                throw CLIError.executionFailed("build failed: stdout=\(response.output) stderr=\(response.error)")
+            }
+
+            let containerName = "dockerignore-readonly-context-\(UUID().uuidString.prefix(6))"
+            try self.doLongRun(name: containerName, image: imageName)
+            defer { try? self.doStop(name: containerName) }
+
+            let includedResult = try run(arguments: ["exec", containerName, "test", "-f", "/app/included.txt"])
+            #expect(includedResult.status == 0, "included.txt should be present")
+
+            let secretResult = try run(arguments: ["exec", containerName, "test", "-f", "/app/secret.txt"])
+            #expect(secretResult.status != 0, "secret.txt should NOT be present (excluded by Dockerfile.dockerignore)")
+        }
+
         @Test func testNonExistingDockerfile() throws {
             let tempDir: URL = try createTempDir()
             defer {
@@ -1350,6 +1406,150 @@ extension TestCLIBuildBase {
                 ]
             )
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
+        }
+
+        @Test func testCopyFromLocalImage() throws {
+            let baseTempDir: URL = try createTempDir()
+            let tempDir: URL = try createTempDir()
+            defer {
+                try! FileManager.default.removeItem(at: baseTempDir)
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
+            let baseImageName = "local-base:\(UUID().uuidString)"
+            let baseDockerfile =
+                """
+                FROM scratch
+                ADD hello.txt /hello.txt
+                """
+            let baseContext: [FileSystemEntry] = [
+                .file("hello.txt", content: .data("hello\n".data(using: .utf8)!))
+            ]
+            try createContext(tempDir: baseTempDir, dockerfile: baseDockerfile, context: baseContext)
+
+            try self.build(tag: baseImageName, tempDir: baseTempDir)
+            #expect(try self.inspectImage(baseImageName) == baseImageName, "expected to have successfully built \(baseImageName)")
+
+            let dockerfile =
+                """
+                FROM ghcr.io/linuxcontainers/alpine:3.20
+                COPY --from=\(baseImageName) /hello.txt /copied.txt
+                RUN cat /copied.txt
+                """
+            try createContext(tempDir: tempDir, dockerfile: dockerfile)
+
+            let imageName = "registry.local/copy-from-local:\(UUID().uuidString)"
+            try self.build(tag: imageName, tempDir: tempDir)
+            #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
+        }
+
+        @Test func testCopyFromBuildStage() throws {
+            let tempDir: URL = try createTempDir()
+            defer {
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
+            let dockerfile =
+                """
+                FROM scratch AS builder
+                ADD hello.txt /hello.txt
+
+                FROM ghcr.io/linuxcontainers/alpine:3.20
+                COPY --from=builder /hello.txt /copied.txt
+                RUN cat /copied.txt
+                """
+            let context: [FileSystemEntry] = [
+                .file("hello.txt", content: .data("hello\n".data(using: .utf8)!))
+            ]
+            try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
+
+            let imageName = "registry.local/copy-from-stage:\(UUID().uuidString)"
+            try self.build(tag: imageName, tempDir: tempDir)
+            #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
+        }
+
+        @Test func testCopyRenameFromStage() throws {
+            let tempDir: URL = try createTempDir()
+            defer {
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
+            let dockerfile =
+                """
+                FROM scratch AS builder
+                ADD hello.txt /hello.txt
+
+                FROM ghcr.io/linuxcontainers/alpine:3.20
+                COPY --from=builder /hello.txt /renamed.txt
+                RUN cat /renamed.txt
+                """
+            let context: [FileSystemEntry] = [
+                .file("hello.txt", content: .data("hello\n".data(using: .utf8)!))
+            ]
+            try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
+
+            let imageName = "registry.local/copy-rename:\(UUID().uuidString)"
+            try self.build(tag: imageName, tempDir: tempDir)
+            #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
+        }
+
+        @Test func testCopyMissingFileFails() throws {
+            let tempDir: URL = try createTempDir()
+            defer {
+                try! FileManager.default.removeItem(at: tempDir)
+            }
+
+            let dockerfile =
+                """
+                FROM scratch AS builder
+
+                FROM ghcr.io/linuxcontainers/alpine:3.20
+                COPY --from=builder /does-not-exist.txt /copied.txt
+                """
+            try createContext(tempDir: tempDir, dockerfile: dockerfile)
+
+            let imageName = "registry.local/copy-missing:\(UUID().uuidString)"
+            #expect(throws: Error.self) {
+                try self.build(tag: imageName, tempDir: tempDir)
+            }
+        }
+    }
+
+    @Test func testCopyInvalidStageFails() throws {
+        let tempDir: URL = try createTempDir()
+        defer {
+            try! FileManager.default.removeItem(at: tempDir)
+        }
+
+        let dockerfile =
+            """
+            FROM ghcr.io/linuxcontainers/alpine:3.20
+            COPY --from=not_a_stage /hello.txt /copied.txt
+            """
+        try createContext(tempDir: tempDir, dockerfile: dockerfile)
+
+        let imageName = "registry.local/copy-invalid-stage:\(UUID().uuidString)"
+        #expect(throws: Error.self) {
+            try self.build(tag: imageName, tempDir: tempDir)
+        }
+    }
+
+    @Test func testCopyFromNonexistentImageFails() throws {
+        let tempDir: URL = try createTempDir()
+        defer {
+            try! FileManager.default.removeItem(at: tempDir)
+        }
+
+        let dockerfile =
+            """
+            FROM ghcr.io/linuxcontainers/alpine:3.20
+            COPY --from=doesnotexist:latest /hello.txt /copied.txt
+            """
+        try createContext(tempDir: tempDir, dockerfile: dockerfile)
+
+        let imageName = "registry.local/copy-bad-image:\(UUID().uuidString)"
+        #expect(throws: Error.self) {
+            try self.build(tag: imageName, tempDir: tempDir)
         }
     }
 }

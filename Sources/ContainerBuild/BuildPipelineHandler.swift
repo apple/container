@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import GRPC
+import GRPCCore
 import NIO
 
 protocol BuildPipelineHandler: Sendable {
@@ -35,10 +35,10 @@ public actor BuildPipeline {
             ]
     }
 
-    public func run(
+    public func run<S: AsyncSequence & Sendable>(
         sender: AsyncStream<ClientStream>.Continuation,
-        receiver: GRPCAsyncResponseStream<ServerStream>
-    ) async throws {
+        receiver: S
+    ) async throws where S.Element == ServerStream {
         defer { sender.finish() }
         try await untilFirstError { group in
             for try await packet in receiver {

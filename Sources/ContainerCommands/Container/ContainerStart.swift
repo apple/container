@@ -92,7 +92,7 @@ extension Application {
                     env["SSH_AUTH_SOCK"] = sshAuthSock
                 }
 
-                let process = try await client.bootstrap(id: container.id, stdio: io.stdio, env: env)
+                let process = try await client.bootstrap(id: container.id, stdio: io.stdio, dynamicEnv: env)
                 progress.finish()
 
                 if detach {
