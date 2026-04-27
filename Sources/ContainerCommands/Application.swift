@@ -118,10 +118,13 @@ public struct Application: AsyncLoggableCommand {
         } catch {
             // --help/-h on the root command (e.g. `container --help`) is intercepted
             // by ArgumentParser and lands here.
+            //
+            // Help rendering must not depend on the API server being reachable, otherwise
+            // a wedged or unregistered `com.apple.container.apiserver` causes an
+            // indefinite hang. See docs/internal/help-freeze-analysis.md.
             let containsHelp = fullArgs.contains("-h") || fullArgs.contains("--help")
             if fullArgs.count <= 2 && containsHelp {
-                let pluginLoader = try? await createPluginLoader()
-                await Self.printModifiedHelpText(pluginLoader: pluginLoader)
+                await Self.printModifiedHelpText(pluginLoader: nil, unavailableMessage: nil)
                 return
             }
             let errorAsString: String = String(describing: error)
@@ -234,11 +237,21 @@ public struct Application: AsyncLoggableCommand {
 extension Application {
     // Because we support plugins, we need to modify the help text to display
     // any if we found some.
-    static func printModifiedHelpText(pluginLoader: PluginLoader?) async {
+    //
+    // Pass `unavailableMessage: nil` from contexts that already deliberately skipped
+    // plugin loading (e.g. the `--help` / `help` / no-args paths that must not depend
+    // on the API server). The default preserves prior behavior for paths that *did*
+    // attempt to load plugins but couldn't reach the server.
+    static func printModifiedHelpText(
+        pluginLoader: PluginLoader?,
+        unavailableMessage: String? = "PLUGINS: not available, run `container system start`"
+    ) async {
         let original = Application.helpMessage(for: Application.self)
         guard let pluginLoader else {
             print(original)
-            print("PLUGINS: not available, run `container system start`")
+            if let unavailableMessage {
+                print(unavailableMessage)
+            }
             return
         }
         let altered = pluginLoader.alterCLIHelpText(original: original)
