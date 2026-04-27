@@ -37,11 +37,16 @@ public struct ContainerClient: Sendable {
     }
 
     @discardableResult
-    private func xpcSend(
+    private func xpcSend(message: XPCMessage) async throws -> XPCMessage {
+        try await xpcClient.send(message)
+    }
+
+    @discardableResult
+    private func xpcSendIdempotent(
         message: XPCMessage,
-        timeout: Duration? = XPCClient.xpcRegistrationTimeout
+        timeout: Duration
     ) async throws -> XPCMessage {
-        try await xpcClient.send(message, responseTimeout: timeout)
+        try await xpcClient.send(message, timeoutForIdempotentRequest: timeout)
     }
 
     /// Create a new container with the given configuration.
@@ -82,7 +87,7 @@ public struct ContainerClient: Sendable {
             let filterData = try JSONEncoder().encode(filters)
             request.set(key: .listFilters, value: filterData)
 
-            let response = try await xpcSend(
+            let response = try await xpcSendIdempotent(
                 message: request,
                 timeout: .seconds(10)
             )

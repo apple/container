@@ -28,10 +28,10 @@ extension ClientHealthCheck {
         XPCClient(service: serviceIdentifier)
     }
 
-    public static func ping(timeout: Duration? = XPCClient.xpcRegistrationTimeout) async throws -> SystemHealth {
+    public static func ping(timeout: Duration = XPCClient.xpcRegistrationTimeout) async throws -> SystemHealth {
         let client = Self.newClient()
         let request = XPCMessage(route: .ping)
-        let reply = try await client.send(request, responseTimeout: timeout)
+        let reply = try await client.send(request, timeoutForIdempotentRequest: timeout)
         guard let appRootValue = reply.string(key: .appRoot), let appRoot = URL(string: appRootValue) else {
             throw ContainerizationError(.internalError, message: "failed to decode appRoot in health check")
         }

@@ -47,14 +47,19 @@ public struct SandboxClient: Sendable {
 
     /// Create a SandboxClient by ID and runtime string. The returned client is ready to be used
     /// without additional steps.
-    public static func create(id: String, runtime: String, timeout: Duration = XPCClient.xpcRegistrationTimeout) async throws -> SandboxClient {
+    ///
+    /// `createEndpoint` is mutating server-side: a successful reply hands back an XPC endpoint
+    /// that the sandbox process owns. Racing the call with a response timeout would risk
+    /// orphaning that endpoint when a slow sandbox replies after the caller has given up.
+    /// The send therefore blocks until the sandbox replies or its connection is invalidated.
+    public static func create(id: String, runtime: String) async throws -> SandboxClient {
         let label = Self.machServiceLabel(runtime: runtime, id: id)
         let client = XPCClient(service: label)
         let request = XPCMessage(route: SandboxRoutes.createEndpoint.rawValue)
 
         let response: XPCMessage
         do {
-            response = try await client.send(request, responseTimeout: timeout)
+            response = try await client.send(request)
         } catch {
             throw ContainerizationError(
                 .internalError,

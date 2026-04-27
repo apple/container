@@ -57,11 +57,16 @@ public struct NetworkClient: Sendable {
     }
 
     @discardableResult
-    private func xpcSend(
+    private func xpcSend(message: XPCMessage) async throws -> XPCMessage {
+        try await xpcClient.send(message)
+    }
+
+    @discardableResult
+    private func xpcSendIdempotent(
         message: XPCMessage,
-        timeout: Duration? = XPCClient.xpcRegistrationTimeout
+        timeout: Duration
     ) async throws -> XPCMessage {
-        try await xpcClient.send(message, responseTimeout: timeout)
+        try await xpcClient.send(message, timeoutForIdempotentRequest: timeout)
     }
 
     /// Creates a new network with the given configuration.
@@ -97,7 +102,7 @@ public struct NetworkClient: Sendable {
     public func list() async throws -> [NetworkState] {
         let request = XPCMessage(route: .networkList)
 
-        let response = try await xpcSend(message: request, timeout: .seconds(1))
+        let response = try await xpcSendIdempotent(message: request, timeout: .seconds(1))
         let responseData = response.dataNoCopy(key: .networkStates)
         guard let responseData else {
             return []
