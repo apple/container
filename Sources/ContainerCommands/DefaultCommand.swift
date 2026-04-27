@@ -33,12 +33,16 @@ struct DefaultCommand: AsyncLoggableCommand {
     var remaining: [String] = []
 
     func run() async throws {
-        // See if we have a possible plugin command.
-        let pluginLoader = try? await Application.createPluginLoader()
+        // No-args invocation prints help and must not depend on the API server.
+        // See docs/internal/help-freeze-analysis.md.
         guard let command = remaining.first else {
-            await Application.printModifiedHelpText(pluginLoader: pluginLoader)
+            await Application.printModifiedHelpText(pluginLoader: nil, unavailableMessage: nil)
             return
         }
+
+        // We have a candidate plugin command; load plugins (which contacts the
+        // API server) only on this path.
+        let pluginLoader = try? await Application.createPluginLoader()
 
         // Check for edge cases and unknown options to match the behavior in the absence of plugins.
         if command.isEmpty {

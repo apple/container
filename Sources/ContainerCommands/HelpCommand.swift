@@ -27,7 +27,8 @@ struct HelpCommand: AsyncLoggableCommand {
     public var logOptions: Flags.Logging
 
     func run() async throws {
-        let pluginLoader = try? await Application.createPluginLoader()
-        await Application.printModifiedHelpText(pluginLoader: pluginLoader)
+        // The `help` subcommand must not depend on the API server being reachable.
+        // See docs/internal/help-freeze-analysis.md.
+        await Application.printModifiedHelpText(pluginLoader: nil, unavailableMessage: nil)
     }
 }
