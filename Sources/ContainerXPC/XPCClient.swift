@@ -70,44 +70,59 @@ extension XPCClient {
     }
 
     /// Send the provided message to the service.
+    ///
+    /// The response is delivered by whichever of the following completes first:
+    ///   1. The XPC reply callback fires.
+    ///   2. `responseTimeout` elapses.
+    ///   3. The current `Task` is cancelled.
+    ///
+    /// Late completions from the other paths are dropped silently so the connection
+    /// remains valid for subsequent sends — important for callers that hold a long-lived
+    /// `XPCClient` (`ContainerClient`, `NetworkClient`). A previous implementation used
+    /// a `withThrowingTaskGroup`, but structured-concurrency cleanup awaited the XPC
+    /// child task, which could not actually be cancelled because
+    /// `xpc_connection_send_message_with_reply` only resumes when its callback fires.
+    /// That made `responseTimeout` ineffective whenever the remote service was wedged.
+    /// See docs/internal/help-freeze-analysis.md.
     @discardableResult
     public func send(_ message: XPCMessage, responseTimeout: Duration? = nil) async throws -> XPCMessage {
-        try await withThrowingTaskGroup(of: XPCMessage.self, returning: XPCMessage.self) { group in
-            if let responseTimeout {
-                group.addTask {
-                    try await Task.sleep(for: responseTimeout)
-                    let route = message.string(key: XPCMessage.routeKey) ?? "nil"
-                    throw ContainerizationError(
-                        .internalError,
-                        message: "XPC timeout for request to \(self.service)/\(route)"
-                    )
-                }
-            }
+        let state = ResumptionState<XPCMessage>()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (cont: CheckedContinuation<XPCMessage, Error>) in
+                state.set(cont)
 
-            group.addTask {
-                try await withCheckedThrowingContinuation { cont in
-                    xpc_connection_send_message_with_reply(self.connection, message.underlying, nil) { reply in
-                        do {
-                            let message = try self.parseReply(reply)
-                            cont.resume(returning: message)
-                        } catch {
-                            cont.resume(throwing: error)
-                        }
+                xpc_connection_send_message_with_reply(self.connection, message.underlying, nil) { reply in
+                    do {
+                        let parsed = try self.parseReply(reply)
+                        state.tryResume(returning: parsed)
+                    } catch {
+                        state.tryResume(throwing: error)
                     }
                 }
-            }
 
-            let response = try await group.next()
-            // once one task has finished, cancel the rest.
-            group.cancelAll()
-            // we don't really care about the second error here
-            // as it's most likely a `CancellationError`.
-            try? await group.waitForAll()
+                if let responseTimeout {
+                    let service = self.service
+                    let route = message.string(key: XPCMessage.routeKey) ?? "nil"
+                    Task { [state] in
+                        try? await Task.sleep(for: responseTimeout)
+                        state.tryResume(
+                            throwing: ContainerizationError(
+                                .timeout,
+                                message: "XPC timeout for request to \(service)/\(route)"
+                            )
+                        )
+                    }
+                }
 
-            guard let response else {
-                throw ContainerizationError(.invalidState, message: "failed to receive XPC response")
+                // Close the race window: if cancellation arrived before `set(cont)`
+                // ran, the cancellation handler resumed against an empty state. Resume
+                // here so the continuation cannot be lost.
+                if Task.isCancelled {
+                    state.tryResume(throwing: CancellationError())
+                }
             }
-            return response
+        } onCancel: {
+            state.tryResume(throwing: CancellationError())
         }
     }
 
@@ -130,6 +145,38 @@ extension XPCClient {
         default:
             fatalError("unhandled xpc object type: \(xpc_get_type(reply))")
         }
+    }
+}
+
+/// Single-resume gate around a `CheckedContinuation`.
+///
+/// `XPCClient.send` races multiple completion sources (XPC reply callback, timeout
+/// sleep, parent-task cancellation) against a single continuation. Whichever wins
+/// resumes via `tryResume`; subsequent resumes are dropped silently.
+private final class ResumptionState<T: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<T, Error>?
+
+    func set(_ continuation: CheckedContinuation<T, Error>) {
+        lock.lock()
+        defer { lock.unlock() }
+        self.continuation = continuation
+    }
+
+    func tryResume(returning value: T) {
+        lock.lock()
+        let c = continuation
+        continuation = nil
+        lock.unlock()
+        c?.resume(returning: value)
+    }
+
+    func tryResume(throwing error: Error) {
+        lock.lock()
+        let c = continuation
+        continuation = nil
+        lock.unlock()
+        c?.resume(throwing: error)
     }
 }
 
