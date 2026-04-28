@@ -184,7 +184,7 @@ define GENERATE_COV_REPORTS
 		-output-dir=$(COVERAGE_OUTPUT_DIR)/$(2)/html \
 		$(TEST_BINARY)
 	@echo Extracting $(2) coverage percentages...
-	@jq -r '"line coverage: \(.data[0].totals.lines.percent * 100 | round / 100)%\nfunction coverage: \(.data[0].totals.functions.percent * 100 | round / 100)%"' \
+	@jq -r '"line coverage: \(.data[0].totals.lines.percent | . * 100 | round | . / 100)%\nfunction coverage: \(.data[0].totals.functions.percent | . * 100 | round | . / 100)%"' \
 		$(COVERAGE_OUTPUT_DIR)/$(2)/coverage-summary.json > $(COVERAGE_OUTPUT_DIR)/$(2)/coverage-percent.txt
 	@cat $(COVERAGE_OUTPUT_DIR)/$(2)/coverage-percent.txt
 endef
@@ -252,7 +252,7 @@ coverage-integration: all
 		exit_code=0; \
 		export CLITEST_LOG_ROOT=$(LOG_ROOT) ; \
 		$(foreach suite,$(INTEGRATION_TEST_SUITES), \
-			$(SWIFT) test --no-parallel --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter $(suite) || exit_code=1 ; $(call SAVE_PROFRAW,$(suite)) ; \
+			$(SWIFT) test --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter $(suite) || exit_code=1 ; $(call SAVE_PROFRAW,$(suite)) ; \
 		) \
 		echo Ensuring apiserver stopped after the coverage integration tests ; \
 		scripts/ensure-container-stopped.sh ; \
