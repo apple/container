@@ -52,3 +52,41 @@ extension Application {
         }
     }
 }
+
+extension PrintableContainer: ListDisplayable {
+    static var tableHeader: [String] {
+        ["ID", "IMAGE", "OS", "ARCH", "STATE", "IP", "CPUS", "MEMORY", "STARTED"]
+    }
+
+    var tableRow: [String] {
+        [
+            self.configuration.id,
+            self.configuration.image.reference,
+            self.configuration.platform.os,
+            self.configuration.platform.architecture,
+            self.status.rawValue,
+            self.networks.map { $0.ipv4Address?.description ?? "" }.joined(separator: ","),
+            "\(self.configuration.resources.cpus)",
+            "\(self.configuration.resources.memoryInBytes / (1024 * 1024)) MB",
+            self.startedDate?.ISO8601Format() ?? "",
+        ]
+    }
+
+    var quietValue: String {
+        self.configuration.id
+    }
+}
+
+struct PrintableContainer: Codable, Sendable {
+    let status: RuntimeStatus
+    let configuration: ContainerConfiguration
+    let networks: [Attachment]
+    let startedDate: Date?
+
+    init(_ container: ContainerSnapshot) {
+        self.status = container.status
+        self.configuration = container.configuration
+        self.networks = container.networks
+        self.startedDate = container.startedDate
+    }
+}

@@ -610,7 +610,7 @@ class TestCLIRunCommand3: CLITest {
                 .map { $0.joined(separator: " ") }
 
             let inspectOutput = try inspectContainer(name)
-            let ip = inspectOutput.networks[0].ipv4Address.address
+            let ip = try #require(inspectOutput.networks[0].ipv4Address).address
             let expectedNameserver = IPv4Address((ip.value & Prefix(length: 24)!.prefixMask32) + 1).description
             let defaultDomain = try getDefaultDomain()
             let expectedLines: [String] = [
@@ -672,7 +672,7 @@ class TestCLIRunCommand3: CLITest {
             }
 
             let inspectOutput = try inspectContainer(name)
-            let ip = inspectOutput.networks[0].ipv4Address.address
+            let ip = try #require(inspectOutput.networks[0].ipv4Address).address
 
             let output = try doExec(name: name, cmd: ["cat", "/etc/hosts"])
             let lines = output.split(separator: "\n")

@@ -162,7 +162,7 @@ public actor MachinesService {
                 self.log.warning("failed to fetch container addresses: \(error)")
             }
             let addressMap = (containers ?? []).reduce(into: [String: String]()) { result, c in
-                if let addr = c.networks.first?.ipv4Address.address.description {
+                if let addr = c.networks.first?.ipv4Address?.address.description {
                     result[c.id] = addr
                 }
             }
@@ -536,7 +536,7 @@ public actor MachinesService {
         if snapshot.status == .running, let cid = snapshot.containerId {
             do {
                 let container = try await self.client.get(id: cid)
-                snapshot.ipAddress = container.networks.first?.ipv4Address.address.description
+                snapshot.ipAddress = container.networks.first?.ipv4Address?.address.description
             } catch {
                 self.log.warning("failed to fetch container address for \(cid): \(error)")
             }

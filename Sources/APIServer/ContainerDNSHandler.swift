@@ -76,10 +76,12 @@ struct ContainerDNSHandler: DNSHandler {
     }
 
     private func answerHost(question: Question) async throws -> ResourceRecord? {
-        guard let ipAllocation = try await networkService.lookup(hostname: question.name) else {
+        guard let ipAllocation = try await networkService.lookup(hostname: question.name),
+            let ipv4Address = ipAllocation.ipv4Address
+        else {
             return nil
         }
-        let ipv4 = ipAllocation.ipv4Address.address.description
+        let ipv4 = ipv4Address.address.description
         guard let ip = try? IPv4Address(ipv4) else {
             throw DNSResolverError.serverError("failed to parse IP address: \(ipv4)")
         }
