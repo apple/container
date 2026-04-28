@@ -14,9 +14,10 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-public enum NetworkVariant: String, Sendable {
-    case reserved
-    case allocationOnly
-    case bridged
-    case bridgedViaHelper
+public enum BridgeNetworkKeys: String {
+    case hostInterface
+    case enableTso
+    case enableChecksumOffload
+    case bufferedPacketCount
+    case sandboxEndpoint
 }
