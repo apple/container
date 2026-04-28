@@ -332,6 +332,7 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Containerization", package: "containerization"),
                 "ContainerLog",
+                "ContainerNetworkServiceClient",
                 "ContainerPlugin",
                 "ContainerResource",
                 "ContainerSandboxService",
