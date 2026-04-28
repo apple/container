@@ -64,7 +64,7 @@ extension PrintableContainer: ListDisplayable {
             self.configuration.platform.os,
             self.configuration.platform.architecture,
             self.status.rawValue,
-            self.networks.map { $0.ipv4Address.description }.joined(separator: ","),
+            self.networks.map { $0.ipv4Address?.description ?? "" }.joined(separator: ","),
             "\(self.configuration.resources.cpus)",
             "\(self.configuration.resources.memoryInBytes / (1024 * 1024)) MB",
             self.startedDate?.ISO8601Format() ?? "",

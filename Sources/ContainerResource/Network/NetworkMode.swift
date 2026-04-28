@@ -24,6 +24,11 @@ public enum NetworkMode: String, Codable, Sendable {
     /// Host only networking mode
     /// Containers can talk with each other in the same subnet only.
     case hostOnly = "hostOnly"
+
+    /// Bridge networking mode.
+    /// Containers attach directly to a host physical interface and receive IPs
+    /// from the upstream DHCP server on that network.
+    case bridge = "bridge"
 }
 
 extension NetworkMode {
@@ -35,6 +40,7 @@ extension NetworkMode {
         switch value.lowercased() {
         case "nat": self = .nat
         case "hostOnly": self = .hostOnly
+        case "bridge": self = .bridge
         default: return nil
         }
     }

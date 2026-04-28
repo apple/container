@@ -86,8 +86,8 @@ public actor NetworkService: Sendable {
             "allocated attachment",
             metadata: [
                 "hostname": "\(hostname)",
-                "ipv4Address": "\(attachment.ipv4Address)",
-                "ipv4Gateway": "\(attachment.ipv4Gateway)",
+                "ipv4Address": "\(attachment.ipv4Address?.description ?? "none")",
+                "ipv4Gateway": "\(attachment.ipv4Gateway?.description ?? "none")",
                 "ipv6Address": "\(attachment.ipv6Address?.description ?? "unavailable")",
                 "macAddress": "\(attachment.macAddress?.description ?? "unspecified")",
             ])

@@ -236,8 +236,7 @@ public actor SandboxService {
                 // NOTE: We can support a user providing new entries eventually, but for now craft
                 // a default /etc/hosts.
                 var hostsEntries = [Hosts.Entry.localHostIPV4()]
-                if !interfaces.isEmpty {
-                    let primaryIfaceAddr = interfaces[0].ipv4Address
+                if !interfaces.isEmpty, let primaryIfaceAddr = interfaces[0].ipv4Address {
                     hostsEntries.append(
                         Hosts.Entry(
                             ipAddress: primaryIfaceAddr.address.description,
@@ -761,7 +760,10 @@ public actor SandboxService {
                     let containerIPAddress: String
                     switch publishedPort.hostAddress {
                     case .v4(_):
-                        containerIPAddress = attachment.ipv4Address.address.description
+                        guard let ipv4Address = attachment.ipv4Address else {
+                            throw ContainerizationError(.invalidState, message: "cannot configure IPv4 port forwarding for container with unknown IPv4 address")
+                        }
+                        containerIPAddress = ipv4Address.address.description
                     case .v6(_):
                         guard let ipv6Address = attachment.ipv6Address else {
                             throw ContainerizationError(.invalidState, message: "cannot configure IPv6 port forwarding for container with unknown IPv6 address")

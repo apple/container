@@ -18,15 +18,19 @@ import ContainerResource
 import ContainerSandboxService
 import ContainerXPC
 import Containerization
+import ContainerizationError
 
 /// Isolated container network interface strategy. This strategy prohibits
 /// container to container networking, but it is the only approach that
 /// works for macOS Sequoia.
 struct IsolatedInterfaceStrategy: InterfaceStrategy {
-    public func toInterface(attachment: Attachment, interfaceIndex: Int, additionalData: XPCMessage?) -> Interface {
+    public func toInterface(attachment: Attachment, interfaceIndex: Int, additionalData: XPCMessage?) throws -> Interface {
+        guard let ipv4Address = attachment.ipv4Address else {
+            throw ContainerizationError(.invalidState, message: "NAT attachment missing IPv4 address")
+        }
         let ipv4Gateway = interfaceIndex == 0 ? attachment.ipv4Gateway : nil
         return NATInterface(
-            ipv4Address: attachment.ipv4Address,
+            ipv4Address: ipv4Address,
             ipv4Gateway: ipv4Gateway,
             macAddress: attachment.macAddress,
             // https://github.com/apple/containerization/pull/38
