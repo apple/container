@@ -162,12 +162,6 @@ public actor RuntimeService {
             var kernel = try bundle.kernel
             kernel.commandLine.kernelArgs.append("oops=panic")
             kernel.commandLine.kernelArgs.append("lsm=lockdown,capability,landlock,yama,apparmor")
-            let vmm = VZVirtualMachineManager(
-                kernel: kernel,
-                initialFilesystem: bundle.initialFilesystem.asMount,
-                rosetta: config.rosetta,
-                logger: self.log
-            )
 
             let networkBootstrapInfos = try message.networkBootstrapInfos()
 
@@ -196,6 +190,12 @@ public actor RuntimeService {
                             mtu: mtu
                         )
                     }
+
+                    // enable DHCP if the attachment has not been assigned an explicit IP address
+                    if attachment.ipv4Address == nil {
+                        kernel.commandLine.kernelArgs.append("ip=::::\(attachment.hostname):eth\(index):dhcp")
+                    }
+
                     guard let iStrategy = self.interfaceStrategies[NetworkInterfaceKey(plugin: info.plugin, variant: info.options["variant"])] else {
                         throw ContainerizationError(
                             .internalError,
@@ -214,17 +214,23 @@ public actor RuntimeService {
                 throw error
             }
 
+            let vmm = VZVirtualMachineManager(
+                kernel: kernel,
+                initialFilesystem: bundle.initialFilesystem.asMount,
+                rosetta: config.rosetta,
+                logger: self.log
+            )
+
             // Dynamically configure the DNS nameserver from a network if no explicit configuration
+            // For bridge networks (unspecified gateway), nameservers and domain come from DHCP (/proc/net/pnp).
             if let dns = config.dns, dns.nameservers.isEmpty {
                 let defaultNameservers = self.getDefaultNameservers(from: attachments)
-                if !defaultNameservers.isEmpty {
-                    config.dns = ContainerConfiguration.DNSConfiguration(
-                        nameservers: defaultNameservers,
-                        domain: dns.domain,
-                        searchDomains: dns.searchDomains,
-                        options: dns.options
-                    )
-                }
+                config.dns = ContainerConfiguration.DNSConfiguration(
+                    nameservers: defaultNameservers.isEmpty ? dns.nameservers : defaultNameservers,
+                    domain: defaultNameservers.isEmpty ? nil : dns.domain,
+                    searchDomains: dns.searchDomains,
+                    options: dns.options
+                )
             }
 
             let stdio = message.stdio()
@@ -1058,7 +1064,10 @@ public actor RuntimeService {
 
     private nonisolated func getDefaultNameservers(from attachments: [Attachment]) -> [String] {
         for attachment in attachments {
-            return [attachment.ipv4Gateway.description]
+            guard let ipv4Gateway: IPv4Address = attachment.ipv4Gateway else {
+                continue
+            }
+            return [ipv4Gateway.description]
         }
         return []
     }
