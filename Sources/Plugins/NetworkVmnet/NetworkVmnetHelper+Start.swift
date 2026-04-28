@@ -142,6 +142,8 @@ extension NetworkVmnetHelper {
                     )
                 }
                 return try ReservedVmnetNetwork(configuration: configuration, log: log)
+            case .bridged, .bridgedViaHelper:
+                return try BridgedVmnetNetwork(configuration: configuration, log: log)
             }
         }
     }
