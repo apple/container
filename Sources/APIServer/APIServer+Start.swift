@@ -184,9 +184,6 @@ extension APIServer {
             _ = FileManager.default.fileExists(atPath: pluginsURL.path, isDirectory: &directoryExists)
             let userPluginsURL = directoryExists.boolValue ? pluginsURL : nil
 
-            // plugins built into the application installed as a macOS app bundle
-            let appBundlePluginsURL = Bundle.main.resourceURL?.appending(path: "plugins")
-
             // plugins built into the application installed as a Unix-like application
             let installRootPluginsURL =
                 installRoot
@@ -197,7 +194,6 @@ extension APIServer {
 
             let pluginDirectories = [
                 userPluginsURL,
-                appBundlePluginsURL,
                 installRootPluginsURL,
             ].compactMap { $0 }
 

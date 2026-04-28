@@ -319,9 +319,6 @@ let package = Package(
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Logging", package: "swift-log"),
-                .product(name: "GRPCCore", package: "grpc-swift-2"),
-                .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
-                .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),
                 .product(name: "Containerization", package: "containerization"),
                 "ContainerLog",
                 "ContainerPlugin",
