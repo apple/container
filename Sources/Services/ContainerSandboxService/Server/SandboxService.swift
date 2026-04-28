@@ -161,6 +161,14 @@ public actor SandboxService {
             var kernel = try bundle.kernel
             kernel.commandLine.kernelArgs.append("oops=panic")
             kernel.commandLine.kernelArgs.append("lsm=lockdown,capability,landlock,yama,apparmor")
+
+            let allocatedAttachments = try message.getAllocatedAttachments()
+            for (index, alloc) in allocatedAttachments.enumerated() {
+                if alloc.attachment.ipv4Address == nil {
+                    kernel.commandLine.kernelArgs.append("ip=::::\(alloc.attachment.hostname):eth\(index):dhcp")
+                }
+            }
+
             let vmm = VZVirtualMachineManager(
                 kernel: kernel,
                 initialFilesystem: bundle.initialFilesystem.asMount,
@@ -168,19 +176,16 @@ public actor SandboxService {
                 logger: self.log
             )
 
-            let allocatedAttachments = try message.getAllocatedAttachments()
-
-            // Dynamically configure the DNS nameserver from a network if no explicit configuration
+            // Dynamically configure DNS from a network if no explicit configuration.
+            // For bridge networks (unspecified gateway), nameservers and domain come from DHCP (/proc/net/pnp).
             if let dns = config.dns, dns.nameservers.isEmpty {
                 let defaultNameservers = try await self.getDefaultNameservers(allocatedAttachments: allocatedAttachments)
-                if !defaultNameservers.isEmpty {
-                    config.dns = ContainerConfiguration.DNSConfiguration(
-                        nameservers: defaultNameservers,
-                        domain: dns.domain,
-                        searchDomains: dns.searchDomains,
-                        options: dns.options
-                    )
-                }
+                config.dns = ContainerConfiguration.DNSConfiguration(
+                    nameservers: defaultNameservers.isEmpty ? dns.nameservers : defaultNameservers,
+                    domain: defaultNameservers.isEmpty ? nil : dns.domain,
+                    searchDomains: dns.searchDomains,
+                    options: dns.options
+                )
             }
 
             var attachments: [Attachment] = []
@@ -929,6 +934,9 @@ public actor SandboxService {
         for allocatedAttach in allocatedAttachments {
             let state = try await networkClient.get(id: allocatedAttach.attachment.network)
             guard state.status.phase == "running", let gateway = state.status.ipv4Gateway else {
+                continue
+            }
+            guard !gateway.isUnspecified else {
                 continue
             }
             return [gateway.description]
