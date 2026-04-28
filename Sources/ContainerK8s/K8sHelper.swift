@@ -150,7 +150,7 @@ struct K8sNodeResource: ManagedResource, ListDisplayable {
 
     var tableRow: [String] {
         let role = snapshot.configuration.labels[ResourceLabelKeys.role] ?? ""
-        let addr = snapshot.networks.map { $0.ipv4Address.address.description }.joined(separator: ",")
+        let addr = snapshot.networks.map { $0.ipv4Address?.address.description ?? "" }.joined(separator: ",")
         let memoryMB = snapshot.configuration.resources.memoryInBytes / (1024 * 1024)
         let ports = snapshot.configuration.publishedPorts
             .map { "\($0.hostPort)->\($0.containerPort)" }
