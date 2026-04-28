@@ -1204,7 +1204,8 @@ public actor RuntimeService {
                     try await lc.wait()
                 }
                 group.addTask {
-                    try await lc.kill(Signal(rawValue: stopOpts.signal))
+                    let signal = try Signal(stopOpts.signal ?? "SIGTERM")
+                    try await lc.kill(signal)
                     try await Task.sleep(for: .seconds(stopOpts.timeoutInSeconds))
                     try await lc.kill(.kill)
 
