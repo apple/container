@@ -670,8 +670,13 @@ public actor ContainersService {
             return
         }
 
+        var resolvedOptions = options
+        if resolvedOptions.signal == nil, let stopSignal = state.snapshot.configuration.stopSignal {
+            resolvedOptions.signal = stopSignal
+        }
+
         do {
-            try await client.stop(options: options)
+            try await client.stop(options: resolvedOptions)
         } catch let err as ContainerizationError {
             if err.code != .interrupted {
                 throw err
@@ -852,7 +857,7 @@ public actor ContainersService {
             }
             let opts = ContainerStopOptions(
                 timeoutInSeconds: 5,
-                signal: SIGKILL
+                signal: "SIGKILL"
             )
             let client = try state.getClient()
             try await client.stop(options: opts)

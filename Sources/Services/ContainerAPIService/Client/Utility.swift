@@ -255,6 +255,7 @@ public struct Utility {
         let caps = try Parser.capabilities(capAdd: management.capAdd, capDrop: management.capDrop)
         config.capAdd = caps.capAdd
         config.capDrop = caps.capDrop
+        config.stopSignal = imageConfig?.stopSignal
 
         if let runtime = management.runtime {
             config.runtimeHandler = runtime

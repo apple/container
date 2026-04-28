@@ -1086,7 +1086,8 @@ public actor SandboxService {
                     try await lc.wait()
                 }
                 group.addTask {
-                    try await lc.kill(stopOpts.signal)
+                    let signal = try stopOpts.signal.map(Signals.parseSignal) ?? SIGTERM
+                    try await lc.kill(signal)
                     try await Task.sleep(for: .seconds(stopOpts.timeoutInSeconds))
                     try await lc.kill(SIGKILL)
 
