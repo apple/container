@@ -241,10 +241,10 @@ public actor SandboxService {
                 // NOTE: We can support a user providing new entries eventually, but for now craft
                 // a default /etc/hosts.
                 var hostsEntries = [Hosts.Entry.localHostIPV4()]
-                if !interfaces.isEmpty, let primaryIfaceAddr = interfaces[0].ipv4Address {
+                if !interfaces.isEmpty, let ipv4Address = interfaces[0].ipv4Address, !ipv4Address.address.isUnspecified {
                     hostsEntries.append(
                         Hosts.Entry(
-                            ipAddress: primaryIfaceAddr.address.description,
+                            ipAddress: ipv4Address.address.description,
                             hostnames: [czConfig.hostname ?? id],
                         ))
                 }
