@@ -171,18 +171,50 @@ class CLITest {
         process.standardOutput = outputPipe
         process.standardError = errorPipe
 
+        // Drain stdout and stderr concurrently via readability handlers so the
+        // child process never blocks on `write()` when one of its streams fills
+        // the kernel pipe buffer. Reading stdout to EOF before stderr deadlocks
+        // any process that emits more than a pipe-buffer's worth of stderr.
+        let outputBuffer = Mutex<Data>(Data())
+        let errorBuffer = Mutex<Data>(Data())
         let outputData: Data
         let errorData: Data
         do {
+            outputPipe.fileHandleForReading.readabilityHandler = { handle in
+                let chunk = handle.availableData
+                guard !chunk.isEmpty else { return }
+                outputBuffer.withLock { $0.append(chunk) }
+            }
+            errorPipe.fileHandleForReading.readabilityHandler = { handle in
+                let chunk = handle.availableData
+                guard !chunk.isEmpty else { return }
+                errorBuffer.withLock { $0.append(chunk) }
+            }
+
             try process.run()
             if let data = stdin {
                 inputPipe.fileHandleForWriting.write(data)
             }
             inputPipe.fileHandleForWriting.closeFile()
-            outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-            errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
+
+            // Clear handlers and drain any data the kernel buffered after the
+            // last handler invocation but before the process exited.
+            outputPipe.fileHandleForReading.readabilityHandler = nil
+            errorPipe.fileHandleForReading.readabilityHandler = nil
+            let finalOut = outputPipe.fileHandleForReading.readDataToEndOfFile()
+            if !finalOut.isEmpty {
+                outputBuffer.withLock { $0.append(finalOut) }
+            }
+            let finalErr = errorPipe.fileHandleForReading.readDataToEndOfFile()
+            if !finalErr.isEmpty {
+                errorBuffer.withLock { $0.append(finalErr) }
+            }
+            outputData = outputBuffer.withLock { $0 }
+            errorData = errorBuffer.withLock { $0 }
         } catch {
+            outputPipe.fileHandleForReading.readabilityHandler = nil
+            errorPipe.fileHandleForReading.readabilityHandler = nil
             throw CLIError.executionFailed("Failed to run CLI: \(error)")
         }
 
