@@ -47,7 +47,6 @@ let package = Package(
         .library(name: "TerminalProgress", targets: ["TerminalProgress"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/Bouke/DNS.git", from: "1.2.0"),
         .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion)),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
         .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
