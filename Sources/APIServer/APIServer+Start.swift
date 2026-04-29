@@ -324,12 +324,12 @@ extension APIServer {
 
             let harness = NetworksHarness(service: service, log: log)
 
-            // network creation/deletion/list is not supported pre-macOS 26 (refer to AllocationOnlyVmnetNetwork)
+            // network creation is not supported pre-macOS 26 (refer to AllocationOnlyVmnetNetwork)
             if #available(macOS 26, *) {
                 routes[XPCRoute.networkCreate] = harness.create
-                routes[XPCRoute.networkDelete] = harness.delete
-                routes[XPCRoute.networkList] = harness.list
             }
+            routes[XPCRoute.networkList] = harness.list
+            routes[XPCRoute.networkDelete] = harness.delete
 
             return service
         }
