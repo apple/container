@@ -123,8 +123,8 @@ RELEASE_JSON=$(curl -fsSL "$RELEASE_URL") || {
 }
 
 # Possible package names
-SIGNED_PRIMARY_PKG="container-installe-signed.pkg"
-SIGNED_FALLBACK_PKG="container-$RELEASE_VERSION-installe-signed.pkg"
+SIGNED_PRIMARY_PKG="container-installer-signed.pkg"
+SIGNED_FALLBACK_PKG="container-$RELEASE_VERSION-installer-signed.pkg"
 UNSIGNED_PRIMARY_PKG="container-installer-unsigned.pkg"
 UNSIGNED_FALLBACK_PKG="container-$RELEASE_VERSION-installer-unsigned.pkg"
 
