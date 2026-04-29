@@ -16,6 +16,7 @@
 
 import ContainerPersistence
 import ContainerizationError
+import ContainerizationExtras
 
 /// The URL scheme to be used for a HTTP request.
 public enum RequestScheme: String, Sendable {
@@ -55,20 +56,40 @@ public enum RequestScheme: String, Sendable {
     /// Checks if the given `host` string is a private IP address
     /// or a domain typically reachable only on the local system.
     private static func isInternalHost(host: String) -> Bool {
-        if host.hasPrefix("localhost") || host.hasPrefix("127.") {
+        // The localhost hostname is private.
+        if host == "localhost" {
             return true
         }
-        if host.hasPrefix("192.168.") || host.hasPrefix("10.") {
+
+        // If it corresponds to our default domain name, treat it as private.
+        if let dnsDomain = DefaultsStore.getOptional(key: .defaultDNSDomain) {
+            if host.hasSuffix(".\(dnsDomain)") {
+                return true
+            }
+        }
+
+        // If it's any other hostname and not an IP address, it's not private access.
+        guard let ipv4Address = try? IPv4Address(host) else {
+            return false
+        }
+
+        let ipv4Value = ipv4Address.value
+
+        // 10.0.0.0/8 and 127.0.0.0/8 are private CIDRs.
+        if (ipv4Value & 0xff000000 == 0x0a000000) || (ipv4Value & 0xff000000 == 0x7f000000) {
             return true
         }
-        let regex = "(^172\\.1[6-9]\\.)|(^172\\.2[0-9]\\.)|(^172\\.3[0-1]\\.)"
-        if host.range(of: regex, options: .regularExpression) != nil {
+
+        // 192.168.0.0/16 is a private CIDR.
+        if ipv4Value & 0xffff0000 == 0xc0a80000 {
             return true
         }
-        let dnsDomain = DefaultsStore.get(key: .defaultDNSDomain)
-        if host.hasSuffix(".\(dnsDomain)") {
+
+        // 172.16.0.0/12 is a private CIDR.
+        if ipv4Value & 0xfff00000 == 0xac100000 {
             return true
         }
+
         return false
     }
 }
