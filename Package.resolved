@@ -1,5 +1,5 @@
 {
-  "originHash" : "ff3186365938b6d99b7cae1f7e22da26aea8b8e1a4b2356d650eeb3cb2b4a6ad",
+  "originHash" : "7b5f26ab36f538b538928a5ad1d130771e30eba346face11b399407f410b65c8",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/containerization.git",
       "state" : {
-        "revision" : "d3ff56e5dd93a4573ce7950f3428710bbe467f9c",
-        "version" : "0.27.0"
+        "branch" : "main",
+        "revision" : "6c827ee3adf3bfcab0767fa99125895266f2b089"
       }
     },
     {
@@ -44,6 +44,33 @@
       "state" : {
         "revision" : "a56a157218877ef3e9625f7e1f7b2cb7e46ead1b",
         "version" : "1.26.1"
+      }
+    },
+    {
+      "identity" : "grpc-swift-2",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/grpc/grpc-swift-2.git",
+      "state" : {
+        "revision" : "d19a94824cc6fa182211e8197ce391ff712b69f1",
+        "version" : "2.4.0"
+      }
+    },
+    {
+      "identity" : "grpc-swift-nio-transport",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/grpc/grpc-swift-nio-transport.git",
+      "state" : {
+        "revision" : "f37e0c2d293cea668b11e10e1fb1c24cb40781ff",
+        "version" : "2.4.4"
+      }
+    },
+    {
+      "identity" : "grpc-swift-protobuf",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/grpc/grpc-swift-protobuf.git",
+      "state" : {
+        "revision" : "8723cf856dc23d9c2fad4d874e7b9ed3254acf03",
+        "version" : "2.3.0"
       }
     },
     {
