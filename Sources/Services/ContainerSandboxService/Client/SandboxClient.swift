@@ -77,7 +77,11 @@ public struct SandboxClient: Sendable {
 
 // Runtime Methods
 extension SandboxClient {
-    public func bootstrap(stdio: [FileHandle?], allocatedAttachments: [AllocatedAttachment], env: [String: String]? = nil) async throws {
+    public func bootstrap(
+        stdio: [FileHandle?],
+        allocatedAttachments: [AllocatedAttachment],
+        dynamicEnv: [String: String] = [:]
+    ) async throws {
         let request = XPCMessage(route: SandboxRoutes.bootstrap.rawValue)
 
         for (i, h) in stdio.enumerated() {
@@ -97,8 +101,8 @@ extension SandboxClient {
         }
 
         do {
-            let env = try JSONEncoder().encode(env)
-            request.set(key: SandboxKeys.env.rawValue, value: env)
+            let dynamicEnv = try JSONEncoder().encode(dynamicEnv)
+            request.set(key: SandboxKeys.dynamicEnv.rawValue, value: dynamicEnv)
 
             try request.setAllocatedAttachments(allocatedAttachments)
             try await self.client.send(request)

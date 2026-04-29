@@ -275,14 +275,36 @@ public actor VolumesService {
         try fm.createDirectory(atPath: volumePath, withIntermediateDirectories: true, attributes: nil)
     }
 
-    private func createVolumeImage(for name: String, sizeInBytes: UInt64 = VolumeStorage.defaultVolumeSizeBytes) throws {
+    static func parseJournalConfig(_ value: String) throws -> EXT4.JournalConfig {
+        let parts = value.split(separator: ":", maxSplits: 1)
+        guard let modeSubstring = parts.first else {
+            throw VolumeError.storageError("invalid journal configuration: expected 'mode' or 'mode:size'")
+        }
+        let modeString = String(modeSubstring)
+        let mode: EXT4.JournalConfig.JournalMode
+        switch modeString {
+        case "writeback": mode = .writeback
+        case "ordered": mode = .ordered
+        case "journal": mode = .journal
+        default:
+            throw VolumeError.storageError("invalid journal mode '\(modeString)': must be writeback, ordered, or journal")
+        }
+        let size: UInt64? =
+            try parts.count > 1
+            ? UInt64(Measurement.parse(parsing: String(parts[1])).converted(to: .bytes).value)
+            : nil
+        return EXT4.JournalConfig(size: size, defaultMode: mode)
+    }
+
+    private func createVolumeImage(for name: String, sizeInBytes: UInt64 = VolumeStorage.defaultVolumeSizeBytes, journal: EXT4.JournalConfig? = nil) throws {
         let blockPath = blockPath(for: name)
 
         // Use the containerization library's EXT4 formatter
         let formatter = try EXT4.Formatter(
             FilePath(blockPath),
             blockSize: 4096,
-            minDiskSize: sizeInBytes
+            minDiskSize: sizeInBytes,
+            journal: journal
         )
 
         try formatter.close()
@@ -323,7 +345,9 @@ public actor VolumesService {
             sizeInBytes = VolumeStorage.defaultVolumeSizeBytes
         }
 
-        try createVolumeImage(for: name, sizeInBytes: sizeInBytes)
+        let journalConfig = try driverOpts["journal"].map { try Self.parseJournalConfig($0) }
+
+        try createVolumeImage(for: name, sizeInBytes: sizeInBytes, journal: journalConfig)
 
         let volume = Volume(
             name: name,

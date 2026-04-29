@@ -19,4 +19,5 @@ import ArgumentParser
 public enum ListFormat: String, CaseIterable, ExpressibleByArgument, Sendable {
     case json
     case table
+    case yaml
 }

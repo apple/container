@@ -23,7 +23,7 @@ import PackageDescription
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
 let builderShimVersion = "0.12.0"
-let scVersion = "0.30.1"
+let scVersion = "0.31.0"
 
 let package = Package(
     name: "container",
@@ -60,6 +60,7 @@ let package = Package(
         .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.20.1"),
         .package(url: "https://github.com/swiftlang/swift-docc-plugin.git", from: "1.1.0"),
         .package(url: "https://github.com/mattt/swift-toml.git", from: "2.0.0"),
+        .package(url: "https://github.com/jpsim/Yams.git", from: "6.2.1"),
     ],
     targets: [
         .executableTarget(
@@ -82,6 +83,7 @@ let package = Package(
                 "ContainerBuild",
                 "ContainerLog",
                 "ContainerResource",
+                "Yams",
             ],
             path: "Tests/CLITests"
         ),
@@ -104,6 +106,7 @@ let package = Package(
                 "ContainerVersion",
                 "ContainerXPC",
                 "TerminalProgress",
+                "Yams",
             ],
             path: "Sources/ContainerCommands"
         ),
@@ -316,9 +319,6 @@ let package = Package(
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Logging", package: "swift-log"),
-                .product(name: "GRPCCore", package: "grpc-swift-2"),
-                .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
-                .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),
                 .product(name: "Containerization", package: "containerization"),
                 "ContainerLog",
                 "ContainerPlugin",

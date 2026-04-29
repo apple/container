@@ -113,7 +113,11 @@ public struct ContainerClient: Sendable {
     }
 
     /// Bootstrap the container's init process.
-    public func bootstrap(id: String, stdio: [FileHandle?], env: [String: String]? = nil) async throws -> ClientProcess {
+    public func bootstrap(
+        id: String,
+        stdio: [FileHandle?],
+        dynamicEnv: [String: String] = [:]
+    ) async throws -> ClientProcess {
         let request = XPCMessage(route: .containerBootstrap)
 
         for (i, h) in stdio.enumerated() {
@@ -133,8 +137,8 @@ public struct ContainerClient: Sendable {
         }
 
         do {
-            let env = try JSONEncoder().encode(env)
-            request.set(key: .env, value: env)
+            let dynamicEnv = try JSONEncoder().encode(dynamicEnv)
+            request.set(key: .dynamicEnv, value: dynamicEnv)
 
             request.set(key: .id, value: id)
             try await xpcClient.send(request)

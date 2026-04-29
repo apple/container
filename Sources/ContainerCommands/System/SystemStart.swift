@@ -72,7 +72,9 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            // Without the true path to the binary in the plist, `container-apiserver` won't launch properly.
+            // Resolve the symlink to get the true binary path before writing the launchd plist.
+            // Gatekeeper / amfid validates code signatures relative to the enclosing .app bundle
+            // hierarchy; launching via a symlink outside the bundle fails that check.
             // TODO: Can we use the plugin loader to bootstrap the API server?
             let executableUrl = CommandLine.executablePathUrl
                 .deletingLastPathComponent()

@@ -19,9 +19,11 @@ import ContainerAPIClient
 import ContainerAPIService
 import ContainerLog
 import ContainerNetworkService
+import ContainerPersistence
 import ContainerPlugin
 import ContainerResource
 import ContainerXPC
+import ContainerizationExtras
 import DNSServer
 import Foundation
 import Logging
@@ -182,9 +184,6 @@ extension APIServer {
             _ = FileManager.default.fileExists(atPath: pluginsURL.path, isDirectory: &directoryExists)
             let userPluginsURL = directoryExists.boolValue ? pluginsURL : nil
 
-            // plugins built into the application installed as a macOS app bundle
-            let appBundlePluginsURL = Bundle.main.resourceURL?.appending(path: "plugins")
-
             // plugins built into the application installed as a Unix-like application
             let installRootPluginsURL =
                 installRoot
@@ -195,7 +194,6 @@ extension APIServer {
 
             let pluginDirectories = [
                 userPluginsURL,
-                appBundlePluginsURL,
                 installRootPluginsURL,
             ].compactMap { $0 }
 
@@ -316,6 +314,8 @@ extension APIServer {
                 let config = try NetworkConfiguration(
                     id: NetworkClient.defaultNetworkName,
                     mode: .nat,
+                    ipv4Subnet: try? DefaultsStore.getOptional(key: .defaultSubnet).map { try CIDRv4($0) },
+                    ipv6Subnet: try? DefaultsStore.getOptional(key: .defaultIPv6Subnet).map { try CIDRv6($0) },
                     labels: try .init([ResourceLabelKeys.role: ResourceRoleValues.builtin]),
                     pluginInfo: NetworkPluginInfo(plugin: "container-network-vmnet")
                 )
@@ -324,9 +324,13 @@ extension APIServer {
 
             let harness = NetworksHarness(service: service, log: log)
 
-            routes[XPCRoute.networkCreate] = harness.create
-            routes[XPCRoute.networkDelete] = harness.delete
+            // network creation is not supported pre-macOS 26 (refer to AllocationOnlyVmnetNetwork)
+            if #available(macOS 26, *) {
+                routes[XPCRoute.networkCreate] = harness.create
+            }
             routes[XPCRoute.networkList] = harness.list
+            routes[XPCRoute.networkDelete] = harness.delete
+
             return service
         }
 
