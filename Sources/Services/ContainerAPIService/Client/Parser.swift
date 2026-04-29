@@ -515,8 +515,8 @@ public struct Parser {
             let src = String(parts[0])
             let dst = String(parts[1])
 
-            // Check if it's a filesystem path
-            guard src.contains("/") else {
+            // Check if it's a filesystem path (absolute, or relative like ".", "..", "./foo", "../foo")
+            guard src.contains("/") || src == "." || src == ".." else {
                 // Named volume - validate name syntax only
                 guard VolumeStorage.isValidVolumeName(src) else {
                     throw ContainerizationError(.invalidArgument, message: "invalid volume name '\(src)': must match \(VolumeStorage.volumeNamePattern)")
@@ -1014,6 +1014,40 @@ public struct Parser {
         }
 
         return parsed
+    }
+
+    // MARK: Capabilities
+
+    /// Parse and validate --cap-add / --cap-drop arguments.
+    /// Returns normalized uppercase CAP_* strings.
+    public static func capabilities(capAdd: [String], capDrop: [String]) throws -> (capAdd: [String], capDrop: [String]) {
+        var normalizedAdd: [String] = []
+        for cap in capAdd {
+            let upper = cap.uppercased()
+            if upper == "ALL" {
+                normalizedAdd.append("ALL")
+                continue
+            }
+            // Validate using CapabilityName from the containerization lib
+            _ = try CapabilityName(rawValue: upper)
+            // Normalize to CAP_ prefixed form
+            let normalized = upper.hasPrefix("CAP_") ? upper : "CAP_\(upper)"
+            normalizedAdd.append(normalized)
+        }
+
+        var normalizedDrop: [String] = []
+        for cap in capDrop {
+            let upper = cap.uppercased()
+            if upper == "ALL" {
+                normalizedDrop.append("ALL")
+                continue
+            }
+            _ = try CapabilityName(rawValue: upper)
+            let normalized = upper.hasPrefix("CAP_") ? upper : "CAP_\(upper)"
+            normalizedDrop.append(normalized)
+        }
+
+        return (normalizedAdd, normalizedDrop)
     }
 
     // MARK: Miscellaneous

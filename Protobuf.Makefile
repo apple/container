@@ -37,7 +37,7 @@ $(PROTOC):
 .PHONY: protoc-gen-swift
 protoc-gen-swift:
 	@$(SWIFT) build --product protoc-gen-swift
-	@$(SWIFT) build --product protoc-gen-grpc-swift
+	@$(SWIFT) build --product protoc-gen-grpc-swift-2
 
 .PHONY: protos
 protos: $(PROTOC) protoc-gen-swift
@@ -47,7 +47,7 @@ protos: $(PROTOC) protoc-gen-swift
 		cd $(LOCAL_DIR) && git clone --branch $(BUILDER_SHIM_VERSION) --depth 1 $(BUILDER_SHIM_REPO); \
 	fi
 	@$(PROTOC) $(LOCAL_DIR)/container-builder-shim/pkg/api/Builder.proto \
-		--plugin=protoc-gen-grpc-swift=$(BUILD_BIN_DIR)/protoc-gen-grpc-swift \
+		--plugin=protoc-gen-grpc-swift=$(BUILD_BIN_DIR)/protoc-gen-grpc-swift-2 \
 		--plugin=protoc-gen-swift=$(BUILD_BIN_DIR)/protoc-gen-swift \
 		--proto_path=$(LOCAL_DIR)/container-builder-shim/pkg/api \
 		--grpc-swift_out="Sources/ContainerBuild" \

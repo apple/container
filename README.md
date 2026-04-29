@@ -1,4 +1,7 @@
-# `container`
+<h1>
+  <img alt="Containerization logo" src="./assets/Containerization-Logo.png" width="70" valign="middle">
+  &nbsp;container
+</h1>
 
 `container` is a tool that you can use to create and run Linux containers as lightweight virtual machines on your Mac. It's written in Swift, and optimized for Apple silicon.
 

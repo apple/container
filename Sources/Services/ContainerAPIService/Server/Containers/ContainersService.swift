@@ -99,7 +99,27 @@ public actor ContainersService {
         var results = [String: ContainerState]()
         for dir in directories {
             do {
-                let config = try Self.getContainerConfiguration(at: dir)
+                let (config, options) = try Self.getContainerConfiguration(at: dir)
+                if options?.autoRemove ?? false {
+                    let label = Self.fullLaunchdServiceLabel(
+                        runtimeName: config.runtimeHandler,
+                        instanceId: config.id)
+
+                    var status: Int32 = -1
+                    try? ServiceManager.deregister(fullServiceLabel: label, status: &status)
+                    if status == 0 {
+                        log.info(
+                            "reap auto-remove container",
+                            metadata: [
+                                "id": "\(config.id)"
+                            ]
+                        )
+
+                        let bundle = ContainerResource.Bundle(path: dir)
+                        try? bundle.delete()
+                        continue
+                    }
+                }
 
                 let state = ContainerState(
                     snapshot: .init(
@@ -344,7 +364,7 @@ public actor ContainersService {
                         "ref": "\(configuration.image.reference)",
                     ])
                 let containerImage = ClientImage(description: configuration.image)
-                let imageFs = try await containerImage.getCreateSnapshot(platform: configuration.platform)
+                let imageFs = try await options.rootFsOverride == nil ? containerImage.getCreateSnapshot(platform: configuration.platform) : nil
 
                 self.log.debug(
                     "configure runtime",
@@ -378,12 +398,13 @@ public actor ContainersService {
     }
 
     /// Bootstrap the init process of the container.
-    public func bootstrap(id: String, stdio: [FileHandle?]) async throws {
+    public func bootstrap(id: String, stdio: [FileHandle?], dynamicEnv: [String: String]) async throws {
         log.debug(
             "ContainersService: enter",
             metadata: [
                 "func": "\(#function)",
                 "id": "\(id)",
+                "env": "\(dynamicEnv)",
             ]
         )
         defer {
@@ -407,7 +428,7 @@ public actor ContainersService {
             }
 
             let path = self.containerRoot.appendingPathComponent(id)
-            let config = try Self.getContainerConfiguration(at: path)
+            let (config, _) = try Self.getContainerConfiguration(at: path)
 
             var allocatedAttachments = [AllocatedAttachment]()
             do {
@@ -453,7 +474,7 @@ public actor ContainersService {
                     id: id,
                     runtime: runtime
                 )
-                try await sandboxClient.bootstrap(stdio: stdio, allocatedAttachments: allocatedAttachments)
+                try await sandboxClient.bootstrap(stdio: stdio, allocatedAttachments: allocatedAttachments, dynamicEnv: dynamicEnv)
 
                 try await self.exitMonitor.registerProcess(
                     id: id,
@@ -1163,10 +1184,12 @@ public actor ContainersService {
     }
 
     /// Get container configuration, either from existing bundle or from RuntimeConfiguration
-    private static func getContainerConfiguration(at path: URL) throws -> ContainerConfiguration {
+    private static func getContainerConfiguration(at path: URL) throws -> (ContainerConfiguration, ContainerCreateOptions?) {
         let bundle = ContainerResource.Bundle(path: path)
         do {
-            return try bundle.configuration
+            let config = try bundle.configuration
+            let options: ContainerCreateOptions? = try? bundle.load(filename: "options.json")
+            return (config, options)
         } catch {
             // Bundle doesn't exist or incomplete, try runtime configuration
             // This handles containers that were created but not started yet
@@ -1174,7 +1197,7 @@ public actor ContainersService {
             guard let config = runtimeConfig.containerConfiguration else {
                 throw ContainerizationError(.internalError, message: "runtime configuration missing container configuration")
             }
-            return config
+            return (config, runtimeConfig.options)
         }
     }
 }

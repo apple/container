@@ -45,10 +45,20 @@ extension Application {
             do {
                 let client = ContainerClient()
                 let container = try await client.get(id: "buildkit")
-                try printContainers(containers: [container], format: format)
+
+                if format == .json {
+                    try Output.emit(Output.renderJSON([PrintableContainer(container)]))
+                    return
+                }
+
+                if quiet && container.status != .running {
+                    return
+                }
+
+                Output.emit(Output.renderList([PrintableBuilder(container)], quiet: quiet))
             } catch {
-                if error is ContainerizationError {
-                    if (error as? ContainerizationError)?.code == .notFound && !quiet {
+                if let czError = error as? ContainerizationError, czError.code == .notFound {
+                    if !quiet {
                         print("builder is not running")
                         return
                     }
@@ -56,49 +66,32 @@ extension Application {
                 throw error
             }
         }
-
-        private func createHeader() -> [[String]] {
-            [["ID", "IMAGE", "STATE", "ADDR", "CPUS", "MEMORY"]]
-        }
-
-        private func printContainers(containers: [ContainerSnapshot], format: ListFormat) throws {
-            if format == .json {
-                let printables = containers.map {
-                    PrintableContainer($0)
-                }
-                let data = try JSONEncoder().encode(printables)
-                print(String(decoding: data, as: UTF8.self))
-
-                return
-            }
-
-            if self.quiet {
-                containers
-                    .filter { $0.status == .running }
-                    .forEach { print($0.id) }
-                return
-            }
-
-            var rows = createHeader()
-            for container in containers {
-                rows.append(container.asRow)
-            }
-
-            let formatter = TableOutput(rows: rows)
-            print(formatter.format())
-        }
     }
 }
 
-extension ContainerSnapshot {
-    fileprivate var asRow: [String] {
+private struct PrintableBuilder: ListDisplayable {
+    let snapshot: ContainerSnapshot
+
+    init(_ snapshot: ContainerSnapshot) {
+        self.snapshot = snapshot
+    }
+
+    static var tableHeader: [String] {
+        ["ID", "IMAGE", "STATE", "ADDR", "CPUS", "MEMORY"]
+    }
+
+    var tableRow: [String] {
         [
-            self.id,
-            self.configuration.image.reference,
-            self.status.rawValue,
-            self.networks.compactMap { $0.ipv4Address.description }.joined(separator: ","),
-            "\(self.configuration.resources.cpus)",
-            "\(self.configuration.resources.memoryInBytes / (1024 * 1024)) MB",
+            snapshot.id,
+            snapshot.configuration.image.reference,
+            snapshot.status.rawValue,
+            snapshot.networks.map { $0.ipv4Address.description }.joined(separator: ","),
+            "\(snapshot.configuration.resources.cpus)",
+            "\(snapshot.configuration.resources.memoryInBytes / (1024 * 1024)) MB",
         ]
+    }
+
+    var quietValue: String {
+        snapshot.id
     }
 }

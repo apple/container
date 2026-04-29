@@ -1,0 +1,11 @@
+abstract = "Linux container runtime plugin"
+author = "Apple"
+version = 0.1
+
+[servicesConfig]
+loadAtBoot = false
+runAtLoad = false
+defaultArguments = []
+
+[[servicesConfig.services]]
+type = "runtime"

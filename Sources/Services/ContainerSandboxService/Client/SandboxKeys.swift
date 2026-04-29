@@ -48,6 +48,10 @@ public enum SandboxKeys: String {
     case destinationPath
     case fileMode
     case createParents
+    
+    /// Special-case environment variables recomputed on each container start
+    case dynamicEnv
+
     /// Network resource keys.
     case allocatedAttachments
     case networkAdditionalData

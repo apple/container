@@ -14,7 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import DNS
+import ContainerizationExtras
 import Testing
 
 @testable import DNSServer
@@ -29,35 +29,35 @@ struct CompositeResolverTest {
             id: UInt16(1),
             type: .query,
             questions: [
-                Question(name: "foo", type: .host)
+                Question(name: "foo.", type: .host)
             ])
 
         let fooResponse = try await resolver.answer(query: fooQuery)
         #expect(.noError == fooResponse?.returnCode)
         #expect(1 == fooResponse?.id)
         #expect(1 == fooResponse?.answers.count)
-        let fooAnswer = fooResponse?.answers[0] as? HostRecord<IPv4>
-        #expect(IPv4("1.2.3.4") == fooAnswer?.ip)
+        let fooAnswer = fooResponse?.answers[0] as? HostRecord<IPv4Address>
+        #expect(try IPv4Address("1.2.3.4") == fooAnswer?.ip)
 
         let barQuery = Message(
             id: UInt16(1),
             type: .query,
             questions: [
-                Question(name: "bar", type: .host)
+                Question(name: "bar.", type: .host)
             ])
 
         let barResponse = try await resolver.answer(query: barQuery)
         #expect(.noError == barResponse?.returnCode)
         #expect(1 == barResponse?.id)
         #expect(1 == barResponse?.answers.count)
-        let barAnswer = barResponse?.answers[0] as? HostRecord<IPv4>
-        #expect(IPv4("5.6.7.8") == barAnswer?.ip)
+        let barAnswer = barResponse?.answers[0] as? HostRecord<IPv4Address>
+        #expect(try IPv4Address("5.6.7.8") == barAnswer?.ip)
 
         let otherQuery = Message(
             id: UInt16(1),
             type: .query,
             questions: [
-                Question(name: "other", type: .host)
+                Question(name: "other.", type: .host)
             ])
 
         let otherResponse = try await resolver.answer(query: otherQuery)

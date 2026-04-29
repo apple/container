@@ -17,6 +17,7 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerLog
+import ContainerResource
 import ContainerizationError
 import Foundation
 import Logging
@@ -42,7 +43,7 @@ extension Application {
         }
 
         public func run() async throws {
-            var printable = [any Codable]()
+            var printable: [ImageDetail] = []
             var succeededImages: [String] = []
             var allErrors: [(String, Error)] = []
 
@@ -59,7 +60,7 @@ extension Application {
             }
 
             if !printable.isEmpty {
-                print(try printable.jsonArray())
+                try Output.emit(Output.renderJSON(printable))
             }
 
             if !allErrors.isEmpty {

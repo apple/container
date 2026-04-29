@@ -14,7 +14,6 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerPersistence
 import ContainerResource
 import ContainerXPC
 import ContainerizationError
@@ -23,6 +22,9 @@ import Foundation
 import Logging
 
 public actor AllocationOnlyVmnetNetwork: Network {
+    // The IPv4 subnet to be used if none explicitly passed in the `NetworkConfiguration`
+    private static let defaultIPv4Subnet = try! CIDRv4("192.168.64.1/24")
+
     private let log: Logger
     private var _state: NetworkState
 
@@ -36,8 +38,8 @@ public actor AllocationOnlyVmnetNetwork: Network {
             throw ContainerizationError(.unsupported, message: "invalid network mode \(configuration.mode)")
         }
 
-        guard configuration.ipv4Subnet == nil else {
-            throw ContainerizationError(.unsupported, message: "IPv4 subnet assignment is not yet implemented")
+        guard configuration.ipv6Subnet == nil else {
+            throw ContainerizationError(.unsupported, message: "IPv6 subnet assignment is not yet implemented")
         }
 
         self.log = log
@@ -65,8 +67,8 @@ public actor AllocationOnlyVmnetNetwork: Network {
             ]
         )
 
-        let defaultIPv4Subnet = try CIDRv4(DefaultsStore.get(key: .defaultSubnet))
-        let ipv4Subnet = configuration.ipv4Subnet ?? defaultIPv4Subnet
+        let ipv4Subnet = configuration.ipv4Subnet ?? Self.defaultIPv4Subnet
+
         let gateway = IPv4Address(ipv4Subnet.lower.value + 1)
         let status = NetworkStatus(
             ipv4Subnet: ipv4Subnet,

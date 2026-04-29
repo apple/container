@@ -66,6 +66,7 @@ extension ProgressBar {
         }
 
         var startTime: DispatchTime
+        var lastPlainRenderTime: DispatchTime?
         var output = ""
         var renderTask: Task<Void, Never>?
 

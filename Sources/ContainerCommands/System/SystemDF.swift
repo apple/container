@@ -16,7 +16,6 @@
 
 import ArgumentParser
 import ContainerAPIClient
-import ContainerizationError
 import Foundation
 
 extension Application {
@@ -38,16 +37,7 @@ extension Application {
             let stats = try await ClientDiskUsage.get()
 
             if format == .json {
-                let encoder = JSONEncoder()
-                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                let data = try encoder.encode(stats)
-                guard let jsonString = String(data: data, encoding: .utf8) else {
-                    throw ContainerizationError(
-                        .internalError,
-                        message: "failed to encode JSON output"
-                    )
-                }
-                print(jsonString)
+                try Output.emit(Output.renderJSON(stats, options: .prettySorted))
                 return
             }
 
