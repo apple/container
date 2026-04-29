@@ -18,7 +18,7 @@ import ContainerAPIClient
 import Foundation
 import Testing
 
-@Suite(.serialized)
+@Suite(.serialSuites, .serialized)
 class TestCLIVolumes: CLITest {
 
     func doVolumeCreate(name: String) throws {

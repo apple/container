@@ -18,6 +18,7 @@ import ContainerizationOS
 import Foundation
 import Testing
 
+@Suite(.serialSuites)
 class TestCLIRunBase: CLITest {
     var terminal: Terminal!
     var containerName: String = UUID().uuidString

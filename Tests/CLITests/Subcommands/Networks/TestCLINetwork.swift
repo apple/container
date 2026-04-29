@@ -22,7 +22,7 @@ import ContainerizationOS
 import Foundation
 import Testing
 
-@Suite(.serialized)
+@Suite(.serialSuites, .serialized)
 class TestCLINetwork: CLITest {
     private static let retries = 10
     private static let retryDelaySeconds = Int64(3)
