@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationExtras
 import Testing
 
 /// Integration test suites share mutable system state (apiserver, containers, networks, volumes).
@@ -22,20 +23,18 @@ import Testing
 /// each suite still run in parallel.
 struct SerialSuiteTrait: SuiteTrait, TestScoping {
     var isRecursive: Bool { false }
+    private static let lock = AsyncLock()
 
     func provideScope(
         for test: Test,
         testCase: Test.Case?,
         performing function: @Sendable () async throws -> Void
     ) async throws {
-        await SuiteGate.shared.enter()
-        do {
-            try await function()
-        } catch {
-            await SuiteGate.shared.leave()
-            throw error
+        try await withoutActuallyEscaping(function) { escapingFunction in
+            try await Self.lock.withLock { _ in
+                try await escapingFunction()
+            }
         }
-        await SuiteGate.shared.leave()
     }
 }
 
