@@ -165,31 +165,29 @@ class CLITest {
         }
 
         let inputPipe = Pipe()
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
         process.standardInput = inputPipe
-        process.standardOutput = outputPipe
-        process.standardError = errorPipe
 
-        // Drain stdout and stderr concurrently via readability handlers so the
-        // child process never blocks on `write()` when one of its streams fills
-        // the kernel pipe buffer. Reading stdout to EOF before stderr deadlocks
-        // any process that emits more than a pipe-buffer's worth of stderr.
-        let outputBuffer = Mutex<Data>(Data())
-        let errorBuffer = Mutex<Data>(Data())
         let outputData: Data
         let errorData: Data
         do {
-            outputPipe.fileHandleForReading.readabilityHandler = { handle in
-                let chunk = handle.availableData
-                guard !chunk.isEmpty else { return }
-                outputBuffer.withLock { $0.append(chunk) }
+            // Redirect stdout/stderr to temp files so the child process never
+            // blocks on `write()` when one stream fills the kernel pipe buffer
+            // before the parent drains it (issue #1456).
+            let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer {
+                try? FileManager.default.removeItem(at: tempDir)
             }
-            errorPipe.fileHandleForReading.readabilityHandler = { handle in
-                let chunk = handle.availableData
-                guard !chunk.isEmpty else { return }
-                errorBuffer.withLock { $0.append(chunk) }
-            }
+
+            let stdoutURL = tempDir.appendingPathComponent("stdout")
+            let stderrURL = tempDir.appendingPathComponent("stderr")
+            FileManager.default.createFile(atPath: stdoutURL.path, contents: nil)
+            FileManager.default.createFile(atPath: stderrURL.path, contents: nil)
+
+            let stdoutHandle = try FileHandle(forWritingTo: stdoutURL)
+            let stderrHandle = try FileHandle(forWritingTo: stderrURL)
+            process.standardOutput = stdoutHandle
+            process.standardError = stderrHandle
 
             try process.run()
             if let data = stdin {
@@ -198,23 +196,12 @@ class CLITest {
             inputPipe.fileHandleForWriting.closeFile()
             process.waitUntilExit()
 
-            // Clear handlers and drain any data the kernel buffered after the
-            // last handler invocation but before the process exited.
-            outputPipe.fileHandleForReading.readabilityHandler = nil
-            errorPipe.fileHandleForReading.readabilityHandler = nil
-            let finalOut = outputPipe.fileHandleForReading.readDataToEndOfFile()
-            if !finalOut.isEmpty {
-                outputBuffer.withLock { $0.append(finalOut) }
-            }
-            let finalErr = errorPipe.fileHandleForReading.readDataToEndOfFile()
-            if !finalErr.isEmpty {
-                errorBuffer.withLock { $0.append(finalErr) }
-            }
-            outputData = outputBuffer.withLock { $0 }
-            errorData = errorBuffer.withLock { $0 }
+            try? stdoutHandle.close()
+            try? stderrHandle.close()
+
+            outputData = try Data(contentsOf: stdoutURL)
+            errorData = try Data(contentsOf: stderrURL)
         } catch {
-            outputPipe.fileHandleForReading.readabilityHandler = nil
-            errorPipe.fileHandleForReading.readabilityHandler = nil
             throw CLIError.executionFailed("Failed to run CLI: \(error)")
         }
 
