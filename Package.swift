@@ -188,6 +188,14 @@ let package = Package(
             ],
             path: "Sources/Services/ContainerAPIService/Server"
         ),
+        .testTarget(
+            name: "ContainerAPIServiceTests",
+            dependencies: [
+                .product(name: "Containerization", package: "containerization"),
+                "ContainerResource",
+                "ContainerSandboxServiceClient",
+            ]
+        ),
         .target(
             name: "ContainerAPIClient",
             dependencies: [
@@ -390,8 +398,17 @@ let package = Package(
             dependencies: [
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Containerization", package: "containerization"),
+                .product(name: "SystemPackage", package: "swift-system"),
                 "CVersion",
                 "ContainerVersion",
+            ]
+        ),
+        .testTarget(
+            name: "ContainerPersistenceTests",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                "ContainerPersistence",
             ]
         ),
         .target(
@@ -410,14 +427,6 @@ let package = Package(
                 "ContainerPlugin"
             ]
         ),
-        .testTarget(
-            name: "ContainerSandboxServiceTests",
-            dependencies: [
-                .product(name: "Containerization", package: "containerization"),
-                "ContainerResource",
-                "ContainerSandboxServiceClient",
-            ]
-        ),
         .target(
             name: "ContainerXPC",
             dependencies: [
@@ -433,6 +442,12 @@ let package = Package(
                 .product(name: "ContainerizationOS", package: "containerization"),
             ],
             path: "Sources/ContainerOS"
+        ),
+        .testTarget(
+            name: "ContainerOSTests",
+            dependencies: [
+                "ContainerOS"
+            ]
         ),
         .target(
             name: "TerminalProgress",
@@ -458,12 +473,6 @@ let package = Package(
             name: "DNSServerTests",
             dependencies: [
                 "DNSServer"
-            ]
-        ),
-        .testTarget(
-            name: "ContainerOSTests",
-            dependencies: [
-                "ContainerOS"
             ]
         ),
         .target(
