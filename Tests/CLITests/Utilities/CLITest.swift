@@ -185,7 +185,9 @@ class CLITest {
             FileManager.default.createFile(atPath: stderrURL.path, contents: nil)
 
             let stdoutHandle = try FileHandle(forWritingTo: stdoutURL)
+            defer { try? stdoutHandle.close() }
             let stderrHandle = try FileHandle(forWritingTo: stderrURL)
+            defer { try? stderrHandle.close() }
             process.standardOutput = stdoutHandle
             process.standardError = stderrHandle
 
@@ -195,9 +197,6 @@ class CLITest {
             }
             inputPipe.fileHandleForWriting.closeFile()
             process.waitUntilExit()
-
-            try? stdoutHandle.close()
-            try? stderrHandle.close()
 
             outputData = try Data(contentsOf: stdoutURL)
             errorData = try Data(contentsOf: stderrURL)
