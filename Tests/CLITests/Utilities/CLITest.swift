@@ -327,13 +327,13 @@ class CLITest {
         return resp
     }
 
-    func doStop(name: String, signal: String = "SIGKILL") throws {
-        let (_, _, error, status) = try run(arguments: [
-            "stop",
-            "-s",
-            signal,
-            name,
-        ])
+    func doStop(name: String, signal: String? = "SIGKILL") throws {
+        var arguments = ["stop"]
+        if let signal {
+            arguments.append(contentsOf: ["-s", signal])
+        }
+        arguments.append(name)
+        let (_, _, error, status) = try run(arguments: arguments)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }

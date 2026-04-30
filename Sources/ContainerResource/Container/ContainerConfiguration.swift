@@ -57,6 +57,8 @@ public struct ContainerConfiguration: Sendable, Codable {
     public var capAdd: [String] = []
     /// Linux capabilities to drop (normalized CAP_* strings, or "ALL").
     public var capDrop: [String] = []
+    /// Signal to send to the container process on stop (from image config).
+    public var stopSignal: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -79,6 +81,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         case useInit
         case capAdd
         case capDrop
+        case stopSignal
     }
 
     /// Create a configuration from the supplied Decoder, initializing missing
@@ -112,6 +115,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         useInit = try container.decodeIfPresent(Bool.self, forKey: .useInit) ?? false
         capAdd = try container.decodeIfPresent([String].self, forKey: .capAdd) ?? []
         capDrop = try container.decodeIfPresent([String].self, forKey: .capDrop) ?? []
+        stopSignal = try container.decodeIfPresent(String.self, forKey: .stopSignal)
     }
 
     public struct DNSConfiguration: Sendable, Codable {

@@ -18,7 +18,6 @@ import ArgumentParser
 import ContainerAPIClient
 import ContainerResource
 import ContainerizationError
-import ContainerizationOS
 import Foundation
 import Logging
 
@@ -34,7 +33,7 @@ extension Application {
         var all = false
 
         @Option(name: .shortAndLong, help: "Signal to send to the containers")
-        var signal: String = "SIGTERM"
+        var signal: String?
 
         @Option(name: .shortAndLong, help: "Seconds to wait before killing the containers")
         var time: Int32 = 5
@@ -67,7 +66,7 @@ extension Application {
 
             let opts = ContainerStopOptions(
                 timeoutInSeconds: self.time,
-                signal: try Signals.parseSignal(self.signal)
+                signal: self.signal
             )
             try await Self.stopContainers(
                 client: client,
