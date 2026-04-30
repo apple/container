@@ -191,6 +191,12 @@ public struct Utility {
 
         config.mounts = resolvedMounts
 
+        if let shmSizeStr = management.shmSize {
+            let measurement = try Measurement.parse(parsing: shmSizeStr)
+            let bytes = measurement.converted(to: .bytes)
+            config.shmSize = UInt64(bytes.value)
+        }
+
         config.virtualization = management.virtualization
 
         // Parse network specifications with properties

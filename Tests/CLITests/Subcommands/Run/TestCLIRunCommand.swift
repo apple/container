@@ -389,6 +389,26 @@ class TestCLIRunCommand2: CLITest {
         }
     }
 
+    @Test func testRunCommandShmSize() throws {
+        do {
+            let name = getTestName()
+            let shmSize = "128m"
+            let expectedKB = 128 * 1024
+            try doLongRun(name: name, args: ["--shm-size", shmSize])
+            defer {
+                try? doStop(name: name)
+            }
+            let output = try doExec(name: name, cmd: ["mount"])
+            let shmLine = output.split(separator: "\n").first { $0.contains("/dev/shm") }
+            #expect(shmLine != nil, "expected /dev/shm in mount output")
+            #expect(shmLine!.contains("size=\(expectedKB)k"), "expected size=\(expectedKB)k in mount options, got: \(shmLine!)")
+            try doStop(name: name)
+        } catch {
+            Issue.record("failed to run container \(error)")
+            return
+        }
+    }
+
     @Test func testRunCommandOSArch() throws {
         do {
             let name = getLowercasedTestName()

@@ -862,6 +862,15 @@ public actor SandboxService {
         czConfig.virtualization = config.virtualization
         czConfig.useInit = config.useInit
 
+        if let shmSize = config.shmSize {
+            for i in czConfig.mounts.indices {
+                if czConfig.mounts[i].destination == "/dev/shm" {
+                    czConfig.mounts[i].options.removeAll { $0.hasPrefix("size=") }
+                    czConfig.mounts[i].options.append("size=\(shmSize)")
+                }
+            }
+        }
+
         for mount in config.mounts {
             if try mount.isSocket() {
                 let socket = UnixSocketConfiguration(
