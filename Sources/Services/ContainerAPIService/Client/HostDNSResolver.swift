@@ -51,7 +51,7 @@ public struct HostDNSResolver {
                 throw ContainerizationError(.invalidState, message: "expected \(self.configPath.string) to be a directory, but found a file")
             }
         } else {
-            try fm.createDirectory(atPath: self.configPath.string, withIntermediateDirectories: true, attributes: nil)
+            try fm.createDirectory(atPath: self.configPath.string, withIntermediateDirectories: true)
         }
 
         guard !fm.fileExists(atPath: path.string) else {
