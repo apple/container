@@ -16,6 +16,7 @@
 
 import ContainerizationError
 import ContainerizationExtras
+import DNSServer
 import Foundation
 import Testing
 
@@ -34,7 +35,7 @@ struct HostDNSResolverTest {
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
         let resolver = HostDNSResolver(configURL: tempURL)
-        try resolver.createDomain(name: "foo.bar")
+        try resolver.createDomain(name: try! DNSName("foo.bar"))
         let resolverConfigURL = tempURL.appending(path: "containerization.foo.bar")
         let actualText = try String(contentsOf: resolverConfigURL, encoding: .utf8)
         let expectedText = """
@@ -47,9 +48,9 @@ struct HostDNSResolverTest {
 
         #expect(actualText == expectedText)
 
-        try resolver.createDomain(name: "bar.foo")
+        try resolver.createDomain(name: try! DNSName("bar.foo"))
         let domains = resolver.listDomains()
-        #expect(domains == ["bar.foo", "foo.bar"])
+        #expect(domains.map { $0.pqdn } == ["bar.foo", "foo.bar"])
     }
 
     @Test
@@ -64,9 +65,9 @@ struct HostDNSResolverTest {
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
         let resolver = HostDNSResolver(configURL: tempURL)
-        try resolver.createDomain(name: "foo.bar")
+        try resolver.createDomain(name: try! DNSName("foo.bar"))
         #expect {
-            try resolver.createDomain(name: "foo.bar")
+            try resolver.createDomain(name: try! DNSName("foo.bar"))
         } throws: { error in
             guard let error = error as? ContainerizationError, error.code == .exists else {
                 return false
@@ -87,12 +88,12 @@ struct HostDNSResolverTest {
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
         let resolver = HostDNSResolver(configURL: tempURL)
-        try resolver.createDomain(name: "foo.bar")
-        _ = try resolver.deleteDomain(name: "foo.bar")
+        try resolver.createDomain(name: try! DNSName("foo.bar"))
+        _ = try resolver.deleteDomain(name: try! DNSName("foo.bar"))
 
         let localhost = try! IPAddress("127.0.0.1")
-        try resolver.createDomain(name: "bar.baz", localhost: localhost)
-        let deletedLocalhost = try resolver.deleteDomain(name: "bar.baz")
+        try resolver.createDomain(name: try! DNSName("bar.baz"), localhost: localhost)
+        let deletedLocalhost = try resolver.deleteDomain(name: try! DNSName("bar.baz"))
         #expect(localhost == deletedLocalhost)
 
         let domains = resolver.listDomains()
@@ -111,9 +112,9 @@ struct HostDNSResolverTest {
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
         let resolver = HostDNSResolver(configURL: tempURL)
-        try resolver.createDomain(name: "foo.bar")
+        try resolver.createDomain(name: try! DNSName("foo.bar"))
         #expect {
-            _ = try resolver.deleteDomain(name: "bar.foo")
+            _ = try resolver.deleteDomain(name: try! DNSName("bar.foo"))
         } throws: { error in
             guard let error = error as? ContainerizationError, error.code == .notFound else {
                 return false

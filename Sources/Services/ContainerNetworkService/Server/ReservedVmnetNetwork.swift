@@ -80,7 +80,7 @@ public final class ReservedVmnetNetwork: Network {
 
             let networkInfo = try startNetwork(configuration: configuration, log: log)
 
-            let networkStatus = NetworkStatus(
+            let networkStatus = NetworkPluginStatus(
                 ipv4Subnet: networkInfo.ipv4Subnet,
                 ipv4Gateway: networkInfo.ipv4Gateway,
                 ipv6Subnet: networkInfo.ipv6Subnet,

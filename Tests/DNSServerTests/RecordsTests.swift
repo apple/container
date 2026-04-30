@@ -45,6 +45,13 @@ struct RecordsTests {
             #expect(name.description == "example.com.")
         }
 
+        @Test("DNS name with newline should throw")
+        func DNSNameWithNewLine() throws {
+            #expect(throws: DNSBindError.self) {
+                _ = try DNSName("foo.com\n")
+            }
+        }
+
         @Test("Root domain")
         func rootDomain() throws {
             let name = try DNSName("")

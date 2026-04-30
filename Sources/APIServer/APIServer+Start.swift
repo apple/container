@@ -190,9 +190,6 @@ extension APIServer {
             _ = FileManager.default.fileExists(atPath: pluginsURL.path, isDirectory: &directoryExists)
             let userPluginsURL = directoryExists.boolValue ? pluginsURL : nil
 
-            // plugins built into the application installed as a macOS app bundle
-            let appBundlePluginsURL = Bundle.main.resourceURL?.appending(path: "plugins")
-
             // plugins built into the application installed as a Unix-like application
             let installRootPluginsURL =
                 installRoot
@@ -203,7 +200,6 @@ extension APIServer {
 
             let pluginDirectories = [
                 userPluginsURL,
-                appBundlePluginsURL,
                 installRootPluginsURL,
             ].compactMap { $0 }
 
@@ -341,12 +337,12 @@ extension APIServer {
 
             let harness = NetworksHarness(service: service, log: log)
 
-            // network creation/deletion/list is not supported pre-macOS 26 (refer to AllocationOnlyVmnetNetwork)
+            // network creation is not supported pre-macOS 26 (refer to AllocationOnlyVmnetNetwork)
             if #available(macOS 26, *) {
                 routes[XPCRoute.networkCreate] = harness.create
-                routes[XPCRoute.networkDelete] = harness.delete
-                routes[XPCRoute.networkList] = harness.list
             }
+            routes[XPCRoute.networkList] = harness.list
+            routes[XPCRoute.networkDelete] = harness.delete
 
             return service
         }

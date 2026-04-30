@@ -236,13 +236,13 @@ struct PrintableContainerDisplayTests {
     }
 }
 
-// MARK: - PrintableNetwork conformance tests
+// MARK: - NetworkResource ListDisplayable conformance tests
 
-struct PrintableNetworkDisplayTests {
+struct NetworkResourceDisplayTests {
     @Test
     func tableHeaderHasThreeColumns() {
-        #expect(PrintableNetwork.tableHeader.count == 3)
-        #expect(PrintableNetwork.tableHeader == ["NETWORK", "STATE", "SUBNET"])
+        #expect(NetworkResource.tableHeader.count == 3)
+        #expect(NetworkResource.tableHeader == ["NETWORK", "STATE", "SUBNET"])
     }
 }
 

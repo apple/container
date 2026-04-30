@@ -80,6 +80,7 @@ extension Application {
             progress.start()
             _ = try await image.push(platform: p, scheme: scheme, containerSystemConfig: containerSystemConfig, progressUpdate: progress.handler)
             progress.finish()
+            print(image.reference)
         }
     }
 }

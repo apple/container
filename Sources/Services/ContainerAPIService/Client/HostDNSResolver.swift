@@ -16,6 +16,7 @@
 
 import ContainerizationError
 import ContainerizationExtras
+import DNSServer
 import Foundation
 
 /// Functions for managing local DNS domains for containers.
@@ -33,7 +34,9 @@ public struct HostDNSResolver {
     }
 
     /// Creates a DNS resolver configuration file for domain resolved by the application.
-    public func createDomain(name: String, localhost: IPAddress? = nil) throws {
+    public func createDomain(name: DNSName, localhost: IPAddress? = nil) throws {
+        let name = name.pqdn
+
         let path = self.configURL.appending(path: "\(Self.containerizationPrefix)\(name)").path
         let fm: FileManager = FileManager.default
 
@@ -67,7 +70,9 @@ public struct HostDNSResolver {
     }
 
     /// Removes a DNS resolver configuration file for domain resolved by the application.
-    public func deleteDomain(name: String) throws -> IPAddress? {
+    public func deleteDomain(name: DNSName) throws -> IPAddress? {
+        let name = name.pqdn
+
         let path = self.configURL.appending(path: "\(Self.containerizationPrefix)\(name)").path
         let fm = FileManager.default
         guard fm.fileExists(atPath: path) else {
@@ -90,7 +95,7 @@ public struct HostDNSResolver {
     }
 
     /// Lists application-created local DNS domains.
-    public func listDomains() -> [String] {
+    public func listDomains() -> [DNSName] {
         let fm: FileManager = FileManager.default
         guard
             let resolverPaths = try? fm.contentsOfDirectory(
@@ -105,7 +110,7 @@ public struct HostDNSResolver {
             resolverPaths
             .filter { $0.lastPathComponent.starts(with: Self.containerizationPrefix) }
             .compactMap { try? getDomainFromResolver(url: $0) }
-            .sorted()
+            .sorted { a, b in a.pqdn < b.pqdn }
     }
 
     /// Reinitializes the macOS DNS daemon.
@@ -128,7 +133,7 @@ public struct HostDNSResolver {
         }
     }
 
-    private func getDomainFromResolver(url: URL) throws -> String? {
+    private func getDomainFromResolver(url: URL) throws -> DNSName? {
         let text = try String(contentsOf: url, encoding: .utf8)
         for line in text.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -140,7 +145,7 @@ public struct HostDNSResolver {
                 continue
             }
 
-            return String(components[1])
+            return try? DNSName(String(components[1]))
         }
 
         return nil
