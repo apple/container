@@ -50,6 +50,7 @@ let package = Package(
         .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion)),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
         .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
+        .package(url: "https://github.com/apple/swift-configuration", from: "1.0.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.80.0"),
         .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.36.0"),
@@ -390,8 +391,16 @@ let package = Package(
             dependencies: [
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Containerization", package: "containerization"),
+                .product(name: "Configuration", package: "swift-configuration"),
                 "CVersion",
                 "ContainerVersion",
+            ]
+        ),
+        .testTarget(
+            name: "ContainerPersistenceTests",
+            dependencies: [
+                .product(name: "Configuration", package: "swift-configuration"),
+                "ContainerPersistence",
             ]
         ),
         .target(
