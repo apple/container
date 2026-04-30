@@ -53,7 +53,7 @@ extension Application {
         public mutating func run() async throws {
             let networkClient = NetworkClient()
             let uniqueNetworkNames = Set<String>(networkNames)
-            let networks: [NetworkState]
+            let networks: [NetworkResource]
 
             if all {
                 networks = try await networkClient.list()
@@ -91,7 +91,7 @@ extension Application {
 
             var failed = [String]()
             let _log = log
-            try await withThrowingTaskGroup(of: NetworkState?.self) { group in
+            try await withThrowingTaskGroup(of: NetworkResource?.self) { group in
                 for network in networks {
                     group.addTask {
                         do {

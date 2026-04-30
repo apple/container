@@ -22,8 +22,6 @@ import Testing
 @testable import ContainerAPIClient
 
 struct RequestSchemeTests {
-    static let defaultDnsDomain = DefaultsStore.get(key: .defaultDNSDomain)
-
     internal struct TestArg {
         let scheme: String
         let host: String
@@ -37,25 +35,20 @@ struct RequestSchemeTests {
         TestArg(scheme: "https", host: "localhost", expected: .https),
         TestArg(scheme: "http", host: "localhost", expected: .http),
         TestArg(scheme: "auto", host: "localhost", expected: .http),
-        // localhost prefix must not match other hostnames (regression: hasPrefix("localhost"))
         TestArg(scheme: "auto", host: "localhost.evil.com", expected: .https),
         TestArg(scheme: "http", host: "127.0.0.1", expected: .http),
         TestArg(scheme: "https", host: "127.0.0.1", expected: .https),
         TestArg(scheme: "auto", host: "127.0.0.1", expected: .http),
         TestArg(scheme: "auto", host: "127.255.255.255", expected: .http),
-        // 127.x.x.x prefix must not match hostnames (regression: hasPrefix("127."))
         TestArg(scheme: "auto", host: "127.0.0.1.evil.com", expected: .https),
         TestArg(scheme: "https", host: "10.3.4.1", expected: .https),
         TestArg(scheme: "auto", host: "10.3.4.1", expected: .http),
         TestArg(scheme: "auto", host: "10.255.255.255", expected: .http),
-        // 10.x.x.x prefix must not match hostnames (regression: hasPrefix("10."))
         TestArg(scheme: "auto", host: "10.0.0.1.evil.com", expected: .https),
         TestArg(scheme: "auto", host: "192.168.0.1", expected: .http),
         TestArg(scheme: "auto", host: "192.168.255.255", expected: .http),
         TestArg(scheme: "auto", host: "192.169.0.1", expected: .https),
-        // 192.168.x.x prefix must not match hostnames (regression: hasPrefix("192.168."))
         TestArg(scheme: "auto", host: "192.168.1.1.evil.com", expected: .https),
-        TestArg(scheme: "auto", host: "some-dns-name.io.\(Self.defaultDnsDomain)", expected: .http),
         TestArg(scheme: "auto", host: "some-dns-name.io", expected: .https),
         TestArg(scheme: "auto", host: "172.32.0.1", expected: .https),
         TestArg(scheme: "auto", host: "172.22.23.61", expected: .http),
@@ -73,5 +66,11 @@ struct RequestSchemeTests {
             let requestScheme = RequestScheme(rawValue: "https")!
             _ = try requestScheme.schemeFor(host: "")
         }
+    }
+
+    @Test func testIsInternalHostWithDefaultDNSDomain() throws {
+        let defaultDnsDomain = DefaultsStore.get(key: .defaultDNSDomain)
+        let hostName = "some-dns-name.io.\(defaultDnsDomain)"
+        #expect(RequestScheme.isInternalHost(host: hostName, dnsDomain: defaultDnsDomain))
     }
 }

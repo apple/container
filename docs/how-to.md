@@ -200,6 +200,11 @@ Test access using `curl`:
 
 ## Access a host service from a container
 
+> [!IMPORTANT]
+> Due to macOS security constraints around packet filter rules, this feature has limited functionality:
+> - Creating a localhost domain disables Private Relay.
+> - The local domain packet filter rule is removed on a restart.
+
 Create a DNS domain with `--localhost <ipv4-address>` to make a domain used by a container to access a host service. Any IPv4 address can be used as `<ipv4-address>`, which will be assigned to the domain name in container.
 
 Choose an IP address that is least likely to conflict with any networks or reserved IP addresses in your environment. Reasonably safe address ranges include:

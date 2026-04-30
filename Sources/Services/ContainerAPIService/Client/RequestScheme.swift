@@ -49,20 +49,20 @@ public enum RequestScheme: String, Sendable {
         case .http, .https:
             return self
         case .auto:
-            return Self.isInternalHost(host: host) ? .http : .https
+            return Self.isInternalHost(host: host, dnsDomain: DefaultsStore.getOptional(key: .defaultDNSDomain)) ? .http : .https
         }
     }
 
     /// Checks if the given `host` string is a private IP address
     /// or a domain typically reachable only on the local system.
-    private static func isInternalHost(host: String) -> Bool {
+    internal static func isInternalHost(host: String, dnsDomain: String? = nil) -> Bool {
         // The localhost hostname is private.
         if host == "localhost" {
             return true
         }
 
-        // If it corresponds to our default domain name, treat it as private.
-        if let dnsDomain = DefaultsStore.getOptional(key: .defaultDNSDomain) {
+        // If hostname uses the provided DNS domain, treat it as private.
+        if let dnsDomain {
             if host.hasSuffix(".\(dnsDomain)") {
                 return true
             }
@@ -76,17 +76,17 @@ public enum RequestScheme: String, Sendable {
         let ipv4Value = ipv4Address.value
 
         // 10.0.0.0/8 and 127.0.0.0/8 are private CIDRs.
-        if (ipv4Value & 0xff000000 == 0x0a000000) || (ipv4Value & 0xff000000 == 0x7f000000) {
+        if (ipv4Value & 0xff00_0000 == 0x0a00_0000) || (ipv4Value & 0xff00_0000 == 0x7f00_0000) {
             return true
         }
 
         // 192.168.0.0/16 is a private CIDR.
-        if ipv4Value & 0xffff0000 == 0xc0a80000 {
+        if ipv4Value & 0xffff_0000 == 0xc0a8_0000 {
             return true
         }
 
         // 172.16.0.0/12 is a private CIDR.
-        if ipv4Value & 0xfff00000 == 0xac100000 {
+        if ipv4Value & 0xfff0_0000 == 0xac10_0000 {
             return true
         }
 

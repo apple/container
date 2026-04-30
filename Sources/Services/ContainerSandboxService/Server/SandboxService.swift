@@ -917,10 +917,10 @@ public actor SandboxService {
         let networkClient = NetworkClient()
         for allocatedAttach in allocatedAttachments {
             let state = try await networkClient.get(id: allocatedAttach.attachment.network)
-            guard case .running(_, let status) = state else {
+            guard state.status.phase == "running", let gateway = state.status.ipv4Gateway else {
                 continue
             }
-            return [status.ipv4Gateway.description]
+            return [gateway.description]
         }
 
         return []
