@@ -17,6 +17,7 @@
 import Foundation
 import Testing
 
+@Suite(.serialSuites)
 class TestCLIHelp: CLITest {
     @Test func testHelp() throws {
         let (_, output, error, status) = try run(arguments: ["help"])

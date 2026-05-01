@@ -21,7 +21,7 @@ import Foundation
 import Testing
 
 // This suite is run serialized since each test modifies the global default kernel
-@Suite(.serialized)
+@Suite(.serialSuites, .serialized)
 class TestCLIKernelSet: CLITest {
     let defaultKernelTar = DefaultsStore.get(key: .defaultKernelURL)
     var remoteTar: URL! {

@@ -18,6 +18,7 @@ import ContainerizationExtras
 import Foundation
 import Testing
 
+@Suite(.serialSuites)
 class TestCLICreateCommand: CLITest {
     private func getTestName() -> String {
         Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
