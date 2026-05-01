@@ -70,7 +70,7 @@ public actor AllocationOnlyVmnetNetwork: Network {
         let ipv4Subnet = configuration.ipv4Subnet ?? Self.defaultIPv4Subnet
 
         let gateway = IPv4Address(ipv4Subnet.lower.value + 1)
-        let status = NetworkStatus(
+        let status = NetworkPluginStatus(
             ipv4Subnet: ipv4Subnet,
             ipv4Gateway: gateway,
             ipv6Subnet: nil,

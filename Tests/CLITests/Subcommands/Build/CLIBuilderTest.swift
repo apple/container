@@ -146,7 +146,8 @@ extension TestCLIBuildBase {
             ]
             try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
             let imageName: String = "registry.local/add-all:\(UUID().uuidString)"
-            try self.build(tag: imageName, tempDir: tempDir)
+            let outputRef = try self.build(tag: imageName, tempDir: tempDir)
+            #expect(outputRef.contains(imageName), "expected stdout to container image reference")
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
@@ -488,7 +489,11 @@ extension TestCLIBuildBase {
             let tag2 = "registry.local/multi-tag-test:latest"
             let tag3 = "registry.local/multi-tag-test:v1.0.0"
 
-            try self.build(tags: [tag1, tag2, tag3], tempDir: tempDir)
+            let outputRef = try self.build(tags: [tag1, tag2, tag3], tempDir: tempDir)
+
+            #expect(outputRef.contains(tag1), "expected tag in output")
+            #expect(outputRef.contains(tag2), "expected tag in output")
+            #expect(outputRef.contains(tag3), "expected tag in output")
 
             // Verify all three tags exist and point to the same image
             #expect(try self.inspectImage(tag1) == tag1, "expected to have successfully built \(tag1)")

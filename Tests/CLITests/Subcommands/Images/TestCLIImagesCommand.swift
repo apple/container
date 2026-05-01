@@ -20,6 +20,7 @@ import ContainerizationOCI
 import Foundation
 import Testing
 
+@Suite(.serialSuites)
 class TestCLIImagesCommand: CLITest {
     @Test func testPull() throws {
         do {

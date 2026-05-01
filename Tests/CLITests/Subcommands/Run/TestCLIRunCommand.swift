@@ -28,6 +28,7 @@ import Testing
 // When https://github.com/swiftlang/swift-testing/pull/1390 lands
 // and is available on the CI runners, we can try setting the
 // environment variable to limit concurrency and rejoin these suites.
+@Suite(.serialSuites)
 class TestCLIRunCommand1: CLITest {
     func getTestName() -> String {
         Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
@@ -295,6 +296,7 @@ class TestCLIRunCommand1: CLITest {
     }
 }
 
+@Suite(.serialSuites)
 class TestCLIRunCommand2: CLITest {
     func getTestName() -> String {
         Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
@@ -382,6 +384,26 @@ class TestCLIRunCommand2: CLITest {
             let words = lines[1].split(separator: " ")
             #expect(words.count > 1, "expected information to contain multiple words, got \(words.count)")
             #expect(words[0].lowercased() == expectedFilesystem, "expected filesystem type to be \(expectedFilesystem), instead got \(output)")
+            try doStop(name: name)
+        } catch {
+            Issue.record("failed to run container \(error)")
+            return
+        }
+    }
+
+    @Test func testRunCommandShmSize() throws {
+        do {
+            let name = getTestName()
+            let shmSize = "128m"
+            let expectedKB = 128 * 1024
+            try doLongRun(name: name, args: ["--shm-size", shmSize])
+            defer {
+                try? doStop(name: name)
+            }
+            let output = try doExec(name: name, cmd: ["mount"])
+            let shmLine = output.split(separator: "\n").first { $0.contains("/dev/shm") }
+            #expect(shmLine != nil, "expected /dev/shm in mount output")
+            #expect(shmLine!.contains("size=\(expectedKB)k"), "expected size=\(expectedKB)k in mount options, got: \(shmLine!)")
             try doStop(name: name)
         } catch {
             Issue.record("failed to run container \(error)")
@@ -563,6 +585,7 @@ class TestCLIRunCommand2: CLITest {
     }
 }
 
+@Suite(.serialSuites)
 class TestCLIRunCommand3: CLITest {
     func getTestName() -> String {
         Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
