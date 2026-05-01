@@ -409,6 +409,7 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "SystemPackage", package: "swift-system"),
                 "ContainerPersistence",
+                "ContainerTestSupport",
             ]
         ),
         .target(
@@ -511,6 +512,12 @@ let package = Package(
             publicHeadersPath: "include",
             linkerSettings: [
                 .linkedLibrary("bsm")
+            ]
+        ),
+        .target(
+            name: "ContainerTestSupport",
+            dependencies: [
+                .product(name: "SystemPackage", package: "swift-system")
             ]
         ),
     ]

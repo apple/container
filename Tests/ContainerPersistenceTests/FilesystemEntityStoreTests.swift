@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerTestSupport
 import Foundation
 import Logging
 import SystemPackage
@@ -29,7 +30,7 @@ private struct Item: Codable, Identifiable, Sendable, Equatable {
 struct FilesystemEntityStoreTests {
 
     @Test func testListEmpty() async throws {
-        try await Self.withTempDir { path in
+        try await TemporaryStorage.withTempDir { path in
             let store = try Self.makeStore(at: path)
             let items = try await store.list()
             #expect(items.isEmpty)
@@ -37,7 +38,7 @@ struct FilesystemEntityStoreTests {
     }
 
     @Test func testCreateAndRetrieve() async throws {
-        try await Self.withTempDir { path in
+        try await TemporaryStorage.withTempDir { path in
             let store = try Self.makeStore(at: path)
             try await store.create(Item(id: "foo", value: "hello"))
             let item = try await store.retrieve("foo")
@@ -46,7 +47,7 @@ struct FilesystemEntityStoreTests {
     }
 
     @Test func testRetrieveNonexistentReturnsNil() async throws {
-        try await Self.withTempDir { path in
+        try await TemporaryStorage.withTempDir { path in
             let store = try Self.makeStore(at: path)
             let result = try await store.retrieve("nope")
             #expect(result == nil)
@@ -54,7 +55,7 @@ struct FilesystemEntityStoreTests {
     }
 
     @Test func testListAfterCreate() async throws {
-        try await Self.withTempDir { path in
+        try await TemporaryStorage.withTempDir { path in
             let store = try Self.makeStore(at: path)
             try await store.create(Item(id: "a", value: "1"))
             try await store.create(Item(id: "b", value: "2"))
@@ -65,7 +66,7 @@ struct FilesystemEntityStoreTests {
     }
 
     @Test func testCreateDuplicateThrows() async throws {
-        try await Self.withTempDir { path in
+        try await TemporaryStorage.withTempDir { path in
             let store = try Self.makeStore(at: path)
             try await store.create(Item(id: "dup", value: "x"))
             await #expect(throws: Error.self) {
@@ -75,7 +76,7 @@ struct FilesystemEntityStoreTests {
     }
 
     @Test func testUpdate() async throws {
-        try await Self.withTempDir { path in
+        try await TemporaryStorage.withTempDir { path in
             let store = try Self.makeStore(at: path)
             try await store.create(Item(id: "x", value: "v1"))
             try await store.update(Item(id: "x", value: "v2"))
@@ -85,7 +86,7 @@ struct FilesystemEntityStoreTests {
     }
 
     @Test func testUpdateNonexistentThrows() async throws {
-        try await Self.withTempDir { path in
+        try await TemporaryStorage.withTempDir { path in
             let store = try Self.makeStore(at: path)
             await #expect(throws: Error.self) {
                 try await store.update(Item(id: "ghost", value: "x"))
@@ -94,7 +95,7 @@ struct FilesystemEntityStoreTests {
     }
 
     @Test func testDelete() async throws {
-        try await Self.withTempDir { path in
+        try await TemporaryStorage.withTempDir { path in
             let store = try Self.makeStore(at: path)
             try await store.create(Item(id: "del", value: "v"))
             try await store.delete("del")
@@ -104,7 +105,7 @@ struct FilesystemEntityStoreTests {
     }
 
     @Test func testDeleteRemovesDirectory() async throws {
-        try await Self.withTempDir { path in
+        try await TemporaryStorage.withTempDir { path in
             let store = try Self.makeStore(at: path)
             try await store.create(Item(id: "dir", value: "v"))
             let entityDir = try store.entityPath("dir")
@@ -115,7 +116,7 @@ struct FilesystemEntityStoreTests {
     }
 
     @Test func testDeleteNonexistentThrows() async throws {
-        try await Self.withTempDir { path in
+        try await TemporaryStorage.withTempDir { path in
             let store = try Self.makeStore(at: path)
             await #expect(throws: Error.self) {
                 try await store.delete("none")
@@ -124,7 +125,7 @@ struct FilesystemEntityStoreTests {
     }
 
     @Test func testUpsertCreates() async throws {
-        try await Self.withTempDir { path in
+        try await TemporaryStorage.withTempDir { path in
             let store = try Self.makeStore(at: path)
             try await store.upsert(Item(id: "u", value: "new"))
             let item = try await store.retrieve("u")
@@ -133,7 +134,7 @@ struct FilesystemEntityStoreTests {
     }
 
     @Test func testUpsertUpdates() async throws {
-        try await Self.withTempDir { path in
+        try await TemporaryStorage.withTempDir { path in
             let store = try Self.makeStore(at: path)
             try await store.create(Item(id: "u", value: "old"))
             try await store.upsert(Item(id: "u", value: "new"))
@@ -143,7 +144,7 @@ struct FilesystemEntityStoreTests {
     }
 
     @Test func testPersistenceAcrossReinit() async throws {
-        try await Self.withTempDir { path in
+        try await TemporaryStorage.withTempDir { path in
             let store1 = try Self.makeStore(at: path)
             try await store1.create(Item(id: "persist", value: "durable"))
 
@@ -154,7 +155,7 @@ struct FilesystemEntityStoreTests {
     }
 
     @Test func testEntityPathIsIdUnderRoot() async throws {
-        try await Self.withTempDir { path in
+        try await TemporaryStorage.withTempDir { path in
             let store = try Self.makeStore(at: path)
             let entityPath = try store.entityPath("myentity")
             #expect(entityPath == path.appending("myentity"))
@@ -162,7 +163,7 @@ struct FilesystemEntityStoreTests {
     }
 
     @Test func testEntityIdWithSlashThrows() async throws {
-        try await Self.withTempDir { path in
+        try await TemporaryStorage.withTempDir { path in
             let store = try Self.makeStore(at: path)
             await #expect(throws: Error.self) {
                 try await store.create(Item(id: "foo/bar", value: "x"))
@@ -172,14 +173,5 @@ struct FilesystemEntityStoreTests {
 
     private static func makeStore(at path: FilePath) throws -> FilesystemEntityStore<Item> {
         try FilesystemEntityStore<Item>(path: path, type: "item", log: Logger(label: "test"))
-    }
-
-    private static func withTempDir<T: Sendable>(
-        _ body: @Sendable (FilePath) async throws -> T
-    ) async throws -> T {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: url) }
-        return try await body(FilePath(url.path))
     }
 }

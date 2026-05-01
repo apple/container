@@ -345,7 +345,7 @@ extension APIServer {
 
             // TODO: This goes away when we convert our roots to FilePath
             let appPath = FilePath(appRoot.absolutePath())
-            let resourceRoot = appPath.appending("networks")
+            let resourceRoot = appPath.appending("volumes")
             let service = try VolumesService(resourceRoot: resourceRoot, containersService: containersService, log: log)
             let harness = VolumesHarness(service: service, log: log)
 
