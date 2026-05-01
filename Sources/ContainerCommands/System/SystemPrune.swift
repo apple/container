@@ -16,41 +16,30 @@
 
 import ArgumentParser
 import ContainerAPIClient
-import ContainerizationError
+import ContainerVersion
 import Foundation
 
 extension Application {
-    public struct ContainerPrune: AsyncLoggableCommand {
-        public init() {}
-
+    public struct SystemPrune: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "prune",
-            abstract: "Remove all stopped containers"
+            abstract: "Clear"
         )
+
+        @Option(name: .long, help: "Format of the output")
+        var format: ListFormat = .table
+
+        @Option(name: .long, help: "all")
+        var all: Bool = false
 
         @OptionGroup
         public var logOptions: Flags.Logging
 
+        public init() {}
+
         public func run() async throws {
             let client = ContainerClient()
-            let result = try await client.prune()
-
-            for failure in result.failed {
-                log.error(
-                    "failed to prune container",
-                    metadata: [
-                        "id": "\(failure.id)",
-                        "error": "\(failure.error)"
-                    ]
-                )
-            }
-
-            for name in result.pruned {
-                print(name)
-            }
-            let formatter = ByteCountFormatter()
-            let freed = formatter.string(fromByteCount: Int64(result.reclaimedBytes))
-            print("Reclaimed \(freed) in disk space")
+            let containerPruneResult = try await client.prune()
         }
     }
 }
