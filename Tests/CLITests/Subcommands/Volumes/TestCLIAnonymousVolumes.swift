@@ -18,7 +18,7 @@ import ContainerResource
 import Foundation
 import Testing
 
-@Suite(.serialized)
+@Suite(.serialSuites, .serialized)
 class TestCLIAnonymousVolumes: CLITest {
 
     override init() throws {

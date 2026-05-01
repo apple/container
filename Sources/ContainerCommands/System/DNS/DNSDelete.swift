@@ -18,6 +18,7 @@ import ArgumentParser
 import ContainerAPIClient
 import ContainerizationError
 import ContainerizationExtras
+import DNSServer
 import Foundation
 
 extension Application {
@@ -37,6 +38,10 @@ extension Application {
         public init() {}
 
         public func run() async throws {
+            guard let domainName = try? DNSName(domainName) else {
+                throw ContainerizationError(.invalidArgument, message: "invalid domain name: \(domainName)")
+            }
+
             let resolver = HostDNSResolver()
             var localhostIP: IPAddress?
             do {
@@ -52,7 +57,7 @@ extension Application {
             }
 
             guard let localhostIP else {
-                print(domainName)
+                print(domainName.pqdn)
                 return
             }
 
@@ -66,7 +71,7 @@ extension Application {
             } catch {
                 throw ContainerizationError(.invalidState, message: "failed loading pf rules")
             }
-            print(domainName)
+            print(domainName.pqdn)
         }
     }
 }

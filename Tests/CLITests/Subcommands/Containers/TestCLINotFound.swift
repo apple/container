@@ -18,6 +18,7 @@ import Foundation
 import Testing
 
 /// Tests that stop, kill, and delete return errors for non-existent containers.
+@Suite(.serialSuites)
 class TestCLINotFound: CLITest {
 
     @Test func testStopNonExistentContainer() throws {

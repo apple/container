@@ -179,6 +179,7 @@ public actor NetworksService {
         return serviceStates.reduce(into: [NetworkState]()) {
             $0.append($1.value.networkState)
         }
+        .sorted { $0.id < $1.id }
     }
 
     /// Create a new network from the provided configuration.

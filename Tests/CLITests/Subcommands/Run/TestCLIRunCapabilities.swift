@@ -18,6 +18,7 @@ import ContainerAPIClient
 import Foundation
 import Testing
 
+@Suite(.serialSuites)
 class TestCLIRunCapabilities: CLITest {
     func getTestName() -> String {
         Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
