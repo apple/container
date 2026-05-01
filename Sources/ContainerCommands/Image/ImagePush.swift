@@ -75,6 +75,7 @@ extension Application {
             progress.start()
             _ = try await image.push(platform: p, scheme: scheme, progressUpdate: progress.handler)
             progress.finish()
+            print(image.reference)
         }
     }
 }

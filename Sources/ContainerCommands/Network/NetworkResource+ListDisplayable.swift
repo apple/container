@@ -14,27 +14,18 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import Foundation
-import Testing
+import ContainerResource
 
-@Suite(.serialSuites)
-class TestCLIHelp: CLITest {
-    @Test func testHelp() throws {
-        let (_, output, error, status) = try run(arguments: ["help"])
-        #expect(status == 0, "help should succeed, stderr: \(error)")
-
-        #expect(
-            output.contains("OVERVIEW: A container platform for macOS"),
-            "output should contain overview section"
-        )
+extension NetworkResource: ListDisplayable {
+    public static var tableHeader: [String] {
+        ["NETWORK", "STATE", "SUBNET"]
     }
-    @Test func testDebugHelp() throws {
-        let (_, output, error, status) = try run(arguments: ["--debug", "help"])
-        #expect(status == 0, "help should succeed, stderr: \(error)")
 
-        #expect(
-            output.contains("OVERVIEW: A container platform for macOS"),
-            "output should contain overview section"
-        )
+    public var tableRow: [String] {
+        [id, status.phase, status.ipv4Subnet?.description ?? "none"]
+    }
+
+    public var quietValue: String {
+        id
     }
 }

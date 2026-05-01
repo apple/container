@@ -862,6 +862,15 @@ public actor SandboxService {
         czConfig.virtualization = config.virtualization
         czConfig.useInit = config.useInit
 
+        if let shmSize = config.shmSize {
+            for i in czConfig.mounts.indices {
+                if czConfig.mounts[i].destination == "/dev/shm" {
+                    czConfig.mounts[i].options.removeAll { $0.hasPrefix("size=") }
+                    czConfig.mounts[i].options.append("size=\(shmSize)")
+                }
+            }
+        }
+
         for mount in config.mounts {
             if try mount.isSocket() {
                 let socket = UnixSocketConfiguration(
@@ -917,10 +926,10 @@ public actor SandboxService {
         let networkClient = NetworkClient()
         for allocatedAttach in allocatedAttachments {
             let state = try await networkClient.get(id: allocatedAttach.attachment.network)
-            guard case .running(_, let status) = state else {
+            guard state.status.phase == "running", let gateway = state.status.ipv4Gateway else {
                 continue
             }
-            return [status.ipv4Gateway.description]
+            return [gateway.description]
         }
 
         return []

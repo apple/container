@@ -18,6 +18,7 @@ import Foundation
 import Testing
 
 /// Tests for `container system status` output formats and content validation.
+@Suite(.serialSuites)
 final class TestCLIStatus: CLITest {
     struct StatusJSON: Codable {
         let status: String

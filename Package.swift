@@ -152,6 +152,7 @@ let package = Package(
                 .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
                 .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),
                 .product(name: "Logging", package: "swift-log"),
+                .product(name: "SystemPackage", package: "swift-system"),
                 "ContainerAPIService",
                 "ContainerAPIClient",
                 "ContainerLog",
@@ -205,6 +206,7 @@ let package = Package(
                 "ContainerPlugin",
                 "ContainerResource",
                 "ContainerXPC",
+                "DNSServer",
                 "TerminalProgress",
             ],
             path: "Sources/Services/ContainerAPIService/Client"
@@ -213,6 +215,7 @@ let package = Package(
             name: "ContainerAPIClientTests",
             dependencies: [
                 .product(name: "Containerization", package: "containerization"),
+                .product(name: "SystemPackage", package: "swift-system"),
                 "ContainerAPIClient",
                 "ContainerPersistence",
             ]
