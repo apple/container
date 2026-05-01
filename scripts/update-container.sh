@@ -49,7 +49,7 @@ check_installed_version() {
 }
 
 usage() {
-    echo "Usage: $0 {-v <version>}"
+    echo "Usage: $0 {-v <version> | -f}"
     echo "Update container"
     echo
     echo "Options:"
@@ -76,7 +76,7 @@ while getopts ":v:f" arg; do
 done
 
 # Default to upgrade to the latest release version
-if [ "$OPTS" -eq 0 ] && [[ -z "$VERSION" ]]; then
+if [[ -z "$VERSION" ]]; then
     LATEST=true
 fi
 
