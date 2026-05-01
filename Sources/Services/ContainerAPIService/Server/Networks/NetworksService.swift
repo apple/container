@@ -26,6 +26,7 @@ import ContainerizationExtras
 import ContainerizationOS
 import Foundation
 import Logging
+import SystemPackage
 
 public actor NetworksService {
     struct NetworkServiceState {
@@ -34,7 +35,7 @@ public actor NetworksService {
     }
 
     private let pluginLoader: PluginLoader
-    private let resourceRoot: URL
+    private let resourceRoot: FilePath
     private let containersService: ContainersService
     private let log: Logger
     private let debugHelpers: Bool
@@ -48,7 +49,7 @@ public actor NetworksService {
 
     public init(
         pluginLoader: PluginLoader,
-        resourceRoot: URL,
+        resourceRoot: FilePath,
         containersService: ContainersService,
         log: Logger,
         debugHelpers: Bool = false,
@@ -59,7 +60,7 @@ public actor NetworksService {
         self.log = log
         self.debugHelpers = debugHelpers
 
-        try FileManager.default.createDirectory(at: resourceRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: resourceRoot.string, withIntermediateDirectories: true)
         self.store = try FilesystemEntityStore<NetworkConfiguration>(
             path: resourceRoot,
             type: "network",
@@ -484,9 +485,10 @@ public actor NetworksService {
             args += ["--variant", variant]
         }
 
-        try await pluginLoader.registerWithLaunchd(
+        let entityPath = try store.entityPath(configuration.id)
+        try pluginLoader.registerWithLaunchd(
             plugin: networkPlugin,
-            pluginStateRoot: store.entityUrl(configuration.id),
+            pluginStateRoot: URL(filePath: entityPath.string),
             args: args,
             instanceId: configuration.id
         )
