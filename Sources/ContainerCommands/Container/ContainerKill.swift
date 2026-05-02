@@ -17,6 +17,7 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerResource
+import Containerization
 import ContainerizationError
 import ContainerizationOS
 import Darwin
@@ -60,7 +61,7 @@ extension Application {
                 containers = containerIds
             }
 
-            let signalNumber = try Signals.parseSignal(signal)
+            let signalNumber = try Signal(signal).rawValue
 
             var errors: [any Error] = []
             for container in containers {
