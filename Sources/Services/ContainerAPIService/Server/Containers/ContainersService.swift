@@ -1011,6 +1011,7 @@ public actor ContainersService {
         }
 
         state.snapshot.status = .stopped
+        state.snapshot.lastExitCode = code?.exitCode
         state.snapshot.networks = []
         state.client = nil
         state.allocatedAttachments = []

@@ -39,16 +39,22 @@ public struct ContainerSnapshot: Codable, Sendable {
     public var networks: [Attachment]
     /// When the container was started.
     public var startedDate: Date?
+    /// Last observed exit code from the container's main process.
+    /// Populated when the container transitions to ``RuntimeStatus/stopped``.
+    /// `nil` if the container has never exited or its exit was not captured.
+    public var lastExitCode: Int32?
 
     public init(
         configuration: ContainerConfiguration,
         status: RuntimeStatus,
         networks: [Attachment],
-        startedDate: Date? = nil
+        startedDate: Date? = nil,
+        lastExitCode: Int32? = nil
     ) {
         self.configuration = configuration
         self.status = status
         self.networks = networks
         self.startedDate = startedDate
+        self.lastExitCode = lastExitCode
     }
 }
