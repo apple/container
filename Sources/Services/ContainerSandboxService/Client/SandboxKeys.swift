@@ -43,6 +43,12 @@ public enum SandboxKeys: String {
     /// Container statistics
     case statistics
 
+    /// Copy parameters
+    case sourcePath
+    case destinationPath
+    case fileMode
+    case createParents
+    
     /// Special-case environment variables recomputed on each container start
     case dynamicEnv
 

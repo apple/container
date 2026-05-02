@@ -295,6 +295,60 @@ public struct ContainersHarness: Sendable {
     }
 
     @Sendable
+    public func copyIn(_ message: XPCMessage) async throws -> XPCMessage {
+        guard let id = message.string(key: .id) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "id cannot be empty"
+            )
+        }
+        guard let sourcePath = message.string(key: .sourcePath) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "source path cannot be empty"
+            )
+        }
+        guard let destinationPath = message.string(key: .destinationPath) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "destination path cannot be empty"
+            )
+        }
+        let mode = UInt32(message.uint64(key: .fileMode))
+        let createParents = message.bool(key: .createParents)
+
+        try await service.copyIn(id: id, source: sourcePath, destination: destinationPath, mode: mode, createParents: createParents)
+        return message.reply()
+    }
+
+    @Sendable
+    public func copyOut(_ message: XPCMessage) async throws -> XPCMessage {
+        guard let id = message.string(key: .id) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "id cannot be empty"
+            )
+        }
+        guard let sourcePath = message.string(key: .sourcePath) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "source path cannot be empty"
+            )
+        }
+        guard let destinationPath = message.string(key: .destinationPath) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "destination path cannot be empty"
+            )
+        }
+
+        let createParents = message.bool(key: .createParents)
+
+        try await service.copyOut(id: id, source: sourcePath, destination: destinationPath, createParents: createParents)
+        return message.reply()
+    }
+
+    @Sendable
     public func stats(_ message: XPCMessage) async throws -> XPCMessage {
         let id = message.string(key: .id)
         guard let id else {

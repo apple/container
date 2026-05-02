@@ -283,6 +283,41 @@ extension SandboxClient {
         }
     }
 
+    public func copyIn(source: String, destination: String, mode: UInt32, createParents: Bool = true) async throws {
+        let request = XPCMessage(route: SandboxRoutes.copyIn.rawValue)
+        request.set(key: SandboxKeys.sourcePath.rawValue, value: source)
+        request.set(key: SandboxKeys.destinationPath.rawValue, value: destination)
+        request.set(key: SandboxKeys.fileMode.rawValue, value: UInt64(mode))
+        request.set(key: SandboxKeys.createParents.rawValue, value: createParents)
+
+        do {
+            try await self.client.send(request, responseTimeout: .seconds(300))
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to copy into container \(self.id)",
+                cause: error
+            )
+        }
+    }
+
+    public func copyOut(source: String, destination: String, createParents: Bool = true) async throws {
+        let request = XPCMessage(route: SandboxRoutes.copyOut.rawValue)
+        request.set(key: SandboxKeys.sourcePath.rawValue, value: source)
+        request.set(key: SandboxKeys.destinationPath.rawValue, value: destination)
+        request.set(key: SandboxKeys.createParents.rawValue, value: createParents)
+
+        do {
+            try await self.client.send(request, responseTimeout: .seconds(300))
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to copy from container \(self.id)",
+                cause: error
+            )
+        }
+    }
+
     public func statistics() async throws -> ContainerStats {
         let request = XPCMessage(route: SandboxRoutes.statistics.rawValue)
 
