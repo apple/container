@@ -143,6 +143,11 @@ public enum XPCKeys: String {
     case destinationPath
     case fileMode
     case createParents
+
+    /// Optional `since: Date` filter on `logs`.
+    case logSince
+    /// Optional `timestamps: Bool` flag on `logs`.
+    case logTimestamps
 }
 
 public enum XPCRoute: String {
@@ -201,6 +206,10 @@ extension XPCMessage {
 
     public func dataNoCopy(key: XPCKeys) -> Data? {
         dataNoCopy(key: key.rawValue)
+    }
+
+    public func contains(key: XPCKeys) -> Bool {
+        contains(key: key.rawValue)
     }
 
     public func set(key: XPCKeys, value: Data) {
