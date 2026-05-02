@@ -264,9 +264,23 @@ public struct ContainerClient: Sendable {
 
     /// Get the log file handles for a container.
     public func logs(id: String) async throws -> [FileHandle] {
+        try await logs(id: id, options: .default)
+    }
+
+    /// Get the log file handles for a container, refined by ``ContainerLogOptions``.
+    ///
+    /// `options.since` filters out log lines whose ISO-8601 timestamp prefix
+    /// predates the given date; lines without a parseable timestamp are
+    /// passed through. `options.timestamps` is forwarded to the daemon as a
+    /// hint; line-level timestamp decoration is a deferred follow-up.
+    public func logs(id: String, options: ContainerLogOptions) async throws -> [FileHandle] {
         do {
             let request = XPCMessage(route: .containerLogs)
             request.set(key: .id, value: id)
+            if let since = options.since {
+                request.set(key: .logSince, value: since)
+            }
+            request.set(key: .logTimestamps, value: options.timestamps)
 
             let response = try await xpcClient.send(request)
             let fds = response.fileHandles(key: .logs)

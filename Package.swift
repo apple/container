@@ -203,9 +203,12 @@ let package = Package(
             name: "ContainerAPIServiceTests",
             dependencies: [
                 .product(name: "Containerization", package: "containerization"),
+                "ContainerAPIClient",
+                "ContainerAPIService",
                 "ContainerResource",
                 "ContainerRuntimeLinuxClient",
                 "ContainerRuntimeClient",
+                "ContainerXPC",
             ]
         ),
         .target(
