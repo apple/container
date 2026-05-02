@@ -361,8 +361,28 @@ public struct Flags {
             case color
         }
 
-        @Option(name: .long, help: ArgumentHelp("Progress type (format: auto|none|ansi|plain|color)", valueName: "type"))
-        public var progress: ProgressType = .auto
+        static let environmentVariable = "CONTAINER_CLI_PROGRESS"
+
+        @Option(name: .long, help: ArgumentHelp("Progress type (format: auto|none|ansi|plain|color) [environment: CONTAINER_CLI_PROGRESS]", valueName: "type"))
+        public var progress: ProgressType?
+
+        public var resolvedProgress: ProgressType {
+            resolveProgress()
+        }
+
+        func resolveProgress(
+            environment: [String: String] = ProcessInfo.processInfo.environment
+        ) -> ProgressType {
+            if let progress {
+                return progress
+            }
+            if let envValue = environment[Self.environmentVariable],
+                let envProgress = ProgressType(rawValue: envValue)
+            {
+                return envProgress
+            }
+            return .auto
+        }
     }
 
     public struct ImageFetch: ParsableArguments {
