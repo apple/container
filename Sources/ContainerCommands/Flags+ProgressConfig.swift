@@ -20,7 +20,7 @@ import TerminalProgress
 
 extension Flags.Progress {
     /// Resolves `.auto` into `.ansi` or `.plain` based on whether stderr is a TTY.
-    private func resolveAutoProgress(_ type: ProgressType) -> ProgressType {
+    private static func resolveAutoProgress(_ type: ProgressType) -> ProgressType {
         switch type {
         case .auto:
             return isatty(FileHandle.standardError.fileDescriptor) == 1 ? .ansi : .plain
@@ -45,7 +45,7 @@ extension Flags.Progress {
         ignoreSmallSize: Bool = false,
         totalTasks: Int? = nil
     ) throws -> ProgressConfig {
-        let resolved = resolveAutoProgress(resolvedProgress)
+        let resolved = Self.resolveAutoProgress(resolvedProgress)
         switch resolved {
         case .none:
             return try ProgressConfig(disableProgressUpdates: true)

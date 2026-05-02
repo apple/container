@@ -358,10 +358,10 @@ public struct Flags {
             case color
         }
 
+        static let environmentVariable = "CONTAINER_CLI_PROGRESS"
+
         @Option(name: .long, help: ArgumentHelp("Progress type (format: auto|none|ansi|plain|color) [environment: CONTAINER_CLI_PROGRESS]", valueName: "type"))
         public var progress: ProgressType?
-
-        static let environmentVariable = "CONTAINER_CLI_PROGRESS"
 
         public var resolvedProgress: ProgressType {
             resolveProgress()
