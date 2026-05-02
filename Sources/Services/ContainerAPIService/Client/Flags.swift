@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2026 Apple Inc. and the container project authors.
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,8 +17,10 @@
 import ArgumentParser
 import ContainerizationError
 import Foundation
+import HelperMacros
 
 public struct Flags {
+    @OptionGroupPassthrough
     public struct Logging: ParsableArguments {
         public init() {}
 
@@ -30,6 +32,7 @@ public struct Flags {
         public var debug = false
     }
 
+    @OptionGroupPassthrough
     public struct Process: ParsableArguments {
         public init() {}
 
@@ -98,6 +101,7 @@ public struct Flags {
         public var ulimits: [String] = []
     }
 
+    @OptionGroupPassthrough
     public struct Resource: ParsableArguments {
         public init() {}
 
@@ -116,6 +120,7 @@ public struct Flags {
         public var memory: String?
     }
 
+    @OptionGroupPassthrough
     public struct DNS: ParsableArguments {
         public init() {}
 
@@ -151,6 +156,7 @@ public struct Flags {
         public var searchDomains: [String] = []
     }
 
+    @OptionGroupPassthrough
     public struct Registry: ParsableArguments {
         public init() {}
 
@@ -162,6 +168,7 @@ public struct Flags {
         public var scheme: String = "auto"
     }
 
+    @OptionGroupPassthrough
     public struct Management: ParsableArguments {
         public init() {}
 
@@ -346,6 +353,7 @@ public struct Flags {
         public var volumes: [String] = []
     }
 
+    @OptionGroupPassthrough
     public struct Progress: ParsableArguments {
         public init() {}
 
@@ -365,6 +373,7 @@ public struct Flags {
         public var progress: ProgressType = .auto
     }
 
+    @OptionGroupPassthrough
     public struct ImageFetch: ParsableArguments {
         public init() {}
 

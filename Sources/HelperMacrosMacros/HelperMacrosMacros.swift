@@ -14,8 +14,34 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-/// Global constants for the container API clients.
-public enum Constants {
-    /// The keychain ID to use for registry credentials.
-    public static let keychainID = "com.apple.container.registry"
+//
+//  HelperMacrosMacros.swift
+//  container
+//
+//  Created by Morris Richman on 10/3/25.
+//
+
+import SwiftCompilerPlugin
+import SwiftDiagnostics
+import SwiftSyntaxMacros
+
+@main
+struct HelperMacrosMacros: CompilerPlugin {
+    let providingMacros: [Macro.Type] = [
+        OptionGroupPassthrough.self
+    ]
+}
+
+extension String: @retroactive Error {
+}
+
+enum MacroExpansionError: Error {
+    case unsupportedDeclaration
+
+    var localizedDescription: String {
+        switch self {
+        case .unsupportedDeclaration:
+            return "Unsupported declaration for macro expansion."
+        }
+    }
 }

@@ -14,8 +14,15 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-/// Global constants for the container API clients.
-public enum Constants {
-    /// The keychain ID to use for registry credentials.
-    public static let keychainID = "com.apple.container.registry"
-}
+//
+//  HelperMacros.swift
+//  container
+//
+//  Created by Morris Richman on 10/3/25.
+//
+
+import Foundation
+
+/// Creates a function in OptionGroups called `passThroughCommands` to return an array of strings to be appended and passed down for Plugin support.
+@attached(member, names: named(passThroughCommands))
+public macro OptionGroupPassthrough() = #externalMacro(module: "HelperMacrosMacros", type: "OptionGroupPassthrough")
