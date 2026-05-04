@@ -62,6 +62,17 @@ extension XPCClient {
         xpc_connection_cancel(connection)
     }
 
+    /// Set a handler that is called when the remote end of the connection closes or crashes.
+    /// This replaces the no-op event handler installed at init time. Call before any ``send(_:)``
+    /// to avoid a narrow race between activation and handler registration.
+    public func setDisconnectHandler(_ handler: @Sendable @escaping () -> Void) {
+        xpc_connection_set_event_handler(connection) { event in
+            if xpc_get_type(event) == XPC_TYPE_ERROR {
+                handler()
+            }
+        }
+    }
+
     /// Returns the pid of process to which we have a connection.
     /// Note: `xpc_connection_get_pid` returns 0 if no activity
     /// has taken place on the connection prior to it being called.

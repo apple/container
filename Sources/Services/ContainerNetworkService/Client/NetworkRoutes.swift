@@ -18,9 +18,9 @@ public enum NetworkRoutes: String {
     /// Return the current state of the network.
     case state = "com.apple.container.network/state"
     /// Allocates parameters for attaching a sandbox to the network.
+    /// Uses a persistent connection — deallocation happens automatically when the
+    /// peer connection closes (sandbox exits or crashes).
     case allocate = "com.apple.container.network/allocate"
-    /// Deallocates parameters for attaching a sandbox to the network.
-    case deallocate = "com.apple.container.network/deallocate"
     /// Disables the allocator if no sandboxes are attached.
     case disableAllocator = "com.apple.container.network/disableAllocator"
     /// Retrieves the allocation for a hostname.

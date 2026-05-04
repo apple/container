@@ -53,10 +53,17 @@ extension NetworkClient {
         return state
     }
 
+    /// Allocates network attachment parameters for this sandbox and returns both the
+    /// attachment data and a persistent ``XPCClient`` that the caller must hold for the
+    /// duration of the allocation. The network plugin releases the allocation automatically
+    /// when the connection closes (i.e. when the caller drops the returned client or the
+    /// caller process exits). ``onDisconnect`` is called if the network service itself
+    /// disconnects unexpectedly.
     public func allocate(
         hostname: String,
-        macAddress: MACAddress? = nil
-    ) async throws -> (attachment: Attachment, additionalData: XPCMessage?) {
+        macAddress: MACAddress? = nil,
+        onDisconnect: @Sendable @escaping () async -> Void = {}
+    ) async throws -> (attachment: Attachment, additionalData: XPCMessage?, connection: XPCClient) {
         let request = XPCMessage(route: NetworkRoutes.allocate.rawValue)
         request.set(key: NetworkKeys.hostname.rawValue, value: hostname)
         if let macAddress = macAddress {
@@ -64,19 +71,12 @@ extension NetworkClient {
         }
 
         let client = createClient()
+        client.setDisconnectHandler { Task { await onDisconnect() } }
 
         let response = try await client.send(request)
         let attachment = try response.attachment()
         let additionalData = response.additionalData()
-        return (attachment, additionalData)
-    }
-
-    public func deallocate(hostname: String) async throws {
-        let request = XPCMessage(route: NetworkRoutes.deallocate.rawValue)
-        request.set(key: NetworkKeys.hostname.rawValue, value: hostname)
-
-        let client = createClient()
-        try await client.send(request)
+        return (attachment, additionalData, client)
     }
 
     public func lookup(hostname: String) async throws -> Attachment? {

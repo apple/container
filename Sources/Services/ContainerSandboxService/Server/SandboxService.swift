@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
+import ContainerNetworkServiceClient
 import ContainerOS
 import ContainerPersistence
 import ContainerResource
@@ -48,6 +49,9 @@ public actor SandboxService {
     private let lock: AsyncLock = AsyncLock()
     private let log: Logging.Logger
     private var state: State = .created
+    /// Persistent XPC connections to each network plugin, one per network attachment.
+    /// Held for the container lifetime; deallocation happens automatically when these are released.
+    private var networkConnections: [XPCClient] = []
     private var processes: [String: ProcessInfo] = [:]
     private var socketForwarders: [SocketForwarderResult] = []
 
@@ -168,11 +172,18 @@ public actor SandboxService {
                 logger: self.log
             )
 
-            let allocatedAttachments = try message.getAllocatedAttachments()
+            let networkPluginInfos = try message.getNetworkPluginInfos()
+
+            guard networkPluginInfos.count == config.networks.count else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "network plugin info count (\(networkPluginInfos.count)) does not match attachment config count (\(config.networks.count))"
+                )
+            }
 
             // Dynamically configure the DNS nameserver from a network if no explicit configuration
             if let dns = config.dns, dns.nameservers.isEmpty {
-                let defaultNameservers = try await self.getDefaultNameservers(allocatedAttachments: allocatedAttachments)
+                let defaultNameservers = try await self.getDefaultNameservers(attachmentConfigs: config.networks)
                 if !defaultNameservers.isEmpty {
                     config.dns = ContainerConfiguration.DNSConfiguration(
                         nameservers: defaultNameservers,
@@ -185,21 +196,49 @@ public actor SandboxService {
 
             var attachments: [Attachment] = []
             var interfaces: [Interface] = []
-            for index in 0..<allocatedAttachments.count {
-                let allocatedAttach = allocatedAttachments[index]
-                attachments.append(allocatedAttach.attachment)
+            var connections: [XPCClient] = []
+            for index in 0..<config.networks.count {
+                let n = config.networks[index]
+                let pluginInfo = networkPluginInfos[index]
+                let networkClient = NetworkClient(id: n.network, plugin: pluginInfo.plugin)
 
-                guard let iStrategy = self.interfaceStrategies[allocatedAttach.pluginInfo] else {
+                let (attachment, additionalData, connection) = try await networkClient.allocate(
+                    hostname: n.options.hostname,
+                    macAddress: n.options.macAddress,
+                    onDisconnect: { [weak self] in
+                        await self?.handleNetworkServiceDisconnect(networkId: n.network)
+                    }
+                )
+
+                // Apply MTU override from attachment config if specified.
+                let finalAttachment: Attachment
+                if let mtu = n.options.mtu {
+                    finalAttachment = Attachment(
+                        network: attachment.network,
+                        hostname: attachment.hostname,
+                        ipv4Address: attachment.ipv4Address,
+                        ipv4Gateway: attachment.ipv4Gateway,
+                        ipv6Address: attachment.ipv6Address,
+                        macAddress: attachment.macAddress,
+                        mtu: mtu
+                    )
+                } else {
+                    finalAttachment = attachment
+                }
+
+                guard let iStrategy = self.interfaceStrategies[pluginInfo] else {
                     throw ContainerizationError(
-                        .internalError, message: "no available interface strategy for network \(allocatedAttach.attachment.network), \(allocatedAttach.pluginInfo)")
+                        .internalError, message: "no available interface strategy for network \(n.network), \(pluginInfo)")
                 }
 
                 let interface = try iStrategy.toInterface(
-                    attachment: allocatedAttach.attachment,
+                    attachment: finalAttachment,
                     interfaceIndex: index,
-                    additionalData: allocatedAttach.additionalData
+                    additionalData: additionalData
                 )
+                attachments.append(finalAttachment)
                 interfaces.append(interface)
+                connections.append(connection)
             }
 
             let stdio = message.stdio()
@@ -265,6 +304,8 @@ public actor SandboxService {
                 if !container.interfaces.isEmpty {
                     try await self.startSocketForwarders(attachment: attachments[0], publishedPorts: config.publishedPorts)
                 }
+                // Store persistent network connections — held until the container stops.
+                await self.setNetworkConnections(connections)
                 await self.setState(.booted)
             } catch {
                 do {
@@ -922,10 +963,42 @@ public actor SandboxService {
         try Self.configureInitialProcess(czConfig: &czConfig, config: config)
     }
 
-    private func getDefaultNameservers(allocatedAttachments: [AllocatedAttachment]) async throws -> [String] {
+    private func handleNetworkServiceDisconnect(networkId: String) async {
+        self.log.error(
+            "network service disconnected, stopping sandbox",
+            metadata: ["network": "\(networkId)"]
+        )
+        // Attempt graceful container cleanup under the lock before exiting.
+        let shouldCancel = await self.lock.withLock { _ -> Bool in
+            guard let ctrInfo = await self.container else { return false }
+            switch await self.state {
+            case .running, .booted:
+                await self.setState(.stopping)
+                do {
+                    try await self.cleanUpContainer(containerInfo: ctrInfo)
+                } catch {
+                    self.log.error(
+                        "cleanup failed on network disconnect",
+                        metadata: ["error": "\(error)"]
+                    )
+                }
+                await self.setState(.stopped)
+                return true
+            default:
+                return false
+            }
+        }
+        // Cancel the main XPC connection. This causes the XPC server's listen() to return,
+        // unwinding the task group in RuntimeLinuxHelper and exiting the process.
+        if shouldCancel {
+            xpc_connection_cancel(self.connection)
+        }
+    }
+
+    private func getDefaultNameservers(attachmentConfigs: [AttachmentConfiguration]) async throws -> [String] {
         let networkClient = NetworkClient()
-        for allocatedAttach in allocatedAttachments {
-            let state = try await networkClient.get(id: allocatedAttach.attachment.network)
+        for attachmentConfig: AttachmentConfiguration in attachmentConfigs {
+            let state = try await networkClient.get(id: attachmentConfig.network)
             guard state.status.phase == "running", let gateway = state.status.ipv4Gateway else {
                 continue
             }
@@ -1131,6 +1204,9 @@ public actor SandboxService {
 
         await self.stopSocketForwarders()
 
+        // Release persistent network connections — the network plugins will auto-deallocate.
+        self.networkConnections = []
+
         let status = exitStatus ?? ExitStatus(exitCode: 255)
         self.releaseWaiters(for: id, status: status)
     }
@@ -1184,48 +1260,11 @@ extension XPCMessage {
         return dynamicEnv
     }
 
-    fileprivate func getAllocatedAttachments() throws -> [AllocatedAttachment] {
-        guard let attachmentArray = xpc_dictionary_get_value(self.underlying, SandboxKeys.allocatedAttachments.rawValue) else {
-            throw ContainerizationError(.invalidArgument, message: "missing allocatedAttachments array in message")
+    fileprivate func getNetworkPluginInfos() throws -> [NetworkPluginInfo] {
+        guard let data = self.dataNoCopy(key: SandboxKeys.networkPluginInfos.rawValue) else {
+            throw ContainerizationError(.invalidArgument, message: "missing networkPluginInfos in message")
         }
-
-        var results = [AllocatedAttachment]()
-        let decoder = JSONDecoder()
-
-        let arrayCount = xpc_array_get_count(attachmentArray)
-
-        for i in 0..<arrayCount {
-            guard let allocatedAttach = xpc_array_get_dictionary(attachmentArray, i) else {
-                throw ContainerizationError(.invalidArgument, message: "invalid allocated attachment at index \(i)")
-            }
-
-            let allocatedAttachXPC = XPCMessage(object: allocatedAttach)
-
-            let attachmentData = allocatedAttachXPC.dataNoCopy(key: SandboxKeys.networkAttachment.rawValue)
-            let pluginInfoData = allocatedAttachXPC.dataNoCopy(key: SandboxKeys.networkPluginInfo.rawValue)
-
-            guard let attachmentData = attachmentData, let pluginInfoData = pluginInfoData else {
-                throw ContainerizationError(.invalidArgument, message: "must have attachment and plugin information for network")
-            }
-
-            let attachment = try decoder.decode(Attachment.self, from: attachmentData)
-            let pluginInfo = try decoder.decode(NetworkPluginInfo.self, from: pluginInfoData)
-
-            let additionalDataXPC: XPCMessage? = {
-                if let rawData = xpc_dictionary_get_dictionary(allocatedAttachXPC.underlying, SandboxKeys.networkAdditionalData.rawValue) {
-                    return XPCMessage(object: rawData)
-                }
-                return nil
-            }()
-
-            results.append(
-                AllocatedAttachment(
-                    attachment: attachment,
-                    additionalData: additionalDataXPC,
-                    pluginInfo: pluginInfo
-                ))
-        }
-        return results
+        return try JSONDecoder().decode([NetworkPluginInfo].self, from: data)
     }
 }
 
@@ -1397,6 +1436,10 @@ extension SandboxService {
 
     private func setContainer(_ info: ContainerInfo) {
         self.container = info
+    }
+
+    private func setNetworkConnections(_ connections: [XPCClient]) {
+        self.networkConnections = connections
     }
 
     private func addNewProcess(_ id: String, _ config: ProcessConfiguration, _ io: [FileHandle?]) throws {

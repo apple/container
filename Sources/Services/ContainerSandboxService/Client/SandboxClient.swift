@@ -79,7 +79,7 @@ public struct SandboxClient: Sendable {
 extension SandboxClient {
     public func bootstrap(
         stdio: [FileHandle?],
-        allocatedAttachments: [AllocatedAttachment],
+        networkPluginInfos: [NetworkPluginInfo],
         dynamicEnv: [String: String] = [:]
     ) async throws {
         let request = XPCMessage(route: SandboxRoutes.bootstrap.rawValue)
@@ -104,7 +104,7 @@ extension SandboxClient {
             let dynamicEnv = try JSONEncoder().encode(dynamicEnv)
             request.set(key: SandboxKeys.dynamicEnv.rawValue, value: dynamicEnv)
 
-            try request.setAllocatedAttachments(allocatedAttachments)
+            try request.setNetworkPluginInfos(networkPluginInfos)
             try await self.client.send(request)
         } catch {
             throw ContainerizationError(
@@ -331,25 +331,8 @@ extension XPCMessage {
         return try JSONDecoder().decode(SandboxSnapshot.self, from: data)
     }
 
-    func setAllocatedAttachments(_ allocatedAttachments: [AllocatedAttachment]) throws {
-        let encoder = JSONEncoder()
-        let allocatedAttachmentsArray = xpc_array_create_empty()
-        for allocatedAttach in allocatedAttachments {
-            let xpcObject: xpc_object_t = xpc_dictionary_create_empty()
-            let networkXPC = XPCMessage(object: xpcObject)
-
-            let attachmentEncoded = try encoder.encode(allocatedAttach.attachment)
-            networkXPC.set(key: SandboxKeys.networkAttachment.rawValue, value: attachmentEncoded)
-
-            let pluginInfoEncoded = try encoder.encode(allocatedAttach.pluginInfo)
-            networkXPC.set(key: SandboxKeys.networkPluginInfo.rawValue, value: pluginInfoEncoded)
-
-            if let additionalData = allocatedAttach.additionalData {
-                xpc_dictionary_set_value(networkXPC.underlying, SandboxKeys.networkAdditionalData.rawValue, additionalData.underlying)
-            }
-
-            xpc_array_append_value(allocatedAttachmentsArray, networkXPC.underlying)
-        }
-        self.set(key: SandboxKeys.allocatedAttachments.rawValue, value: allocatedAttachmentsArray)
+    func setNetworkPluginInfos(_ networkPluginInfos: [NetworkPluginInfo]) throws {
+        let encoded = try JSONEncoder().encode(networkPluginInfos)
+        self.set(key: SandboxKeys.networkPluginInfos.rawValue, value: encoded)
     }
 }
