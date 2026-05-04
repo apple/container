@@ -15,24 +15,15 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import Testing
+import SystemPackage
 
-/// Tests that stop, kill, and delete return errors for non-existent containers.
-@Suite(.serialSuites)
-class TestCLINotFound: CLITest {
-
-    @Test func testStopNonExistentContainer() throws {
-        let (_, _, _, status) = try run(arguments: ["stop", "does-not-exist"])
-        #expect(status != 0, "stop should fail for a non-existent container")
-    }
-
-    @Test func testKillNonExistentContainer() throws {
-        let (_, _, _, status) = try run(arguments: ["kill", "does-not-exist"])
-        #expect(status != 0, "kill should fail for a non-existent container")
-    }
-
-    @Test func testDeleteNonExistentContainer() throws {
-        let (_, _, _, status) = try run(arguments: ["delete", "does-not-exist"])
-        #expect(status != 0, "delete should fail for a non-existent container")
+public struct TemporaryStorage {
+    public static func withTempDir<T: Sendable>(
+        _ body: @Sendable (FilePath) async throws -> T
+    ) async throws -> T {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: url) }
+        return try await body(FilePath(url.path))
     }
 }

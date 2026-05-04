@@ -26,6 +26,7 @@ import Testing
 /// Note: A full integration test that verifies custom init behavior would require
 /// a pre-built test init image that writes a marker to /dev/kmsg. This can be added
 /// once a test init image is published to the registry.
+@Suite(.serialSuites)
 class TestCLIRunInitImage: CLITest {
     private func getTestName() -> String {
         Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()

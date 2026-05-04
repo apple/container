@@ -18,37 +18,43 @@ import ContainerizationError
 import ContainerizationExtras
 import DNSServer
 import Foundation
+import SystemPackage
 
 /// Functions for managing local DNS domains for containers.
 public struct HostDNSResolver {
-    public static let defaultConfigPath = URL(filePath: "/etc/resolver")
+    public static let defaultConfigPath = FilePath("/etc/resolver")
 
     // prefix used to mark our files as /etc/resolver/{prefix}{domainName}
     public static let containerizationPrefix = "containerization."
     public static let localhostOptionsRegex = #"options localhost:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"#
 
-    private let configURL: URL
+    private let configPath: FilePath
 
-    public init(configURL: URL = Self.defaultConfigPath) {
-        self.configURL = configURL
+    public init(configPath: FilePath = Self.defaultConfigPath) {
+        self.configPath = configPath
     }
 
     /// Creates a DNS resolver configuration file for domain resolved by the application.
     public func createDomain(name: DNSName, localhost: IPAddress? = nil) throws {
         let name = name.pqdn
 
-        let path = self.configURL.appending(path: "\(Self.containerizationPrefix)\(name)").path
+        let resolverFilename = "\(Self.containerizationPrefix)\(name)"
+        guard let component = FilePath.Component(resolverFilename) else {
+            throw ContainerizationError(.invalidState, message: "invalid resolver filename \(resolverFilename)")
+        }
+        let path = self.configPath.appending(component)
         let fm: FileManager = FileManager.default
 
-        if fm.fileExists(atPath: self.configURL.path) {
-            guard let isDir = try self.configURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory, isDir else {
-                throw ContainerizationError(.invalidState, message: "expected \(self.configURL.path) to be a directory, but found a file")
+        var isDirectory: ObjCBool = false
+        if fm.fileExists(atPath: self.configPath.string, isDirectory: &isDirectory) {
+            guard isDirectory.boolValue else {
+                throw ContainerizationError(.invalidState, message: "expected \(self.configPath.string) to be a directory, but found a file")
             }
         } else {
-            try fm.createDirectory(at: self.configURL, withIntermediateDirectories: true)
+            try fm.createDirectory(atPath: self.configPath.string, withIntermediateDirectories: true)
         }
 
-        guard !fm.fileExists(atPath: path) else {
+        guard !fm.fileExists(atPath: path.string) else {
             throw ContainerizationError(.exists, message: "domain \(name) already exists")
         }
 
@@ -66,27 +72,31 @@ public struct HostDNSResolver {
             \(options)
             """
 
-        try resolverText.write(toFile: path, atomically: true, encoding: .utf8)
+        try resolverText.write(toFile: path.string, atomically: true, encoding: .utf8)
     }
 
     /// Removes a DNS resolver configuration file for domain resolved by the application.
     public func deleteDomain(name: DNSName) throws -> IPAddress? {
         let name = name.pqdn
 
-        let path = self.configURL.appending(path: "\(Self.containerizationPrefix)\(name)").path
+        let resolverFilename = "\(Self.containerizationPrefix)\(name)"
+        guard let component = FilePath.Component(resolverFilename) else {
+            throw ContainerizationError(.invalidState, message: "invalid resolver filename \(resolverFilename)")
+        }
+        let path = self.configPath.appending(component)
         let fm = FileManager.default
-        guard fm.fileExists(atPath: path) else {
+        guard fm.fileExists(atPath: path.string) else {
             throw ContainerizationError(.notFound, message: "domain \(name) at \(path) not found")
         }
 
         var localhost: IPAddress?
-        let content = try String(contentsOfFile: path, encoding: .utf8)
+        let content = try String(contentsOfFile: path.string, encoding: .utf8)
         if let match = content.firstMatch(of: try Regex(HostDNSResolver.localhostOptionsRegex)) {
             localhost = try? IPAddress(String(match[1].substring ?? ""))
         }
 
         do {
-            try fm.removeItem(atPath: path)
+            try fm.removeItem(atPath: path.string)
         } catch {
             throw ContainerizationError(.invalidState, message: "cannot delete domain (try sudo?)")
         }
@@ -97,19 +107,17 @@ public struct HostDNSResolver {
     /// Lists application-created local DNS domains.
     public func listDomains() -> [DNSName] {
         let fm: FileManager = FileManager.default
-        guard
-            let resolverPaths = try? fm.contentsOfDirectory(
-                at: self.configURL,
-                includingPropertiesForKeys: [.isDirectoryKey]
-            )
-        else {
+        guard let filenames = try? fm.contentsOfDirectory(atPath: self.configPath.string) else {
             return []
         }
 
         return
-            resolverPaths
-            .filter { $0.lastPathComponent.starts(with: Self.containerizationPrefix) }
-            .compactMap { try? getDomainFromResolver(url: $0) }
+            filenames
+            .filter { $0.starts(with: Self.containerizationPrefix) }
+            .compactMap { filename -> DNSName? in
+                guard let component = FilePath.Component(filename) else { return nil }
+                return try? getDomainFromResolver(path: self.configPath.appending(component))
+            }
             .sorted { a, b in a.pqdn < b.pqdn }
     }
 
@@ -133,8 +141,8 @@ public struct HostDNSResolver {
         }
     }
 
-    private func getDomainFromResolver(url: URL) throws -> DNSName? {
-        let text = try String(contentsOf: url, encoding: .utf8)
+    private func getDomainFromResolver(path: FilePath) throws -> DNSName? {
+        let text = try String(contentsOfFile: path.string, encoding: .utf8)
         for line in text.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             let components = trimmed.split(whereSeparator: { $0.isWhitespace })

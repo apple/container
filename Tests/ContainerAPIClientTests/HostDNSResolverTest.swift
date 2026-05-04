@@ -18,6 +18,7 @@ import ContainerizationError
 import ContainerizationExtras
 import DNSServer
 import Foundation
+import SystemPackage
 import Testing
 
 @testable import ContainerAPIClient
@@ -32,12 +33,13 @@ struct HostDNSResolverTest {
             appropriateFor: .temporaryDirectory,
             create: true
         )
+        let tempPath = FilePath(tempURL.path)
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        let resolver = HostDNSResolver(configURL: tempURL)
+        let resolver = HostDNSResolver(configPath: tempPath)
         try resolver.createDomain(name: try! DNSName("foo.bar"))
-        let resolverConfigURL = tempURL.appending(path: "containerization.foo.bar")
-        let actualText = try String(contentsOf: resolverConfigURL, encoding: .utf8)
+        let resolverConfigPath = tempPath.appending(FilePath.Component("containerization.foo.bar"))
+        let actualText = try String(contentsOfFile: resolverConfigPath.string, encoding: .utf8)
         let expectedText = """
             domain foo.bar
             search foo.bar
@@ -62,9 +64,10 @@ struct HostDNSResolverTest {
             appropriateFor: .temporaryDirectory,
             create: true
         )
+        let tempPath = FilePath(tempURL.path)
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        let resolver = HostDNSResolver(configURL: tempURL)
+        let resolver = HostDNSResolver(configPath: tempPath)
         try resolver.createDomain(name: try! DNSName("foo.bar"))
         #expect {
             try resolver.createDomain(name: try! DNSName("foo.bar"))
@@ -85,9 +88,10 @@ struct HostDNSResolverTest {
             appropriateFor: .temporaryDirectory,
             create: true
         )
+        let tempPath = FilePath(tempURL.path)
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        let resolver = HostDNSResolver(configURL: tempURL)
+        let resolver = HostDNSResolver(configPath: tempPath)
         try resolver.createDomain(name: try! DNSName("foo.bar"))
         _ = try resolver.deleteDomain(name: try! DNSName("foo.bar"))
 
@@ -109,9 +113,10 @@ struct HostDNSResolverTest {
             appropriateFor: .temporaryDirectory,
             create: true
         )
+        let tempPath = FilePath(tempURL.path)
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        let resolver = HostDNSResolver(configURL: tempURL)
+        let resolver = HostDNSResolver(configPath: tempPath)
         try resolver.createDomain(name: try! DNSName("foo.bar"))
         #expect {
             _ = try resolver.deleteDomain(name: try! DNSName("bar.foo"))
