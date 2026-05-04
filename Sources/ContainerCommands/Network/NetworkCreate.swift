@@ -21,6 +21,7 @@ import ContainerizationError
 import ContainerizationExtras
 import Foundation
 import TerminalProgress
+import Virtualization
 
 extension Application {
     public struct NetworkCreate: AsyncLoggableCommand {
@@ -33,6 +34,9 @@ extension Application {
 
         @Flag(name: .customLong("internal"), help: "Restrict to host-only network")
         var hostOnly: Bool = false
+
+        @Option(name: .long, help: "Host network interface to bridge to")
+        var bridge: String? = nil
 
         @Option(
             name: .customLong("subnet"), help: "Set subnet for a network",
@@ -64,14 +68,34 @@ extension Application {
 
         public func run() async throws {
             let parsedLabels = try ResourceLabels(Utility.parseKeyValuePairs(labels))
-            let mode: NetworkMode = hostOnly ? .hostOnly : .nat
+            let mode: NetworkMode
+            var hostInterfaceName: String? = nil
+            var effectiveVariant = pluginVariant
+            if let bridge = bridge {
+                guard ipv4Subnet == nil, ipv6Subnet == nil else {
+                    throw ValidationError("--subnet and --subnet-v6 cannot be used with --bridge")
+                }
+                let available = VZBridgedNetworkInterface.networkInterfaces.map { $0.identifier }
+                guard available.contains(bridge) else {
+                    let list = available.isEmpty ? "none available" : available.joined(separator: ", ")
+                    throw ValidationError("no bridged interface '\(bridge)'; available: \(list)")
+                }
+                mode = .bridge
+                hostInterfaceName = bridge
+                effectiveVariant = "bridged"
+            } else if hostOnly {
+                mode = .hostOnly
+            } else {
+                mode = .nat
+            }
             let config = try NetworkConfiguration(
                 id: self.name,
                 mode: mode,
                 ipv4Subnet: ipv4Subnet,
                 ipv6Subnet: ipv6Subnet,
                 labels: parsedLabels,
-                pluginInfo: NetworkPluginInfo(plugin: self.plugin, variant: self.pluginVariant)
+                pluginInfo: NetworkPluginInfo(plugin: self.plugin, variant: effectiveVariant),
+                hostInterface: hostInterfaceName
             )
             let networkClient = NetworkClient()
             let network = try await networkClient.create(configuration: config)

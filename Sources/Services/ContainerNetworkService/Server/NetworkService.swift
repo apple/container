@@ -25,8 +25,9 @@ import Logging
 public actor NetworkService: Sendable {
     private let network: any Network
     private let log: Logger
-    private var allocator: AttachmentAllocator
+    private var allocator: AttachmentAllocator?
     private var macAddresses: [UInt32: MACAddress]
+    private let isBridge: Bool
 
     /// Set up a network service for the specified network.
     public init(
@@ -34,14 +35,18 @@ public actor NetworkService: Sendable {
         log: Logger
     ) async throws {
         let state = await network.state
-        guard case .running(_, let status) = state else {
+        guard case .running(let configuration, let status) = state else {
             throw ContainerizationError(.invalidState, message: "invalid network state - network \(state.id) must be running")
         }
 
-        let subnet = status.ipv4Subnet
-
-        let size = Int(subnet.upper.value - subnet.lower.value - 3)
-        self.allocator = try AttachmentAllocator(lower: subnet.lower.value + 2, size: size)
+        self.isBridge = configuration.mode == .bridge
+        if !self.isBridge {
+            let subnet = status.ipv4Subnet
+            let size = Int(subnet.upper.value - subnet.lower.value - 3)
+            self.allocator = try AttachmentAllocator(lower: subnet.lower.value + 2, size: size)
+        } else {
+            self.allocator = nil
+        }
         self.macAddresses = [:]
         self.network = network
         self.log = log
@@ -70,24 +75,39 @@ public actor NetworkService: Sendable {
             try message.string(key: NetworkKeys.macAddress.rawValue)
             .map { try MACAddress($0) }
             ?? MACAddress((UInt64.random(in: 0...UInt64.max) & 0x0cff_ffff_ffff) | 0xf200_0000_0000)
-        let index = try await allocator.allocate(hostname: hostname)
-        let ipv6Address = try status.ipv6Subnet
-            .map { try CIDRv6(macAddress.ipv6Address(network: $0.lower), prefix: $0.prefix) }
-        let ip = IPv4Address(index)
-        let attachment = Attachment(
-            network: state.id,
-            hostname: hostname,
-            ipv4Address: try CIDRv4(ip, prefix: status.ipv4Subnet.prefix),
-            ipv4Gateway: status.ipv4Gateway,
-            ipv6Address: ipv6Address,
-            macAddress: macAddress
-        )
+
+        let attachment: Attachment
+        if isBridge {
+            attachment = Attachment(
+                network: state.id,
+                hostname: hostname,
+                ipv4Address: nil,
+                ipv4Gateway: nil,
+                ipv6Address: nil,
+                macAddress: macAddress
+            )
+        } else {
+            let index = try await allocator!.allocate(hostname: hostname)
+            let ipv6Address = try status.ipv6Subnet
+                .map { try CIDRv6(macAddress.ipv6Address(network: $0.lower), prefix: $0.prefix) }
+            let ip = IPv4Address(index)
+            attachment = Attachment(
+                network: state.id,
+                hostname: hostname,
+                ipv4Address: try CIDRv4(ip, prefix: status.ipv4Subnet.prefix),
+                ipv4Gateway: status.ipv4Gateway,
+                ipv6Address: ipv6Address,
+                macAddress: macAddress
+            )
+            macAddresses[index] = macAddress
+        }
+
         log.info(
             "allocated attachment",
             metadata: [
                 "hostname": "\(hostname)",
-                "ipv4Address": "\(attachment.ipv4Address)",
-                "ipv4Gateway": "\(attachment.ipv4Gateway)",
+                "ipv4Address": "\(attachment.ipv4Address?.description ?? "none")",
+                "ipv4Gateway": "\(attachment.ipv4Gateway?.description ?? "none")",
                 "ipv6Address": "\(attachment.ipv6Address?.description ?? "unavailable")",
                 "macAddress": "\(attachment.macAddress?.description ?? "unspecified")",
             ])
@@ -98,7 +118,6 @@ public actor NetworkService: Sendable {
                 try reply.setAdditionalData(additionalData.underlying)
             }
         }
-        macAddresses[index] = macAddress
         return reply
     }
 
@@ -108,8 +127,10 @@ public actor NetworkService: Sendable {
         defer { log.debug("exit", metadata: ["func": "\(#function)"]) }
 
         let hostname = try message.hostname()
-        if let index = try await allocator.deallocate(hostname: hostname) {
-            macAddresses.removeValue(forKey: index)
+        if !isBridge {
+            if let index = try await allocator?.deallocate(hostname: hostname) {
+                macAddresses.removeValue(forKey: index)
+            }
         }
         log.info("released attachments", metadata: ["hostname": "\(hostname)"])
         return message.reply()
@@ -120,14 +141,18 @@ public actor NetworkService: Sendable {
         log.debug("enter", metadata: ["func": "\(#function)"])
         defer { log.debug("exit", metadata: ["func": "\(#function)"]) }
 
+        let reply = message.reply()
+        guard !isBridge else {
+            return reply
+        }
+
         let state = await network.state
         guard case .running(_, let status) = state else {
             throw ContainerizationError(.invalidState, message: "invalid network state - network \(state.id) must be running")
         }
 
         let hostname = try message.hostname()
-        let index = try await allocator.lookup(hostname: hostname)
-        let reply = message.reply()
+        let index = try await allocator?.lookup(hostname: hostname)
         guard let index else {
             return reply
         }
@@ -162,7 +187,7 @@ public actor NetworkService: Sendable {
         log.debug("enter", metadata: ["func": "\(#function)"])
         defer { log.debug("exit", metadata: ["func": "\(#function)"]) }
 
-        let success = await allocator.disableAllocator()
+        let success = await allocator?.disableAllocator() ?? true
         log.info("attempted allocator disable", metadata: ["success": "\(success)"])
         let reply = message.reply()
         reply.setAllocatorDisabled(success)

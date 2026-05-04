@@ -29,6 +29,12 @@ PKG_PATH := bin/$(BUILD_CONFIGURATION)/container-installer-unsigned.pkg
 DSYM_DIR := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM
 DSYM_PATH := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM.zip
 CODESIGN_OPTS ?= --force --sign - --timestamp=none
+ENABLE_BRIDGE_NETWORKING ?= 0
+ifeq ($(ENABLE_BRIDGE_NETWORKING),1)
+	RUNTIME_LINUX_ENTITLEMENTS := signing/container-runtime-linux.bridge-mode.entitlements
+else
+	RUNTIME_LINUX_ENTITLEMENTS := signing/container-runtime-linux.entitlements
+endif
 
 
 # Conditionally use a temporary data directory for integration tests
@@ -121,7 +127,7 @@ installer-pkg: $(STAGING_DIR)
 	@codesign $(CODESIGN_OPTS) --identifier com.apple.container.cli "$(join $(STAGING_DIR), bin/container)"
 	@codesign $(CODESIGN_OPTS) --identifier com.apple.container.apiserver "$(join $(STAGING_DIR), bin/container-apiserver)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin/container-core-images)"
-	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. --entitlements=signing/container-runtime-linux.entitlements "$(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/bin/container-runtime-linux)"
+	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. --entitlements=$(RUNTIME_LINUX_ENTITLEMENTS) "$(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/bin/container-runtime-linux)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. --entitlements=signing/container-network-vmnet.entitlements "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin/container-network-vmnet)"
 
 	@echo Creating application installer

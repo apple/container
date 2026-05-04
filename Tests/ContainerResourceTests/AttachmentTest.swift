@@ -14,13 +14,21 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-public enum NetworkKeys: String {
-    case additionalData
-    case allocatorDisabled
-    case attachment
-    case hostInterface
-    case hostname
-    case macAddress
-    case network
-    case state
+import Testing
+
+@testable import ContainerResource
+
+struct AttachmentTest {
+    @Test func testAttachmentNilIPFields() {
+        let attachment = Attachment(
+            network: "my-net",
+            hostname: "host1",
+            ipv4Address: nil,
+            ipv4Gateway: nil,
+            ipv6Address: nil,
+            macAddress: nil
+        )
+        #expect(attachment.ipv4Address == nil)
+        #expect(attachment.ipv4Gateway == nil)
+    }
 }
