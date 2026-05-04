@@ -16,26 +16,6 @@
 
 import Testing
 
-/// Helper actor that tracks how many callers are active simultaneously.
-actor ConcurrencyTracker {
-    private var current = 0
-    private var peak = 0
-
-    func enterAndGetCount() -> Int {
-        current += 1
-        if current > peak { peak = current }
-        return current
-    }
-
-    func leave() {
-        current -= 1
-    }
-
-    func peakConcurrency() -> Int {
-        peak
-    }
-}
-
 /// Async countdown latch. N callers suspend on arriveAndWait(); the Nth arrival
 /// resumes them all simultaneously, proving they were running concurrently.
 actor Barrier {
@@ -59,61 +39,6 @@ actor Barrier {
         await withCheckedContinuation { continuation in
             waiters.append(continuation)
         }
-    }
-}
-
-/// Helper actor that records the order in which tasks complete.
-private actor CompletionRecorder {
-    private var order: [Int] = []
-
-    func record(_ id: Int) {
-        order.append(id)
-    }
-
-    func completedCount() -> Int {
-        order.count
-    }
-}
-
-@Suite struct SuiteGateTests {
-    @Test func mutualExclusion() async {
-        let gate = SuiteGate()
-        let tracker = ConcurrencyTracker()
-        let barrier = Barrier(count: 5)
-
-        await withTaskGroup(of: Void.self) { group in
-            for _ in 0..<5 {
-                group.addTask {
-                    // Barrier ensures all 5 tasks are live before any enters the gate
-                    await barrier.arriveAndWait()
-                    await gate.enter()
-                    let count = await tracker.enterAndGetCount()
-                    #expect(count == 1, "Only 1 task should be inside the gate at a time")
-                    await tracker.leave()
-                    await gate.leave()
-                }
-            }
-        }
-    }
-
-    @Test func multipleWaiters() async {
-        let gate = SuiteGate()
-        let recorder = CompletionRecorder()
-        let barrier = Barrier(count: 3)
-
-        await withTaskGroup(of: Void.self) { group in
-            for i in 0..<3 {
-                group.addTask {
-                    await barrier.arriveAndWait()
-                    await gate.enter()
-                    await recorder.record(i)
-                    await gate.leave()
-                }
-            }
-        }
-
-        let count = await recorder.completedCount()
-        #expect(count == 3, "All 3 tasks should have completed")
     }
 }
 

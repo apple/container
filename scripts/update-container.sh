@@ -19,6 +19,7 @@ INSTALL_DIR="/usr/local"
 OPTS=0
 LATEST=false
 VERSION=
+FORCE=false
 TMP_DIR=
 
 # Release Info
@@ -29,8 +30,10 @@ RELEASE_VERSION=
 # Package Info
 PKG_URL=
 PKG_FILE=
-PRIMARY_PKG=
-FALLBACK_PKG=
+SIGNED_PRIMARY_PKG=
+SIGNED_FALLBACK_PKG=
+UNSIGNED_PRIMARY_PKG=
+UNSIGNED_FALLBACK_PKG=
 
 check_installed_version() {
     local target_version="$1"
@@ -46,20 +49,24 @@ check_installed_version() {
 }
 
 usage() {
-    echo "Usage: $0 {-v <version>}"
+    echo "Usage: $0 {-v <version> | -f}"
     echo "Update container"
     echo
     echo "Options:"
-    echo "v <version>     Install a specific release version"
-    echo "No argument     Defaults to latest release version"
+    echo "v <version>     Update to a specific release version"
+    echo "f               Force update"
+    echo "No argument     Defaults to the latest release version"
     exit 1
 }
 
-while getopts ":v:" arg; do
+while getopts ":v:f" arg; do
     case "$arg" in
         v)
             VERSION="$OPTARG"
             ((OPTS+=1))
+            ;;
+        f)
+            FORCE=true
             ;;
         *)
             echo "Invalid option: -${OPTARG}"
@@ -68,8 +75,8 @@ while getopts ":v:" arg; do
     esac
 done
 
-# Default to install the latest release version
-if [ "$OPTS" -eq 0 ]; then
+# Default to upgrade to the latest release version
+if [[ -z "$VERSION" ]]; then
     LATEST=true
 fi
 
@@ -93,8 +100,8 @@ error() { echo "Error: $*" >&2; exit 1; }
 if [[ "$LATEST" == true ]]; then
     RELEASE_URL="https://api.github.com/repos/apple/container/releases/latest"
     RELEASE_VERSION=$(curl -fsSL "$RELEASE_URL" | jq -r '.tag_name')
-    if check_installed_version "$RELEASE_VERSION"; then
-        echo "Container is already on latest version $RELEASE_VERSION"
+    if check_installed_version "$RELEASE_VERSION" && [[ "$FORCE" != true ]]; then
+        echo "Container is already on latest version $RELEASE_VERSION (use -f to force update)"
         exit 0
     else
         echo "Updating to latest version $RELEASE_VERSION"
@@ -102,8 +109,8 @@ if [[ "$LATEST" == true ]]; then
 elif [[ -n "$VERSION" ]]; then
     RELEASE_URL="https://api.github.com/repos/apple/container/releases/tags/$VERSION"
     RELEASE_VERSION="$VERSION"
-    if check_installed_version "$RELEASE_VERSION"; then
-        echo "Container is already on version $RELEASE_VERSION"
+    if check_installed_version "$RELEASE_VERSION" && [[ "$FORCE" != true ]]; then
+        echo "Container is already on version $RELEASE_VERSION (use -f to force update)"
         exit 0
     else
         echo "Updating to release version $RELEASE_VERSION"
@@ -116,15 +123,32 @@ RELEASE_JSON=$(curl -fsSL "$RELEASE_URL") || {
 }
 
 # Possible package names
-PRIMARY_PKG="container-installer-signed.pkg"
-FALLBACK_PKG="container-$RELEASE_VERSION-installer-signed.pkg"
+SIGNED_PRIMARY_PKG="container-installer-signed.pkg"
+SIGNED_FALLBACK_PKG="container-$RELEASE_VERSION-installer-signed.pkg"
+UNSIGNED_PRIMARY_PKG="container-installer-unsigned.pkg"
+UNSIGNED_FALLBACK_PKG="container-$RELEASE_VERSION-installer-unsigned.pkg"
 
-# Find the package URL
+# Find the signed package
 PKG_URL=$(echo "$RELEASE_JSON" | jq -r \
-    --arg primary "$PRIMARY_PKG" \
-    --arg fallback "$FALLBACK_PKG" \
+    --arg primary "$SIGNED_PRIMARY_PKG" \
+    --arg fallback "$SIGNED_FALLBACK_PKG" \
     '.assets[] | select(.name == $primary or .name == $fallback) | .browser_download_url' | head -n1)
-[[ -n "$PKG_URL" ]] || error "Neither $PRIMARY_PKG nor $FALLBACK_PKG found"
+
+# If no signed package found, prompt and try unsigned
+if [[ -z "$PKG_URL" ]]; then
+    read -r -p "No signed package found. Upgrade using the unsigned package instead? (Y/n): " confirm
+    if [[ "$confirm" =~ ^[yY]([eE][sS])?$ ]]; then
+        echo "NOTE: re-run this script to upgrade to the signed package, when it becomes available"
+        PKG_URL=$(echo "$RELEASE_JSON" | jq -r \
+            --arg u1 "$UNSIGNED_PRIMARY_PKG" \
+            --arg u2 "$UNSIGNED_FALLBACK_PKG" \
+            '.assets[] | select(.name == $u1 or .name == $u2) | .browser_download_url' | head -n1)
+    else
+        echo "Exiting without updating"
+        exit 0
+    fi
+fi
+[[ -n "$PKG_URL" ]] || error "No suitable package found"
 
 PKG_FILE="$TMP_DIR/$(basename "$PKG_URL")"
 
@@ -135,5 +159,5 @@ curl -fSL "$PKG_URL" -o "$PKG_FILE"
 echo "Installing package to $INSTALL_DIR..."
 sudo installer -pkg "$PKG_FILE" -target / >/dev/null 2>&1 || error "Installer failed"
 
-echo "Installed successfully"
+echo "Updated successfully"
 container --version || error "'container' command not found"
