@@ -272,9 +272,13 @@ integration: init-block
 		mkdir -p $(APP_ROOT) ; \
 		find "$(APP_ROOT)" -mindepth 1 -maxdepth 1 ! -name kernels -exec rm -rf {} + ; \
 	fi
+
+	@echo Pre-pulling images for integration tests..
+	@bin/container --debug system start --timeout 60 --enable-kernel-install $(SYSTEM_START_OPTS)
+	@bin/container image pull ghcr.io/linuxcontainers/alpine:3.20
+	@bin/container builder start && bin/container builder stop
 	@echo Running the integration tests...
-	@bin/container --debug system start --timeout 60 --enable-kernel-install $(SYSTEM_START_OPTS) && \
-	echo "Starting CLI integration tests" && \
+	@echo "Starting CLI integration tests" && \
 	{ \
 		CLITEST_LOG_ROOT=$(LOG_ROOT) && export CLITEST_LOG_ROOT ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(INTEGRATION_FILTER)" ; \
