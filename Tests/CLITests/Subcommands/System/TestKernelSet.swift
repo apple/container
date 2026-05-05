@@ -23,11 +23,8 @@ import Testing
 // This suite is run serialized since each test modifies the global default kernel
 @Suite(.serialSuites, .serialized)
 class TestCLIKernelSet: CLITest {
-    let defaultKernelTar = DefaultsStore.get(key: .defaultKernelURL)
-    var remoteTar: URL! {
-        URL(string: defaultKernelTar)
-    }
-    let defaultBinaryPath = DefaultsStore.get(key: .defaultKernelBinaryPath)
+    let remoteTar = ContainerSystemConfig().kernel.url
+    let defaultBinaryPath = ContainerSystemConfig().kernel.binaryPath
 
     deinit {
         try? resetDefaultBinary()
@@ -100,7 +97,7 @@ class TestCLIKernelSet: CLITest {
         let symlinkBinaryPath: String = URL(filePath: defaultBinaryPath).deletingLastPathComponent().appending(path: "vmlinux.container").relativePath
         let extraArgs: [String] = [
             "--tar",
-            defaultKernelTar,
+            remoteTar.absoluteString,
             "--binary",
             symlinkBinaryPath,
         ]

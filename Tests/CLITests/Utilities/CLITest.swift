@@ -16,6 +16,7 @@
 
 import AsyncHTTPClient
 import ContainerLog
+import ContainerPersistence
 import ContainerResource
 import Containerization
 import ContainerizationOS
@@ -23,6 +24,7 @@ import Foundation
 import Logging
 import Synchronization
 import SystemPackage
+import TOML
 import Testing
 
 class CLITest {
@@ -506,31 +508,12 @@ class CLITest {
         return try decoder.decode([ImageInspectOutput].self, from: jsonData)
     }
 
-    func doDefaultRegistrySet(domain: String) throws {
-        let args = [
-            "system",
-            "property",
-            "set",
-            "registry.domain",
-            domain,
-        ]
-        let (_, _, error, status) = try run(arguments: args)
-        if status != 0 {
-            throw CLIError.executionFailed("command failed: \(error)")
+    func getSystemConfig() throws -> ContainerSystemConfig {
+        let (_, output, err, status) = try run(arguments: ["system", "property", "list", "--format", "toml"])
+        guard status == 0 else {
+            throw CLIError.executionFailed("system property list failed (\(status)): \(err)")
         }
-    }
-
-    func doDefaultRegistryUnset() throws {
-        let args = [
-            "system",
-            "property",
-            "clear",
-            "registry.domain",
-        ]
-        let (_, _, error, status) = try run(arguments: args)
-        if status != 0 {
-            throw CLIError.executionFailed("command failed: \(error)")
-        }
+        return try TOMLDecoder().decode(ContainerSystemConfig.self, from: Data(output.utf8))
     }
 
     func doRemove(name: String, force: Bool = false) throws {

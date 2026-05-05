@@ -27,11 +27,6 @@ import TerminalProgress
 public struct Utility {
     static let publishedPortCountLimit = 64
 
-    private static let infraImages = [
-        DefaultsStore.get(key: .defaultBuilderImage),
-        DefaultsStore.get(key: .defaultInitImage),
-    ]
-
     public static func createContainerID(name: String?) -> String {
         guard let name else {
             return UUID().uuidString.lowercased()
@@ -39,8 +34,8 @@ public struct Utility {
         return name
     }
 
-    public static func isInfraImage(name: String) -> Bool {
-        for infraImage in infraImages {
+    public static func isInfraImage(name: String, builderImage: String, initImage: String) -> Bool {
+        for infraImage in [builderImage, initImage] {
             if name == infraImage {
                 return true
             }
@@ -82,6 +77,7 @@ public struct Utility {
         resource: Flags.Resource,
         registry: Flags.Registry,
         imageFetch: Flags.ImageFetch,
+        containerSystemConfig: ContainerSystemConfig,
         progressUpdate: @escaping ProgressUpdateHandler,
         log: Logger
     ) async throws -> (ContainerConfiguration, Kernel, String?) {
@@ -103,6 +99,7 @@ public struct Utility {
             reference: image,
             platform: requestedPlatform,
             scheme: scheme,
+            containerSystemConfig: containerSystemConfig,
             progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progressUpdate),
             maxConcurrentDownloads: imageFetch.maxConcurrentDownloads
         )
@@ -130,9 +127,10 @@ public struct Utility {
             .setItemsName("blobs"),
         ])
         let fetchInitTask = await taskManager.startTask()
-        let initImageRef = management.initImage ?? ClientImage.initImageRef
+        let initImageRef = management.initImage ?? containerSystemConfig.vminit.image
         let initImage = try await ClientImage.fetch(
             reference: initImageRef, platform: .current, scheme: scheme,
+            containerSystemConfig: containerSystemConfig,
             progressUpdate: ProgressTaskCoordinator.handler(for: fetchInitTask, from: progressUpdate),
             maxConcurrentDownloads: imageFetch.maxConcurrentDownloads)
 
@@ -161,7 +159,9 @@ public struct Utility {
 
         config.resources = try Parser.resources(
             cpus: resource.cpus,
-            memory: resource.memory
+            memory: resource.memory,
+            defaultCPUs: containerSystemConfig.container.cpus,
+            defaultMemory: containerSystemConfig.container.memory
         )
 
         let tmpfs = try Parser.tmpfsMounts(management.tmpFs)
@@ -212,7 +212,8 @@ public struct Utility {
             config.networks = try getAttachmentConfigurations(
                 containerId: config.id,
                 builtinNetworkId: builtinNetworkId,
-                networks: parsedNetworks
+                networks: parsedNetworks,
+                dnsDomain: containerSystemConfig.dns.domain,
             )
             for attachmentConfiguration in config.networks {
                 let network = try await networkClient.get(id: attachmentConfiguration.network)
@@ -225,7 +226,7 @@ public struct Utility {
         if management.dnsDisabled {
             config.dns = nil
         } else {
-            let domain = management.dns.domain ?? DefaultsStore.getOptional(key: .defaultDNSDomain)
+            let domain = management.dns.domain ?? containerSystemConfig.dns.domain
             config.dns = .init(
                 nameservers: management.dns.nameservers,
                 domain: domain,
@@ -272,7 +273,8 @@ public struct Utility {
     static func getAttachmentConfigurations(
         containerId: String,
         builtinNetworkId: String?,
-        networks: [Parser.ParsedNetwork]
+        networks: [Parser.ParsedNetwork],
+        dnsDomain: String?,
     ) throws -> [AttachmentConfiguration] {
         // Validate MAC addresses if provided
         for network in networks {
@@ -285,7 +287,7 @@ public struct Utility {
         let fqdn: String?
         if !containerId.contains(".") {
             // add default domain if it exists, and container ID is unqualified
-            if let dnsDomain = DefaultsStore.getOptional(key: .defaultDNSDomain) {
+            if let dnsDomain {
                 fqdn = "\(containerId).\(dnsDomain)."
             } else {
                 fqdn = nil

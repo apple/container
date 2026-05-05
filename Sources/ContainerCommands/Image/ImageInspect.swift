@@ -17,6 +17,8 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerLog
+import ContainerPersistence
+import ContainerPlugin
 import ContainerResource
 import ContainerizationError
 import Foundation
@@ -43,14 +45,23 @@ extension Application {
         }
 
         public func run() async throws {
+            let containerSystemConfig: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(
+                configFile: SystemRuntimeOptions.configFileFromAppRoot(ApplicationRoot.url)
+            )
             var printable: [ImageDetail] = []
             var succeededImages: [String] = []
             var allErrors: [(String, Error)] = []
 
-            let result = try await ClientImage.get(names: images)
+            let result = try await ClientImage.get(names: images, containerSystemConfig: containerSystemConfig)
 
             for image in result.images {
-                guard !Utility.isInfraImage(name: image.reference) else { continue }
+                guard
+                    !Utility.isInfraImage(
+                        name: image.reference,
+                        builderImage: containerSystemConfig.build.image,
+                        initImage: containerSystemConfig.vminit.image
+                    )
+                else { continue }
                 printable.append(try await image.details())
                 succeededImages.append(image.reference)
             }

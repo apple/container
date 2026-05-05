@@ -23,7 +23,7 @@ import PackageDescription
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
 let builderShimVersion = "0.12.0"
-let scVersion = "0.31.0"
+let scVersion = "0.32.0"
 
 let package = Package(
     name: "container",
@@ -80,8 +80,10 @@ let package = Package(
                 .product(name: "ContainerizationArchive", package: "containerization"),
                 .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
+                .product(name: "TOML", package: "swift-toml"),
                 "ContainerBuild",
                 "ContainerLog",
+                "ContainerPersistence",
                 "ContainerResource",
                 "Yams",
             ],
@@ -93,6 +95,7 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "SwiftProtobuf", package: "swift-protobuf"),
+                .product(name: "TOML", package: "swift-toml"),
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationOCI", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
@@ -237,6 +240,7 @@ let package = Package(
                 .product(name: "SystemPackage", package: "swift-system"),
                 "ContainerImagesService",
                 "ContainerLog",
+                "ContainerPersistence",
                 "ContainerPlugin",
                 "ContainerVersion",
                 "ContainerXPC",
@@ -285,6 +289,7 @@ let package = Package(
                 "ContainerLog",
                 "ContainerNetworkService",
                 "ContainerNetworkServiceClient",
+                "ContainerPersistence",
                 "ContainerPlugin",
                 "ContainerResource",
                 "ContainerVersion",
@@ -410,6 +415,7 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "SystemPackage", package: "swift-system"),
+                .product(name: "TOML", package: "swift-toml"),
                 "CVersion",
                 "ContainerVersion",
             ]

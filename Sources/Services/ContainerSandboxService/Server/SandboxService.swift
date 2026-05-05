@@ -541,12 +541,12 @@ public actor SandboxService {
                     guard let proc = processInfo.process else {
                         throw ContainerizationError(.invalidState, message: "process \(id) not started")
                     }
-                    try await proc.kill(Int32(try message.signal()))
+                    try await proc.kill(Signal(rawValue: Int32(try message.signal())))
                     return message.reply()
                 }
 
                 // TODO: fix underlying signal value to int64
-                try await ctr.container.kill(Int32(try message.signal()))
+                try await ctr.container.kill(Signal(rawValue: Int32(try message.signal())))
                 return message.reply()
             default:
                 throw ContainerizationError(
@@ -1095,9 +1095,9 @@ public actor SandboxService {
                     try await lc.wait()
                 }
                 group.addTask {
-                    try await lc.kill(stopOpts.signal)
+                    try await lc.kill(Signal(rawValue: stopOpts.signal))
                     try await Task.sleep(for: .seconds(stopOpts.timeoutInSeconds))
-                    try await lc.kill(SIGKILL)
+                    try await lc.kill(.kill)
 
                     return ExitStatus(exitCode: 137)
                 }

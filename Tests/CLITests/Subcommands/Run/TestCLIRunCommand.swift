@@ -913,14 +913,8 @@ class TestCLIRunCommand3: CLITest {
     }
 
     func getDefaultDomain() throws -> String? {
-        let (_, output, err, status) = try run(arguments: ["system", "property", "get", "dns.domain"])
-        try #require(status == 0, "default DNS domain retrieval returned status \(status): \(err)")
-        let trimmedOutput = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedOutput == "" {
-            return nil
-        }
-
-        return trimmedOutput
+        let config = try getSystemConfig()
+        return config.dns.domain
     }
 
     @Test func testPrivilegedPortError() throws {

@@ -17,6 +17,7 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerResource
+import Containerization
 import ContainerizationError
 import ContainerizationOS
 import Foundation
@@ -67,7 +68,7 @@ extension Application {
 
             let opts = ContainerStopOptions(
                 timeoutInSeconds: self.time,
-                signal: try Signals.parseSignal(self.signal)
+                signal: try Signal(self.signal).rawValue
             )
             try await Self.stopContainers(
                 client: client,

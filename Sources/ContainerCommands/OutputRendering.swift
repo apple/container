@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import TOML
 import Yams
 
 /// Options for JSON rendering, wrapping the knobs on `JSONEncoder`.
@@ -55,6 +56,13 @@ public enum Output {
         return data
     }
 
+    /// Renders an `Encodable` value as a TOML string.
+    public static func renderTOML<T: Encodable>(_ value: T) throws -> String {
+        let encoder = TOMLEncoder()
+        encoder.outputFormatting = .sortedKeys
+        return try encoder.encodeToString(value)
+    }
+
     /// Renders a list of displayable items as a table (with header) or quiet-mode identifiers.
     public static func renderList<T: ListDisplayable>(_ items: [T], quiet: Bool) -> String {
         if quiet {
@@ -83,6 +91,7 @@ public enum Output {
         case .json: try emit(renderJSON(json))
         case .yaml: try emit(renderYAML(json))
         case .table: emit(renderList(display, quiet: quiet))
+        case .toml: try emit(renderTOML(json))
         }
     }
 

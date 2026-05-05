@@ -16,6 +16,8 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerPersistence
+import ContainerPlugin
 import ContainerResource
 import ContainerizationError
 import Foundation
@@ -54,6 +56,9 @@ extension Application {
         var arguments: [String] = []
 
         public func run() async throws {
+            let containerSystemConfig: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(
+                configFile: SystemRuntimeOptions.configFileFromAppRoot(ApplicationRoot.url)
+            )
             let progressConfig = try ProgressConfig(
                 showTasks: true,
                 showItems: true,
@@ -78,6 +83,7 @@ extension Application {
                 resource: resourceFlags,
                 registry: registryFlags,
                 imageFetch: imageFetchFlags,
+                containerSystemConfig: containerSystemConfig,
                 progressUpdate: progress.handler,
                 log: log
             )
