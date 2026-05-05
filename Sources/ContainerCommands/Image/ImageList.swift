@@ -136,16 +136,15 @@ extension Application {
                     }
 
                     var config: ContainerizationOCI.Image
-                    var manifest: ContainerizationOCI.Manifest
                     do {
                         config = try await image.config(for: platform)
-                        manifest = try await image.manifest(for: platform)
                     } catch {
                         continue
                     }
 
                     let created = config.created ?? ""
-                    let size = descriptor.size + manifest.config.size + manifest.layers.reduce(0) { $0 + $1.size }
+                    let sizes = try await image.getImageSizes(platform: platform)
+                    let size: Int64 = sizes.snapshotSize > 0 ? Int64(sizes.snapshotSize) : sizes.ociImageSize
                     let formattedSize = formatter.string(fromByteCount: size)
 
                     items.append(

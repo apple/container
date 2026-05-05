@@ -298,6 +298,15 @@ let package = Package(
             path: "Sources/Plugins/NetworkVmnet",
             exclude: ["config.toml"]
         ),
+        .testTarget(
+            name: "ContainerImagesServiceTests",
+            dependencies: [
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                "ContainerImagesService",
+                "ContainerPersistence",
+            ]
+        ),
         .target(
             name: "ContainerNetworkService",
             dependencies: [
