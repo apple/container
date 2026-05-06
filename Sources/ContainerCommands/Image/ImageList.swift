@@ -45,7 +45,7 @@ extension Application {
         public var logOptions: Flags.Logging
 
         public mutating func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try ConfigurationLoader.load()
+            let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
             try Self.validate(format: format, quiet: quiet, verbose: verbose)
 
             var images = try await ClientImage.list().filter { img in

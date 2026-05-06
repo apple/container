@@ -1201,7 +1201,7 @@ struct ParserTest {
         #expect(result.memoryInBytes == 256.mib())
     }
 
-    @Test func testResourcesBuildPropertyLookup() throws {
+    @Test func testResourcesBuildPropertyLookup() async throws {
         let content = """
             [build]
             cpus = 8
@@ -1211,7 +1211,7 @@ struct ParserTest {
         FileManager.default.createFile(atPath: tempFile.path(), contents: Data(content.utf8))
         defer { try? FileManager.default.removeItem(at: tempFile) }
 
-        let config: ContainerSystemConfig = try ConfigurationLoader.load(configurationFile: FilePath(tempFile.path(percentEncoded: false)))
+        let config: ContainerSystemConfig = try await ConfigurationLoader.load(configurationFiles: [FilePath(tempFile.path(percentEncoded: false))])
         let result = try Parser.resources(
             cpus: nil, memory: nil,
             defaultCPUs: config.build.cpus,
@@ -1221,7 +1221,7 @@ struct ParserTest {
         #expect(result.memoryInBytes == 4096.mib())
     }
 
-    @Test func testResourcesCPUsFromProperty() throws {
+    @Test func testResourcesCPUsFromProperty() async throws {
         let content = """
             [container]
             cpus = 8
@@ -1230,7 +1230,7 @@ struct ParserTest {
         FileManager.default.createFile(atPath: tempFile.path(), contents: Data(content.utf8))
         defer { try? FileManager.default.removeItem(at: tempFile) }
 
-        let config: ContainerSystemConfig = try ConfigurationLoader.load(configurationFile: FilePath(tempFile.path(percentEncoded: false)))
+        let config: ContainerSystemConfig = try await ConfigurationLoader.load(configurationFiles: [FilePath(tempFile.path(percentEncoded: false))])
         let result = try Parser.resources(
             cpus: nil, memory: nil,
             defaultCPUs: config.container.cpus,
@@ -1239,7 +1239,7 @@ struct ParserTest {
         #expect(result.cpus == 8)
     }
 
-    @Test func testResourcesMemoryFromProperty() throws {
+    @Test func testResourcesMemoryFromProperty() async throws {
         let content = """
             [container]
             memory = "2g"
@@ -1248,7 +1248,7 @@ struct ParserTest {
         FileManager.default.createFile(atPath: tempFile.path(), contents: Data(content.utf8))
         defer { try? FileManager.default.removeItem(at: tempFile) }
 
-        let config: ContainerSystemConfig = try ConfigurationLoader.load(configurationFile: FilePath(tempFile.path(percentEncoded: false)))
+        let config: ContainerSystemConfig = try await ConfigurationLoader.load(configurationFiles: [FilePath(tempFile.path(percentEncoded: false))])
         let result = try Parser.resources(
             cpus: nil, memory: nil,
             defaultCPUs: config.container.cpus,
@@ -1257,7 +1257,7 @@ struct ParserTest {
         #expect(result.memoryInBytes == 2048.mib())
     }
 
-    @Test func testResourcesFlagOverridesProperty() throws {
+    @Test func testResourcesFlagOverridesProperty() async throws {
         let content = """
             [container]
             cpus = 8
@@ -1267,7 +1267,7 @@ struct ParserTest {
         FileManager.default.createFile(atPath: tempFile.path(), contents: Data(content.utf8))
         defer { try? FileManager.default.removeItem(at: tempFile) }
 
-        let config: ContainerSystemConfig = try ConfigurationLoader.load(configurationFile: FilePath(tempFile.path(percentEncoded: false)))
+        let config: ContainerSystemConfig = try await ConfigurationLoader.load(configurationFiles: [FilePath(tempFile.path(percentEncoded: false))])
         let result = try Parser.resources(
             cpus: 1, memory: "256m",
             defaultCPUs: config.container.cpus,
@@ -1277,7 +1277,7 @@ struct ParserTest {
         #expect(result.memoryInBytes == 256.mib())
     }
 
-    @Test func testResourcesPropertyKeysAreIsolated() throws {
+    @Test func testResourcesPropertyKeysAreIsolated() async throws {
         let content = """
             [container]
             cpus = 16
@@ -1287,7 +1287,7 @@ struct ParserTest {
         FileManager.default.createFile(atPath: tempFile.path(), contents: Data(content.utf8))
         defer { try? FileManager.default.removeItem(at: tempFile) }
 
-        let config: ContainerSystemConfig = try ConfigurationLoader.load(configurationFile: FilePath(tempFile.path(percentEncoded: false)))
+        let config: ContainerSystemConfig = try await ConfigurationLoader.load(configurationFiles: [FilePath(tempFile.path(percentEncoded: false))])
         let result = try Parser.resources(
             cpus: nil, memory: nil,
             defaultCPUs: config.build.cpus,

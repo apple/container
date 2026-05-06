@@ -69,7 +69,7 @@ extension Application {
         }
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try ConfigurationLoader.load()
+            let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
             let p = try DefaultPlatform.resolve(platform: platform, os: os, arch: arch, log: log)
 
             let scheme = try RequestScheme(registry.scheme)

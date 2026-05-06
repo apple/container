@@ -61,6 +61,7 @@ let package = Package(
         .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.20.1"),
         .package(url: "https://github.com/swiftlang/swift-docc-plugin.git", from: "1.1.0"),
         .package(url: "https://github.com/mattt/swift-toml.git", from: "2.0.0"),
+        .package(url: "https://github.com/mattt/swift-configuration-toml", from: "2.0.0"),
         .package(url: "https://github.com/jpsim/Yams.git", from: "6.2.1"),
     ],
     targets: [
@@ -408,8 +409,8 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "Configuration", package: "swift-configuration"),
+                .product(name: "ConfigurationTOML", package: "swift-configuration-toml"),
                 .product(name: "SystemPackage", package: "swift-system"),
-                .product(name: "TOML", package: "swift-toml"),
                 "CVersion",
                 "ContainerVersion",
             ]
@@ -418,6 +419,7 @@ let package = Package(
             name: "ContainerPersistenceTests",
             dependencies: [
                 .product(name: "Configuration", package: "swift-configuration"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "SystemPackage", package: "swift-system"),
                 "ContainerPersistence",

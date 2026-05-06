@@ -50,7 +50,7 @@ extension APIServer {
         var logRoot = LogRoot.path
 
         func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try ConfigurationLoader.load()
+            let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
             let commandName = APIServer._commandName
             let logPath = logRoot.map { $0.appending("\(commandName).log") }
             let log = ServiceLogger.bootstrap(category: "APIServer", debug: debug, logPath: logPath)

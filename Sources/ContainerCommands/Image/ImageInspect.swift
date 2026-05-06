@@ -45,7 +45,7 @@ extension Application {
         }
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try ConfigurationLoader.load()
+            let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
             var printable: [ImageDetail] = []
             var succeededImages: [String] = []
             var allErrors: [(String, Error)] = []

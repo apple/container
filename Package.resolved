@@ -1,5 +1,5 @@
 {
-  "originHash" : "62087b957b4eb6a18c21f4dc5a5bbdb63b747ed5a2db0a2b93fa2b193145baea",
+  "originHash" : "775975c99100058763670c9f01d28783eeeedbfb84f965f63ec089e6d8696d9c",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -119,6 +119,15 @@
       }
     },
     {
+      "identity" : "swift-configuration-toml",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/mattt/swift-configuration-toml",
+      "state" : {
+        "revision" : "4ea16b4dfa4b023cecae5ae0368402c4d846d613",
+        "version" : "2.0.0"
+      }
+    },
+    {
       "identity" : "swift-crypto",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-crypto.git",
@@ -170,6 +179,15 @@
       "state" : {
         "revision" : "bbd81b6725ae874c69e9b8c8804d462356b55523",
         "version" : "1.10.1"
+      }
+    },
+    {
+      "identity" : "swift-metrics",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-metrics",
+      "state" : {
+        "revision" : "d51c8d13fa366eec807eedb4e37daa60ff5bfdd5",
+        "version" : "2.10.1"
       }
     },
     {

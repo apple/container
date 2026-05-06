@@ -20,9 +20,11 @@ import Foundation
 // MARK: - Shared helpers
 
 extension ConfigSnapshotReader {
-    // ConfigSnapshotReader stores typed values — string(forKey:) returns nil for
-    // int/double/bool values. Check all primitive accessors to avoid incorrectly
-    // treating non-string values as nil (e.g. Optional<Int> with an .int value).
+    /// Returns true when the snapshot holds a primitive value at `key`, regardless of
+    /// type. `ConfigSnapshotReader` stores typed values — each primitive accessor returns
+    /// nil both when the key is absent and when the stored value is of a different type.
+    /// Callers that need to distinguish "absent" from "present but wrong type" must check
+    /// `hasValue` first, then the typed accessor.
     func hasValue(forKey key: ConfigKey) -> Bool {
         string(forKey: key) != nil
             || int(forKey: key) != nil
@@ -30,6 +32,12 @@ extension ConfigSnapshotReader {
             || bool(forKey: key) != nil
     }
 }
+
+/// Marker used by `decode<T>` to reject `Dictionary`-valued properties. The snapshot
+/// has no key-enumeration API, so a `Dictionary` would silently decode to `[:]` via
+/// `allKeys == []`. We reject the attempt explicitly instead.
+protocol UnsupportedDictionaryDecoding {}
+extension Dictionary: UnsupportedDictionaryDecoding {}
 
 struct KeyedContainer<Key: CodingKey>: KeyedDecodingContainerProtocol {
     let snapshot: ConfigSnapshotReader
@@ -45,8 +53,83 @@ struct KeyedContainer<Key: CodingKey>: KeyedDecodingContainerProtocol {
 
     func contains(_ key: Key) -> Bool { true }
 
+    // Always return false — the flat config snapshot stores nested struct keys as
+    // dot-separated paths (e.g. "build.cpus") but has no entry for the parent key
+    // itself (e.g. "build"). Returning true here would cause decodeIfPresent to skip
+    // structs whose child keys DO exist. Instead, we always attempt to decode and
+    // rely on decodeIfPresent overrides for primitive optionals.
     func decodeNil(forKey key: Key) throws -> Bool {
-        !snapshot.hasValue(forKey: configKey(appending: key))
+        false
+    }
+
+    // MARK: - Primitive decodeIfPresent overrides
+    //
+    // Each override distinguishes three cases:
+    //   1. key absent          → return nil
+    //   2. key present, right type → return the value
+    //   3. key present, wrong type → throw DecodingError.typeMismatch
+    //
+    // The typed accessors on ConfigSnapshotReader collapse (1) and (3) into nil,
+    // so we use `hasValue` to disambiguate. Without this, a user config mistake
+    // like `cpus = "8"` would silently fall back to the property's default.
+
+    func decodeIfPresent(_ type: Bool.Type, forKey key: Key) throws -> Bool? {
+        let ck = configKey(appending: key)
+        guard snapshot.hasValue(forKey: ck) else { return nil }
+        guard let value = snapshot.bool(forKey: ck) else {
+            throw typeMismatch(Bool.self, at: ck, for: key)
+        }
+        return value
+    }
+
+    func decodeIfPresent(_ type: String.Type, forKey key: Key) throws -> String? {
+        let ck = configKey(appending: key)
+        guard snapshot.hasValue(forKey: ck) else { return nil }
+        guard let value = snapshot.string(forKey: ck) else {
+            throw typeMismatch(String.self, at: ck, for: key)
+        }
+        return value
+    }
+
+    func decodeIfPresent(_ type: Int.Type, forKey key: Key) throws -> Int? {
+        let ck = configKey(appending: key)
+        guard snapshot.hasValue(forKey: ck) else { return nil }
+        guard let value = snapshot.int(forKey: ck) else {
+            throw typeMismatch(Int.self, at: ck, for: key)
+        }
+        return value
+    }
+
+    func decodeIfPresent(_ type: Double.Type, forKey key: Key) throws -> Double? {
+        let ck = configKey(appending: key)
+        guard snapshot.hasValue(forKey: ck) else { return nil }
+        guard let value = snapshot.double(forKey: ck) else {
+            throw typeMismatch(Double.self, at: ck, for: key)
+        }
+        return value
+    }
+
+    func decodeIfPresent(_ type: Float.Type, forKey key: Key) throws -> Float? {
+        let ck = configKey(appending: key)
+        guard snapshot.hasValue(forKey: ck) else { return nil }
+        guard let value = snapshot.double(forKey: ck) else {
+            throw typeMismatch(Float.self, at: ck, for: key)
+        }
+        return Float(value)
+    }
+
+    func decodeIfPresent<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> T? {
+        // For non-primitive Decodable types, always attempt decode.
+        // If the nested struct's init(from:) uses decodeIfPresent for its own keys,
+        // missing keys will resolve to defaults correctly.
+        // Catch keyNotFound/valueNotFound at this level — they indicate the key is absent.
+        do {
+            return try decode(type, forKey: key)
+        } catch DecodingError.keyNotFound(let k, _) where k.stringValue == key.stringValue {
+            return nil
+        } catch DecodingError.valueNotFound {
+            return nil
+        }
     }
 
     func decode(_ type: Bool.Type, forKey key: Key) throws -> Bool {
@@ -106,6 +189,16 @@ struct KeyedContainer<Key: CodingKey>: KeyedDecodingContainerProtocol {
     }
 
     func decode<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> T {
+        if type is any UnsupportedDictionaryDecoding.Type {
+            throw DecodingError.typeMismatch(
+                T.self,
+                DecodingError.Context(
+                    codingPath: codingPath + [key],
+                    debugDescription:
+                        "ConfigSnapshotDecoder does not support decoding dictionaries (got \(T.self)). Represent dynamic keys as nested structs with known property names."
+                )
+            )
+        }
         let impl = ConfigSnapshotDecoderImpl(
             snapshot: snapshot,
             codingPath: codingPath + [key],
@@ -202,6 +295,16 @@ struct KeyedContainer<Key: CodingKey>: KeyedDecodingContainerProtocol {
         }
         return converted
     }
+
+    private func typeMismatch<T>(_ type: T.Type, at configKey: ConfigKey, for key: Key) -> DecodingError {
+        DecodingError.typeMismatch(
+            T.self,
+            DecodingError.Context(
+                codingPath: codingPath + [key],
+                debugDescription: "Expected \(T.self) at \"\(configKey)\" but found a value of a different type."
+            )
+        )
+    }
 }
 
 struct SingleValueContainer: SingleValueDecodingContainer {
@@ -211,14 +314,9 @@ struct SingleValueContainer: SingleValueDecodingContainer {
     let typeDecodingStrategies: [ObjectIdentifier: AnyConfigDecodingStrategy]
 
     // ConfigSnapshotReader stores typed values — string(forKey:) returns nil for
-    // int/double/bool values. Check all primitive accessors to avoid incorrectly
-    // treating non-string values as nil (e.g. Optional<Int> with an .int value).
+    // int/double/bool values. `hasValue` checks all primitive accessors.
     func decodeNil() -> Bool {
-        let key = configKey()
-        return snapshot.string(forKey: key) == nil
-            && snapshot.int(forKey: key) == nil
-            && snapshot.double(forKey: key) == nil
-            && snapshot.bool(forKey: key) == nil
+        !snapshot.hasValue(forKey: configKey())
     }
 
     func decode(_ type: Bool.Type) throws -> Bool {
@@ -252,6 +350,16 @@ struct SingleValueContainer: SingleValueDecodingContainer {
     func decode(_ type: UInt64.Type) throws -> UInt64 { try integerValue() }
 
     func decode<T: Decodable>(_ type: T.Type) throws -> T {
+        if type is any UnsupportedDictionaryDecoding.Type {
+            throw DecodingError.typeMismatch(
+                T.self,
+                DecodingError.Context(
+                    codingPath: codingPath,
+                    debugDescription:
+                        "ConfigSnapshotDecoder does not support decoding dictionaries (got \(T.self)). Represent dynamic keys as nested structs with known property names."
+                )
+            )
+        }
         let impl = ConfigSnapshotDecoderImpl(
             snapshot: snapshot,
             codingPath: codingPath,

@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerVersion
 import Foundation
 import SystemPackage
 
@@ -21,6 +22,7 @@ public enum PathUtils {
     public enum BaseConfigPath {
         case home
         case appRoot
+        case installRoot
 
         public func basePath(env: [String: String] = ProcessInfo.processInfo.environment) -> FilePath {
             switch self {
@@ -41,6 +43,19 @@ public enum PathUtils {
                     in: .userDomainMask
                 ).first!.appendingPathComponent("com.apple.container")
                 return FilePath(appSupportURL.path(percentEncoded: false))
+            case .installRoot:
+                if let envPath = env["CONTAINER_INSTALL_ROOT"], !envPath.isEmpty {
+                    return FilePath(envPath)
+                }
+                // Use the kernel-recorded executable path (via _NSGetExecutablePath)
+                // rather than argv[0]: when the binary is invoked through PATH (e.g.
+                // `container ...`), argv[0] is just the basename and resolves to an
+                // empty FilePath, which FileManager treats as CWD-relative.
+                let installRootURL = CommandLine.executablePathUrl
+                    .deletingLastPathComponent()
+                    .appendingPathComponent("..")
+                    .standardized
+                return FilePath(installRootURL.path(percentEncoded: false))
             }
         }
     }

@@ -42,7 +42,7 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try ConfigurationLoader.load()
+            let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
             let output =
                 switch format {
                 case .json: try Output.renderJSON(containerSystemConfig)
