@@ -96,20 +96,7 @@ extension Application {
                 }
 
                 let destURL = URL(fileURLWithPath: path)
-                let dstWithBasename = destURL.appendingPathComponent(srcURL.lastPathComponent)
-                do {
-                    try await client.copyIn(id: id, source: srcURL, destination: dstWithBasename, createParents: false)
-                } catch {
-                    if isDirectory.boolValue {
-                        try await client.copyIn(id: id, source: srcURL, destination: destURL)
-                    } else if path.hasSuffix("/") {
-                        throw ContainerizationError(
-                            .invalidArgument,
-                            message: "destination is not a directory: \(path)")
-                    } else {
-                        try await client.copyIn(id: id, source: srcURL, destination: destURL)
-                    }
-                }
+                try await client.copyIn(id: id, source: srcURL, destination: destURL, createParents: true)
             case (.container, .container):
                 throw ContainerizationError(.invalidArgument, message: "copying between containers is not supported")
             case (.local, .local):

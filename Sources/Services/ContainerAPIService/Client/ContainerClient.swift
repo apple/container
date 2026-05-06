@@ -309,9 +309,12 @@ public struct ContainerClient: Sendable {
     /// Copy a file or directory from the host into the container.
     public func copyIn(id: String, source: URL, destination: URL, mode: UInt32 = 0o644, createParents: Bool = true) async throws {
         let request = XPCMessage(route: .containerCopyIn)
+        let destinationPath = destination.hasDirectoryPath && !destination.path.hasSuffix("/")
+            ? "\(destination.path)/"
+            : destination.path
         request.set(key: .id, value: id)
         request.set(key: .sourcePath, value: source.path)
-        request.set(key: .destinationPath, value: destination.path)
+        request.set(key: .destinationPath, value: destinationPath)
         request.set(key: .fileMode, value: UInt64(mode))
         request.set(key: .createParents, value: createParents)
 
