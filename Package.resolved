@@ -13,10 +13,11 @@
     {
       "identity" : "containerization",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/containerization.git",
+      "location" : "https://github.com/full-chaos/containerization.git",
       "state" : {
         "revision" : "9275f365dd555c8f072e7d250d809f5eb7bdd746",
         "version" : "0.33.4"
+
       }
     },
     {

@@ -21,6 +21,7 @@ import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOCI
 import ContainerizationOS
+import Darwin
 import Foundation
 import SystemPackage
 
@@ -97,6 +98,12 @@ public struct Parser {
     public static func resources(
         cpus: Int64?,
         memory: String?,
+        blkioWeight: UInt16? = nil,
+        blkioWeightDevice: [String] = [],
+        deviceReadBps: [String] = [],
+        deviceWriteBps: [String] = [],
+        deviceReadIops: [String] = [],
+        deviceWriteIops: [String] = [],
         defaultCPUs: Int,
         defaultMemory: MemorySize,
     ) throws -> ContainerConfiguration.Resources {
@@ -112,7 +119,114 @@ public struct Parser {
             resource.memoryInBytes = try Parser.memoryStringAsMiB(memory).mib()
         }
 
+        resource.blockIO = try Parser.blockIO(
+            weight: blkioWeight,
+            weightDevice: blkioWeightDevice,
+            deviceReadBps: deviceReadBps,
+            deviceWriteBps: deviceWriteBps,
+            deviceReadIops: deviceReadIops,
+            deviceWriteIops: deviceWriteIops
+        )
+
         return resource
+    }
+
+    public static func blockIO(
+        weight: UInt16?,
+        weightDevice: [String],
+        deviceReadBps: [String],
+        deviceWriteBps: [String],
+        deviceReadIops: [String],
+        deviceWriteIops: [String]
+    ) throws -> LinuxBlockIO? {
+        let hasBlockIO = weight != nil
+            || !weightDevice.isEmpty
+            || !deviceReadBps.isEmpty
+            || !deviceWriteBps.isEmpty
+            || !deviceReadIops.isEmpty
+            || !deviceWriteIops.isEmpty
+        guard hasBlockIO else { return nil }
+
+        if let weight {
+            try validateBlockIOWeight(weight)
+        }
+
+        return try LinuxBlockIO(
+            weight: weight,
+            leafWeight: nil,
+            weightDevice: weightDevice.map {
+                let parsed = try parseBlockIODeviceSpec($0)
+                let weight = try parseUInt16(parsed.value, name: "--blkio-weight-device weight")
+                try validateBlockIOWeight(weight)
+                return LinuxWeightDevice(major: parsed.device.major, minor: parsed.device.minor, weight: weight, leafWeight: nil)
+            },
+            throttleReadBpsDevice: deviceReadBps.map {
+                let parsed = try parseBlockIODeviceSpec($0)
+                return LinuxThrottleDevice(major: parsed.device.major, minor: parsed.device.minor, rate: try parseByteRate(parsed.value))
+            },
+            throttleWriteBpsDevice: deviceWriteBps.map {
+                let parsed = try parseBlockIODeviceSpec($0)
+                return LinuxThrottleDevice(major: parsed.device.major, minor: parsed.device.minor, rate: try parseByteRate(parsed.value))
+            },
+            throttleReadIOPSDevice: deviceReadIops.map {
+                let parsed = try parseBlockIODeviceSpec($0)
+                return LinuxThrottleDevice(major: parsed.device.major, minor: parsed.device.minor, rate: try parseUInt64(parsed.value, name: "--device-read-iops rate"))
+            },
+            throttleWriteIOPSDevice: deviceWriteIops.map {
+                let parsed = try parseBlockIODeviceSpec($0)
+                return LinuxThrottleDevice(major: parsed.device.major, minor: parsed.device.minor, rate: try parseUInt64(parsed.value, name: "--device-write-iops rate"))
+            }
+        )
+    }
+
+    private static func parseBlockIODeviceSpec(_ value: String) throws -> (device: LinuxBlockIODevice, value: String) {
+        let parts = value.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else {
+            throw ContainerizationError(.invalidArgument, message: "block I/O device spec must be '<path>:<value>'")
+        }
+
+        return try (blockIODevice(path: String(parts[0])), String(parts[1]))
+    }
+
+    private static func blockIODevice(path: String) throws -> LinuxBlockIODevice {
+        var info = stat()
+        guard stat(path, &info) == 0 else {
+            throw ContainerizationError(.notFound, message: "block I/O device path not found: \(path)")
+        }
+
+        let rawDevice = UInt32(bitPattern: info.st_rdev)
+        let major = Int64((rawDevice >> 24) & 0xff)
+        let minor = Int64(rawDevice & 0x00ff_ffff)
+        return LinuxBlockIODevice(major: major, minor: minor)
+    }
+
+    private static func parseByteRate(_ value: String) throws -> UInt64 {
+        let measurement = try Measurement.parse(parsing: value)
+        let bytes = measurement.converted(to: .bytes).value
+        guard bytes >= 0, bytes.rounded(.down) == bytes else {
+            throw ContainerizationError(.invalidArgument, message: "block I/O byte rate must be a non-negative whole number of bytes")
+        }
+        return UInt64(bytes)
+    }
+
+    private static func parseUInt16(_ value: String, name: String) throws -> UInt16 {
+        guard let parsed = UInt16(value) else {
+            throw ContainerizationError(.invalidArgument, message: "\(name) must be an unsigned 16-bit integer")
+        }
+        return parsed
+    }
+
+    private static func parseUInt64(_ value: String, name: String) throws -> UInt64 {
+        guard let parsed = UInt64(value) else {
+            throw ContainerizationError(.invalidArgument, message: "\(name) must be an unsigned 64-bit integer")
+        }
+        return parsed
+    }
+
+    private static func validateBlockIOWeight(_ value: UInt16) throws {
+        guard (10...1000).contains(value) else {
+            throw ContainerizationError(.invalidArgument, message: "block I/O weight must be between 10 and 1000")
+        }
     }
 
     public static func allEnv(imageEnvs: [String], envFiles: [String], envs: [String]) throws -> [String] {

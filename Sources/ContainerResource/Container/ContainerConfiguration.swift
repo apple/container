@@ -154,6 +154,8 @@ public struct ContainerConfiguration: Sendable, Codable {
         public var cpus: Int = 4
         /// Memory in bytes allocated.
         public var memoryInBytes: UInt64 = 1024.mib()
+        /// Block I/O resource limits.
+        public var blockIO: LinuxBlockIO?
         /// Storage quota/size in bytes.
         public var storage: UInt64?
         /// Additional CPU cores allocated for VM overhead (guest agent, etc).

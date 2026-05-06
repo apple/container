@@ -1201,6 +1201,43 @@ struct ParserTest {
         #expect(result.memoryInBytes == 256.mib())
     }
 
+    @Test func testResourcesBlockIOFlags() throws {
+        let result = try Parser.resources(
+            cpus: nil,
+            memory: nil,
+            blkioWeight: 500,
+            blkioWeightDevice: ["/dev/null:700"],
+            deviceReadBps: ["/dev/null:1mb"],
+            deviceWriteBps: ["/dev/null:2mb"],
+            deviceReadIops: ["/dev/null:1000"],
+            deviceWriteIops: ["/dev/null:2000"],
+            defaultCPUs: 8,
+            defaultMemory: MemorySize("2g")
+        )
+
+        let blockIO = try #require(result.blockIO)
+        #expect(blockIO.weight == 500)
+        #expect(blockIO.weightDevice.first?.weight == 700)
+        #expect(blockIO.throttleReadBpsDevice.first?.rate == 1.mib())
+        #expect(blockIO.throttleWriteBpsDevice.first?.rate == 2.mib())
+        #expect(blockIO.throttleReadIOPSDevice.first?.rate == 1000)
+        #expect(blockIO.throttleWriteIOPSDevice.first?.rate == 2000)
+    }
+
+    @Test func testResourcesRejectsInvalidBlockIOWeight() throws {
+        #expect {
+            _ = try Parser.resources(
+                cpus: nil,
+                memory: nil,
+                blkioWeight: 1,
+                defaultCPUs: 8,
+                defaultMemory: MemorySize("2g")
+            )
+        } throws: { _ in
+            true
+        }
+    }
+
     @Test func testResourcesBuildPropertyLookup() async throws {
         let content = """
             [build]
