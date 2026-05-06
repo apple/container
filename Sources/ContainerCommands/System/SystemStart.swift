@@ -72,8 +72,10 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            try ConfigurationLoader.copyConfigToAppRoot()
-            let containerSystemConfig: ContainerSystemConfig = try ConfigurationLoader.load()
+            let appRootPath = FilePath(appRoot.path(percentEncoded: false))
+            try ConfigurationLoader.copyConfigurationToReadOnly(to: appRootPath)
+            let containerSystemConfig: ContainerSystemConfig = try ConfigurationLoader.load(
+                configurationFile: ConfigurationLoader.configurationFile(in: appRootPath))
 
             // Without the true path to the binary in the plist, `container-apiserver` won't launch properly.
             // Resolve the symlink to get the true binary path before writing the launchd plist.

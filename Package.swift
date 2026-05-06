@@ -229,6 +229,7 @@ let package = Package(
                 .product(name: "SystemPackage", package: "swift-system"),
                 "ContainerAPIClient",
                 "ContainerPersistence",
+                "ContainerTestSupport",
             ]
         ),
         .executableTarget(

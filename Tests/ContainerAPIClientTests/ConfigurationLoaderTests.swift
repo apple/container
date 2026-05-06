@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerTestSupport
 import ContainerizationExtras
 import Foundation
 import SystemPackage
@@ -22,193 +23,198 @@ import Testing
 @testable import ContainerPersistence
 
 struct ConfigurationLoaderTests {
-    @Test func testDefaultsWithNoFile() throws {
-        let path = FilePath(
-            FileManager.default.temporaryDirectory
-                .appendingPathComponent("nonexistent-\(UUID().uuidString).toml")
-                .path(percentEncoded: false)
+    private static func writeToml(_ contents: String, to path: FilePath) throws {
+        try contents.write(
+            to: URL(filePath: path.string),
+            atomically: true,
+            encoding: .utf8
         )
-        let config: ContainerSystemConfig = try ConfigurationLoader.load(configFile: path)
-        #expect(config.build.rosetta == true)
-        #expect(config.build.cpus == 2)
-        #expect(config.build.memory == BuildConfig.defaultMemory)
-        #expect(config.container.cpus == 4)
-        #expect(config.container.memory == ContainerConfig.defaultMemory)
-        #expect(config.dns.domain == nil)
-        #expect(!config.build.image.isEmpty)
-        #expect(!config.vminit.image.isEmpty)
-        #expect(!config.kernel.binaryPath.isEmpty)
-        #expect(!config.kernel.url.absoluteString.isEmpty)
-        #expect(config.network.subnet == nil)
-        #expect(config.network.subnetv6 == nil)
-        #expect(config.registry.domain == "docker.io")
     }
 
-    @Test func testTomlOverrideAllKeys() throws {
-        let toml = """
-            [build]
-            rosetta = false
-            cpus = 8
-            memory = "4096MB"
-            image = "custom-builder:latest"
-
-            [container]
-            cpus = 16
-            memory = "8g"
-
-            [dns]
-            domain = "custom"
-
-            [kernel]
-            binaryPath = "custom/path"
-            url = "https://example.com/kernel.tar"
-
-            [network]
-            subnet = "10.0.0.1/16"
-            subnetv6 = "fd01::/48"
-
-            [registry]
-            domain = "ghcr.io"
-
-            [vminit]
-            image = "custom-init:latest"
-            """
-        let tmpFile = FileManager.default.temporaryDirectory
-            .appendingPathComponent("test-\(UUID().uuidString).toml")
-        try toml.write(to: tmpFile, atomically: true, encoding: .utf8)
-        defer { try? FileManager.default.removeItem(at: tmpFile) }
-
-        let config: ContainerSystemConfig = try ConfigurationLoader.load(
-            configFile: FilePath(tmpFile.path(percentEncoded: false))
-        )
-        #expect(config.build.rosetta == false)
-        #expect(config.build.cpus == 8)
-        let expectedBuildMemory = try MemorySize("4096MB")
-        #expect(config.build.memory == expectedBuildMemory)
-        #expect(config.container.cpus == 16)
-        let expectedContainerMemory = try MemorySize("8g")
-        #expect(config.container.memory == expectedContainerMemory)
-        #expect(config.dns.domain == "custom")
-        #expect(config.build.image == "custom-builder:latest")
-        #expect(config.vminit.image == "custom-init:latest")
-        #expect(config.kernel.binaryPath == "custom/path")
-        #expect(config.kernel.url.absoluteString == "https://example.com/kernel.tar")
-        let expectedSubnet = try CIDRv4("10.0.0.1/16")
-        let expectedSubnetV6 = try CIDRv6("fd01::/48")
-        #expect(config.network.subnet == expectedSubnet)
-        #expect(config.network.subnetv6 == expectedSubnetV6)
-        #expect(config.registry.domain == "ghcr.io")
-    }
-
-    @Test func testPartialToml() throws {
-        let toml = """
-            [build]
-            cpus = 16
-            """
-        let tmpFile = FileManager.default.temporaryDirectory
-            .appendingPathComponent("test-\(UUID().uuidString).toml")
-        try toml.write(to: tmpFile, atomically: true, encoding: .utf8)
-        defer { try? FileManager.default.removeItem(at: tmpFile) }
-
-        let config: ContainerSystemConfig = try ConfigurationLoader.load(
-            configFile: FilePath(tmpFile.path(percentEncoded: false))
-        )
-        #expect(config.build.cpus == 16)
-        #expect(config.build.rosetta == true)
-        #expect(config.build.memory == BuildConfig.defaultMemory)
-        #expect(config.container.cpus == 4)
-        #expect(config.container.memory == ContainerConfig.defaultMemory)
-    }
-
-    @Test func testUnknownKeysIgnored() throws {
-        let toml = """
-            [build]
-            cpus = 4
-            unknownBuildKey = "ignored"
-
-            [unknownSection]
-            foo = "bar"
-            """
-        let tmpFile = FileManager.default.temporaryDirectory
-            .appendingPathComponent("test-\(UUID().uuidString).toml")
-        try toml.write(to: tmpFile, atomically: true, encoding: .utf8)
-        defer { try? FileManager.default.removeItem(at: tmpFile) }
-
-        let config: ContainerSystemConfig = try ConfigurationLoader.load(
-            configFile: FilePath(tmpFile.path(percentEncoded: false))
-        )
-        #expect(config.build.cpus == 4)
-        #expect(config.build.rosetta == true)
-    }
-
-    @Test func testInvalidTomlThrows() throws {
-        let tmpFile = FileManager.default.temporaryDirectory
-            .appendingPathComponent("test-invalid-toml.toml")
-        try "this is [not valid toml".write(to: tmpFile, atomically: true, encoding: .utf8)
-        defer { try? FileManager.default.removeItem(at: tmpFile) }
-        #expect(throws: (any Error).self) {
-            let _: ContainerSystemConfig = try ConfigurationLoader.load(
-                configFile: FilePath(tmpFile.path(percentEncoded: false))
-            )
+    @Test func testDefaultsWithNoFile() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let path = tempDir.appending("nonexistent.toml")
+            let config: ContainerSystemConfig = try ConfigurationLoader.load(configurationFile: path)
+            #expect(config.build.rosetta == true)
+            #expect(config.build.cpus == 2)
+            #expect(config.build.memory == BuildConfig.defaultMemory)
+            #expect(config.container.cpus == 4)
+            #expect(config.container.memory == ContainerConfig.defaultMemory)
+            #expect(config.dns.domain == nil)
+            #expect(!config.build.image.isEmpty)
+            #expect(!config.vminit.image.isEmpty)
+            #expect(!config.kernel.binaryPath.isEmpty)
+            #expect(!config.kernel.url.absoluteString.isEmpty)
+            #expect(config.network.subnet == nil)
+            #expect(config.network.subnetv6 == nil)
+            #expect(config.registry.domain == "docker.io")
         }
     }
 
-    @Test func testEmptyTomlDecodesToDefaults() throws {
-        let tmpFile = FileManager.default.temporaryDirectory
-            .appendingPathComponent("test-\(UUID().uuidString).toml")
-        try "".write(to: tmpFile, atomically: true, encoding: .utf8)
-        defer { try? FileManager.default.removeItem(at: tmpFile) }
+    @Test func testTomlOverrideAllKeys() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let toml = """
+                [build]
+                rosetta = false
+                cpus = 8
+                memory = "4096MB"
+                image = "custom-builder:latest"
 
-        let config: ContainerSystemConfig = try ConfigurationLoader.load(
-            configFile: FilePath(tmpFile.path(percentEncoded: false))
-        )
-        #expect(config.build.rosetta == true)
-        #expect(config.build.cpus == 2)
-        #expect(config.container.cpus == 4)
-        #expect(config.registry.domain == "docker.io")
+                [container]
+                cpus = 16
+                memory = "8g"
+
+                [dns]
+                domain = "custom"
+
+                [kernel]
+                binaryPath = "custom/path"
+                url = "https://example.com/kernel.tar"
+
+                [network]
+                subnet = "10.0.0.1/16"
+                subnetv6 = "fd01::/48"
+
+                [registry]
+                domain = "ghcr.io"
+
+                [vminit]
+                image = "custom-init:latest"
+                """
+            let tmpFile = tempDir.appending("test.toml")
+            try Self.writeToml(toml, to: tmpFile)
+
+            let config: ContainerSystemConfig = try ConfigurationLoader.load(configurationFile: tmpFile)
+            #expect(config.build.rosetta == false)
+            #expect(config.build.cpus == 8)
+            let expectedBuildMemory = try MemorySize("4096MB")
+            #expect(config.build.memory == expectedBuildMemory)
+            #expect(config.container.cpus == 16)
+            let expectedContainerMemory = try MemorySize("8g")
+            #expect(config.container.memory == expectedContainerMemory)
+            #expect(config.dns.domain == "custom")
+            #expect(config.build.image == "custom-builder:latest")
+            #expect(config.vminit.image == "custom-init:latest")
+            #expect(config.kernel.binaryPath == "custom/path")
+            #expect(config.kernel.url.absoluteString == "https://example.com/kernel.tar")
+            let expectedSubnet = try CIDRv4("10.0.0.1/16")
+            let expectedSubnetV6 = try CIDRv6("fd01::/48")
+            #expect(config.network.subnet == expectedSubnet)
+            #expect(config.network.subnetv6 == expectedSubnetV6)
+            #expect(config.registry.domain == "ghcr.io")
+        }
     }
 
-    @Test func testCopyConfigToAppRoot() throws {
-        let sourceDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("source-\(UUID().uuidString)")
-        let destDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("dest-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: sourceDir) }
-        defer { try? FileManager.default.removeItem(at: destDir) }
+    @Test func testPartialToml() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let toml = """
+                [build]
+                cpus = 16
+                """
+            let tmpFile = tempDir.appending("test.toml")
+            try Self.writeToml(toml, to: tmpFile)
 
-        let sourceFile = sourceDir.appendingPathComponent("runtime-config.toml")
-        try "[build]\ncpus = 8".write(to: sourceFile, atomically: true, encoding: .utf8)
-
-        let source = FilePath(sourceFile.path(percentEncoded: false))
-        let dest = FilePath(destDir.path(percentEncoded: false))
-            .appending("config")
-            .appending("runtime-config.toml")
-
-        try ConfigurationLoader.copyConfigToAppRoot(from: source, to: dest)
-
-        let copied = try String(contentsOf: URL(filePath: dest.string), encoding: .utf8)
-        #expect(copied.contains("cpus = 8"))
-
-        let attrs = try FileManager.default.attributesOfItem(atPath: dest.string)
-        let perms = attrs[.posixPermissions] as! Int
-        #expect(perms == 0o444)
+            let config: ContainerSystemConfig = try ConfigurationLoader.load(configurationFile: tmpFile)
+            #expect(config.build.cpus == 16)
+            #expect(config.build.rosetta == true)
+            #expect(config.build.memory == BuildConfig.defaultMemory)
+            #expect(config.container.cpus == 4)
+            #expect(config.container.memory == ContainerConfig.defaultMemory)
+        }
     }
 
-    @Test func testCopyConfigNoOpsWhenSourceMissing() throws {
-        let source = FilePath("/nonexistent-\(UUID().uuidString)/runtime-config.toml")
-        let dest = FilePath(
-            FileManager.default.temporaryDirectory
-                .appendingPathComponent("dest-\(UUID().uuidString)")
-                .appendingPathComponent("config")
-                .appendingPathComponent("runtime-config.toml")
-                .path(percentEncoded: false)
-        )
-        try ConfigurationLoader.copyConfigToAppRoot(from: source, to: dest)
-        #expect(!FileManager.default.fileExists(atPath: dest.string))
+    @Test func testUnknownKeysIgnored() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let toml = """
+                [build]
+                cpus = 4
+                unknownBuildKey = "ignored"
+
+                [unknownSection]
+                foo = "bar"
+                """
+            let tmpFile = tempDir.appending("test.toml")
+            try Self.writeToml(toml, to: tmpFile)
+
+            let config: ContainerSystemConfig = try ConfigurationLoader.load(configurationFile: tmpFile)
+            #expect(config.build.cpus == 4)
+            #expect(config.build.rosetta == true)
+        }
     }
 
-    @Test func testIndependentPluginConfig() throws {
+    @Test func testInvalidTomlThrows() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let tmpFile = tempDir.appending("test-invalid.toml")
+            try Self.writeToml("this is [not valid toml", to: tmpFile)
+            #expect(throws: (any Error).self) {
+                let _: ContainerSystemConfig = try ConfigurationLoader.load(configurationFile: tmpFile)
+            }
+        }
+    }
+
+    @Test func testEmptyTomlDecodesToDefaults() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let tmpFile = tempDir.appending("test.toml")
+            try Self.writeToml("", to: tmpFile)
+
+            let config: ContainerSystemConfig = try ConfigurationLoader.load(configurationFile: tmpFile)
+            #expect(config.build.rosetta == true)
+            #expect(config.build.cpus == 2)
+            #expect(config.container.cpus == 4)
+            #expect(config.registry.domain == "docker.io")
+        }
+    }
+
+    @Test func testCopyConfigToAppRoot() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let source = tempDir.appending("runtime-config.toml")
+            try Self.writeToml("[build]\ncpus = 8", to: source)
+
+            let destBase = tempDir.appending("dest")
+            try ConfigurationLoader.copyConfigurationToReadOnly(from: source, to: destBase)
+
+            let destFile = ConfigurationLoader.configurationFile(in: destBase)
+            let copied = try String(contentsOf: URL(filePath: destFile.string), encoding: .utf8)
+            #expect(copied.contains("cpus = 8"))
+
+            let attrs = try FileManager.default.attributesOfItem(atPath: destFile.string)
+            let perms = attrs[.posixPermissions] as! Int
+            #expect(perms == 0o444)
+        }
+    }
+
+    @Test func testCopyConfigOverwritesExistingReadOnlyDestination() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let source = tempDir.appending("runtime-config.toml")
+            let destBase = tempDir.appending("dest")
+
+            try Self.writeToml("[build]\ncpus = 8", to: source)
+            try ConfigurationLoader.copyConfigurationToReadOnly(from: source, to: destBase)
+
+            try Self.writeToml("[build]\ncpus = 16", to: source)
+            try ConfigurationLoader.copyConfigurationToReadOnly(from: source, to: destBase)
+
+            let destFile = ConfigurationLoader.configurationFile(in: destBase)
+            let copied = try String(contentsOf: URL(filePath: destFile.string), encoding: .utf8)
+            #expect(copied.contains("cpus = 16"))
+
+            let attrs = try FileManager.default.attributesOfItem(atPath: destFile.string)
+            let perms = attrs[.posixPermissions] as! Int
+            #expect(perms == 0o444)
+        }
+    }
+
+    @Test func testCopyConfigNoOpsWhenSourceMissing() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let source = tempDir.appending("nonexistent.toml")
+            let destBase = tempDir.appending("dest")
+            try ConfigurationLoader.copyConfigurationToReadOnly(from: source, to: destBase)
+            let destFile = ConfigurationLoader.configurationFile(in: destBase)
+            #expect(!FileManager.default.fileExists(atPath: destFile.string))
+        }
+    }
+
+    @Test func testIndependentPluginConfig() async throws {
         struct PluginConfig: Codable, Sendable, Initable {
             var network: NetworkConfig
             init() { self.network = .init() }
@@ -218,25 +224,23 @@ struct ConfigurationLoaderTests {
             }
         }
 
-        let toml = """
-            [build]
-            cpus = 8
+        try await TemporaryStorage.withTempDir { tempDir in
+            let toml = """
+                [build]
+                cpus = 8
 
-            [network]
-            subnet = "10.1.2.3/24"
-            subnetv6 = "fd02::/48"
-            """
-        let tmpFile = FileManager.default.temporaryDirectory
-            .appendingPathComponent("test-\(UUID().uuidString).toml")
-        try toml.write(to: tmpFile, atomically: true, encoding: .utf8)
-        defer { try? FileManager.default.removeItem(at: tmpFile) }
+                [network]
+                subnet = "10.1.2.3/24"
+                subnetv6 = "fd02::/48"
+                """
+            let tmpFile = tempDir.appending("test.toml")
+            try Self.writeToml(toml, to: tmpFile)
 
-        let config: PluginConfig = try ConfigurationLoader.load(
-            configFile: FilePath(tmpFile.path(percentEncoded: false))
-        )
-        let expectedSubnet = try CIDRv4("10.1.2.3/24")
-        let expectedSubnetV6 = try CIDRv6("fd02::/48")
-        #expect(config.network.subnet == expectedSubnet)
-        #expect(config.network.subnetv6 == expectedSubnetV6)
+            let config: PluginConfig = try ConfigurationLoader.load(configurationFile: tmpFile)
+            let expectedSubnet = try CIDRv4("10.1.2.3/24")
+            let expectedSubnetV6 = try CIDRv6("fd02::/48")
+            #expect(config.network.subnet == expectedSubnet)
+            #expect(config.network.subnetv6 == expectedSubnetV6)
+        }
     }
 }

@@ -16,7 +16,6 @@
 
 import ContainerizationError
 import Foundation
-import Logging
 import SystemPackage
 import TOML
 
@@ -24,70 +23,89 @@ public protocol Initable {
     init()
 }
 
-private let log = Logger(label: "ConfigurationLoader")
+public typealias LoadableConfiguration = Codable & Sendable & Initable
 
 public enum ConfigurationLoader {
     private static let configFilename = "runtime-config.toml"
+    private static let configDirectory = "config"
+    private static let READ_ONLY: Int = 0o444
+    private static let READ_AND_WRITE: Int = 0o644
 
-    public static func load<T: Codable & Sendable & Initable>() throws -> T {
-        let path = PathUtils.BaseConfigPath.appRoot.basePath()
-            .appending("config")
-            .appending(configFilename)
-        return try load(configFile: path)
+    /// Returns the canonical configuration file path under an appRoot base directory:
+    /// `<base>/config/runtime-config.toml`.
+    public static func configurationFile(in base: FilePath) -> FilePath {
+        base.appending(configDirectory).appending(configFilename)
     }
 
-    static func load<T: Codable & Sendable & Initable>(configFile: FilePath) throws -> T {
-        guard FileManager.default.fileExists(atPath: configFile.string) else {
+    /// Loads and decodes a TOML configuration file as type `T`.
+    ///
+    /// - Parameter configurationFile: Absolute path to the configuration file.
+    ///   When `nil`, falls back to
+    ///   `configurationFile(in: PathUtils.BaseConfigPath.appRoot.basePath())`.
+    /// - Returns: A decoded value of type `T`, or a default-initialized `T` if the
+    ///   configuration file does not exist.
+    public static func load<T: LoadableConfiguration>(configurationFile: FilePath? = nil) throws -> T {
+        let path = configurationFile ?? Self.configurationFile(in: PathUtils.BaseConfigPath.appRoot.basePath())
+        guard FileManager.default.fileExists(atPath: path.string) else {
             return T()
         }
         do {
-            let data = try Data(contentsOf: URL(filePath: configFile.string))
+            let data = try Data(contentsOf: URL(filePath: path.string))
             return try TOMLDecoder().decode(T.self, from: data)
         } catch {
             throw ContainerizationError(
                 .invalidArgument,
-                message: "failed to load configuration from '\(configFile)': \(error)"
+                message: "failed to load configuration from '\(path)': \(error)"
             )
         }
     }
 
-    public static func copyConfigToAppRoot() throws {
-        let source = PathUtils.BaseConfigPath.home.basePath()
+    /// Copies a TOML configuration file into a read-only destination under an appRoot base.
+    ///
+    /// - Parameters:
+    ///   - source: The file to copy. When `nil`, defaults to
+    ///     `<home>/container/runtime-config.toml`. If the source does not exist,
+    ///     this is a no-op.
+    ///   - destination: Base directory under which the file is written at
+    ///     `<destination>/config/runtime-config.toml`. When `nil`, falls back to
+    ///     `PathUtils.BaseConfigPath.appRoot.basePath()`. The destination file is written
+    ///     with `READ_ONLY` (`0o444`) permissions.
+    public static func copyConfigurationToReadOnly(
+        from source: FilePath? = nil,
+        to destination: FilePath? = nil
+    ) throws {
+        let source =
+            source
+            ?? PathUtils.BaseConfigPath.home.basePath()
             .appending(configFilename)
-        let destination = PathUtils.BaseConfigPath.appRoot.basePath()
-            .appending("config")
-            .appending(configFilename)
+        let destinationFile = Self.configurationFile(in: destination ?? PathUtils.BaseConfigPath.appRoot.basePath())
         do {
-            try copyConfigToAppRoot(from: source, to: destination)
+            let fm = FileManager.default
+            guard fm.fileExists(atPath: source.string) else { return }
+
+            let destDir = destinationFile.removingLastComponent()
+            try fm.createDirectory(
+                atPath: destDir.string,
+                withIntermediateDirectories: true
+            )
+            if fm.fileExists(atPath: destinationFile.string) {
+                try fm.setAttributes(
+                    [.posixPermissions: READ_AND_WRITE],
+                    ofItemAtPath: destinationFile.string
+                )
+                try fm.removeItem(at: URL(filePath: destinationFile.string))
+            }
+            try fm.copyItem(
+                at: URL(filePath: source.string),
+                to: URL(filePath: destinationFile.string)
+            )
+            try fm.setAttributes(
+                [.posixPermissions: READ_ONLY],
+                ofItemAtPath: destinationFile.string
+            )
         } catch {
             throw ContainerizationError(
                 .invalidState, message: "Failed to copy user TOML to AppRoot `\(error)`")
         }
-    }
-
-    static func copyConfigToAppRoot(from source: FilePath, to destination: FilePath) throws {
-        let fm = FileManager.default
-        guard fm.fileExists(atPath: source.string) else { return }
-
-        let destDir = destination.removingLastComponent()
-        try fm.createDirectory(
-            atPath: destDir.string,
-            withIntermediateDirectories: true
-        )
-        if fm.fileExists(atPath: destination.string) {
-            try fm.setAttributes(
-                [.posixPermissions: 0o644],
-                ofItemAtPath: destination.string
-            )
-            try fm.removeItem(at: URL(filePath: destination.string))
-        }
-        try fm.copyItem(
-            at: URL(filePath: source.string),
-            to: URL(filePath: destination.string)
-        )
-        try fm.setAttributes(
-            [.posixPermissions: 0o444],
-            ofItemAtPath: destination.string
-        )
     }
 }

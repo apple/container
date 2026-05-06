@@ -20,29 +20,52 @@ import SystemPackage
 import Testing
 
 struct PathUtilsTests {
-    @Test func testHomeBasePathDefault() {
-        let path = PathUtils.BaseConfigPath.home.basePath()
-        let expectedBase: String
-        if let xdg = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"], !xdg.isEmpty {
-            expectedBase = xdg
-        } else {
-            expectedBase = NSHomeDirectory() + "/.config"
-        }
-        let expected = FilePath(expectedBase).appending("container")
-        #expect(path == expected)
+    private static let homeFallback = FilePath(NSHomeDirectory() + "/.config").appending("container")
+    private static let appRootFallback: FilePath = {
+        let url = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first!.appendingPathComponent("com.apple.container")
+        return FilePath(url.path(percentEncoded: false))
+    }()
+
+    @Test func testHomeUsesXdgConfigHomeWhenSet() {
+        let path = PathUtils.BaseConfigPath.home.basePath(env: ["XDG_CONFIG_HOME": "/tmp/xdg-test"])
+        #expect(path == FilePath("/tmp/xdg-test/container"))
     }
 
-    @Test func testAppRootBasePathDefault() {
-        let path = PathUtils.BaseConfigPath.appRoot.basePath()
-        if let envPath = ProcessInfo.processInfo.environment["CONTAINER_APP_ROOT"], !envPath.isEmpty {
-            #expect(path == FilePath(envPath))
-        } else {
-            let appSupportURL = FileManager.default.urls(
-                for: .applicationSupportDirectory,
-                in: .userDomainMask
-            ).first!.appendingPathComponent("com.apple.container")
-            let expected = FilePath(appSupportURL.path(percentEncoded: false))
-            #expect(path == expected)
-        }
+    @Test func testHomeFallsBackToHomeDirectoryWhenXdgUnset() {
+        let path = PathUtils.BaseConfigPath.home.basePath(env: [:])
+        #expect(path == Self.homeFallback)
+    }
+
+    @Test func testHomeTreatsEmptyXdgAsUnset() {
+        let path = PathUtils.BaseConfigPath.home.basePath(env: ["XDG_CONFIG_HOME": ""])
+        #expect(path == Self.homeFallback)
+    }
+
+    @Test func testAppRootUsesContainerAppRootWhenSet() {
+        let path = PathUtils.BaseConfigPath.appRoot.basePath(env: ["CONTAINER_APP_ROOT": "/tmp/foo"])
+        #expect(path == FilePath("/tmp/foo"))
+    }
+
+    @Test func testAppRootFallsBackToApplicationSupportWhenUnset() {
+        let path = PathUtils.BaseConfigPath.appRoot.basePath(env: [:])
+        #expect(path == Self.appRootFallback)
+    }
+
+    @Test func testAppRootTreatsEmptyEnvAsUnset() {
+        let path = PathUtils.BaseConfigPath.appRoot.basePath(env: ["CONTAINER_APP_ROOT": ""])
+        #expect(path == Self.appRootFallback)
+    }
+
+    @Test func testAppRootIgnoresXdgConfigHome() {
+        let path = PathUtils.BaseConfigPath.appRoot.basePath(env: ["XDG_CONFIG_HOME": "/tmp/xdg-test"])
+        #expect(path == Self.appRootFallback)
+    }
+
+    @Test func testHomeIgnoresContainerAppRoot() {
+        let path = PathUtils.BaseConfigPath.home.basePath(env: ["CONTAINER_APP_ROOT": "/tmp/foo"])
+        #expect(path == Self.homeFallback)
     }
 }

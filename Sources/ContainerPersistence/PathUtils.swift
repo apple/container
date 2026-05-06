@@ -22,18 +22,18 @@ public enum PathUtils {
         case home
         case appRoot
 
-        public func basePath() -> FilePath {
+        public func basePath(env: [String: String] = ProcessInfo.processInfo.environment) -> FilePath {
             switch self {
             case .home:
                 let configHome: String
-                if let xdg = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"], !xdg.isEmpty {
+                if let xdg = env["XDG_CONFIG_HOME"], !xdg.isEmpty {
                     configHome = xdg
                 } else {
                     configHome = NSHomeDirectory() + "/.config"
                 }
                 return FilePath(configHome).appending("container")
             case .appRoot:
-                if let envPath = ProcessInfo.processInfo.environment["CONTAINER_APP_ROOT"], !envPath.isEmpty {
+                if let envPath = env["CONTAINER_APP_ROOT"], !envPath.isEmpty {
                     return FilePath(envPath)
                 }
                 let appSupportURL = FileManager.default.urls(
