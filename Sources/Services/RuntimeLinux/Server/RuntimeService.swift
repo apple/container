@@ -1063,6 +1063,7 @@ public actor RuntimeService {
         czConfig.cpus = config.resources.cpus
         czConfig.cpuOverhead = config.resources.cpuOverhead
         czConfig.memoryInBytes = config.resources.memoryInBytes
+        czConfig.blockIO = config.resources.blockIO
         // Overcommit memory and allow more memory mappings than the kernel default
         // so workloads inside swap-less guest VMs hit limits less easily.
         var sysctls = config.sysctls
