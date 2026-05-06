@@ -329,6 +329,9 @@ public struct Flags {
         @Flag(name: .long, help: "Forward SSH agent socket to container")
         public var ssh = false
 
+        @Option(name: .customLong("shm-size"), help: "Size of /dev/shm (e.g. 64M, 1G)")
+        public var shmSize: String?
+
         @Option(name: .customLong("tmpfs"), help: "Add a tmpfs mount to the container at the given path")
         public var tmpFs: [String] = []
 

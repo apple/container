@@ -15,7 +15,6 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
-import ContainerPersistence
 import ContainerResource
 import Containerization
 import ContainerizationError
@@ -35,15 +34,17 @@ public actor SnapshotStore {
     /// If the given platform for the image cannot be unpacked return `nil`.
     public typealias UnpackStrategy = @Sendable (Containerization.Image, Platform) async throws -> Unpacker?
 
-    public static let defaultUnpackStrategy: UnpackStrategy = { image, platform in
-        guard platform.os == "linux" else {
-            return nil
+    public static func defaultUnpackStrategy(initImage: String) -> UnpackStrategy {
+        { image, platform in
+            guard platform.os == "linux" else {
+                return nil
+            }
+            var minBlockSize = 512.gib()
+            if image.reference == initImage {
+                minBlockSize = 512.mib()
+            }
+            return EXT4Unpacker(blockSizeInBytes: minBlockSize)
         }
-        var minBlockSize = 512.gib()
-        if image.reference == DefaultsStore.get(key: .defaultInitImage) {
-            minBlockSize = 512.mib()
-        }
-        return EXT4Unpacker(blockSizeInBytes: minBlockSize)
     }
 
     let path: URL

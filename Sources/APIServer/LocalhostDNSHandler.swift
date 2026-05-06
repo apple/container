@@ -23,6 +23,7 @@ import DNSServer
 import Foundation
 import Logging
 import Synchronization
+import SystemPackage
 
 actor LocalhostDNSHandler: DNSHandler {
     private let ttl: UInt32
@@ -30,10 +31,10 @@ actor LocalhostDNSHandler: DNSHandler {
 
     private var dns: [DNSName: IPv4Address]
 
-    public init(resolversURL: URL = HostDNSResolver.defaultConfigPath, ttl: UInt32 = 5, log: Logger) {
+    public init(configPath: FilePath = HostDNSResolver.defaultConfigPath, ttl: UInt32 = 5, log: Logger) {
         self.ttl = ttl
 
-        self.watcher = DirectoryWatcher(directoryURL: resolversURL, log: log)
+        self.watcher = DirectoryWatcher(directoryURL: URL(filePath: configPath.string), log: log)
         self.dns = [DNSName: IPv4Address]()
     }
 

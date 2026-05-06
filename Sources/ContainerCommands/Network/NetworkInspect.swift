@@ -17,7 +17,6 @@
 import ArgumentParser
 import ContainerAPIClient
 import Foundation
-import SwiftProtobuf
 
 extension Application {
     public struct NetworkInspect: AsyncLoggableCommand {
@@ -35,11 +34,7 @@ extension Application {
 
         public func run() async throws {
             let networkClient = NetworkClient()
-            let items = try await networkClient.list().filter {
-                networks.contains($0.id)
-            }.map {
-                PrintableNetwork($0)
-            }
+            let items = try await networkClient.list().filter { networks.contains($0.id) }
             try Output.emit(Output.renderJSON(items))
         }
     }

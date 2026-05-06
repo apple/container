@@ -18,6 +18,7 @@ import ArgumentParser
 import ContainerAPIClient
 import ContainerPlugin
 import ContainerResource
+import Containerization
 import ContainerizationOS
 import Foundation
 import Logging
@@ -65,7 +66,7 @@ extension Application {
                 log.info("stopping containers", metadata: ["stopTimeoutSeconds": "\(Self.stopTimeoutSeconds)"])
                 do {
                     let containers = try await client.list().map { $0.id }
-                    let signal = try Signals.parseSignal("SIGTERM")
+                    let signal = Signal.term.rawValue
                     let opts = ContainerStopOptions(timeoutInSeconds: Self.stopTimeoutSeconds, signal: signal)
                     try await ContainerStop.stopContainers(
                         client: client,

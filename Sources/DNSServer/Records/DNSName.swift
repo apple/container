@@ -91,7 +91,12 @@ public struct DNSName: Sendable, Hashable, CustomStringConvertible {
 
     /// The fully-qualified domain name with trailing dot.
     public var description: String {
-        labels.isEmpty ? "." : labels.joined(separator: ".") + "."
+        labels.joined(separator: ".") + "."
+    }
+
+    /// The partially-qualified domain name, which is the FQDN less the trailing dot.
+    public var pqdn: String {
+        labels.joined(separator: ".")
     }
 
     /// Serialize this name into the buffer at the given offset.

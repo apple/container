@@ -17,7 +17,13 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerPersistence
+import ContainerPlugin
 import Foundation
+
+enum ListOutputFormat: String, Decodable, ExpressibleByArgument {
+    case json
+    case toml
+}
 
 extension Application {
     public struct PropertyList: AsyncLoggableCommand {
@@ -28,10 +34,7 @@ extension Application {
         )
 
         @Option(name: .long, help: "Format of the output")
-        var format: ListFormat = .table
-
-        @Flag(name: .shortAndLong, help: "Only output the property ID")
-        var quiet = false
+        var format: ListOutputFormat = .toml
 
         @OptionGroup
         public var logOptions: Flags.Logging
@@ -39,55 +42,15 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let vals = DefaultsStore.allValues()
-
-            try Output.render(
-                json: vals,
-                display: vals.map { PrintableProperty($0) },
-                format: format, quiet: quiet
+            let containerSystemConfig: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(
+                configFile: SystemRuntimeOptions.configFileFromAppRoot(ApplicationRoot.url)
             )
+            let output =
+                switch format {
+                case .json: try Output.renderJSON(containerSystemConfig)
+                case .toml: try Output.renderTOML(containerSystemConfig)
+                }
+            Output.emit(output)
         }
-    }
-}
-
-private struct PrintableProperty: ListDisplayable {
-    let id: String
-    let typeName: String
-    let valueDescription: String
-    let description: String
-
-    init(_ value: DefaultsStoreValue) {
-        self.id = value.id
-        self.typeName = String(describing: value.type)
-        self.valueDescription = value.value?.description.elided(to: 40) ?? "*undefined*"
-        self.description = value.description
-    }
-
-    static var tableHeader: [String] {
-        ["ID", "TYPE", "VALUE", "DESCRIPTION"]
-    }
-
-    var tableRow: [String] {
-        [id, typeName, valueDescription, description]
-    }
-
-    var quietValue: String {
-        id
-    }
-}
-
-extension String {
-    func elided(to maxCount: Int) -> String {
-        let ellipsis = "..."
-        guard self.count > maxCount else {
-            return self
-        }
-
-        if maxCount < ellipsis.count {
-            return String(ellipsis.prefix(maxCount))
-        }
-
-        let prefixCount = maxCount - ellipsis.count
-        return self.prefix(prefixCount) + ellipsis
     }
 }

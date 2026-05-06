@@ -23,7 +23,7 @@ import PackageDescription
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
 let builderShimVersion = "0.12.0"
-let scVersion = "0.31.0"
+let scVersion = "0.32.0"
 
 let package = Package(
     name: "container",
@@ -80,8 +80,10 @@ let package = Package(
                 .product(name: "ContainerizationArchive", package: "containerization"),
                 .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
+                .product(name: "TOML", package: "swift-toml"),
                 "ContainerBuild",
                 "ContainerLog",
+                "ContainerPersistence",
                 "ContainerResource",
                 "Yams",
             ],
@@ -93,6 +95,7 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "SwiftProtobuf", package: "swift-protobuf"),
+                .product(name: "TOML", package: "swift-toml"),
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationOCI", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
@@ -152,6 +155,7 @@ let package = Package(
                 .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
                 .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),
                 .product(name: "Logging", package: "swift-log"),
+                .product(name: "SystemPackage", package: "swift-system"),
                 "ContainerAPIService",
                 "ContainerAPIClient",
                 "ContainerLog",
@@ -188,6 +192,14 @@ let package = Package(
             ],
             path: "Sources/Services/ContainerAPIService/Server"
         ),
+        .testTarget(
+            name: "ContainerAPIServiceTests",
+            dependencies: [
+                .product(name: "Containerization", package: "containerization"),
+                "ContainerResource",
+                "ContainerSandboxServiceClient",
+            ]
+        ),
         .target(
             name: "ContainerAPIClient",
             dependencies: [
@@ -205,6 +217,7 @@ let package = Package(
                 "ContainerPlugin",
                 "ContainerResource",
                 "ContainerXPC",
+                "DNSServer",
                 "TerminalProgress",
             ],
             path: "Sources/Services/ContainerAPIService/Client"
@@ -213,6 +226,7 @@ let package = Package(
             name: "ContainerAPIClientTests",
             dependencies: [
                 .product(name: "Containerization", package: "containerization"),
+                .product(name: "SystemPackage", package: "swift-system"),
                 "ContainerAPIClient",
                 "ContainerPersistence",
             ]
@@ -226,6 +240,7 @@ let package = Package(
                 .product(name: "SystemPackage", package: "swift-system"),
                 "ContainerImagesService",
                 "ContainerLog",
+                "ContainerPersistence",
                 "ContainerPlugin",
                 "ContainerVersion",
                 "ContainerXPC",
@@ -274,6 +289,7 @@ let package = Package(
                 "ContainerLog",
                 "ContainerNetworkService",
                 "ContainerNetworkServiceClient",
+                "ContainerPersistence",
                 "ContainerPlugin",
                 "ContainerResource",
                 "ContainerVersion",
@@ -389,8 +405,19 @@ let package = Package(
             dependencies: [
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Containerization", package: "containerization"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                .product(name: "TOML", package: "swift-toml"),
                 "CVersion",
                 "ContainerVersion",
+            ]
+        ),
+        .testTarget(
+            name: "ContainerPersistenceTests",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                "ContainerPersistence",
+                "ContainerTestSupport",
             ]
         ),
         .target(
@@ -409,14 +436,6 @@ let package = Package(
                 "ContainerPlugin"
             ]
         ),
-        .testTarget(
-            name: "ContainerSandboxServiceTests",
-            dependencies: [
-                .product(name: "Containerization", package: "containerization"),
-                "ContainerResource",
-                "ContainerSandboxServiceClient",
-            ]
-        ),
         .target(
             name: "ContainerXPC",
             dependencies: [
@@ -432,6 +451,12 @@ let package = Package(
                 .product(name: "ContainerizationOS", package: "containerization"),
             ],
             path: "Sources/ContainerOS"
+        ),
+        .testTarget(
+            name: "ContainerOSTests",
+            dependencies: [
+                "ContainerOS"
+            ]
         ),
         .target(
             name: "TerminalProgress",
@@ -457,12 +482,6 @@ let package = Package(
             name: "DNSServerTests",
             dependencies: [
                 "DNSServer"
-            ]
-        ),
-        .testTarget(
-            name: "ContainerOSTests",
-            dependencies: [
-                "ContainerOS"
             ]
         ),
         .target(
@@ -501,6 +520,12 @@ let package = Package(
             publicHeadersPath: "include",
             linkerSettings: [
                 .linkedLibrary("bsm")
+            ]
+        ),
+        .target(
+            name: "ContainerTestSupport",
+            dependencies: [
+                .product(name: "SystemPackage", package: "swift-system")
             ]
         ),
     ]

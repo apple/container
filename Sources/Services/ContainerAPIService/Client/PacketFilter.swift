@@ -16,6 +16,7 @@
 
 import ContainerizationError
 import ContainerizationExtras
+import DNSServer
 import Foundation
 
 public struct PacketFilter {
@@ -31,7 +32,7 @@ public struct PacketFilter {
         self.anchorsURL = anchorsURL
     }
 
-    public func createRedirectRule(from: IPAddress, to: IPAddress, domain: String) throws {
+    public func createRedirectRule(from: IPAddress, to: IPAddress, domain: DNSName) throws {
         guard type(of: from) == type(of: to) else {
             throw ContainerizationError(.invalidArgument, message: "protocol does not match: \(from) vs. \(to)")
         }
@@ -45,7 +46,7 @@ public struct PacketFilter {
         case .v4: inet = "inet"
         case .v6: inet = "inet6"
         }
-        let redirectRule = "rdr \(inet) from any to \(from.description) -> \(to.description) # \(domain)"
+        let redirectRule = "rdr \(inet) from any to \(from.description) -> \(to.description) # \(domain.pqdn)"
 
         var content = ""
         if fm.fileExists(atPath: anchorURL.path) {
@@ -62,7 +63,7 @@ public struct PacketFilter {
         try lines.joined(separator: "\n").write(toFile: anchorURL.path, atomically: true, encoding: .utf8)
     }
 
-    public func removeRedirectRule(from: IPAddress, to: IPAddress, domain: String) throws {
+    public func removeRedirectRule(from: IPAddress, to: IPAddress, domain: DNSName) throws {
         guard type(of: from) == type(of: to) else {
             throw ContainerizationError(.invalidArgument, message: "protocol does not match: \(from) vs. \(to)")
         }
@@ -76,7 +77,7 @@ public struct PacketFilter {
         case .v4: inet = "inet"
         case .v6: inet = "inet6"
         }
-        let redirectRule = "rdr \(inet) from any to \(from.description) -> \(to.description) # \(domain)"
+        let redirectRule = "rdr \(inet) from any to \(from.description) -> \(to.description) # \(domain.pqdn)"
 
         guard fm.fileExists(atPath: anchorURL.path) else {
             return

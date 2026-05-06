@@ -7,7 +7,7 @@
 
 The tool consumes and produces [OCI-compatible container images](https://github.com/opencontainers/image-spec), so you can pull and run images from any standard container registry. You can push images that you build to those registries as well, and run the images in any other OCI-compatible application.
 
-`container` uses the [Containerization](https://github.com/apple/containerization) Swift package for low level container, image, and process management.
+`container` uses the [Containerization](https://github.com/apple/containerization) Swift package for low-level container, image, and process management.
 
 ![introductory movie showing some basic commands](./docs/assets/landing-movie.gif)
 
@@ -17,7 +17,7 @@ The tool consumes and produces [OCI-compatible container images](https://github.
 
 You need a Mac with Apple silicon to run `container`. To build it, see the [BUILDING](./BUILDING.md) document.
 
-`container` is supported on macOS 26, since it takes advantage of new features and enhancements to virtualization and networking in this release. We do not support older versions of macOS and the `container` maintainers typically will not address issues that cannot be reproduced on the macOS 26.
+`container` is supported on macOS 26, since it takes advantage of new features and enhancements to virtualization and networking in this release. We do not support older versions of macOS and the `container` maintainers typically will not address issues that cannot be reproduced on macOS 26.
 
 ### Initial install
 
@@ -35,19 +35,19 @@ container system start
 
 For both upgrading and downgrading, you can manually download and install the signed installer package by following the steps from [initial install](#initial-install) or use the `update-container.sh` script (installed to `/usr/local/bin`).
 
-If you're upgrading and downgrading, you must stop your existing `container`:
+If you're upgrading or downgrading, you must stop your existing `container`:
 
 ```bash
 container system stop
 ```
 
-For upgrading to the latest release version, simply run the command below:
+To upgrade to the latest release, simply run the command below:
 
 ```bash
 /usr/local/bin/update-container.sh
 ```
 
-If you're downgrading, you must uninstall your existing `container` (the `-k` flag keeps your user data, while `-d` removes it):
+To downgrade, you must uninstall your existing `container` (the `-k` flag keeps your user data, while `-d` removes it):
 
 ```bash
 /usr/local/bin/uninstall-container.sh -k
@@ -85,8 +85,8 @@ To retain your user data so that it is available should you reinstall later, run
 
 ## Contributing
 
-Contributions to `container` are welcomed and encouraged. Please see our [main contributing guide](https://github.com/apple/containerization/blob/main/CONTRIBUTING.md) for more information.
+Contributions to `container` are welcome and encouraged. Please see our [main contributing guide](https://github.com/apple/containerization/blob/main/CONTRIBUTING.md) for more information.
 
 ## Project Status
 
-The container project is currently under active development. Its stability, both for consuming the project as a Swift package and the `container` tool, is only guaranteed within patch versions, such as between 0.1.1 and 0.1.2. Minor version number releases may include breaking changes until we achieve a 1.0.0 release.
+The container project is currently under active development. Its stability, both for consuming the project as a Swift package and the `container` tool, is only guaranteed within patch versions, such as between 0.1.1 and 0.1.2. Minor version releases may include breaking changes until we reach a 1.0.0 release.

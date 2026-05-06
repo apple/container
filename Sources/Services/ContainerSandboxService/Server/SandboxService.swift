@@ -541,12 +541,12 @@ public actor SandboxService {
                     guard let proc = processInfo.process else {
                         throw ContainerizationError(.invalidState, message: "process \(id) not started")
                     }
-                    try await proc.kill(Int32(try message.signal()))
+                    try await proc.kill(Signal(rawValue: Int32(try message.signal())))
                     return message.reply()
                 }
 
                 // TODO: fix underlying signal value to int64
-                try await ctr.container.kill(Int32(try message.signal()))
+                try await ctr.container.kill(Signal(rawValue: Int32(try message.signal())))
                 return message.reply()
             default:
                 throw ContainerizationError(
@@ -952,6 +952,15 @@ public actor SandboxService {
         czConfig.virtualization = config.virtualization
         czConfig.useInit = config.useInit
 
+        if let shmSize = config.shmSize {
+            for i in czConfig.mounts.indices {
+                if czConfig.mounts[i].destination == "/dev/shm" {
+                    czConfig.mounts[i].options.removeAll { $0.hasPrefix("size=") }
+                    czConfig.mounts[i].options.append("size=\(shmSize)")
+                }
+            }
+        }
+
         for mount in config.mounts {
             if try mount.isSocket() {
                 let socket = UnixSocketConfiguration(
@@ -1007,10 +1016,10 @@ public actor SandboxService {
         let networkClient = NetworkClient()
         for allocatedAttach in allocatedAttachments {
             let state = try await networkClient.get(id: allocatedAttach.attachment.network)
-            guard case .running(_, let status) = state else {
+            guard state.status.phase == "running", let gateway = state.status.ipv4Gateway else {
                 continue
             }
-            return [status.ipv4Gateway.description]
+            return [gateway.description]
         }
 
         return []
@@ -1176,9 +1185,9 @@ public actor SandboxService {
                     try await lc.wait()
                 }
                 group.addTask {
-                    try await lc.kill(stopOpts.signal)
+                    try await lc.kill(Signal(rawValue: stopOpts.signal))
                     try await Task.sleep(for: .seconds(stopOpts.timeoutInSeconds))
-                    try await lc.kill(SIGKILL)
+                    try await lc.kill(.kill)
 
                     return ExitStatus(exitCode: 137)
                 }

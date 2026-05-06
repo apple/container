@@ -18,6 +18,7 @@ import ArgumentParser
 import ContainerImagesService
 import ContainerImagesServiceClient
 import ContainerLog
+import ContainerPersistence
 import ContainerPlugin
 import ContainerVersion
 import ContainerXPC
@@ -56,9 +57,10 @@ extension ImagesHelper {
 
         var logRoot = LogRoot.path
 
-        private static let unpackStrategy = SnapshotStore.defaultUnpackStrategy
-
         func run() async throws {
+            let containerSystemConfig: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(
+                configFile: SystemRuntimeOptions.configFileFromAppRoot(ApplicationRoot.url)
+            )
             let commandName = ImagesHelper._commandName
             let logPath = logRoot.map { $0.appending("\(commandName).log") }
             let log = ServiceLogger.bootstrap(category: "ImagesHelper", debug: debug, logPath: logPath)
@@ -71,7 +73,7 @@ extension ImagesHelper {
                 log.info("configuring XPC server")
                 var routes = [String: XPCServer.RouteHandler]()
                 try self.initializeContentService(root: appRoot, log: log, routes: &routes)
-                try self.initializeImagesService(root: appRoot, log: log, routes: &routes)
+                try self.initializeImagesService(root: appRoot, containerSystemConfig: containerSystemConfig, log: log, routes: &routes)
                 let xpc = XPCServer(
                     identifier: serviceIdentifier,
                     routes: routes,
@@ -90,10 +92,11 @@ extension ImagesHelper {
             }
         }
 
-        private func initializeImagesService(root: URL, log: Logger, routes: inout [String: XPCServer.RouteHandler]) throws {
+        private func initializeImagesService(root: URL, containerSystemConfig: ContainerSystemConfig, log: Logger, routes: inout [String: XPCServer.RouteHandler]) throws {
             let contentStore = RemoteContentStoreClient()
             let imageStore = try ImageStore(path: root, contentStore: contentStore)
-            let snapshotStore = try SnapshotStore(path: root, unpackStrategy: Self.unpackStrategy, log: log)
+            let unpackStrategy = SnapshotStore.defaultUnpackStrategy(initImage: containerSystemConfig.vminit.image)
+            let snapshotStore = try SnapshotStore(path: root, unpackStrategy: unpackStrategy, log: log)
             let service = try ImagesService(contentStore: contentStore, imageStore: imageStore, snapshotStore: snapshotStore, log: log)
             let harness = ImagesServiceHarness(service: service, log: log)
 

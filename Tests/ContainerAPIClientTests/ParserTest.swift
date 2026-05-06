@@ -1183,4 +1183,116 @@ struct ParserTest {
         }
     }
 
+    // MARK: - Parser.resources
+
+    @Test func testResourcesCustomDefaults() throws {
+        let result = try Parser.resources(
+            cpus: nil, memory: nil,
+            defaultCPUs: 2, defaultMemory: try MemorySize("2048MB")
+        )
+        #expect(result.cpus == 2)
+        #expect(result.memoryInBytes == 2048.mib())
+    }
+
+    @Test func testResourcesFlagOverridesDefaults() throws {
+        let result = try Parser.resources(cpus: 1, memory: "256m", defaultCPUs: 8, defaultMemory: MemorySize("2g"))
+        #expect(result.cpus == 1)
+        #expect(result.memoryInBytes == 256.mib())
+    }
+
+    @Test func testResourcesBuildPropertyLookup() throws {
+        let content = """
+            [build]
+            cpus = 8
+            memory = "4g"
+            """
+        let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("test-build-lookup.toml")
+        FileManager.default.createFile(atPath: tempFile.path(), contents: Data(content.utf8))
+        defer { try? FileManager.default.removeItem(at: tempFile) }
+
+        let config: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(configFile: tempFile)
+        let result = try Parser.resources(
+            cpus: nil, memory: nil,
+            defaultCPUs: config.build.cpus,
+            defaultMemory: config.build.memory
+        )
+        #expect(result.cpus == 8)
+        #expect(result.memoryInBytes == 4096.mib())
+    }
+
+    @Test func testResourcesCPUsFromProperty() throws {
+        let content = """
+            [container]
+            cpus = 8
+            """
+        let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("test-cpus-property.toml")
+        FileManager.default.createFile(atPath: tempFile.path(), contents: Data(content.utf8))
+        defer { try? FileManager.default.removeItem(at: tempFile) }
+
+        let config: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(configFile: tempFile)
+        let result = try Parser.resources(
+            cpus: nil, memory: nil,
+            defaultCPUs: config.container.cpus,
+            defaultMemory: config.container.memory
+        )
+        #expect(result.cpus == 8)
+    }
+
+    @Test func testResourcesMemoryFromProperty() throws {
+        let content = """
+            [container]
+            memory = "2g"
+            """
+        let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("test-memory-property.toml")
+        FileManager.default.createFile(atPath: tempFile.path(), contents: Data(content.utf8))
+        defer { try? FileManager.default.removeItem(at: tempFile) }
+
+        let config: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(configFile: tempFile)
+        let result = try Parser.resources(
+            cpus: nil, memory: nil,
+            defaultCPUs: config.container.cpus,
+            defaultMemory: config.container.memory
+        )
+        #expect(result.memoryInBytes == 2048.mib())
+    }
+
+    @Test func testResourcesFlagOverridesProperty() throws {
+        let content = """
+            [container]
+            cpus = 8
+            memory = "2g"
+            """
+        let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("test-flag-overrides.toml")
+        FileManager.default.createFile(atPath: tempFile.path(), contents: Data(content.utf8))
+        defer { try? FileManager.default.removeItem(at: tempFile) }
+
+        let config: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(configFile: tempFile)
+        let result = try Parser.resources(
+            cpus: 1, memory: "256m",
+            defaultCPUs: config.container.cpus,
+            defaultMemory: config.container.memory
+        )
+        #expect(result.cpus == 1)
+        #expect(result.memoryInBytes == 256.mib())
+    }
+
+    @Test func testResourcesPropertyKeysAreIsolated() throws {
+        let content = """
+            [container]
+            cpus = 16
+            memory = "8g"
+            """
+        let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("test-keys-isolated.toml")
+        FileManager.default.createFile(atPath: tempFile.path(), contents: Data(content.utf8))
+        defer { try? FileManager.default.removeItem(at: tempFile) }
+
+        let config: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(configFile: tempFile)
+        let result = try Parser.resources(
+            cpus: nil, memory: nil,
+            defaultCPUs: config.build.cpus,
+            defaultMemory: config.build.memory
+        )
+        #expect(result.cpus == 2)
+        #expect(result.memoryInBytes == 2048.mib())
+    }
 }

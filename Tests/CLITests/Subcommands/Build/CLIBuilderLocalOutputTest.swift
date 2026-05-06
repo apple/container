@@ -61,7 +61,7 @@ extension TestCLIBuildBase {
             )
 
             // Verify the build succeeded
-            #expect(response.contains("Successfully exported to"), "Expected successful local export message")
+            #expect(response.contains(outputDir.absolutePath()), "Expected successful local export message")
 
             // Verify the output directory was created
             #expect(FileManager.default.fileExists(atPath: outputDir.path), "Expected local output directory to exist")
@@ -89,7 +89,7 @@ extension TestCLIBuildBase {
             let basicResponse = try buildWithLocalOutput(tag: basicImageName, tempDir: basicTempDir, outputDir: basicOutputDir)
 
             // Verify basic build succeeded
-            #expect(basicResponse.contains("Successfully exported to"), "Expected successful basic local export message")
+            #expect(basicResponse.contains(basicOutputDir.absolutePath()), "Expected successful basic local export message")
             #expect(FileManager.default.fileExists(atPath: basicOutputDir.path), "Expected basic local output directory to exist")
 
             // Test context functionality - verify COPY works with context
@@ -111,7 +111,7 @@ extension TestCLIBuildBase {
             let contextResponse = try buildWithLocalOutput(tag: contextImageName, tempDir: contextTempDir, outputDir: contextOutputDir)
 
             // Verify context build succeeded
-            #expect(contextResponse.contains("Successfully exported to"), "Expected successful context local export message")
+            #expect(contextResponse.contains(contextOutputDir.absolutePath()), "Expected successful context local export message")
             #expect(FileManager.default.fileExists(atPath: contextOutputDir.path), "Expected context local output directory to exist")
         }
 
@@ -146,7 +146,7 @@ extension TestCLIBuildBase {
             )
 
             // Verify the build succeeded
-            #expect(response.contains("Successfully exported to"), "Expected successful local export message")
+            #expect(response.contains(outputDir.absolutePath()), "Expected successful local export message")
 
             // Verify the output directory exists
             #expect(FileManager.default.fileExists(atPath: outputDir.path), "Expected local output directory to exist")
@@ -176,7 +176,7 @@ extension TestCLIBuildBase {
             let existingResponse = try buildWithLocalOutput(tag: existingImageName, tempDir: existingTempDir, outputDir: existingOutputDir)
 
             // Verify the build succeeded
-            #expect(existingResponse.contains("Successfully exported to"), "Expected successful local export message")
+            #expect(existingResponse.contains(existingOutputDir.absolutePath()), "Expected successful local export message")
 
             // Verify the output directory exists
             #expect(FileManager.default.fileExists(atPath: existingOutputDir.path), "Expected local output directory to exist")

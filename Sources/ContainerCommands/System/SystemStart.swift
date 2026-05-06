@@ -72,6 +72,14 @@ extension Application {
         public init() {}
 
         public func run() async throws {
+            let containerSystemConfig: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(
+                configFile: SystemRuntimeOptions.configFileFromAppRoot(ApplicationRoot.url)
+            )
+            // Copy the user's config into appRoot/config/ so that all plugins
+            // and the apiserver subsequently read the same snapshot.
+            SystemRuntimeOptions.copyConfigToAppRoot(appRoot: appRoot)
+
+            // Without the true path to the binary in the plist, `container-apiserver` won't launch properly.
             // Resolve the symlink to get the true binary path before writing the launchd plist.
             // Gatekeeper / amfid validates code signatures relative to the enclosing .app bundle
             // hierarchy; launching via a symlink outside the bundle fails that check.
@@ -127,20 +135,19 @@ extension Application {
                 )
             }
 
-            if await !initImageExists() {
-                try? await installInitialFilesystem()
+            if await !initImageExists(containerSystemConfig: containerSystemConfig) {
+                try? await installInitialFilesystem(initImage: containerSystemConfig.vminit.image)
             }
 
             guard await !kernelExists() else {
                 return
             }
-            try await installDefaultKernel()
+            try await installDefaultKernel(kernelURL: containerSystemConfig.kernel.url, kernelBinaryPath: containerSystemConfig.kernel.binaryPath)
         }
 
-        private func installInitialFilesystem() async throws {
-            let dep = Dependencies.initFs
+        private func installInitialFilesystem(initImage: String) async throws {
             var pullCommand = try ImagePull.parse()
-            pullCommand.reference = dep.source
+            pullCommand.reference = initImage
             print("Installing base container filesystem...")
             do {
                 try await pullCommand.run()
@@ -149,15 +156,11 @@ extension Application {
             }
         }
 
-        private func installDefaultKernel() async throws {
-            let kernelDependency = Dependencies.kernel
-            let defaultKernelURL = kernelDependency.source
-            let defaultKernelBinaryPath = DefaultsStore.get(key: .defaultKernelBinaryPath)
-
+        private func installDefaultKernel(kernelURL: URL, kernelBinaryPath: String) async throws {
             var shouldInstallKernel = false
             if kernelInstall == nil {
                 print("No default kernel configured.")
-                print("Install the recommended default kernel from [\(kernelDependency.source)]? [Y/n]: ", terminator: "")
+                print("Install the recommended default kernel from [\(kernelURL)]? [Y/n]: ", terminator: "")
                 guard let read = readLine(strippingNewline: true) else {
                     throw ContainerizationError(.internalError, message: "failed to read user input")
                 }
@@ -173,12 +176,15 @@ extension Application {
                 return
             }
             print("Installing kernel...")
-            try await KernelSet.downloadAndInstallWithProgressBar(tarRemoteURL: defaultKernelURL, kernelFilePath: defaultKernelBinaryPath, force: true)
+            try await KernelSet.downloadAndInstallWithProgressBar(tarRemoteURL: kernelURL, kernelFilePath: kernelBinaryPath, force: true)
         }
 
-        private func initImageExists() async -> Bool {
+        private func initImageExists(containerSystemConfig: ContainerSystemConfig) async -> Bool {
             do {
-                let img = try await ClientImage.get(reference: Dependencies.initFs.source)
+                let img = try await ClientImage.get(
+                    reference: containerSystemConfig.vminit.image,
+                    containerSystemConfig: containerSystemConfig
+                )
                 let _ = try await img.getSnapshot(platform: .current)
                 return true
             } catch {
@@ -192,20 +198,6 @@ extension Application {
                 return true
             } catch {
                 return false
-            }
-        }
-    }
-
-    private enum Dependencies: String {
-        case kernel
-        case initFs
-
-        var source: String {
-            switch self {
-            case .initFs:
-                return DefaultsStore.get(key: .defaultInitImage)
-            case .kernel:
-                return DefaultsStore.get(key: .defaultKernelURL)
             }
         }
     }

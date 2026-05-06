@@ -27,7 +27,7 @@ import Synchronization
 import SystemPackage
 
 public actor VolumesService {
-    private let resourceRoot: URL
+    private let resourceRoot: FilePath
     private let store: ContainerPersistence.FilesystemEntityStore<Volume>
     private let log: Logger
     private let lock = AsyncLock()
@@ -37,8 +37,8 @@ public actor VolumesService {
     private static let entityFile = "entity.json"
     private static let blockFile = "volume.img"
 
-    public init(resourceRoot: URL, containersService: ContainersService, log: Logger) throws {
-        try FileManager.default.createDirectory(at: resourceRoot, withIntermediateDirectories: true)
+    public init(resourceRoot: FilePath, containersService: ContainersService, log: Logger) throws {
+        try FileManager.default.createDirectory(atPath: resourceRoot.string, withIntermediateDirectories: true)
         self.resourceRoot = resourceRoot
         self.store = try FilesystemEntityStore<Volume>(path: resourceRoot, type: "volumes", log: log)
         self.containersService = containersService
@@ -257,8 +257,9 @@ public actor VolumesService {
         return sizeInBytes
     }
 
+    // FIXME: These don't guarantee that name doesn't have component separators.
     private nonisolated func volumePath(for name: String) -> String {
-        resourceRoot.appendingPathComponent(name).path
+        resourceRoot.appending(name).string
     }
 
     private nonisolated func entityPath(for name: String) -> String {

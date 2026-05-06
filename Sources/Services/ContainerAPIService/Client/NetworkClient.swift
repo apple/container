@@ -29,9 +29,9 @@ import Foundation
 ///
 /// ```swift
 /// let client = NetworkClient()
-/// let state = try await client.create(configuration: config)
+/// let network = try await client.create(configuration: config)
 /// let networks = try await client.list()
-/// try await client.delete(id: state.id)
+/// try await client.delete(id: network.id)
 /// ```
 public struct NetworkClient: Sendable {
     /// The Mach service name used to locate the container API server.
@@ -67,13 +67,13 @@ public struct NetworkClient: Sendable {
     /// Creates a new network with the given configuration.
     ///
     /// The API server launches a network plugin instance for the new network and
-    /// returns a ``NetworkState`` reflecting the network once it is running.
+    /// returns a ``NetworkResource`` reflecting the network once it is running.
     ///
     /// - Parameter configuration: The configuration describing the network to create.
     /// - Returns: The running state of the newly created network.
     /// - Throws: ``ContainerizationError`` if the server does not return a valid
-    ///   network state, or if the underlying XPC call fails.
-    public func create(configuration: NetworkConfiguration) async throws -> NetworkState {
+    ///   network resource, or if the underlying XPC call fails.
+    public func create(configuration: NetworkConfiguration) async throws -> NetworkResource {
         let request = XPCMessage(route: .networkCreate)
         request.set(key: .networkId, value: configuration.id)
 
@@ -81,38 +81,51 @@ public struct NetworkClient: Sendable {
         request.set(key: .networkConfig, value: data)
 
         let response = try await xpcSend(message: request)
-        let responseData = response.dataNoCopy(key: .networkState)
-        guard let responseData else {
-            throw ContainerizationError(.invalidArgument, message: "network configuration not received")
+
+        // Prefer current encoding (≥ 0.12.0 server).
+        if let resourceData = response.dataNoCopy(key: .networkResource) {
+            return try JSONDecoder().decode(NetworkResource.self, from: resourceData)
         }
-        let state = try JSONDecoder().decode(NetworkState.self, from: responseData)
-        return state
+
+        // Fall back to pre-0.12.0 server: decode NetworkState and convert.
+        if let stateData = response.dataNoCopy(key: .networkState) {
+            let state = try JSONDecoder().decode(NetworkState.self, from: stateData)
+            return NetworkResource(state)
+        }
+
+        throw ContainerizationError(.invalidArgument, message: "network configuration not received")
     }
 
     /// Returns the current state of all networks known to the API server.
     ///
-    /// - Returns: An array of ``NetworkState`` values, or an empty array if no
+    /// - Returns: An array of ``NetworkResource`` values, or an empty array if no
     ///   networks exist or the server returns no data.
     /// - Throws: ``ContainerizationError`` if the underlying XPC call fails.
-    public func list() async throws -> [NetworkState] {
+    public func list() async throws -> [NetworkResource] {
         let request = XPCMessage(route: .networkList)
 
         let response = try await xpcSend(message: request, timeout: .seconds(1))
-        let responseData = response.dataNoCopy(key: .networkStates)
-        guard let responseData else {
-            return []
+
+        // Prefer current encoding (≥ 0.12.0 server).
+        if let resourceData = response.dataNoCopy(key: .networkResources) {
+            return try JSONDecoder().decode([NetworkResource].self, from: resourceData)
         }
-        let states = try JSONDecoder().decode([NetworkState].self, from: responseData)
-        return states
+
+        // Fall back to pre-0.12.0 server: decode NetworkState and convert.
+        if let stateData = response.dataNoCopy(key: .networkStates) {
+            return try JSONDecoder().decode([NetworkState].self, from: stateData).map(NetworkResource.init)
+        }
+
+        return []
     }
 
     /// Returns the network with the given identifier.
     ///
     /// - Parameter id: The identifier of the network to look up.
-    /// - Returns: The ``NetworkState`` for the matching network.
+    /// - Returns: The ``NetworkResource`` for the matching network.
     /// - Throws: ``ContainerizationError/notFound`` if no network with the given
     ///   identifier exists, or a communication error if the XPC call fails.
-    public func get(id: String) async throws -> NetworkState {
+    public func get(id: String) async throws -> NetworkResource {
         let networks = try await list()
         guard let network = networks.first(where: { $0.id == id }) else {
             throw ContainerizationError(.notFound, message: "network \(id) not found")
@@ -141,7 +154,7 @@ public struct NetworkClient: Sendable {
     /// built-in resource labels.
     ///
     /// - Throws: ``ContainerizationError`` if the underlying XPC call fails.
-    public var builtin: NetworkState? {
+    public var builtin: NetworkResource? {
         get async throws {
             try await list().first { $0.isBuiltin }
         }

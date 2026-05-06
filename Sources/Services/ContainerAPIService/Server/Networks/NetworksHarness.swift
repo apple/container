@@ -32,11 +32,18 @@ public struct NetworksHarness: Sendable {
 
     @Sendable
     public func list(_ message: XPCMessage) async throws -> XPCMessage {
-        let containers = try await service.list()
-        let data = try JSONEncoder().encode(containers)
+        let states = try await service.list()
 
         let reply = message.reply()
-        reply.set(key: .networkStates, value: data)
+
+        // Current encoding: NetworkResource with status.phase shape (≥ 0.12.0).
+        let resources = states.map(NetworkResource.init)
+        reply.set(key: .networkResources, value: try JSONEncoder().encode(resources))
+
+        // DEPRECATED 0.12.0 — retained for down-revision client compatibility.
+        // Remove at next major version boundary.
+        reply.set(key: .networkStates, value: try JSONEncoder().encode(states))
+
         return reply
     }
 
@@ -50,10 +57,15 @@ public struct NetworksHarness: Sendable {
         let config = try JSONDecoder().decode(NetworkConfiguration.self, from: data)
         let networkState = try await service.create(configuration: config)
 
-        let networkData = try JSONEncoder().encode(networkState)
-
         let reply = message.reply()
-        reply.set(key: .networkState, value: networkData)
+
+        // Current encoding: NetworkResource with status.phase shape (≥ 0.12.0).
+        reply.set(key: .networkResource, value: try JSONEncoder().encode(NetworkResource(networkState)))
+
+        // DEPRECATED 0.12.0 — retained for down-revision client compatibility.
+        // Remove at next major version boundary.
+        reply.set(key: .networkState, value: try JSONEncoder().encode(networkState))
+
         return reply
     }
 
