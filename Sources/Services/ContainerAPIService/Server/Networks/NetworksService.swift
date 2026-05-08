@@ -100,7 +100,8 @@ public actor NetworksService {
                     ipv4Subnet: configuration.ipv4Subnet,
                     ipv6Subnet: configuration.ipv6Subnet,
                     labels: updatedLabels.map { try .init($0) } ?? configuration.labels,
-                    pluginInfo: configuration.pluginInfo ?? NetworkPluginInfo(plugin: "container-network-vmnet")
+                    pluginInfo: configuration.pluginInfo ?? NetworkPluginInfo(plugin: "container-network-vmnet"),
+                    hostInterface: configuration.hostInterface
                 )
                 try await store.update(updatedConfiguration)
 
@@ -138,7 +139,8 @@ public actor NetworksService {
                     ipv4Subnet: configuration.ipv4Subnet,
                     ipv6Subnet: configuration.ipv6Subnet,
                     labels: updatedLabels.map { try .init($0) } ?? configuration.labels,
-                    pluginInfo: helperConfig.pluginInfo
+                    pluginInfo: helperConfig.pluginInfo,
+                    hostInterface: configuration.hostInterface
                 )
                 networkState = NetworkState.created(finalConfiguration)
             case .running(let helperConfig, let status):
@@ -148,7 +150,8 @@ public actor NetworksService {
                     ipv4Subnet: configuration.ipv4Subnet,
                     ipv6Subnet: configuration.ipv6Subnet,
                     labels: updatedLabels.map { try .init($0) } ?? configuration.labels,
-                    pluginInfo: helperConfig.pluginInfo
+                    pluginInfo: helperConfig.pluginInfo,
+                    hostInterface: configuration.hostInterface
                 )
                 networkState = NetworkState.running(finalConfiguration, status)
             }
@@ -237,7 +240,8 @@ public actor NetworksService {
                 ipv4Subnet: configuration.ipv4Subnet,
                 ipv6Subnet: configuration.ipv6Subnet,
                 labels: configuration.labels,
-                pluginInfo: helperConfig.pluginInfo
+                pluginInfo: helperConfig.pluginInfo,
+                hostInterface: configuration.hostInterface
             )
 
             let networkState: NetworkState = .running(finalConfiguration, status)
@@ -410,7 +414,7 @@ public actor NetworksService {
     }
 
     private func registerService(configuration: NetworkConfiguration) async throws {
-        guard configuration.mode == .nat || configuration.mode == .hostOnly else {
+        guard configuration.mode == .nat || configuration.mode == .hostOnly || configuration.mode == .bridge else {
             throw ContainerizationError(.invalidArgument, message: "unsupported network mode \(configuration.mode.rawValue)")
         }
 
@@ -444,7 +448,7 @@ public actor NetworksService {
         if let ipv4Subnet = configuration.ipv4Subnet {
             var existingCidrs: [CIDRv4] = []
             for serviceState in serviceStates.values {
-                if case .running(_, let status) = serviceState.networkState {
+                if case .running(let config, let status) = serviceState.networkState, config.mode != .bridge {
                     existingCidrs.append(status.ipv4Subnet)
                 }
             }
@@ -483,6 +487,10 @@ public actor NetworksService {
 
         if let variant = configuration.pluginInfo?.variant {
             args += ["--variant", variant]
+        }
+
+        if let hostInterface = configuration.hostInterface {
+            args += ["--host-interface", hostInterface]
         }
 
         let entityPath = try store.entityPath(configuration.id)

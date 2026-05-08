@@ -29,6 +29,7 @@ import Logging
 enum Variant: String, ExpressibleByArgument {
     case reserved
     case allocationOnly
+    case bridged
 }
 
 extension NetworkMode: ExpressibleByArgument {}
@@ -66,6 +67,9 @@ extension NetworkVmnetHelper {
             return .reserved
         }()
 
+        @Option(name: .long, help: "Host network interface to bridge to (bridged variant only)")
+        var hostInterface: String?
+
         var logRoot = LogRoot.path
 
         func run() async throws {
@@ -91,7 +95,8 @@ extension NetworkVmnetHelper {
                     mode: mode,
                     ipv4Subnet: ipv4Subnet,
                     ipv6Subnet: ipv6Subnet,
-                    pluginInfo: pluginInfo
+                    pluginInfo: pluginInfo,
+                    hostInterface: hostInterface
                 )
                 let network = try Self.createNetwork(
                     configuration: configuration,
@@ -137,6 +142,8 @@ extension NetworkVmnetHelper {
                     )
                 }
                 return try ReservedVmnetNetwork(configuration: configuration, log: log)
+            case .bridged:
+                return try BridgedVmnetNetwork(configuration: configuration, log: log)
             }
         }
     }

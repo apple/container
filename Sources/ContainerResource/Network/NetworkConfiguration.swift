@@ -54,6 +54,9 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     /// to be proliferated to most users when they update container.
     public let pluginInfo: NetworkPluginInfo?
 
+    /// The host network interface to bridge to. Only set when mode == .bridge.
+    public let hostInterface: String?
+
     /// Creates a network configuration
     public init(
         id: String,
@@ -61,7 +64,8 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         ipv4Subnet: CIDRv4? = nil,
         ipv6Subnet: CIDRv6? = nil,
         labels: ResourceLabels = .init(),
-        pluginInfo: NetworkPluginInfo?
+        pluginInfo: NetworkPluginInfo?,
+        hostInterface: String? = nil
     ) throws {
         self.id = id
         self.creationDate = Date()
@@ -70,6 +74,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         self.ipv6Subnet = ipv6Subnet
         self.labels = labels
         self.pluginInfo = pluginInfo
+        self.hostInterface = hostInterface
         try validate()
     }
 
@@ -81,6 +86,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         case ipv6Subnet
         case labels
         case pluginInfo
+        case hostInterface
         // TODO: retain for deserialization compatibility for now, remove later
         case subnet
     }
@@ -102,6 +108,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         let decodedLabels = try container.decodeIfPresent([String: String].self, forKey: .labels) ?? [:]
         labels = try .init(decodedLabels)
         pluginInfo = try container.decodeIfPresent(NetworkPluginInfo.self, forKey: .pluginInfo)
+        hostInterface = try container.decodeIfPresent(String.self, forKey: .hostInterface)
         try validate()
     }
 
@@ -116,6 +123,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         try container.encodeIfPresent(ipv6Subnet, forKey: .ipv6Subnet)
         try container.encode(labels, forKey: .labels)
         try container.encodeIfPresent(pluginInfo, forKey: .pluginInfo)
+        try container.encodeIfPresent(hostInterface, forKey: .hostInterface)
     }
 
     private func validate() throws {

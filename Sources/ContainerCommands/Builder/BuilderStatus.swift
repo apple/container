@@ -85,7 +85,7 @@ private struct PrintableBuilder: ListDisplayable {
             snapshot.id,
             snapshot.configuration.image.reference,
             snapshot.status.rawValue,
-            snapshot.networks.map { $0.ipv4Address.description }.joined(separator: ","),
+            snapshot.networks.map { $0.ipv4Address?.description ?? "" }.joined(separator: ","),
             "\(snapshot.configuration.resources.cpus)",
             "\(snapshot.configuration.resources.memoryInBytes / (1024 * 1024)) MB",
         ]

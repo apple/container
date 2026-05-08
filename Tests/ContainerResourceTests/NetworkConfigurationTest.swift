@@ -54,6 +54,15 @@ struct NetworkConfigurationTest {
         }
     }
 
+    @Test func testValidationOkBridgeMode() throws {
+        _ = try NetworkConfiguration(
+            id: "bridge-net",
+            mode: .bridge,
+            pluginInfo: defaultNetworkPluginInfo,
+            hostInterface: "en0"
+        )
+    }
+
     @Test func testValidationBadId() throws {
         let ids = [
             String(repeating: "0", count: 64),
