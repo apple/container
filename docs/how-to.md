@@ -156,6 +156,29 @@ Use the `--publish` option to forward TCP or UDP traffic from your loopback IP t
 
 If your container attaches to multiple networks, the ports you publish forward to the IP address of the interface attached to the first network.
 
+On macOS, `localhost` resolves to IPv6 (`::1`) first. When you publish without an explicit host IP (for example, `-p 8080:8000`, which defaults to `0.0.0.0`) or use an IPv4 loopback address, `container` also binds the IPv6 loopback so `localhost` works. If you want IPv4-only or IPv6-only binding, specify the host IP explicitly (for example, `-p 127.0.0.1:8080:8000` or `-p '[::1]:8080:8000'`).
+
+To publish without an explicit host IP and access via `localhost`, run:
+
+```bash
+container run -d --rm -p 8080:8000 node:latest npx http-server -a :: -p 8000
+```
+
+Test access using `curl`:
+
+```console
+% curl http://localhost:8080
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Index of /</title>
+...
+<br><address>Node.js v25.2.1/ <a href="https://github.com/http-party/http-server">http-server</a> server running @ localhost:8080</address>
+</body></html>
+```
+
 To forward requests from port 8080 on the IPv4 loopback IP to a NodeJS webserver on container port 8000, run:
 
 ```bash
