@@ -380,26 +380,26 @@ public actor NetworksService {
         }
     }
 
-    public func allocate(id: String, hostname: String, macAddress: MACAddress?) async throws -> AllocatedAttachment {
+    public func allocate(id: String, hostname: String, macAddress: MACAddress?) async throws -> (AllocatedAttachment, XPCClientSession) {
         guard let serviceState = serviceStates[id] else {
             throw ContainerizationError(.notFound, message: "no network for id \(id)")
         }
         guard let pluginInfo = serviceState.networkState.pluginInfo else {
             throw ContainerizationError(.internalError, message: "network \(id) missing plugin information")
         }
-        let (attach, additionalData) = try await serviceState.client.allocate(hostname: hostname, macAddress: macAddress)
-        return AllocatedAttachment(
-            attachment: attach,
-            additionalData: additionalData,
-            pluginInfo: pluginInfo
-        )
-    }
-
-    public func deallocate(attachment: Attachment) async throws {
-        guard let serviceState = serviceStates[attachment.network] else {
-            throw ContainerizationError(.notFound, message: "no network for id \(attachment.network)")
+        let session = serviceState.client.connect()
+        do {
+            let (attach, additionalData) = try await serviceState.client.allocate(hostname: hostname, macAddress: macAddress, on: session)
+            let alloc = AllocatedAttachment(
+                attachment: attach,
+                additionalData: additionalData,
+                pluginInfo: pluginInfo
+            )
+            return (alloc, session)
+        } catch {
+            session.close()
+            throw error
         }
-        return try await serviceState.client.deallocate(hostname: attachment.hostname)
     }
 
     private static func getClient(configuration: NetworkConfiguration) throws -> ContainerNetworkServiceClient.NetworkClient {

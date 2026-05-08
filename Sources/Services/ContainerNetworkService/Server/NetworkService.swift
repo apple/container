@@ -27,6 +27,7 @@ public actor NetworkService: Sendable {
     private let log: Logger
     private var allocator: AttachmentAllocator
     private var macAddresses: [UInt32: MACAddress]
+    private var allocationsBySession: [XPCServerSession: [(hostname: String, index: UInt32)]] = [:]
 
     /// Set up a network service for the specified network.
     public init(
@@ -56,7 +57,7 @@ public actor NetworkService: Sendable {
     }
 
     @Sendable
-    public func allocate(_ message: XPCMessage) async throws -> XPCMessage {
+    public func allocate(_ message: XPCMessage, _ session: XPCServerSession) async throws -> XPCMessage {
         log.debug("enter", metadata: ["func": "\(#function)"])
         defer { log.debug("exit", metadata: ["func": "\(#function)"]) }
 
@@ -99,20 +100,27 @@ public actor NetworkService: Sendable {
             }
         }
         macAddresses[index] = macAddress
+
+        if allocationsBySession[session] == nil {
+            allocationsBySession[session] = []
+            await session.onDisconnect { [weak self] in
+                await self?.releaseSession(session)
+            }
+        }
+        allocationsBySession[session]!.append((hostname: hostname, index: index))
+
         return reply
     }
 
-    @Sendable
-    public func deallocate(_ message: XPCMessage) async throws -> XPCMessage {
-        log.debug("enter", metadata: ["func": "\(#function)"])
-        defer { log.debug("exit", metadata: ["func": "\(#function)"]) }
-
-        let hostname = try message.hostname()
-        if let index = try await allocator.deallocate(hostname: hostname) {
-            macAddresses.removeValue(forKey: index)
+    private func releaseSession(_ session: XPCServerSession) async {
+        guard let allocations = allocationsBySession.removeValue(forKey: session) else {
+            return
         }
-        log.info("released attachments", metadata: ["hostname": "\(hostname)"])
-        return message.reply()
+        for allocation in allocations {
+            _ = try? await allocator.deallocate(hostname: allocation.hostname)
+            macAddresses.removeValue(forKey: allocation.index)
+        }
+        log.info("released session", metadata: ["allocations": "\(allocations.count)"])
     }
 
     @Sendable

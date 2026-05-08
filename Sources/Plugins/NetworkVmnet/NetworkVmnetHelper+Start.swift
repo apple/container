@@ -104,8 +104,7 @@ extension NetworkVmnetHelper {
                     identifier: serviceIdentifier,
                     routes: [
                         NetworkRoutes.state.rawValue: XPCServer.route(server.state),
-                        NetworkRoutes.allocate.rawValue: XPCServer.route(server.allocate),
-                        NetworkRoutes.deallocate.rawValue: XPCServer.route(server.deallocate),
+                        NetworkRoutes.allocate.rawValue: server.allocate,
                         NetworkRoutes.lookup.rawValue: XPCServer.route(server.lookup),
                         NetworkRoutes.disableAllocator.rawValue: XPCServer.route(server.disableAllocator),
                     ],

@@ -36,6 +36,7 @@ public actor ContainersService {
         var snapshot: ContainerSnapshot
         var client: SandboxClient?
         var allocatedAttachments: [AllocatedAttachment]
+        var networkSessions: [XPCClientSession]
 
         func getClient() throws -> SandboxClient {
             guard let client else {
@@ -132,7 +133,8 @@ public actor ContainersService {
                         networks: [],
                         startedDate: nil
                     ),
-                    allocatedAttachments: []
+                    allocatedAttachments: [],
+                    networkSessions: []
                 )
                 results[config.id] = state
                 guard runtimePlugins.first(where: { $0.name == config.runtimeHandler }) != nil else {
@@ -394,7 +396,7 @@ public actor ContainersService {
                     networks: [],
                     startedDate: nil
                 )
-                await self.setContainerState(configuration.id, ContainerState(snapshot: snapshot, allocatedAttachments: []), context: context)
+                await self.setContainerState(configuration.id, ContainerState(snapshot: snapshot, allocatedAttachments: [], networkSessions: []), context: context)
             } catch {
                 throw error
             }
@@ -435,20 +437,23 @@ public actor ContainersService {
             let (config, _) = try Self.getContainerConfiguration(at: path)
 
             var allocatedAttachments = [AllocatedAttachment]()
+            var networkSessions = [XPCClientSession]()
             do {
                 for n in config.networks {
-                    let allocatedAttach = try await self.networksService?.allocate(
-                        id: n.network,
-                        hostname: n.options.hostname,
-                        macAddress: n.options.macAddress
-                    )
-                    guard var allocatedAttach = allocatedAttach else {
+                    guard
+                        let (allocatedAttach, session) = try await self.networksService?.allocate(
+                            id: n.network,
+                            hostname: n.options.hostname,
+                            macAddress: n.options.macAddress
+                        )
+                    else {
                         throw ContainerizationError(.internalError, message: "failed to allocate a network")
                     }
 
+                    var finalAttach = allocatedAttach
                     if let mtu = n.options.mtu {
                         let a = allocatedAttach.attachment
-                        allocatedAttach = AllocatedAttachment(
+                        finalAttach = AllocatedAttachment(
                             attachment: Attachment(
                                 network: a.network,
                                 hostname: a.hostname,
@@ -462,7 +467,8 @@ public actor ContainersService {
                             pluginInfo: allocatedAttach.pluginInfo
                         )
                     }
-                    allocatedAttachments.append(allocatedAttach)
+                    allocatedAttachments.append(finalAttach)
+                    networkSessions.append(session)
                 }
 
                 try Self.registerService(
@@ -487,20 +493,11 @@ public actor ContainersService {
 
                 state.client = sandboxClient
                 state.allocatedAttachments = allocatedAttachments
+                state.networkSessions = networkSessions
                 await self.setContainerState(id, state, context: context)
             } catch {
-                for allocatedAttach in allocatedAttachments {
-                    do {
-                        try await self.networksService?.deallocate(attachment: allocatedAttach.attachment)
-                    } catch {
-                        self.log.error(
-                            "failed to deallocate network attachment",
-                            metadata: [
-                                "id": "\(id)",
-                                "network": "\(allocatedAttach.attachment.network)",
-                                "error": "\(error)",
-                            ])
-                    }
+                for session in networkSessions {
+                    session.close()
                 }
 
                 let label = Self.fullLaunchdServiceLabel(
@@ -997,27 +994,17 @@ public actor ContainersService {
                 ])
         }
 
-        // Best effort deallocate network attachments for the container. Don't throw on
-        // failure so we can continue with state cleanup.
-        self.log.info("deallocating network attachments", metadata: ["id": "\(id)"])
-        for allocatedAttach in state.allocatedAttachments {
-            do {
-                try await self.networksService?.deallocate(attachment: allocatedAttach.attachment)
-            } catch {
-                self.log.error(
-                    "failed to deallocate network attachment",
-                    metadata: [
-                        "id": "\(id)",
-                        "network": "\(allocatedAttach.attachment.network)",
-                        "error": "\(error)",
-                    ])
-            }
+        // Close network sessions — the network helper auto-releases allocations on disconnect.
+        self.log.info("closing network sessions", metadata: ["id": "\(id)"])
+        for session in state.networkSessions {
+            session.close()
         }
 
         state.snapshot.status = .stopped
         state.snapshot.networks = []
         state.client = nil
         state.allocatedAttachments = []
+        state.networkSessions = []
         await self.setContainerState(id, state, context: context)
 
         let options = try getContainerCreationOptions(id: id)
