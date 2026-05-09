@@ -51,7 +51,9 @@ actor LocalhostDNSHandler: DNSHandler {
                 if let match = content.firstMatch(of: regex),
                     let ipv4 = (match[1].substring.flatMap { try? IPv4Address(String($0)) })
                 {
-                    let lastName = file.lastComponent?.string ?? ""
+                    guard let lastName = file.lastComponent?.string else {
+                        continue
+                    }
                     let name = String(lastName.dropFirst(HostDNSResolver.containerizationPrefix.count))
                     guard let dnsName = try? DNSName(name) else {
                         continue
