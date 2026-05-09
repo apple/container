@@ -63,9 +63,7 @@ extension Application {
         var arguments: [String] = []
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(
-                configFile: SystemRuntimeOptions.configFileFromAppRoot(ApplicationRoot.url)
-            )
+            let containerSystemConfig: ContainerSystemConfig = try ConfigurationLoader.load()
             var exitCode: Int32 = 127
             let id = Utility.createContainerID(name: self.managementFlags.name)
 

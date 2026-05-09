@@ -42,9 +42,7 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(
-                configFile: SystemRuntimeOptions.configFileFromAppRoot(ApplicationRoot.url)
-            )
+            let containerSystemConfig: ContainerSystemConfig = try ConfigurationLoader.load()
             let output =
                 switch format {
                 case .json: try Output.renderJSON(containerSystemConfig)

@@ -57,9 +57,7 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(
-                configFile: SystemRuntimeOptions.configFileFromAppRoot(ApplicationRoot.url)
-            )
+            let containerSystemConfig: ContainerSystemConfig = try ConfigurationLoader.load()
             let p = try DefaultPlatform.resolve(platform: platform, os: os, arch: arch, log: log)
 
             let scheme = try RequestScheme(registry.scheme)

@@ -23,7 +23,7 @@ import Foundation
 ///
 /// Each section maps to a nested struct. Missing keys fall back to
 /// hardcoded defaults via custom `init(from:)` implementations.
-final public class ContainerSystemConfig: Codable, Sendable {
+public final class ContainerSystemConfig: Codable, Sendable, Initable {
     public let build: BuildConfig
     public let container: ContainerConfig
     public let dns: DNSConfig
@@ -48,6 +48,16 @@ final public class ContainerSystemConfig: Codable, Sendable {
         self.network = network
         self.registry = registry
         self.vminit = vminit
+    }
+
+    public init() {
+        self.build = .init()
+        self.container = .init()
+        self.dns = .init()
+        self.kernel = .init()
+        self.network = .init()
+        self.registry = .init()
+        self.vminit = .init()
     }
 
     public init(from decoder: any Decoder) throws {
