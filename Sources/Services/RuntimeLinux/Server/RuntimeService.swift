@@ -999,9 +999,10 @@ public actor RuntimeService {
         }
 
         for publishedSocket in config.publishedSockets {
+            // UnixSocketConfiguration (Containerization) takes URL; convert from FilePath at the boundary.
             let socketConfig = UnixSocketConfiguration(
-                source: publishedSocket.containerPath,
-                destination: publishedSocket.hostPath,
+                source: URL(filePath: publishedSocket.containerPath.string),
+                destination: URL(filePath: publishedSocket.hostPath.string),
                 permissions: publishedSocket.permissions,
                 direction: .outOf
             )

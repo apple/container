@@ -22,6 +22,7 @@ import ContainerizationExtras
 import ContainerizationOCI
 import ContainerizationOS
 import Foundation
+import SystemPackage
 
 /// A parsed volume specification from user input
 public struct ParsedVolume {
@@ -787,8 +788,8 @@ public struct Parser {
 
             // Create and return PublishSocket object with validated paths
             return PublishSocket(
-                containerPath: URL(fileURLWithPath: containerPath),
-                hostPath: URL(fileURLWithPath: absoluteHostPath),
+                containerPath: FilePath(containerPath),
+                hostPath: FilePath(absoluteHostPath),
                 permissions: nil
             )
 
