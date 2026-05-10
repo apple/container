@@ -55,9 +55,7 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(
-                configFile: SystemRuntimeOptions.configFileFromAppRoot(ApplicationRoot.url)
-            )
+            let containerSystemConfig: ContainerSystemConfig = try ConfigurationLoader.load()
             let progressConfig = try ProgressConfig(
                 showTasks: true,
                 showItems: true,

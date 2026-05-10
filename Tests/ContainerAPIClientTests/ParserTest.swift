@@ -14,13 +14,14 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerPersistence
 import ContainerizationError
 import ContainerizationExtras
 import Foundation
+import SystemPackage
 import Testing
 
 @testable import ContainerAPIClient
+@testable import ContainerPersistence
 
 struct ParserTest {
     @Test
@@ -1210,7 +1211,7 @@ struct ParserTest {
         FileManager.default.createFile(atPath: tempFile.path(), contents: Data(content.utf8))
         defer { try? FileManager.default.removeItem(at: tempFile) }
 
-        let config: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(configFile: tempFile)
+        let config: ContainerSystemConfig = try ConfigurationLoader.load(configurationFile: FilePath(tempFile.path(percentEncoded: false)))
         let result = try Parser.resources(
             cpus: nil, memory: nil,
             defaultCPUs: config.build.cpus,
@@ -1229,7 +1230,7 @@ struct ParserTest {
         FileManager.default.createFile(atPath: tempFile.path(), contents: Data(content.utf8))
         defer { try? FileManager.default.removeItem(at: tempFile) }
 
-        let config: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(configFile: tempFile)
+        let config: ContainerSystemConfig = try ConfigurationLoader.load(configurationFile: FilePath(tempFile.path(percentEncoded: false)))
         let result = try Parser.resources(
             cpus: nil, memory: nil,
             defaultCPUs: config.container.cpus,
@@ -1247,7 +1248,7 @@ struct ParserTest {
         FileManager.default.createFile(atPath: tempFile.path(), contents: Data(content.utf8))
         defer { try? FileManager.default.removeItem(at: tempFile) }
 
-        let config: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(configFile: tempFile)
+        let config: ContainerSystemConfig = try ConfigurationLoader.load(configurationFile: FilePath(tempFile.path(percentEncoded: false)))
         let result = try Parser.resources(
             cpus: nil, memory: nil,
             defaultCPUs: config.container.cpus,
@@ -1266,7 +1267,7 @@ struct ParserTest {
         FileManager.default.createFile(atPath: tempFile.path(), contents: Data(content.utf8))
         defer { try? FileManager.default.removeItem(at: tempFile) }
 
-        let config: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(configFile: tempFile)
+        let config: ContainerSystemConfig = try ConfigurationLoader.load(configurationFile: FilePath(tempFile.path(percentEncoded: false)))
         let result = try Parser.resources(
             cpus: 1, memory: "256m",
             defaultCPUs: config.container.cpus,
@@ -1286,7 +1287,7 @@ struct ParserTest {
         FileManager.default.createFile(atPath: tempFile.path(), contents: Data(content.utf8))
         defer { try? FileManager.default.removeItem(at: tempFile) }
 
-        let config: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(configFile: tempFile)
+        let config: ContainerSystemConfig = try ConfigurationLoader.load(configurationFile: FilePath(tempFile.path(percentEncoded: false)))
         let result = try Parser.resources(
             cpus: nil, memory: nil,
             defaultCPUs: config.build.cpus,
