@@ -231,6 +231,13 @@ public struct Application: AsyncLoggableCommand {
     }
 }
 
+/// Entry point used by the multicall binary, where overload resolution would
+/// otherwise pick `ParsableCommand.main()` and miss `Application`'s async
+/// implementation.
+public func runContainerCLI() async throws {
+    try await Application.main()
+}
+
 extension Application {
     // Because we support plugins, we need to modify the help text to display
     // any if we found some.

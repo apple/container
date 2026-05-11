@@ -26,9 +26,10 @@ import Containerization
 import Foundation
 import Logging
 
-@main
-struct ImagesHelper: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
+public struct ImagesHelper: AsyncParsableCommand {
+    public init() {}
+
+    public static let configuration = CommandConfiguration(
         commandName: "container-core-images",
         abstract: "XPC service for managing OCI images",
         version: ReleaseVersion.singleLine(appName: "container-core-images"),

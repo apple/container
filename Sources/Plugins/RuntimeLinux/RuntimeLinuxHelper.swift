@@ -17,9 +17,10 @@
 import ArgumentParser
 import ContainerVersion
 
-@main
-struct RuntimeLinuxHelper: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
+public struct RuntimeLinuxHelper: AsyncParsableCommand {
+    public init() {}
+
+    public static let configuration = CommandConfiguration(
         commandName: "container-runtime-linux",
         abstract: "XPC Service for managing a Linux sandbox",
         version: ReleaseVersion.singleLine(appName: "container-runtime-linux"),
