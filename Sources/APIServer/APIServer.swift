@@ -17,9 +17,10 @@
 import ArgumentParser
 import ContainerVersion
 
-@main
-struct APIServer: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
+public struct APIServer: AsyncParsableCommand {
+    public init() {}
+
+    public static let configuration = CommandConfiguration(
         commandName: "container-apiserver",
         abstract: "Container management API server",
         version: ReleaseVersion.singleLine(appName: "container-apiserver"),
