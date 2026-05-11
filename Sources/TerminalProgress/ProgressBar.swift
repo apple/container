@@ -275,7 +275,7 @@ extension ProgressBar {
             // 45 reserves space for components rendered after the bar (size, speed, time, etc.)
             let usedWidth = (useColor ? joinedComponents.visibleLength : joinedComponents.count) + 45
             let remainingWidth = max(config.width - usedWidth, 1)
-            let barLength = min(remainingWidth, state.finished ? remainingWidth : Int(Int64(remainingWidth) * value / total))
+            let barLength = min(remainingWidth, max(0, state.finished ? remainingWidth : Int(Int64(remainingWidth) * value / total)))
             let barPaddingLength = remainingWidth - barLength
             if useColor {
                 let filledBar = EscapeSequence.colored(String(repeating: config.theme.bar, count: barLength), EscapeSequence.green)

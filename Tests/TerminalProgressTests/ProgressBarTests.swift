@@ -749,6 +749,22 @@ final class ProgressBarTests: XCTestCase {
         let _ = progress.draw()
     }
 
+    func testProgressBarNegativeValue() async throws {
+        // Regression test: a negative progress value (e.g. from a race in progress events)
+        // must not cause String(repeating:count:) to be called with a negative count.
+        let config = try ProgressConfig(
+            description: "Task",
+            showProgressBar: true,
+            totalSize: 50,
+            width: 57
+        )
+        let progress = ProgressBar(config: config)
+        progress.set(size: -10)
+        // draw(state:detail:) should clamp barLength to [0, remainingWidth] and not crash.
+        let state = progress.state.withLock { $0 }
+        let _ = progress.draw(state: state, detail: .full)
+    }
+
     func testItemsName() async throws {
         let config = try ProgressConfig(
             description: "Task",
