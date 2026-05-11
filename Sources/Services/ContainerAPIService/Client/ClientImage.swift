@@ -25,6 +25,11 @@ import ContainerizationOCI
 import Foundation
 import TerminalProgress
 
+public struct ImageSizeInfo: Sendable {
+    public let ociImageSize: Int64  // Compressed OCI image size
+    public let snapshotSize: UInt64  // Unpacked snapshot size (0 if not available)
+}
+
 // MARK: ClientImage structure
 
 public struct ClientImage: Sendable {
@@ -453,6 +458,33 @@ extension ClientImage {
         let response = try await client.send(request)
         let fs = try response.filesystem()
         return fs
+    }
+
+
+    /// Returns the unpacked snapshot size in bytes for the specified platform.
+    /// - Parameter platform: The platform to get the snapshot size for.
+    /// - Returns: The unpacked snapshot size in bytes.
+    /// - Throws: An error if the snapshot size cannot be retrieved.
+    public func getSnapshotSize(platform: Platform) async throws -> UInt64 {
+        let client = Self.newXPCClient()
+        let request = Self.newRequest(.snapshotSize)
+
+        try request.set(description: description)
+        try request.set(platform: platform)
+
+        let response = try await client.send(request)
+        return response.uint64(key: .imageSize)
+    }
+
+    /// Returns both OCI image size and snapshot size for the specified platform.
+    /// - Parameter platform: The platform to get the snapshot size for.
+    /// - Returns: An ``ImageSizeInfo`` containing the compressed OCI image size and the unpacked snapshot size.
+    /// - Throws: An error if the image sizes cannot be retrieved.
+    public func getImageSizes(platform: Platform) async throws -> ImageSizeInfo {
+        let ociSize = try await Self.getFullImageSize(image: self)
+        let snapshotSize = (try? await self.getSnapshotSize(platform: platform)) ?? 0
+
+        return ImageSizeInfo(ociImageSize: ociSize, snapshotSize: snapshotSize)
     }
 
     @discardableResult

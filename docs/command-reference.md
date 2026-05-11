@@ -485,6 +485,8 @@ No options.
 
 Lists local images. Verbose output provides additional details such as image ID, creation time and full size; JSON output provides the same data in machine-readable form.
 
+The `FULL SIZE` column reports the unpacked snapshot size when the image has been used to start a container, and falls back to the compressed OCI image size otherwise.
+
 **Usage**
 
 ```bash
