@@ -17,9 +17,10 @@
 import ArgumentParser
 import ContainerVersion
 
-@main
-struct NetworkVmnetHelper: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
+public struct NetworkVmnetHelper: AsyncParsableCommand {
+    public init() {}
+
+    public static let configuration = CommandConfiguration(
         commandName: "container-network-vmnet",
         abstract: "XPC service for managing a vmnet network",
         version: ReleaseVersion.singleLine(appName: "container-network-vmnet"),
