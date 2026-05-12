@@ -27,7 +27,7 @@ public actor NetworkService: Sendable {
     private let log: Logger
     private var allocator: AttachmentAllocator
     private var macAddresses: [UInt32: MACAddress]
-    private var allocationsBySession: [XPCServerSession: [(hostname: String, index: UInt32)]] = [:]
+    private var allocationsBySession: [XPCServerSession: [(hostname: String, index: UInt32)]]
 
     /// Set up a network service for the specified network.
     public init(
@@ -42,10 +42,11 @@ public actor NetworkService: Sendable {
         let subnet = status.ipv4Subnet
 
         let size = Int(subnet.upper.value - subnet.lower.value - 3)
-        self.allocator = try AttachmentAllocator(lower: subnet.lower.value + 2, size: size)
-        self.macAddresses = [:]
         self.network = network
         self.log = log
+        self.allocator = try AttachmentAllocator(lower: subnet.lower.value + 2, size: size)
+        self.macAddresses = [:]
+        self.allocationsBySession = [:]
     }
 
     @Sendable

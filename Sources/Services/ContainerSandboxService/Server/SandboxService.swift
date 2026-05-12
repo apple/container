@@ -14,7 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerAPIClient
+import ContainerNetworkServiceClient
 import ContainerOS
 import ContainerPersistence
 import ContainerResource
@@ -50,6 +50,7 @@ public actor SandboxService {
     private var state: State = .created
     private var processes: [String: ProcessInfo] = [:]
     private var socketForwarders: [SocketForwarderResult] = []
+    private var networkSessions: [XPCClientSession] = []
 
     private static let sshAuthSocketGuestPath = "/var/host-services/ssh-auth.sock"
     private static let sshAuthSocketEnvVar = "SSH_AUTH_SOCK"
@@ -168,11 +169,53 @@ public actor SandboxService {
                 logger: self.log
             )
 
-            let allocatedAttachments = try message.getAllocatedAttachments()
+            let networkBootstrapInfos = try message.networkBootstrapInfos()
+
+            var sessions: [XPCClientSession] = []
+            var attachments: [Attachment] = []
+            var interfaces: [Interface] = []
+            do {
+                for (index, info) in networkBootstrapInfos.enumerated() {
+                    let attachmentConfig = config.networks[index]
+                    let client = ContainerNetworkServiceClient.NetworkClient(id: attachmentConfig.network, plugin: info.pluginInfo.plugin)
+                    let session = client.connect()
+                    sessions.append(session)
+                    var (attachment, additionalData) = try await client.allocate(
+                        hostname: attachmentConfig.options.hostname,
+                        macAddress: attachmentConfig.options.macAddress,
+                        on: session
+                    )
+                    if let mtu = attachmentConfig.options.mtu {
+                        attachment = Attachment(
+                            network: attachment.network,
+                            hostname: attachment.hostname,
+                            ipv4Address: attachment.ipv4Address,
+                            ipv4Gateway: attachment.ipv4Gateway,
+                            ipv6Address: attachment.ipv6Address,
+                            macAddress: attachment.macAddress,
+                            mtu: mtu
+                        )
+                    }
+                    guard let iStrategy = self.interfaceStrategies[info.pluginInfo] else {
+                        throw ContainerizationError(
+                            .internalError, message: "no available interface strategy for network \(attachment.network), \(info.pluginInfo)")
+                    }
+                    let interface = try iStrategy.toInterface(
+                        attachment: attachment,
+                        interfaceIndex: index,
+                        additionalData: additionalData
+                    )
+                    attachments.append(attachment)
+                    interfaces.append(interface)
+                }
+            } catch {
+                for session in sessions { session.close() }
+                throw error
+            }
 
             // Dynamically configure the DNS nameserver from a network if no explicit configuration
             if let dns = config.dns, dns.nameservers.isEmpty {
-                let defaultNameservers = try await self.getDefaultNameservers(allocatedAttachments: allocatedAttachments)
+                let defaultNameservers = self.getDefaultNameservers(from: attachments)
                 if !defaultNameservers.isEmpty {
                     config.dns = ContainerConfiguration.DNSConfiguration(
                         nameservers: defaultNameservers,
@@ -181,25 +224,6 @@ public actor SandboxService {
                         options: dns.options
                     )
                 }
-            }
-
-            var attachments: [Attachment] = []
-            var interfaces: [Interface] = []
-            for index in 0..<allocatedAttachments.count {
-                let allocatedAttach = allocatedAttachments[index]
-                attachments.append(allocatedAttach.attachment)
-
-                guard let iStrategy = self.interfaceStrategies[allocatedAttach.pluginInfo] else {
-                    throw ContainerizationError(
-                        .internalError, message: "no available interface strategy for network \(allocatedAttach.attachment.network), \(allocatedAttach.pluginInfo)")
-                }
-
-                let interface = try iStrategy.toInterface(
-                    attachment: allocatedAttach.attachment,
-                    interfaceIndex: index,
-                    additionalData: allocatedAttach.additionalData
-                )
-                interfaces.append(interface)
             }
 
             let stdio = message.stdio()
@@ -256,6 +280,7 @@ public actor SandboxService {
                 io: (in: stdin, out: stdout, err: stderr)
             )
             await self.setContainer(ctrInfo)
+            await self.setNetworkSessions(sessions)
 
             do {
                 try await container.create()
@@ -922,16 +947,10 @@ public actor SandboxService {
         try Self.configureInitialProcess(czConfig: &czConfig, config: config)
     }
 
-    private func getDefaultNameservers(allocatedAttachments: [AllocatedAttachment]) async throws -> [String] {
-        let networkClient = NetworkClient()
-        for allocatedAttach in allocatedAttachments {
-            let state = try await networkClient.get(id: allocatedAttach.attachment.network)
-            guard state.status.phase == "running", let gateway = state.status.ipv4Gateway else {
-                continue
-            }
-            return [gateway.description]
+    private nonisolated func getDefaultNameservers(from attachments: [Attachment]) -> [String] {
+        for attachment in attachments {
+            return [attachment.ipv4Gateway.description]
         }
-
         return []
     }
 
@@ -1131,6 +1150,9 @@ public actor SandboxService {
 
         await self.stopSocketForwarders()
 
+        for session in networkSessions { session.close() }
+        networkSessions = []
+
         let status = exitStatus ?? ExitStatus(exitCode: 255)
         self.releaseWaiters(for: id, status: status)
     }
@@ -1184,49 +1206,6 @@ extension XPCMessage {
         return dynamicEnv
     }
 
-    fileprivate func getAllocatedAttachments() throws -> [AllocatedAttachment] {
-        guard let attachmentArray = xpc_dictionary_get_value(self.underlying, SandboxKeys.allocatedAttachments.rawValue) else {
-            throw ContainerizationError(.invalidArgument, message: "missing allocatedAttachments array in message")
-        }
-
-        var results = [AllocatedAttachment]()
-        let decoder = JSONDecoder()
-
-        let arrayCount = xpc_array_get_count(attachmentArray)
-
-        for i in 0..<arrayCount {
-            guard let allocatedAttach = xpc_array_get_dictionary(attachmentArray, i) else {
-                throw ContainerizationError(.invalidArgument, message: "invalid allocated attachment at index \(i)")
-            }
-
-            let allocatedAttachXPC = XPCMessage(object: allocatedAttach)
-
-            let attachmentData = allocatedAttachXPC.dataNoCopy(key: SandboxKeys.networkAttachment.rawValue)
-            let pluginInfoData = allocatedAttachXPC.dataNoCopy(key: SandboxKeys.networkPluginInfo.rawValue)
-
-            guard let attachmentData = attachmentData, let pluginInfoData = pluginInfoData else {
-                throw ContainerizationError(.invalidArgument, message: "must have attachment and plugin information for network")
-            }
-
-            let attachment = try decoder.decode(Attachment.self, from: attachmentData)
-            let pluginInfo = try decoder.decode(NetworkPluginInfo.self, from: pluginInfoData)
-
-            let additionalDataXPC: XPCMessage? = {
-                if let rawData = xpc_dictionary_get_dictionary(allocatedAttachXPC.underlying, SandboxKeys.networkAdditionalData.rawValue) {
-                    return XPCMessage(object: rawData)
-                }
-                return nil
-            }()
-
-            results.append(
-                AllocatedAttachment(
-                    attachment: attachment,
-                    additionalData: additionalDataXPC,
-                    pluginInfo: pluginInfo
-                ))
-        }
-        return results
-    }
 }
 
 extension ContainerResource.Bundle {
@@ -1397,6 +1376,10 @@ extension SandboxService {
 
     private func setContainer(_ info: ContainerInfo) {
         self.container = info
+    }
+
+    private func setNetworkSessions(_ sessions: [XPCClientSession]) {
+        self.networkSessions = sessions
     }
 
     private func addNewProcess(_ id: String, _ config: ProcessConfiguration, _ io: [FileHandle?]) throws {

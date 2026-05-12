@@ -34,9 +34,7 @@ import SystemPackage
 public actor ContainersService {
     struct ContainerState {
         var snapshot: ContainerSnapshot
-        var client: SandboxClient?
-        var allocatedAttachments: [AllocatedAttachment]
-        var networkSessions: [XPCClientSession]
+        var client: SandboxClient? = nil
 
         func getClient() throws -> SandboxClient {
             guard let client else {
@@ -133,8 +131,6 @@ public actor ContainersService {
                         networks: [],
                         startedDate: nil
                     ),
-                    allocatedAttachments: [],
-                    networkSessions: []
                 )
                 results[config.id] = state
                 guard runtimePlugins.first(where: { $0.name == config.runtimeHandler }) != nil else {
@@ -396,7 +392,7 @@ public actor ContainersService {
                     networks: [],
                     startedDate: nil
                 )
-                await self.setContainerState(configuration.id, ContainerState(snapshot: snapshot, allocatedAttachments: [], networkSessions: []), context: context)
+                await self.setContainerState(configuration.id, ContainerState(snapshot: snapshot), context: context)
             } catch {
                 throw error
             }
@@ -436,41 +432,15 @@ public actor ContainersService {
             let path = self.containerRoot.appendingPathComponent(id)
             let (config, _) = try Self.getContainerConfiguration(at: path)
 
-            var allocatedAttachments = [AllocatedAttachment]()
-            var networkSessions = [XPCClientSession]()
-            do {
-                for n in config.networks {
-                    guard
-                        let (allocatedAttach, session) = try await self.networksService?.allocate(
-                            id: n.network,
-                            hostname: n.options.hostname,
-                            macAddress: n.options.macAddress
-                        )
-                    else {
-                        throw ContainerizationError(.internalError, message: "failed to allocate a network")
-                    }
-
-                    var finalAttach = allocatedAttach
-                    if let mtu = n.options.mtu {
-                        let a = allocatedAttach.attachment
-                        finalAttach = AllocatedAttachment(
-                            attachment: Attachment(
-                                network: a.network,
-                                hostname: a.hostname,
-                                ipv4Address: a.ipv4Address,
-                                ipv4Gateway: a.ipv4Gateway,
-                                ipv6Address: a.ipv6Address,
-                                macAddress: a.macAddress,
-                                mtu: mtu
-                            ),
-                            additionalData: allocatedAttach.additionalData,
-                            pluginInfo: allocatedAttach.pluginInfo
-                        )
-                    }
-                    allocatedAttachments.append(finalAttach)
-                    networkSessions.append(session)
+            var networkBootstrapInfos = [NetworkBootstrapInfo]()
+            for n in config.networks {
+                guard let pluginInfo = try await self.networksService?.pluginInfo(id: n.network) else {
+                    throw ContainerizationError(.internalError, message: "failed to get plugin info for network \(n.network)")
                 }
+                networkBootstrapInfos.append(NetworkBootstrapInfo(pluginInfo: pluginInfo))
+            }
 
+            do {
                 try Self.registerService(
                     plugin: self.runtimePlugins.first { $0.name == config.runtimeHandler }!,
                     loader: self.pluginLoader,
@@ -484,7 +454,7 @@ public actor ContainersService {
                     id: id,
                     runtime: runtime
                 )
-                try await sandboxClient.bootstrap(stdio: stdio, allocatedAttachments: allocatedAttachments, dynamicEnv: dynamicEnv)
+                try await sandboxClient.bootstrap(stdio: stdio, networkBootstrapInfos: networkBootstrapInfos, dynamicEnv: dynamicEnv)
 
                 try await self.exitMonitor.registerProcess(
                     id: id,
@@ -492,14 +462,8 @@ public actor ContainersService {
                 )
 
                 state.client = sandboxClient
-                state.allocatedAttachments = allocatedAttachments
-                state.networkSessions = networkSessions
                 await self.setContainerState(id, state, context: context)
             } catch {
-                for session in networkSessions {
-                    session.close()
-                }
-
                 let label = Self.fullLaunchdServiceLabel(
                     runtimeName: config.runtimeHandler,
                     instanceId: id
@@ -994,17 +958,9 @@ public actor ContainersService {
                 ])
         }
 
-        // Close network sessions — the network helper auto-releases allocations on disconnect.
-        self.log.info("closing network sessions", metadata: ["id": "\(id)"])
-        for session in state.networkSessions {
-            session.close()
-        }
-
         state.snapshot.status = .stopped
         state.snapshot.networks = []
         state.client = nil
-        state.allocatedAttachments = []
-        state.networkSessions = []
         await self.setContainerState(id, state, context: context)
 
         let options = try getContainerCreationOptions(id: id)

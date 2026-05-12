@@ -357,7 +357,7 @@ let package = Package(
                 .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
-                "ContainerAPIClient",
+                "ContainerNetworkServiceClient",
                 "ContainerOS",
                 "ContainerPersistence",
                 "ContainerResource",

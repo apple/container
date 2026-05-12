@@ -19,7 +19,6 @@ import ContainerNetworkServiceClient
 import ContainerPersistence
 import ContainerPlugin
 import ContainerResource
-import ContainerXPC
 import Containerization
 import ContainerizationError
 import ContainerizationExtras
@@ -380,26 +379,14 @@ public actor NetworksService {
         }
     }
 
-    public func allocate(id: String, hostname: String, macAddress: MACAddress?) async throws -> (AllocatedAttachment, XPCClientSession) {
+    public func pluginInfo(id: String) throws -> NetworkPluginInfo {
         guard let serviceState = serviceStates[id] else {
             throw ContainerizationError(.notFound, message: "no network for id \(id)")
         }
         guard let pluginInfo = serviceState.networkState.pluginInfo else {
             throw ContainerizationError(.internalError, message: "network \(id) missing plugin information")
         }
-        let session = serviceState.client.connect()
-        do {
-            let (attach, additionalData) = try await serviceState.client.allocate(hostname: hostname, macAddress: macAddress, on: session)
-            let alloc = AllocatedAttachment(
-                attachment: attach,
-                additionalData: additionalData,
-                pluginInfo: pluginInfo
-            )
-            return (alloc, session)
-        } catch {
-            session.close()
-            throw error
-        }
+        return pluginInfo
     }
 
     private static func getClient(configuration: NetworkConfiguration) throws -> ContainerNetworkServiceClient.NetworkClient {

@@ -79,7 +79,7 @@ public struct SandboxClient: Sendable {
 extension SandboxClient {
     public func bootstrap(
         stdio: [FileHandle?],
-        allocatedAttachments: [AllocatedAttachment],
+        networkBootstrapInfos: [NetworkBootstrapInfo],
         dynamicEnv: [String: String] = [:]
     ) async throws {
         let request = XPCMessage(route: SandboxRoutes.bootstrap.rawValue)
@@ -104,7 +104,8 @@ extension SandboxClient {
             let dynamicEnv = try JSONEncoder().encode(dynamicEnv)
             request.set(key: SandboxKeys.dynamicEnv.rawValue, value: dynamicEnv)
 
-            try request.setAllocatedAttachments(allocatedAttachments)
+            let infosData = try JSONEncoder().encode(networkBootstrapInfos)
+            request.set(key: SandboxKeys.networkBootstrapInfos.rawValue, value: infosData)
             try await self.client.send(request)
         } catch {
             throw ContainerizationError(
@@ -331,25 +332,10 @@ extension XPCMessage {
         return try JSONDecoder().decode(SandboxSnapshot.self, from: data)
     }
 
-    func setAllocatedAttachments(_ allocatedAttachments: [AllocatedAttachment]) throws {
-        let encoder = JSONEncoder()
-        let allocatedAttachmentsArray = xpc_array_create_empty()
-        for allocatedAttach in allocatedAttachments {
-            let xpcObject: xpc_object_t = xpc_dictionary_create_empty()
-            let networkXPC = XPCMessage(object: xpcObject)
-
-            let attachmentEncoded = try encoder.encode(allocatedAttach.attachment)
-            networkXPC.set(key: SandboxKeys.networkAttachment.rawValue, value: attachmentEncoded)
-
-            let pluginInfoEncoded = try encoder.encode(allocatedAttach.pluginInfo)
-            networkXPC.set(key: SandboxKeys.networkPluginInfo.rawValue, value: pluginInfoEncoded)
-
-            if let additionalData = allocatedAttach.additionalData {
-                xpc_dictionary_set_value(networkXPC.underlying, SandboxKeys.networkAdditionalData.rawValue, additionalData.underlying)
-            }
-
-            xpc_array_append_value(allocatedAttachmentsArray, networkXPC.underlying)
+    public func networkBootstrapInfos() throws -> [NetworkBootstrapInfo] {
+        guard let data = self.dataNoCopy(key: SandboxKeys.networkBootstrapInfos.rawValue) else {
+            throw ContainerizationError(.invalidArgument, message: "missing networkBootstrapInfos in bootstrap message")
         }
-        self.set(key: SandboxKeys.allocatedAttachments.rawValue, value: allocatedAttachmentsArray)
+        return try JSONDecoder().decode([NetworkBootstrapInfo].self, from: data)
     }
 }
