@@ -16,10 +16,7 @@
 
 import ArgumentParser
 import ContainerAPIClient
-import ContainerResource
-import ContainerizationExtras
 import Foundation
-import SwiftProtobuf
 
 extension Application {
     public struct NetworkList: AsyncLoggableCommand {
@@ -42,45 +39,7 @@ extension Application {
         public func run() async throws {
             let networkClient = NetworkClient()
             let networks = try await networkClient.list()
-            let items = networks.map { PrintableNetwork($0) }
-            try Output.render(json: items, display: items, format: format, quiet: quiet)
-        }
-    }
-}
-
-extension PrintableNetwork: ListDisplayable {
-    public static var tableHeader: [String] {
-        ["NETWORK", "STATE", "SUBNET"]
-    }
-
-    public var tableRow: [String] {
-        if let status {
-            return [self.id, self.state, status.ipv4Subnet.description]
-        }
-        return [self.id, self.state, "none"]
-    }
-
-    public var quietValue: String {
-        self.id
-    }
-}
-
-public struct PrintableNetwork: Codable, Sendable {
-    let id: String
-    let state: String
-    let config: NetworkConfiguration
-    let status: NetworkStatus?
-
-    public init(_ network: NetworkState) {
-        self.id = network.id
-        self.state = network.state
-        switch network {
-        case .created(let config):
-            self.config = config
-            self.status = nil
-        case .running(let config, let status):
-            self.config = config
-            self.status = status
+            try Output.render(json: networks, display: networks, format: format, quiet: quiet)
         }
     }
 }

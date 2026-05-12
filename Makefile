@@ -166,8 +166,6 @@ LLVM_COV_IGNORE := \
 	--ignore-filename-regex=".pb.swift" \
 	--ignore-filename-regex=".proto" \
 	--ignore-filename-regex=".grpc.swift"
-# swift test overwrites profraw data on each invocation, so we copy to a safe spot
-SAVE_PROFRAW = mkdir -p $(COVERAGE_OUTPUT_DIR)/integration/$(1) && cp $(COV_DATA_DIR)/*.profraw $(COVERAGE_OUTPUT_DIR)/integration/$(1)/
 
 # Generate JSON + HTML coverage reports and a coverage-percent.txt from a profdata file.
 # $(1) = profdata path, $(2) = tier name (unit/integration/combined)
@@ -184,7 +182,7 @@ define GENERATE_COV_REPORTS
 		-output-dir=$(COVERAGE_OUTPUT_DIR)/$(2)/html \
 		$(TEST_BINARY)
 	@echo Extracting $(2) coverage percentages...
-	@jq -r '"line coverage: \(.data[0].totals.lines.percent * 100 | round / 100)%\nfunction coverage: \(.data[0].totals.functions.percent * 100 | round / 100)%"' \
+	@jq -r '"line coverage: \(.data[0].totals.lines.percent | . * 100 | round | . / 100)%\nfunction coverage: \(.data[0].totals.functions.percent | . * 100 | round | . / 100)%"' \
 		$(COVERAGE_OUTPUT_DIR)/$(2)/coverage-summary.json > $(COVERAGE_OUTPUT_DIR)/$(2)/coverage-percent.txt
 	@cat $(COVERAGE_OUTPUT_DIR)/$(2)/coverage-percent.txt
 endef
@@ -215,9 +213,18 @@ INTEGRATION_TEST_SUITES := \
 	TestCLINotFound \
 	TestCLINoParallelCases
 
+empty :=
+space := $(empty) $(empty)
+INTEGRATION_FILTER := $(subst $(space),|,$(strip $(INTEGRATION_TEST_SUITES)))
+
+.PHONY: coverage-build
+coverage-build:
+	@echo Building tests with coverage instrumentation...
+	@$(SWIFT) build --build-tests --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION)
+
 .PHONY: coverage
 # Merge the raw coverage data generated from coverage-unit and coverage-integration into one unified report
-coverage: coverage-unit coverage-integration
+coverage: coverage-build coverage-unit coverage-integration
 	@echo Merging combined coverage profdata...
 	@mkdir -p $(COVERAGE_OUTPUT_DIR)/combined
 	@xcrun llvm-profdata merge -sparse \
@@ -231,12 +238,9 @@ coverage-unit:
 	@echo Running unit test coverage...
 	@rm -f $(COV_DATA_DIR)/*.profraw
 	@mkdir -p $(COVERAGE_OUTPUT_DIR)/unit
-# Run the test suite with profiler (exclude integration tests)
-	@$(SWIFT) test --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI
-# Move the profiling data to a staging area for later consumption in full coverage aggregation
+	@$(SWIFT) test --skip-build --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI
 	@echo Merging unit coverage profdata...
 	@xcrun llvm-profdata merge -sparse $(COV_DATA_DIR)/*.profraw -o $(COVERAGE_OUTPUT_DIR)/unit/default.profdata
-# Generate both JSON (for machines) and html (for humans)
 	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/unit/default.profdata,unit)
 
 .PHONY: coverage-integration
@@ -249,17 +253,16 @@ coverage-integration: all
 	@bin/container --debug system start --timeout 60 $(SYSTEM_START_OPTS) && \
 	echo "Starting CLI integration tests with coverage" && \
 	{ \
-		exit_code=0; \
 		export CLITEST_LOG_ROOT=$(LOG_ROOT) ; \
-		$(foreach suite,$(INTEGRATION_TEST_SUITES), \
-			$(SWIFT) test --no-parallel --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter $(suite) || exit_code=1 ; $(call SAVE_PROFRAW,$(suite)) ; \
-		) \
+		$(SWIFT) test --skip-build --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(INTEGRATION_FILTER)" ; \
+		exit_code=$$? ; \
+		cp $(COV_DATA_DIR)/*.profraw $(COVERAGE_OUTPUT_DIR)/integration/ ; \
 		echo Ensuring apiserver stopped after the coverage integration tests ; \
 		scripts/ensure-container-stopped.sh ; \
 		exit $${exit_code} ; \
 	}
 	@echo Merging integration coverage profdata...
-	@xcrun llvm-profdata merge -sparse $(COVERAGE_OUTPUT_DIR)/integration/*/*.profraw -o $(COVERAGE_OUTPUT_DIR)/integration/default.profdata
+	@xcrun llvm-profdata merge -sparse $(COVERAGE_OUTPUT_DIR)/integration/*.profraw -o $(COVERAGE_OUTPUT_DIR)/integration/default.profdata
 	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/integration/default.profdata,integration)
 
 .PHONY: integration
@@ -275,11 +278,9 @@ integration: init-block
 	@bin/container --debug system start --timeout 60 --enable-kernel-install $(SYSTEM_START_OPTS) && \
 	echo "Starting CLI integration tests" && \
 	{ \
-		exit_code=0; \
 		CLITEST_LOG_ROOT=$(LOG_ROOT) && export CLITEST_LOG_ROOT ; \
-		$(foreach suite,$(INTEGRATION_TEST_SUITES), \
-			$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter $(suite) || exit_code=1 ; \
-		) \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(INTEGRATION_FILTER)" ; \
+		exit_code=$$? ; \
 		echo Ensuring apiserver stopped after the CLI integration tests ; \
 		scripts/ensure-container-stopped.sh ; \
 		exit $${exit_code} ; \

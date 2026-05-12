@@ -50,6 +50,7 @@ extension APIServer {
         var logRoot = LogRoot.path
 
         func run() async throws {
+            let containerSystemConfig: ContainerSystemConfig = try ConfigurationLoader.load()
             let commandName = APIServer._commandName
             let logPath = logRoot.map { $0.appending("\(commandName).log") }
             let log = ServiceLogger.bootstrap(category: "APIServer", debug: debug, logPath: logPath)
@@ -62,15 +63,18 @@ extension APIServer {
                 log.info("configuring XPC server")
                 var routes = [XPCRoute: XPCServer.RouteHandler]()
                 let pluginLoader = try initializePluginLoader(log: log)
+
                 try await initializePlugins(pluginLoader: pluginLoader, log: log, routes: &routes)
                 let containersService = try initializeContainersService(
                     pluginLoader: pluginLoader,
+                    containerSystemConfig: containerSystemConfig,
                     log: log,
                     routes: &routes
                 )
                 let networkService = try await initializeNetworksService(
                     pluginLoader: pluginLoader,
                     containersService: containersService,
+                    containerSystemConfig: containerSystemConfig,
                     log: log,
                     routes: &routes
                 )
@@ -259,12 +263,18 @@ extension APIServer {
             routes[XPCRoute.getDefaultKernel] = harness.getDefaultKernel
         }
 
-        private func initializeContainersService(pluginLoader: PluginLoader, log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) throws -> ContainersService {
+        private func initializeContainersService(
+            pluginLoader: PluginLoader,
+            containerSystemConfig: ContainerSystemConfig,
+            log: Logger,
+            routes: inout [XPCRoute: XPCServer.RouteHandler]
+        ) throws -> ContainersService {
             log.info("initializing containers service")
 
             let service = try ContainersService(
                 appRoot: appRoot,
                 pluginLoader: pluginLoader,
+                containerSystemConfig: containerSystemConfig,
                 log: log,
                 debugHelpers: debug
             )
@@ -294,12 +304,15 @@ extension APIServer {
         private func initializeNetworksService(
             pluginLoader: PluginLoader,
             containersService: ContainersService,
+            containerSystemConfig: ContainerSystemConfig,
             log: Logger,
             routes: inout [XPCRoute: XPCServer.RouteHandler]
         ) async throws -> NetworksService {
             log.info("initializing networks service")
 
-            let resourceRoot = appRoot.appendingPathComponent("networks")
+            // TODO: This goes away when we convert our roots to FilePath
+            let appPath = FilePath(appRoot.absolutePath())
+            let resourceRoot = appPath.appending("networks")
             let service = try await NetworksService(
                 pluginLoader: pluginLoader,
                 resourceRoot: resourceRoot,
@@ -316,8 +329,8 @@ extension APIServer {
                 let config = try NetworkConfiguration(
                     id: NetworkClient.defaultNetworkName,
                     mode: .nat,
-                    ipv4Subnet: try? DefaultsStore.getOptional(key: .defaultSubnet).map { try CIDRv4($0) },
-                    ipv6Subnet: try? DefaultsStore.getOptional(key: .defaultIPv6Subnet).map { try CIDRv6($0) },
+                    ipv4Subnet: containerSystemConfig.network.subnet,
+                    ipv6Subnet: containerSystemConfig.network.subnetv6,
                     labels: try .init([ResourceLabelKeys.role: ResourceRoleValues.builtin]),
                     pluginInfo: NetworkPluginInfo(plugin: "container-network-vmnet")
                 )
@@ -343,7 +356,9 @@ extension APIServer {
         ) throws -> VolumesService {
             log.info("initializing volume service")
 
-            let resourceRoot = appRoot.appendingPathComponent("volumes")
+            // TODO: This goes away when we convert our roots to FilePath
+            let appPath = FilePath(appRoot.absolutePath())
+            let resourceRoot = appPath.appending("volumes")
             let service = try VolumesService(resourceRoot: resourceRoot, containersService: containersService, log: log)
             let harness = VolumesHarness(service: service, log: log)
 

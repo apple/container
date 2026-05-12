@@ -19,6 +19,7 @@ import Testing
 import Yams
 
 /// Tests for `container system version` output formats and build type detection.
+@Suite(.serialSuites)
 final class TestCLIVersion: CLITest {
     struct VersionInfo: Codable {
         let version: String

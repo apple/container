@@ -16,6 +16,7 @@
 
 import AsyncHTTPClient
 import ContainerLog
+import ContainerPersistence
 import ContainerResource
 import Containerization
 import ContainerizationOS
@@ -23,6 +24,7 @@ import Foundation
 import Logging
 import Synchronization
 import SystemPackage
+import TOML
 import Testing
 
 class CLITest {
@@ -46,9 +48,8 @@ class CLITest {
 
     struct NetworkInspectOutput: Codable {
         let id: String
-        let state: String
         let config: NetworkConfiguration
-        let status: NetworkStatus?
+        let status: NetworkStatus
     }
 
     let testName: String
@@ -165,23 +166,41 @@ class CLITest {
         }
 
         let inputPipe = Pipe()
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
         process.standardInput = inputPipe
-        process.standardOutput = outputPipe
-        process.standardError = errorPipe
 
         let outputData: Data
         let errorData: Data
         do {
+            // Redirect stdout/stderr to temp files so the child process never
+            // blocks on `write()` when one stream fills the kernel pipe buffer
+            // before the parent drains it (issue #1456).
+            let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer {
+                try? FileManager.default.removeItem(at: tempDir)
+            }
+
+            let stdoutURL = tempDir.appendingPathComponent("stdout")
+            let stderrURL = tempDir.appendingPathComponent("stderr")
+            FileManager.default.createFile(atPath: stdoutURL.path, contents: nil)
+            FileManager.default.createFile(atPath: stderrURL.path, contents: nil)
+
+            let stdoutHandle = try FileHandle(forWritingTo: stdoutURL)
+            defer { try? stdoutHandle.close() }
+            let stderrHandle = try FileHandle(forWritingTo: stderrURL)
+            defer { try? stderrHandle.close() }
+            process.standardOutput = stdoutHandle
+            process.standardError = stderrHandle
+
             try process.run()
             if let data = stdin {
                 inputPipe.fileHandleForWriting.write(data)
             }
             inputPipe.fileHandleForWriting.closeFile()
-            outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-            errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
+
+            outputData = try Data(contentsOf: stdoutURL)
+            errorData = try Data(contentsOf: stderrURL)
         } catch {
             throw CLIError.executionFailed("Failed to run CLI: \(error)")
         }
@@ -489,31 +508,12 @@ class CLITest {
         return try decoder.decode([ImageInspectOutput].self, from: jsonData)
     }
 
-    func doDefaultRegistrySet(domain: String) throws {
-        let args = [
-            "system",
-            "property",
-            "set",
-            "registry.domain",
-            domain,
-        ]
-        let (_, _, error, status) = try run(arguments: args)
-        if status != 0 {
-            throw CLIError.executionFailed("command failed: \(error)")
+    func getSystemConfig() throws -> ContainerSystemConfig {
+        let (_, output, err, status) = try run(arguments: ["system", "property", "list", "--format", "toml"])
+        guard status == 0 else {
+            throw CLIError.executionFailed("system property list failed (\(status)): \(err)")
         }
-    }
-
-    func doDefaultRegistryUnset() throws {
-        let args = [
-            "system",
-            "property",
-            "clear",
-            "registry.domain",
-        ]
-        let (_, _, error, status) = try run(arguments: args)
-        if status != 0 {
-            throw CLIError.executionFailed("command failed: \(error)")
-        }
+        return try TOMLDecoder().decode(ContainerSystemConfig.self, from: Data(output.utf8))
     }
 
     func doRemove(name: String, force: Bool = false) throws {

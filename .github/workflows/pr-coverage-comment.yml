@@ -1,0 +1,83 @@
+name: PR Coverage Comment
+
+on:
+  workflow_run:
+    workflows: ["container project - PR build"]
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+jobs:
+  comment:
+    name: Post coverage comment
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+
+    steps:
+      - name: Download coverage artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+          pattern: pr-coverage-*
+          merge-multiple: false
+        id: download-artifact
+        continue-on-error: true
+
+      - name: Check artifact exists
+        if: steps.download-artifact.outcome == 'success'
+        id: check-artifact
+        run: |
+          if ls pr-coverage-*/pr-number.txt 1>/dev/null 2>&1; then
+            echo "found=true" >> $GITHUB_OUTPUT
+          else
+            echo "No coverage artifact found — coverage job may have failed."
+            echo "found=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Validate and post comment
+        if: steps.check-artifact.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          PR_NUMBER=$(cat pr-coverage-*/pr-number.txt)
+          grep -qxE '[0-9]+' <<< "$PR_NUMBER" || { echo "Invalid PR number: ${PR_NUMBER}"; exit 1; }
+
+          UNIT=$(cat pr-coverage-*/unit-line-coverage.txt)
+          grep -qxE '[0-9]+(\.[0-9]+)?' <<< "$UNIT" || { echo "Invalid unit coverage: ${UNIT}"; exit 1; }
+
+          INTEGRATION=$(cat pr-coverage-*/integration-line-coverage.txt)
+          grep -qxE '[0-9]+(\.[0-9]+)?' <<< "$INTEGRATION" || { echo "Invalid integration coverage: ${INTEGRATION}"; exit 1; }
+
+          COMBINED=$(cat pr-coverage-*/combined-line-coverage.txt)
+          grep -qxE '[0-9]+(\.[0-9]+)?' <<< "$COMBINED" || { echo "Invalid combined coverage: ${COMBINED}"; exit 1; }
+
+          MARKER="<!-- coverage-bot -->"
+          BODY=$(cat <<EOF
+          ${MARKER}
+          ## Code Coverage
+
+          | Tier | Line Coverage |
+          |------|--------------|
+          | Unit | ${UNIT}% |
+          | Integration | ${INTEGRATION}% |
+          | Combined | ${COMBINED}% |
+          EOF
+          )
+
+          EXISTING_COMMENT_ID=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" --paginate --jq ".[] | select(.body | contains(\"${MARKER}\")) | .id" | head -1)
+
+          if [ -n "${EXISTING_COMMENT_ID}" ]; then
+            gh api "repos/${REPO}/issues/comments/${EXISTING_COMMENT_ID}" -X PATCH -f body="${BODY}"
+            echo "Updated existing coverage comment ${EXISTING_COMMENT_ID}"
+          else
+            gh pr comment "${PR_NUMBER}" --repo "${REPO}" --body "${BODY}"
+            echo "Created new coverage comment"
+          fi

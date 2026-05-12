@@ -19,6 +19,7 @@ import Darwin
 import Foundation
 import Testing
 
+@Suite(.serialSuites)
 class TestCLIRunLifecycle: CLITest {
     private func getTestName() -> String {
         Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()

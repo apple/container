@@ -74,8 +74,8 @@ extension Application {
                 pluginInfo: NetworkPluginInfo(plugin: self.plugin, variant: self.pluginVariant)
             )
             let networkClient = NetworkClient()
-            let state = try await networkClient.create(configuration: config)
-            print(state.id)
+            let network = try await networkClient.create(configuration: config)
+            print(network.id)
         }
     }
 }

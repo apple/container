@@ -119,16 +119,8 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     }
 
     private func validate() throws {
-        guard id.isValidNetworkID() else {
+        guard NetworkResource.nameValid(id) else {
             throw ContainerizationError(.invalidArgument, message: "invalid network ID: \(id)")
         }
-    }
-}
-
-extension String {
-    /// Ensure that the network ID has the correct syntax.
-    fileprivate func isValidNetworkID() -> Bool {
-        let pattern = #"^[a-z0-9](?:[a-z0-9._-]{0,61}[a-z0-9])?$"#
-        return self.range(of: pattern, options: .regularExpression) != nil
     }
 }

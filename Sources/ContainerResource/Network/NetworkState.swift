@@ -17,7 +17,7 @@
 import ContainerizationExtras
 import Foundation
 
-public struct NetworkStatus: Codable, Sendable {
+public struct NetworkPluginStatus: Codable, Sendable {
     /// The address allocated for the network if no subnet was specified at
     /// creation time; otherwise, the subnet from the configuration.
     public let ipv4Subnet: CIDRv4
@@ -83,7 +83,7 @@ public enum NetworkState: Codable, Sendable {
     // The network has been configured.
     case created(NetworkConfiguration)
     // The network is running.
-    case running(NetworkConfiguration, NetworkStatus)
+    case running(NetworkConfiguration, NetworkPluginStatus)
 
     public var state: String {
         switch self {

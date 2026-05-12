@@ -57,6 +57,8 @@ public struct ContainerConfiguration: Sendable, Codable {
     public var capAdd: [String] = []
     /// Linux capabilities to drop (normalized CAP_* strings, or "ALL").
     public var capDrop: [String] = []
+    /// Size of /dev/shm in bytes. When nil, the default size is used.
+    public var shmSize: UInt64?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -79,6 +81,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         case useInit
         case capAdd
         case capDrop
+        case shmSize
     }
 
     /// Create a configuration from the supplied Decoder, initializing missing
@@ -112,6 +115,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         useInit = try container.decodeIfPresent(Bool.self, forKey: .useInit) ?? false
         capAdd = try container.decodeIfPresent([String].self, forKey: .capAdd) ?? []
         capDrop = try container.decodeIfPresent([String].self, forKey: .capDrop) ?? []
+        shmSize = try container.decodeIfPresent(UInt64.self, forKey: .shmSize)
     }
 
     public struct DNSConfiguration: Sendable, Codable {
