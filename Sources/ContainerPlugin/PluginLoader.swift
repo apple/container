@@ -238,12 +238,14 @@ extension PluginLoader {
         }
 
         let processedArgs = (args ?? ["start"]) + (resourceURL.map { ["--resources", $0.path] } ?? []) + (debug ? ["--debug"] : [])
+        let multicallBinary = plugin.binaryURL.resolvingSymlinksInPath().path
         let plist = LaunchPlist(
             label: id,
-            arguments: [plugin.binaryURL.path] + processedArgs + serviceConfig.defaultArguments,
+            arguments: [plugin.name] + processedArgs + serviceConfig.defaultArguments,
             environment: env,
             limitLoadToSessionType: [.Aqua, .Background, .System],
             runAtLoad: serviceConfig.runAtLoad,
+            program: multicallBinary,
             machServices: plugin.getMachServices(instanceId: instanceId)
         )
 
