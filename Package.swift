@@ -108,6 +108,7 @@ let package = Package(
                 "ContainerPersistence",
                 "ContainerPlugin",
                 "ContainerResource",
+                "ContainerRuntimeLinuxTypes",
                 "ContainerVersion",
                 "ContainerXPC",
                 "TerminalProgress",
@@ -199,6 +200,7 @@ let package = Package(
             dependencies: [
                 .product(name: "Containerization", package: "containerization"),
                 "ContainerResource",
+                "ContainerRuntimeLinuxTypes",
                 "ContainerSandboxServiceClient",
             ]
         ),
@@ -333,6 +335,11 @@ let package = Package(
             ],
             path: "Sources/Services/ContainerNetworkService/Client"
         ),
+        .target(
+            name: "ContainerRuntimeLinuxTypes",
+            dependencies: [],
+            path: "Sources/Plugins/RuntimeLinux/Types"
+        ),
         .executableTarget(
             name: "container-runtime-linux",
             dependencies: [
@@ -342,13 +349,14 @@ let package = Package(
                 "ContainerLog",
                 "ContainerPlugin",
                 "ContainerResource",
+                "ContainerRuntimeLinuxTypes",
                 "ContainerSandboxService",
                 "ContainerSandboxServiceClient",
                 "ContainerVersion",
                 "ContainerXPC",
             ],
             path: "Sources/Plugins/RuntimeLinux",
-            exclude: ["config.toml"]
+            exclude: ["config.toml", "Types"]
         ),
         .target(
             name: "ContainerSandboxService",

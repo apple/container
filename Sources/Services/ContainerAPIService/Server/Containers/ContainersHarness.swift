@@ -196,8 +196,9 @@ public struct ContainersHarness: Sendable {
         let kernel = try JSONDecoder().decode(Kernel.self, from: kdata)
 
         let initImage = message.string(key: .initImage)
+        let runtimeData = message.dataNoCopy(key: .runtimeData)
 
-        try await service.create(configuration: config, kernel: kernel, options: options, initImage: initImage)
+        try await service.create(configuration: config, kernel: kernel, options: options, initImage: initImage, runtimeData: runtimeData)
         return message.reply()
     }
 

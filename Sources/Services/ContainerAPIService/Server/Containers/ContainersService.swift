@@ -277,7 +277,7 @@ public actor ContainersService {
     }
 
     /// Create a new container from the provided id and configuration.
-    public func create(configuration: ContainerConfiguration, kernel: Kernel, options: ContainerCreateOptions, initImage: String? = nil) async throws {
+    public func create(configuration: ContainerConfiguration, kernel: Kernel, options: ContainerCreateOptions, initImage: String? = nil, runtimeData: Data? = nil) async throws {
         log.debug(
             "ContainersService: enter",
             metadata: [
@@ -381,7 +381,8 @@ public actor ContainersService {
                     kernel: kernel,
                     containerConfiguration: configuration,
                     containerRootFilesystem: imageFs,
-                    options: options
+                    options: options,
+                    runtimeData: runtimeData
                 )
 
                 try runtimeConfig.writeRuntimeConfiguration()

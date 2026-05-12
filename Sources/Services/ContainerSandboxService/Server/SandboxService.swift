@@ -140,6 +140,8 @@ public actor SandboxService {
         defer { self.log.debug("exit", metadata: ["func": "\(#function)"]) }
 
         // Create the bundle if it doesn't exist yet
+
+        // Create the bundle if it doesn't exist yet
         if !self.bundleExists(at: self.root) {
             try self.createBundle()
         }
