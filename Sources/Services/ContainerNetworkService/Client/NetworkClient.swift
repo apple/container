@@ -71,12 +71,34 @@ extension NetworkClient {
         return (attachment, additionalData)
     }
 
-    public func deallocate(hostname: String) async throws {
-        let request = XPCMessage(route: NetworkRoutes.deallocate.rawValue)
-        request.set(key: NetworkKeys.hostname.rawValue, value: hostname)
+    /// Open a persistent connection to the network helper.
+    ///
+    /// The returned session should be reused for `allocate(on:)` calls. The
+    /// network helper automatically releases all allocations made over this
+    /// session when it closes.
+    public func connect() -> XPCClientSession {
+        createClient().openSession()
+    }
 
-        let client = createClient()
-        try await client.send(request)
+    /// Allocate a network attachment over an existing session.
+    ///
+    /// Use `connect()` to obtain a session, then pass it here. The session
+    /// must remain open for the lifetime of the allocation; closing it
+    /// releases the allocation on the network helper automatically.
+    public func allocate(
+        hostname: String,
+        macAddress: MACAddress? = nil,
+        on session: XPCClientSession
+    ) async throws -> (attachment: Attachment, additionalData: XPCMessage?) {
+        let request = XPCMessage(route: NetworkRoutes.allocate.rawValue)
+        request.set(key: NetworkKeys.hostname.rawValue, value: hostname)
+        if let macAddress = macAddress {
+            request.set(key: NetworkKeys.macAddress.rawValue, value: macAddress.description)
+        }
+        let response = try await session.send(request)
+        let attachment = try response.attachment()
+        let additionalData = response.additionalData()
+        return (attachment, additionalData)
     }
 
     public func lookup(hostname: String) async throws -> Attachment? {

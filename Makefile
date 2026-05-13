@@ -202,7 +202,7 @@ define GENERATE_COV_REPORTS
 		-output-dir=$(COVERAGE_OUTPUT_DIR)/$(2)/html \
 		$(TEST_BINARY) $(3)
 	@echo Extracting $(2) coverage percentages...
-	@jq -r '"line coverage: \(.data[0].totals.lines.percent * 100 | round / 100)%\nfunction coverage: \(.data[0].totals.functions.percent * 100 | round / 100)%"' \
+	@jq -r '"line coverage: \(.data[0].totals.lines.percent | . * 100 | round | . / 100)%\nfunction coverage: \(.data[0].totals.functions.percent | . * 100 | round | . / 100)%"' \
 		$(COVERAGE_OUTPUT_DIR)/$(2)/coverage-summary.json > $(COVERAGE_OUTPUT_DIR)/$(2)/coverage-percent.txt
 	@cat $(COVERAGE_OUTPUT_DIR)/$(2)/coverage-percent.txt
 endef
@@ -237,9 +237,14 @@ empty :=
 space := $(empty) $(empty)
 INTEGRATION_FILTER := $(subst $(space),|,$(strip $(INTEGRATION_TEST_SUITES)))
 
+.PHONY: coverage-build
+coverage-build:
+	@echo Building tests with coverage instrumentation...
+	@$(SWIFT) build --build-tests --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION)
+
 .PHONY: coverage
 # Merge the raw coverage data generated from coverage-unit and coverage-integration into one unified report
-coverage: coverage-unit coverage-integration
+coverage: coverage-build coverage-unit coverage-integration
 	@echo Merging combined coverage profdata...
 	@mkdir -p $(COVERAGE_OUTPUT_DIR)/combined
 	@xcrun llvm-profdata merge -sparse \
@@ -253,12 +258,9 @@ coverage-unit:
 	@echo Running unit test coverage...
 	@rm -f $(COV_DATA_DIR)/*.profraw
 	@mkdir -p $(COVERAGE_OUTPUT_DIR)/unit
-# Run the test suite with profiler (exclude integration tests)
-	@$(SWIFT) test --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI
-# Move the profiling data to a staging area for later consumption in full coverage aggregation
+	@$(SWIFT) test --skip-build --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI
 	@echo Merging unit coverage profdata...
 	@xcrun llvm-profdata merge -sparse $(COV_DATA_DIR)/*.profraw -o $(COVERAGE_OUTPUT_DIR)/unit/default.profdata
-# Generate both JSON (for machines) and html (for humans)
 	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/unit/default.profdata,unit)
 
 .PHONY: coverage-integration
@@ -273,7 +275,7 @@ coverage-integration: coverage-all
 	echo "Starting CLI integration tests with coverage" && \
 	{ \
 		export CLITEST_LOG_ROOT=$(LOG_ROOT) ; \
-		$(SWIFT) test --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(INTEGRATION_FILTER)" ; \
+		$(SWIFT) test --skip-build --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(INTEGRATION_FILTER)" ; \
 		exit_code=$$? ; \
 		cp $(COV_DATA_DIR)/*.profraw $(COVERAGE_OUTPUT_DIR)/integration/ ; \
 		echo Ensuring apiserver stopped after the coverage integration tests ; \

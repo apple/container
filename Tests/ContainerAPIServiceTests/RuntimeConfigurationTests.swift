@@ -14,11 +14,10 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-// import ContainerAPIService
 import ContainerResource
+import ContainerRuntimeLinuxTypes
 import ContainerSandboxServiceClient
 import Containerization
-// import ContainerizationOCI
 import Foundation
 import Testing
 
@@ -72,10 +71,6 @@ struct RuntimeConfigurationTests {
 
         try runtimeConfig.writeRuntimeConfiguration()
 
-        defer {
-            try? FileManager.default.removeItem(at: runtimeConfig.runtimeConfigurationPath)
-        }
-
         let readRuntimeConfig = try RuntimeConfiguration.readRuntimeConfiguration(from: bundlePath)
 
         #expect(
@@ -96,5 +91,45 @@ struct RuntimeConfigurationTests {
         #expect(
             readRuntimeConfig.options == nil,
             "Options should be nil")
+    }
+
+    @Test
+    func testRuntimeConfigurationWithVariant() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+        let bundlePath = tempDir.appendingPathComponent("test-bundle-\(UUID())")
+
+        defer {
+            try? FileManager.default.removeItem(at: bundlePath)
+        }
+
+        let initFs = Filesystem.virtiofs(
+            source: "/path/to/initfs",
+            destination: "/",
+            options: ["ro"]
+        )
+
+        let kernel = Kernel(
+            path: URL(fileURLWithPath: "/path/to/kernel"),
+            platform: .linuxArm
+        )
+
+        let linuxData = LinuxRuntimeData(variant: "test-variant")
+        let encodedData = try JSONEncoder().encode(linuxData)
+
+        let runtimeConfig = RuntimeConfiguration(
+            path: bundlePath,
+            initialFilesystem: initFs,
+            kernel: kernel,
+            runtimeData: encodedData
+        )
+
+        try runtimeConfig.writeRuntimeConfiguration()
+
+        let readRuntimeConfig = try RuntimeConfiguration.readRuntimeConfiguration(from: bundlePath)
+
+        #expect(readRuntimeConfig.runtimeData != nil, "runtimeData should be persisted")
+
+        let decodedData = try JSONDecoder().decode(LinuxRuntimeData.self, from: readRuntimeConfig.runtimeData!)
+        #expect(decodedData.variant == "test-variant", "Variant should round-trip through RuntimeConfiguration")
     }
 }

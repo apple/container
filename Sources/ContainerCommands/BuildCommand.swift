@@ -18,6 +18,8 @@ import ArgumentParser
 import ContainerAPIClient
 import ContainerBuild
 import ContainerImagesServiceClient
+import ContainerPersistence
+import ContainerPlugin
 import Containerization
 import ContainerizationError
 import ContainerizationOCI
@@ -147,6 +149,7 @@ extension Application {
         var pull: Bool = false
 
         public func run() async throws {
+            let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
             do {
                 let timeout: Duration = .seconds(300)
                 let progressConfig = try ProgressConfig(
@@ -190,7 +193,8 @@ extension Application {
                                     memory: memory,
                                     log: log,
                                     dnsNameservers: dnsNameservers,
-                                    progressUpdate: progress.handler
+                                    progressUpdate: progress.handler,
+                                    containerSystemConfig: containerSystemConfig,
                                 )
 
                                 // wait (seconds) for builder to start listening on vsock
@@ -330,7 +334,9 @@ extension Application {
                         return results
                     }()
                     group.addTask {
-                        [terminal, buildArg, secretsData, contextDir, ignoreFileData, label, noCache, target, quiet, cacheIn, cacheOut, pull, exports, imageNames, tempURL, log] in
+                        [
+                            terminal, buildArg, secretsData, contextDir, ignoreFileData, label, noCache, target, quiet, cacheIn, cacheOut, pull, exports, imageNames, tempURL, log,
+                        ] in
                         let config = Builder.BuildConfig(
                             buildID: buildID,
                             contentStore: RemoteContentStoreClient(),
@@ -349,7 +355,8 @@ extension Application {
                             exports: exports,
                             cacheIn: cacheIn,
                             cacheOut: cacheOut,
-                            pull: pull
+                            pull: pull,
+                            containerSystemConfig: containerSystemConfig,
                         )
                         progress.finish()
 

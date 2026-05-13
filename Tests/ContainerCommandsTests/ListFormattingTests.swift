@@ -251,31 +251,10 @@ struct NetworkResourceDisplayTests {
 struct ListFormatTests {
     @Test
     func hasAllOutputFormatCases() {
-        #expect(ListFormat.allCases.count == 3)
+        #expect(ListFormat.allCases.count == 4)
         #expect(ListFormat.json.rawValue == "json")
         #expect(ListFormat.table.rawValue == "table")
         #expect(ListFormat.yaml.rawValue == "yaml")
-    }
-}
-
-// MARK: - String.elided tests
-
-struct StringElidedTests {
-    @Test
-    func shortStringUnchanged() {
-        #expect("hello".elided(to: 10) == "hello")
-        #expect("hello".elided(to: 5) == "hello")
-    }
-
-    @Test
-    func longStringTruncatedWithEllipsis() {
-        #expect("hello world".elided(to: 8) == "hello...")
-    }
-
-    @Test
-    func maxCountShorterThanEllipsis() {
-        #expect("hello".elided(to: 2) == "..")
-        #expect("hello".elided(to: 1) == ".")
-        #expect("hello".elided(to: 0) == "")
+        #expect(ListFormat.toml.rawValue == "toml")
     }
 }

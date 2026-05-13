@@ -32,6 +32,8 @@ public enum XPCKeys: String {
     case containerConfig
     /// Container options key.
     case containerOptions
+    /// Opaque runtime-specific data.
+    case runtimeData
     /// Vsock port number key.
     case port
     /// Exit code for a process

@@ -23,7 +23,7 @@ import PackageDescription
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
 let builderShimVersion = "0.12.0"
-let scVersion = "0.31.0"
+let scVersion = "0.32.1"
 
 let package = Package(
     name: "container",
@@ -50,6 +50,7 @@ let package = Package(
         .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion)),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
         .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
+        .package(url: "https://github.com/apple/swift-configuration", from: "1.0.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.80.0"),
         .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.36.0"),
@@ -60,6 +61,7 @@ let package = Package(
         .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.20.1"),
         .package(url: "https://github.com/swiftlang/swift-docc-plugin.git", from: "1.1.0"),
         .package(url: "https://github.com/mattt/swift-toml.git", from: "2.0.0"),
+        .package(url: "https://github.com/mattt/swift-configuration-toml", from: "2.0.0"),
         .package(url: "https://github.com/jpsim/Yams.git", from: "6.2.1"),
     ],
     targets: [
@@ -80,8 +82,10 @@ let package = Package(
                 .product(name: "ContainerizationArchive", package: "containerization"),
                 .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
+                .product(name: "TOML", package: "swift-toml"),
                 "ContainerBuild",
                 "ContainerLog",
+                "ContainerPersistence",
                 "ContainerResource",
                 "Yams",
             ],
@@ -93,6 +97,7 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "SwiftProtobuf", package: "swift-protobuf"),
+                .product(name: "TOML", package: "swift-toml"),
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationOCI", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
@@ -103,6 +108,7 @@ let package = Package(
                 "ContainerPersistence",
                 "ContainerPlugin",
                 "ContainerResource",
+                "ContainerRuntimeLinuxTypes",
                 "ContainerVersion",
                 "ContainerXPC",
                 "TerminalProgress",
@@ -194,6 +200,7 @@ let package = Package(
             dependencies: [
                 .product(name: "Containerization", package: "containerization"),
                 "ContainerResource",
+                "ContainerRuntimeLinuxTypes",
                 "ContainerSandboxServiceClient",
             ]
         ),
@@ -226,6 +233,7 @@ let package = Package(
                 .product(name: "SystemPackage", package: "swift-system"),
                 "ContainerAPIClient",
                 "ContainerPersistence",
+                "ContainerTestSupport",
             ]
         ),
         .executableTarget(
@@ -237,6 +245,7 @@ let package = Package(
                 .product(name: "SystemPackage", package: "swift-system"),
                 "ContainerImagesService",
                 "ContainerLog",
+                "ContainerPersistence",
                 "ContainerPlugin",
                 "ContainerVersion",
                 "ContainerXPC",
@@ -285,6 +294,7 @@ let package = Package(
                 "ContainerLog",
                 "ContainerNetworkService",
                 "ContainerNetworkServiceClient",
+                "ContainerPersistence",
                 "ContainerPlugin",
                 "ContainerResource",
                 "ContainerVersion",
@@ -325,6 +335,11 @@ let package = Package(
             ],
             path: "Sources/Services/ContainerNetworkService/Client"
         ),
+        .target(
+            name: "ContainerRuntimeLinuxTypes",
+            dependencies: [],
+            path: "Sources/Plugins/RuntimeLinux/Types"
+        ),
         .executableTarget(
             name: "container-runtime-linux",
             dependencies: [
@@ -334,13 +349,14 @@ let package = Package(
                 "ContainerLog",
                 "ContainerPlugin",
                 "ContainerResource",
+                "ContainerRuntimeLinuxTypes",
                 "ContainerSandboxService",
                 "ContainerSandboxServiceClient",
                 "ContainerVersion",
                 "ContainerXPC",
             ],
             path: "Sources/Plugins/RuntimeLinux",
-            exclude: ["config.toml"]
+            exclude: ["config.toml", "Types"]
         ),
         .target(
             name: "ContainerSandboxService",
@@ -350,7 +366,7 @@ let package = Package(
                 .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
-                "ContainerAPIClient",
+                "ContainerNetworkServiceClient",
                 "ContainerOS",
                 "ContainerPersistence",
                 "ContainerResource",
@@ -400,6 +416,8 @@ let package = Package(
             dependencies: [
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Containerization", package: "containerization"),
+                .product(name: "Configuration", package: "swift-configuration"),
+                .product(name: "ConfigurationTOML", package: "swift-configuration-toml"),
                 .product(name: "SystemPackage", package: "swift-system"),
                 "CVersion",
                 "ContainerVersion",
@@ -408,6 +426,8 @@ let package = Package(
         .testTarget(
             name: "ContainerPersistenceTests",
             dependencies: [
+                .product(name: "Configuration", package: "swift-configuration"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "SystemPackage", package: "swift-system"),
                 "ContainerPersistence",

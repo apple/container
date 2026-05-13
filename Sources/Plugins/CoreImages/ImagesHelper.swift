@@ -18,6 +18,7 @@ import ArgumentParser
 import ContainerImagesService
 import ContainerImagesServiceClient
 import ContainerLog
+import ContainerPersistence
 import ContainerPlugin
 import ContainerVersion
 import ContainerXPC
@@ -56,9 +57,8 @@ extension ImagesHelper {
 
         var logRoot = LogRoot.path
 
-        private static let unpackStrategy = SnapshotStore.defaultUnpackStrategy
-
         func run() async throws {
+            let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
             let commandName = ImagesHelper._commandName
             let logPath = logRoot.map { $0.appending("\(commandName).log") }
             let log = ServiceLogger.bootstrap(category: "ImagesHelper", debug: debug, logPath: logPath)
@@ -71,7 +71,7 @@ extension ImagesHelper {
                 log.info("configuring XPC server")
                 var routes = [String: XPCServer.RouteHandler]()
                 try self.initializeContentService(root: appRoot, log: log, routes: &routes)
-                try self.initializeImagesService(root: appRoot, log: log, routes: &routes)
+                try self.initializeImagesService(root: appRoot, containerSystemConfig: containerSystemConfig, log: log, routes: &routes)
                 let xpc = XPCServer(
                     identifier: serviceIdentifier,
                     routes: routes,
@@ -90,37 +90,38 @@ extension ImagesHelper {
             }
         }
 
-        private func initializeImagesService(root: URL, log: Logger, routes: inout [String: XPCServer.RouteHandler]) throws {
+        private func initializeImagesService(root: URL, containerSystemConfig: ContainerSystemConfig, log: Logger, routes: inout [String: XPCServer.RouteHandler]) throws {
             let contentStore = RemoteContentStoreClient()
             let imageStore = try ImageStore(path: root, contentStore: contentStore)
-            let snapshotStore = try SnapshotStore(path: root, unpackStrategy: Self.unpackStrategy, log: log)
+            let unpackStrategy = SnapshotStore.defaultUnpackStrategy(initImage: containerSystemConfig.vminit.image)
+            let snapshotStore = try SnapshotStore(path: root, unpackStrategy: unpackStrategy, log: log)
             let service = try ImagesService(contentStore: contentStore, imageStore: imageStore, snapshotStore: snapshotStore, log: log)
             let harness = ImagesServiceHarness(service: service, log: log)
 
-            routes[ImagesServiceXPCRoute.imagePull.rawValue] = harness.pull
-            routes[ImagesServiceXPCRoute.imageList.rawValue] = harness.list
-            routes[ImagesServiceXPCRoute.imageDelete.rawValue] = harness.delete
-            routes[ImagesServiceXPCRoute.imageTag.rawValue] = harness.tag
-            routes[ImagesServiceXPCRoute.imagePush.rawValue] = harness.push
-            routes[ImagesServiceXPCRoute.imageSave.rawValue] = harness.save
-            routes[ImagesServiceXPCRoute.imageLoad.rawValue] = harness.load
-            routes[ImagesServiceXPCRoute.imageUnpack.rawValue] = harness.unpack
-            routes[ImagesServiceXPCRoute.imageCleanupOrphanedBlobs.rawValue] = harness.cleanUpOrphanedBlobs
-            routes[ImagesServiceXPCRoute.imageDiskUsage.rawValue] = harness.calculateDiskUsage
-            routes[ImagesServiceXPCRoute.snapshotDelete.rawValue] = harness.deleteSnapshot
-            routes[ImagesServiceXPCRoute.snapshotGet.rawValue] = harness.getSnapshot
+            routes[ImagesServiceXPCRoute.imagePull.rawValue] = XPCServer.route(harness.pull)
+            routes[ImagesServiceXPCRoute.imageList.rawValue] = XPCServer.route(harness.list)
+            routes[ImagesServiceXPCRoute.imageDelete.rawValue] = XPCServer.route(harness.delete)
+            routes[ImagesServiceXPCRoute.imageTag.rawValue] = XPCServer.route(harness.tag)
+            routes[ImagesServiceXPCRoute.imagePush.rawValue] = XPCServer.route(harness.push)
+            routes[ImagesServiceXPCRoute.imageSave.rawValue] = XPCServer.route(harness.save)
+            routes[ImagesServiceXPCRoute.imageLoad.rawValue] = XPCServer.route(harness.load)
+            routes[ImagesServiceXPCRoute.imageUnpack.rawValue] = XPCServer.route(harness.unpack)
+            routes[ImagesServiceXPCRoute.imageCleanupOrphanedBlobs.rawValue] = XPCServer.route(harness.cleanUpOrphanedBlobs)
+            routes[ImagesServiceXPCRoute.imageDiskUsage.rawValue] = XPCServer.route(harness.calculateDiskUsage)
+            routes[ImagesServiceXPCRoute.snapshotDelete.rawValue] = XPCServer.route(harness.deleteSnapshot)
+            routes[ImagesServiceXPCRoute.snapshotGet.rawValue] = XPCServer.route(harness.getSnapshot)
         }
 
         private func initializeContentService(root: URL, log: Logger, routes: inout [String: XPCServer.RouteHandler]) throws {
             let service = try ContentStoreService(root: root, log: log)
             let harness = ContentServiceHarness(service: service, log: log)
 
-            routes[ImagesServiceXPCRoute.contentClean.rawValue] = harness.clean
-            routes[ImagesServiceXPCRoute.contentGet.rawValue] = harness.get
-            routes[ImagesServiceXPCRoute.contentDelete.rawValue] = harness.delete
-            routes[ImagesServiceXPCRoute.contentIngestStart.rawValue] = harness.newIngestSession
-            routes[ImagesServiceXPCRoute.contentIngestCancel.rawValue] = harness.cancelIngestSession
-            routes[ImagesServiceXPCRoute.contentIngestComplete.rawValue] = harness.completeIngestSession
+            routes[ImagesServiceXPCRoute.contentClean.rawValue] = XPCServer.route(harness.clean)
+            routes[ImagesServiceXPCRoute.contentGet.rawValue] = XPCServer.route(harness.get)
+            routes[ImagesServiceXPCRoute.contentDelete.rawValue] = XPCServer.route(harness.delete)
+            routes[ImagesServiceXPCRoute.contentIngestStart.rawValue] = XPCServer.route(harness.newIngestSession)
+            routes[ImagesServiceXPCRoute.contentIngestCancel.rawValue] = XPCServer.route(harness.cancelIngestSession)
+            routes[ImagesServiceXPCRoute.contentIngestComplete.rawValue] = XPCServer.route(harness.completeIngestSession)
         }
     }
 }

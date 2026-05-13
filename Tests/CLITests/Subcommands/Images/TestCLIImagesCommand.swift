@@ -195,37 +195,6 @@ class TestCLIImagesCommand: CLITest {
         }
     }
 
-    @Test func testImageDefaultRegistry() throws {
-        do {
-            let defaultDomain = "ghcr.io"
-            let imageName = "linuxcontainers/alpine:3.20"
-            defer {
-                try? doDefaultRegistrySet(domain: "docker.io")
-            }
-            try doDefaultRegistrySet(domain: defaultDomain)
-            try doPull(imageName: imageName, args: ["--platform", "linux/arm64"])
-            guard let alpineImageDetails = try doInspectImages(image: imageName).first else {
-                Issue.record("alpine image not found")
-                return
-            }
-            #expect(alpineImageDetails.name == "\(defaultDomain)/\(imageName)")
-
-            try doImageTag(image: imageName, newName: "username/image-name:mytag")
-            guard let taggedImage = try doInspectImages(image: "username/image-name:mytag").first else {
-                Issue.record("Tagged image not found")
-                return
-            }
-            #expect(taggedImage.name == "\(defaultDomain)/username/image-name:mytag")
-
-            let listOutput = try doImageListQuite()
-            #expect(listOutput.contains("username/image-name:mytag"))
-            #expect(listOutput.contains(imageName))
-        } catch {
-            Issue.record("failed default registry test")
-            return
-        }
-    }
-
     @Test func testImageSaveAndLoad() throws {
         do {
             // 1. pull image

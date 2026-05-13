@@ -94,17 +94,8 @@ class TestCLIRunInitImage: CLITest {
     @Test func testRunWithExplicitDefaultInitImage() throws {
         let name = getTestName()
 
-        // Get the default init image reference
-        let (_, defaultInitImage, _, propStatus) = try run(arguments: [
-            "system", "property", "get", "image.init",
-        ])
-
-        guard propStatus == 0 else {
-            print("Skipping testRunWithExplicitDefaultInitImage: could not get default init image")
-            return
-        }
-
-        let initImage = defaultInitImage.trimmingCharacters(in: .whitespacesAndNewlines)
+        let config = try getSystemConfig()
+        let initImage = config.vminit.image
 
         // Run container with explicit default init image
         try doLongRun(name: name, args: ["--init-image", initImage])

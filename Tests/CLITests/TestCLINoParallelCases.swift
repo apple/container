@@ -15,9 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
-import ContainerPersistence
 import ContainerizationExtras
-import ContainerizationOCI
 import Foundation
 import Testing
 
@@ -302,75 +300,5 @@ class TestCLINoParallelCases: CLITest {
         let (_, listFinal, _, statusFinal) = try run(arguments: ["network", "list", "--quiet"])
         #expect(statusFinal == 0)
         #expect(!listFinal.contains(networkName), "network should be pruned after container is deleted")
-    }
-
-    // MARK: - Parser.resources (DefaultsStore-dependent)
-
-    @Test func testResourcesCustomDefaults() throws {
-        let result = try Parser.resources(
-            cpus: nil, memory: nil,
-            cpuPropertyKey: .defaultBuildCPUs, memoryPropertyKey: .defaultBuildMemory,
-            defaultCPUs: 2, defaultMemoryInBytes: 2048.mib()
-        )
-        #expect(result.cpus == 2)
-        #expect(result.memoryInBytes == 2048.mib())
-    }
-
-    @Test func testResourcesBuildPropertyLookup() throws {
-        DefaultsStore.set(value: "8", key: .defaultBuildCPUs)
-        DefaultsStore.set(value: "4g", key: .defaultBuildMemory)
-        defer {
-            DefaultsStore.unset(key: .defaultBuildCPUs)
-            DefaultsStore.unset(key: .defaultBuildMemory)
-        }
-        let result = try Parser.resources(
-            cpus: nil, memory: nil,
-            cpuPropertyKey: .defaultBuildCPUs, memoryPropertyKey: .defaultBuildMemory,
-            defaultCPUs: 2, defaultMemoryInBytes: 2048.mib()
-        )
-        #expect(result.cpus == 8)
-        #expect(result.memoryInBytes == 4096.mib())
-    }
-
-    @Test func testResourcesCPUsFromProperty() throws {
-        DefaultsStore.set(value: "8", key: .defaultContainerCPUs)
-        defer { DefaultsStore.unset(key: .defaultContainerCPUs) }
-        let result = try Parser.resources(cpus: nil, memory: nil)
-        #expect(result.cpus == 8)
-    }
-
-    @Test func testResourcesMemoryFromProperty() throws {
-        DefaultsStore.set(value: "2g", key: .defaultContainerMemory)
-        defer { DefaultsStore.unset(key: .defaultContainerMemory) }
-        let result = try Parser.resources(cpus: nil, memory: nil)
-        #expect(result.memoryInBytes == 2048.mib())
-    }
-
-    @Test func testResourcesFlagOverridesProperty() throws {
-        DefaultsStore.set(value: "8", key: .defaultContainerCPUs)
-        DefaultsStore.set(value: "2g", key: .defaultContainerMemory)
-        defer {
-            DefaultsStore.unset(key: .defaultContainerCPUs)
-            DefaultsStore.unset(key: .defaultContainerMemory)
-        }
-        let result = try Parser.resources(cpus: 1, memory: "256m")
-        #expect(result.cpus == 1)
-        #expect(result.memoryInBytes == 256.mib())
-    }
-
-    @Test func testResourcesPropertyKeysAreIsolated() throws {
-        DefaultsStore.set(value: "16", key: .defaultContainerCPUs)
-        DefaultsStore.set(value: "8g", key: .defaultContainerMemory)
-        defer {
-            DefaultsStore.unset(key: .defaultContainerCPUs)
-            DefaultsStore.unset(key: .defaultContainerMemory)
-        }
-        let result = try Parser.resources(
-            cpus: nil, memory: nil,
-            cpuPropertyKey: .defaultBuildCPUs, memoryPropertyKey: .defaultBuildMemory,
-            defaultCPUs: 2, defaultMemoryInBytes: 2048.mib()
-        )
-        #expect(result.cpus == 2)
-        #expect(result.memoryInBytes == 2048.mib())
     }
 }

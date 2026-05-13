@@ -16,6 +16,8 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerPersistence
+import ContainerPlugin
 
 extension Application {
     public struct ImageTag: AsyncLoggableCommand {
@@ -34,8 +36,9 @@ extension Application {
         public var logOptions: Flags.Logging
 
         public func run() async throws {
-            let existing = try await ClientImage.get(reference: source)
-            let targetReference = try ClientImage.normalizeReference(target)
+            let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
+            let existing = try await ClientImage.get(reference: source, containerSystemConfig: containerSystemConfig)
+            let targetReference = try ClientImage.normalizeReference(target, containerSystemConfig: containerSystemConfig)
             try await existing.tag(new: targetReference)
             print(target)
         }

@@ -19,8 +19,6 @@ public enum NetworkRoutes: String {
     case state = "com.apple.container.network/state"
     /// Allocates parameters for attaching a sandbox to the network.
     case allocate = "com.apple.container.network/allocate"
-    /// Deallocates parameters for attaching a sandbox to the network.
-    case deallocate = "com.apple.container.network/deallocate"
     /// Disables the allocator if no sandboxes are attached.
     case disableAllocator = "com.apple.container.network/disableAllocator"
     /// Retrieves the allocation for a hostname.
