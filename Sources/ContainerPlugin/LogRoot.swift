@@ -19,21 +19,23 @@ import SystemPackage
 
 /// Provides the application data root path.
 public struct LogRoot {
-
-    private static let envPath = ProcessInfo.processInfo.environment[Self.environmentName].flatMap {
-        $0.isEmpty ? nil : FilePath($0)
-    }
-
     /// The environment variable that if set, determines the root directory for log files.
     /// Otherwise, the application uses the macOS log facility.
     public static let environmentName = "CONTAINER_LOG_ROOT"
 
-    /// The path object for the log file root directory
-    public static let path = envPath.map {
-        guard !$0.isAbsolute else { return $0 }
-        return FilePath(FileManager.default.currentDirectoryPath).appending($0.components)
-    }
+    /// The path object for the root directory
+    public static let path = resolve(
+        ProcessInfo.processInfo.environment[environmentName],
+        currentDirectory: FilePath(FileManager.default.currentDirectoryPath)
+    )
 
-    /// The pathname to the log file root directory
+    /// The pathname to the root directory
     public static let pathname = path?.string
+
+    static func resolve(_ rawValue: String?, currentDirectory: FilePath) -> FilePath? {
+        guard let rawValue, !rawValue.isEmpty else { return nil }
+        let p = FilePath(rawValue)
+        guard !p.isAbsolute else { return p }
+        return currentDirectory.appending(p.components)
+    }
 }

@@ -43,9 +43,9 @@ extension APIServer {
         @Flag(name: .long, help: "Enable debug logging")
         var debug = false
 
-        var appRoot = ApplicationRoot.url
+        var appRoot = ApplicationRoot.path
 
-        var installRoot = InstallRoot.url
+        var installRoot = InstallRoot.path
 
         var logRoot = LogRoot.path
 
@@ -179,22 +179,24 @@ extension APIServer {
             log.info(
                 "initializing plugin loader",
                 metadata: [
-                    "installRoot": "\(installRoot.path(percentEncoded: false))"
+                    "installRoot": "\(installRoot.string)"
                 ])
 
-            let pluginsURL = PluginLoader.userPluginsDir(installRoot: installRoot)
+            // TODO: Remove when we convert PluginLoader to FilePath
+            let installRootURL = URL(fileURLWithPath: installRoot.string)
+            let pluginsURL = PluginLoader.userPluginsDir(installRoot: installRootURL)
             log.info("detecting user plugins directory", metadata: ["path": "\(pluginsURL.path(percentEncoded: false))"])
             var directoryExists: ObjCBool = false
             _ = FileManager.default.fileExists(atPath: pluginsURL.path, isDirectory: &directoryExists)
             let userPluginsURL = directoryExists.boolValue ? pluginsURL : nil
 
             // plugins built into the application installed as a Unix-like application
-            let installRootPluginsURL =
+            let installRootPluginsPath =
                 installRoot
-                .appendingPathComponent("libexec")
-                .appendingPathComponent("container")
-                .appendingPathComponent("plugins")
-                .standardized
+                .appending(FilePath.Component("libexec"))
+                .appending(FilePath.Component("container"))
+                .appending(FilePath.Component("plugins"))
+            let installRootPluginsURL = URL(fileURLWithPath: installRootPluginsPath.string)
 
             let pluginDirectories = [
                 userPluginsURL,
@@ -210,9 +212,10 @@ extension APIServer {
                 log.info("discovered plugin directory", metadata: ["path": "\(pluginDirectory.path(percentEncoded: false))"])
             }
 
+            let appRootURL = URL(fileURLWithPath: appRoot.string)
             return try PluginLoader(
-                appRoot: appRoot,
-                installRoot: installRoot,
+                appRoot: appRootURL,
+                installRoot: installRootURL,
                 logRoot: logRoot,
                 pluginDirectories: pluginDirectories,
                 pluginFactories: pluginFactories,
@@ -245,9 +248,12 @@ extension APIServer {
         private func initializeHealthCheckService(log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) {
             log.info("initializing health check service")
 
+            // TODO: Remove when we convert HealthCheckHarness to FilePath
+            let installRootURL = URL(fileURLWithPath: installRoot.string)
+            let appRootURL = URL(fileURLWithPath: appRoot.string)
             let svc = HealthCheckHarness(
-                appRoot: appRoot,
-                installRoot: installRoot,
+                appRoot: appRootURL,
+                installRoot: installRootURL,
                 logRoot: logRoot,
                 log: log
             )
@@ -257,7 +263,9 @@ extension APIServer {
         private func initializeKernelService(log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) throws {
             log.info("initializing kernel service")
 
-            let svc = try KernelService(log: log, appRoot: appRoot)
+            // TODO: Remove when we convert KernelService to FilePath
+            let appRootURL = URL(fileURLWithPath: appRoot.string)
+            let svc = try KernelService(log: log, appRoot: appRootURL)
             let harness = KernelHarness(service: svc, log: log)
             routes[XPCRoute.installKernel] = XPCServer.route(harness.install)
             routes[XPCRoute.getDefaultKernel] = XPCServer.route(harness.getDefaultKernel)
@@ -271,8 +279,10 @@ extension APIServer {
         ) throws -> ContainersService {
             log.info("initializing containers service")
 
+            // TODO: Remove when we convert ContainersService to FilePath
+            let appRootURL = URL(fileURLWithPath: appRoot.string)
             let service = try ContainersService(
-                appRoot: appRoot,
+                appRoot: appRootURL,
                 pluginLoader: pluginLoader,
                 containerSystemConfig: containerSystemConfig,
                 log: log,
@@ -309,8 +319,7 @@ extension APIServer {
             log.info("initializing networks service")
 
             // TODO: This goes away when we convert our roots to FilePath
-            let appPath = FilePath(appRoot.absolutePath())
-            let resourceRoot = appPath.appending("networks")
+            let resourceRoot = appRoot.appending("networks")
             let service = try await NetworksService(
                 pluginLoader: pluginLoader,
                 resourceRoot: resourceRoot,
@@ -354,8 +363,7 @@ extension APIServer {
             log.info("initializing volume service")
 
             // TODO: This goes away when we convert our roots to FilePath
-            let appPath = FilePath(appRoot.absolutePath())
-            let resourceRoot = appPath.appending("volumes")
+            let resourceRoot = appRoot.appending("volumes")
             let service = try VolumesService(resourceRoot: resourceRoot, containersService: containersService, log: log)
             let harness = VolumesHarness(service: service, log: log)
 
