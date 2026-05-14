@@ -201,12 +201,14 @@ public struct Application: AsyncLoggableCommand {
         guard #available(macOS 26, *) else {
             return [
                 BuilderCommand.self,
+                ContentCommand.self,
                 SystemCommand.self,
             ]
         }
 
         return [
             BuilderCommand.self,
+            ContentCommand.self,
             NetworkCommand.self,
             SystemCommand.self,
         ]
