@@ -46,7 +46,7 @@ extension Application {
 
         public mutating func run() async throws {
             let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
-            try Self.validate(format: format, quiet: quiet, verbose: verbose)
+            try Self.validate(quiet: quiet, verbose: verbose)
 
             var images = try await ClientImage.list().filter { img in
                 !Utility.isInfraImage(name: img.reference, builderImage: containerSystemConfig.build.image, initImage: containerSystemConfig.vminit.image)
@@ -76,13 +76,9 @@ extension Application {
             Output.emit(Output.renderTable(items))
         }
 
-        private static func validate(format: ListFormat, quiet: Bool, verbose: Bool) throws {
+        private static func validate(quiet: Bool, verbose: Bool) throws {
             if quiet && verbose {
                 throw ContainerizationError(.invalidArgument, message: "cannot use flag --quiet and --verbose together")
-            }
-            let modifier = quiet || verbose
-            if modifier && format == .json {
-                throw ContainerizationError(.invalidArgument, message: "cannot use flag --quiet or --verbose along with --format json")
             }
         }
 
