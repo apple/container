@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025-2026 Apple Inc. and the container project authors.
+// Copyright © 2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,26 +14,17 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import Foundation
 import SystemPackage
-import Testing
 
-@testable import ContainerPlugin
-
-struct CommandLineExecutableTest {
-    @Test func lastComponentIsTestBinary() {
-        #expect(CommandLine.executablePath.lastComponent?.string == "swiftpm-testing-helper")
+extension FilePath {
+    func resolve(_ pathname: String?) -> FilePath? {
+        guard let pathname, !pathname.isEmpty else { return nil }
+        let path = FilePath(pathname)
+        guard !path.isAbsolute else { return path }
+        return self.appending(path.components)
     }
 
-    @Test func pathIsAbsolute() {
-        #expect(CommandLine.executablePath.isAbsolute)
-    }
-
-    @Test func pathIsNonEmpty() {
-        #expect(!CommandLine.executablePath.string.isEmpty)
-    }
-
-    @Test func removingLastComponentTwiceIsAbsolute() {
-        #expect(CommandLine.executablePath.removingLastComponent().removingLastComponent().isAbsolute)
+    func resolve(_ pathname: String?, defaultPath: FilePath) -> FilePath {
+        resolve(pathname) ?? defaultPath
     }
 }

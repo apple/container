@@ -14,20 +14,25 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import Foundation
 import SystemPackage
+import Testing
 
-/// Provides the application data root path.
-public struct LogRoot {
-    /// The environment variable that if set, determines the root directory for log files.
-    /// Otherwise, the application uses the macOS log facility.
-    public static let environmentName = "CONTAINER_LOG_ROOT"
+@testable import ContainerVersion
 
-    /// The path object for the root directory
-    public static let path = FilePath(FileManager.default.currentDirectoryPath).resolve(
-        ProcessInfo.processInfo.environment[environmentName]
-    )
+struct CommandLineExecutableTests {
+    @Test func lastComponentIsTestBinary() {
+        #expect(CommandLine.executablePath.lastComponent?.string == "swiftpm-testing-helper")
+    }
 
-    /// The pathname to the root directory
-    public static let pathname = path?.string
+    @Test func pathIsAbsolute() {
+        #expect(CommandLine.executablePath.isAbsolute)
+    }
+
+    @Test func pathIsNonEmpty() {
+        #expect(!CommandLine.executablePath.string.isEmpty)
+    }
+
+    @Test func removingLastComponentTwiceIsAbsolute() {
+        #expect(CommandLine.executablePath.removingLastComponent().removingLastComponent().isAbsolute)
+    }
 }

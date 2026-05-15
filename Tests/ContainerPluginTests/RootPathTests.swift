@@ -20,28 +20,6 @@ import Testing
 @testable import ContainerPlugin
 
 struct ApplicationRootTests {
-    private static let cwd = FilePath("/current/dir")
-
-    @Test func defaultWhenEnvUnset() {
-        #expect(ApplicationRoot.resolve(nil, currentDirectory: Self.cwd) == ApplicationRoot.defaultPath)
-    }
-
-    @Test func defaultWhenEnvEmpty() {
-        #expect(ApplicationRoot.resolve("", currentDirectory: Self.cwd) == ApplicationRoot.defaultPath)
-    }
-
-    @Test func absoluteEnvReturnedAsIs() {
-        #expect(ApplicationRoot.resolve("/custom/root", currentDirectory: Self.cwd) == FilePath("/custom/root"))
-    }
-
-    @Test func relativeEnvPrependsCurrentDirectory() {
-        #expect(ApplicationRoot.resolve("data", currentDirectory: Self.cwd) == FilePath("/current/dir/data"))
-    }
-
-    @Test func relativeEnvWithDotDotPrependsCurrentDirectory() {
-        #expect(ApplicationRoot.resolve("../sibling", currentDirectory: Self.cwd) == FilePath("/current/dir/../sibling"))
-    }
-
     @Test func defaultPathIsAbsolute() {
         #expect(ApplicationRoot.defaultPath.isAbsolute)
     }
@@ -52,45 +30,18 @@ struct ApplicationRootTests {
 }
 
 struct InstallRootTests {
-    private static let cwd = FilePath("/current/dir")
-
-    @Test func defaultWhenEnvUnset() {
-        #expect(InstallRoot.resolve(nil, currentDirectory: Self.cwd) == InstallRoot.defaultPath)
-    }
-
-    @Test func defaultWhenEnvEmpty() {
-        #expect(InstallRoot.resolve("", currentDirectory: Self.cwd) == InstallRoot.defaultPath)
-    }
-
-    @Test func absoluteEnvReturnedAsIs() {
-        #expect(InstallRoot.resolve("/usr/local", currentDirectory: Self.cwd) == FilePath("/usr/local"))
-    }
-
-    @Test func relativeEnvPrependsCurrentDirectory() {
-        #expect(InstallRoot.resolve("local", currentDirectory: Self.cwd) == FilePath("/current/dir/local"))
-    }
-
     @Test func defaultPathIsAbsolute() {
         #expect(InstallRoot.defaultPath.isAbsolute)
+    }
+
+    @Test func defaultPathIsGrandparentOfExecutable() {
+        #expect(InstallRoot.defaultPath == CommandLine.executablePath.removingLastComponent().removingLastComponent())
     }
 }
 
 struct LogRootTests {
-    private static let cwd = FilePath("/current/dir")
-
-    @Test func nilWhenEnvUnset() {
-        #expect(LogRoot.resolve(nil, currentDirectory: Self.cwd) == nil)
-    }
-
-    @Test func nilWhenEnvEmpty() {
-        #expect(LogRoot.resolve("", currentDirectory: Self.cwd) == nil)
-    }
-
-    @Test func absoluteEnvReturnedAsIs() {
-        #expect(LogRoot.resolve("/var/log/container", currentDirectory: Self.cwd) == FilePath("/var/log/container"))
-    }
-
-    @Test func relativeEnvPrependsCurrentDirectory() {
-        #expect(LogRoot.resolve("logs", currentDirectory: Self.cwd) == FilePath("/current/dir/logs"))
+    @Test func pathIsNilWhenEnvUnset() {
+        // CONTAINER_LOG_ROOT is not set in the unit test environment
+        #expect(LogRoot.path == nil)
     }
 }

@@ -32,18 +32,11 @@ public struct ApplicationRoot {
     .appending(FilePath.Component("com.apple.container"))
 
     /// The path object for the root directory
-    public static let path = resolve(
+    public static let path = FilePath(FileManager.default.currentDirectoryPath).resolve(
         ProcessInfo.processInfo.environment[environmentName],
-        currentDirectory: FilePath(FileManager.default.currentDirectoryPath)
+        defaultPath: defaultPath
     )
 
     /// The pathname to the root directory
     public static let pathname = path.string
-
-    static func resolve(_ rawValue: String?, currentDirectory: FilePath) -> FilePath {
-        guard let rawValue, !rawValue.isEmpty else { return defaultPath }
-        let p = FilePath(rawValue)
-        guard !p.isAbsolute else { return p }
-        return currentDirectory.appending(p.components)
-    }
 }

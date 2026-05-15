@@ -35,8 +35,7 @@ public struct ReleaseVersion {
     }
 
     public static func version() -> String {
-        let executableURL = URL(fileURLWithPath: CommandLine.executablePath.string)
-        let appBundle = Bundle.appBundle(executableURL: executableURL)
+        let appBundle = Bundle.appBundle(executablePath: CommandLine.executablePath)
         let bundleVersion = appBundle?.infoDictionary?["CFBundleShortVersionString"] as? String
         return bundleVersion ?? get_release_version().map { String(cString: $0) } ?? "0.0.0"
     }

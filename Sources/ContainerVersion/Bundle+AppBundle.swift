@@ -14,18 +14,26 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import Darwin
 import Foundation
+import SystemPackage
 
 /// Retrieve the application bundle for a path that refers to a macOS executable.
 extension Bundle {
-    public static func appBundle(executableURL: URL) -> Bundle? {
-        let resolvedURL = executableURL.resolvingSymlinksInPath()
-        let macOSURL = resolvedURL.deletingLastPathComponent()
-        let contentsURL = macOSURL.deletingLastPathComponent()
-        let bundleURL = contentsURL.deletingLastPathComponent()
-        if bundleURL.pathExtension == "app" {
-            return Bundle(url: bundleURL)
-        }
-        return nil
+    public static func appBundle(executablePath: FilePath) -> Bundle? {
+        let resolvedPath =
+            executablePath.withPlatformString { cPath in
+                Darwin.realpath(cPath, nil).map { ptr -> FilePath in
+                    defer { free(ptr) }
+                    return FilePath(platformString: ptr)
+                }
+            } ?? executablePath
+        let bundlePath =
+            resolvedPath
+            .removingLastComponent()  // MacOS/
+            .removingLastComponent()  // Contents/
+            .removingLastComponent()  // Foo.app/
+        guard bundlePath.lastComponent?.extension == "app" else { return nil }
+        return Bundle(url: URL(fileURLWithPath: bundlePath.string))
     }
 }
