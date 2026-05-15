@@ -52,7 +52,7 @@ extension APIServer {
         func run() async throws {
             let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
             let commandName = APIServer._commandName
-            let logPath = logRoot.map { $0.appending("\(commandName).log") }
+            let logPath = logRoot.map { $0.appending(FilePath.Component("\(commandName).log") ?? "unknown") }
             let log = ServiceLogger.bootstrap(category: "APIServer", debug: debug, logPath: logPath)
             log.info("starting helper", metadata: ["name": "\(commandName)"])
             defer {
@@ -318,7 +318,7 @@ extension APIServer {
         ) async throws -> NetworksService {
             log.info("initializing networks service")
 
-            let resourceRoot = appRoot.appending("networks")
+            let resourceRoot = appRoot.appending(FilePath.Component("networks"))
             let service = try await NetworksService(
                 pluginLoader: pluginLoader,
                 resourceRoot: resourceRoot,
@@ -361,7 +361,7 @@ extension APIServer {
         ) throws -> VolumesService {
             log.info("initializing volume service")
 
-            let resourceRoot = appRoot.appending("volumes")
+            let resourceRoot = appRoot.appending(FilePath.Component("volumes"))
             let service = try VolumesService(resourceRoot: resourceRoot, containersService: containersService, log: log)
             let harness = VolumesHarness(service: service, log: log)
 
