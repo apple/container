@@ -81,11 +81,15 @@ struct PrintableContainer: Codable, Sendable {
     let configuration: ContainerConfiguration
     let networks: [Attachment]
     let startedDate: Date?
+    let exitCode: Int32?
+    let exitedDate: Date?
 
     init(_ container: ContainerSnapshot) {
         self.status = container.status
         self.configuration = container.configuration
         self.networks = container.networks
         self.startedDate = container.startedDate
+        self.exitCode = container.exitCode
+        self.exitedDate = container.exitedDate
     }
 }
