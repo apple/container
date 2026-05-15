@@ -22,6 +22,7 @@ import Testing
 
 @testable import ContainerAPIClient
 @testable import ContainerPersistence
+@testable import ContainerResource
 
 struct ParserTest {
     @Test
@@ -1335,5 +1336,74 @@ struct ParserTest {
     @Test
     func testManagementFlagsAcceptsNoDNSAlone() throws {
         _ = try Flags.Management.parse(["--no-dns"])
+    }
+
+    @Test
+    func testExtraHostsParserIPv4() throws {
+        let result = try Parser.extraHosts(["db:192.168.66.2"])
+        #expect(result == [.init(hostname: "db", ipAddress: "192.168.66.2")])
+    }
+
+    @Test
+    func testExtraHostsParserIPv6() throws {
+        let result = try Parser.extraHosts(["db:fe80::1"])
+        #expect(result == [.init(hostname: "db", ipAddress: "fe80::1")])
+    }
+
+    @Test
+    func testExtraHostsParserMultiple() throws {
+        let result = try Parser.extraHosts([
+            "db:10.0.0.5",
+            "cache:10.0.0.6",
+            "api.example.com:10.0.0.7",
+        ])
+        #expect(result.count == 3)
+        #expect(result[0].hostname == "db")
+        #expect(result[2].hostname == "api.example.com")
+    }
+
+    @Test
+    func testExtraHostsParserIPv6FullForm() throws {
+        // IPv6 addresses contain `:`; split must be on the FIRST `:`
+        // (DNS hostnames cannot contain `:`, so this is unambiguous).
+        let result = try Parser.extraHosts(["host:2001:db8::1"])
+        #expect(result == [.init(hostname: "host", ipAddress: "2001:db8::1")])
+    }
+
+    @Test
+    func testExtraHostsParserRejectsMissingColon() throws {
+        #expect(throws: (any Error).self) {
+            _ = try Parser.extraHosts(["db-192.168.1.1"])
+        }
+    }
+
+    @Test
+    func testExtraHostsParserRejectsEmptyHostname() throws {
+        #expect(throws: (any Error).self) {
+            _ = try Parser.extraHosts([":192.168.1.1"])
+        }
+    }
+
+    @Test
+    func testExtraHostsParserRejectsEmptyIP() throws {
+        #expect(throws: (any Error).self) {
+            _ = try Parser.extraHosts(["db:"])
+        }
+    }
+
+    @Test
+    func testExtraHostsParserRejectsInvalidIP() throws {
+        #expect(throws: (any Error).self) {
+            _ = try Parser.extraHosts(["db:not-an-ip"])
+        }
+    }
+
+    @Test
+    func testManagementFlagsAcceptsAddHost() throws {
+        let flags = try Flags.Management.parse([
+            "--add-host", "db:192.168.66.2",
+            "--add-host", "cache:192.168.66.3",
+        ])
+        #expect(flags.extraHosts == ["db:192.168.66.2", "cache:192.168.66.3"])
     }
 }

@@ -259,8 +259,10 @@ public actor SandboxService {
                 czConfig.process.stdout = stdout
                 czConfig.process.stderr = stderr
                 czConfig.process.stdin = stdin
-                // NOTE: We can support a user providing new entries eventually, but for now craft
-                // a default /etc/hosts.
+                // Build the default /etc/hosts (loopback + the
+                // container's own primary-interface address), then
+                // append any user-supplied `--add-host` entries from
+                // the container configuration.
                 var hostsEntries = [Hosts.Entry.localHostIPV4()]
                 if !interfaces.isEmpty {
                     let primaryIfaceAddr = interfaces[0].ipv4Address
@@ -268,6 +270,13 @@ public actor SandboxService {
                         Hosts.Entry(
                             ipAddress: primaryIfaceAddr.address.description,
                             hostnames: [czConfig.hostname ?? id],
+                        ))
+                }
+                for extra in config.extraHosts {
+                    hostsEntries.append(
+                        Hosts.Entry(
+                            ipAddress: extra.ipAddress,
+                            hostnames: [extra.hostname],
                         ))
                 }
                 czConfig.hosts = Hosts(entries: hostsEntries)

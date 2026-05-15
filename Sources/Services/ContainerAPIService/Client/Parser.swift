@@ -224,6 +224,49 @@ public struct Parser {
         return envVar
     }
 
+    /// Parse `--add-host host:ip` arguments into `ExtraHost` values.
+    ///
+    /// The IP may be IPv4 or IPv6. Splits on the first `:` so that
+    /// IPv6 addresses (which themselves contain `:`) parse correctly —
+    /// DNS hostnames cannot contain `:`, so the first `:` is always
+    /// the separator. Matches Docker's `--add-host` and compose's
+    /// `extra_hosts` semantics.
+    public static func extraHosts(_ rawExtraHosts: [String]) throws -> [ContainerConfiguration.ExtraHost] {
+        var result: [ContainerConfiguration.ExtraHost] = []
+        for raw in rawExtraHosts {
+            guard let firstColon = raw.firstIndex(of: ":") else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "invalid --add-host value '\(raw)' (expected host:ip)"
+                )
+            }
+            let hostname = String(raw[..<firstColon])
+            let ipString = String(raw[raw.index(after: firstColon)...])
+            guard !hostname.isEmpty else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "invalid --add-host value '\(raw)' (hostname is empty)"
+                )
+            }
+            guard !ipString.isEmpty else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "invalid --add-host value '\(raw)' (IP address is empty)"
+                )
+            }
+            do {
+                _ = try IPAddress(ipString)
+            } catch {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "invalid --add-host value '\(raw)': '\(ipString)' is not a valid IPv4 or IPv6 address"
+                )
+            }
+            result.append(.init(hostname: hostname, ipAddress: ipString))
+        }
+        return result
+    }
+
     public static func labels(_ rawLabels: [String]) throws -> [String: String] {
         var result: [String: String] = [:]
         for label in rawLabels {

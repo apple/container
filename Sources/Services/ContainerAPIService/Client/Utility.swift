@@ -235,6 +235,8 @@ public struct Utility {
             )
         }
 
+        config.extraHosts = try Parser.extraHosts(management.extraHosts)
+
         config.rosetta = management.rosetta || (Platform.current.architecture == "arm64" && requestedPlatform.architecture == "amd64")
 
         if management.rosetta && Platform.current.architecture != "arm64" {
