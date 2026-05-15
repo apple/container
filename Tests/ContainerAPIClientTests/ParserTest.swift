@@ -1296,4 +1296,44 @@ struct ParserTest {
         #expect(result.cpus == 2)
         #expect(result.memoryInBytes == 2048.mib())
     }
+
+    // MARK: - DNS Flag Validation Tests
+
+    @Test
+    func testManagementFlagsRejectsNoDNSWithDNS() throws {
+        #expect(throws: (any Error).self) {
+            _ = try Flags.Management.parse(["--dns", "1.1.1.1", "--no-dns"])
+        }
+    }
+
+    @Test
+    func testManagementFlagsRejectsNoDNSWithDNSDomain() throws {
+        #expect(throws: (any Error).self) {
+            _ = try Flags.Management.parse(["--dns-domain", "example.com", "--no-dns"])
+        }
+    }
+
+    @Test
+    func testManagementFlagsRejectsNoDNSWithDNSSearch() throws {
+        #expect(throws: (any Error).self) {
+            _ = try Flags.Management.parse(["--dns-search", "example.com", "--no-dns"])
+        }
+    }
+
+    @Test
+    func testManagementFlagsRejectsNoDNSWithDNSOption() throws {
+        #expect(throws: (any Error).self) {
+            _ = try Flags.Management.parse(["--dns-option", "debug", "--no-dns"])
+        }
+    }
+
+    @Test
+    func testManagementFlagsAcceptsDNSAlone() throws {
+        _ = try Flags.Management.parse(["--dns", "1.1.1.1"])
+    }
+
+    @Test
+    func testManagementFlagsAcceptsNoDNSAlone() throws {
+        _ = try Flags.Management.parse(["--no-dns"])
+    }
 }
