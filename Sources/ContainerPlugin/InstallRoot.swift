@@ -25,11 +25,20 @@ public struct InstallRoot {
     /// application binary (for example, "/usr/local/bin/container" -> "/usr/local").
     public static let environmentName = "CONTAINER_INSTALL_ROOT"
 
+    /// The default root directory used when the environment variable is not set.
+    ///
+    /// Computed as the grandparent of ``CommandLine/executablePath``
+    /// (for example, `/usr/local/bin/container` → `/usr/local`).
+    /// Lexically normalized but not canonical, as symlinks in the executable path are not resolved.
     public static let defaultPath = CommandLine.executablePath
         .removingLastComponent()
         .removingLastComponent()
 
-    /// The path object for the root directory
+    /// The resolved root directory path, always lexically normalized.
+    ///
+    /// If the environment variable is set to an absolute path, that path is used directly.
+    /// If it is set to a relative path, the path is resolved against the working directory.
+    /// Otherwise, ``defaultPath`` is used.
     public static let path = FilePath(FileManager.default.currentDirectoryPath).resolve(
         ProcessInfo.processInfo.environment[environmentName],
         defaultPath: defaultPath

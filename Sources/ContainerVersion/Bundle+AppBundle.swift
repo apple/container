@@ -18,8 +18,15 @@ import Darwin
 import Foundation
 import SystemPackage
 
-/// Retrieve the application bundle for a path that refers to a macOS executable.
 extension Bundle {
+    /// Retrieves the application bundle for a path that refers to a macOS executable.
+    ///
+    /// Resolves symlinks in `executablePath`, then walks up the standard macOS bundle layout
+    /// (`MacOS/` → `Contents/` → `Foo.app/`) and verifies the `.app` extension.
+    ///
+    /// - Parameter executablePath: The path to a macOS executable inside a bundle.
+    /// - Returns: The ``Bundle`` at the resolved `.app` directory, or `nil` if the executable
+    ///   is not inside a valid macOS application bundle.
     public static func appBundle(executablePath: FilePath) -> Bundle? {
         let resolvedPath =
             executablePath.withPlatformString { cPath in

@@ -34,31 +34,19 @@ extension Application {
         @Option(
             name: .shortAndLong,
             help: "Path to the root directory for application data",
-            transform: {
-                let p = FilePath($0)
-                guard !p.isAbsolute else { return p }
-                return FilePath(FileManager.default.currentDirectoryPath).appending(p.components)
-            })
+            transform: { FilePath(FileManager.default.currentDirectoryPath).resolve($0, defaultPath: FilePath($0)) })
         var appRoot = ApplicationRoot.defaultPath
 
         @Option(
             name: .long,
             help: "Path to the root directory for application executables and plugins",
-            transform: {
-                let p = FilePath($0)
-                guard !p.isAbsolute else { return p }
-                return FilePath(FileManager.default.currentDirectoryPath).appending(p.components)
-            })
+            transform: { FilePath(FileManager.default.currentDirectoryPath).resolve($0, defaultPath: FilePath($0)) })
         var installRoot = InstallRoot.defaultPath
 
         @Option(
             name: .long,
             help: "Path to the root directory for log data, using macOS log facility if not set",
-            transform: {
-                let p = FilePath($0)
-                guard !p.isAbsolute else { return p }
-                return FilePath(FileManager.default.currentDirectoryPath).appending(p.components)
-            })
+            transform: { FilePath(FileManager.default.currentDirectoryPath).resolve($0, defaultPath: FilePath($0)) })
         var logRoot: FilePath? = nil
 
         @Flag(
@@ -121,10 +109,7 @@ extension Application {
             env[ApplicationRoot.environmentName] = appRoot.string
             env[InstallRoot.environmentName] = installRoot.string
             if let logRoot {
-                env[LogRoot.environmentName] =
-                    logRoot.isAbsolute
-                    ? logRoot.string
-                    : FilePath(FileManager.default.currentDirectoryPath).appending(logRoot.components).string
+                env[LogRoot.environmentName] = logRoot.string
             }
             let plist = LaunchPlist(
                 label: "com.apple.container.apiserver",

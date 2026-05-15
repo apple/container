@@ -38,8 +38,20 @@ struct FilePathResolveTests {
         #expect(cwd.resolve("data") == FilePath("/current/dir/data"))
     }
 
-    @Test func relativePathnameWithDotDotPrependsCurrentDirectory() {
-        #expect(cwd.resolve("../sibling") == FilePath("/current/dir/../sibling"))
+    @Test func relativePathnameWithDotDotIsLexicallyNormalized() {
+        #expect(cwd.resolve("../sibling") == FilePath("/current/sibling"))
+    }
+
+    @Test func relativePathnameWithDotIsLexicallyNormalized() {
+        #expect(cwd.resolve("./data") == FilePath("/current/dir/data"))
+    }
+
+    @Test func absolutePathnameWithDotDotIsLexicallyNormalized() {
+        #expect(cwd.resolve("/custom/../root") == FilePath("/root"))
+    }
+
+    @Test func absolutePathnameWithDotIsLexicallyNormalized() {
+        #expect(cwd.resolve("/custom/./root") == FilePath("/custom/root"))
     }
 
     @Test func defaultPathUsedWhenPathnameIsNil() {
@@ -50,6 +62,10 @@ struct FilePathResolveTests {
     @Test func defaultPathUsedWhenPathnameIsEmpty() {
         let fallback = FilePath("/fallback")
         #expect(cwd.resolve("", defaultPath: fallback) == fallback)
+    }
+
+    @Test func defaultPathIsLexicallyNormalized() {
+        #expect(cwd.resolve(nil, defaultPath: FilePath("/fallback/../normalized")) == FilePath("/normalized"))
     }
 
     @Test func absolutePathnameOverridesDefaultPath() {

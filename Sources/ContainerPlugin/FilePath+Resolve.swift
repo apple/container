@@ -17,14 +17,32 @@
 import SystemPackage
 
 extension FilePath {
-    func resolve(_ pathname: String?) -> FilePath? {
+    /// Resolves a pathname string relative to this path.
+    ///
+    /// The result is lexically normalized — `.` components are removed and `..` components
+    /// collapse the preceding component. Absolute pathnames are returned normalized as-is;
+    /// relative pathnames are appended to `self` before normalizing.
+    ///
+    /// - Parameter pathname: The pathname to resolve.
+    /// - Returns: The resolved ``FilePath``, or `nil` if `pathname` is `nil` or empty.
+    package func resolve(_ pathname: String?) -> FilePath? {
         guard let pathname, !pathname.isEmpty else { return nil }
         let path = FilePath(pathname)
-        guard !path.isAbsolute else { return path }
-        return self.appending(path.components)
+        guard !path.isAbsolute else { return path.lexicallyNormalized() }
+        return self.appending(path.components).lexicallyNormalized()
     }
 
-    func resolve(_ pathname: String?, defaultPath: FilePath) -> FilePath {
-        resolve(pathname) ?? defaultPath
+    /// Resolves a pathname string relative to this path, falling back to a default.
+    ///
+    /// The result is lexically normalized — `.` components are removed and `..` components
+    /// collapse the preceding component. Absolute pathnames are returned normalized as-is;
+    /// relative pathnames are appended to `self` before normalizing.
+    ///
+    /// - Parameters:
+    ///   - pathname: The pathname to resolve.
+    ///   - defaultPath: The path returned when `pathname` is `nil` or empty.
+    /// - Returns: The resolved ``FilePath``, or `defaultPath` lexically normalized if `pathname` is `nil` or empty.
+    package func resolve(_ pathname: String?, defaultPath: FilePath) -> FilePath {
+        resolve(pathname) ?? defaultPath.lexicallyNormalized()
     }
 }

@@ -318,7 +318,6 @@ extension APIServer {
         ) async throws -> NetworksService {
             log.info("initializing networks service")
 
-            // TODO: This goes away when we convert our roots to FilePath
             let resourceRoot = appRoot.appending("networks")
             let service = try await NetworksService(
                 pluginLoader: pluginLoader,
@@ -362,7 +361,6 @@ extension APIServer {
         ) throws -> VolumesService {
             log.info("initializing volume service")
 
-            // TODO: This goes away when we convert our roots to FilePath
             let resourceRoot = appRoot.appending("volumes")
             let service = try VolumesService(resourceRoot: resourceRoot, containersService: containersService, log: log)
             let harness = VolumesHarness(service: service, log: log)

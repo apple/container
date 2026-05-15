@@ -23,6 +23,8 @@ public struct ApplicationRoot {
     /// Otherwise, the system uses the default "~/Library/Application Support/com.apple.container".
     public static let environmentName = "CONTAINER_APP_ROOT"
 
+    /// The default root directory used when ``environmentName`` is not set:
+    /// `~/Library/Application Support/com.apple.container`.
     public static let defaultPath = FilePath(
         FileManager.default.urls(
             for: .applicationSupportDirectory,
@@ -31,7 +33,11 @@ public struct ApplicationRoot {
     )
     .appending(FilePath.Component("com.apple.container"))
 
-    /// The path object for the root directory
+    /// The resolved root directory path, always lexically normalized.
+    ///
+    /// If the environment variable is set to an absolute path, that path is used directly.
+    /// If it is set to a relative path, the path is resolved against the working directory.
+    /// Otherwise, ``defaultPath`` is used.
     public static let path = FilePath(FileManager.default.currentDirectoryPath).resolve(
         ProcessInfo.processInfo.environment[environmentName],
         defaultPath: defaultPath

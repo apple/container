@@ -18,6 +18,10 @@ import Foundation
 import SystemPackage
 
 extension CommandLine {
+    /// The path of the running executable.
+    ///
+    /// Obtained via `_NSGetExecutablePath`, which returns an absolute, lexically normalized path
+    /// (no `.` or `..` components). Symlinks are not resolved, so the path is not canonical.
     public static var executablePath: FilePath {
         /// _NSGetExecutablePath with a zero-length buffer returns the needed buffer length
         var bufferSize: Int32 = 0

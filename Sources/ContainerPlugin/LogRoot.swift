@@ -23,7 +23,11 @@ public struct LogRoot {
     /// Otherwise, the application uses the macOS log facility.
     public static let environmentName = "CONTAINER_LOG_ROOT"
 
-    /// The path object for the root directory
+    /// The resolved root directory for log files, or `nil` if the environment variable is not set.
+    ///
+    /// When non-nil, the path is always lexically normalized.
+    /// If the environment variable is set to an absolute path, that path is used directly.
+    /// If it is set to a relative path, the path is resolved against the working directory.
     public static let path = FilePath(FileManager.default.currentDirectoryPath).resolve(
         ProcessInfo.processInfo.environment[environmentName]
     )
