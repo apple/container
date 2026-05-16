@@ -23,6 +23,7 @@ import ContainerizationError
 import ContainerizationOS
 import Foundation
 import Logging
+import SystemPackage
 import TerminalProgress
 
 // This logger is only used until `asyncCommand.run()`.
@@ -135,11 +136,12 @@ public struct Application: AsyncLoggableCommand {
     }
 
     public static func createPluginLoader() async throws -> PluginLoader {
-        let installRoot = CommandLine.executablePathUrl
-            .deletingLastPathComponent()
-            .appendingPathComponent("..")
-            .standardized
-        let pluginsURL = PluginLoader.userPluginsDir(installRoot: installRoot)
+        let installRootPath = CommandLine.executablePath
+            .removingLastComponent()
+            .removingLastComponent()
+        // TODO: Remove when we convert PluginLoader to FilePath.
+        let installRootURL = URL(fileURLWithPath: installRootPath.string)
+        let pluginsURL = PluginLoader.userPluginsDir(installRoot: installRootURL)
         var directoryExists: ObjCBool = false
         _ = FileManager.default.fileExists(atPath: pluginsURL.path, isDirectory: &directoryExists)
         let userPluginsURL = directoryExists.boolValue ? pluginsURL : nil
@@ -148,13 +150,12 @@ public struct Application: AsyncLoggableCommand {
         let appBundlePluginsURL = Bundle.main.resourceURL?.appending(path: "plugins")
 
         // plugins built into the application installed as a Unix-like application
-        let installRootPluginsURL =
-            installRoot
-            .appendingPathComponent("libexec")
-            .appendingPathComponent("container")
-            .appendingPathComponent("plugins")
-            .standardized
-
+        let installRootPluginsPath =
+            installRootPath
+            .appending(FilePath.Component("libexec"))
+            .appending(FilePath.Component("container"))
+            .appending(FilePath.Component("plugins"))
+        let installRootPluginsURL = URL(fileURLWithPath: installRootPluginsPath.string)
         let pluginDirectories = [
             userPluginsURL,
             appBundlePluginsURL,

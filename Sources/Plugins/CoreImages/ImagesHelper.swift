@@ -25,6 +25,7 @@ import ContainerXPC
 import Containerization
 import Foundation
 import Logging
+import SystemPackage
 
 @main
 struct ImagesHelper: AsyncParsableCommand {
@@ -51,9 +52,9 @@ extension ImagesHelper {
         @Option(name: .long, help: "XPC service prefix")
         var serviceIdentifier: String = "com.apple.container.core.container-core-images"
 
-        var appRoot = ApplicationRoot.url
+        var appRoot = ApplicationRoot.path
 
-        var installRoot = InstallRoot.url
+        var installRoot = InstallRoot.path
 
         var logRoot = LogRoot.path
 
@@ -90,11 +91,13 @@ extension ImagesHelper {
             }
         }
 
-        private func initializeImagesService(root: URL, containerSystemConfig: ContainerSystemConfig, log: Logger, routes: inout [String: XPCServer.RouteHandler]) throws {
+        private func initializeImagesService(root: FilePath, containerSystemConfig: ContainerSystemConfig, log: Logger, routes: inout [String: XPCServer.RouteHandler]) throws {
+            // TODO: remove as part of ImageStore URL removal PR
+            let rootURL = URL(fileURLWithPath: root.string)
             let contentStore = RemoteContentStoreClient()
-            let imageStore = try ImageStore(path: root, contentStore: contentStore)
+            let imageStore = try ImageStore(path: rootURL, contentStore: contentStore)
             let unpackStrategy = SnapshotStore.defaultUnpackStrategy(initImage: containerSystemConfig.vminit.image)
-            let snapshotStore = try SnapshotStore(path: root, unpackStrategy: unpackStrategy, log: log)
+            let snapshotStore = try SnapshotStore(path: rootURL, unpackStrategy: unpackStrategy, log: log)
             let service = try ImagesService(contentStore: contentStore, imageStore: imageStore, snapshotStore: snapshotStore, log: log)
             let harness = ImagesServiceHarness(service: service, log: log)
 
@@ -112,8 +115,10 @@ extension ImagesHelper {
             routes[ImagesServiceXPCRoute.snapshotGet.rawValue] = XPCServer.route(harness.getSnapshot)
         }
 
-        private func initializeContentService(root: URL, log: Logger, routes: inout [String: XPCServer.RouteHandler]) throws {
-            let service = try ContentStoreService(root: root, log: log)
+        private func initializeContentService(root: FilePath, log: Logger, routes: inout [String: XPCServer.RouteHandler]) throws {
+            // TODO: remove as part of ImageStore URL removal PR
+            let rootURL = URL(fileURLWithPath: root.string)
+            let service = try ContentStoreService(root: rootURL, log: log)
             let harness = ContentServiceHarness(service: service, log: log)
 
             routes[ImagesServiceXPCRoute.contentClean.rawValue] = XPCServer.route(harness.clean)

@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025-2026 Apple Inc. and the container project authors.
+// Copyright © 2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,14 +14,25 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import Foundation
+import SystemPackage
 import Testing
 
-@testable import ContainerPlugin
+@testable import ContainerVersion
 
-struct CommandLineExecutableTest {
-    @Test
-    func testCLIPluginConfigLoad() async throws {
-        #expect(CommandLine.executablePathUrl.lastPathComponent == "swiftpm-testing-helper")
+struct CommandLineExecutableTests {
+    @Test func lastComponentIsTestBinary() {
+        #expect(CommandLine.executablePath.lastComponent?.string == "swiftpm-testing-helper")
+    }
+
+    @Test func pathIsAbsolute() {
+        #expect(CommandLine.executablePath.isAbsolute)
+    }
+
+    @Test func pathIsNonEmpty() {
+        #expect(!CommandLine.executablePath.string.isEmpty)
+    }
+
+    @Test func removingLastComponentTwiceIsAbsolute() {
+        #expect(CommandLine.executablePath.removingLastComponent().removingLastComponent().isAbsolute)
     }
 }

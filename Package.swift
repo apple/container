@@ -514,8 +514,16 @@ let package = Package(
         .target(
             name: "ContainerVersion",
             dependencies: [
-                "CVersion"
+                .product(name: "SystemPackage", package: "swift-system"),
+                "CVersion",
             ],
+        ),
+        .testTarget(
+            name: "ContainerVersionTests",
+            dependencies: [
+                .product(name: "SystemPackage", package: "swift-system"),
+                "ContainerVersion",
+            ]
         ),
         .target(
             name: "CVersion",
