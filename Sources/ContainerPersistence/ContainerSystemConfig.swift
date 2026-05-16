@@ -19,7 +19,7 @@ import ContainerVersion
 import ContainerizationExtras
 import Foundation
 
-/// Top-level configuration decoded from runtime-config.toml.
+/// Top-level configuration decoded from config.toml.
 ///
 /// Each section maps to a nested struct. Missing keys fall back to
 /// hardcoded defaults via custom `init(from:)` implementations.

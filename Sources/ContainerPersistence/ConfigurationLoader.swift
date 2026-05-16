@@ -31,7 +31,7 @@ public protocol LoadablePluginConfiguration: LoadableConfiguration {
 }
 
 public enum ConfigurationLoader {
-    private static let configFilename = "runtime-config.toml"
+    private static let configFilename = "config.toml"
     private static let configDirectory = "config"
     private static let READ_ONLY: Int = 0o444
     private static let READ_AND_WRITE: Int = 0o644
@@ -50,12 +50,12 @@ public enum ConfigurationLoader {
     /// Returns the configuration file path under an explicit base directory.
     ///
     /// Path shape depends on `kind`:
-    /// - `.home`: `<base>/runtime-config.toml` (user source under `~/.config/container`)
-    ///     - e.g. `~/.config/container/runtime-config.toml`
-    /// - `.appRoot`: `<base>/config/runtime-config.toml` (read-only copy of user config)
-    ///     - e.g. `~/Library/Application Support/com.apple.container/config/runtime-config.toml`
-    /// - `.installRoot`: `<base>/etc/container/runtime-config.toml` (system defaults shipped with install)
-    ///     - e.g. `/usr/local/etc/container/runtime-config.toml`
+    /// - `.home`: `<base>/config.toml` (user source under `~/.config/container`)
+    ///     - e.g. `~/.config/container/config.toml`
+    /// - `.appRoot`: `<base>/config/config.toml` (read-only copy of user config)
+    ///     - e.g. `~/Library/Application Support/com.apple.container/config/config.toml`
+    /// - `.installRoot`: `<base>/etc/container/config.toml` (system defaults shipped with install)
+    ///     - e.g. `/usr/local/etc/container/config.toml`
     ///
     /// - Parameters:
     ///   - base: Directory to resolve against.
@@ -83,8 +83,8 @@ public enum ConfigurationLoader {
     /// Load the `ContainerSystemConfig` by layering TOML files with first-match-wins precedence.
     ///
     /// Providers are consulted in the order given — values from earlier files override
-    /// later ones. The default order is user config (`<appRoot>/config/runtime-config.toml`)
-    /// > system config (`<installRoot>/etc/container/config/runtime-config.toml`).
+    /// later ones. The default order is user config (`<appRoot>/config/config.toml`)
+    /// > system config (`<installRoot>/etc/container/config/config.toml`).
     ///
     /// An empty `configurationFiles` array falls back to `defaultConfigFiles()`.
     ///
@@ -186,9 +186,9 @@ public enum ConfigurationLoader {
     /// is deleted and replaced with a fresh copy, which is then marked read-only.
     ///
     /// - Parameters:
-    ///   - source: File to copy from. Defaults to `<home>/container/runtime-config.toml`.
+    ///   - source: File to copy from. Defaults to `<home>/container/config.toml`.
     ///   - destination: Directory to copy into — the filename is appended automatically.
-    ///     Defaults to `<appRoot>/config/runtime-config.toml`.
+    ///     Defaults to `<appRoot>/config/config.toml`.
     public static func copyConfigurationToReadOnly(
         from source: FilePath? = nil,
         to destination: FilePath? = nil

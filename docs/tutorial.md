@@ -113,7 +113,7 @@ sudo container system dns create test
 
 Enter your administrator password when prompted. The first command requires administrator privileges to create a file containing the domain configuration under the `/etc/resolver` directory, and to tell the macOS DNS resolver to reload its configuration files.
 
-With the domain set to `test`, if you use `--name my-web-server` to start a container, queries to `my-web-server.test` will respond with that container's IP address. You can customize the domain in `~/.config/container/runtime-config.toml`.
+With the domain set to `test`, if you use `--name my-web-server` to start a container, queries to `my-web-server.test` will respond with that container's IP address. You can customize the domain in `~/.config/container/config.toml`.
 
 ## Build an image
 
@@ -305,7 +305,7 @@ container image push some-registry.example.com/fido/web-test:latest
 
 > [!NOTE]
 > By default `container` is configured to use Docker Hub.
-> You can change the default registry by setting `domain` under `[registry]` in `~/.config/container/runtime-config.toml`:
+> You can change the default registry by setting `domain` under `[registry]` in `~/.config/container/config.toml`:
 > ```toml
 > [registry]
 > domain = "some-registry.example.com"

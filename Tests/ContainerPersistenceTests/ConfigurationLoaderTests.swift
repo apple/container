@@ -217,13 +217,13 @@ struct ConfigurationLoaderTests {
 
     @Test func copyConfigToAppRoot() async throws {
         try await TemporaryStorage.withTempDir { tempDir in
-            let source = tempDir.appending("runtime-config.toml")
+            let source = tempDir.appending("config.toml")
             try Self.writeToml("[build]\ncpus = 8", to: source)
 
             let destBase = tempDir.appending("dest")
             try ConfigurationLoader.copyConfigurationToReadOnly(from: source, to: destBase)
 
-            let destFile = destBase.appending("config").appending("runtime-config.toml")
+            let destFile = destBase.appending("config").appending("config.toml")
             let copied = try String(contentsOf: URL(filePath: destFile.string), encoding: .utf8)
             #expect(copied.contains("cpus = 8"))
 
@@ -235,7 +235,7 @@ struct ConfigurationLoaderTests {
 
     @Test func copyConfigOverwritesExistingReadOnlyDestination() async throws {
         try await TemporaryStorage.withTempDir { tempDir in
-            let source = tempDir.appending("runtime-config.toml")
+            let source = tempDir.appending("config.toml")
             let destBase = tempDir.appending("dest")
 
             try Self.writeToml("[build]\ncpus = 8", to: source)
@@ -244,7 +244,7 @@ struct ConfigurationLoaderTests {
             try Self.writeToml("[build]\ncpus = 16", to: source)
             try ConfigurationLoader.copyConfigurationToReadOnly(from: source, to: destBase)
 
-            let destFile = destBase.appending("config").appending("runtime-config.toml")
+            let destFile = destBase.appending("config").appending("config.toml")
             let copied = try String(contentsOf: URL(filePath: destFile.string), encoding: .utf8)
             #expect(copied.contains("cpus = 16"))
 
@@ -259,7 +259,7 @@ struct ConfigurationLoaderTests {
             let source = tempDir.appending("nonexistent.toml")
             let destBase = tempDir.appending("dest")
             try ConfigurationLoader.copyConfigurationToReadOnly(from: source, to: destBase)
-            let destFile = destBase.appending("config").appending("runtime-config.toml")
+            let destFile = destBase.appending("config").appending("config.toml")
             #expect(!FileManager.default.fileExists(atPath: destFile.string))
         }
     }
