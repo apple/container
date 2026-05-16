@@ -29,11 +29,13 @@ import TerminalProgress
 public actor ImagesService {
     private let log: Logger
     private let contentStore: ContentStore
+    private let contentBlobsPath: URL
     private let imageStore: ImageStore
     private let snapshotStore: SnapshotStore
 
-    public init(contentStore: ContentStore, imageStore: ImageStore, snapshotStore: SnapshotStore, log: Logger) throws {
+    public init(contentStore: ContentStore, contentBlobsPath: URL, imageStore: ImageStore, snapshotStore: SnapshotStore, log: Logger) throws {
         self.contentStore = contentStore
+        self.contentBlobsPath = contentBlobsPath
         self.imageStore = imageStore
         self.snapshotStore = snapshotStore
         self.log = log
@@ -270,8 +272,7 @@ public actor ImagesService {
 
     /// Calculate disk usage for images
     /// - Parameter activeReferences: Set of image references currently in use by containers
-    /// - Returns: Tuple of (total count, active count, total size, reclaimable size)
-    public func calculateDiskUsage(activeReferences: Set<String>) async throws -> (Int, Int, UInt64, UInt64) {
+    public func calculateDiskUsage(activeReferences: Set<String>) async throws -> (totalCount: Int, activeCount: Int, totalSize: UInt64, reclaimableSize: UInt64) {
         self.log.debug(
             "ImagesService: enter",
             metadata: [
@@ -290,49 +291,41 @@ public actor ImagesService {
         }
 
         let images = try await self._list()
-        var totalSize: UInt64 = 0
-        var reclaimableSize: UInt64 = 0
         var activeCount = 0
+        var activeContentSizes: [String: UInt64] = [:]
+        var activeSnapshotSizes: [String: UInt64] = [:]
+        var processedDigests = Set<String>()
 
         for image in images {
-            // Calculate size for all platform variants
-            let imageSize = try await self.calculateImageSize(image)
-            totalSize += imageSize
+            guard activeReferences.contains(image.reference) else { continue }
+            activeCount += 1
+            let imageDigest = image.digest.trimmingDigestPrefix
+            guard processedDigests.insert(imageDigest).inserted else { continue }
 
-            // Check if image is referenced by any container
-            let isActive = activeReferences.contains(image.reference)
-            if isActive {
-                activeCount += 1
-            } else {
-                reclaimableSize += imageSize
+            var seen = Set<String>()
+            for digest in try await image.referencedDigests() where seen.insert(digest).inserted {
+                guard let content: Content = try await self.contentStore.get(digest: digest) else { continue }
+                activeContentSizes[digest] = try self.contentDiskSize(content)
+            }
+            for (digest, size) in try await self.snapshotStore.getSnapshotSizes(for: image) {
+                activeSnapshotSizes[digest] = size
             }
         }
 
-        return (images.count, activeCount, totalSize, reclaimableSize)
+        let snapshotDiskSize = await self.snapshotStore.totalAllocatedSize()
+        let totalOnDisk = FileManager.default.allocatedSize(of: self.contentBlobsPath) + snapshotDiskSize
+        let activeSize = activeContentSizes.values.reduce(0, +) + activeSnapshotSizes.values.reduce(0, +)
+        let reclaimable = totalOnDisk > activeSize ? totalOnDisk - activeSize : 0
+
+        return (images.count, activeCount, totalOnDisk, reclaimable)
     }
 
-    /// Calculate total size for an image including all platform variants
-    private func calculateImageSize(_ image: Containerization.Image) async throws -> UInt64 {
-        var totalSize: UInt64 = 0
-        let index = try await image.index()
-
-        for descriptor in index.manifests {
-            // Skip attestation manifests
-            if let refType = descriptor.annotations?["vnd.docker.reference.type"],
-                refType == "attestation-manifest"
-            {
-                continue
-            }
-
-            guard descriptor.platform != nil else { continue }
-
-            // Get snapshot size for this platform
-            if let snapshotSize = try? await self.snapshotStore.getSnapshotSize(descriptor: descriptor) {
-                totalSize += snapshotSize
-            }
+    private func contentDiskSize(_ content: Content) throws -> UInt64 {
+        let values = try? content.path.resourceValues(forKeys: [.totalFileAllocatedSizeKey])
+        if let allocatedSize = values?.totalFileAllocatedSize {
+            return UInt64(allocatedSize)
         }
-
-        return totalSize
+        return try content.size()
     }
 }
 

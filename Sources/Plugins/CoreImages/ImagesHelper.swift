@@ -92,10 +92,11 @@ extension ImagesHelper {
 
         private func initializeImagesService(root: URL, containerSystemConfig: ContainerSystemConfig, log: Logger, routes: inout [String: XPCServer.RouteHandler]) throws {
             let contentStore = RemoteContentStoreClient()
+            let contentBlobsPath = root.appendingPathComponent("content/blobs/sha256")
             let imageStore = try ImageStore(path: root, contentStore: contentStore)
             let unpackStrategy = SnapshotStore.defaultUnpackStrategy(initImage: containerSystemConfig.vminit.image)
             let snapshotStore = try SnapshotStore(path: root, unpackStrategy: unpackStrategy, log: log)
-            let service = try ImagesService(contentStore: contentStore, imageStore: imageStore, snapshotStore: snapshotStore, log: log)
+            let service = try ImagesService(contentStore: contentStore, contentBlobsPath: contentBlobsPath, imageStore: imageStore, snapshotStore: snapshotStore, log: log)
             let harness = ImagesServiceHarness(service: service, log: log)
 
             routes[ImagesServiceXPCRoute.imagePull.rawValue] = XPCServer.route(harness.pull)

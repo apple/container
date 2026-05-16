@@ -211,7 +211,8 @@ INTEGRATION_TEST_SUITES := \
 	TestCLIKernelSet \
 	TestCLIAnonymousVolumes \
 	TestCLINotFound \
-	TestCLINoParallelCases
+	TestCLINoParallelCases \
+	TestCLISystemDF
 
 empty :=
 space := $(empty) $(empty)
