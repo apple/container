@@ -173,6 +173,7 @@ public struct Flags {
             detach: Bool,
             dns: Flags.DNS,
             dnsDisabled: Bool,
+            extraHosts: [String] = [],
             entrypoint: String?,
             initImage: String?,
             kernel: String?,
@@ -201,6 +202,7 @@ public struct Flags {
             self.detach = detach
             self.dns = dns
             self.dnsDisabled = dnsDisabled
+            self.extraHosts = extraHosts
             self.entrypoint = entrypoint
             self.initImage = initImage
             self.kernel = kernel
@@ -246,6 +248,12 @@ public struct Flags {
 
         @OptionGroup
         public var dns: Flags.DNS
+
+        @Option(
+            name: .customLong("add-host"),
+            help: .init("Add a custom host-to-IP mapping to /etc/hosts (format: host:ip)", valueName: "host:ip")
+        )
+        public var extraHosts: [String] = []
 
         @Option(
             name: .long,

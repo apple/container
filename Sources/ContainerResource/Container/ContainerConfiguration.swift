@@ -35,6 +35,10 @@ public struct ContainerConfiguration: Sendable, Codable {
     public var networks: [AttachmentConfiguration] = []
     /// The DNS configuration for the container.
     public var dns: DNSConfiguration? = nil
+    /// Additional host-to-IP mappings to inject into the container's
+    /// `/etc/hosts` (the `--add-host` flag, equivalent to compose's
+    /// `extra_hosts`).
+    public var extraHosts: [ExtraHost] = []
     /// Whether to enable rosetta x86-64 translation for the container.
     public var rosetta: Bool = false
     /// Initial or main process of the container.
@@ -70,6 +74,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         case sysctls
         case networks
         case dns
+        case extraHosts
         case rosetta
         case initProcess
         case platform
@@ -104,6 +109,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         }
 
         dns = try container.decodeIfPresent(DNSConfiguration.self, forKey: .dns)
+        extraHosts = try container.decodeIfPresent([ExtraHost].self, forKey: .extraHosts) ?? []
         rosetta = try container.decodeIfPresent(Bool.self, forKey: .rosetta) ?? false
         initProcess = try container.decode(ProcessConfiguration.self, forKey: .initProcess)
         platform = try container.decodeIfPresent(ContainerizationOCI.Platform.self, forKey: .platform) ?? .current
@@ -116,6 +122,19 @@ public struct ContainerConfiguration: Sendable, Codable {
         capAdd = try container.decodeIfPresent([String].self, forKey: .capAdd) ?? []
         capDrop = try container.decodeIfPresent([String].self, forKey: .capDrop) ?? []
         shmSize = try container.decodeIfPresent(UInt64.self, forKey: .shmSize)
+    }
+
+    /// A static host-to-IP mapping appended to the container's
+    /// `/etc/hosts` at boot. Populated from `--add-host host:ip` on
+    /// `container run`/`create` and from compose's `extra_hosts`.
+    public struct ExtraHost: Sendable, Codable, Equatable {
+        public let hostname: String
+        public let ipAddress: String
+
+        public init(hostname: String, ipAddress: String) {
+            self.hostname = hostname
+            self.ipAddress = ipAddress
+        }
     }
 
     public struct DNSConfiguration: Sendable, Codable {
