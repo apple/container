@@ -345,7 +345,7 @@ Use `container ls` to see that the container is on the `foo` subnet:
 
 ```console
  % container ls
-ID             IMAGE            OS     ARCH   STATE    ADDR
+ID             IMAGE            OS     ARCH   STATE    IP
 my-web-server  web-test:latest  linux  arm64  running  192.168.65.2
 ```
 

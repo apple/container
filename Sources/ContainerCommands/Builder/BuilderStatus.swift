@@ -77,7 +77,7 @@ private struct PrintableBuilder: ListDisplayable {
     }
 
     static var tableHeader: [String] {
-        ["ID", "IMAGE", "STATE", "ADDR", "CPUS", "MEMORY"]
+        ["ID", "IMAGE", "STATE", "IP", "CPUS", "MEMORY"]
     }
 
     var tableRow: [String] {

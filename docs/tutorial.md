@@ -42,7 +42,7 @@ If you haven't created any containers yet, the command outputs an empty list:
 
 <pre>
 % container list --all
-ID  IMAGE  OS  ARCH  STATE  ADDR
+ID  IMAGE  OS  ARCH  STATE  IP
 %
 </pre>
 
@@ -97,7 +97,7 @@ You can save keystrokes by abbreviating commands and options. For example, abbre
 
 <pre>
 % container ls -a
-ID  IMAGE  OS  ARCH  STATE  ADDR
+ID  IMAGE  OS  ARCH  STATE  IP
 %
 </pre>
 
@@ -182,11 +182,11 @@ container run --name my-web-server --detach --rm web-test
 
 The `--detach` flag runs the container in the background, so that you can continue running commands in the same terminal. The `--rm` flag causes the container to be removed automatically after it stops.
 
-When you list containers now, `my-web-server` is present, along with the container that `container` started to build your image. Note that its IP address, shown in the `ADDR` column, is `192.168.64.3`:
+When you list containers now, `my-web-server` is present, along with the container that `container` started to build your image. Note that its IP address, shown in the `IP` column, is `192.168.64.3`:
 
 <pre>
 % container ls
-ID             IMAGE                                               OS     ARCH   STATE    ADDR
+ID             IMAGE                                               OS     ARCH   STATE    IP
 buildkit       ghcr.io/apple/container-builder-shim/builder:0.0.3  linux  arm64  running  192.168.64.2
 my-web-server  web-test:latest                                     linux  arm64  running  192.168.64.3
 %
@@ -338,7 +338,7 @@ If you list all running and stopped containers, you will see that the `--rm` fla
 
 <pre>
 % container list --all
-ID        IMAGE                                               OS     ARCH   STATE    ADDR
+ID        IMAGE                                               OS     ARCH   STATE    IP
 buildkit  ghcr.io/apple/container-builder-shim/builder:0.0.3  linux  arm64  running  192.168.64.2
 %
 </pre>
