@@ -198,15 +198,16 @@ public enum ConfigurationLoader {
         let destPath = configurationFile(in: destBase)
 
         let fm = FileManager.default
-        guard fm.fileExists(atPath: sourcePath.string) else { return }
-
-        let destDir = destPath.removingLastComponent()
-        try fm.createDirectory(atPath: destDir.string, withIntermediateDirectories: true)
 
         if fm.fileExists(atPath: destPath.string) {
             try fm.setAttributes([.posixPermissions: READ_AND_WRITE], ofItemAtPath: destPath.string)
             try fm.removeItem(at: URL(filePath: destPath.string))
         }
+
+        guard fm.fileExists(atPath: sourcePath.string) else { return }
+
+        let destDir = destPath.removingLastComponent()
+        try fm.createDirectory(atPath: destDir.string, withIntermediateDirectories: true)
 
         try fm.copyItem(
             at: URL(filePath: sourcePath.string),
