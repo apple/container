@@ -147,6 +147,7 @@ container build [<options>] [<context-dir>]
 *   `--pull`: Pull latest image
 *   `-q, --quiet`: Suppress build output
 *   `--secret <id=key,...>`: Set build-time secrets (format: id=<key>[,env=<ENV_VAR>|,src=<local/path>])
+*   `--ssh <default>`: Forward SSH agent authentication to the build. Only `--ssh default` is currently supported.
 *   `-t, --tag <name>`: Name for the built image (can be specified multiple times)
 *   `--target <stage>`: Set the target build stage
 *   `--vsock-port <port>`: Builder shim vsock port (default: 8088)

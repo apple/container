@@ -1557,4 +1557,84 @@ extension TestCLIBuildBase {
             try self.build(tag: imageName, tempDir: tempDir)
         }
     }
+
+    @Test func testBuildWithSSHDefaultForwarding() throws {
+        let tempDir: URL = try createTempDir()
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        // Create a temp dir and socket path for the simulated SSH agent.
+        let socketDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: socketDir, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: socketDir)
+        }
+
+        let socketPath = socketDir.appendingPathComponent("ssh-auth.sock").path
+
+        // Create a listening Unix domain socket to act as a fake SSH agent.
+        let serverFd = socket(AF_UNIX, SOCK_STREAM, 0)
+        precondition(serverFd >= 0, "socket() failed")
+        defer {
+            Darwin.close(serverFd)
+        }
+
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        withUnsafeMutableBytes(of: &addr.sun_path) { bytes in
+            socketPath.withCString { cStr in
+                bytes.copyMemory(from: UnsafeRawBufferPointer(start: cStr, count: socketPath.utf8.count + 1))
+            }
+        }
+
+        let bindResult = withUnsafePointer(to: addr) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
+                bind(serverFd, sockaddrPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        precondition(bindResult == 0, "bind() failed: \(errno)")
+        precondition(listen(serverFd, 5) == 0, "listen() failed")
+
+        // Accept and immediately close connections in background to keep the socket alive.
+        let acceptThread = Thread {
+            while true {
+                let clientFd = accept(serverFd, nil, nil)
+                if clientFd < 0 { break }
+                Darwin.close(clientFd)
+            }
+        }
+        acceptThread.start()
+
+        let previousSSHAuthSock = getenv("SSH_AUTH_SOCK").map { String(cString: $0) }
+        setenv("SSH_AUTH_SOCK", socketPath, 1)
+        defer {
+            if let previousSSHAuthSock {
+                setenv("SSH_AUTH_SOCK", previousSSHAuthSock, 1)
+            } else {
+                unsetenv("SSH_AUTH_SOCK")
+            }
+        }
+
+        let dockerfile =
+            """
+            FROM ghcr.io/linuxcontainers/alpine:3.20
+            RUN --mount=type=ssh \
+                test -n "$SSH_AUTH_SOCK" && \
+                test -S "$SSH_AUTH_SOCK"
+            """
+        let context: [FileSystemEntry] = [
+            .file("Dockerfile", content: .data(dockerfile.data(using: .utf8)!))
+        ]
+        try createContext(tempDir: tempDir, dockerfile: dockerfile, context: context)
+
+        let contextDir = tempDir.appendingPathComponent("context")
+        let imageName = "registry.local/ssh-default-forwarding:\(UUID().uuidString)"
+        let args = ["build", "--ssh", "default", "-t", imageName, contextDir.path]
+        let response = try run(arguments: args)
+        if response.status != 0 {
+            throw CLIError.executionFailed("build failed: stdout=\(response.output) stderr=\(response.error)")
+        }
+        #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
+    }
 }
