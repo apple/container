@@ -34,9 +34,9 @@ extension Application {
         var registry: String
 
         public func run() async throws {
-            let keychain = KeychainHelper(securityDomain: Constants.keychainID)
-            let r = Reference.resolveDomain(domain: registry)
-            try keychain.delete(hostname: r)
+            let hostname = Reference.resolveDomain(domain: registry)
+            let client = RegistryKeychainClient()
+            try await client.logout(hostname: hostname)
         }
     }
 }
