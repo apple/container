@@ -49,7 +49,7 @@ extension Application {
             }
 
             // Read from stdin; otherwise read from the input file
-            if input == nil {
+            guard let input else {
                 guard FileManager.default.createFile(atPath: tempFile.path(), contents: nil) else {
                     throw ContainerizationError(.internalError, message: "unable to create temporary file")
                 }
@@ -65,11 +65,12 @@ extension Application {
                     fileHandle.write(chunk)
                 }
                 try fileHandle.close()
-            } else {
-                guard FileManager.default.fileExists(atPath: input!) else {
-                    print("File does not exist \(input!)")
-                    Application.exit(withError: ArgumentParser.ExitCode(1))
-                }
+                return
+            }
+
+            guard FileManager.default.fileExists(atPath: input) else {
+                log.error("file does not exist", metadata: ["path": "\(input)"])
+                Application.exit(withError: ArgumentParser.ExitCode(1))
             }
 
             let progressConfig = try ProgressConfig(
@@ -85,7 +86,7 @@ extension Application {
 
             progress.set(description: "Loading tar archive")
             let result = try await ClientImage.load(
-                from: input ?? tempFile.path(),
+                from: input,
                 force: force)
             if !result.rejectedMembers.isEmpty {
                 log.warning("archive contains invalid members", metadata: ["paths": "\(result.rejectedMembers)"])
