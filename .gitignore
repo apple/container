@@ -23,6 +23,8 @@ test_results/
 *.ext4
 *.pkg
 *.swp
+__pycache__/
+*.pyc
 
 # Coverage artifacts
 *.profraw

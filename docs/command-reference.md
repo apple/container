@@ -7,6 +7,10 @@
 
 Note: Command availability may vary depending on host operating system and macOS version.
 
+Command Reference Lint:
+- Run `make lint-command-reference` after updating this file.
+- For headings and option line formatting, follow the same patterns used in other command sections in this file.
+
 ## Core Commands
 
 ### `container run`
@@ -26,7 +30,7 @@ container run [<options>] <image> [<arguments> ...]
 
 **Process Options**
 
-*   `-e, --env <env>`: Set environment variables (format: key=value)
+*   `-e, --env <env>`: Set environment variables (key=value, or just key to inherit from host)
 *   `--env-file <env-file>`: Read in a file of environment variables (key=value format, ignores # comments and blank lines)
 *   `--gid <gid>`: Set the group ID for the process
 *   `-i, --interactive`: Keep the standard input open even if not attached
@@ -34,6 +38,7 @@ container run [<options>] <image> [<arguments> ...]
 *   `-u, --user <user>`: Set the user for the process (format: name|uid[:gid])
 *   `--uid <uid>`: Set the user ID for the process
 *   `-w, --workdir, --cwd <dir>`: Set the initial working directory inside the container
+*   `--ulimit <limit>`: Set resource limits (format: <type>=<soft>[:<hard>])
 
 **Resource Options**
 
@@ -43,8 +48,8 @@ container run [<options>] <image> [<arguments> ...]
 **Management Options**
 
 *   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: arm64)
-*   `--cap-add <cap>`: Add a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
-*   `--cap-drop <cap>`: Drop a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
+*   `--cap-add <cap>`: Add a Linux capability (e.g. CAP_NET_RAW, or ALL)
+*   `--cap-drop <cap>`: Drop a Linux capability (e.g. CAP_NET_RAW, or ALL)
 *   `--cidfile <cidfile>`: Write the container ID to the path provided
 *   `-d, --detach`: Run the container and detach from the process
 *   `--dns <ip>`: DNS nameserver IP address
@@ -53,22 +58,23 @@ container run [<options>] <image> [<arguments> ...]
 *   `--dns-search <domain>`: DNS search domains
 *   `--entrypoint <cmd>`: Override the entrypoint of the image
 *   `--init`: Run an init process inside the container that forwards signals and reaps processes
-*   `--init-image <image>`: Use a custom init image instead of the default. This allows customizing boot-time behavior before the OCI container starts, such as running VM-level daemons, configuring eBPF filters, or debugging the init process.
+*   `--init-image <image>`: Use a custom init image instead of the default
 *   `-k, --kernel <path>`: Set a custom kernel path
 *   `-l, --label <label>`: Add a key=value label to the container
 *   `--mount <mount>`: Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)
 *   `--name <name>`: Use the specified name as the container ID
-*   `--network <network>`: Attach the container to a network
+*   `--network <network>`: Attach the container to a network (format: <name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE])
 *   `--no-dns`: Do not configure DNS in the container
 *   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
 *   `-p, --publish <spec>`: Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])
-*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
+*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch [environment: CONTAINER_DEFAULT_PLATFORM]
 *   `--publish-socket <spec>`: Publish a socket from container to host (format: host_path:container_path)
 *   `--read-only`: Mount the container's root filesystem as read-only
 *   `--rm, --remove`: Remove the container after it stops
 *   `--rosetta`: Enable Rosetta in the container
-*   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)
+*   `--runtime <runtime>`: Set the runtime handler for the container (default: container-runtime-linux)
 *   `--ssh`: Forward SSH agent socket to container
+*   `--shm-size <shm-size>`: Size of /dev/shm (e.g. 64M, 1G)
 *   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
 *   `-v, --volume <volume>`: Bind mount a volume into the container
 *   `--virtualization`: Expose virtualization capabilities to the container (requires host and guest support)
@@ -91,7 +97,8 @@ container run [<options>] <image> [<arguments> ...]
 
 **Progress Options**
 
-*   `--progress <type>`: Progress type (format: none|ansi|plain|color) (default: ansi)
+*   `--progress <type>`: Progress type (format: auto|none|ansi|plain|color) (default: auto)
+*   `--max-concurrent-downloads <max-concurrent-downloads>`: Maximum number of concurrent downloads (default: 3) (default: 3)
 
 **Examples**
 
@@ -135,21 +142,25 @@ container build [<options>] [<context-dir>]
 
 *   `-a, --arch <value>`: Add the architecture type to the build
 *   `--build-arg <key=val>`: Set build-time variables
-*   `-c, --cpus <cpus>`: Number of CPUs to allocate to the builder container (default: 2)
+*   `-c, --cpus <cpus>`: Number of CPUs to allocate to the builder container
 *   `-f, --file <path>`: Path to Dockerfile
 *   `-l, --label <key=val>`: Set a label
-*   `-m, --memory <memory>`: Amount of builder container memory (1MiByte granularity), with optional K, M, G, T, or P suffix (default: 2048MB)
+*   `-m, --memory <memory>`: Amount of builder container memory (1MiByte granularity), with optional K, M, G, T, or P suffix
 *   `--no-cache`: Do not use cache
 *   `-o, --output <value>`: Output configuration for the build (format: type=<oci|tar|local>[,dest=]) (default: type=oci)
 *   `--os <value>`: Add the OS type to the build
-*   `--platform <platform>`: Add the platform to the build (format: os/arch[/variant], takes precedence over --os and --arch)
+*   `--platform <platform>`: Add the platform to the build (format: os/arch[/variant], takes precedence over --os and --arch) [environment: CONTAINER_DEFAULT_PLATFORM]
 *   `--progress <type>`: Progress type (format: auto|plain|tty) (default: auto)
-*   `--pull`: Pull latest image
 *   `-q, --quiet`: Suppress build output
 *   `--secret <id=key,...>`: Set build-time secrets (format: id=<key>[,env=<ENV_VAR>|,src=<local/path>])
-*   `-t, --tag <name>`: Name for the built image (can be specified multiple times)
+*   `-t, --tag <name>`: Name for the built image (default: <generated-uuid>)
 *   `--target <stage>`: Set the target build stage
 *   `--vsock-port <port>`: Builder shim vsock port (default: 8088)
+*   `--dns <ip>`: DNS nameserver IP address
+*   `--dns-domain <domain>`: Default DNS domain
+*   `--dns-option <option>`: DNS options
+*   `--dns-search <domain>`: DNS search domains
+*   `--pull`: Pull latest image
 
 **Examples**
 
@@ -189,7 +200,7 @@ container create [<options>] <image> [<arguments> ...]
 
 **Process Options**
 
-*   `-e, --env <env>`: Set environment variables (format: key=value)
+*   `-e, --env <env>`: Set environment variables (key=value, or just key to inherit from host)
 *   `--env-file <env-file>`: Read in a file of environment variables (key=value format, ignores # comments and blank lines)
 *   `--gid <gid>`: Set the group ID for the process
 *   `-i, --interactive`: Keep the standard input open even if not attached
@@ -197,6 +208,7 @@ container create [<options>] <image> [<arguments> ...]
 *   `-u, --user <user>`: Set the user for the process (format: name|uid[:gid])
 *   `--uid <uid>`: Set the user ID for the process
 *   `-w, --workdir, --cwd <dir>`: Set the initial working directory inside the container
+*   `--ulimit <limit>`: Set resource limits (format: <type>=<soft>[:<hard>])
 
 **Resource Options**
 
@@ -206,8 +218,8 @@ container create [<options>] <image> [<arguments> ...]
 **Management Options**
 
 *   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: arm64)
-*   `--cap-add <cap>`: Add a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
-*   `--cap-drop <cap>`: Drop a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
+*   `--cap-add <cap>`: Add a Linux capability (e.g. CAP_NET_RAW, or ALL)
+*   `--cap-drop <cap>`: Drop a Linux capability (e.g. CAP_NET_RAW, or ALL)
 *   `--cidfile <cidfile>`: Write the container ID to the path provided
 *   `-d, --detach`: Run the container and detach from the process
 *   `--dns <ip>`: DNS nameserver IP address
@@ -216,22 +228,23 @@ container create [<options>] <image> [<arguments> ...]
 *   `--dns-search <domain>`: DNS search domains
 *   `--entrypoint <cmd>`: Override the entrypoint of the image
 *   `--init`: Run an init process inside the container that forwards signals and reaps processes
-*   `--init-image <image>`: Use a custom init image instead of the default. This allows customizing boot-time behavior before the OCI container starts, such as running VM-level daemons, configuring eBPF filters, or debugging the init process.
+*   `--init-image <image>`: Use a custom init image instead of the default
 *   `-k, --kernel <path>`: Set a custom kernel path
 *   `-l, --label <label>`: Add a key=value label to the container
 *   `--mount <mount>`: Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)
 *   `--name <name>`: Use the specified name as the container ID
-*   `--network <network>`: Attach the container to a network
+*   `--network <network>`: Attach the container to a network (format: <name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE])
 *   `--no-dns`: Do not configure DNS in the container
 *   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
 *   `-p, --publish <spec>`: Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])
-*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
+*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch [environment: CONTAINER_DEFAULT_PLATFORM]
 *   `--publish-socket <spec>`: Publish a socket from container to host (format: host_path:container_path)
 *   `--read-only`: Mount the container's root filesystem as read-only
 *   `--rm, --remove`: Remove the container after it stops
 *   `--rosetta`: Enable Rosetta in the container
-*   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)  
+*   `--runtime <runtime>`: Set the runtime handler for the container (default: container-runtime-linux)
 *   `--ssh`: Forward SSH agent socket to container
+*   `--shm-size <shm-size>`: Size of /dev/shm (e.g. 64M, 1G)
 *   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
 *   `-v, --volume <volume>`: Bind mount a volume into the container
 *   `--virtualization`: Expose virtualization capabilities to the container (requires host and guest support)
@@ -239,6 +252,7 @@ container create [<options>] <image> [<arguments> ...]
 **Registry Options**
 
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
+*   `--max-concurrent-downloads <max-concurrent-downloads>`: Maximum number of concurrent downloads (default: 3) (default: 3)
 
 ### `container start`
 
@@ -330,7 +344,7 @@ container list [--all] [--format <format>] [--quiet] [--debug]
 **Options**
 
 *   `-a, --all`: Include containers that are not running
-*   `--format <format>`: Format of the output (values: json, table; default: table)
+*   `--format <format>`: Format of the output (values: json, table, yaml, toml; default: table)
 *   `-q, --quiet`: Only output the container ID
 
 ### `container exec`
@@ -340,7 +354,7 @@ Executes a command inside a running container. It uses the same process flags as
 **Usage**
 
 ```bash
-container exec [--detach] [--env <env> ...] [--env-file <env-file> ...] [--gid <gid>] [--interactive] [--tty] [--user <user>] [--uid <uid>] [--workdir <dir>] [--debug] <container-id> <arguments> ...
+container exec [<options>] <container-id> <arguments> ...
 ```
 
 **Arguments**
@@ -354,7 +368,7 @@ container exec [--detach] [--env <env> ...] [--env-file <env-file> ...] [--gid <
 
 **Process Options**
 
-*   `-e, --env <env>`: Set environment variables (format: key=value)
+*   `-e, --env <env>`: Set environment variables (key=value, or just key to inherit from host)
 *   `--env-file <env-file>`: Read in a file of environment variables (key=value format, ignores # comments and blank lines)
 *   `--gid <gid>`: Set the group ID for the process
 *   `-i, --interactive`: Keep the standard input open even if not attached
@@ -362,6 +376,7 @@ container exec [--detach] [--env <env> ...] [--env-file <env-file> ...] [--gid <
 *   `-u, --user <user>`: Set the user for the process (format: name|uid[:gid])
 *   `--uid <uid>`: Set the user ID for the process
 *   `-w, --workdir, --cwd <dir>`: Set the initial working directory inside the container
+*   `--ulimit <limit>`: Set resource limits (format: <type>=<soft>[:<hard>])
 
 ### `container export`
 
@@ -370,12 +385,12 @@ Exports a stopped container's filesystem as a tar archive. The container must be
 **Usage**
 
 ```bash
-container export [-o <output>] [--debug] <container-id>
+container export [--debug] [--output <output>] <id>
 ```
 
 **Arguments**
 
-*   `<container-id>`: Container ID
+*   `<id>`: container ID
 
 **Options**
 
@@ -424,7 +439,7 @@ container inspect [--debug] <container-ids> ...
 
 **Arguments**
 
-*   `<container-ids>`: Container IDs
+*   `<container-ids>`: Container IDs to inspect
 
 **Options**
 
@@ -437,16 +452,16 @@ Displays real-time resource usage statistics for containers. Shows CPU percentag
 **Usage**
 
 ```bash
-container stats [--format <format>] [--no-stream] [--debug] [<container-ids> ...]
+container stats [<containers> ...] [--format <format>] [--no-stream] [--debug]
 ```
 
 **Arguments**
 
-*   `<container-ids>`: Container IDs or names (optional, shows all running containers if not specified)
+*   `<containers>`: Container ID or name (optional, shows all running containers if not specified)
 
 **Options**
 
-*   `--format <format>`: Format of the output (values: json, table; default: table)
+*   `--format <format>`: Format of the output (values: json, table, yaml, toml; default: table)
 *   `--no-stream`: Disable streaming stats and only pull the first result
 
 **Examples**
@@ -493,7 +508,7 @@ container image list [--format <format>] [--quiet] [--verbose] [--debug]
 
 **Options**
 
-*   `--format <format>`: Format of the output (values: json, table; default: table)
+*   `--format <format>`: Format of the output (values: json, table, yaml, toml; default: table)
 *   `-q, --quiet`: Only output the image name
 *   `-v, --verbose`: Verbose output
 
@@ -504,20 +519,21 @@ Pulls an image from a registry. Supports specifying a platform and controlling p
 **Usage**
 
 ```bash
-container image pull [--debug] [--scheme <scheme>] [--progress <type>] [--arch <arch>] [--os <os>] [--platform <platform>] <reference>
+container image pull [--scheme <scheme>] [--progress <type>] [--max-concurrent-downloads <max-concurrent-downloads>] [--arch <arch>] [--os <os>] [--platform <platform>] [--debug] <reference>
 ```
 
 **Arguments**
 
-*   `<reference>`: Image reference to pull
+*   `<reference>`:
 
 **Options**
 
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
-*   `--progress <type>`: Progress type (format: none|ansi|plain|color) (default: ansi)
+*   `--progress <type>`: Progress type (format: auto|none|ansi|plain|color) (default: auto)
+*   `--max-concurrent-downloads <max-concurrent-downloads>`: Maximum number of concurrent downloads (default: 3) (default: 3)
 *   `-a, --arch <arch>`: Limit the pull to the specified architecture
 *   `--os <os>`: Limit the pull to the specified OS
-*   `--platform <platform>`: Limit the pull to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)
+*   `--platform <platform>`: Limit the pull to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch) [environment: CONTAINER_DEFAULT_PLATFORM]
 
 ### `container image push`
 
@@ -536,10 +552,10 @@ container image push [--scheme <scheme>] [--progress <type>] [--arch <arch>] [--
 **Options**
 
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
-*   `--progress <type>`: Progress type (format: none|ansi|plain|color) (default: ansi)
+*   `--progress <type>`: Progress type (format: auto|none|ansi|plain|color) (default: auto)
 *   `-a, --arch <arch>`: Limit the push to the specified architecture
 *   `--os <os>`: Limit the push to the specified OS
-*   `--platform <platform>`: Limit the push to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)
+*   `--platform <platform>`: Limit the push to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch) [environment: CONTAINER_DEFAULT_PLATFORM]
 
 ### `container image save`
 
@@ -548,19 +564,19 @@ Saves an image to a tar archive on disk. Useful for exporting images for offline
 **Usage**
 
 ```bash
-container image save [--arch <arch>] [--os <os>] --output <output> [--platform <platform>] [--debug] <references> ...
+container image save [--arch <arch>] [--os <os>] [--output <output>] [--platform <platform>] [--debug] <references> ...
 ```
 
 **Arguments**
 
-*   `<references>`: Image references to save
+*   `<references>`:
 
 **Options**
 
 *   `-a, --arch <arch>`: Architecture for the saved image
 *   `--os <os>`: OS for the saved image
 *   `-o, --output <output>`: Pathname for the saved image
-*   `--platform <platform>`: Platform for the saved image (format: os/arch[/variant], takes precedence over --os and --arch)
+*   `--platform <platform>`: Platform for the saved image (format: os/arch[/variant], takes precedence over --os and --arch) [environment: CONTAINER_DEFAULT_PLATFORM]
 
 ### `container image load`
 
@@ -569,13 +585,13 @@ Loads images from a tar archive created by `image save`. The tar file must be sp
 **Usage**
 
 ```bash
-container image load --input <input> [--force] [--debug]
+container image load [--input <input>] [--force] [--debug]
 ```
 
 **Options**
 
 *   `-i, --input <input>`: Path to the image tar archive
-*   `-f, --force`: Load images even if invalid member files are detected
+*   `-f, --force`: Load images even if the archive contains invalid files
 
 ### `container image tag`
 
@@ -603,12 +619,12 @@ Deletes one or more images. If no images are provided, `--all` can be used to de
 **Usage**
 
 ```bash
-container image delete [--all] [--force] [--debug] [<images> ...]
+container image delete [--all] [--force] [<images> ...] [--debug]
 ```
 
 **Arguments**
 
-*   `<images>`: Image names or IDs
+*   `<images>`:
 
 **Options**
 
@@ -622,7 +638,7 @@ Removes unused images to reclaim disk space. By default, only removes dangling i
 **Usage**
 
 ```bash
-container image prune [--all] [--debug]
+container image prune [--debug] [--all]
 ```
 
 **Options**
@@ -658,13 +674,17 @@ Starts the BuildKit builder container. CPU and memory limits can be set for the 
 **Usage**
 
 ```bash
-container builder start [--cpus <cpus>] [--memory <memory>] [--debug]
+container builder start [--cpus <cpus>] [--memory <memory>] [--dns <ip> ...] [--dns-domain <domain>] [--dns-option <option> ...] [--dns-search <domain> ...] [--debug]
 ```
 
 **Options**
 
-*   `-c, --cpus <cpus>`: Number of CPUs to allocate to the builder container (default: 2)
-*   `-m, --memory <memory>`: Amount of builder container memory (1MiByte granularity), with optional K, M, G, T, or P suffix (default: 2048MB)
+*   `-c, --cpus <cpus>`: Number of CPUs to allocate to the builder container
+*   `-m, --memory <memory>`: Amount of builder container memory (1MiByte granularity), with optional K, M, G, T, or P suffix
+*   `--dns <ip>`: DNS nameserver IP address
+*   `--dns-domain <domain>`: Default DNS domain
+*   `--dns-option <option>`: DNS options
+*   `--dns-search <domain>`: DNS search domains
 
 ### `container builder status`
 
@@ -678,7 +698,7 @@ container builder status [--format <format>] [--quiet] [--debug]
 
 **Options**
 
-*   `--format <format>`: Format of the output (values: json, table; default: table)
+*   `--format <format>`: Format of the output (values: json, table, yaml, toml; default: table)
 *   `-q, --quiet`: Only output the container ID
 
 ### `container builder stop`
@@ -720,7 +740,7 @@ Creates a new network with the given name.
 **Usage**
 
 ```bash
-container network create [--label <label> ...] [--subnet <subnet>] [--subnet-v6 <subnet-v6>] [--debug] <name>
+container network create [--label <label> ...] [--internal] [--subnet <subnet>] [--subnet-v6 <subnet-v6>] [--plugin <plugin>] [--plugin-variant <plugin-variant>] [--debug] <name>
 ```
 
 **Arguments**
@@ -730,8 +750,11 @@ container network create [--label <label> ...] [--subnet <subnet>] [--subnet-v6 
 **Options**
 
 *   `--label <label>`: Set metadata for a network
-*   `--subnet <subnet>`: Set the IPv4 subnet for a network (CIDR format, e.g., 192.168.100.0/24)
-*   `--subnet-v6 <subnet-v6>`: Set the IPv6 prefix for a network (CIDR format, e.g., fd00:1234::/64)
+*   `--internal`: Restrict to host-only network
+*   `--subnet <subnet>`: Set subnet for a network
+*   `--subnet-v6 <subnet-v6>`: Set the IPv6 prefix for a network
+*   `--plugin <plugin>`: Set the plugin to use to create this network. (default: container-network-vmnet)
+*   `--plugin-variant <plugin-variant>`: Set the variant of the network plugin to use.
 
 ### `container network delete (rm)`
 
@@ -777,7 +800,7 @@ container network list [--format <format>] [--quiet] [--debug]
 
 **Options**
 
-*   `--format <format>`: Format of the output (values: json, table; default: table)
+*   `--format <format>`: Format of the output (values: json, table, yaml, toml; default: table)
 *   `-q, --quiet`: Only output the network name
 
 ### `container network inspect`
@@ -820,19 +843,7 @@ container volume create [--label <label> ...] [--opt <opt> ...] [-s <s>] [--debu
 
 *   `--label <label>`: Set metadata for a volume
 *   `--opt <opt>`: Set driver specific options
-*   `-s <s>`: Size of the volume in bytes, with optional K, M, G, T, or P suffix. Takes precedence over `--opt size=` if both are specified.
-
-**Driver Options**
-
-Driver options are passed with `--opt key=value`. The following options are supported for the default `local` driver:
-
-*   `size=<value>`: Volume size with optional unit suffix (K, M, G, T, P). Minimum 1 MiB. Equivalent to `-s`; if `-s` is also specified, `-s` takes precedence.
-*   `journal=<mode>[:<size>]`: Configure ext4 journaling on the volume. `<mode>` must be one of:
-    *   `ordered` — journals metadata only; data is written to disk before its metadata is committed (default kernel behavior, good balance of safety and performance)
-    *   `writeback` — journals metadata only; data ordering relative to metadata commits is not guaranteed (fastest, least safe)
-    *   `journal` — journals both metadata and data (safest, highest write amplification)
-
-    An optional `:<size>` suffix sets the journal size (same unit suffixes as `size`). If omitted, the kernel selects a default journal size.
+*   `-s <s>`: Size of the volume in bytes, with optional K, M, G, T, or P suffix
 
 **Examples**
 
@@ -922,7 +933,7 @@ container volume list [--format <format>] [--quiet] [--debug]
 
 **Options**
 
-*   `--format <format>`: Format of the output (values: json, table; default: table)
+*   `--format <format>`: Format of the output (values: json, table, yaml, toml; default: table)
 *   `-q, --quiet`: Only output the volume name
 
 ### `container volume inspect`
@@ -937,7 +948,7 @@ container volume inspect [--debug] <names> ...
 
 **Arguments**
 
-*   `<names>`: Volume names
+*   `<names>`: Volumes to inspect
 
 **Options**
 
@@ -992,13 +1003,13 @@ List image registry logins.
 **Usage**
 
 ```bash
-container registry list [--format <format>] [--quiet] [--debug]
+container registry list [--debug] [--format <format>] [--quiet]
 ```
 
 **Options**
 
-*   `--format <format>`: Format of the output (values: json, table; default: table)
-*   `-q, --quiet`: Only output the image registry name
+*   `--format <format>`: Format of the output (values: json, table, yaml, toml; default: table)
+*   `-q, --quiet`: Only output the registry hostname
 
 ## System Management
 
@@ -1011,7 +1022,7 @@ Starts the container services and (optionally) installs a default kernel. It wil
 **Usage**
 
 ```bash
-container system start [--app-root <app-root>] [--install-root <install-root>] [--log-root <log-root>] [--enable-kernel-install] [--disable-kernel-install] [--debug]
+container system start [--app-root <app-root>] [--install-root <install-root>] [--log-root <log-root>] [--enable-kernel-install] [--disable-kernel-install] [--timeout <timeout>] [--debug]
 ```
 
 **Options**
@@ -1020,6 +1031,7 @@ container system start [--app-root <app-root>] [--install-root <install-root>] [
 *   `--install-root <install-root>`: Path to the root directory for application executables and plugins
 *   `--log-root <log-root>`: Path to the root directory for log data, using macOS log facility if not set
 *   `--enable-kernel-install/--disable-kernel-install`: Specify whether the default kernel should be installed or not (default: prompt user)
+*   `--timeout <timeout>`: Number of seconds to wait for API service to become responsive
 
 ### `container system stop`
 
@@ -1048,7 +1060,7 @@ container system status [--prefix <prefix>] [--format <format>] [--debug]
 **Options**
 
 *   `-p, --prefix <prefix>`: Launchd prefix for services (default: com.apple.container.)
-*   `--format <format>`    : Format of the output (values: json, table; default: table)
+*   `--format <format>`: Format of the output (values: json, table, yaml, toml; default: table)
 
 ### `container system version`
 
@@ -1057,12 +1069,12 @@ Shows version information for the CLI and, if available, the API server. The tab
 **Usage**
 
 ```bash
-container system version [--format <format>]
+container system version [--format <format>] [--debug]
 ```
 
 **Options**
 
-*   `--format <format>`: Output format (values: json, table, yaml; default: table)
+*   `--format <format>`: Format of the output (values: json, table, yaml, toml; default: table)
 
 **Table Output**
 
@@ -1127,7 +1139,7 @@ container system logs [--follow] [--last <last>] [--debug]
 **Options**
 
 *   `-f, --follow`: Follow log output
-*   `--last <last>`: Fetch logs starting from the specified time period (minus the current time); supported formats: m, h, d (default: 5m)
+*   `--last <last>`: Fetch logs starting from the specified time period (minus the current time); supported formats: <number>[m|h|d] (defaults to seconds) (default: 5m)
 
 ### `container system df`
 
@@ -1141,7 +1153,7 @@ container system df [--format <format>] [--debug]
 
 **Options**
 
-*   `--format <format>`: Format of the output (values: json, table; default: table)
+*   `--format <format>`: Format of the output (values: json, table, yaml, toml; default: table)
 
 ### `container system dns create`
 
@@ -1150,7 +1162,7 @@ Creates a local DNS domain for containers. Requires administrator privileges (us
 **Usage**
 
 ```bash
-container system dns create [--debug] <domain-name>
+container system dns create [--debug] [--localhost <localhost>] <domain-name>
 ```
 
 **Arguments**
@@ -1159,7 +1171,7 @@ container system dns create [--debug] <domain-name>
 
 **Options**
 
-No options.
+*   `--localhost <localhost>`: Set the ip address to be redirected to localhost
 
 ### `container system dns delete (rm)`
 
@@ -1186,12 +1198,13 @@ Lists configured local DNS domains for containers.
 **Usage**
 
 ```bash
-container system dns list [--debug]
+container system dns list [--format <format>] [--quiet] [--debug]
 ```
 
 **Options**
 
-No options.
+*   `--format <format>`: Format of the output (values: json, table, yaml, toml; default: table)
+*   `-q, --quiet`: Only output the domain
 
 ### `container system kernel set`
 
@@ -1223,7 +1236,7 @@ container system property list [--format <format>] [--debug]
 
 **Options**
 
-*   `--format <format>`: Format of the output (values: json, toml; default: toml)
+*   `--format <format>`: Format of the output (default: toml)
 
 **Examples**
 
@@ -1234,4 +1247,3 @@ container system property list
 # output as JSON for scripting
 container system property list --format json
 ```
-
