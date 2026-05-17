@@ -205,6 +205,8 @@ extension PluginLoader {
         "http_proxy", "HTTP_PROXY",
         "https_proxy", "HTTPS_PROXY",
         "no_proxy", "NO_PROXY",
+        // Allows LLVM coverage profiling data to be written by launchd-managed helper processes.
+        "LLVM_PROFILE_FILE",
     ])
 
     public func registerWithLaunchd(
