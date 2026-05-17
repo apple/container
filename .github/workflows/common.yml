@@ -56,6 +56,11 @@ jobs:
         env:
           DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
 
+      - name: Check command reference usage drift
+        run: make lint-command-reference
+        env:
+          DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
+
       - name: Set build configuration
         env:
           RELEASE: ${{ inputs.release }}

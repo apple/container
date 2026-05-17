@@ -337,6 +337,11 @@ docs:
 	@rm -rf _site
 	@scripts/make-docs.sh _site container
 
+.PHONY: lint-command-reference
+lint-command-reference: cli
+	@echo Linting command reference usage against container CLI...
+	@python3 scripts/generate-command-reference.py --cli ./bin/container --lint-usage-against docs/command-reference.md
+
 .PHONY: cleancontent
 cleancontent:
 	@bin/container system stop || true
