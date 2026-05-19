@@ -606,6 +606,6 @@ class TestCLIImagesCommand: CLITest {
 
         #expect(status != 0, "Expected non-zero exit for missing file")
         #expect(stdout.isEmpty, "Expected stdout to be empty, got: \(stdout)")
-        #expect(stderr.contains("File does not exist \(missingPath)"), "Expected stderr to contain error message, got: \(stderr)")
+        #expect(stderr.contains("file does not exist") && stderr.contains(missingPath), "Expected stderr to contain error message, got: \(stderr)")
     }
 }
