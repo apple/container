@@ -41,6 +41,10 @@ extension Application {
 
         public init() {}
 
+        public func validate() throws {
+            try format.ensureSupported([.json, .table])
+        }
+
         public func run() async throws {
             do {
                 let client = ContainerClient()

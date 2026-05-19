@@ -44,6 +44,10 @@ extension Application {
         @OptionGroup
         public var logOptions: Flags.Logging
 
+        public func validate() throws {
+            try format.ensureSupported([.json, .table])
+        }
+
         public mutating func run() async throws {
             let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
             try Self.validate(quiet: quiet, verbose: verbose)
