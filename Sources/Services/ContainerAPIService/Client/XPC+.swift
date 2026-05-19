@@ -141,6 +141,12 @@ public enum XPCKeys: String {
 
     /// Disk usage
     case diskUsageStats
+
+    /// Copy parameters
+    case sourcePath
+    case destinationPath
+    case fileMode
+    case createParents
 }
 
 public enum XPCRoute: String {
@@ -160,6 +166,8 @@ public enum XPCRoute: String {
     case containerEvent
     case containerStats
     case containerDiskUsage
+    case containerCopyIn
+    case containerCopyOut
     case containerExport
 
     case pluginLoad

@@ -104,6 +104,8 @@ extension RuntimeLinuxHelper {
                         SandboxRoutes.dial.rawValue: XPCServer.route(server.dial),
                         SandboxRoutes.shutdown.rawValue: XPCServer.route(server.shutdown),
                         SandboxRoutes.statistics.rawValue: XPCServer.route(server.statistics),
+                        SandboxRoutes.copyIn.rawValue: XPCServer.route(server.copyIn),
+                        SandboxRoutes.copyOut.rawValue: XPCServer.route(server.copyOut),
                     ],
                     log: log
                 )
