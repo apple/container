@@ -18,7 +18,7 @@ import ContainerNetworkServiceClient
 import ContainerOS
 import ContainerPersistence
 import ContainerResource
-import ContainerSandboxServiceClient
+import ContainerRuntimeClient
 import ContainerXPC
 import Containerization
 import ContainerizationError
@@ -138,8 +138,6 @@ public actor SandboxService {
     public func bootstrap(_ message: XPCMessage) async throws -> XPCMessage {
         self.log.debug("enter", metadata: ["func": "\(#function)"])
         defer { self.log.debug("exit", metadata: ["func": "\(#function)"]) }
-
-        // Create the bundle if it doesn't exist yet
 
         // Create the bundle if it doesn't exist yet
         if !self.bundleExists(at: self.root) {

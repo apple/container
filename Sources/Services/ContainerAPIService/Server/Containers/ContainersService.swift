@@ -19,7 +19,7 @@ import ContainerAPIClient
 import ContainerPersistence
 import ContainerPlugin
 import ContainerResource
-import ContainerSandboxServiceClient
+import ContainerRuntimeClient
 import ContainerXPC
 import Containerization
 import ContainerizationEXT4

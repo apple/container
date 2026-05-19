@@ -23,6 +23,8 @@ public struct RuntimeConfiguration: Codable, Sendable {
     static let runtimeConfigurationFilename = "runtime-configuration.json"
 
     public let path: URL
+    // TODO: Remove runtime-specific fields (initialFilesystem, kernel, containerRootFilesystem).
+    // These should be encoded into the opaque `runtimeData` field by the CLI.
     public let initialFilesystem: Filesystem
     public let kernel: Kernel
     public let containerConfiguration: ContainerConfiguration?

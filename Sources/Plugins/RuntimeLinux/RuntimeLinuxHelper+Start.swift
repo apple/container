@@ -18,8 +18,8 @@ import ArgumentParser
 import ContainerLog
 import ContainerPlugin
 import ContainerResource
-import ContainerSandboxService
-import ContainerSandboxServiceClient
+import ContainerRuntimeLinuxServer
+import ContainerRuntimeClient
 import ContainerXPC
 import Foundation
 import Logging

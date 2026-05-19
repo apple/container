@@ -35,12 +35,13 @@ let package = Package(
         .library(name: "ContainerAPIClient", targets: ["ContainerAPIClient"]),
         .library(name: "ContainerImagesService", targets: ["ContainerImagesService", "ContainerImagesServiceClient"]),
         .library(name: "ContainerNetworkService", targets: ["ContainerNetworkService", "ContainerNetworkServiceClient"]),
-        .library(name: "ContainerSandboxService", targets: ["ContainerSandboxService", "ContainerSandboxServiceClient"]),
+        .library(name: "ContainerSandboxService", targets: ["ContainerRuntimeLinuxServer", "ContainerRuntimeClient"]),
         .library(name: "ContainerResource", targets: ["ContainerResource"]),
         .library(name: "ContainerLog", targets: ["ContainerLog"]),
         .library(name: "ContainerPersistence", targets: ["ContainerPersistence"]),
         .library(name: "ContainerPlugin", targets: ["ContainerPlugin"]),
         .library(name: "ContainerVersion", targets: ["ContainerVersion"]),
+        .library(name: "ContainerRuntimeLinuxClient", targets: ["ContainerRuntimeLinuxClient"]),
         .library(name: "ContainerXPC", targets: ["ContainerXPC"]),
         .library(name: "ContainerOS", targets: ["ContainerOS"]),
         .library(name: "SocketForwarder", targets: ["SocketForwarder"]),
@@ -108,7 +109,8 @@ let package = Package(
                 "ContainerPersistence",
                 "ContainerPlugin",
                 "ContainerResource",
-                "ContainerRuntimeLinuxTypes",
+                "ContainerRuntimeClient",
+                "ContainerRuntimeLinuxClient",
                 "ContainerVersion",
                 "ContainerXPC",
                 "TerminalProgress",
@@ -188,7 +190,7 @@ let package = Package(
                 "ContainerPersistence",
                 "ContainerPlugin",
                 "ContainerResource",
-                "ContainerSandboxServiceClient",
+                "ContainerRuntimeClient",
                 "ContainerVersion",
                 "ContainerXPC",
                 "TerminalProgress",
@@ -200,8 +202,8 @@ let package = Package(
             dependencies: [
                 .product(name: "Containerization", package: "containerization"),
                 "ContainerResource",
-                "ContainerRuntimeLinuxTypes",
-                "ContainerSandboxServiceClient",
+                "ContainerRuntimeLinuxClient",
+                "ContainerRuntimeClient",
             ]
         ),
         .target(
@@ -336,9 +338,9 @@ let package = Package(
             path: "Sources/Services/ContainerNetworkService/Client"
         ),
         .target(
-            name: "ContainerRuntimeLinuxTypes",
+            name: "ContainerRuntimeLinuxClient",
             dependencies: [],
-            path: "Sources/Plugins/RuntimeLinux/Types"
+            path: "Sources/Services/RuntimeLinux/Client"
         ),
         .executableTarget(
             name: "container-runtime-linux",
@@ -349,41 +351,43 @@ let package = Package(
                 "ContainerLog",
                 "ContainerPlugin",
                 "ContainerResource",
-                "ContainerRuntimeLinuxTypes",
-                "ContainerSandboxService",
-                "ContainerSandboxServiceClient",
+                "ContainerRuntimeClient",
+                "ContainerRuntimeLinuxClient",
+                "ContainerRuntimeLinuxServer",
                 "ContainerVersion",
                 "ContainerXPC",
             ],
             path: "Sources/Plugins/RuntimeLinux",
-            exclude: ["config.toml", "Types"]
+            exclude: ["config.toml"]
         ),
         .target(
-            name: "ContainerSandboxService",
+            name: "ContainerRuntimeLinuxServer",
             dependencies: [
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                "ContainerAPIClient",
                 "ContainerNetworkServiceClient",
                 "ContainerOS",
                 "ContainerPersistence",
                 "ContainerResource",
-                "ContainerSandboxServiceClient",
+                "ContainerRuntimeClient",
+                "ContainerRuntimeLinuxClient",
                 "ContainerXPC",
                 "SocketForwarder",
             ],
-            path: "Sources/Services/ContainerSandboxService/Server"
+            path: "Sources/Services/RuntimeLinux/Server"
         ),
         .target(
-            name: "ContainerSandboxServiceClient",
+            name: "ContainerRuntimeClient",
             dependencies: [
                 "ContainerAPIClient",
                 "ContainerResource",
                 "ContainerXPC",
             ],
-            path: "Sources/Services/ContainerSandboxService/Client"
+            path: "Sources/Services/Runtime/RuntimeClient"
         ),
         .target(
             name: "ContainerResource",

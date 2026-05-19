@@ -15,8 +15,8 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerResource
-import ContainerRuntimeLinuxTypes
-import ContainerSandboxServiceClient
+import ContainerRuntimeLinuxClient
+import ContainerRuntimeClient
 import Containerization
 import Foundation
 import Testing
