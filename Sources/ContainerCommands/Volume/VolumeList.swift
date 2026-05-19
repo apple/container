@@ -39,6 +39,10 @@ extension Application.VolumeCommand {
 
         public init() {}
 
+        public func validate() throws {
+            try format.ensureSupported([.json, .table])
+        }
+
         public func run() async throws {
             let volumes = try await ClientVolume.list()
 

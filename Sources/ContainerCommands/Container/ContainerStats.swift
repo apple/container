@@ -42,6 +42,10 @@ extension Application {
 
         public init() {}
 
+        public func validate() throws {
+            try format.ensureSupported([.json, .table])
+        }
+
         public func run() async throws {
             if format == .json || noStream {
                 // Static mode - get stats once and exit

@@ -39,6 +39,10 @@ extension Application {
 
         public init() {}
 
+        public func validate() throws {
+            try format.ensureSupported([.json, .table])
+        }
+
         struct PrintableStatus: Codable {
             let status: String
             let appRoot: String

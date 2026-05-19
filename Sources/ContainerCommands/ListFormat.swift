@@ -15,10 +15,24 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerizationError
 
 public enum ListFormat: String, CaseIterable, ExpressibleByArgument, Sendable {
     case json
     case table
     case yaml
     case toml
+
+    /// Throws if `self` is not in `supported`. Use from a command's `validate()`
+    /// so unimplemented formats fail fast with a clear error instead of silently
+    /// falling through to table output.
+    public func ensureSupported(_ supported: Set<ListFormat>) throws {
+        if !supported.contains(self) {
+            let list = supported.map(\.rawValue).sorted().joined(separator: ", ")
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "--format \(self.rawValue) is not supported for this command; supported: \(list)"
+            )
+        }
+    }
 }
