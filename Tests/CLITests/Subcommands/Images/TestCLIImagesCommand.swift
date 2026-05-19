@@ -599,4 +599,13 @@ class TestCLIImagesCommand: CLITest {
         #expect(status != 0, "Expected non-zero exit for missing image")
         #expect(error.contains("image not found"))
     }
+
+    @Test func testImageLoadMissingFileErrorToStderr() throws {
+        let missingPath = "/path/that/does/not/exist-\(UUID().uuidString)"
+        let (_, stdout, stderr, status) = try run(arguments: ["image", "load", "-i", missingPath])
+
+        #expect(status != 0, "Expected non-zero exit for missing file")
+        #expect(stdout.isEmpty, "Expected stdout to be empty, got: \(stdout)")
+        #expect(stderr.contains("file does not exist") && stderr.contains(missingPath), "Expected stderr to contain error message, got: \(stderr)")
+    }
 }
