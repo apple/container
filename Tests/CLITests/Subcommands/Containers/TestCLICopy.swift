@@ -312,7 +312,8 @@ class TestCLICopyCommand: CLITest {
             try doStart(name: name)
             try waitForContainerRunning(name)
 
-            _ = try doExec(name: name, cmd: ["sh", "-c", "mkdir -p /tmp/nested/sub && echo -n 'root file' > /tmp/nested/root.txt && echo -n 'nested file' > /tmp/nested/sub/deep.txt"])
+            _ = try doExec(
+                name: name, cmd: ["sh", "-c", "mkdir -p /tmp/nested/sub && echo -n 'root file' > /tmp/nested/root.txt && echo -n 'nested file' > /tmp/nested/sub/deep.txt"])
 
             let destPath = testDir.appendingPathComponent("nested")
             let (_, _, error, status) = try run(arguments: [

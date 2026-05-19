@@ -75,7 +75,7 @@ extension Application {
                     try await client.copyOut(id: id, source: srcURL, destination: destURL)
                     var resultIsDir: ObjCBool = false
                     if FileManager.default.fileExists(atPath: destURL.path, isDirectory: &resultIsDir),
-                       !resultIsDir.boolValue
+                        !resultIsDir.boolValue
                     {
                         try? FileManager.default.removeItem(at: destURL)
                         throw ContainerizationError(
