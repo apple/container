@@ -453,6 +453,27 @@ class TestCLIVolumes: CLITest {
         #expect(!listFinal.contains(volumeName), "volume should be pruned after container is deleted")
     }
 
+    // MARK: - Delete validation tests
+
+    @Test func testVolumeDeleteNoArgs() throws {
+        let (_, _, _, status) = try run(arguments: ["volume", "delete"])
+        #expect(status != 0, "Expected non-zero exit when no args and no --all")
+    }
+
+    @Test func testVolumeDeleteExplicitNamesConflictWithAll() throws {
+        let (_, _, error, status) = try run(arguments: ["volume", "delete", "--all", "some-volume"])
+        #expect(status != 0, "Expected non-zero exit for conflicting flags")
+        #expect(error.contains("conflict"))
+    }
+
+    // MARK: - Inspect validation tests
+
+    @Test func testVolumeInspectMissingFails() throws {
+        let (_, _, error, status) = try run(arguments: ["volume", "inspect", "definitely-missing-volume"])
+        #expect(status != 0, "Expected non-zero exit for missing volume")
+        #expect(error.contains("volume not found"))
+    }
+
     // MARK: - Journal option tests
 
     @Test func testVolumeCreateWithJournalOrdered() throws {

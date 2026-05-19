@@ -26,7 +26,8 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
           pattern: pr-coverage-*
-          merge-multiple: false
+          merge-multiple: true
+          path: pr-coverage-data
         id: download-artifact
         continue-on-error: true
 
@@ -34,7 +35,7 @@ jobs:
         if: steps.download-artifact.outcome == 'success'
         id: check-artifact
         run: |
-          if ls pr-coverage-*/pr-number.txt 1>/dev/null 2>&1; then
+          if [ -f pr-coverage-data/pr-number.txt ]; then
             echo "found=true" >> $GITHUB_OUTPUT
           else
             echo "No coverage artifact found — coverage job may have failed."
@@ -47,16 +48,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: |
-          PR_NUMBER=$(cat pr-coverage-*/pr-number.txt)
+          PR_NUMBER=$(cat pr-coverage-data/pr-number.txt)
           grep -qxE '[0-9]+' <<< "$PR_NUMBER" || { echo "Invalid PR number: ${PR_NUMBER}"; exit 1; }
 
-          UNIT=$(cat pr-coverage-*/unit-line-coverage.txt)
+          UNIT=$(cat pr-coverage-data/unit-line-coverage.txt)
           grep -qxE '[0-9]+(\.[0-9]+)?' <<< "$UNIT" || { echo "Invalid unit coverage: ${UNIT}"; exit 1; }
 
-          INTEGRATION=$(cat pr-coverage-*/integration-line-coverage.txt)
+          INTEGRATION=$(cat pr-coverage-data/integration-line-coverage.txt)
           grep -qxE '[0-9]+(\.[0-9]+)?' <<< "$INTEGRATION" || { echo "Invalid integration coverage: ${INTEGRATION}"; exit 1; }
 
-          COMBINED=$(cat pr-coverage-*/combined-line-coverage.txt)
+          COMBINED=$(cat pr-coverage-data/combined-line-coverage.txt)
           grep -qxE '[0-9]+(\.[0-9]+)?' <<< "$COMBINED" || { echo "Invalid combined coverage: ${COMBINED}"; exit 1; }
 
           MARKER="<!-- coverage-bot -->"

@@ -50,7 +50,7 @@ extension APIServer {
         var logRoot = LogRoot.path
 
         func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try ConfigurationLoader.load()
+            let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
             let commandName = APIServer._commandName
             let logPath = logRoot.map { $0.appending("\(commandName).log") }
             let log = ServiceLogger.bootstrap(category: "APIServer", debug: debug, logPath: logPath)
@@ -235,11 +235,11 @@ extension APIServer {
             try await service.loadAll(bootPlugins)
 
             let harness = PluginsHarness(service: service, log: log)
-            routes[XPCRoute.pluginGet] = harness.get
-            routes[XPCRoute.pluginList] = harness.list
-            routes[XPCRoute.pluginLoad] = harness.load
-            routes[XPCRoute.pluginUnload] = harness.unload
-            routes[XPCRoute.pluginRestart] = harness.restart
+            routes[XPCRoute.pluginGet] = XPCServer.route(harness.get)
+            routes[XPCRoute.pluginList] = XPCServer.route(harness.list)
+            routes[XPCRoute.pluginLoad] = XPCServer.route(harness.load)
+            routes[XPCRoute.pluginUnload] = XPCServer.route(harness.unload)
+            routes[XPCRoute.pluginRestart] = XPCServer.route(harness.restart)
         }
 
         private func initializeHealthCheckService(log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) {
@@ -251,7 +251,7 @@ extension APIServer {
                 logRoot: logRoot,
                 log: log
             )
-            routes[XPCRoute.ping] = svc.ping
+            routes[XPCRoute.ping] = XPCServer.route(svc.ping)
         }
 
         private func initializeKernelService(log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) throws {
@@ -259,8 +259,8 @@ extension APIServer {
 
             let svc = try KernelService(log: log, appRoot: appRoot)
             let harness = KernelHarness(service: svc, log: log)
-            routes[XPCRoute.installKernel] = harness.install
-            routes[XPCRoute.getDefaultKernel] = harness.getDefaultKernel
+            routes[XPCRoute.installKernel] = XPCServer.route(harness.install)
+            routes[XPCRoute.getDefaultKernel] = XPCServer.route(harness.getDefaultKernel)
         }
 
         private func initializeContainersService(
@@ -280,23 +280,23 @@ extension APIServer {
             )
             let harness = ContainersHarness(service: service, log: log)
 
-            routes[XPCRoute.containerList] = harness.list
-            routes[XPCRoute.containerCreate] = harness.create
-            routes[XPCRoute.containerDelete] = harness.delete
-            routes[XPCRoute.containerLogs] = harness.logs
-            routes[XPCRoute.containerBootstrap] = harness.bootstrap
-            routes[XPCRoute.containerDial] = harness.dial
-            routes[XPCRoute.containerStop] = harness.stop
-            routes[XPCRoute.containerStartProcess] = harness.startProcess
-            routes[XPCRoute.containerCreateProcess] = harness.createProcess
-            routes[XPCRoute.containerResize] = harness.resize
-            routes[XPCRoute.containerWait] = harness.wait
-            routes[XPCRoute.containerKill] = harness.kill
-            routes[XPCRoute.containerStats] = harness.stats
-            routes[XPCRoute.containerDiskUsage] = harness.diskUsage
-            routes[XPCRoute.containerCopyIn] = harness.copyIn
-            routes[XPCRoute.containerCopyOut] = harness.copyOut
-            routes[XPCRoute.containerExport] = harness.export
+            routes[XPCRoute.containerList] = XPCServer.route(harness.list)
+            routes[XPCRoute.containerCreate] = XPCServer.route(harness.create)
+            routes[XPCRoute.containerDelete] = XPCServer.route(harness.delete)
+            routes[XPCRoute.containerLogs] = XPCServer.route(harness.logs)
+            routes[XPCRoute.containerBootstrap] = XPCServer.route(harness.bootstrap)
+            routes[XPCRoute.containerDial] = XPCServer.route(harness.dial)
+            routes[XPCRoute.containerStop] = XPCServer.route(harness.stop)
+            routes[XPCRoute.containerStartProcess] = XPCServer.route(harness.startProcess)
+            routes[XPCRoute.containerCreateProcess] = XPCServer.route(harness.createProcess)
+            routes[XPCRoute.containerResize] = XPCServer.route(harness.resize)
+            routes[XPCRoute.containerWait] = XPCServer.route(harness.wait)
+            routes[XPCRoute.containerKill] = XPCServer.route(harness.kill)
+            routes[XPCRoute.containerStats] = XPCServer.route(harness.stats)
+            routes[XPCRoute.containerDiskUsage] = XPCServer.route(harness.diskUsage)
+            routes[XPCRoute.containerCopyIn] = XPCServer.route(harness.copyIn)
+            routes[XPCRoute.containerCopyOut] = XPCServer.route(harness.copyOut)
+            routes[XPCRoute.containerExport] = XPCServer.route(harness.export)
 
             return service
         }
@@ -339,12 +339,11 @@ extension APIServer {
 
             let harness = NetworksHarness(service: service, log: log)
 
-            // network creation is not supported pre-macOS 26 (refer to AllocationOnlyVmnetNetwork)
             if #available(macOS 26, *) {
-                routes[XPCRoute.networkCreate] = harness.create
+                routes[XPCRoute.networkCreate] = XPCServer.route(harness.create)
             }
-            routes[XPCRoute.networkList] = harness.list
-            routes[XPCRoute.networkDelete] = harness.delete
+            routes[XPCRoute.networkList] = XPCServer.route(harness.list)
+            routes[XPCRoute.networkDelete] = XPCServer.route(harness.delete)
 
             return service
         }
@@ -362,11 +361,11 @@ extension APIServer {
             let service = try VolumesService(resourceRoot: resourceRoot, containersService: containersService, log: log)
             let harness = VolumesHarness(service: service, log: log)
 
-            routes[XPCRoute.volumeCreate] = harness.create
-            routes[XPCRoute.volumeDelete] = harness.delete
-            routes[XPCRoute.volumeList] = harness.list
-            routes[XPCRoute.volumeInspect] = harness.inspect
-            routes[XPCRoute.volumeDiskUsage] = harness.diskUsage
+            routes[XPCRoute.volumeCreate] = XPCServer.route(harness.create)
+            routes[XPCRoute.volumeDelete] = XPCServer.route(harness.delete)
+            routes[XPCRoute.volumeList] = XPCServer.route(harness.list)
+            routes[XPCRoute.volumeInspect] = XPCServer.route(harness.inspect)
+            routes[XPCRoute.volumeDiskUsage] = XPCServer.route(harness.diskUsage)
 
             return service
         }
@@ -386,7 +385,7 @@ extension APIServer {
             )
             let harness = DiskUsageHarness(service: service, log: log)
 
-            routes[XPCRoute.systemDiskUsage] = harness.get
+            routes[XPCRoute.systemDiskUsage] = XPCServer.route(harness.get)
         }
     }
 }

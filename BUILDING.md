@@ -80,7 +80,7 @@ to prepare your build environment.
     >
     > **Note:** If you have already run `swift package edit`, whether intentionally or by accident, follow the steps in the next section to restore the normal `containerization` dependency. Otherwise, the modified `Package.swift` file will not work, and the project may fail to build.
 
-5. If you want `container` to use any changes you made in the `vminit` subproject of Containerization, set the init image in your runtime configuration file at `~/.config/container/runtime-config.toml`:
+5. If you want `container` to use any changes you made in the `vminit` subproject of Containerization, set the init image in your runtime configuration file at `~/.config/container/config.toml`:
 
     ```toml
     [vminit]
@@ -102,7 +102,7 @@ to prepare your build environment.
 
 To revert to using the Containerization dependency from your `Package.swift`:
 
-1. If you were using the local init filesystem, remove the `init` override from your `~/.config/container/runtime-config.toml` (or delete the `[vminit]` section if no other image settings are present).
+1. If you were using the local init filesystem, remove the `init` override from your `~/.config/container/config.toml` (or delete the `[vminit]` section if no other image settings are present).
 
 2. Use the Swift package manager to restore the normal `containerization` dependency and update your `Package.resolved` file. If you are using Xcode, revert your `Package.swift` change instead of using `swift package unedit`.
 
@@ -130,14 +130,14 @@ To test changes that require the `container-builder-shim` project:
 
 1. Clone the [container-builder-shim](https://github.com/apple/container-builder-shim) repository and navigate to its directory.
 
-2. After making the necessary changes, build the custom builder image, set it as the active builder image in `~/.config/container/runtime-config.toml`, and remove the existing `buildkit` container so the new image will be used:
+2. After making the necessary changes, build the custom builder image, set it as the active builder image in `~/.config/container/config.toml`, and remove the existing `buildkit` container so the new image will be used:
 
 ```bash
 container build -t builder .
 container rm -f buildkit
 ```
 
-Add the following to your `~/.config/container/runtime-config.toml`:
+Add the following to your `~/.config/container/config.toml`:
 
 ```toml
 [build]

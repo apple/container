@@ -42,7 +42,7 @@ If you haven't created any containers yet, the command outputs an empty list:
 
 <pre>
 % container list --all
-ID  IMAGE  OS  ARCH  STATE  ADDR
+ID  IMAGE  OS  ARCH  STATE  IP
 %
 </pre>
 
@@ -97,7 +97,7 @@ You can save keystrokes by abbreviating commands and options. For example, abbre
 
 <pre>
 % container ls -a
-ID  IMAGE  OS  ARCH  STATE  ADDR
+ID  IMAGE  OS  ARCH  STATE  IP
 %
 </pre>
 
@@ -113,7 +113,7 @@ sudo container system dns create test
 
 Enter your administrator password when prompted. The first command requires administrator privileges to create a file containing the domain configuration under the `/etc/resolver` directory, and to tell the macOS DNS resolver to reload its configuration files.
 
-With the domain set to `test`, if you use `--name my-web-server` to start a container, queries to `my-web-server.test` will respond with that container's IP address. You can customize the domain in `~/.config/container/runtime-config.toml`.
+With the domain set to `test`, if you use `--name my-web-server` to start a container, queries to `my-web-server.test` will respond with that container's IP address. You can customize the domain in `~/.config/container/config.toml`.
 
 ## Build an image
 
@@ -182,11 +182,11 @@ container run --name my-web-server --detach --rm web-test
 
 The `--detach` flag runs the container in the background, so that you can continue running commands in the same terminal. The `--rm` flag causes the container to be removed automatically after it stops.
 
-When you list containers now, `my-web-server` is present, along with the container that `container` started to build your image. Note that its IP address, shown in the `ADDR` column, is `192.168.64.3`:
+When you list containers now, `my-web-server` is present, along with the container that `container` started to build your image. Note that its IP address, shown in the `IP` column, is `192.168.64.3`:
 
 <pre>
 % container ls
-ID             IMAGE                                               OS     ARCH   STATE    ADDR
+ID             IMAGE                                               OS     ARCH   STATE    IP
 buildkit       ghcr.io/apple/container-builder-shim/builder:0.0.3  linux  arm64  running  192.168.64.2
 my-web-server  web-test:latest                                     linux  arm64  running  192.168.64.3
 %
@@ -305,7 +305,7 @@ container image push some-registry.example.com/fido/web-test:latest
 
 > [!NOTE]
 > By default `container` is configured to use Docker Hub.
-> You can change the default registry by setting `domain` under `[registry]` in `~/.config/container/runtime-config.toml`:
+> You can change the default registry by setting `domain` under `[registry]` in `~/.config/container/config.toml`:
 > ```toml
 > [registry]
 > domain = "some-registry.example.com"
@@ -338,7 +338,7 @@ If you list all running and stopped containers, you will see that the `--rm` fla
 
 <pre>
 % container list --all
-ID        IMAGE                                               OS     ARCH   STATE    ADDR
+ID        IMAGE                                               OS     ARCH   STATE    IP
 buildkit  ghcr.io/apple/container-builder-shim/builder:0.0.3  linux  arm64  running  192.168.64.2
 %
 </pre>

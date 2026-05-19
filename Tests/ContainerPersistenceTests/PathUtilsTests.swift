@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerPersistence
+import ContainerVersion
 import Foundation
 import SystemPackage
 import Testing
@@ -67,5 +68,10 @@ struct PathUtilsTests {
     @Test func testHomeIgnoresContainerAppRoot() {
         let path = PathUtils.BaseConfigPath.home.basePath(env: ["CONTAINER_APP_ROOT": "/tmp/foo"])
         #expect(path == Self.homeFallback)
+    }
+
+    @Test func testInstallRootFromEnvVar() {
+        let path = PathUtils.BaseConfigPath.installRoot.basePath(env: ["CONTAINER_INSTALL_ROOT": "/usr/local"])
+        #expect(path == FilePath("/usr/local"))
     }
 }

@@ -85,7 +85,7 @@ extension RuntimeLinuxHelper {
                 let endpointServer = XPCServer(
                     identifier: machServiceLabel,
                     routes: [
-                        SandboxRoutes.createEndpoint.rawValue: server.createEndpoint
+                        SandboxRoutes.createEndpoint.rawValue: XPCServer.route(server.createEndpoint)
                     ],
                     log: log
                 )
@@ -93,19 +93,19 @@ extension RuntimeLinuxHelper {
                 let mainServer = XPCServer(
                     connection: anonymousConnection,
                     routes: [
-                        SandboxRoutes.bootstrap.rawValue: server.bootstrap,
-                        SandboxRoutes.createProcess.rawValue: server.createProcess,
-                        SandboxRoutes.state.rawValue: server.state,
-                        SandboxRoutes.stop.rawValue: server.stop,
-                        SandboxRoutes.kill.rawValue: server.kill,
-                        SandboxRoutes.resize.rawValue: server.resize,
-                        SandboxRoutes.wait.rawValue: server.wait,
-                        SandboxRoutes.start.rawValue: server.startProcess,
-                        SandboxRoutes.dial.rawValue: server.dial,
-                        SandboxRoutes.shutdown.rawValue: server.shutdown,
-                        SandboxRoutes.statistics.rawValue: server.statistics,
-                        SandboxRoutes.copyIn.rawValue: server.copyIn,
-                        SandboxRoutes.copyOut.rawValue: server.copyOut,
+                        SandboxRoutes.bootstrap.rawValue: XPCServer.route(server.bootstrap),
+                        SandboxRoutes.createProcess.rawValue: XPCServer.route(server.createProcess),
+                        SandboxRoutes.state.rawValue: XPCServer.route(server.state),
+                        SandboxRoutes.stop.rawValue: XPCServer.route(server.stop),
+                        SandboxRoutes.kill.rawValue: XPCServer.route(server.kill),
+                        SandboxRoutes.resize.rawValue: XPCServer.route(server.resize),
+                        SandboxRoutes.wait.rawValue: XPCServer.route(server.wait),
+                        SandboxRoutes.start.rawValue: XPCServer.route(server.startProcess),
+                        SandboxRoutes.dial.rawValue: XPCServer.route(server.dial),
+                        SandboxRoutes.shutdown.rawValue: XPCServer.route(server.shutdown),
+                        SandboxRoutes.statistics.rawValue: XPCServer.route(server.statistics),
+                        SandboxRoutes.copyIn.rawValue: XPCServer.route(server.copyIn),
+                        SandboxRoutes.copyOut.rawValue: XPCServer.route(server.copyOut),
                     ],
                     log: log
                 )

@@ -14,13 +14,14 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-public enum NetworkRoutes: String {
-    /// Return the current state of the network.
-    case state = "com.apple.container.network/state"
-    /// Allocates parameters for attaching a sandbox to the network.
-    case allocate = "com.apple.container.network/allocate"
-    /// Disables the allocator if no sandboxes are attached.
-    case disableAllocator = "com.apple.container.network/disableAllocator"
-    /// Retrieves the allocation for a hostname.
-    case lookup = "com.apple.container.network/lookup"
+import Foundation
+
+/// Linux-specific runtime data passed through the opaque runtimeData field
+/// in RuntimeConfiguration. Encoded by the CLI, decoded by the Linux runtime.
+public struct LinuxRuntimeData: Codable, Sendable {
+    public let variant: String?
+
+    public init(variant: String? = nil) {
+        self.variant = variant
+    }
 }

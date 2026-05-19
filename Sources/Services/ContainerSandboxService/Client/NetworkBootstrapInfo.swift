@@ -14,19 +14,16 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerXPC
+import ContainerResource
 
-/// AllocatedAttachment represents a network attachment that has been allocated for use
-/// by a container and any additional relevant data needed for a sandbox to properly
-/// configure networking on container bootstrap.
-public struct AllocatedAttachment: Sendable {
-    public let attachment: Attachment
-    public let additionalData: XPCMessage?
+/// Plugin info passed from the API server in the sandbox bootstrap message so the
+/// runtime can connect to the correct network helper and configure the interface.
+public struct NetworkBootstrapInfo: Codable, Sendable {
+    /// Plugin info identifying which network helper to contact and which interface
+    /// strategy the runtime should use.
     public let pluginInfo: NetworkPluginInfo
 
-    public init(attachment: Attachment, additionalData: XPCMessage?, pluginInfo: NetworkPluginInfo) {
-        self.attachment = attachment
-        self.additionalData = additionalData
+    public init(pluginInfo: NetworkPluginInfo) {
         self.pluginInfo = pluginInfo
     }
 }

@@ -61,6 +61,16 @@ public struct ConfigSnapshotDecoder: Sendable {
         _ type: T.Type,
         from snapshot: ConfigSnapshotReader
     ) throws -> T {
+        if type is any UnsupportedDictionaryDecoding.Type {
+            throw DecodingError.typeMismatch(
+                T.self,
+                DecodingError.Context(
+                    codingPath: [],
+                    debugDescription:
+                        "ConfigSnapshotDecoder does not support decoding dictionaries (got \(T.self)). Represent dynamic keys as nested structs with known property names."
+                )
+            )
+        }
         let decoder = ConfigSnapshotDecoderImpl(
             snapshot: snapshot,
             codingPath: [],

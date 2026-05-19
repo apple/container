@@ -54,7 +54,7 @@ extension Application {
 
 extension PrintableContainer: ListDisplayable {
     static var tableHeader: [String] {
-        ["ID", "IMAGE", "OS", "ARCH", "STATE", "ADDR", "CPUS", "MEMORY", "STARTED"]
+        ["ID", "IMAGE", "OS", "ARCH", "STATE", "IP", "CPUS", "MEMORY", "STARTED"]
     }
 
     var tableRow: [String] {

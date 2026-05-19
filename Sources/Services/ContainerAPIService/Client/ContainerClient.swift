@@ -49,7 +49,8 @@ public struct ContainerClient: Sendable {
         configuration: ContainerConfiguration,
         options: ContainerCreateOptions = .default,
         kernel: Kernel,
-        initImage: String? = nil
+        initImage: String? = nil,
+        runtimeData: Data? = nil
     ) async throws {
         do {
             let request = XPCMessage(route: .containerCreate)
@@ -63,6 +64,10 @@ public struct ContainerClient: Sendable {
 
             if let initImage {
                 request.set(key: .initImage, value: initImage)
+            }
+
+            if let runtimeData {
+                request.set(key: .runtimeData, value: runtimeData)
             }
 
             try await xpcSend(message: request)

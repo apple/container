@@ -19,6 +19,10 @@ import ContainerPersistence
 import Foundation
 import Testing
 
+private func makeSnapshot(_ values: [AbsoluteConfigKey: ConfigValue] = [:]) -> ConfigSnapshotReader {
+    ConfigReader(provider: InMemoryProvider(name: "test", values: values)).snapshot()
+}
+
 struct ConfigSnapshotDecoderTests {
 
     struct FlatConfig: Decodable, Equatable {
@@ -29,22 +33,14 @@ struct ConfigSnapshotDecoderTests {
     }
 
     @Test func decodeFlatStruct() throws {
-        let provider = InMemoryProvider(
-            name: "test",
-            values: [
-                "host": ConfigValue(.string("localhost"), isSecret: false),
-                "port": ConfigValue(.int(8080), isSecret: false),
-                "debug": ConfigValue(.bool(true), isSecret: false),
-                "rate": ConfigValue(.double(0.5), isSecret: false),
-            ]
-        )
-        let reader = ConfigReader(provider: provider)
-        let snapshot = reader.snapshot()
+        let snapshot = makeSnapshot([
+            "host": "localhost",
+            "port": 8080,
+            "debug": true,
+            "rate": 0.5,
+        ])
         let config = try ConfigSnapshotDecoder().decode(FlatConfig.self, from: snapshot)
-        #expect(config.host == "localhost")
-        #expect(config.port == 8080)
-        #expect(config.debug == true)
-        #expect(config.rate == 0.5)
+        #expect(config == FlatConfig(host: "localhost", port: 8080, debug: true, rate: 0.5))
     }
 
     // MARK: - Nested structs
@@ -59,54 +55,125 @@ struct ConfigSnapshotDecoderTests {
     }
 
     @Test func decodeNestedStruct() throws {
-        let provider = InMemoryProvider(
-            name: "test",
-            values: [
-                "database.host": ConfigValue(.string("db.example.com"), isSecret: false),
-                "database.port": ConfigValue(.int(5432), isSecret: false),
-            ]
-        )
-        let reader = ConfigReader(provider: provider)
-        let snapshot = reader.snapshot()
+        let snapshot = makeSnapshot([
+            "database.host": "db.example.com",
+            "database.port": 5432,
+        ])
         let config = try ConfigSnapshotDecoder().decode(NestedConfig.self, from: snapshot)
-        #expect(config.database.host == "db.example.com")
-        #expect(config.database.port == 5432)
+        #expect(config == NestedConfig(database: DatabaseConfig(host: "db.example.com", port: 5432)))
+    }
+
+    struct AppConfig: Decodable, Equatable {
+        var cluster: ClusterConfig
+    }
+
+    struct ClusterConfig: Decodable, Equatable {
+        var primary: NodeConfig
+    }
+
+    struct NodeConfig: Decodable, Equatable {
+        var host: String
+        var port: Int
+    }
+
+    @Test func decodeDeeplyNestedStruct() throws {
+        let snapshot = makeSnapshot([
+            "cluster.primary.host": "node1.example.com",
+            "cluster.primary.port": 9090,
+        ])
+        let config = try ConfigSnapshotDecoder().decode(AppConfig.self, from: snapshot)
+        #expect(
+            config
+                == AppConfig(cluster: ClusterConfig(primary: NodeConfig(host: "node1.example.com", port: 9090)))
+        )
     }
 
     // MARK: - Optional properties
 
-    struct OptionalConfig: Decodable, Equatable {
-        var name: String
-        var nickname: String?
+    struct OptionalPrimitivesConfig: Decodable, Equatable {
+        var name: String?
+        var count: Int?
+        var rate: Double?
+        var ratio: Float?
+        var flag: Bool?
     }
 
-    @Test func decodeOptionalPresent() throws {
-        let provider = InMemoryProvider(
-            name: "test",
-            values: [
-                "name": ConfigValue(.string("Alice"), isSecret: false),
-                "nickname": ConfigValue(.string("Ali"), isSecret: false),
-            ]
+    @Test func decodeOptionalsPresent() throws {
+        let snapshot = makeSnapshot([
+            "name": "test",
+            "count": 3,
+            "rate": 0.75,
+            "ratio": 0.5,
+            "flag": true,
+        ])
+        let config = try ConfigSnapshotDecoder().decode(OptionalPrimitivesConfig.self, from: snapshot)
+        #expect(
+            config == OptionalPrimitivesConfig(name: "test", count: 3, rate: 0.75, ratio: 0.5, flag: true)
         )
-        let reader = ConfigReader(provider: provider)
-        let snapshot = reader.snapshot()
-        let config = try ConfigSnapshotDecoder().decode(OptionalConfig.self, from: snapshot)
-        #expect(config.name == "Alice")
-        #expect(config.nickname == "Ali")
     }
 
-    @Test func decodeOptionalMissing() throws {
-        let provider = InMemoryProvider(
-            name: "test",
-            values: [
-                "name": ConfigValue(.string("Alice"), isSecret: false)
-            ]
-        )
-        let reader = ConfigReader(provider: provider)
-        let snapshot = reader.snapshot()
-        let config = try ConfigSnapshotDecoder().decode(OptionalConfig.self, from: snapshot)
-        #expect(config.name == "Alice")
-        #expect(config.nickname == nil)
+    @Test func decodeOptionalsAbsent() throws {
+        let snapshot = makeSnapshot()
+        let config = try ConfigSnapshotDecoder().decode(OptionalPrimitivesConfig.self, from: snapshot)
+        #expect(config == OptionalPrimitivesConfig())
+    }
+
+    // Each test below provides one wrong-typed value so a mistyped user config
+    // surfaces as DecodingError rather than silently falling back to nil.
+    // See ConfigSnapshotDecoderContainers `decodeIfPresent` overrides.
+
+    @Test func decodeOptionalIntWithStringThrows() {
+        let snapshot = makeSnapshot(["count": "8"])
+        #expect(throws: DecodingError.self) {
+            try ConfigSnapshotDecoder().decode(OptionalPrimitivesConfig.self, from: snapshot)
+        }
+    }
+
+    @Test func decodeOptionalBoolWithIntThrows() {
+        let snapshot = makeSnapshot(["flag": 1])
+        #expect(throws: DecodingError.self) {
+            try ConfigSnapshotDecoder().decode(OptionalPrimitivesConfig.self, from: snapshot)
+        }
+    }
+
+    @Test func decodeOptionalStringWithBoolThrows() {
+        let snapshot = makeSnapshot(["name": true])
+        #expect(throws: DecodingError.self) {
+            try ConfigSnapshotDecoder().decode(OptionalPrimitivesConfig.self, from: snapshot)
+        }
+    }
+
+    @Test func decodeOptionalDoubleWithStringThrows() {
+        let snapshot = makeSnapshot(["rate": "0.5"])
+        #expect(throws: DecodingError.self) {
+            try ConfigSnapshotDecoder().decode(OptionalPrimitivesConfig.self, from: snapshot)
+        }
+    }
+
+    @Test func decodeOptionalFloatWithStringThrows() {
+        let snapshot = makeSnapshot(["ratio": "0.5"])
+        #expect(throws: DecodingError.self) {
+            try ConfigSnapshotDecoder().decode(OptionalPrimitivesConfig.self, from: snapshot)
+        }
+    }
+
+    // Regression: see KeyedContainer.decodeNil(forKey:) docs. The flat snapshot
+    // stores `build.cpus` but no entry for `build` itself; an earlier version of
+    // decodeNil returned true for `build`, causing decodeIfPresent to return nil
+    // even though `build.*` keys existed.
+
+    struct BuildConfig: Decodable, Equatable {
+        var cpus: Int
+    }
+
+    struct ParentConfig: Decodable, Equatable {
+        var build: BuildConfig?
+    }
+
+    @Test func decodeIfPresentNestedStruct() throws {
+        let snapshot = makeSnapshot(["build.cpus": 4])
+        let config = try ConfigSnapshotDecoder().decode(ParentConfig.self, from: snapshot)
+        #expect(config == ParentConfig(build: BuildConfig(cpus: 4)))
     }
 
     // MARK: - Arrays
@@ -114,115 +181,38 @@ struct ConfigSnapshotDecoderTests {
     struct ArrayConfig: Decodable, Equatable {
         var tags: [String]
         var counts: [Int]
-    }
-
-    @Test func decodeArrays() throws {
-        let provider = InMemoryProvider(
-            name: "test",
-            values: [
-                "tags": ConfigValue(.stringArray(["swift", "config"]), isSecret: false),
-                "counts": ConfigValue(.intArray([1, 2, 3]), isSecret: false),
-            ]
-        )
-        let reader = ConfigReader(provider: provider)
-        let snapshot = reader.snapshot()
-        let config = try ConfigSnapshotDecoder().decode(ArrayConfig.self, from: snapshot)
-        #expect(config.tags == ["swift", "config"])
-        #expect(config.counts == [1, 2, 3])
-    }
-
-    struct MoreArraysConfig: Decodable, Equatable {
         var rates: [Double]
         var flags: [Bool]
     }
 
-    @Test func decodeDoubleAndBoolArrays() throws {
-        let provider = InMemoryProvider(
-            name: "test",
-            values: [
-                "rates": ConfigValue(.doubleArray([1.5, 2.5, 3.5]), isSecret: false),
-                "flags": ConfigValue(.boolArray([true, false, true]), isSecret: false),
-            ]
+    @Test func decodeArrays() throws {
+        let snapshot = makeSnapshot([
+            "tags": ConfigValue(.stringArray(["swift", "config"]), isSecret: false),
+            "counts": ConfigValue(.intArray([1, 2, 3]), isSecret: false),
+            "rates": ConfigValue(.doubleArray([1.5, 2.5, 3.5]), isSecret: false),
+            "flags": ConfigValue(.boolArray([true, false, true]), isSecret: false),
+        ])
+        let config = try ConfigSnapshotDecoder().decode(ArrayConfig.self, from: snapshot)
+        #expect(
+            config
+                == ArrayConfig(
+                    tags: ["swift", "config"],
+                    counts: [1, 2, 3],
+                    rates: [1.5, 2.5, 3.5],
+                    flags: [true, false, true]
+                )
         )
-        let reader = ConfigReader(provider: provider)
-        let snapshot = reader.snapshot()
-        let config = try ConfigSnapshotDecoder().decode(MoreArraysConfig.self, from: snapshot)
-        #expect(config.rates == [1.5, 2.5, 3.5])
-        #expect(config.flags == [true, false, true])
-    }
-
-    // MARK: - Error cases
-
-    struct RequiredConfig: Decodable {
-        var name: String
-        var age: Int
-    }
-
-    @Test func decodeMissingRequiredKeyThrows() throws {
-        let provider = InMemoryProvider(
-            name: "test",
-            values: [
-                "name": ConfigValue(.string("Alice"), isSecret: false)
-            ]
-        )
-        let reader = ConfigReader(provider: provider)
-        let snapshot = reader.snapshot()
-        #expect(throws: DecodingError.self) {
-            try ConfigSnapshotDecoder().decode(RequiredConfig.self, from: snapshot)
-        }
-    }
-
-    struct IntConfig: Decodable {
-        var count: Int
-    }
-
-    @Test func decodeTypeMismatchThrows() throws {
-        let provider = InMemoryProvider(
-            name: "test",
-            values: [
-                "count": ConfigValue(.string("not-a-number"), isSecret: false)
-            ]
-        )
-        let reader = ConfigReader(provider: provider)
-        let snapshot = reader.snapshot()
-        #expect(throws: DecodingError.self) {
-            try ConfigSnapshotDecoder().decode(IntConfig.self, from: snapshot)
-        }
     }
 
     struct ArrayOfStructsConfig: Decodable {
         var items: [DatabaseConfig]
     }
 
-    @Test func decodeArrayOfStructsThrows() throws {
-        let provider = InMemoryProvider(
-            name: "test",
-            values: [:]
-        )
-        let reader = ConfigReader(provider: provider)
-        let snapshot = reader.snapshot()
+    @Test func decodeArrayOfStructsThrows() {
+        let snapshot = makeSnapshot()
         #expect(throws: DecodingError.self) {
             try ConfigSnapshotDecoder().decode(ArrayOfStructsConfig.self, from: snapshot)
         }
-    }
-
-    // MARK: - Scoped snapshot
-
-    @Test func decodeScopedSnapshot() throws {
-        let provider = InMemoryProvider(
-            name: "test",
-            values: [
-                "app.host": ConfigValue(.string("localhost"), isSecret: false),
-                "app.port": ConfigValue(.int(3000), isSecret: false),
-                "app.debug": ConfigValue(.bool(false), isSecret: false),
-                "app.rate": ConfigValue(.double(1.0), isSecret: false),
-            ]
-        )
-        let reader = ConfigReader(provider: provider)
-        let snapshot = reader.snapshot().scoped(to: "app")
-        let config = try ConfigSnapshotDecoder().decode(FlatConfig.self, from: snapshot)
-        #expect(config.host == "localhost")
-        #expect(config.port == 3000)
     }
 
     // MARK: - Custom CodingKeys
@@ -238,18 +228,12 @@ struct ConfigSnapshotDecoderTests {
     }
 
     @Test func decodeCustomCodingKeys() throws {
-        let provider = InMemoryProvider(
-            name: "test",
-            values: [
-                "server-host": ConfigValue(.string("example.com"), isSecret: false),
-                "server-port": ConfigValue(.int(443), isSecret: false),
-            ]
-        )
-        let reader = ConfigReader(provider: provider)
-        let snapshot = reader.snapshot()
+        let snapshot = makeSnapshot([
+            "server-host": "example.com",
+            "server-port": 443,
+        ])
         let config = try ConfigSnapshotDecoder().decode(CustomKeysConfig.self, from: snapshot)
-        #expect(config.serverHost == "example.com")
-        #expect(config.serverPort == 443)
+        #expect(config == CustomKeysConfig(serverHost: "example.com", serverPort: 443))
     }
 
     // MARK: - Enum with raw value
@@ -265,35 +249,129 @@ struct ConfigSnapshotDecoderTests {
     }
 
     @Test func decodeEnum() throws {
-        let provider = InMemoryProvider(
-            name: "test",
-            values: [
-                "env": ConfigValue(.string("production"), isSecret: false)
-            ]
-        )
-        let reader = ConfigReader(provider: provider)
-        let snapshot = reader.snapshot()
+        let snapshot = makeSnapshot(["env": "production"])
         let config = try ConfigSnapshotDecoder().decode(EnumConfig.self, from: snapshot)
-        #expect(config.env == .production)
+        #expect(config == EnumConfig(env: .production))
+    }
+
+    // MARK: - Narrow integer types
+
+    struct NarrowIntConfig: Decodable, Equatable {
+        var small: Int16
+        var unsigned: UInt8
+    }
+
+    @Test func decodeNarrowIntegers() throws {
+        let snapshot = makeSnapshot([
+            "small": 42,
+            "unsigned": 200,
+        ])
+        let config = try ConfigSnapshotDecoder().decode(NarrowIntConfig.self, from: snapshot)
+        #expect(config == NarrowIntConfig(small: 42, unsigned: 200))
+    }
+
+    @Test func decodeIntegerOverflowThrows() {
+        let snapshot = makeSnapshot([
+            "small": 42,
+            "unsigned": 300,
+        ])
+        #expect(throws: DecodingError.self) {
+            try ConfigSnapshotDecoder().decode(NarrowIntConfig.self, from: snapshot)
+        }
+    }
+
+    // MARK: - Float decoding
+
+    struct FloatConfig: Decodable, Equatable {
+        var temperature: Float
+        var ratio: Float
+    }
+
+    @Test func decodeFloat() throws {
+        let snapshot = makeSnapshot([
+            "temperature": 98.6,
+            "ratio": 0.333,
+        ])
+        let config = try ConfigSnapshotDecoder().decode(FloatConfig.self, from: snapshot)
+        #expect(config == FloatConfig(temperature: Float(98.6), ratio: Float(0.333)))
+    }
+
+    // MARK: - Scoped snapshot
+
+    @Test func decodeScopedSnapshot() throws {
+        let snapshot = makeSnapshot([
+            "app.host": "localhost",
+            "app.port": 3000,
+            "app.debug": false,
+            "app.rate": 1.0,
+        ]).scoped(to: "app")
+        let config = try ConfigSnapshotDecoder().decode(FlatConfig.self, from: snapshot)
+        #expect(config == FlatConfig(host: "localhost", port: 3000, debug: false, rate: 1.0))
+    }
+
+    @Test func decodeTopLevelPrimitive() throws {
+        let snapshot = makeSnapshot(["value": 42]).scoped(to: "value")
+        let value = try ConfigSnapshotDecoder().decode(Int.self, from: snapshot)
+        #expect(value == 42)
+    }
+
+    // MARK: - Error cases
+
+    struct RequiredConfig: Decodable {
+        var name: String
+        var age: Int
+    }
+
+    @Test func decodeMissingRequiredKeyThrows() {
+        let snapshot = makeSnapshot(["name": "Alice"])
+        #expect(throws: DecodingError.self) {
+            try ConfigSnapshotDecoder().decode(RequiredConfig.self, from: snapshot)
+        }
+    }
+
+    struct IntConfig: Decodable {
+        var count: Int
+    }
+
+    @Test func decodeTypeMismatchThrows() {
+        let snapshot = makeSnapshot(["count": "not-a-number"])
+        #expect(throws: DecodingError.self) {
+            try ConfigSnapshotDecoder().decode(IntConfig.self, from: snapshot)
+        }
+    }
+
+    // Regression: see UnsupportedDictionaryDecoding marker docs. Dictionaries
+    // would otherwise silently decode to [:] because the snapshot has no
+    // key-enumeration API.
+
+    struct DictConfig: Decodable {
+        var tags: [String: String]
+    }
+
+    @Test func decodeDictionaryPropertyThrows() {
+        let snapshot = makeSnapshot(["tags.env": "prod"])
+        #expect(throws: DecodingError.self) {
+            try ConfigSnapshotDecoder().decode(DictConfig.self, from: snapshot)
+        }
+    }
+
+    @Test func decodeTopLevelDictionaryThrows() {
+        let snapshot = makeSnapshot()
+        #expect(throws: DecodingError.self) {
+            try ConfigSnapshotDecoder().decode([String: Int].self, from: snapshot)
+        }
     }
 
     // MARK: - URL string fallback
 
-    struct URLConfig: Decodable {
+    struct URLConfig: Decodable, Equatable {
         var endpoint: URL
     }
 
     @Test func decodeURL() throws {
-        let provider = InMemoryProvider(
-            name: "test",
-            values: [
-                "endpoint": ConfigValue(.string("https://example.com/api"), isSecret: false)
-            ]
-        )
-        let reader = ConfigReader(provider: provider)
-        let snapshot = reader.snapshot()
+        let snapshot = makeSnapshot(["endpoint": "https://example.com/api"])
         let config = try ConfigSnapshotDecoder().decode(URLConfig.self, from: snapshot)
-        #expect(config.endpoint == URL(string: "https://example.com/api")!)
+        #expect(config == URLConfig(endpoint: URL(string: "https://example.com/api")!))
     }
 
     // MARK: - Custom decoding strategies
@@ -316,78 +394,60 @@ struct ConfigSnapshotDecoderTests {
         }
     }
 
-    @Test func customStrategyOverridesURL() throws {
-        let provider = InMemoryProvider(
-            name: "test",
-            values: [
-                "endpoint": ConfigValue(.string("/api/v1"), isSecret: false)
-            ]
-        )
-        let reader = ConfigReader(provider: provider)
-        let snapshot = reader.snapshot()
+    @Test func decodeURLWithCustomStrategy() throws {
+        let snapshot = makeSnapshot(["endpoint": "/api/v1"])
         let decoder = ConfigSnapshotDecoder(
             decodingStrategies: [PrefixURLStrategy(base: "https://example.com")]
         )
         let config = try decoder.decode(URLConfig.self, from: snapshot)
-        #expect(config.endpoint == URL(string: "https://example.com/api/v1")!)
+        #expect(config == URLConfig(endpoint: URL(string: "https://example.com/api/v1")!))
     }
 
-    // MARK: - Narrow integer types
-
-    struct NarrowIntConfig: Decodable, Equatable {
-        var small: Int16
-        var unsigned: UInt8
-    }
-
-    @Test func decodeNarrowIntegers() throws {
-        let provider = InMemoryProvider(
-            name: "test",
-            values: [
-                "small": ConfigValue(.int(42), isSecret: false),
-                "unsigned": ConfigValue(.int(200), isSecret: false),
-            ]
-        )
-        let reader = ConfigReader(provider: provider)
-        let snapshot = reader.snapshot()
-        let config = try ConfigSnapshotDecoder().decode(NarrowIntConfig.self, from: snapshot)
-        #expect(config.small == 42)
-        #expect(config.unsigned == 200)
-    }
-
-    @Test func decodeIntegerOverflowThrows() throws {
-        let provider = InMemoryProvider(
-            name: "test",
-            values: [
-                "small": ConfigValue(.int(42), isSecret: false),
-                "unsigned": ConfigValue(.int(300), isSecret: false),
-            ]
-        )
-        let reader = ConfigReader(provider: provider)
-        let snapshot = reader.snapshot()
-        #expect(throws: DecodingError.self) {
-            try ConfigSnapshotDecoder().decode(NarrowIntConfig.self, from: snapshot)
-        }
-    }
-
-    @Test func removeStrategyRevertsToDecodable() throws {
-        let provider = InMemoryProvider(
-            name: "test",
-            values: [
-                "endpoint": ConfigValue(.string("https://example.com/api"), isSecret: false)
-            ]
-        )
-        let reader = ConfigReader(provider: provider)
-        let snapshot = reader.snapshot()
+    @Test func decodeURLWithoutStrategyThrows() {
+        let snapshot = makeSnapshot(["endpoint": "https://example.com/api"])
         let decoder = ConfigSnapshotDecoder(decodingStrategies: [])
-        // Without the URL strategy, URL.init(from:) is used. URL's default
-        // Decodable expects a keyed container with "relative" and optional
-        // "base" keys, so decoding a plain string should fail.
         #expect(throws: DecodingError.self) {
             try decoder.decode(URLConfig.self, from: snapshot)
         }
     }
 
-    struct Seconds: Decodable {
+    struct NestedURLConfig: Decodable, Equatable {
+        var service: ServiceConfig
+    }
+
+    struct ServiceConfig: Decodable, Equatable {
+        var endpoint: URL
+        var name: String
+    }
+
+    @Test func decodeNestedStructWithURLStrategy() throws {
+        let snapshot = makeSnapshot([
+            "service.endpoint": "https://nested.example.com",
+            "service.name": "api",
+        ])
+        let config = try ConfigSnapshotDecoder().decode(NestedURLConfig.self, from: snapshot)
+        #expect(
+            config
+                == NestedURLConfig(
+                    service: ServiceConfig(
+                        endpoint: URL(string: "https://nested.example.com")!,
+                        name: "api"
+                    )
+                )
+        )
+    }
+
+    struct OptionalURLConfig: Decodable, Equatable {
+        var endpoint: URL?
+    }
+
+    @Test func decodeOptionalURLWithStrategy() throws {
+        let snapshot = makeSnapshot(["endpoint": "https://example.com"])
+        let config = try ConfigSnapshotDecoder().decode(OptionalURLConfig.self, from: snapshot)
+        #expect(config == OptionalURLConfig(endpoint: URL(string: "https://example.com")!))
+    }
+
+    struct Seconds: Decodable, Equatable {
         var value: Int
     }
 
@@ -399,144 +459,17 @@ struct ConfigSnapshotDecoderTests {
         }
     }
 
-    struct TimerConfig: Decodable {
+    struct TimerConfig: Decodable, Equatable {
         var timeout: Seconds
     }
 
-    @Test func customStrategyForUserType() throws {
-        let provider = InMemoryProvider(
-            name: "test",
-            values: [
-                "timeout": ConfigValue(.int(30), isSecret: false)
-            ]
-        )
-        let reader = ConfigReader(provider: provider)
-        let snapshot = reader.snapshot()
+    @Test func decodeUserTypeWithCustomStrategy() throws {
+        let snapshot = makeSnapshot(["timeout": 30])
         let decoder = ConfigSnapshotDecoder(decodingStrategies: [
             URLConfigDecodingStrategy(),
             SecondsStrategy(),
         ])
         let config = try decoder.decode(TimerConfig.self, from: snapshot)
-        #expect(config.timeout.value == 30)
-    }
-
-    struct NestedURLConfig: Decodable {
-        var service: ServiceConfig
-    }
-
-    struct ServiceConfig: Decodable {
-        var endpoint: URL
-        var name: String
-    }
-
-    @Test func strategyWorksInNestedStruct() throws {
-        let provider = InMemoryProvider(
-            name: "test",
-            values: [
-                "service.endpoint": ConfigValue(.string("https://nested.example.com"), isSecret: false),
-                "service.name": ConfigValue(.string("api"), isSecret: false),
-            ]
-        )
-        let reader = ConfigReader(provider: provider)
-        let snapshot = reader.snapshot()
-        let config = try ConfigSnapshotDecoder().decode(NestedURLConfig.self, from: snapshot)
-        #expect(config.service.endpoint == URL(string: "https://nested.example.com")!)
-        #expect(config.service.name == "api")
-    }
-
-    // MARK: - Float decoding
-
-    struct FloatConfig: Decodable, Equatable {
-        var temperature: Float
-        var ratio: Float
-    }
-
-    @Test func decodeFloat() throws {
-        let provider = InMemoryProvider(
-            name: "test",
-            values: [
-                "temperature": ConfigValue(.double(98.6), isSecret: false),
-                "ratio": ConfigValue(.double(0.333), isSecret: false),
-            ]
-        )
-        let reader = ConfigReader(provider: provider)
-        let snapshot = reader.snapshot()
-        let config = try ConfigSnapshotDecoder().decode(FloatConfig.self, from: snapshot)
-        #expect(config.temperature == Float(98.6))
-        #expect(config.ratio == Float(0.333))
-    }
-
-    // MARK: - Deeply nested structs (3+ levels)
-
-    struct AppConfig: Decodable, Equatable {
-        var cluster: ClusterConfig
-    }
-
-    struct ClusterConfig: Decodable, Equatable {
-        var primary: NodeConfig
-    }
-
-    struct NodeConfig: Decodable, Equatable {
-        var host: String
-        var port: Int
-    }
-
-    @Test func decodeDeeplyNestedStruct() throws {
-        let provider = InMemoryProvider(
-            name: "test",
-            values: [
-                "cluster.primary.host": ConfigValue(.string("node1.example.com"), isSecret: false),
-                "cluster.primary.port": ConfigValue(.int(9090), isSecret: false),
-            ]
-        )
-        let reader = ConfigReader(provider: provider)
-        let snapshot = reader.snapshot()
-        let config = try ConfigSnapshotDecoder().decode(AppConfig.self, from: snapshot)
-        #expect(config.cluster.primary.host == "node1.example.com")
-        #expect(config.cluster.primary.port == 9090)
-    }
-
-    // MARK: - Optional non-string types
-
-    struct OptionalIntConfig: Decodable, Equatable {
-        var name: String
-        var retries: Int?
-        var verbose: Bool?
-        var rate: Double?
-    }
-
-    @Test func decodeOptionalNonStringPresent() throws {
-        let provider = InMemoryProvider(
-            name: "test",
-            values: [
-                "name": ConfigValue(.string("test"), isSecret: false),
-                "retries": ConfigValue(.int(3), isSecret: false),
-                "verbose": ConfigValue(.bool(true), isSecret: false),
-                "rate": ConfigValue(.double(0.75), isSecret: false),
-            ]
-        )
-        let reader = ConfigReader(provider: provider)
-        let snapshot = reader.snapshot()
-        let config = try ConfigSnapshotDecoder().decode(OptionalIntConfig.self, from: snapshot)
-        #expect(config.name == "test")
-        #expect(config.retries == 3)
-        #expect(config.verbose == true)
-        #expect(config.rate == 0.75)
-    }
-
-    @Test func decodeOptionalNonStringMissing() throws {
-        let provider = InMemoryProvider(
-            name: "test",
-            values: [
-                "name": ConfigValue(.string("test"), isSecret: false)
-            ]
-        )
-        let reader = ConfigReader(provider: provider)
-        let snapshot = reader.snapshot()
-        let config = try ConfigSnapshotDecoder().decode(OptionalIntConfig.self, from: snapshot)
-        #expect(config.name == "test")
-        #expect(config.retries == nil)
-        #expect(config.verbose == nil)
-        #expect(config.rate == nil)
+        #expect(config == TimerConfig(timeout: Seconds(value: 30)))
     }
 }

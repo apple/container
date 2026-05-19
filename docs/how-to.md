@@ -345,7 +345,7 @@ Use `container ls` to see that the container is on the `foo` subnet:
 
 ```console
  % container ls
-ID             IMAGE            OS     ARCH   STATE    ADDR
+ID             IMAGE            OS     ARCH   STATE    IP
 my-web-server  web-test:latest  linux  arm64  running  192.168.65.2
 ```
 
@@ -360,7 +360,7 @@ Networks support both IPv4 and IPv6. When creating a network without explicit su
 
 ## Configure default network subnets
 
-You can customize the default IPv4 and IPv6 subnets used for new networks by editing your runtime configuration file at `~/.config/container/runtime-config.toml`:
+You can customize the default IPv4 and IPv6 subnets used for new networks by editing your runtime configuration file at `~/.config/container/config.toml`:
 
 ```toml
 [network]
@@ -668,7 +668,7 @@ image = "ghcr.io/apple/containerization/vminit:0.30.1"
 
 ### Example: Disable Rosetta for builds
 
-If you want to prevent the use of Rosetta translation during container builds on Apple Silicon Macs, set the following in `~/.config/container/runtime-config.toml`:
+If you want to prevent the use of Rosetta translation during container builds on Apple Silicon Macs, set the following in `~/.config/container/config.toml`:
 
 ```toml
 [build]

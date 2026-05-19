@@ -73,9 +73,18 @@ extension Application {
 
         public func run() async throws {
             let appRootPath = FilePath(appRoot.path(percentEncoded: false))
+            let installRootPath = FilePath(installRoot.path(percentEncoded: false))
             try ConfigurationLoader.copyConfigurationToReadOnly(to: appRootPath)
-            let containerSystemConfig: ContainerSystemConfig = try ConfigurationLoader.load(
-                configurationFile: ConfigurationLoader.configurationFile(in: appRootPath))
+            // Pass appRoot before installRoot: ConfigurationLoader uses first-match-wins
+            // precedence, so user-provided config in appRoot overrides the defaults
+            // shipped under installRoot. Both layers are passed explicitly because
+            // users can override --app-root and --install-root from the CLI, and the
+            // loader's default search would otherwise ignore those overrides.
+            let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load(
+                configurationFiles: [
+                    ConfigurationLoader.configurationFile(in: appRootPath, of: .appRoot),
+                    ConfigurationLoader.configurationFile(in: installRootPath, of: .installRoot),
+                ])
 
             // Without the true path to the binary in the plist, `container-apiserver` won't launch properly.
             // Resolve the symlink to get the true binary path before writing the launchd plist.

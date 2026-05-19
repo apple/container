@@ -593,4 +593,10 @@ class TestCLIImagesCommand: CLITest {
         try FileManager.default.removeItem(atPath: tarPath)
         try FileManager.default.moveItem(at: tempModifiedTar, to: URL(fileURLWithPath: tarPath))
     }
+
+    @Test func testInspectMissingImageFails() throws {
+        let (_, _, error, status) = try run(arguments: ["image", "inspect", "definitely-missing-image:latest"])
+        #expect(status != 0, "Expected non-zero exit for missing image")
+        #expect(error.contains("image not found"))
+    }
 }
