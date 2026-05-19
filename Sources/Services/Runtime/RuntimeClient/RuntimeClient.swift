@@ -23,8 +23,8 @@ import ContainerizationOS
 import Foundation
 import TerminalProgress
 
-/// A client for interacting with a single sandbox.
-public struct SandboxClient: Sendable {
+/// A client for interacting with a container runtime service instance.
+public struct RuntimeClient: Sendable {
     static let label = "com.apple.container.runtime"
 
     public static func machServiceLabel(runtime: String, id: String) -> String {
@@ -45,12 +45,12 @@ public struct SandboxClient: Sendable {
         self.client = client
     }
 
-    /// Create a SandboxClient by ID and runtime string. The returned client is ready to be used
+    /// Create a RuntimeClient by ID and runtime string. The returned client is ready to be used
     /// without additional steps.
-    public static func create(id: String, runtime: String, timeout: Duration = XPCClient.xpcRegistrationTimeout) async throws -> SandboxClient {
+    public static func create(id: String, runtime: String, timeout: Duration = XPCClient.xpcRegistrationTimeout) async throws -> RuntimeClient {
         let label = Self.machServiceLabel(runtime: runtime, id: id)
         let client = XPCClient(service: label)
-        let request = XPCMessage(route: SandboxRoutes.createEndpoint.rawValue)
+        let request = XPCMessage(route: RuntimeRoutes.createEndpoint.rawValue)
 
         let response: XPCMessage
         do {
@@ -62,30 +62,30 @@ public struct SandboxClient: Sendable {
                 cause: error
             )
         }
-        guard let endpoint = response.endpoint(key: SandboxKeys.sandboxServiceEndpoint.rawValue) else {
+        guard let endpoint = response.endpoint(key: RuntimeKeys.runtimeServiceEndpoint.rawValue) else {
             throw ContainerizationError(
                 .internalError,
-                message: "failed to get endpoint for sandbox service"
+                message: "failed to get endpoint for runtime service"
             )
         }
 
         let endpointConnection = xpc_connection_create_from_endpoint(endpoint)
         let xpcClient = XPCClient(connection: endpointConnection, label: label)
-        return SandboxClient(id: id, runtime: runtime, client: xpcClient)
+        return RuntimeClient(id: id, runtime: runtime, client: xpcClient)
     }
 }
 
 // Runtime Methods
-extension SandboxClient {
+extension RuntimeClient {
     public func bootstrap(
         stdio: [FileHandle?],
         networkBootstrapInfos: [NetworkBootstrapInfo],
         dynamicEnv: [String: String] = [:]
     ) async throws {
-        let request = XPCMessage(route: SandboxRoutes.bootstrap.rawValue)
+        let request = XPCMessage(route: RuntimeRoutes.bootstrap.rawValue)
 
         for (i, h) in stdio.enumerated() {
-            let key: SandboxKeys = try {
+            let key: RuntimeKeys = try {
                 switch i {
                 case 0: .stdin
                 case 1: .stdout
@@ -102,10 +102,10 @@ extension SandboxClient {
 
         do {
             let dynamicEnv = try JSONEncoder().encode(dynamicEnv)
-            request.set(key: SandboxKeys.dynamicEnv.rawValue, value: dynamicEnv)
+            request.set(key: RuntimeKeys.dynamicEnv.rawValue, value: dynamicEnv)
 
             let infosData = try JSONEncoder().encode(networkBootstrapInfos)
-            request.set(key: SandboxKeys.networkBootstrapInfos.rawValue, value: infosData)
+            request.set(key: RuntimeKeys.networkBootstrapInfos.rawValue, value: infosData)
             try await self.client.send(request)
         } catch {
             throw ContainerizationError(
@@ -117,7 +117,7 @@ extension SandboxClient {
     }
 
     public func state() async throws -> SandboxSnapshot {
-        let request = XPCMessage(route: SandboxRoutes.state.rawValue)
+        let request = XPCMessage(route: RuntimeRoutes.state.rawValue)
         let response: XPCMessage
         do {
             response = try await self.client.send(request)
@@ -132,13 +132,13 @@ extension SandboxClient {
     }
 
     public func createProcess(_ id: String, config: ProcessConfiguration, stdio: [FileHandle?]) async throws {
-        let request = XPCMessage(route: SandboxRoutes.createProcess.rawValue)
-        request.set(key: SandboxKeys.id.rawValue, value: id)
+        let request = XPCMessage(route: RuntimeRoutes.createProcess.rawValue)
+        request.set(key: RuntimeKeys.id.rawValue, value: id)
         let data = try JSONEncoder().encode(config)
-        request.set(key: SandboxKeys.processConfig.rawValue, value: data)
+        request.set(key: RuntimeKeys.processConfig.rawValue, value: data)
 
         for (i, h) in stdio.enumerated() {
-            let key: SandboxKeys = try {
+            let key: RuntimeKeys = try {
                 switch i {
                 case 0: .stdin
                 case 1: .stdout
@@ -165,8 +165,8 @@ extension SandboxClient {
     }
 
     public func startProcess(_ id: String) async throws {
-        let request = XPCMessage(route: SandboxRoutes.start.rawValue)
-        request.set(key: SandboxKeys.id.rawValue, value: id)
+        let request = XPCMessage(route: RuntimeRoutes.start.rawValue)
+        request.set(key: RuntimeKeys.id.rawValue, value: id)
         do {
             try await self.client.send(request)
         } catch {
@@ -179,10 +179,10 @@ extension SandboxClient {
     }
 
     public func stop(options: ContainerStopOptions) async throws {
-        let request = XPCMessage(route: SandboxRoutes.stop.rawValue)
+        let request = XPCMessage(route: RuntimeRoutes.stop.rawValue)
 
         let data = try JSONEncoder().encode(options)
-        request.set(key: SandboxKeys.stopOptions.rawValue, value: data)
+        request.set(key: RuntimeKeys.stopOptions.rawValue, value: data)
 
         do {
             try await self.client.send(request)
@@ -196,9 +196,9 @@ extension SandboxClient {
     }
 
     public func kill(_ id: String, signal: Int64) async throws {
-        let request = XPCMessage(route: SandboxRoutes.kill.rawValue)
-        request.set(key: SandboxKeys.id.rawValue, value: id)
-        request.set(key: SandboxKeys.signal.rawValue, value: signal)
+        let request = XPCMessage(route: RuntimeRoutes.kill.rawValue)
+        request.set(key: RuntimeKeys.id.rawValue, value: id)
+        request.set(key: RuntimeKeys.signal.rawValue, value: signal)
 
         do {
             try await self.client.send(request)
@@ -212,10 +212,10 @@ extension SandboxClient {
     }
 
     public func resize(_ id: String, size: Terminal.Size) async throws {
-        let request = XPCMessage(route: SandboxRoutes.resize.rawValue)
-        request.set(key: SandboxKeys.id.rawValue, value: id)
-        request.set(key: SandboxKeys.width.rawValue, value: UInt64(size.width))
-        request.set(key: SandboxKeys.height.rawValue, value: UInt64(size.height))
+        let request = XPCMessage(route: RuntimeRoutes.resize.rawValue)
+        request.set(key: RuntimeKeys.id.rawValue, value: id)
+        request.set(key: RuntimeKeys.width.rawValue, value: UInt64(size.width))
+        request.set(key: RuntimeKeys.height.rawValue, value: UInt64(size.height))
 
         do {
             try await self.client.send(request)
@@ -229,8 +229,8 @@ extension SandboxClient {
     }
 
     public func wait(_ id: String) async throws -> ExitStatus {
-        let request = XPCMessage(route: SandboxRoutes.wait.rawValue)
-        request.set(key: SandboxKeys.id.rawValue, value: id)
+        let request = XPCMessage(route: RuntimeRoutes.wait.rawValue)
+        request.set(key: RuntimeKeys.id.rawValue, value: id)
 
         let response: XPCMessage
         do {
@@ -242,14 +242,14 @@ extension SandboxClient {
                 cause: error
             )
         }
-        let code = response.int64(key: SandboxKeys.exitCode.rawValue)
-        let date = response.date(key: SandboxKeys.exitedAt.rawValue)
+        let code = response.int64(key: RuntimeKeys.exitCode.rawValue)
+        let date = response.date(key: RuntimeKeys.exitedAt.rawValue)
         return ExitStatus(exitCode: Int32(code), exitedAt: date)
     }
 
     public func dial(_ port: UInt32) async throws -> FileHandle {
-        let request = XPCMessage(route: SandboxRoutes.dial.rawValue)
-        request.set(key: SandboxKeys.port.rawValue, value: UInt64(port))
+        let request = XPCMessage(route: RuntimeRoutes.dial.rawValue)
+        request.set(key: RuntimeKeys.port.rawValue, value: UInt64(port))
 
         let response: XPCMessage
         do {
@@ -261,7 +261,7 @@ extension SandboxClient {
                 cause: error
             )
         }
-        guard let fh = response.fileHandle(key: SandboxKeys.fd.rawValue) else {
+        guard let fh = response.fileHandle(key: RuntimeKeys.fd.rawValue) else {
             throw ContainerizationError(
                 .internalError,
                 message: "failed to get fd for vsock port \(port)"
@@ -271,7 +271,7 @@ extension SandboxClient {
     }
 
     public func shutdown() async throws {
-        let request = XPCMessage(route: SandboxRoutes.shutdown.rawValue)
+        let request = XPCMessage(route: RuntimeRoutes.shutdown.rawValue)
 
         do {
             _ = try await self.client.send(request)
@@ -320,7 +320,7 @@ extension SandboxClient {
     }
 
     public func statistics() async throws -> ContainerStats {
-        let request = XPCMessage(route: SandboxRoutes.statistics.rawValue)
+        let request = XPCMessage(route: RuntimeRoutes.statistics.rawValue)
 
         let response: XPCMessage
         do {
@@ -333,7 +333,7 @@ extension SandboxClient {
             )
         }
 
-        guard let data = response.dataNoCopy(key: SandboxKeys.statistics.rawValue) else {
+        guard let data = response.dataNoCopy(key: RuntimeKeys.statistics.rawValue) else {
             throw ContainerizationError(
                 .internalError,
                 message: "no statistics data returned"
@@ -346,7 +346,7 @@ extension SandboxClient {
 
 extension XPCMessage {
     public func id() throws -> String {
-        let id = self.string(key: SandboxKeys.id.rawValue)
+        let id = self.string(key: RuntimeKeys.id.rawValue)
         guard let id else {
             throw ContainerizationError(
                 .invalidArgument,
@@ -357,7 +357,7 @@ extension XPCMessage {
     }
 
     func sandboxSnapshot() throws -> SandboxSnapshot {
-        let data = self.dataNoCopy(key: SandboxKeys.snapshot.rawValue)
+        let data = self.dataNoCopy(key: RuntimeKeys.snapshot.rawValue)
         guard let data else {
             throw ContainerizationError(
                 .invalidArgument,
@@ -368,7 +368,7 @@ extension XPCMessage {
     }
 
     public func networkBootstrapInfos() throws -> [NetworkBootstrapInfo] {
-        guard let data = self.dataNoCopy(key: SandboxKeys.networkBootstrapInfos.rawValue) else {
+        guard let data = self.dataNoCopy(key: RuntimeKeys.networkBootstrapInfos.rawValue) else {
             throw ContainerizationError(.invalidArgument, message: "missing networkBootstrapInfos in bootstrap message")
         }
         return try JSONDecoder().decode([NetworkBootstrapInfo].self, from: data)

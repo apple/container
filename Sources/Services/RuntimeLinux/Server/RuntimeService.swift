@@ -37,7 +37,7 @@ import struct ContainerizationOCI.Mount
 import struct ContainerizationOCI.Process
 
 /// An XPC service that manages the lifecycle of a single VM-backed container.
-public actor SandboxService {
+public actor RuntimeService {
     private let connection: xpc_connection_t
     private let root: URL
     private let interfaceStrategies: [NetworkPluginInfo: InterfaceStrategy]
@@ -124,7 +124,7 @@ public actor SandboxService {
 
         let endpoint = xpc_endpoint_create(self.connection)
         let reply = message.reply()
-        reply.set(key: SandboxKeys.sandboxServiceEndpoint.rawValue, value: endpoint)
+        reply.set(key: RuntimeKeys.runtimeServiceEndpoint.rawValue, value: endpoint)
         return reply
     }
 
@@ -363,12 +363,12 @@ public actor SandboxService {
 
             let reply = message.reply()
             let data = try JSONEncoder().encode(containerStats)
-            reply.set(key: SandboxKeys.statistics.rawValue, value: data)
+            reply.set(key: RuntimeKeys.statistics.rawValue, value: data)
             return reply
         }
     }
 
-    /// Shutdown the SandboxService.
+    /// Shutdown the RuntimeService.
     ///
     /// - Parameters:
     ///   - message: An XPC message with no parameters.
@@ -600,8 +600,8 @@ public actor SandboxService {
         case .running:
             let id = try message.id()
             let ctr = try getContainer()
-            let width = message.uint64(key: SandboxKeys.width.rawValue)
-            let height = message.uint64(key: SandboxKeys.height.rawValue)
+            let width = message.uint64(key: RuntimeKeys.width.rawValue)
+            let height = message.uint64(key: RuntimeKeys.height.rawValue)
 
             if id != ctr.container.id {
                 guard let processInfo = self.processes[id] else {
@@ -653,7 +653,7 @@ public actor SandboxService {
         self.log.debug("enter", metadata: ["func": "\(#function)"])
         defer { self.log.debug("exit", metadata: ["func": "\(#function)"]) }
 
-        guard let id = message.string(key: SandboxKeys.id.rawValue) else {
+        guard let id = message.string(key: RuntimeKeys.id.rawValue) else {
             throw ContainerizationError(.invalidArgument, message: "missing id in wait xpc message")
         }
 
@@ -661,8 +661,8 @@ public actor SandboxService {
             self.waitForExit(id: id, cont: cc)
         }
         let reply = message.reply()
-        reply.set(key: SandboxKeys.exitCode.rawValue, value: Int64(exitStatus.exitCode))
-        reply.set(key: SandboxKeys.exitedAt.rawValue, value: exitStatus.exitedAt)
+        reply.set(key: RuntimeKeys.exitCode.rawValue, value: Int64(exitStatus.exitCode))
+        reply.set(key: RuntimeKeys.exitedAt.rawValue, value: exitStatus.exitedAt)
         return reply
     }
 
@@ -771,7 +771,7 @@ public actor SandboxService {
 
         switch self.state {
         case .running, .booted:
-            let port = message.uint64(key: SandboxKeys.port.rawValue)
+            let port = message.uint64(key: RuntimeKeys.port.rawValue)
             guard port > 0 else {
                 throw ContainerizationError(
                     .invalidArgument,
@@ -783,7 +783,7 @@ public actor SandboxService {
             let fh = try await ctr.container.dialVsock(port: UInt32(port))
 
             let reply = message.reply()
-            reply.set(key: SandboxKeys.fd.rawValue, value: fh)
+            reply.set(key: RuntimeKeys.fd.rawValue, value: fh)
             return reply
         default:
             throw ContainerizationError(
@@ -1250,11 +1250,11 @@ public actor SandboxService {
 
 extension XPCMessage {
     fileprivate func signal() throws -> Int64 {
-        self.int64(key: SandboxKeys.signal.rawValue)
+        self.int64(key: RuntimeKeys.signal.rawValue)
     }
 
     fileprivate func stopOptions() throws -> ContainerStopOptions {
-        guard let data = self.dataNoCopy(key: SandboxKeys.stopOptions.rawValue) else {
+        guard let data = self.dataNoCopy(key: RuntimeKeys.stopOptions.rawValue) else {
             throw ContainerizationError(.invalidArgument, message: "empty StopOptions")
         }
         return try JSONDecoder().decode(ContainerStopOptions.self, from: data)
@@ -1262,36 +1262,36 @@ extension XPCMessage {
 
     fileprivate func setState(_ state: SandboxSnapshot) throws {
         let data = try JSONEncoder().encode(state)
-        self.set(key: SandboxKeys.snapshot.rawValue, value: data)
+        self.set(key: RuntimeKeys.snapshot.rawValue, value: data)
     }
 
     fileprivate func stdio() -> [FileHandle?] {
         var handles = [FileHandle?](repeating: nil, count: 3)
-        if let stdin = self.fileHandle(key: SandboxKeys.stdin.rawValue) {
+        if let stdin = self.fileHandle(key: RuntimeKeys.stdin.rawValue) {
             handles[0] = stdin
         }
-        if let stdout = self.fileHandle(key: SandboxKeys.stdout.rawValue) {
+        if let stdout = self.fileHandle(key: RuntimeKeys.stdout.rawValue) {
             handles[1] = stdout
         }
-        if let stderr = self.fileHandle(key: SandboxKeys.stderr.rawValue) {
+        if let stderr = self.fileHandle(key: RuntimeKeys.stderr.rawValue) {
             handles[2] = stderr
         }
         return handles
     }
 
     fileprivate func setFileHandle(_ handle: FileHandle) {
-        self.set(key: SandboxKeys.fd.rawValue, value: handle)
+        self.set(key: RuntimeKeys.fd.rawValue, value: handle)
     }
 
     fileprivate func processConfig() throws -> ProcessConfiguration {
-        guard let data = self.dataNoCopy(key: SandboxKeys.processConfig.rawValue) else {
+        guard let data = self.dataNoCopy(key: RuntimeKeys.processConfig.rawValue) else {
             throw ContainerizationError(.invalidArgument, message: "empty process configuration")
         }
         return try JSONDecoder().decode(ProcessConfiguration.self, from: data)
     }
 
     fileprivate func dynamicEnv() throws -> [String: String] {
-        let data = self.dataNoCopy(key: SandboxKeys.dynamicEnv.rawValue)
+        let data = self.dataNoCopy(key: RuntimeKeys.dynamicEnv.rawValue)
         let dynamicEnv = try data.map { try JSONDecoder().decode([String: String].self, from: $0) } ?? [:]
         return dynamicEnv
     }
@@ -1426,7 +1426,7 @@ extension FileHandle: @retroactive ReaderStream, @retroactive Writer {
 
 // MARK: State handler and bundle creation helpers
 
-extension SandboxService {
+extension RuntimeService {
     private func initializeWaiters(for id: String) throws {
         guard waiters[id] == nil else {
             throw ContainerizationError(.invalidState, message: "waiter for \(id) already initialized")

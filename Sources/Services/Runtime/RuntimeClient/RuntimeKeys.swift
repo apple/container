@@ -14,7 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-public enum SandboxKeys: String {
+public enum RuntimeKeys: String {
     /// ID key.
     case id
     /// Vsock port number key.
@@ -27,8 +27,8 @@ public enum SandboxKeys: String {
     case fd
     /// Options for stopping a container key.
     case stopOptions
-    /// An endpoint to talk to a sandbox service.
-    case sandboxServiceEndpoint
+    /// An endpoint to talk to the runtime service.
+    case runtimeServiceEndpoint
 
     /// Process request keys.
     case signal

@@ -34,11 +34,11 @@ import SystemPackage
 public actor ContainersService {
     struct ContainerState {
         var snapshot: ContainerSnapshot
-        var client: SandboxClient? = nil
+        var client: RuntimeClient? = nil
 
-        func getClient() throws -> SandboxClient {
+        func getClient() throws -> RuntimeClient {
             guard let client else {
-                var message = "no sandbox client exists"
+                var message = "no runtime client exists"
                 if snapshot.status == .stopped {
                     message += ": container is stopped"
                 }
@@ -451,18 +451,18 @@ public actor ContainersService {
                 )
 
                 let runtime = state.snapshot.configuration.runtimeHandler
-                let sandboxClient = try await SandboxClient.create(
+                let runtimeClient = try await RuntimeClient.create(
                     id: id,
                     runtime: runtime
                 )
-                try await sandboxClient.bootstrap(stdio: stdio, networkBootstrapInfos: networkBootstrapInfos, dynamicEnv: dynamicEnv)
+                try await runtimeClient.bootstrap(stdio: stdio, networkBootstrapInfos: networkBootstrapInfos, dynamicEnv: dynamicEnv)
 
                 try await self.exitMonitor.registerProcess(
                     id: id,
                     onExit: self.handleContainerExit
                 )
 
-                state.client = sandboxClient
+                state.client = runtimeClient
                 await self.setContainerState(id, state, context: context)
             } catch {
                 let label = Self.fullLaunchdServiceLabel(
@@ -629,7 +629,7 @@ public actor ContainersService {
         let state = try self._getContainerState(id: id)
 
         // Stop should be idempotent.
-        let client: SandboxClient
+        let client: RuntimeClient
         do {
             client = try state.getClient()
         } catch {
