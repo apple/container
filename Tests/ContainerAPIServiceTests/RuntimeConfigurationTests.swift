@@ -15,8 +15,8 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerResource
-import ContainerRuntimeLinuxClient
 import ContainerRuntimeClient
+import ContainerRuntimeLinuxClient
 import Containerization
 import Foundation
 import Testing

@@ -116,7 +116,7 @@ public actor RuntimeService {
     ///
     /// - Returns: An XPC message with the following parameters:
     ///   - endpoint: An XPC endpoint that can be used to communicate
-    ///     with the sandbox service.
+    ///     with the runtime service.
     @Sendable
     public func createEndpoint(_ message: XPCMessage) async throws -> XPCMessage {
         self.log.debug("enter", metadata: ["func": "\(#function)"])
@@ -1506,7 +1506,7 @@ extension RuntimeService {
         case stopping
         /// Once a stop is successful, .stopping will transition to .stopped.
         case stopped
-        /// .shuttingDown will be the last state the sandbox service will ever be in. Shortly
+        /// .shuttingDown will be the last state the runtime service will ever be in. Shortly
         /// afterwards the process will exit.
         case shuttingDown
     }

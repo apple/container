@@ -65,14 +65,15 @@ public struct RuntimeConfiguration: Codable, Sendable {
 
     public static func readRuntimeConfiguration(from runtimeConfigurationPath: URL) throws -> RuntimeConfiguration {
         let configurationPath = runtimeConfigurationPath.appendingPathComponent(RuntimeConfiguration.runtimeConfigurationFilename)
-        guard FileManager.default.fileExists(atPath: configurationPath.path) else {
+        let data: Data
+        do {
+            data = try Data(contentsOf: configurationPath)
+        } catch {
             throw ContainerizationError(
                 .notFound,
                 message: "runtime configuration file not found at path: \(configurationPath.path)"
             )
         }
-
-        let data = try Data(contentsOf: configurationPath)
         return try JSONDecoder().decode(RuntimeConfiguration.self, from: data)
     }
 }
