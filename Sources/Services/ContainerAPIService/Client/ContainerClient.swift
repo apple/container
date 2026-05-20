@@ -312,15 +312,11 @@ public struct ContainerClient: Sendable {
     }
 
     /// Copy a file or directory from the host into the container.
-    public func copyIn(id: String, source: URL, destination: URL, mode: UInt32 = 0o644, createParents: Bool = true) async throws {
+    public func copyIn(id: String, source: String, destination: String, mode: UInt32 = 0o644, createParents: Bool = true) async throws {
         let request = XPCMessage(route: .containerCopyIn)
-        let destinationPath =
-            destination.hasDirectoryPath && !destination.path.hasSuffix("/")
-            ? "\(destination.path)/"
-            : destination.path
         request.set(key: .id, value: id)
-        request.set(key: .sourcePath, value: source.path)
-        request.set(key: .destinationPath, value: destinationPath)
+        request.set(key: .sourcePath, value: source)
+        request.set(key: .destinationPath, value: destination)
         request.set(key: .fileMode, value: UInt64(mode))
         request.set(key: .createParents, value: createParents)
 
@@ -336,11 +332,11 @@ public struct ContainerClient: Sendable {
     }
 
     /// Copy a file or directory from the container to the host.
-    public func copyOut(id: String, source: URL, destination: URL, createParents: Bool = true) async throws {
+    public func copyOut(id: String, source: String, destination: String, createParents: Bool = true) async throws {
         let request = XPCMessage(route: .containerCopyOut)
         request.set(key: .id, value: id)
-        request.set(key: .sourcePath, value: source.path)
-        request.set(key: .destinationPath, value: destination.path)
+        request.set(key: .sourcePath, value: source)
+        request.set(key: .destinationPath, value: destination)
         request.set(key: .createParents, value: createParents)
 
         do {

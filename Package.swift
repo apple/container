@@ -110,6 +110,7 @@ let package = Package(
                 "ContainerResource",
                 "ContainerRuntimeLinuxTypes",
                 "ContainerVersion",
+                .product(name: "SystemPackage", package: "swift-system"),
                 "ContainerXPC",
                 "TerminalProgress",
                 "Yams",

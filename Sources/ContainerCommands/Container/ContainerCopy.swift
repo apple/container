@@ -20,6 +20,7 @@ import ContainerResource
 import Containerization
 import ContainerizationError
 import Foundation
+import SystemPackage
 
 extension Application {
     public struct ContainerCopy: AsyncLoggableCommand {
@@ -63,40 +64,42 @@ extension Application {
 
             switch (srcRef, dstRef) {
             case (.container(let id, let path), .local(let localPath)):
-                let srcURL = URL(fileURLWithPath: path)
-                let destURL = URL(fileURLWithPath: localPath).standardizedFileURL
+                let srcPath = FilePath(path)
+                let destPath = FilePath((localPath as NSString).standardizingPath)
                 var isDirectory: ObjCBool = false
-                let exists = FileManager.default.fileExists(atPath: destURL.path, isDirectory: &isDirectory)
+                let exists = FileManager.default.fileExists(atPath: destPath.string, isDirectory: &isDirectory)
 
                 if exists && isDirectory.boolValue {
-                    let finalDest = destURL.appendingPathComponent(srcURL.lastPathComponent)
-                    try await client.copyOut(id: id, source: srcURL, destination: finalDest)
+                    guard let lastComponent = srcPath.lastComponent else {
+                        throw ContainerizationError(.invalidArgument, message: "source path has no last component: \(path)")
+                    }
+                    let finalDest = destPath.appending(lastComponent)
+                    try await client.copyOut(id: id, source: path, destination: finalDest.string)
                 } else if localPath.hasSuffix("/") {
-                    try await client.copyOut(id: id, source: srcURL, destination: destURL)
+                    try await client.copyOut(id: id, source: path, destination: destPath.string)
                     var resultIsDir: ObjCBool = false
-                    if FileManager.default.fileExists(atPath: destURL.path, isDirectory: &resultIsDir),
+                    if FileManager.default.fileExists(atPath: destPath.string, isDirectory: &resultIsDir),
                         !resultIsDir.boolValue
                     {
-                        try? FileManager.default.removeItem(at: destURL)
+                        try? FileManager.default.removeItem(atPath: destPath.string)
                         throw ContainerizationError(
                             .invalidArgument,
                             message: "destination is not a directory: \(localPath)")
                     }
                 } else {
-                    try await client.copyOut(id: id, source: srcURL, destination: destURL)
+                    try await client.copyOut(id: id, source: path, destination: destPath.string)
                 }
             case (.local(let localPath), .container(let id, let path)):
-                let srcURL = URL(fileURLWithPath: localPath).standardizedFileURL
+                let srcPath = FilePath((localPath as NSString).standardizingPath)
                 var isDirectory: ObjCBool = false
-                guard FileManager.default.fileExists(atPath: srcURL.path, isDirectory: &isDirectory) else {
+                guard FileManager.default.fileExists(atPath: srcPath.string, isDirectory: &isDirectory) else {
                     throw ContainerizationError(.notFound, message: "source path does not exist: \(localPath)")
                 }
                 if localPath.hasSuffix("/") && !isDirectory.boolValue {
                     throw ContainerizationError(.invalidArgument, message: "source path is not a directory: \(localPath)")
                 }
 
-                let destURL = URL(fileURLWithPath: path)
-                try await client.copyIn(id: id, source: srcURL, destination: destURL, createParents: true)
+                try await client.copyIn(id: id, source: srcPath.string, destination: path, createParents: true)
             case (.container, .container):
                 throw ContainerizationError(.invalidArgument, message: "copying between containers is not supported")
             case (.local, .local):
