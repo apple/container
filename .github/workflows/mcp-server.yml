@@ -1,0 +1,33 @@
+name: MCP Server CI
+
+on:
+  push:
+    paths:
+      - 'mcp-server/**'
+  pull_request:
+    paths:
+      - 'mcp-server/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        working-directory: mcp-server
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run tests
+        working-directory: mcp-server
+        env:
+          PYTHONPATH: .
+        run: |
+          source .venv/bin/activate
+          pytest -q

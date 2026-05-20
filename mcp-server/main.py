@@ -1,8 +1,9 @@
-from fastapi import FastAPI, HTTPException, Body, Depends, Header
+from fastapi import FastAPI, HTTPException, Body, Depends
 from pydantic import BaseModel
 from typing import List, Optional, Dict
 import uuid
 import os
+from auth import require_role
 import subprocess
 import json
 
@@ -32,16 +33,7 @@ CONTAINERS: Dict[str, Dict] = {
 }
 
 
-def optional_auth(x_api_key: Optional[str] = Header(None)):
-    """Optional API-key enforcement controlled by environment variable.
-
-    Set `MCP_REQUIRE_AUTH=1` and `MCP_API_KEY` to enable.
-    """
-    if os.getenv("MCP_REQUIRE_AUTH") == "1":
-        expected = os.getenv("MCP_API_KEY", "dev-key")
-        if x_api_key != expected:
-            raise HTTPException(status_code=401, detail="Invalid API key")
-    return True
+# Authentication and RBAC are provided by `mcp-server/auth.py`.
 
 
 @app.get("/health")
@@ -50,7 +42,7 @@ def health():
 
 
 @app.get("/containers", response_model=List[ContainerInfo])
-def list_containers(_auth: bool = Depends(optional_auth)):
+def list_containers(_auth: bool = Depends(require_role("reader"))):
     # Try to call the project's Swift CLI and return JSON output when available.
     try:
         out = run_swift_cli(["container", "list", "--format", "json", "--all"])
@@ -78,7 +70,7 @@ def run_swift_cli(args: List[str]) -> str:
 
 
 @app.get("/containers/{id}", response_model=ContainerInfo)
-def get_container(id: str, _auth: bool = Depends(optional_auth)):
+def get_container(id: str, _auth: bool = Depends(require_role("reader"))):
     c = CONTAINERS.get(id)
     if not c:
         raise HTTPException(status_code=404, detail="not found")
@@ -86,7 +78,7 @@ def get_container(id: str, _auth: bool = Depends(optional_auth)):
 
 
 @app.post("/containers/start", response_model=ContainerInfo)
-def start_container(req: StartRequest, _auth: bool = Depends(optional_auth)):
+def start_container(req: StartRequest, _auth: bool = Depends(require_role("admin"))):
     # Try to create+start via `swift run container run <image>` (detached)
     try:
         cmd = ["container", "run", req.image]
@@ -107,7 +99,7 @@ def start_container(req: StartRequest, _auth: bool = Depends(optional_auth)):
 
 
 @app.post("/containers/stop", response_model=ContainerInfo)
-def stop_container(id: str = Body(..., embed=True), _auth: bool = Depends(optional_auth)):
+def stop_container(id: str = Body(..., embed=True), _auth: bool = Depends(require_role("admin"))):
     try:
         out = run_swift_cli(["container", "stop", id])
         # CLI prints id on success; update in-memory store if present
@@ -125,7 +117,7 @@ def stop_container(id: str = Body(..., embed=True), _auth: bool = Depends(option
 
 
 @app.post("/containers/exec")
-def exec_in_container(req: ExecRequest, _auth: bool = Depends(optional_auth)):
+def exec_in_container(req: ExecRequest, _auth: bool = Depends(require_role("admin"))):
     # Use swift cli `container exec <id> -- <cmd...>` when available
     c = CONTAINERS.get(req.id)
     try:
