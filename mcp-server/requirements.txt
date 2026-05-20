@@ -1,0 +1,5 @@
+fastapi==0.95.2
+uvicorn[standard]==0.22.0
+pydantic==1.10.11
+pytest==7.4.0
+requests==2.31.0
