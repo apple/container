@@ -680,20 +680,20 @@ public actor RuntimeService {
         self.log.info("`copyIn` xpc handler")
         switch self.state {
         case .running, .booted:
-            guard let source = message.string(key: SandboxKeys.sourcePath.rawValue) else {
+            guard let source = message.string(key: RuntimeKeys.sourcePath.rawValue) else {
                 throw ContainerizationError(
                     .invalidArgument,
                     message: "no source path supplied for copyIn"
                 )
             }
-            guard let destination = message.string(key: SandboxKeys.destinationPath.rawValue) else {
+            guard let destination = message.string(key: RuntimeKeys.destinationPath.rawValue) else {
                 throw ContainerizationError(
                     .invalidArgument,
                     message: "no destination path supplied for copyIn"
                 )
             }
-            let mode = UInt32(message.uint64(key: SandboxKeys.fileMode.rawValue))
-            let createParents = message.bool(key: SandboxKeys.createParents.rawValue)
+            let mode = UInt32(message.uint64(key: RuntimeKeys.fileMode.rawValue))
+            let createParents = message.bool(key: RuntimeKeys.createParents.rawValue)
 
             let ctr = try getContainer()
             try await ctr.container.copyIn(
@@ -725,20 +725,20 @@ public actor RuntimeService {
         self.log.info("`copyOut` xpc handler")
         switch self.state {
         case .running, .booted:
-            guard let source = message.string(key: SandboxKeys.sourcePath.rawValue) else {
+            guard let source = message.string(key: RuntimeKeys.sourcePath.rawValue) else {
                 throw ContainerizationError(
                     .invalidArgument,
                     message: "no source path supplied for copyOut"
                 )
             }
-            guard let destination = message.string(key: SandboxKeys.destinationPath.rawValue) else {
+            guard let destination = message.string(key: RuntimeKeys.destinationPath.rawValue) else {
                 throw ContainerizationError(
                     .invalidArgument,
                     message: "no destination path supplied for copyOut"
                 )
             }
 
-            let createParents = message.bool(key: SandboxKeys.createParents.rawValue)
+            let createParents = message.bool(key: RuntimeKeys.createParents.rawValue)
 
             let ctr = try getContainer()
             try await ctr.container.copyOut(
