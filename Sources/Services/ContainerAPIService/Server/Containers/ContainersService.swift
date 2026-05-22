@@ -580,7 +580,7 @@ public actor ContainersService {
     }
 
     /// Send a signal to the container.
-    public func kill(id: String, processID: String, signal: Int64) async throws {
+    public func kill(id: String, processID: String, signal: String) async throws {
         log.debug(
             "ContainersService: enter",
             metadata: [
@@ -604,6 +604,13 @@ public actor ContainersService {
         let state = try self._getContainerState(id: id)
         let client = try state.getClient()
         try await client.kill(processID, signal: signal)
+
+        // SIGKILL is guaranteed to terminate the target. When directed at the
+        // container's init process, follow up with the same API-server cleanup
+        // that `stop` performs.
+        if processID == id, (try? Signal(signal)) == .kill {
+            try await handleContainerExit(id: id)
+        }
     }
 
     /// Stop all containers inside the sandbox, aborting any processes currently
@@ -1156,8 +1163,11 @@ public actor ContainersService {
 }
 
 extension XPCMessage {
-    func signal() throws -> Int64 {
-        self.int64(key: .signal)
+    func signal() throws -> String {
+        guard let signal = self.string(key: .signal) else {
+            throw ContainerizationError(.invalidArgument, message: "missing signal in xpc message")
+        }
+        return signal
     }
 
     func stopOptions() throws -> ContainerStopOptions {

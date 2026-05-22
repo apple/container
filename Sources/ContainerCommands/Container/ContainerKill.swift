@@ -61,12 +61,10 @@ extension Application {
                 containers = containerIds
             }
 
-            let signalNumber = try Signal(signal).rawValue
-
             var errors: [any Error] = []
             for container in containers {
                 do {
-                    try await client.kill(id: container, signal: signalNumber)
+                    try await client.kill(id: container, signal: signal)
                     print(container)
                 } catch {
                     errors.append(error)

@@ -195,7 +195,7 @@ extension RuntimeClient {
         }
     }
 
-    public func kill(_ id: String, signal: Int64) async throws {
+    public func kill(_ id: String, signal: String) async throws {
         let request = XPCMessage(route: RuntimeRoutes.kill.rawValue)
         request.set(key: RuntimeKeys.id.rawValue, value: id)
         request.set(key: RuntimeKeys.signal.rawValue, value: signal)

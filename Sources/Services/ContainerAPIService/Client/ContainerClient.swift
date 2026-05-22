@@ -158,12 +158,12 @@ public struct ContainerClient: Sendable {
     }
 
     /// Send a signal to the container.
-    public func kill(id: String, signal: Int32) async throws {
+    public func kill(id: String, signal: String) async throws {
         do {
             let request = XPCMessage(route: .containerKill)
             request.set(key: .id, value: id)
             request.set(key: .processIdentifier, value: id)
-            request.set(key: .signal, value: Int64(signal))
+            request.set(key: .signal, value: signal)
 
             try await xpcClient.send(request)
         } catch {

@@ -553,11 +553,13 @@ public actor RuntimeService {
         self.log.debug("enter", metadata: ["func": "\(#function)"])
         defer { self.log.debug("exit", metadata: ["func": "\(#function)"]) }
 
-        return try await self.lock.withLock { [self] _ in
+        let id = try message.id()
+        let signal = try Signal(message.signal())
+
+        try await self.lock.withLock { [self] _ in
             switch await self.state {
             case .running:
                 let ctr = try await getContainer()
-                let id = try message.id()
                 if id != ctr.container.id {
                     guard let processInfo = await self.processes[id] else {
                         throw ContainerizationError(.invalidState, message: "process \(id) does not exist")
@@ -566,13 +568,11 @@ public actor RuntimeService {
                     guard let proc = processInfo.process else {
                         throw ContainerizationError(.invalidState, message: "process \(id) not started")
                     }
-                    try await proc.kill(Signal(rawValue: Int32(try message.signal())))
-                    return message.reply()
+                    try await proc.kill(signal)
+                    return
                 }
 
-                // TODO: fix underlying signal value to int64
-                try await ctr.container.kill(Signal(rawValue: Int32(try message.signal())))
-                return message.reply()
+                try await ctr.container.kill(signal)
             default:
                 throw ContainerizationError(
                     .invalidState,
@@ -580,6 +580,16 @@ public actor RuntimeService {
                 )
             }
         }
+
+        // SIGKILL is guaranteed by the kernel to terminate the target, so block
+        // until we observe the exit.
+        if signal == .kill {
+            _ = await withCheckedContinuation { cc in
+                self.waitForExit(id: id, cont: cc)
+            }
+        }
+
+        return message.reply()
     }
 
     /// Resize the terminal for a process.
@@ -1250,8 +1260,11 @@ public actor RuntimeService {
 }
 
 extension XPCMessage {
-    fileprivate func signal() throws -> Int64 {
-        self.int64(key: RuntimeKeys.signal.rawValue)
+    fileprivate func signal() throws -> String {
+        guard let signal = self.string(key: RuntimeKeys.signal.rawValue) else {
+            throw ContainerizationError(.invalidArgument, message: "missing signal in xpc message")
+        }
+        return signal
     }
 
     fileprivate func stopOptions() throws -> ContainerStopOptions {
