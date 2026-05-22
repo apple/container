@@ -271,18 +271,25 @@ extension ProgressBar {
 
         // Progress bar - always shown if configured
         if config.showProgressBar, total > 0, allowProgress {
+            // reserve spaces between components, plus 45 for components rendered after the bar (size, speed, time, etc.)
             let joinedComponents = components.joined(separator: " ")
-            // 45 reserves space for components rendered after the bar (size, speed, time, etc.)
-            let usedWidth = (useColor ? joinedComponents.visibleLength : joinedComponents.count) + 45
-            let remainingWidth = max(config.width - usedWidth, 1)
-            let barLength = min(remainingWidth, max(0, state.finished ? remainingWidth : Int(Int64(remainingWidth) * value / total)))
-            let barPaddingLength = remainingWidth - barLength
+            let reservedWidth = (useColor ? joinedComponents.visibleLength : joinedComponents.count) + 45
+            let totalBarWidth = max(config.width - reservedWidth, 1)
+            let completedWidth: Int
+            if state.finished {
+                completedWidth = totalBarWidth
+            } else {
+                let progressWidth = max(0, Int(Int64(totalBarWidth) * value / total))
+                completedWidth = min(totalBarWidth, progressWidth)
+            }
+
+            let uncompletedWidth = totalBarWidth - completedWidth
             if useColor {
-                let filledBar = EscapeSequence.colored(String(repeating: config.theme.bar, count: barLength), EscapeSequence.green)
-                let emptyBar = String(repeating: " ", count: barPaddingLength)
+                let filledBar = EscapeSequence.colored(String(repeating: config.theme.bar, count: completedWidth), EscapeSequence.green)
+                let emptyBar = String(repeating: " ", count: uncompletedWidth)
                 components.append("|\(filledBar)\(emptyBar)|")
             } else {
-                let bar = "\(String(repeating: config.theme.bar, count: barLength))\(String(repeating: " ", count: barPaddingLength))"
+                let bar = "\(String(repeating: config.theme.bar, count: completedWidth))\(String(repeating: " ", count: uncompletedWidth))"
                 components.append("|\(bar)|")
             }
         }
