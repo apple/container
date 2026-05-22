@@ -41,7 +41,7 @@ struct HelpCommand: AsyncLoggableCommand {
         print(Application.helpMessage(for: target))
     }
 
-    private static func resolveSubcommand(path: [String]) -> ParsableCommand.Type? {
+    static func resolveSubcommand(path: [String]) -> ParsableCommand.Type? {
         var current: ParsableCommand.Type = Application.self
         for name in path {
             guard let next = childSubcommands(of: current).first(where: { matches($0, name: name) }) else {
