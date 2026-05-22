@@ -42,8 +42,8 @@ extension Application {
                 names: Array(uniqueNames), containerSystemConfig: containerSystemConfig
             )
 
-            if !result.error.isEmpty {
-                let missing = result.error.sorted()
+            if !result.errors.isEmpty {
+                let missing = result.errors.map { "\($0.0) (\($0.1.localizedDescription))" }.sorted()
                 throw ContainerizationError(
                     .notFound,
                     message: "image not found: \(missing.joined(separator: ", "))"

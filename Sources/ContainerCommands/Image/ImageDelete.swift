@@ -48,15 +48,15 @@ extension Application {
         }
 
         static func removeImage(options: RemoveImageOptions, containerSystemConfig: ContainerSystemConfig, log: Logger) async throws {
-            let (found, notFound) = try await {
+            let (found, lookupErrors) = try await {
                 if options.all {
                     let found = try await ClientImage.list()
-                    let notFound: [String] = []
-                    return (found, notFound)
+                    let lookupErrors: [(String, Error)] = []
+                    return (found, lookupErrors)
                 }
                 return try await ClientImage.get(names: options.images, containerSystemConfig: containerSystemConfig)
             }()
-            var failures: [String] = options.force ? [] : notFound
+            var failures: [String] = options.force ? [] : lookupErrors.map { "\($0.0) (\($0.1.localizedDescription))" }
             var didDeleteAnyImage = false
             for image in found {
                 guard

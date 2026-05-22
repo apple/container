@@ -608,4 +608,26 @@ class TestCLIImagesCommand: CLITest {
         #expect(stdout.isEmpty, "Expected stdout to be empty, got: \(stdout)")
         #expect(stderr.contains("file does not exist") && stderr.contains(missingPath), "Expected stderr to contain error message, got: \(stderr)")
     }
+
+    @Test func testImageSaveInvalidReferenceFails() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+        let tempFile = tempDir.appendingPathComponent(UUID().uuidString)
+        let saveArgs = [
+            "image",
+            "save",
+            "nonexistent-image:latest",
+            "another-nonexistent-image:latest",
+            "--output",
+            tempFile.path(),
+        ]
+        let (_, _, error, status) = try run(arguments: saveArgs)
+        #expect(status != 0, "expected save to fail for missing/invalid images")
+        #expect(error.contains("one or more image references are invalid:"), "expected validation error, got: \(error)")
+        #expect(error.contains("nonexistent-image:latest"), "expected first nonexistent image in error, got: \(error)")
+        #expect(error.contains("another-nonexistent-image:latest"), "expected second nonexistent image in error, got: \(error)")
+    }
 }

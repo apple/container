@@ -164,19 +164,20 @@ extension ClientImage {
         }
     }
 
-    public static func get(names: [String], containerSystemConfig: ContainerSystemConfig) async throws -> (images: [ClientImage], error: [String]) {
+    public static func get(names: [String], containerSystemConfig: ContainerSystemConfig) async throws -> (images: [ClientImage], errors: [(String, Error)]) {
         let all = try await self.list()
-        var errors: [String] = []
+        var errors: [(String, Error)] = []
         var found: [ClientImage] = []
         for name in names {
             do {
                 guard let img = try Self._search(reference: name, in: all, containerSystemConfig: containerSystemConfig) else {
-                    errors.append(name)
+                    let err = ContainerizationError(.notFound, message: "image not found")
+                    errors.append((name, err))
                     continue
                 }
                 found.append(img)
             } catch {
-                errors.append(name)
+                errors.append((name, error))
             }
         }
         return (found, errors)
@@ -295,8 +296,10 @@ extension ClientImage {
     public static func save(references: [String], out: String, platform: Platform? = nil, containerSystemConfig: ContainerSystemConfig) async throws {
         let (clientImages, errors) = try await get(names: references, containerSystemConfig: containerSystemConfig)
         guard errors.isEmpty else {
-            // TODO: Improve error handling here
-            throw ContainerizationError(.invalidArgument, message: "one or more image references are invalid: \(errors.joined(separator: ", "))")
+            let errorDetails = errors.map { name, error in
+                "\(name) (\(error.localizedDescription))"
+            }.joined(separator: ", ")
+            throw ContainerizationError(.invalidArgument, message: "one or more image references are invalid: \(errorDetails)")
         }
 
         let descriptions = clientImages.map { $0.description }
