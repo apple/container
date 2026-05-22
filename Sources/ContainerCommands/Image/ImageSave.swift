@@ -22,6 +22,7 @@ import ContainerResource
 import Containerization
 import ContainerizationError
 import ContainerizationOCI
+import ContainerizationOS
 import Foundation
 import SystemPackage
 import TerminalProgress
@@ -48,11 +49,7 @@ extension Application {
         @Option(
             name: .shortAndLong, help: "Pathname for the saved image", completion: .file(),
             transform: { str in
-                let path = FilePath(str)
-                guard path.isRelative else { return path.lexicallyNormalized() }
-                return FilePath(FileManager.default.currentDirectoryPath)
-                    .pushing(path)
-                    .lexicallyNormalized()
+                FilePathOps.absolutePath(FilePath(str))
             })
         var output: FilePath?
 

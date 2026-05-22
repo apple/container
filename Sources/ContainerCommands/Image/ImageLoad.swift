@@ -18,6 +18,7 @@ import ArgumentParser
 import ContainerAPIClient
 import Containerization
 import ContainerizationError
+import ContainerizationOS
 import Foundation
 import SystemPackage
 import TerminalProgress
@@ -33,11 +34,7 @@ extension Application {
         @Option(
             name: .shortAndLong, help: "Path to the image tar archive", completion: .file(),
             transform: { str in
-                let path = FilePath(str)
-                guard path.isRelative else { return path.lexicallyNormalized() }
-                return FilePath(FileManager.default.currentDirectoryPath)
-                    .pushing(path)
-                    .lexicallyNormalized()
+                FilePathOps.absolutePath(FilePath(str))
             })
         var input: FilePath?
 
