@@ -90,27 +90,21 @@ public struct Parser {
     public static func resources(
         cpus: Int64?,
         memory: String?,
-        cpuPropertyKey: DefaultsStore.Keys = .defaultContainerCPUs,
-        memoryPropertyKey: DefaultsStore.Keys = .defaultContainerMemory,
-        defaultCPUs: Int = 4,
-        defaultMemoryInBytes: UInt64 = 1024.mib()
+        defaultCPUs: Int,
+        defaultMemory: MemorySize,
     ) throws -> ContainerConfiguration.Resources {
         var resource = ContainerConfiguration.Resources()
         resource.cpus = defaultCPUs
-        resource.memoryInBytes = defaultMemoryInBytes
+        resource.memoryInBytes = Int64(defaultMemory.measurement.converted(to: .mebibytes).value).mib()
 
         if let cpus {
             resource.cpus = Int(cpus)
-        } else if let cpuStr = DefaultsStore.getOptional(key: cpuPropertyKey),
-            let cpuVal = Int(cpuStr), cpuVal > 0
-        {
-            resource.cpus = cpuVal
         }
+
         if let memory {
             resource.memoryInBytes = try Parser.memoryStringAsMiB(memory).mib()
-        } else if let memStr = DefaultsStore.getOptional(key: memoryPropertyKey) {
-            resource.memoryInBytes = try Parser.memoryStringAsMiB(memStr).mib()
         }
+
         return resource
     }
 

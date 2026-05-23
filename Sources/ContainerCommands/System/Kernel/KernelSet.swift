@@ -17,6 +17,7 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerPersistence
+import ContainerPlugin
 import Containerization
 import ContainerizationError
 import ContainerizationExtras
@@ -52,9 +53,10 @@ extension Application {
         public init() {}
 
         public func run() async throws {
+            let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
             if recommended {
-                let url = DefaultsStore.get(key: .defaultKernelURL)
-                let path = DefaultsStore.get(key: .defaultKernelBinaryPath)
+                let url = containerSystemConfig.kernel.url
+                let path: String = containerSystemConfig.kernel.binaryPath
                 print("Installing the recommended kernel from \(url)...")
                 try await Self.downloadAndInstallWithProgressBar(tarRemoteURL: url, kernelFilePath: path, force: force)
                 return
@@ -91,7 +93,7 @@ extension Application {
             guard let remoteURL = URL(string: tarPath) else {
                 throw ContainerizationError(.invalidArgument, message: "invalid remote URL '\(tarPath)' for argument '--tar'. Missing protocol?")
             }
-            try await Self.downloadAndInstallWithProgressBar(tarRemoteURL: remoteURL.absoluteString, kernelFilePath: binaryPath, platform: platform, force: force)
+            try await Self.downloadAndInstallWithProgressBar(tarRemoteURL: remoteURL, kernelFilePath: binaryPath, platform: platform, force: force)
         }
 
         private func getSystemPlatform() throws -> SystemPlatform {
@@ -105,7 +107,7 @@ extension Application {
             }
         }
 
-        static func downloadAndInstallWithProgressBar(tarRemoteURL: String, kernelFilePath: String, platform: SystemPlatform = .current, force: Bool) async throws {
+        static func downloadAndInstallWithProgressBar(tarRemoteURL: URL, kernelFilePath: String, platform: SystemPlatform = .current, force: Bool) async throws {
             let progressConfig = try ProgressConfig(
                 showTasks: true,
                 totalTasks: 2
@@ -115,7 +117,8 @@ extension Application {
                 progress.finish()
             }
             progress.start()
-            try await ClientKernel.installKernelFromTar(tarFile: tarRemoteURL, kernelFilePath: kernelFilePath, platform: platform, progressUpdate: progress.handler, force: force)
+            try await ClientKernel.installKernelFromTar(
+                tarFile: tarRemoteURL.absoluteString, kernelFilePath: kernelFilePath, platform: platform, progressUpdate: progress.handler, force: force)
             progress.finish()
         }
 

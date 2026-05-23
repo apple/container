@@ -5,7 +5,7 @@
 >
 > Example: [release 0.4.1 tag](https://github.com/apple/container/tree/0.4.1)
 
-Note: Command availability may vary depending on host operating system and macOS version.
+Command availability may vary depending on your macOS version.
 
 ## Core Commands
 
@@ -85,7 +85,7 @@ container run [<options>] <image> [<arguments> ...]
             - `10.*.*.*`
             - `192.168.*.*`
             - `172.16.*.*` through `172.31.*.*`
-        - The host ends with the machine's default container DNS domain (as defined in `DefaultsStore.Keys.defaultDNSDomain`, located [here](../Sources/ContainerPersistence/DefaultsStore.swift))
+        - The host ends with the machine's default container DNS domain (as defined in `DNSConfig.defaultDomain`, located [here](../Sources/ContainerPersistence/ContainerSystemConfig.swift))
 
         For internal/local registries, the client uses **HTTP**. Otherwise, it uses **HTTPS**.
 
@@ -463,6 +463,39 @@ container stats --no-stream web
 
 # output stats as JSON
 container stats --format json --no-stream web
+```
+
+### `container copy (cp)`
+
+Copies files between a container and the local filesystem. The container must be running. One of the source or destination must be a container reference in the form `container_id:path`.
+
+**Usage**
+
+```bash
+container copy [--debug] <source> <destination>
+```
+
+**Arguments**
+
+*   `<source>`: Source path (local path or `container_id:path`)
+*   `<destination>`: Destination path (local path or `container_id:path`)
+
+**Path Format**
+
+*   Local path: `/path/to/file` or `relative/path`
+*   Container path: `container_id:/path/in/container`
+
+**Examples**
+
+```bash
+# copy a file from host to container
+container cp ./config.json mycontainer:/etc/app/
+
+# copy a file from container to host
+container cp mycontainer:/var/log/app.log ./logs/
+
+# copy using the full command name
+container copy ./data.txt mycontainer:/tmp/
 ```
 
 ### `container prune`
@@ -863,7 +896,8 @@ container run -v $VOL:/data alpine
 container volume rm $VOL
 ```
 
-**Note**: Unlike Docker, anonymous volumes do NOT auto-cleanup with `--rm`. Manual deletion is required.
+> [!NOTE]
+> Unlike Docker, anonymous volumes do NOT auto-cleanup with `--rm`. Manual deletion is required.
 
 ### `container volume delete (rm)`
 
@@ -1021,6 +1055,9 @@ container system start [--app-root <app-root>] [--install-root <install-root>] [
 *   `--log-root <log-root>`: Path to the root directory for log data, using macOS log facility if not set
 *   `--enable-kernel-install/--disable-kernel-install`: Specify whether the default kernel should be installed or not (default: prompt user)
 
+> [!NOTE]
+> The `--log-root` option is principally intended for short-term test and diagnostic purposes. The log handler for this option neither aggregates log messages, nor does it rotate logs.
+
 ### `container system stop`
 
 Stops the container services and deregisters them from launchd. You can specify a prefix to target services created with a different launchd prefix.
@@ -1118,6 +1155,9 @@ Equivalent to the JSON output but in YAML format. Each entry in the array repres
 
 Displays logs from the container services. You can specify a time interval or follow new logs in real time.
 
+> [!NOTE]
+> If you run `container system start with --log-root`, services only write log messages to files under the log root, and `container system logs` will show no service log messages.
+
 **Usage**
 
 ```bash
@@ -1213,118 +1253,25 @@ container system kernel set [--arch <arch>] [--binary <binary>] [--force] [--rec
 
 ### `container system property list (ls)`
 
-Lists all available system properties with their current values, types, and descriptions. Output can be formatted as a table or JSON.
+Lists all system properties with their current values. Output can be formatted as JSON or TOML.
 
 **Usage**
 
 ```bash
-container system property list [--format <format>] [--quiet] [--debug]
+container system property list [--format <format>] [--debug]
 ```
 
 **Options**
 
-*   `--format <format>`: Format of the output (values: json, table; default: table)
-*   `-q, --quiet`: Only output the property ID
+*   `--format <format>`: Format of the output (values: json, toml; default: toml)
 
 **Examples**
 
 ```bash
-# list all properties in table format
+# list all properties in TOML format (default)
 container system property list
-
-# get only property IDs
-container system property list --quiet
 
 # output as JSON for scripting
 container system property list --format json
 ```
 
-### `container system property get`
-
-Retrieves the current value of a specific system property by its ID.
-
-**Usage**
-
-```bash
-container system property get [--debug] <id>
-```
-
-**Arguments**
-
-*   `<id>`: The property ID
-
-**Options**
-
-No options.
-
-**Examples**
-
-```bash
-# get the default registry domain
-container system property get registry.domain
-
-# get the current DNS domain setting
-container system property get dns.domain
-```
-
-### `container system property set`
-
-Sets the value of a system property. The command validates the value based on the property type (boolean, domain name, image reference, URL, or CIDR address).
-
-**Usage**
-
-```bash
-container system property set [--debug] <id> <value>
-```
-
-**Arguments**
-
-*   `<id>`: The property ID
-*   `<value>`: The property value
-
-**Options**
-
-No options.
-
-**Examples**
-
-```bash
-# enable Rosetta for AMD64 builds on ARM64
-container system property set build.rosetta true
-
-# set a custom DNS domain
-container system property set dns.domain mycompany.local
-
-# configure a custom registry
-container system property set registry.domain registry.example.com
-
-# set a custom builder image
-container system property set image.builder myregistry.com/custom-builder:latest
-```
-
-### `container system property clear`
-
-Clears (unsets) a system property, reverting it to its default value.
-
-**Usage**
-
-```bash
-container system property clear [--debug] <id>
-```
-
-**Arguments**
-
-*   `<id>`: The property ID
-
-**Options**
-
-No options.
-
-**Examples**
-
-```bash
-# clear custom DNS domain (revert to default)
-container system property clear dns.domain
-
-# clear custom registry setting
-container system property clear registry.domain

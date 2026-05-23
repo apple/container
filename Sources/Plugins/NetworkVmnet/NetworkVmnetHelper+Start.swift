@@ -103,11 +103,10 @@ extension NetworkVmnetHelper {
                 let xpc = XPCServer(
                     identifier: serviceIdentifier,
                     routes: [
-                        NetworkRoutes.state.rawValue: server.state,
+                        NetworkRoutes.state.rawValue: XPCServer.route(server.state),
                         NetworkRoutes.allocate.rawValue: server.allocate,
-                        NetworkRoutes.deallocate.rawValue: server.deallocate,
-                        NetworkRoutes.lookup.rawValue: server.lookup,
-                        NetworkRoutes.disableAllocator.rawValue: server.disableAllocator,
+                        NetworkRoutes.lookup.rawValue: XPCServer.route(server.lookup),
+                        NetworkRoutes.disableAllocator.rawValue: XPCServer.route(server.disableAllocator),
                     ],
                     log: log
                 )

@@ -39,6 +39,18 @@ extension Application.VolumeCommand {
 
         public init() {}
 
+        public func validate() throws {
+            if names.count == 0 && !all {
+                throw ContainerizationError(.invalidArgument, message: "no volumes specified and --all not supplied")
+            }
+            if names.count > 0 && all {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "explicitly supplied volume name(s) conflict with the --all flag"
+                )
+            }
+        }
+
         public func run() async throws {
             let uniqueVolumeNames = Set<String>(names)
             let volumes: [Volume]

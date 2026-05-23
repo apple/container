@@ -132,4 +132,10 @@ class TestCLIRemove: CLITest {
         let lines = output.split(separator: "\n").filter { $0.contains(name) }
         #expect(lines.count == 1, "Expected container to be deleted exactly once, got \(lines.count) lines")
     }
+
+    @Test func testInspectMissingContainerFails() throws {
+        let (_, _, error, status) = try run(arguments: ["inspect", "definitely-missing-container"])
+        #expect(status != 0, "Expected non-zero exit for missing container")
+        #expect(error.contains("container not found"))
+    }
 }

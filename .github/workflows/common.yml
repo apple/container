@@ -10,6 +10,14 @@ on:
         type: boolean
         description: "Publish this build for release"
         default: false
+      coverage:
+        type: boolean
+        description: "Run tests with code coverage enabled"
+        default: false
+      pr_number:
+        type: string
+        description: "PR number for coverage artifact naming (required when coverage is true)"
+        default: ""
 
 jobs:
   buildAndTest:
@@ -64,13 +72,23 @@ jobs:
         env:
           DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
 
+      - name: Validate coverage inputs
+        if: ${{ inputs.coverage }}
+        env:
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          if [ -z "${PR_NUMBER}" ]; then
+            echo "::error::pr_number input is required when coverage is true"
+            exit 1
+          fi
+
       - name: Create package
         run: |
           mkdir -p outputs
           mv "bin/${BUILD_CONFIGURATION}/container-installer-unsigned.pkg" outputs
           mv "bin/${BUILD_CONFIGURATION}/bundle/container-dSYM.zip" outputs
 
-      - name: Test the container project
+      - name: Set up test environment
         run: |
           APP_ROOT=$(mktemp -d -p "${RUNNER_TEMP}")
           LOG_ROOT="${APP_ROOT}/logs"
@@ -82,9 +100,52 @@ jobs:
           echo no_proxy=${no_proxy}
           echo "APP_ROOT=${APP_ROOT}" >> $GITHUB_ENV
           echo "LOG_ROOT=${LOG_ROOT}" >> $GITHUB_ENV
-          make APP_ROOT="${APP_ROOT}" LOG_ROOT="${LOG_ROOT}" test install-kernel integration
+
+      - name: Test the container project
+        if: ${{ !inputs.coverage }}
+        run: make APP_ROOT="${APP_ROOT}" LOG_ROOT="${LOG_ROOT}" test install-kernel integration
         env:
           DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
+
+      - name: Test the container project with coverage
+        if: ${{ inputs.coverage }}
+        run: make APP_ROOT="${APP_ROOT}" LOG_ROOT="${LOG_ROOT}" install-kernel coverage
+        env:
+          DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
+
+      - name: Extract coverage percentages
+        if: ${{ inputs.coverage }}
+        env:
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          mkdir -p pr-coverage
+          jq -r '.data[0].totals.lines.percent | . * 100 | round | . / 100' coverage-reports/unit/coverage-summary.json > pr-coverage/unit-line-coverage.txt
+          jq -r '.data[0].totals.lines.percent | . * 100 | round | . / 100' coverage-reports/integration/coverage-summary.json > pr-coverage/integration-line-coverage.txt
+          jq -r '.data[0].totals.lines.percent | . * 100 | round | . / 100' coverage-reports/combined/coverage-summary.json > pr-coverage/combined-line-coverage.txt
+          echo "${PR_NUMBER}" > pr-coverage/pr-number.txt
+          echo "Coverage data:"
+          cat pr-coverage/*.txt
+
+      - name: Upload coverage data
+        if: ${{ inputs.coverage }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pr-coverage-${{ inputs.pr_number }}
+          path: pr-coverage/
+          retention-days: 1
+          if-no-files-found: warn
+
+      - name: Upload coverage HTML reports
+        if: ${{ inputs.coverage }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-html-reports
+          path: |
+            coverage-reports/unit/html/
+            coverage-reports/integration/html/
+            coverage-reports/combined/html/
+          retention-days: 14
+          if-no-files-found: ignore
 
       - name: Archive test logs
         if: always()
@@ -103,6 +164,7 @@ jobs:
             rm -rf "${APP_ROOT}"
             echo "Removed data directory ${APP_ROOT}"
           fi
+          rm -rf coverage-reports pr-coverage
 
       - name: Upload logs if present
         if: always()

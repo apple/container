@@ -14,11 +14,11 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerAPIClient
+import ContainerNetworkServiceClient
 import ContainerOS
 import ContainerPersistence
 import ContainerResource
-import ContainerSandboxServiceClient
+import ContainerRuntimeClient
 import ContainerXPC
 import Containerization
 import ContainerizationError
@@ -37,7 +37,7 @@ import struct ContainerizationOCI.Mount
 import struct ContainerizationOCI.Process
 
 /// An XPC service that manages the lifecycle of a single VM-backed container.
-public actor SandboxService {
+public actor RuntimeService {
     private let connection: xpc_connection_t
     private let root: URL
     private let interfaceStrategies: [NetworkPluginInfo: InterfaceStrategy]
@@ -50,6 +50,7 @@ public actor SandboxService {
     private var state: State = .created
     private var processes: [String: ProcessInfo] = [:]
     private var socketForwarders: [SocketForwarderResult] = []
+    private var networkSessions: [XPCClientSession] = []
 
     private static let sshAuthSocketGuestPath = "/var/host-services/ssh-auth.sock"
     private static let sshAuthSocketEnvVar = "SSH_AUTH_SOCK"
@@ -115,7 +116,7 @@ public actor SandboxService {
     ///
     /// - Returns: An XPC message with the following parameters:
     ///   - endpoint: An XPC endpoint that can be used to communicate
-    ///     with the sandbox service.
+    ///     with the runtime service.
     @Sendable
     public func createEndpoint(_ message: XPCMessage) async throws -> XPCMessage {
         self.log.debug("enter", metadata: ["func": "\(#function)"])
@@ -123,7 +124,7 @@ public actor SandboxService {
 
         let endpoint = xpc_endpoint_create(self.connection)
         let reply = message.reply()
-        reply.set(key: SandboxKeys.sandboxServiceEndpoint.rawValue, value: endpoint)
+        reply.set(key: RuntimeKeys.runtimeServiceEndpoint.rawValue, value: endpoint)
         return reply
     }
 
@@ -168,11 +169,53 @@ public actor SandboxService {
                 logger: self.log
             )
 
-            let allocatedAttachments = try message.getAllocatedAttachments()
+            let networkBootstrapInfos = try message.networkBootstrapInfos()
+
+            var sessions: [XPCClientSession] = []
+            var attachments: [Attachment] = []
+            var interfaces: [Interface] = []
+            do {
+                for (index, info) in networkBootstrapInfos.enumerated() {
+                    let attachmentConfig = config.networks[index]
+                    let client = ContainerNetworkServiceClient.NetworkClient(id: attachmentConfig.network, plugin: info.pluginInfo.plugin)
+                    let session = client.connect()
+                    sessions.append(session)
+                    var (attachment, additionalData) = try await client.allocate(
+                        hostname: attachmentConfig.options.hostname,
+                        macAddress: attachmentConfig.options.macAddress,
+                        on: session
+                    )
+                    if let mtu = attachmentConfig.options.mtu {
+                        attachment = Attachment(
+                            network: attachment.network,
+                            hostname: attachment.hostname,
+                            ipv4Address: attachment.ipv4Address,
+                            ipv4Gateway: attachment.ipv4Gateway,
+                            ipv6Address: attachment.ipv6Address,
+                            macAddress: attachment.macAddress,
+                            mtu: mtu
+                        )
+                    }
+                    guard let iStrategy = self.interfaceStrategies[info.pluginInfo] else {
+                        throw ContainerizationError(
+                            .internalError, message: "no available interface strategy for network \(attachment.network), \(info.pluginInfo)")
+                    }
+                    let interface = try iStrategy.toInterface(
+                        attachment: attachment,
+                        interfaceIndex: index,
+                        additionalData: additionalData
+                    )
+                    attachments.append(attachment)
+                    interfaces.append(interface)
+                }
+            } catch {
+                for session in sessions { session.close() }
+                throw error
+            }
 
             // Dynamically configure the DNS nameserver from a network if no explicit configuration
             if let dns = config.dns, dns.nameservers.isEmpty {
-                let defaultNameservers = try await self.getDefaultNameservers(allocatedAttachments: allocatedAttachments)
+                let defaultNameservers = self.getDefaultNameservers(from: attachments)
                 if !defaultNameservers.isEmpty {
                     config.dns = ContainerConfiguration.DNSConfiguration(
                         nameservers: defaultNameservers,
@@ -181,25 +224,6 @@ public actor SandboxService {
                         options: dns.options
                     )
                 }
-            }
-
-            var attachments: [Attachment] = []
-            var interfaces: [Interface] = []
-            for index in 0..<allocatedAttachments.count {
-                let allocatedAttach = allocatedAttachments[index]
-                attachments.append(allocatedAttach.attachment)
-
-                guard let iStrategy = self.interfaceStrategies[allocatedAttach.pluginInfo] else {
-                    throw ContainerizationError(
-                        .internalError, message: "no available interface strategy for network \(allocatedAttach.attachment.network), \(allocatedAttach.pluginInfo)")
-                }
-
-                let interface = try iStrategy.toInterface(
-                    attachment: allocatedAttach.attachment,
-                    interfaceIndex: index,
-                    additionalData: allocatedAttach.additionalData
-                )
-                interfaces.append(interface)
             }
 
             let stdio = message.stdio()
@@ -256,6 +280,7 @@ public actor SandboxService {
                 io: (in: stdin, out: stdout, err: stderr)
             )
             await self.setContainer(ctrInfo)
+            await self.setNetworkSessions(sessions)
 
             do {
                 try await container.create()
@@ -338,12 +363,12 @@ public actor SandboxService {
 
             let reply = message.reply()
             let data = try JSONEncoder().encode(containerStats)
-            reply.set(key: SandboxKeys.statistics.rawValue, value: data)
+            reply.set(key: RuntimeKeys.statistics.rawValue, value: data)
             return reply
         }
     }
 
-    /// Shutdown the SandboxService.
+    /// Shutdown the RuntimeService.
     ///
     /// - Parameters:
     ///   - message: An XPC message with no parameters.
@@ -541,12 +566,12 @@ public actor SandboxService {
                     guard let proc = processInfo.process else {
                         throw ContainerizationError(.invalidState, message: "process \(id) not started")
                     }
-                    try await proc.kill(Int32(try message.signal()))
+                    try await proc.kill(Signal(rawValue: Int32(try message.signal())))
                     return message.reply()
                 }
 
                 // TODO: fix underlying signal value to int64
-                try await ctr.container.kill(Int32(try message.signal()))
+                try await ctr.container.kill(Signal(rawValue: Int32(try message.signal())))
                 return message.reply()
             default:
                 throw ContainerizationError(
@@ -575,8 +600,8 @@ public actor SandboxService {
         case .running:
             let id = try message.id()
             let ctr = try getContainer()
-            let width = message.uint64(key: SandboxKeys.width.rawValue)
-            let height = message.uint64(key: SandboxKeys.height.rawValue)
+            let width = message.uint64(key: RuntimeKeys.width.rawValue)
+            let height = message.uint64(key: RuntimeKeys.height.rawValue)
 
             if id != ctr.container.id {
                 guard let processInfo = self.processes[id] else {
@@ -628,7 +653,7 @@ public actor SandboxService {
         self.log.debug("enter", metadata: ["func": "\(#function)"])
         defer { self.log.debug("exit", metadata: ["func": "\(#function)"]) }
 
-        guard let id = message.string(key: SandboxKeys.id.rawValue) else {
+        guard let id = message.string(key: RuntimeKeys.id.rawValue) else {
             throw ContainerizationError(.invalidArgument, message: "missing id in wait xpc message")
         }
 
@@ -636,9 +661,99 @@ public actor SandboxService {
             self.waitForExit(id: id, cont: cc)
         }
         let reply = message.reply()
-        reply.set(key: SandboxKeys.exitCode.rawValue, value: Int64(exitStatus.exitCode))
-        reply.set(key: SandboxKeys.exitedAt.rawValue, value: exitStatus.exitedAt)
+        reply.set(key: RuntimeKeys.exitCode.rawValue, value: Int64(exitStatus.exitCode))
+        reply.set(key: RuntimeKeys.exitedAt.rawValue, value: exitStatus.exitedAt)
         return reply
+    }
+
+    /// Copy a file or directory from the host into the container.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with the following parameters:
+    ///     - sourcePath: The host path to copy from.
+    ///     - destinationPath: The container path to copy to.
+    ///     - fileMode: The file permissions mode (UInt64).
+    ///
+    /// - Returns: An XPC message with no parameters.
+    @Sendable
+    public func copyIn(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`copyIn` xpc handler")
+        switch self.state {
+        case .running, .booted:
+            guard let source = message.string(key: RuntimeKeys.sourcePath.rawValue) else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no source path supplied for copyIn"
+                )
+            }
+            guard let destination = message.string(key: RuntimeKeys.destinationPath.rawValue) else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no destination path supplied for copyIn"
+                )
+            }
+            let mode = UInt32(message.uint64(key: RuntimeKeys.fileMode.rawValue))
+            let createParents = message.bool(key: RuntimeKeys.createParents.rawValue)
+
+            let ctr = try getContainer()
+            try await ctr.container.copyIn(
+                from: URL(fileURLWithPath: source),
+                to: URL(fileURLWithPath: destination),
+                mode: mode,
+                createParents: createParents
+            )
+
+            return message.reply()
+        default:
+            throw ContainerizationError(
+                .invalidState,
+                message: "cannot copyIn: container is not running"
+            )
+        }
+    }
+
+    /// Copy a file or directory from the container to the host.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with the following parameters:
+    ///     - sourcePath: The container path to copy from.
+    ///     - destinationPath: The host path to copy to.
+    ///
+    /// - Returns: An XPC message with no parameters.
+    @Sendable
+    public func copyOut(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`copyOut` xpc handler")
+        switch self.state {
+        case .running, .booted:
+            guard let source = message.string(key: RuntimeKeys.sourcePath.rawValue) else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no source path supplied for copyOut"
+                )
+            }
+            guard let destination = message.string(key: RuntimeKeys.destinationPath.rawValue) else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no destination path supplied for copyOut"
+                )
+            }
+
+            let createParents = message.bool(key: RuntimeKeys.createParents.rawValue)
+
+            let ctr = try getContainer()
+            try await ctr.container.copyOut(
+                from: URL(fileURLWithPath: source),
+                to: URL(fileURLWithPath: destination),
+                createParents: createParents
+            )
+
+            return message.reply()
+        default:
+            throw ContainerizationError(
+                .invalidState,
+                message: "cannot copyOut: container is not running"
+            )
+        }
     }
 
     /// Dial a vsock port on the virtual machine.
@@ -656,7 +771,7 @@ public actor SandboxService {
 
         switch self.state {
         case .running, .booted:
-            let port = message.uint64(key: SandboxKeys.port.rawValue)
+            let port = message.uint64(key: RuntimeKeys.port.rawValue)
             guard port > 0 else {
                 throw ContainerizationError(
                     .invalidArgument,
@@ -668,7 +783,7 @@ public actor SandboxService {
             let fh = try await ctr.container.dialVsock(port: UInt32(port))
 
             let reply = message.reply()
-            reply.set(key: SandboxKeys.fd.rawValue, value: fh)
+            reply.set(key: RuntimeKeys.fd.rawValue, value: fh)
             return reply
         default:
             throw ContainerizationError(
@@ -922,16 +1037,10 @@ public actor SandboxService {
         try Self.configureInitialProcess(czConfig: &czConfig, config: config)
     }
 
-    private func getDefaultNameservers(allocatedAttachments: [AllocatedAttachment]) async throws -> [String] {
-        let networkClient = NetworkClient()
-        for allocatedAttach in allocatedAttachments {
-            let state = try await networkClient.get(id: allocatedAttach.attachment.network)
-            guard state.status.phase == "running", let gateway = state.status.ipv4Gateway else {
-                continue
-            }
-            return [gateway.description]
+    private nonisolated func getDefaultNameservers(from attachments: [Attachment]) -> [String] {
+        for attachment in attachments {
+            return [attachment.ipv4Gateway.description]
         }
-
         return []
     }
 
@@ -1095,9 +1204,10 @@ public actor SandboxService {
                     try await lc.wait()
                 }
                 group.addTask {
-                    try await lc.kill(stopOpts.signal)
+                    let signal = try Signal(stopOpts.signal ?? "SIGTERM")
+                    try await lc.kill(signal)
                     try await Task.sleep(for: .seconds(stopOpts.timeoutInSeconds))
-                    try await lc.kill(SIGKILL)
+                    try await lc.kill(.kill)
 
                     return ExitStatus(exitCode: 137)
                 }
@@ -1131,6 +1241,9 @@ public actor SandboxService {
 
         await self.stopSocketForwarders()
 
+        for session in networkSessions { session.close() }
+        networkSessions = []
+
         let status = exitStatus ?? ExitStatus(exitCode: 255)
         self.releaseWaiters(for: id, status: status)
     }
@@ -1138,11 +1251,11 @@ public actor SandboxService {
 
 extension XPCMessage {
     fileprivate func signal() throws -> Int64 {
-        self.int64(key: SandboxKeys.signal.rawValue)
+        self.int64(key: RuntimeKeys.signal.rawValue)
     }
 
     fileprivate func stopOptions() throws -> ContainerStopOptions {
-        guard let data = self.dataNoCopy(key: SandboxKeys.stopOptions.rawValue) else {
+        guard let data = self.dataNoCopy(key: RuntimeKeys.stopOptions.rawValue) else {
             throw ContainerizationError(.invalidArgument, message: "empty StopOptions")
         }
         return try JSONDecoder().decode(ContainerStopOptions.self, from: data)
@@ -1150,83 +1263,40 @@ extension XPCMessage {
 
     fileprivate func setState(_ state: SandboxSnapshot) throws {
         let data = try JSONEncoder().encode(state)
-        self.set(key: SandboxKeys.snapshot.rawValue, value: data)
+        self.set(key: RuntimeKeys.snapshot.rawValue, value: data)
     }
 
     fileprivate func stdio() -> [FileHandle?] {
         var handles = [FileHandle?](repeating: nil, count: 3)
-        if let stdin = self.fileHandle(key: SandboxKeys.stdin.rawValue) {
+        if let stdin = self.fileHandle(key: RuntimeKeys.stdin.rawValue) {
             handles[0] = stdin
         }
-        if let stdout = self.fileHandle(key: SandboxKeys.stdout.rawValue) {
+        if let stdout = self.fileHandle(key: RuntimeKeys.stdout.rawValue) {
             handles[1] = stdout
         }
-        if let stderr = self.fileHandle(key: SandboxKeys.stderr.rawValue) {
+        if let stderr = self.fileHandle(key: RuntimeKeys.stderr.rawValue) {
             handles[2] = stderr
         }
         return handles
     }
 
     fileprivate func setFileHandle(_ handle: FileHandle) {
-        self.set(key: SandboxKeys.fd.rawValue, value: handle)
+        self.set(key: RuntimeKeys.fd.rawValue, value: handle)
     }
 
     fileprivate func processConfig() throws -> ProcessConfiguration {
-        guard let data = self.dataNoCopy(key: SandboxKeys.processConfig.rawValue) else {
+        guard let data = self.dataNoCopy(key: RuntimeKeys.processConfig.rawValue) else {
             throw ContainerizationError(.invalidArgument, message: "empty process configuration")
         }
         return try JSONDecoder().decode(ProcessConfiguration.self, from: data)
     }
 
     fileprivate func dynamicEnv() throws -> [String: String] {
-        let data = self.dataNoCopy(key: SandboxKeys.dynamicEnv.rawValue)
+        let data = self.dataNoCopy(key: RuntimeKeys.dynamicEnv.rawValue)
         let dynamicEnv = try data.map { try JSONDecoder().decode([String: String].self, from: $0) } ?? [:]
         return dynamicEnv
     }
 
-    fileprivate func getAllocatedAttachments() throws -> [AllocatedAttachment] {
-        guard let attachmentArray = xpc_dictionary_get_value(self.underlying, SandboxKeys.allocatedAttachments.rawValue) else {
-            throw ContainerizationError(.invalidArgument, message: "missing allocatedAttachments array in message")
-        }
-
-        var results = [AllocatedAttachment]()
-        let decoder = JSONDecoder()
-
-        let arrayCount = xpc_array_get_count(attachmentArray)
-
-        for i in 0..<arrayCount {
-            guard let allocatedAttach = xpc_array_get_dictionary(attachmentArray, i) else {
-                throw ContainerizationError(.invalidArgument, message: "invalid allocated attachment at index \(i)")
-            }
-
-            let allocatedAttachXPC = XPCMessage(object: allocatedAttach)
-
-            let attachmentData = allocatedAttachXPC.dataNoCopy(key: SandboxKeys.networkAttachment.rawValue)
-            let pluginInfoData = allocatedAttachXPC.dataNoCopy(key: SandboxKeys.networkPluginInfo.rawValue)
-
-            guard let attachmentData = attachmentData, let pluginInfoData = pluginInfoData else {
-                throw ContainerizationError(.invalidArgument, message: "must have attachment and plugin information for network")
-            }
-
-            let attachment = try decoder.decode(Attachment.self, from: attachmentData)
-            let pluginInfo = try decoder.decode(NetworkPluginInfo.self, from: pluginInfoData)
-
-            let additionalDataXPC: XPCMessage? = {
-                if let rawData = xpc_dictionary_get_dictionary(allocatedAttachXPC.underlying, SandboxKeys.networkAdditionalData.rawValue) {
-                    return XPCMessage(object: rawData)
-                }
-                return nil
-            }()
-
-            results.append(
-                AllocatedAttachment(
-                    attachment: attachment,
-                    additionalData: additionalDataXPC,
-                    pluginInfo: pluginInfo
-                ))
-        }
-        return results
-    }
 }
 
 extension ContainerResource.Bundle {
@@ -1357,7 +1427,7 @@ extension FileHandle: @retroactive ReaderStream, @retroactive Writer {
 
 // MARK: State handler and bundle creation helpers
 
-extension SandboxService {
+extension RuntimeService {
     private func initializeWaiters(for id: String) throws {
         guard waiters[id] == nil else {
             throw ContainerizationError(.invalidState, message: "waiter for \(id) already initialized")
@@ -1399,6 +1469,10 @@ extension SandboxService {
         self.container = info
     }
 
+    private func setNetworkSessions(_ sessions: [XPCClientSession]) {
+        self.networkSessions = sessions
+    }
+
     private func addNewProcess(_ id: String, _ config: ProcessConfiguration, _ io: [FileHandle?]) throws {
         guard self.processes[id] == nil else {
             throw ContainerizationError(.invalidArgument, message: "process \(id) already exists")
@@ -1433,7 +1507,7 @@ extension SandboxService {
         case stopping
         /// Once a stop is successful, .stopping will transition to .stopped.
         case stopped
-        /// .shuttingDown will be the last state the sandbox service will ever be in. Shortly
+        /// .shuttingDown will be the last state the runtime service will ever be in. Shortly
         /// afterwards the process will exit.
         case shuttingDown
     }

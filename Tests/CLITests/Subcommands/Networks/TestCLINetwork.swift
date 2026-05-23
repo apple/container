@@ -265,10 +265,16 @@ class TestCLINetwork: CLITest {
                 name,
                 curlImage,
                 "curl",
+                "--connect-timeout",
+                "5",
                 "http://google.com",
             ])
 
-            #expect(failed == 6, "external connection should fail")
+            // hostOnly mode blocks off-host traffic; depending on whether vmnet/firewall
+            // rejects (7) or drops (28) packets, or DNS itself can't reach an external
+            // resolver (6), curl will fail with one of these codes.
+            let hostOnlyBlockedCodes: Set<Int32> = [6, 7, 28]
+            #expect(hostOnlyBlockedCodes.contains(failed), "external connection should fail")
         }
     }
 
@@ -306,5 +312,11 @@ class TestCLINetwork: CLITest {
             return
         }
         #expect(json.contains { ($0["id"] as? String) == name }, "JSON should contain the created network")
+    }
+
+    @Test func testInspectMissingNetworkFails() throws {
+        let (_, _, error, status) = try run(arguments: ["network", "inspect", "definitely-missing-network"])
+        #expect(status != 0, "Expected non-zero exit for missing network")
+        #expect(error.contains("network not found"))
     }
 }

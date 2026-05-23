@@ -195,37 +195,6 @@ class TestCLIImagesCommand: CLITest {
         }
     }
 
-    @Test func testImageDefaultRegistry() throws {
-        do {
-            let defaultDomain = "ghcr.io"
-            let imageName = "linuxcontainers/alpine:3.20"
-            defer {
-                try? doDefaultRegistrySet(domain: "docker.io")
-            }
-            try doDefaultRegistrySet(domain: defaultDomain)
-            try doPull(imageName: imageName, args: ["--platform", "linux/arm64"])
-            guard let alpineImageDetails = try doInspectImages(image: imageName).first else {
-                Issue.record("alpine image not found")
-                return
-            }
-            #expect(alpineImageDetails.name == "\(defaultDomain)/\(imageName)")
-
-            try doImageTag(image: imageName, newName: "username/image-name:mytag")
-            guard let taggedImage = try doInspectImages(image: "username/image-name:mytag").first else {
-                Issue.record("Tagged image not found")
-                return
-            }
-            #expect(taggedImage.name == "\(defaultDomain)/username/image-name:mytag")
-
-            let listOutput = try doImageListQuite()
-            #expect(listOutput.contains("username/image-name:mytag"))
-            #expect(listOutput.contains(imageName))
-        } catch {
-            Issue.record("failed default registry test")
-            return
-        }
-    }
-
     @Test func testImageSaveAndLoad() throws {
         do {
             // 1. pull image
@@ -623,5 +592,20 @@ class TestCLIImagesCommand: CLITest {
         // Replace the original tar with the modified one
         try FileManager.default.removeItem(atPath: tarPath)
         try FileManager.default.moveItem(at: tempModifiedTar, to: URL(fileURLWithPath: tarPath))
+    }
+
+    @Test func testInspectMissingImageFails() throws {
+        let (_, _, error, status) = try run(arguments: ["image", "inspect", "definitely-missing-image:latest"])
+        #expect(status != 0, "Expected non-zero exit for missing image")
+        #expect(error.contains("image not found"))
+    }
+
+    @Test func testImageLoadMissingFileErrorToStderr() throws {
+        let missingPath = "/path/that/does/not/exist-\(UUID().uuidString)"
+        let (_, stdout, stderr, status) = try run(arguments: ["image", "load", "-i", missingPath])
+
+        #expect(status != 0, "Expected non-zero exit for missing file")
+        #expect(stdout.isEmpty, "Expected stdout to be empty, got: \(stdout)")
+        #expect(stderr.contains("file does not exist") && stderr.contains(missingPath), "Expected stderr to contain error message, got: \(stderr)")
     }
 }

@@ -16,9 +16,10 @@
 
 import CVersion
 import ContainerAPIClient
+import ContainerPersistence
 import ContainerPlugin
 import ContainerResource
-import ContainerSandboxServiceClient
+import ContainerRuntimeClient
 import ContainerXPC
 import Containerization
 import ContainerizationEXT4
@@ -33,12 +34,11 @@ import SystemPackage
 public actor ContainersService {
     struct ContainerState {
         var snapshot: ContainerSnapshot
-        var client: SandboxClient?
-        var allocatedAttachments: [AllocatedAttachment]
+        var client: RuntimeClient? = nil
 
-        func getClient() throws -> SandboxClient {
+        func getClient() throws -> RuntimeClient {
             guard let client else {
-                var message = "no sandbox client exists"
+                var message = "no runtime client exists"
                 if snapshot.status == .stopped {
                     message += ": container is stopped"
                 }
@@ -57,6 +57,7 @@ public actor ContainersService {
     private let pluginLoader: PluginLoader
     private let runtimePlugins: [Plugin]
     private let exitMonitor: ExitMonitor
+    private let containerSystemConfig: ContainerSystemConfig
 
     private let lock: AsyncLock
     private var containers: [String: ContainerState]
@@ -67,6 +68,7 @@ public actor ContainersService {
     public init(
         appRoot: URL,
         pluginLoader: PluginLoader,
+        containerSystemConfig: ContainerSystemConfig,
         log: Logger,
         debugHelpers: Bool = false
     ) throws {
@@ -76,6 +78,7 @@ public actor ContainersService {
         self.lock = AsyncLock(log: log)
         self.containerRoot = containerRoot
         self.pluginLoader = pluginLoader
+        self.containerSystemConfig = containerSystemConfig
         self.log = log
         self.debugHelpers = debugHelpers
         self.runtimePlugins = pluginLoader.findPlugins().filter { $0.hasType(.runtime) }
@@ -128,7 +131,6 @@ public actor ContainersService {
                         networks: [],
                         startedDate: nil
                     ),
-                    allocatedAttachments: []
                 )
                 results[config.id] = state
                 guard runtimePlugins.first(where: { $0.name == config.runtimeHandler }) != nil else {
@@ -275,7 +277,7 @@ public actor ContainersService {
     }
 
     /// Create a new container from the provided id and configuration.
-    public func create(configuration: ContainerConfiguration, kernel: Kernel, options: ContainerCreateOptions, initImage: String? = nil) async throws {
+    public func create(configuration: ContainerConfiguration, kernel: Kernel, options: ContainerCreateOptions, initImage: String? = nil, runtimeData: Data? = nil) async throws {
         log.debug(
             "ContainersService: enter",
             metadata: [
@@ -333,7 +335,7 @@ public actor ContainersService {
             // to boot. We can go lower, but this is a somewhat safe threshold. Containerization
             // also gives a little bit extra than the user asked for to account for guest agent overhead.
             //
-            // NOTE: We could potentially leave this validation to the sandbox service(s), as
+            // NOTE: We could potentially leave this validation to the runtime service(s), as
             // it's possible there could be an implementation that can get away with a lower
             // amount and be perfectly safe.
             let minimumMemory: UInt64 = 200.mib()
@@ -371,7 +373,7 @@ public actor ContainersService {
                     metadata: [
                         "id": "\(configuration.id)",
                         "kernel": "\(kernel.path)",
-                        "initfs": "\(initImage ?? ClientImage.initImageRef)",
+                        "initfs": "\(initImage ?? self.containerSystemConfig.vminit.image)",
                     ])
                 let runtimeConfig = RuntimeConfiguration(
                     path: path,
@@ -379,7 +381,8 @@ public actor ContainersService {
                     kernel: kernel,
                     containerConfiguration: configuration,
                     containerRootFilesystem: imageFs,
-                    options: options
+                    options: options,
+                    runtimeData: runtimeData
                 )
 
                 try runtimeConfig.writeRuntimeConfiguration()
@@ -390,7 +393,7 @@ public actor ContainersService {
                     networks: [],
                     startedDate: nil
                 )
-                await self.setContainerState(configuration.id, ContainerState(snapshot: snapshot, allocatedAttachments: []), context: context)
+                await self.setContainerState(configuration.id, ContainerState(snapshot: snapshot), context: context)
             } catch {
                 throw error
             }
@@ -430,37 +433,15 @@ public actor ContainersService {
             let path = self.containerRoot.appendingPathComponent(id)
             let (config, _) = try Self.getContainerConfiguration(at: path)
 
-            var allocatedAttachments = [AllocatedAttachment]()
-            do {
-                for n in config.networks {
-                    let allocatedAttach = try await self.networksService?.allocate(
-                        id: n.network,
-                        hostname: n.options.hostname,
-                        macAddress: n.options.macAddress
-                    )
-                    guard var allocatedAttach = allocatedAttach else {
-                        throw ContainerizationError(.internalError, message: "failed to allocate a network")
-                    }
-
-                    if let mtu = n.options.mtu {
-                        let a = allocatedAttach.attachment
-                        allocatedAttach = AllocatedAttachment(
-                            attachment: Attachment(
-                                network: a.network,
-                                hostname: a.hostname,
-                                ipv4Address: a.ipv4Address,
-                                ipv4Gateway: a.ipv4Gateway,
-                                ipv6Address: a.ipv6Address,
-                                macAddress: a.macAddress,
-                                mtu: mtu
-                            ),
-                            additionalData: allocatedAttach.additionalData,
-                            pluginInfo: allocatedAttach.pluginInfo
-                        )
-                    }
-                    allocatedAttachments.append(allocatedAttach)
+            var networkBootstrapInfos = [NetworkBootstrapInfo]()
+            for n in config.networks {
+                guard let pluginInfo = try await self.networksService?.pluginInfo(id: n.network) else {
+                    throw ContainerizationError(.internalError, message: "failed to get plugin info for network \(n.network)")
                 }
+                networkBootstrapInfos.append(NetworkBootstrapInfo(pluginInfo: pluginInfo))
+            }
 
+            do {
                 try Self.registerService(
                     plugin: self.runtimePlugins.first { $0.name == config.runtimeHandler }!,
                     loader: self.pluginLoader,
@@ -470,35 +451,20 @@ public actor ContainersService {
                 )
 
                 let runtime = state.snapshot.configuration.runtimeHandler
-                let sandboxClient = try await SandboxClient.create(
+                let runtimeClient = try await RuntimeClient.create(
                     id: id,
                     runtime: runtime
                 )
-                try await sandboxClient.bootstrap(stdio: stdio, allocatedAttachments: allocatedAttachments, dynamicEnv: dynamicEnv)
+                try await runtimeClient.bootstrap(stdio: stdio, networkBootstrapInfos: networkBootstrapInfos, dynamicEnv: dynamicEnv)
 
                 try await self.exitMonitor.registerProcess(
                     id: id,
                     onExit: self.handleContainerExit
                 )
 
-                state.client = sandboxClient
-                state.allocatedAttachments = allocatedAttachments
+                state.client = runtimeClient
                 await self.setContainerState(id, state, context: context)
             } catch {
-                for allocatedAttach in allocatedAttachments {
-                    do {
-                        try await self.networksService?.deallocate(attachment: allocatedAttach.attachment)
-                    } catch {
-                        self.log.error(
-                            "failed to deallocate network attachment",
-                            metadata: [
-                                "id": "\(id)",
-                                "network": "\(allocatedAttach.attachment.network)",
-                                "error": "\(error)",
-                            ])
-                    }
-                }
-
                 let label = Self.fullLaunchdServiceLabel(
                     runtimeName: config.runtimeHandler,
                     instanceId: id
@@ -663,15 +629,20 @@ public actor ContainersService {
         let state = try self._getContainerState(id: id)
 
         // Stop should be idempotent.
-        let client: SandboxClient
+        let client: RuntimeClient
         do {
             client = try state.getClient()
         } catch {
             return
         }
 
+        var resolvedOptions = options
+        if resolvedOptions.signal == nil, let stopSignal = state.snapshot.configuration.stopSignal {
+            resolvedOptions.signal = stopSignal
+        }
+
         do {
-            try await client.stop(options: options)
+            try await client.stop(options: resolvedOptions)
         } catch let err as ContainerizationError {
             if err.code != .interrupted {
                 throw err
@@ -797,6 +768,30 @@ public actor ContainersService {
         }
     }
 
+    /// Copy a file or directory from the host into the container.
+    public func copyIn(id: String, source: String, destination: String, mode: UInt32, createParents: Bool = true) async throws {
+        self.log.debug("\(#function)")
+
+        let state = try self._getContainerState(id: id)
+        guard state.snapshot.status == .running else {
+            throw ContainerizationError(.invalidState, message: "container \(id) is not running")
+        }
+        let client = try state.getClient()
+        try await client.copyIn(source: source, destination: destination, mode: mode, createParents: createParents)
+    }
+
+    /// Copy a file or directory from the container to the host.
+    public func copyOut(id: String, source: String, destination: String, createParents: Bool = true) async throws {
+        self.log.debug("\(#function)")
+
+        let state = try self._getContainerState(id: id)
+        guard state.snapshot.status == .running else {
+            throw ContainerizationError(.invalidState, message: "container \(id) is not running")
+        }
+        let client = try state.getClient()
+        try await client.copyOut(source: source, destination: destination, createParents: createParents)
+    }
+
     /// Get statistics for the container.
     public func stats(id: String) async throws -> ContainerStats {
         log.debug(
@@ -852,7 +847,7 @@ public actor ContainersService {
             }
             let opts = ContainerStopOptions(
                 timeoutInSeconds: 5,
-                signal: SIGKILL
+                signal: "SIGKILL"
             )
             let client = try state.getClient()
             try await client.stop(options: opts)
@@ -951,8 +946,8 @@ public actor ContainersService {
 
         await self.exitMonitor.stopTracking(id: id)
 
-        // Shutdown and deregister the sandbox service
-        self.log.info("shutting down sandbox service", metadata: ["id": "\(id)"])
+        // Shutdown and deregister the runtime service
+        self.log.info("shutting down runtime service", metadata: ["id": "\(id)"])
 
         let path = self.containerRoot.appendingPathComponent(id)
         let bundle = ContainerResource.Bundle(path: path)
@@ -962,7 +957,7 @@ public actor ContainersService {
             instanceId: id
         )
 
-        // Try to shutdown the client gracefully, but if the sandbox service
+        // Try to shutdown the client gracefully, but if the runtime service
         // is already dead (e.g., killed externally), we should still continue
         // with state cleanup.
         if let client = state.client {
@@ -970,7 +965,7 @@ public actor ContainersService {
                 try await client.shutdown()
             } catch {
                 self.log.error(
-                    "failed to shutdown sandbox service",
+                    "failed to shutdown runtime service",
                     metadata: [
                         "id": "\(id)",
                         "error": "\(error)",
@@ -983,36 +978,18 @@ public actor ContainersService {
         // the process was killed externally.
         do {
             try ServiceManager.deregister(fullServiceLabel: label)
-            self.log.info("deregistered sandbox service", metadata: ["id": "\(id)"])
+            self.log.info("deregistered runtime service", metadata: ["id": "\(id)"])
         } catch {
             self.log.error(
-                "failed to deregister sandbox service",
+                "failed to deregister runtime service",
                 metadata: [
                     "id": "\(id)",
                     "error": "\(error)",
                 ])
         }
 
-        // Best effort deallocate network attachments for the container. Don't throw on
-        // failure so we can continue with state cleanup.
-        self.log.info("deallocating network attachments", metadata: ["id": "\(id)"])
-        for allocatedAttach in state.allocatedAttachments {
-            do {
-                try await self.networksService?.deallocate(attachment: allocatedAttach.attachment)
-            } catch {
-                self.log.error(
-                    "failed to deallocate network attachment",
-                    metadata: [
-                        "id": "\(id)",
-                        "network": "\(allocatedAttach.attachment.network)",
-                        "error": "\(error)",
-                    ])
-            }
-        }
-
         Self.markSnapshotStopped(&state.snapshot, exitStatus: code)
         state.client = nil
-        state.allocatedAttachments = []
         await self.setContainerState(id, state, context: context)
 
         let options = try getContainerCreationOptions(id: id)
@@ -1113,8 +1090,8 @@ public actor ContainersService {
     }
 
     private func getInitBlock(for platform: Platform, imageRef: String? = nil) async throws -> Filesystem {
-        let ref = imageRef ?? ClientImage.initImageRef
-        let initImage = try await ClientImage.fetch(reference: ref, platform: platform)
+        let ref = imageRef ?? containerSystemConfig.vminit.image
+        let initImage = try await ClientImage.fetch(reference: ref, platform: platform, containerSystemConfig: containerSystemConfig)
         var fs = try await initImage.getCreateSnapshot(platform: platform)
         fs.options = ["ro"]
         return fs

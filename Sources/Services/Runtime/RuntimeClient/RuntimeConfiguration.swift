@@ -23,11 +23,14 @@ public struct RuntimeConfiguration: Codable, Sendable {
     static let runtimeConfigurationFilename = "runtime-configuration.json"
 
     public let path: URL
+    // TODO: Remove runtime-specific fields (initialFilesystem, kernel, containerRootFilesystem).
+    // These should be encoded into the opaque `runtimeData` field by the CLI.
     public let initialFilesystem: Filesystem
     public let kernel: Kernel
     public let containerConfiguration: ContainerConfiguration?
     public let containerRootFilesystem: Filesystem?
     public let options: ContainerCreateOptions?
+    public let runtimeData: Data?
 
     public init(
         path: URL,
@@ -35,7 +38,8 @@ public struct RuntimeConfiguration: Codable, Sendable {
         kernel: Kernel,
         containerConfiguration: ContainerConfiguration? = nil,
         containerRootFilesystem: Filesystem? = nil,
-        options: ContainerCreateOptions? = nil
+        options: ContainerCreateOptions? = nil,
+        runtimeData: Data? = nil
     ) {
         self.path = path
         self.initialFilesystem = initialFilesystem
@@ -43,6 +47,7 @@ public struct RuntimeConfiguration: Codable, Sendable {
         self.containerConfiguration = containerConfiguration
         self.containerRootFilesystem = containerRootFilesystem
         self.options = options
+        self.runtimeData = runtimeData
     }
 
     public var runtimeConfigurationPath: URL {
@@ -60,14 +65,15 @@ public struct RuntimeConfiguration: Codable, Sendable {
 
     public static func readRuntimeConfiguration(from runtimeConfigurationPath: URL) throws -> RuntimeConfiguration {
         let configurationPath = runtimeConfigurationPath.appendingPathComponent(RuntimeConfiguration.runtimeConfigurationFilename)
-        guard FileManager.default.fileExists(atPath: configurationPath.path) else {
+        let data: Data
+        do {
+            data = try Data(contentsOf: configurationPath)
+        } catch {
             throw ContainerizationError(
                 .notFound,
                 message: "runtime configuration file not found at path: \(configurationPath.path)"
             )
         }
-
-        let data = try Data(contentsOf: configurationPath)
         return try JSONDecoder().decode(RuntimeConfiguration.self, from: data)
     }
 }

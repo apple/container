@@ -15,19 +15,39 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerResource
-import ContainerSandboxService
+import ContainerRuntimeClient
 import ContainerXPC
 import Containerization
+import ContainerizationError
+import Logging
+import Virtualization
+import vmnet
 
-/// Isolated container network interface strategy. This strategy prohibits
-/// container to container networking, but it is the only approach that
-/// works for macOS Sequoia.
-struct IsolatedInterfaceStrategy: InterfaceStrategy {
-    public func toInterface(attachment: Attachment, interfaceIndex: Int, additionalData: XPCMessage?) -> Interface {
+/// Interface strategy for containers that use macOS's custom network feature.
+@available(macOS 26, *)
+public struct NonisolatedInterfaceStrategy: InterfaceStrategy {
+    private let log: Logger
+
+    public init(log: Logger) {
+        self.log = log
+    }
+
+    public func toInterface(attachment: Attachment, interfaceIndex: Int, additionalData: XPCMessage?) throws -> Interface {
+        guard let additionalData else {
+            throw ContainerizationError(.invalidState, message: "network state does not contain custom network reference")
+        }
+
+        var status: vmnet_return_t = .VMNET_SUCCESS
+        guard let networkRef = vmnet_network_create_with_serialization(additionalData.underlying, &status) else {
+            throw ContainerizationError(.invalidState, message: "cannot deserialize custom network reference, status \(status)")
+        }
+
+        log.info("creating NATNetworkInterface with network reference")
         let ipv4Gateway = interfaceIndex == 0 ? attachment.ipv4Gateway : nil
-        return NATInterface(
+        return NATNetworkInterface(
             ipv4Address: attachment.ipv4Address,
             ipv4Gateway: ipv4Gateway,
+            reference: networkRef,
             macAddress: attachment.macAddress,
             // https://github.com/apple/containerization/pull/38
             mtu: attachment.mtu ?? 1280

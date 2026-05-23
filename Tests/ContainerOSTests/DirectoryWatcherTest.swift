@@ -18,153 +18,156 @@ import ContainerOS
 import ContainerizationError
 import DNSServer
 import Foundation
+import SystemPackage
 import Testing
 
 struct DirectoryWatcherTest {
     let testUUID = UUID().uuidString
 
-    private var testDir: URL! {
-        let tempDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+    private var testDir: FilePath {
+        let tempURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent(".clitests")
             .appendingPathComponent(testUUID)
-        try! FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        return tempDir
+        try! FileManager.default.createDirectory(at: tempURL, withIntermediateDirectories: true)
+        return FilePath(tempURL.path)
     }
 
-    private func withTempDir<T>(_ body: (URL) async throws -> T) async throws -> T {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    private func withTempDir<T>(_ body: (FilePath) async throws -> T) async throws -> T {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempURL, withIntermediateDirectories: true)
+        let tempPath = FilePath(tempURL.path)
 
         defer {
-            try? FileManager.default.removeItem(at: tempDir)
+            try? FileManager.default.removeItem(at: tempURL)
         }
 
-        return try await body(tempDir)
+        return try await body(tempPath)
     }
 
-    private actor CreatedURLs {
-        nonisolated(unsafe) public var urls: [URL]
+    private actor CreatedPaths {
+        nonisolated(unsafe) public var paths: [FilePath]
 
         public init() {
-            self.urls = []
+            self.paths = []
         }
     }
 
     @Test func testWatchingExistingDirectory() async throws {
-        try await withTempDir { tempDir in
+        try await withTempDir { tempPath in
 
-            let watcher = DirectoryWatcher(directoryURL: tempDir, log: nil)
-            let createdURLs = CreatedURLs()
+            let watcher = DirectoryWatcher(directoryPath: tempPath, log: nil)
+            let createdPaths = CreatedPaths()
             let name = "newFile"
 
-            await watcher.startWatching { [createdURLs] urls in
-                for url in urls where url.lastPathComponent == name {
-                    createdURLs.urls.append(url)
+            await watcher.startWatching { [createdPaths] paths in
+                for path in paths where path.lastComponent?.string == name {
+                    createdPaths.paths.append(path)
                 }
             }
 
             try await Task.sleep(for: .milliseconds(100))
-            let newFile = tempDir.appendingPathComponent(name)
-            FileManager.default.createFile(atPath: newFile.path, contents: nil)
+            let newFile = tempPath.appending(name)
+            FileManager.default.createFile(atPath: newFile.string, contents: nil)
             try await Task.sleep(for: .milliseconds(500))
 
-            #expect(!createdURLs.urls.isEmpty, "directory watcher failed to detect new file")
-            #expect(createdURLs.urls.first!.lastPathComponent == name)
+            #expect(!createdPaths.paths.isEmpty, "directory watcher failed to detect new file")
+            #expect(createdPaths.paths.first!.lastComponent?.string == name)
         }
     }
 
     @Test func testWatchingNonExistingDirectory() async throws {
-        try await withTempDir { tempDir in
+        try await withTempDir { tempPath in
             let uuid = UUID().uuidString
-            let childDir = tempDir.appendingPathComponent(uuid)
+            let childPath = tempPath.appending(uuid)
 
-            let watcher = DirectoryWatcher(directoryURL: childDir, log: nil)
-            let createdURLs = CreatedURLs()
+            let watcher = DirectoryWatcher(directoryPath: childPath, log: nil)
+            let createdPaths = CreatedPaths()
             let name = "newFile"
 
-            await watcher.startWatching { [createdURLs] urls in
-                for url in urls where url.lastPathComponent == name {
-                    createdURLs.urls.append(url)
+            await watcher.startWatching { [createdPaths] paths in
+                for path in paths where path.lastComponent?.string == name {
+                    createdPaths.paths.append(path)
                 }
             }
 
             try await Task.sleep(for: .milliseconds(100))
-            try FileManager.default.createDirectory(at: childDir, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(atPath: childPath.string, withIntermediateDirectories: true)
 
             try await Task.sleep(for: DirectoryWatcher.watchPeriod)
-            let newFile = childDir.appendingPathComponent(name)
-            FileManager.default.createFile(atPath: newFile.path, contents: nil)
+            let newFile = childPath.appending(name)
+            FileManager.default.createFile(atPath: newFile.string, contents: nil)
             try await Task.sleep(for: .milliseconds(500))
 
-            #expect(!createdURLs.urls.isEmpty, "directory watcher failed to detect parent directory")
-            #expect(createdURLs.urls.first!.lastPathComponent == name)
+            #expect(!createdPaths.paths.isEmpty, "directory watcher failed to detect parent directory")
+            #expect(createdPaths.paths.first!.lastComponent?.string == name)
         }
     }
 
     @Test func testWatchingNonExistingParent() async throws {
-        try await withTempDir { tempDir in
+        try await withTempDir { tempPath in
             let parent = UUID().uuidString
             let child = UUID().uuidString
-            let childDir = tempDir.appendingPathComponent(parent).appendingPathComponent(child)
+            let childPath = tempPath.appending(parent).appending(child)
 
-            let watcher = DirectoryWatcher(directoryURL: childDir, log: nil)
-            let createdURLs = CreatedURLs()
+            let watcher = DirectoryWatcher(directoryPath: childPath, log: nil)
+            let createdPaths = CreatedPaths()
             let name = "newFile"
 
-            await watcher.startWatching { urls in
-                for url in urls where url.lastPathComponent == name {
-                    createdURLs.urls.append(url)
+            await watcher.startWatching { paths in
+                for path in paths where path.lastComponent?.string == name {
+                    createdPaths.paths.append(path)
                 }
             }
 
             try await Task.sleep(for: .milliseconds(100))
-            try FileManager.default.createDirectory(at: childDir, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(atPath: childPath.string, withIntermediateDirectories: true)
 
             try await Task.sleep(for: DirectoryWatcher.watchPeriod)
 
-            let newFile = childDir.appendingPathComponent(name)
-            FileManager.default.createFile(atPath: newFile.path, contents: nil)
+            let newFile = childPath.appending(name)
+            FileManager.default.createFile(atPath: newFile.string, contents: nil)
             try await Task.sleep(for: .milliseconds(500))
 
-            #expect(!createdURLs.urls.isEmpty, "directory watcher failed to detect parent directory")
-            #expect(createdURLs.urls.first!.lastPathComponent == name)
+            #expect(!createdPaths.paths.isEmpty, "directory watcher failed to detect parent directory")
+            #expect(createdPaths.paths.first!.lastComponent?.string == name)
         }
     }
 
     @Test func testWatchingRecreatedDirectory() async throws {
-        try await withTempDir { tempDir in
-            let dir = tempDir.appendingPathComponent(UUID().uuidString)
-            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try await withTempDir { tempPath in
+            let dirPath = tempPath.appending(UUID().uuidString)
+            try FileManager.default.createDirectory(atPath: dirPath.string, withIntermediateDirectories: true)
 
-            let watcher = DirectoryWatcher(directoryURL: dir, log: nil)
-            let createdURLs = CreatedURLs()
+            let watcher = DirectoryWatcher(directoryPath: dirPath, log: nil)
+            let createdPaths = CreatedPaths()
             let beforeDelete = "beforeDelete"
             let afterDelete = "afterDelete"
 
-            await watcher.startWatching { [createdURLs] urls in
-                for url in urls
-                where url.lastPathComponent == beforeDelete || url.lastPathComponent == afterDelete {
-                    createdURLs.urls.append(url)
+            await watcher.startWatching { [createdPaths] paths in
+                for path in paths
+                where path.lastComponent?.string == beforeDelete || path.lastComponent?.string == afterDelete {
+                    createdPaths.paths.append(path)
                 }
             }
 
             try await Task.sleep(for: .milliseconds(100))
-            let file1 = dir.appendingPathComponent(beforeDelete)
-            FileManager.default.createFile(atPath: file1.path, contents: nil)
+            let file1 = dirPath.appending(beforeDelete)
+            FileManager.default.createFile(atPath: file1.string, contents: nil)
             try await Task.sleep(for: .milliseconds(100))
 
-            try FileManager.default.removeItem(at: dir)
+            try FileManager.default.removeItem(atPath: dirPath.string)
             try await Task.sleep(for: .milliseconds(100))
-            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(atPath: dirPath.string, withIntermediateDirectories: true)
             try await Task.sleep(for: DirectoryWatcher.watchPeriod)
 
-            let file2 = dir.appendingPathComponent(afterDelete)
-            FileManager.default.createFile(atPath: file2.path, contents: nil)
+            let file2 = dirPath.appending(afterDelete)
+            FileManager.default.createFile(atPath: file2.string, contents: nil)
 
             try await Task.sleep(for: .milliseconds(500))
 
-            #expect(!createdURLs.urls.isEmpty, "directory watcher failed to detect new file")
-            #expect(Set(createdURLs.urls.map { $0.lastPathComponent }) == Set([beforeDelete, afterDelete]))
+            #expect(!createdPaths.paths.isEmpty, "directory watcher failed to detect new file")
+            #expect(
+                Set(createdPaths.paths.compactMap { $0.lastComponent?.string }) == Set([beforeDelete, afterDelete]))
         }
 
     }

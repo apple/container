@@ -14,12 +14,13 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerPersistence
 import ContainerizationError
 import ContainerizationExtras
 
 /// The URL scheme to be used for a HTTP request.
 public enum RequestScheme: String, Sendable {
+    private static let defaultDomain = "test"
+
     case http = "http"
     case https = "https"
 
@@ -40,8 +41,9 @@ public enum RequestScheme: String, Sendable {
 
     /// Returns the prescribed protocol to use while making a HTTP request to a webserver
     /// - Parameter host: The domain or IP address of the webserver
+    /// - Parameter internalDnsDomain: The DNS domain used for container name resolution
     /// - Returns: RequestScheme
-    public func schemeFor(host: String) throws -> Self {
+    public func schemeFor(host: String, internalDnsDomain: String?) throws -> Self {
         guard host.count > 0 else {
             throw ContainerizationError(.invalidArgument, message: "host cannot be empty")
         }
@@ -49,21 +51,21 @@ public enum RequestScheme: String, Sendable {
         case .http, .https:
             return self
         case .auto:
-            return Self.isInternalHost(host: host, dnsDomain: DefaultsStore.getOptional(key: .defaultDNSDomain)) ? .http : .https
+            return Self.isInternalHost(host: host, internalDnsDomain: internalDnsDomain) ? .http : .https
         }
     }
 
     /// Checks if the given `host` string is a private IP address
     /// or a domain typically reachable only on the local system.
-    internal static func isInternalHost(host: String, dnsDomain: String? = nil) -> Bool {
+    public static func isInternalHost(host: String, internalDnsDomain: String?) -> Bool {
         // The localhost hostname is private.
         if host == "localhost" {
             return true
         }
 
         // If hostname uses the provided DNS domain, treat it as private.
-        if let dnsDomain {
-            if host.hasSuffix(".\(dnsDomain)") {
+        if let internalDnsDomain {
+            if host.hasSuffix(".\(internalDnsDomain)") {
                 return true
             }
         }

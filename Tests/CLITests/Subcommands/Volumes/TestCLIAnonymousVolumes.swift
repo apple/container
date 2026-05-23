@@ -319,7 +319,9 @@ class TestCLIAnonymousVolumes: CLITest {
 
         // Parse JSON to verify metadata
         let data = output.data(using: .utf8)!
-        let volumes = try JSONDecoder().decode([Volume].self, from: data)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let volumes = try decoder.decode([Volume].self, from: data)
 
         let anonVolume = volumes.first { $0.name == volumeName }
         #expect(anonVolume != nil, "should find anonymous volume in list")

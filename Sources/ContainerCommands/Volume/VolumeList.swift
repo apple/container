@@ -43,7 +43,8 @@ extension Application.VolumeCommand {
             let volumes = try await ClientVolume.list()
 
             if format == .json {
-                try Output.emit(Output.renderJSON(volumes))
+                let options = JSONOptions(dateEncodingStrategy: .iso8601)
+                try Output.emit(Output.renderJSON(volumes, options: options))
                 return
             }
 

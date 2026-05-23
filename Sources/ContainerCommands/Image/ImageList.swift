@@ -16,6 +16,8 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerPersistence
+import ContainerPlugin
 import Containerization
 import ContainerizationError
 import ContainerizationOCI
@@ -43,10 +45,11 @@ extension Application {
         public var logOptions: Flags.Logging
 
         public mutating func run() async throws {
-            try Self.validate(format: format, quiet: quiet, verbose: verbose)
+            let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
+            try Self.validate(quiet: quiet, verbose: verbose)
 
             var images = try await ClientImage.list().filter { img in
-                !Utility.isInfraImage(name: img.reference)
+                !Utility.isInfraImage(name: img.reference, builderImage: containerSystemConfig.build.image, initImage: containerSystemConfig.vminit.image)
             }
             images.sort { $0.reference < $1.reference }
 
@@ -57,29 +60,25 @@ extension Application {
 
             if quiet {
                 for image in images {
-                    let processedReferenceString = try ClientImage.denormalizeReference(image.reference)
+                    let processedReferenceString = try ClientImage.denormalizeReference(image.reference, containerSystemConfig: containerSystemConfig)
                     print(processedReferenceString)
                 }
                 return
             }
 
             if verbose {
-                let items = try await Self.buildVerboseItems(images: images)
+                let items = try await Self.buildVerboseItems(images: images, containerSystemConfig: containerSystemConfig)
                 Output.emit(Output.renderTable(items))
                 return
             }
 
-            let items = try await Self.buildTableItems(images: images)
+            let items = try await Self.buildTableItems(images: images, containerSystemConfig: containerSystemConfig)
             Output.emit(Output.renderTable(items))
         }
 
-        private static func validate(format: ListFormat, quiet: Bool, verbose: Bool) throws {
+        private static func validate(quiet: Bool, verbose: Bool) throws {
             if quiet && verbose {
                 throw ContainerizationError(.invalidArgument, message: "cannot use flag --quiet and --verbose together")
-            }
-            let modifier = quiet || verbose
-            if modifier && format == .json {
-                throw ContainerizationError(.invalidArgument, message: "cannot use flag --quiet or --verbose along with --format json")
             }
         }
 
@@ -96,10 +95,10 @@ extension Application {
             try Output.emit(Output.renderJSON(printableImages))
         }
 
-        private static func buildTableItems(images: [ClientImage]) async throws -> [ImageRow] {
+        private static func buildTableItems(images: [ClientImage], containerSystemConfig: ContainerSystemConfig) async throws -> [ImageRow] {
             var items: [ImageRow] = []
             for image in images {
-                let processedReferenceString = try ClientImage.denormalizeReference(image.reference)
+                let processedReferenceString = try ClientImage.denormalizeReference(image.reference, containerSystemConfig: containerSystemConfig)
                 let reference = try ContainerizationOCI.Reference.parse(processedReferenceString)
                 let digest = try await image.resolved().digest
                 items.append(
@@ -112,12 +111,12 @@ extension Application {
             return items
         }
 
-        private static func buildVerboseItems(images: [ClientImage]) async throws -> [VerboseImageRow] {
+        private static func buildVerboseItems(images: [ClientImage], containerSystemConfig: ContainerSystemConfig) async throws -> [VerboseImageRow] {
             let formatter = ByteCountFormatter()
             var items: [VerboseImageRow] = []
             for image in images {
                 let imageDigest = try await image.resolved().digest
-                let processedReferenceString = try ClientImage.denormalizeReference(image.reference)
+                let processedReferenceString = try ClientImage.denormalizeReference(image.reference, containerSystemConfig: containerSystemConfig)
                 let reference = try ContainerizationOCI.Reference.parse(processedReferenceString)
                 for descriptor in try await image.index().manifests {
                     if let referenceType = descriptor.annotations?["vnd.docker.reference.type"],

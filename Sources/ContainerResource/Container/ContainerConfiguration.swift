@@ -59,6 +59,8 @@ public struct ContainerConfiguration: Sendable, Codable {
     public var capDrop: [String] = []
     /// Size of /dev/shm in bytes. When nil, the default size is used.
     public var shmSize: UInt64?
+    /// Signal to send to the container process on stop (from image config).
+    public var stopSignal: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -82,6 +84,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         case capAdd
         case capDrop
         case shmSize
+        case stopSignal
     }
 
     /// Create a configuration from the supplied Decoder, initializing missing
@@ -116,6 +119,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         capAdd = try container.decodeIfPresent([String].self, forKey: .capAdd) ?? []
         capDrop = try container.decodeIfPresent([String].self, forKey: .capDrop) ?? []
         shmSize = try container.decodeIfPresent(UInt64.self, forKey: .shmSize)
+        stopSignal = try container.decodeIfPresent(String.self, forKey: .stopSignal)
     }
 
     public struct DNSConfiguration: Sendable, Codable {
