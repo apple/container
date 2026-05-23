@@ -22,6 +22,7 @@ public struct InstallRoot {
     public static let environmentName = "CONTAINER_INSTALL_ROOT"
 
     public static let defaultURL = CommandLine.executablePathUrl
+        .resolvingSymlinksInPath()
         .deletingLastPathComponent()
         .appendingPathComponent("..")
         .standardized
