@@ -1010,9 +1010,7 @@ public actor ContainersService {
             }
         }
 
-        state.snapshot.status = .stopped
-        state.snapshot.lastExitCode = code?.exitCode
-        state.snapshot.networks = []
+        Self.markSnapshotStopped(&state.snapshot, exitStatus: code)
         state.client = nil
         state.allocatedAttachments = []
         await self.setContainerState(id, state, context: context)
@@ -1025,6 +1023,12 @@ public actor ContainersService {
 
     private static func fullLaunchdServiceLabel(runtimeName: String, instanceId: String) -> String {
         "\(Self.launchdDomainString)/\(Self.machServicePrefix).\(runtimeName).\(instanceId)"
+    }
+
+    static func markSnapshotStopped(_ snapshot: inout ContainerSnapshot, exitStatus: ExitStatus?) {
+        snapshot.status = .stopped
+        snapshot.lastExitCode = exitStatus?.exitCode
+        snapshot.networks = []
     }
 
     private func _cleanUp(id: String) async throws {

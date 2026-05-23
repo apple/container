@@ -193,6 +193,8 @@ let package = Package(
             name: "ContainerAPIServiceTests",
             dependencies: [
                 .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                "ContainerAPIService",
                 "ContainerResource",
                 "ContainerSandboxServiceClient",
             ]
