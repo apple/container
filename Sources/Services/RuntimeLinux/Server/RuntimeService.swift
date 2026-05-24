@@ -986,7 +986,7 @@ public actor RuntimeService {
         czConfig.cpus = config.resources.cpus
         czConfig.cpuOverhead = config.resources.cpuOverhead
         czConfig.memoryInBytes = config.resources.memoryInBytes
-        czConfig.blockIO = config.resources.blockIO
+        czConfig.blockIO = config.resources.blockIO.map(Self.toContainerizationBlockIO)
         czConfig.sysctl = config.sysctls.reduce(into: [String: String]()) {
             $0[$1.key] = $1.value
         }
@@ -1191,6 +1191,31 @@ public actor RuntimeService {
         }
 
         return Containerization.LinuxCapabilities(capabilities: Array(caps))
+    }
+
+    /// Convert the OCI block I/O wire format (carried in `ContainerConfiguration`)
+    /// into the `Containerization.LinuxBlockIO` wrapper expected by
+    /// `LinuxContainer.Configuration`.
+    private static func toContainerizationBlockIO(_ oci: ContainerizationOCI.LinuxBlockIO) -> Containerization.LinuxBlockIO {
+        Containerization.LinuxBlockIO(
+            weight: oci.weight,
+            leafWeight: oci.leafWeight,
+            weightDevice: oci.weightDevice.map {
+                Containerization.LinuxWeightDevice(major: $0.major, minor: $0.minor, weight: $0.weight, leafWeight: $0.leafWeight)
+            },
+            throttleReadBpsDevice: oci.throttleReadBpsDevice.map {
+                Containerization.LinuxThrottleDevice(major: $0.major, minor: $0.minor, rate: $0.rate)
+            },
+            throttleWriteBpsDevice: oci.throttleWriteBpsDevice.map {
+                Containerization.LinuxThrottleDevice(major: $0.major, minor: $0.minor, rate: $0.rate)
+            },
+            throttleReadIOPSDevice: oci.throttleReadIOPSDevice.map {
+                Containerization.LinuxThrottleDevice(major: $0.major, minor: $0.minor, rate: $0.rate)
+            },
+            throttleWriteIOPSDevice: oci.throttleWriteIOPSDevice.map {
+                Containerization.LinuxThrottleDevice(major: $0.major, minor: $0.minor, rate: $0.rate)
+            }
+        )
     }
 
     private nonisolated func closeHandle(_ handle: Int32) throws {
