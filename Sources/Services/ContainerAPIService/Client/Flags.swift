@@ -104,21 +104,11 @@ public struct Flags {
         public init(
             cpus: Int64?,
             memory: String?,
-            blkioWeight: UInt16? = nil,
-            blkioWeightDevice: [String] = [],
-            deviceReadBps: [String] = [],
-            deviceWriteBps: [String] = [],
-            deviceReadIops: [String] = [],
-            deviceWriteIops: [String] = []
+            blkio: [String] = []
         ) {
             self.cpus = cpus
             self.memory = memory
-            self.blkioWeight = blkioWeight
-            self.blkioWeightDevice = blkioWeightDevice
-            self.deviceReadBps = deviceReadBps
-            self.deviceWriteBps = deviceWriteBps
-            self.deviceReadIops = deviceReadIops
-            self.deviceWriteIops = deviceWriteIops
+            self.blkio = blkio
         }
 
         @Option(name: .shortAndLong, help: "Number of CPUs to allocate to the container")
@@ -130,38 +120,23 @@ public struct Flags {
         )
         public var memory: String?
 
-        @Option(name: .customLong("blkio-weight"), help: "Block I/O weight, from 10 to 1000")
-        public var blkioWeight: UInt16?
-
         @Option(
-            name: .customLong("blkio-weight-device"),
-            help: .init("Block I/O weight for a device (format: <path>:<weight>)", valueName: "device-weight")
+            name: .customLong("blkio"),
+            help: .init(
+                """
+                Block I/O cgroup tuning (repeatable). Comma-separated key=value pairs:
+                  weight=<10..1000>                       cgroup-wide weight
+                  leaf-weight=<10..1000>                  cgroup-wide leaf weight
+                  device=<path|major:minor>,weight=...    per-device weight
+                  device=<...>,read-bps=<rate>            per-device read throughput limit
+                  device=<...>,write-bps=<rate>           per-device write throughput limit
+                  device=<...>,read-iops=<n>              per-device read IOPS limit
+                  device=<...>,write-iops=<n>             per-device write IOPS limit
+                """,
+                valueName: "spec"
+            )
         )
-        public var blkioWeightDevice: [String] = []
-
-        @Option(
-            name: .customLong("device-read-bps"),
-            help: .init("Throttle read rate from a device in bytes per second (format: <path>:<rate>)", valueName: "device-rate")
-        )
-        public var deviceReadBps: [String] = []
-
-        @Option(
-            name: .customLong("device-write-bps"),
-            help: .init("Throttle write rate to a device in bytes per second (format: <path>:<rate>)", valueName: "device-rate")
-        )
-        public var deviceWriteBps: [String] = []
-
-        @Option(
-            name: .customLong("device-read-iops"),
-            help: .init("Throttle read rate from a device in IO operations per second (format: <path>:<rate>)", valueName: "device-rate")
-        )
-        public var deviceReadIops: [String] = []
-
-        @Option(
-            name: .customLong("device-write-iops"),
-            help: .init("Throttle write rate to a device in IO operations per second (format: <path>:<rate>)", valueName: "device-rate")
-        )
-        public var deviceWriteIops: [String] = []
+        public var blkio: [String] = []
     }
 
     public struct DNS: ParsableArguments {
