@@ -63,6 +63,19 @@ struct DockerArchiveConverterTests {
         #expect(Set(index.manifests.compactMap { $0.annotations?["org.opencontainers.image.ref.name"] }) == ["example.com/test/image:one", "example.com/test/image:two"])
     }
 
+    @Test func rejectsDockerArchiveConfigPathEscapingImageDirectory() throws {
+        let directory = try Self.makeDockerArchive(repoTags: ["example.com/test/image:latest"], config: "../config.json")
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+        }
+
+        #expect {
+            try DockerArchiveConverter.convertIfNeeded(at: directory)
+        } throws: { error in
+            String(describing: error).contains("docker archive member escapes image directory: ../config.json")
+        }
+    }
+
     @Test func leavesExistingOciLayoutUntouched() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -92,7 +105,7 @@ struct DockerArchiveConverterTests {
         #expect(!FileManager.default.fileExists(atPath: directory.appendingPathComponent("index.json").path))
     }
 
-    private static func makeDockerArchive(repoTags: [String]) throws -> URL {
+    private static func makeDockerArchive(repoTags: [String], config configPath: String = "config.json") throws -> URL {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
@@ -103,7 +116,7 @@ struct DockerArchiveConverterTests {
         try FileManager.default.createDirectory(at: layerDirectory, withIntermediateDirectories: true)
         try Data("layer contents".utf8).write(to: layerDirectory.appendingPathComponent("layer.tar"))
 
-        let manifest = DockerManifestFixture(config: "config.json", repoTags: repoTags, layers: ["layer/layer.tar"])
+        let manifest = DockerManifestFixture(config: configPath, repoTags: repoTags, layers: ["layer/layer.tar"])
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         try encoder.encode([manifest]).write(to: directory.appendingPathComponent("manifest.json"))
