@@ -55,7 +55,7 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
+            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
             let progressConfig = try ProgressConfig(
                 showTasks: true,
                 showItems: true,

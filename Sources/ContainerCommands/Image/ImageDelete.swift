@@ -109,7 +109,7 @@ extension Application {
         }
 
         public mutating func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
+            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
             try await DeleteImageImplementation.removeImage(options: options, containerSystemConfig: containerSystemConfig, log: log)
         }
     }
