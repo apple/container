@@ -1,0 +1,12 @@
+abstract = "Core image management plugin"
+author = "Apple"
+version = 0.1
+
+[servicesConfig]
+loadAtBoot = true
+runAtLoad = false
+defaultArguments = []
+
+[[servicesConfig.services]]
+type = "core"
+description = "Provide an XPC interface to interact with an image store."

@@ -55,7 +55,11 @@ public struct ContainersHarness: Sendable {
             )
         }
         let stdio = message.stdio()
-        try await service.bootstrap(id: id, stdio: stdio)
+
+        let data = message.dataNoCopy(key: .dynamicEnv)
+        let env = try data.map { try JSONDecoder().decode([String: String].self, from: $0) } ?? [:]
+
+        try await service.bootstrap(id: id, stdio: stdio, dynamicEnv: env)
         return message.reply()
     }
 
@@ -192,8 +196,9 @@ public struct ContainersHarness: Sendable {
         let kernel = try JSONDecoder().decode(Kernel.self, from: kdata)
 
         let initImage = message.string(key: .initImage)
+        let runtimeData = message.dataNoCopy(key: .runtimeData)
 
-        try await service.create(configuration: config, kernel: kernel, options: options, initImage: initImage)
+        try await service.create(configuration: config, kernel: kernel, options: options, initImage: initImage, runtimeData: runtimeData)
         return message.reply()
     }
 
@@ -291,6 +296,60 @@ public struct ContainersHarness: Sendable {
     }
 
     @Sendable
+    public func copyIn(_ message: XPCMessage) async throws -> XPCMessage {
+        guard let id = message.string(key: .id) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "id cannot be empty"
+            )
+        }
+        guard let sourcePath = message.string(key: .sourcePath) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "source path cannot be empty"
+            )
+        }
+        guard let destinationPath = message.string(key: .destinationPath) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "destination path cannot be empty"
+            )
+        }
+        let mode = UInt32(message.uint64(key: .fileMode))
+        let createParents = message.bool(key: .createParents)
+
+        try await service.copyIn(id: id, source: sourcePath, destination: destinationPath, mode: mode, createParents: createParents)
+        return message.reply()
+    }
+
+    @Sendable
+    public func copyOut(_ message: XPCMessage) async throws -> XPCMessage {
+        guard let id = message.string(key: .id) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "id cannot be empty"
+            )
+        }
+        guard let sourcePath = message.string(key: .sourcePath) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "source path cannot be empty"
+            )
+        }
+        guard let destinationPath = message.string(key: .destinationPath) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "destination path cannot be empty"
+            )
+        }
+
+        let createParents = message.bool(key: .createParents)
+
+        try await service.copyOut(id: id, source: sourcePath, destination: destinationPath, createParents: createParents)
+        return message.reply()
+    }
+
+    @Sendable
     public func stats(_ message: XPCMessage) async throws -> XPCMessage {
         let id = message.string(key: .id)
         guard let id else {
@@ -304,5 +363,27 @@ public struct ContainersHarness: Sendable {
         let reply = message.reply()
         reply.set(key: .statistics, value: data)
         return reply
+    }
+
+    @Sendable
+    public func export(_ message: XPCMessage) async throws -> XPCMessage {
+        let id = message.string(key: .id)
+        guard let id else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "id cannot be empty"
+            )
+        }
+        let archive = message.string(key: .archive)
+        guard let archive else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "archive cannot be empty"
+            )
+        }
+        let archiveUrl = URL(fileURLWithPath: archive)
+
+        try await service.exportRootfs(id: id, archive: archiveUrl)
+        return message.reply()
     }
 }

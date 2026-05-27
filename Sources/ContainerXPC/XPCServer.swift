@@ -23,7 +23,14 @@ import os
 import Synchronization
 
 public struct XPCServer: Sendable {
-    public typealias RouteHandler = @Sendable (XPCMessage) async throws -> XPCMessage
+    public typealias RouteHandler = @Sendable (XPCMessage, XPCServerSession) async throws -> XPCMessage
+
+    /// Wraps a session-unaware handler for use in a route table.
+    public static func route(
+        _ fn: @Sendable @escaping (XPCMessage) async throws -> XPCMessage
+    ) -> RouteHandler {
+        { message, _ in try await fn(message) }
+    }
 
     private let routes: [String: RouteHandler]
     // Access to `connection` is protected by a lock.
@@ -100,6 +107,7 @@ public struct XPCServer: Sendable {
 
     func handleClientConnection(connection: xpc_connection_t) async throws {
         let replySent = Mutex(false)
+        let session = XPCServerSession()
 
         let objects = AsyncStream<xpc_object_t> { cont in
             xpc_connection_set_event_handler(connection) { object in
@@ -117,7 +125,11 @@ public struct XPCServer: Sendable {
                         // a final XPC_ERROR_CONNECTION_INVALID message.
                         // We can ignore this if we know we have already handled
                         // the request.
-                        self.log.error("xpc client handler connection error \(object.errorDescription ?? "no description")")
+                        self.log.error(
+                            "xpc client handler connection error",
+                            metadata: [
+                                "error": "\(object.errorDescription ?? "no description")"
+                            ])
                     }
                 default:
                     fatalError("unhandled xpc object type: \(xpc_get_type(object))")
@@ -136,7 +148,7 @@ public struct XPCServer: Sendable {
                 // `object` isn't used concurrently.
                 nonisolated(unsafe) let object = object
                 let added = group.addTaskUnlessCancelled { @Sendable in
-                    try await self.handleMessage(connection: connection, object: object)
+                    try await self.handleMessage(connection: connection, object: object, session: session)
                     replySent.withLock { $0 = true }
                 }
                 if !added {
@@ -145,9 +157,10 @@ public struct XPCServer: Sendable {
             }
             group.cancelAll()
         }
+        await session.fireDisconnect()
     }
 
-    func handleMessage(connection: xpc_connection_t, object: xpc_object_t) async throws {
+    func handleMessage(connection: xpc_connection_t, object: xpc_object_t, session: XPCServerSession) async throws {
         // All requests are dictionary-valued.
         guard xpc_get_type(object) == XPC_TYPE_DICTIONARY else {
             log.error("invalid request - not a dictionary")
@@ -192,17 +205,27 @@ public struct XPCServer: Sendable {
         if let handler = routes[route] {
             do {
                 let message = XPCMessage(object: object)
-                let response = try await handler(message)
+                let response = try await handler(message, session)
                 xpc_connection_send_message(connection, response.underlying)
             } catch let error as ContainerizationError {
-                log.error("handler for \(route) threw error \(error)")
+                log.error(
+                    "route handler threw an error",
+                    metadata: [
+                        "route": "\(route)",
+                        "error": "\(error)",
+                    ])
                 Self.replyWithError(
                     connection: connection,
                     object: object,
                     err: error
                 )
             } catch {
-                log.error("handler for \(route) threw error \(error)")
+                log.error(
+                    "route handler threw an error",
+                    metadata: [
+                        "route": "\(route)",
+                        "error": "\(error)",
+                    ])
                 let message = XPCMessage(object: object)
                 let reply = message.reply()
 

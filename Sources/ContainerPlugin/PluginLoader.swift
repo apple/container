@@ -17,11 +17,14 @@
 import ContainerizationOS
 import Foundation
 import Logging
+import SystemPackage
 
 public struct PluginLoader: Sendable {
     private let appRoot: URL
 
     private let installRoot: URL
+
+    private let logRoot: FilePath?
 
     private let pluginDirectories: [URL]
 
@@ -39,6 +42,7 @@ public struct PluginLoader: Sendable {
     public init(
         appRoot: URL,
         installRoot: URL,
+        logRoot: FilePath?,
         pluginDirectories: [URL],
         pluginFactories: [PluginFactory],
         log: Logger? = nil
@@ -48,6 +52,7 @@ public struct PluginLoader: Sendable {
         self.pluginResourceRoot = pluginResourceRoot
         self.appRoot = appRoot
         self.installRoot = installRoot
+        self.logRoot = logRoot
         self.pluginDirectories = pluginDirectories
         self.pluginFactories = pluginFactories
         self.log = log
@@ -206,7 +211,8 @@ extension PluginLoader {
         plugin: Plugin,
         pluginStateRoot: URL? = nil,
         args: [String]? = nil,
-        instanceId: String? = nil
+        instanceId: String? = nil,
+        debug: Bool = false,
     ) throws {
         // We only care about loading plugins that have a service
         // to expose; otherwise, they may just be CLI commands.
@@ -217,15 +223,24 @@ extension PluginLoader {
         let id = plugin.getLaunchdLabel(instanceId: instanceId)
         log?.info("Registering plugin", metadata: ["id": "\(id)"])
         let rootURL = pluginStateRoot ?? self.pluginResourceRoot.appending(path: plugin.name)
+        let resourceURL = plugin.resourceURL
+
         try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
 
         var env = Self.filterEnvironment()
         env[ApplicationRoot.environmentName] = appRoot.path(percentEncoded: false)
         env[InstallRoot.environmentName] = installRoot.path(percentEncoded: false)
+        if let logRoot {
+            env[LogRoot.environmentName] =
+                logRoot.isAbsolute
+                ? logRoot.string
+                : FilePath(FileManager.default.currentDirectoryPath).appending(logRoot.components).string
+        }
 
+        let processedArgs = (args ?? ["start"]) + (resourceURL.map { ["--resources", $0.path] } ?? []) + (debug ? ["--debug"] : [])
         let plist = LaunchPlist(
             label: id,
-            arguments: [plugin.binaryURL.path] + (args ?? ["start"]) + serviceConfig.defaultArguments,
+            arguments: [plugin.binaryURL.path] + processedArgs + serviceConfig.defaultArguments,
             environment: env,
             limitLoadToSessionType: [.Aqua, .Background, .System],
             runAtLoad: serviceConfig.runAtLoad,

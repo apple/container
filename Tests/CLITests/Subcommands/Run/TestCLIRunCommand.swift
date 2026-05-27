@@ -28,6 +28,7 @@ import Testing
 // When https://github.com/swiftlang/swift-testing/pull/1390 lands
 // and is available on the CI runners, we can try setting the
 // environment variable to limit concurrency and rejoin these suites.
+@Suite(.serialSuites)
 class TestCLIRunCommand1: CLITest {
     func getTestName() -> String {
         Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
@@ -169,14 +170,20 @@ class TestCLIRunCommand1: CLITest {
     @Test func testRunCommandCPUs() throws {
         do {
             let name = getTestName()
-            let cpus = "2"
-            try doLongRun(name: name, args: ["--cpus", cpus])
+            let cpus = 2
+            try doLongRun(name: name, args: ["--cpus", "\(cpus)"])
             defer {
                 try? doStop(name: name)
             }
-            var output = try doExec(name: name, cmd: ["nproc"])
-            output = output.trimmingCharacters(in: .whitespacesAndNewlines)
-            #expect(output == cpus, "expected \(cpus), instead got \(output)")
+            let cpusPath = "/sys/fs/cgroup/cpu.max"
+            let output = try doExec(name: name, cmd: ["cat", cpusPath])
+            let fields = output.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: .whitespaces)
+            #expect(fields.count == 2, "expected 2 fields in \(cpusPath), instead got \(fields.count)")
+            let numerator = try #require(Int(fields[0]))
+            let denominator = try #require(Int(fields[1]))
+            #expect(denominator > 0, "expected positive denominator in \(cpusPath), instead got \(denominator)")
+            let expectedNumerator = cpus * denominator
+            #expect(expectedNumerator == numerator, "expected \(expectedNumerator) in \(cpusPath), instead got \(numerator)")
             try doStop(name: name)
         } catch {
             Issue.record("failed to run container \(error)")
@@ -289,6 +296,7 @@ class TestCLIRunCommand1: CLITest {
     }
 }
 
+@Suite(.serialSuites)
 class TestCLIRunCommand2: CLITest {
     func getTestName() -> String {
         Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
@@ -376,6 +384,26 @@ class TestCLIRunCommand2: CLITest {
             let words = lines[1].split(separator: " ")
             #expect(words.count > 1, "expected information to contain multiple words, got \(words.count)")
             #expect(words[0].lowercased() == expectedFilesystem, "expected filesystem type to be \(expectedFilesystem), instead got \(output)")
+            try doStop(name: name)
+        } catch {
+            Issue.record("failed to run container \(error)")
+            return
+        }
+    }
+
+    @Test func testRunCommandShmSize() throws {
+        do {
+            let name = getTestName()
+            let shmSize = "128m"
+            let expectedKB = 128 * 1024
+            try doLongRun(name: name, args: ["--shm-size", shmSize])
+            defer {
+                try? doStop(name: name)
+            }
+            let output = try doExec(name: name, cmd: ["mount"])
+            let shmLine = output.split(separator: "\n").first { $0.contains("/dev/shm") }
+            #expect(shmLine != nil, "expected /dev/shm in mount output")
+            #expect(shmLine!.contains("size=\(expectedKB)k"), "expected size=\(expectedKB)k in mount options, got: \(shmLine!)")
             try doStop(name: name)
         } catch {
             Issue.record("failed to run container \(error)")
@@ -487,8 +515,77 @@ class TestCLIRunCommand2: CLITest {
             return
         }
     }
+
+    @Test func testRunCommandInit() throws {
+        do {
+            let name = getTestName()
+            try doLongRun(name: name, args: ["--init"])
+            defer {
+                try? doStop(name: name)
+            }
+            let inspectResp = try inspectContainer(name)
+            #expect(inspectResp.configuration.useInit == true, "expected useInit to be true in container configuration")
+
+            // With --init, PID 1 should be the init process, not "sleep".
+            var output = try doExec(name: name, cmd: ["cat", "/proc/1/cmdline"])
+            output = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(
+                !output.hasPrefix("sleep"),
+                "expected PID 1 to be init process, not 'sleep', got '\(output)'"
+            )
+            try doStop(name: name)
+        } catch {
+            Issue.record("failed to run container with --init: \(error)")
+            return
+        }
+    }
+
+    @Test func testRunCommandInitReapsZombies() throws {
+        do {
+            let name = getTestName()
+            try doLongRun(name: name, args: ["--init"])
+            defer {
+                try? doStop(name: name)
+            }
+
+            _ = try doExec(
+                name: name,
+                cmd: [
+                    "sh", "-c",
+                    "sh -c 'sh -c \"exit 0\" &' && sleep 1",
+                ])
+
+            let psOutput = try doExec(name: name, cmd: ["sh", "-c", "ps aux | grep -c '\\[sh\\]' || true"])
+            let zombieCount = Int(psOutput.trimmingCharacters(in: .whitespacesAndNewlines)) ?? -1
+            #expect(
+                zombieCount == 0,
+                "expected no zombie processes with --init, found \(zombieCount)"
+            )
+            try doStop(name: name)
+        } catch {
+            Issue.record("failed to verify zombie reaping with --init: \(error)")
+            return
+        }
+    }
+
+    @Test func testRunCommandWithoutInitDefault() throws {
+        do {
+            let name = getTestName()
+            try doLongRun(name: name, args: [])
+            defer {
+                try? doStop(name: name)
+            }
+            let inspectResp = try inspectContainer(name)
+            #expect(inspectResp.configuration.useInit == false, "expected useInit to be false by default")
+            try doStop(name: name)
+        } catch {
+            Issue.record("failed to run container without --init: \(error)")
+            return
+        }
+    }
 }
 
+@Suite(.serialSuites)
 class TestCLIRunCommand3: CLITest {
     func getTestName() -> String {
         Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
@@ -816,14 +913,8 @@ class TestCLIRunCommand3: CLITest {
     }
 
     func getDefaultDomain() throws -> String? {
-        let (_, output, err, status) = try run(arguments: ["system", "property", "get", "dns.domain"])
-        try #require(status == 0, "default DNS domain retrieval returned status \(status): \(err)")
-        let trimmedOutput = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedOutput == "" {
-            return nil
-        }
-
-        return trimmedOutput
+        let config = try getSystemConfig()
+        return config.dns.domain
     }
 
     @Test func testPrivilegedPortError() throws {

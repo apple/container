@@ -149,6 +149,9 @@ public struct ProcessIO: Sendable {
     public func handleProcess(process: ClientProcess, log: Logger) async throws -> Int32 {
         let signals = AsyncSignalHandler.create(notify: Self.signalSet)
         return try await withThrowingTaskGroup(of: Int32?.self, returning: Int32.self) { group in
+            try await process.start()
+            try closeAfterStart()
+
             let waitAdded = group.addTaskUnlessCancelled {
                 let code = try await process.wait()
                 try await wait()
@@ -159,9 +162,6 @@ public struct ProcessIO: Sendable {
                 group.cancelAll()
                 return -1
             }
-
-            try await process.start()
-            try closeAfterStart()
 
             if let current = console {
                 let size = try current.size

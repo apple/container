@@ -63,7 +63,7 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let parsedLabels = Utility.parseKeyValuePairs(labels)
+            let parsedLabels = try ResourceLabels(Utility.parseKeyValuePairs(labels))
             let mode: NetworkMode = hostOnly ? .hostOnly : .nat
             let config = try NetworkConfiguration(
                 id: self.name,
@@ -73,8 +73,9 @@ extension Application {
                 labels: parsedLabels,
                 pluginInfo: NetworkPluginInfo(plugin: self.plugin, variant: self.pluginVariant)
             )
-            let state = try await ClientNetwork.create(configuration: config)
-            print(state.id)
+            let networkClient = NetworkClient()
+            let network = try await networkClient.create(configuration: config)
+            print(network.id)
         }
     }
 }

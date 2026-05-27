@@ -85,4 +85,6 @@ echo 'Removed `container` tool and helpers'
 if [ "$DELETE_DATA" = true ]; then
     echo 'Removing `container` user data'
     sudo rm -rf ~/Library/Application\ Support/com.apple.container
+    echo 'Removing `container` user defaults'
+    defaults delete com.apple.container.defaults > /dev/null 2>&1 || true
 fi

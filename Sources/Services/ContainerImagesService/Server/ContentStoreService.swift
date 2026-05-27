@@ -33,34 +33,127 @@ public actor ContentStoreService {
     }
 
     public func get(digest: String) async throws -> URL? {
-        self.log.trace("ContentStoreService: \(#function) digest \(digest)")
+        self.log.trace(
+            "ContentStoreService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "digest": "\(digest)",
+            ]
+        )
+        defer {
+            self.log.trace(
+                "ContentStoreService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "digest": "\(digest)",
+                ]
+            )
+        }
+
         return try await self.contentStore.get(digest: digest)?.path
     }
 
     @discardableResult
     public func delete(digests: [String]) async throws -> ([String], UInt64) {
-        self.log.debug("ContentStoreService: \(#function) digests \(digests)")
+        self.log.trace(
+            "ContentStoreService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "digests": "\(digests)",
+            ]
+        )
+        defer {
+            self.log.trace(
+                "ContentStoreService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "digests": "\(digests)",
+                ]
+            )
+        }
+
         return try await self.contentStore.delete(digests: digests)
     }
 
     @discardableResult
     public func delete(keeping: [String]) async throws -> ([String], UInt64) {
-        self.log.debug("ContentStoreService: \(#function) digests \(keeping)")
+        self.log.debug(
+            "ContentStoreService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "keeping": "\(keeping)",
+            ]
+        )
+        defer {
+            self.log.debug(
+                "ContentStoreService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "keeping": "\(keeping)",
+                ]
+            )
+        }
+
         return try await self.contentStore.delete(keeping: keeping)
     }
 
     public func newIngestSession() async throws -> (id: String, ingestDir: URL) {
-        self.log.debug("ContentStoreService: \(#function)")
+        self.log.debug(
+            "ContentStoreService: enter",
+            metadata: [
+                "func": "\(#function)"
+            ]
+        )
+        defer {
+            self.log.debug(
+                "ContentStoreService: exit",
+                metadata: [
+                    "func": "\(#function)"
+                ]
+            )
+        }
         return try await self.contentStore.newIngestSession()
     }
 
     public func completeIngestSession(_ id: String) async throws -> [String] {
-        self.log.debug("ContentStoreService: \(#function) id \(id)")
+        self.log.debug(
+            "ContentStoreService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "id": "\(id)",
+            ]
+        )
+        defer {
+            self.log.debug(
+                "ContentStoreService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "id": "\(id)",
+                ]
+            )
+        }
+
         return try await self.contentStore.completeIngestSession(id)
     }
 
     public func cancelIngestSession(_ id: String) async throws {
-        self.log.debug("ContentStoreService: \(#function) id \(id)")
+        self.log.debug(
+            "ContentStoreService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "id": "\(id)",
+            ]
+        )
+        defer {
+            self.log.debug(
+                "ContentStoreService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "id": "\(id)",
+                ]
+            )
+        }
+
         return try await self.contentStore.cancelIngestSession(id)
     }
 }

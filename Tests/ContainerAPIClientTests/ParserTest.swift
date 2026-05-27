@@ -17,9 +17,11 @@
 import ContainerizationError
 import ContainerizationExtras
 import Foundation
+import SystemPackage
 import Testing
 
 @testable import ContainerAPIClient
+@testable import ContainerPersistence
 
 struct ParserTest {
     @Test
@@ -391,6 +393,48 @@ struct ParserTest {
                 #expect(Bool(false), "Expected filesystem mount, got volume")
             }
         }
+
+        // Test volume with bare "." as source (current directory)
+        do {
+            let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("test-volume-dot-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer {
+                try? FileManager.default.removeItem(at: tempDir)
+            }
+
+            let result = try Parser.volume(".:/docs:ro", relativeTo: tempDir)
+
+            switch result {
+            case .filesystem(let fs):
+                let expectedPath = tempDir.standardizedFileURL.path
+                #expect(fs.source.trimmingCharacters(in: CharacterSet(charactersIn: "/")) == expectedPath.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
+                #expect(fs.destination == "/docs")
+                #expect(fs.options.contains("ro"))
+            case .volume:
+                #expect(Bool(false), "Expected filesystem mount, got volume")
+            }
+        }
+
+        // Test volume with ".." as source (parent directory)
+        do {
+            let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("test-volume-dotdot-\(UUID().uuidString)")
+            let childDir = tempDir.appendingPathComponent("child")
+            try FileManager.default.createDirectory(at: childDir, withIntermediateDirectories: true)
+            defer {
+                try? FileManager.default.removeItem(at: tempDir)
+            }
+
+            let result = try Parser.volume("..:/data", relativeTo: childDir)
+
+            switch result {
+            case .filesystem(let fs):
+                let expectedPath = tempDir.standardizedFileURL.path
+                #expect(fs.source.trimmingCharacters(in: CharacterSet(charactersIn: "/")) == expectedPath.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
+                #expect(fs.destination == "/data")
+            case .volume:
+                #expect(Bool(false), "Expected filesystem mount, got volume")
+            }
+        }
     }
 
     @Test
@@ -551,6 +595,42 @@ struct ParserTest {
         // Explicit empty value should be preserved
         let result = Parser.env(envList: ["EMPTY="])
         #expect(result == ["EMPTY="])
+    }
+
+    @Test
+    func testAllEnvUserOverridesImage() throws {
+        let result = try Parser.allEnv(
+            imageEnvs: ["FOO=fromimage", "BAR=kept"],
+            envFiles: [],
+            envs: ["FOO=fromuser"]
+        )
+        #expect(Set(result) == Set(["FOO=fromuser", "BAR=kept"]))
+    }
+
+    @Test
+    func testAllEnvFileOverridesImage() throws {
+        let tmpFile = try tmpFileWithContent("FOO=fromfile\n")
+        defer { try? FileManager.default.removeItem(at: tmpFile) }
+
+        let result = try Parser.allEnv(
+            imageEnvs: ["FOO=fromimage", "BAR=kept"],
+            envFiles: [tmpFile.path],
+            envs: []
+        )
+        #expect(Set(result) == Set(["FOO=fromfile", "BAR=kept"]))
+    }
+
+    @Test
+    func testAllEnvUserOverridesFileOverridesImage() throws {
+        let tmpFile = try tmpFileWithContent("FOO=fromfile\nBAZ=fromfile\n")
+        defer { try? FileManager.default.removeItem(at: tmpFile) }
+
+        let result = try Parser.allEnv(
+            imageEnvs: ["FOO=fromimage", "BAR=fromimage"],
+            envFiles: [tmpFile.path],
+            envs: ["FOO=fromuser"]
+        )
+        #expect(Set(result) == Set(["FOO=fromuser", "BAR=fromimage", "BAZ=fromfile"]))
     }
 
     private func tmpFileWithContent(_ content: String) throws -> URL {
@@ -1006,5 +1086,254 @@ struct ParserTest {
         #expect(result[0].limit == "RLIMIT_NPROC")
         #expect(result[0].soft == UInt64.max - 1)
         #expect(result[0].hard == UInt64.max)
+    }
+
+    // MARK: - Capabilities Parser Tests
+
+    @Test
+    func testCapabilitiesParserEmpty() throws {
+        let result = try Parser.capabilities(capAdd: [], capDrop: [])
+        #expect(result.capAdd.isEmpty)
+        #expect(result.capDrop.isEmpty)
+    }
+
+    @Test
+    func testCapabilitiesParserAddSingle() throws {
+        let result = try Parser.capabilities(capAdd: ["CAP_NET_RAW"], capDrop: [])
+        #expect(result.capAdd == ["CAP_NET_RAW"])
+        #expect(result.capDrop.isEmpty)
+    }
+
+    @Test
+    func testCapabilitiesParserDropSingle() throws {
+        let result = try Parser.capabilities(capAdd: [], capDrop: ["CAP_MKNOD"])
+        #expect(result.capAdd.isEmpty)
+        #expect(result.capDrop == ["CAP_MKNOD"])
+    }
+
+    @Test
+    func testCapabilitiesParserWithoutPrefix() throws {
+        let result = try Parser.capabilities(capAdd: ["NET_RAW"], capDrop: ["MKNOD"])
+        #expect(result.capAdd == ["CAP_NET_RAW"])
+        #expect(result.capDrop == ["CAP_MKNOD"])
+    }
+
+    @Test
+    func testCapabilitiesParserCaseInsensitive() throws {
+        let result = try Parser.capabilities(capAdd: ["net_raw"], capDrop: ["mknod"])
+        #expect(result.capAdd == ["CAP_NET_RAW"])
+        #expect(result.capDrop == ["CAP_MKNOD"])
+    }
+
+    @Test
+    func testCapabilitiesParserLowercaseWithPrefix() throws {
+        let result = try Parser.capabilities(capAdd: ["cap_net_raw"], capDrop: [])
+        #expect(result.capAdd == ["CAP_NET_RAW"])
+    }
+
+    @Test
+    func testCapabilitiesParserALL() throws {
+        let result = try Parser.capabilities(capAdd: ["ALL"], capDrop: ["ALL"])
+        #expect(result.capAdd == ["ALL"])
+        #expect(result.capDrop == ["ALL"])
+    }
+
+    @Test
+    func testCapabilitiesParserDropALLWithAdd() throws {
+        let result = try Parser.capabilities(capAdd: ["CAP_NET_RAW", "CAP_MKNOD"], capDrop: ["ALL"])
+        #expect(result.capAdd == ["CAP_NET_RAW", "CAP_MKNOD"])
+        #expect(result.capDrop == ["ALL"])
+    }
+
+    @Test
+    func testCapabilitiesParserAddALLWithDrop() throws {
+        let result = try Parser.capabilities(capAdd: ["ALL"], capDrop: ["CAP_NET_ADMIN"])
+        #expect(result.capAdd == ["ALL"])
+        #expect(result.capDrop == ["CAP_NET_ADMIN"])
+    }
+
+    @Test
+    func testCapabilitiesParserMultiple() throws {
+        let result = try Parser.capabilities(
+            capAdd: ["CAP_NET_RAW", "CAP_SYS_ADMIN"],
+            capDrop: ["CAP_MKNOD", "CAP_CHOWN"]
+        )
+        #expect(result.capAdd.count == 2)
+        #expect(result.capAdd.contains("CAP_NET_RAW"))
+        #expect(result.capAdd.contains("CAP_SYS_ADMIN"))
+        #expect(result.capDrop.count == 2)
+        #expect(result.capDrop.contains("CAP_MKNOD"))
+        #expect(result.capDrop.contains("CAP_CHOWN"))
+    }
+
+    @Test
+    func testCapabilitiesParserInvalidAdd() throws {
+        #expect {
+            _ = try Parser.capabilities(capAdd: ["CHWOWZERS"], capDrop: [])
+        } throws: { _ in
+            true
+        }
+    }
+
+    @Test
+    func testCapabilitiesParserInvalidDrop() throws {
+        #expect {
+            _ = try Parser.capabilities(capAdd: [], capDrop: ["CHWOWZERS"])
+        } throws: { _ in
+            true
+        }
+    }
+
+    // MARK: - Parser.resources
+
+    @Test func testResourcesCustomDefaults() throws {
+        let result = try Parser.resources(
+            cpus: nil, memory: nil,
+            defaultCPUs: 2, defaultMemory: try MemorySize("2048MB")
+        )
+        #expect(result.cpus == 2)
+        #expect(result.memoryInBytes == 2048.mib())
+    }
+
+    @Test func testResourcesFlagOverridesDefaults() throws {
+        let result = try Parser.resources(cpus: 1, memory: "256m", defaultCPUs: 8, defaultMemory: MemorySize("2g"))
+        #expect(result.cpus == 1)
+        #expect(result.memoryInBytes == 256.mib())
+    }
+
+    @Test func testResourcesBuildPropertyLookup() async throws {
+        let content = """
+            [build]
+            cpus = 8
+            memory = "4g"
+            """
+        let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("test-build-lookup.toml")
+        FileManager.default.createFile(atPath: tempFile.path(), contents: Data(content.utf8))
+        defer { try? FileManager.default.removeItem(at: tempFile) }
+
+        let config: ContainerSystemConfig = try await ConfigurationLoader.load(configurationFiles: [FilePath(tempFile.path(percentEncoded: false))])
+        let result = try Parser.resources(
+            cpus: nil, memory: nil,
+            defaultCPUs: config.build.cpus,
+            defaultMemory: config.build.memory
+        )
+        #expect(result.cpus == 8)
+        #expect(result.memoryInBytes == 4096.mib())
+    }
+
+    @Test func testResourcesCPUsFromProperty() async throws {
+        let content = """
+            [container]
+            cpus = 8
+            """
+        let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("test-cpus-property.toml")
+        FileManager.default.createFile(atPath: tempFile.path(), contents: Data(content.utf8))
+        defer { try? FileManager.default.removeItem(at: tempFile) }
+
+        let config: ContainerSystemConfig = try await ConfigurationLoader.load(configurationFiles: [FilePath(tempFile.path(percentEncoded: false))])
+        let result = try Parser.resources(
+            cpus: nil, memory: nil,
+            defaultCPUs: config.container.cpus,
+            defaultMemory: config.container.memory
+        )
+        #expect(result.cpus == 8)
+    }
+
+    @Test func testResourcesMemoryFromProperty() async throws {
+        let content = """
+            [container]
+            memory = "2g"
+            """
+        let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("test-memory-property.toml")
+        FileManager.default.createFile(atPath: tempFile.path(), contents: Data(content.utf8))
+        defer { try? FileManager.default.removeItem(at: tempFile) }
+
+        let config: ContainerSystemConfig = try await ConfigurationLoader.load(configurationFiles: [FilePath(tempFile.path(percentEncoded: false))])
+        let result = try Parser.resources(
+            cpus: nil, memory: nil,
+            defaultCPUs: config.container.cpus,
+            defaultMemory: config.container.memory
+        )
+        #expect(result.memoryInBytes == 2048.mib())
+    }
+
+    @Test func testResourcesFlagOverridesProperty() async throws {
+        let content = """
+            [container]
+            cpus = 8
+            memory = "2g"
+            """
+        let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("test-flag-overrides.toml")
+        FileManager.default.createFile(atPath: tempFile.path(), contents: Data(content.utf8))
+        defer { try? FileManager.default.removeItem(at: tempFile) }
+
+        let config: ContainerSystemConfig = try await ConfigurationLoader.load(configurationFiles: [FilePath(tempFile.path(percentEncoded: false))])
+        let result = try Parser.resources(
+            cpus: 1, memory: "256m",
+            defaultCPUs: config.container.cpus,
+            defaultMemory: config.container.memory
+        )
+        #expect(result.cpus == 1)
+        #expect(result.memoryInBytes == 256.mib())
+    }
+
+    @Test func testResourcesPropertyKeysAreIsolated() async throws {
+        let content = """
+            [container]
+            cpus = 16
+            memory = "8g"
+            """
+        let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("test-keys-isolated.toml")
+        FileManager.default.createFile(atPath: tempFile.path(), contents: Data(content.utf8))
+        defer { try? FileManager.default.removeItem(at: tempFile) }
+
+        let config: ContainerSystemConfig = try await ConfigurationLoader.load(configurationFiles: [FilePath(tempFile.path(percentEncoded: false))])
+        let result = try Parser.resources(
+            cpus: nil, memory: nil,
+            defaultCPUs: config.build.cpus,
+            defaultMemory: config.build.memory
+        )
+        #expect(result.cpus == 2)
+        #expect(result.memoryInBytes == 2048.mib())
+    }
+
+    // MARK: - DNS Flag Validation Tests
+
+    @Test
+    func testManagementFlagsRejectsNoDNSWithDNS() throws {
+        #expect(throws: (any Error).self) {
+            _ = try Flags.Management.parse(["--dns", "1.1.1.1", "--no-dns"])
+        }
+    }
+
+    @Test
+    func testManagementFlagsRejectsNoDNSWithDNSDomain() throws {
+        #expect(throws: (any Error).self) {
+            _ = try Flags.Management.parse(["--dns-domain", "example.com", "--no-dns"])
+        }
+    }
+
+    @Test
+    func testManagementFlagsRejectsNoDNSWithDNSSearch() throws {
+        #expect(throws: (any Error).self) {
+            _ = try Flags.Management.parse(["--dns-search", "example.com", "--no-dns"])
+        }
+    }
+
+    @Test
+    func testManagementFlagsRejectsNoDNSWithDNSOption() throws {
+        #expect(throws: (any Error).self) {
+            _ = try Flags.Management.parse(["--dns-option", "debug", "--no-dns"])
+        }
+    }
+
+    @Test
+    func testManagementFlagsAcceptsDNSAlone() throws {
+        _ = try Flags.Management.parse(["--dns", "1.1.1.1"])
+    }
+
+    @Test
+    func testManagementFlagsAcceptsNoDNSAlone() throws {
+        _ = try Flags.Management.parse(["--no-dns"])
     }
 }

@@ -17,12 +17,14 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerLog
+import ContainerPersistence
 import ContainerPlugin
 import ContainerVersion
 import ContainerizationError
 import ContainerizationOS
 import Foundation
 import Logging
+import SystemPackage
 import TerminalProgress
 
 // This logger is only used until `asyncCommand.run()`.
@@ -45,15 +47,18 @@ public struct Application: AsyncLoggableCommand {
         abstract: "A container platform for macOS",
         version: ReleaseVersion.singleLine(appName: "container CLI"),
         subcommands: [
-            DefaultCommand.self
+            DefaultCommand.self,
+            HelpCommand.self,
         ],
         groupedSubcommands: [
             CommandGroup(
                 name: "Container",
                 subcommands: [
+                    ContainerCopy.self,
                     ContainerCreate.self,
                     ContainerDelete.self,
                     ContainerExec.self,
+                    ContainerExport.self,
                     ContainerInspect.self,
                     ContainerKill.self,
                     ContainerList.self,
@@ -107,7 +112,6 @@ public struct Application: AsyncLoggableCommand {
         let args = Array(fullArgs.dropFirst())
 
         do {
-            // container -> defaultHelpCommand
             var command = try Application.parseAsRoot(args)
             if var asyncCommand = command as? AsyncParsableCommand {
                 try await asyncCommand.run()
@@ -115,8 +119,8 @@ public struct Application: AsyncLoggableCommand {
                 try command.run()
             }
         } catch {
-            // Regular ol `command` with no args will get caught by DefaultCommand. --help
-            // on the root command will land here.
+            // --help/-h on the root command (e.g. `container --help`) is intercepted
+            // by ArgumentParser and lands here.
             let containsHelp = fullArgs.contains("-h") || fullArgs.contains("--help")
             if fullArgs.count <= 2 && containsHelp {
                 let pluginLoader = try? await createPluginLoader()
@@ -134,11 +138,12 @@ public struct Application: AsyncLoggableCommand {
     }
 
     public static func createPluginLoader() async throws -> PluginLoader {
-        let installRoot = CommandLine.executablePathUrl
-            .deletingLastPathComponent()
-            .appendingPathComponent("..")
-            .standardized
-        let pluginsURL = PluginLoader.userPluginsDir(installRoot: installRoot)
+        let installRootPath = CommandLine.executablePath
+            .removingLastComponent()
+            .removingLastComponent()
+        // TODO: Remove when we convert PluginLoader to FilePath.
+        let installRootURL = URL(fileURLWithPath: installRootPath.string)
+        let pluginsURL = PluginLoader.userPluginsDir(installRoot: installRootURL)
         var directoryExists: ObjCBool = false
         _ = FileManager.default.fileExists(atPath: pluginsURL.path, isDirectory: &directoryExists)
         let userPluginsURL = directoryExists.boolValue ? pluginsURL : nil
@@ -147,13 +152,12 @@ public struct Application: AsyncLoggableCommand {
         let appBundlePluginsURL = Bundle.main.resourceURL?.appending(path: "plugins")
 
         // plugins built into the application installed as a Unix-like application
-        let installRootPluginsURL =
-            installRoot
-            .appendingPathComponent("libexec")
-            .appendingPathComponent("container")
-            .appendingPathComponent("plugins")
-            .standardized
-
+        let installRootPluginsPath =
+            installRootPath
+            .appending(FilePath.Component("libexec"))
+            .appending(FilePath.Component("container"))
+            .appending(FilePath.Component("plugins"))
+        let installRootPluginsURL = URL(fileURLWithPath: installRootPluginsPath.string)
         let pluginDirectories = [
             userPluginsURL,
             appBundlePluginsURL,
@@ -161,8 +165,8 @@ public struct Application: AsyncLoggableCommand {
         ].compactMap { $0 }
 
         let pluginFactories: [any PluginFactory] = [
-            DefaultPluginFactory(),
-            AppBundlePluginFactory(),
+            DefaultPluginFactory(logger: bootstrapLogger),
+            AppBundlePluginFactory(logger: bootstrapLogger),
         ]
 
         guard let systemHealth = try? await ClientHealthCheck.ping(timeout: .seconds(10)) else {
@@ -171,9 +175,24 @@ public struct Application: AsyncLoggableCommand {
         return try PluginLoader(
             appRoot: systemHealth.appRoot,
             installRoot: systemHealth.installRoot,
+            logRoot: systemHealth.logRoot,
             pluginDirectories: pluginDirectories,
             pluginFactories: pluginFactories,
             log: bootstrapLogger
+        )
+    }
+
+    /// Load the system configuration using `appRoot` / `installRoot` reported by the
+    /// daemon. `container system start` MUST have previously been run to start the daemon.
+    public static func loadContainerSystemConfig() async throws -> ContainerSystemConfig {
+        let health = try await ClientHealthCheck.ping(timeout: .seconds(10))
+        let appRoot = FilePath(health.appRoot.path(percentEncoded: false))
+        let installRoot = FilePath(health.installRoot.path(percentEncoded: false))
+        return try await ConfigurationLoader.load(
+            configurationFiles: [
+                ConfigurationLoader.configurationFile(in: appRoot, of: .appRoot),
+                ConfigurationLoader.configurationFile(in: installRoot, of: .installRoot),
+            ]
         )
     }
 
@@ -235,17 +254,18 @@ extension Application {
     static func printModifiedHelpText(pluginLoader: PluginLoader?) async {
         let original = Application.helpMessage(for: Application.self)
         guard let pluginLoader else {
-            print(original)
-            print("PLUGINS: not available, run `container system start`")
+            print(addGroupSpacing(original))
+            print("\nPLUGINS: not available, run `container system start`")
             return
         }
         let altered = pluginLoader.alterCLIHelpText(original: original)
-        print(altered)
+        print(addGroupSpacing(altered))
     }
 
-    public enum ListFormat: String, CaseIterable, ExpressibleByArgument {
-        case json
-        case table
+    private static func addGroupSpacing(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "\n([A-Z].+SUBCOMMANDS:)", with: "\n\n$1", options: .regularExpression)
+            .replacingOccurrences(of: "\nPLUGINS:", with: "\n\nPLUGINS:")
     }
 
     func isTranslated() throws -> Bool {

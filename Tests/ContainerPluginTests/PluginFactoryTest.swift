@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import Logging
 import Testing
 
 @testable import ContainerPlugin
@@ -32,15 +33,13 @@ struct PluginFactoryTest {
         defer { try? FileManager.default.removeItem(at: tempURL) }
         let name = tempURL.lastPathComponent
 
-        // write config to {name}/config.json
-        let configURL = tempURL.appending(path: "config.json")
-        let configJson = """
-            {
-                "abstract" : "Default network management service",
-                "author": "Apple"
-            }
+        // write config to {name}/config.toml
+        let configURL = tempURL.appending(path: "config.toml")
+        let configToml = """
+            abstract = "Default network management service"
+            author = "Apple"
             """
-        try configJson.write(to: configURL, atomically: true, encoding: .utf8)
+        try configToml.write(to: configURL, atomically: true, encoding: .utf8)
 
         // write binary to {name}/bin/{name}
         let binaryDirURL = tempURL.appending(path: "bin")
@@ -48,7 +47,7 @@ struct PluginFactoryTest {
         let binaryURL = binaryDirURL.appending(path: name)
         try "".write(to: binaryURL, atomically: true, encoding: .utf8)
 
-        let factory = DefaultPluginFactory()
+        let factory = DefaultPluginFactory(logger: Logger(label: "test"))
         let plugin = try #require(try factory.create(installURL: tempURL))
 
         #expect(plugin.name == name)
@@ -76,15 +75,13 @@ struct PluginFactoryTest {
         defer { try? FileManager.default.removeItem(at: tempURL) }
         let name = tempURL.lastPathComponent
 
-        // write config to {name}/config.json
-        let configURL = tempURL.appending(path: "config.json")
-        let configJson = """
-            {
-                "abstract" : "Default network management service",
-                "author": "Apple"
-            }
+        // write config to {name}/config.toml
+        let configURL = tempURL.appending(path: "config.toml")
+        let configToml = """
+            abstract = "Default network management service"
+            author = "Apple"
             """
-        try configJson.write(to: configURL, atomically: true, encoding: .utf8)
+        try configToml.write(to: configURL, atomically: true, encoding: .utf8)
 
         // write binary to {name}/bin/{name}
         let binaryDirURL = tempURL.appending(path: "bin")
@@ -92,7 +89,7 @@ struct PluginFactoryTest {
         let binaryURL = binaryDirURL.appending(path: name)
         try "".write(to: binaryURL, atomically: true, encoding: .utf8)
 
-        let factory = DefaultPluginFactory()
+        let factory = DefaultPluginFactory(logger: Logger(label: "test"))
         let plugin = try #require(try factory.create(parentURL: tempURL.deletingLastPathComponent(), name: name))
 
         #expect(plugin.name == name)
@@ -126,7 +123,7 @@ struct PluginFactoryTest {
         let binaryURL = binaryDirURL.appending(path: name)
         try "".write(to: binaryURL, atomically: true, encoding: .utf8)
 
-        let factory = DefaultPluginFactory()
+        let factory = DefaultPluginFactory(logger: Logger(label: "test"))
         let plugin = try factory.create(installURL: tempURL)
         #expect(plugin == nil)
     }
@@ -142,17 +139,15 @@ struct PluginFactoryTest {
         )
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        // write config to {name}/config.json
-        let configURL = tempURL.appending(path: "config.json")
-        let configJson = """
-            {
-                "abstract" : "Default network management service",
-                "author": "Apple"
-            }
+        // write config to {name}/config.toml
+        let configURL = tempURL.appending(path: "config.toml")
+        let configToml = """
+            abstract = "Default network management service"
+            author = "Apple"
             """
-        try configJson.write(to: configURL, atomically: true, encoding: .utf8)
+        try configToml.write(to: configURL, atomically: true, encoding: .utf8)
 
-        let factory = DefaultPluginFactory()
+        let factory = DefaultPluginFactory(logger: Logger(label: "test"))
         let plugin = try factory.create(installURL: tempURL)
         #expect(plugin == nil)
     }
@@ -171,20 +166,18 @@ struct PluginFactoryTest {
         try fm.createDirectory(at: installURL, withIntermediateDirectories: true)
         let name = String(installURL.lastPathComponent.dropLast(4))
 
-        // write config to {name}/config.json
+        // write config to {name}/config.toml
         let configURL =
             installURL
             .appending(path: "Contents")
             .appending(path: "Resources")
-            .appending(path: "config.json")
-        let configJson = """
-            {
-                "abstract" : "Default network management service",
-                "author": "Apple"
-            }
+            .appending(path: "config.toml")
+        let configToml = """
+            abstract = "Default network management service"
+            author = "Apple"
             """
         try fm.createDirectory(at: configURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try configJson.write(to: configURL, atomically: true, encoding: .utf8)
+        try configToml.write(to: configURL, atomically: true, encoding: .utf8)
 
         // write binary to {name}/bin/{name}
         let binaryURL =
@@ -195,7 +188,7 @@ struct PluginFactoryTest {
         try fm.createDirectory(at: binaryURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try "".write(to: binaryURL, atomically: true, encoding: .utf8)
 
-        let factory = AppBundlePluginFactory()
+        let factory = AppBundlePluginFactory(logger: Logger(label: "test"))
         let plugin = try #require(try factory.create(installURL: installURL))
 
         #expect(plugin.name == name)
@@ -225,20 +218,18 @@ struct PluginFactoryTest {
         try fm.createDirectory(at: installURL, withIntermediateDirectories: true)
         let name = String(installURL.lastPathComponent.dropLast(4))
 
-        // write config to {name}/config.json
+        // write config to {name}/config.toml
         let configURL =
             installURL
             .appending(path: "Contents")
             .appending(path: "Resources")
-            .appending(path: "config.json")
-        let configJson = """
-            {
-                "abstract" : "Default network management service",
-                "author": "Apple"
-            }
+            .appending(path: "config.toml")
+        let configToml = """
+            abstract = "Default network management service"
+            author = "Apple"
             """
         try fm.createDirectory(at: configURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try configJson.write(to: configURL, atomically: true, encoding: .utf8)
+        try configToml.write(to: configURL, atomically: true, encoding: .utf8)
 
         // write binary to {name}/bin/{name}
         let binaryURL =
@@ -249,7 +240,7 @@ struct PluginFactoryTest {
         try fm.createDirectory(at: binaryURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try "".write(to: binaryURL, atomically: true, encoding: .utf8)
 
-        let factory = AppBundlePluginFactory()
+        let factory = AppBundlePluginFactory(logger: Logger(label: "test"))
         let plugin = try #require(try factory.create(parentURL: tempURL, name: name))
 
         #expect(plugin.name == name)
@@ -263,5 +254,78 @@ struct PluginFactoryTest {
         #expect(!plugin.hasType(.runtime))
         #expect(!plugin.hasType(.network))
         #expect(plugin.helpText(padding: 40).hasSuffix("Default network management service"))
+    }
+
+    @Test
+    func testDefaultFactoryFallsBackToJson() async throws {
+        let fm = FileManager.default
+        let tempURL = try fm.url(
+            for: .itemReplacementDirectory,
+            in: .userDomainMask,
+            appropriateFor: .temporaryDirectory,
+            create: true
+        )
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let name = tempURL.lastPathComponent
+
+        // write config to {name}/config.json (no config.toml)
+        let configURL = tempURL.appending(path: "config.json")
+        let configJson = """
+            {"abstract": "JSON fallback service", "author": "Apple"}
+            """
+        try configJson.write(to: configURL, atomically: true, encoding: .utf8)
+
+        // write binary to {name}/bin/{name}
+        let binaryDirURL = tempURL.appending(path: "bin")
+        try fm.createDirectory(at: binaryDirURL, withIntermediateDirectories: true)
+        let binaryURL = binaryDirURL.appending(path: name)
+        try "".write(to: binaryURL, atomically: true, encoding: .utf8)
+
+        let factory = DefaultPluginFactory(logger: Logger(label: "test"))
+        let plugin = try #require(try factory.create(installURL: tempURL))
+
+        #expect(plugin.name == name)
+        #expect(plugin.config.abstract == "JSON fallback service")
+        #expect(plugin.config.author == "Apple")
+    }
+
+    @Test
+    func testDefaultFactoryPrefersTomlOverJson() async throws {
+        let fm = FileManager.default
+        let tempURL = try fm.url(
+            for: .itemReplacementDirectory,
+            in: .userDomainMask,
+            appropriateFor: .temporaryDirectory,
+            create: true
+        )
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let name = tempURL.lastPathComponent
+
+        // write config.toml
+        let tomlURL = tempURL.appending(path: "config.toml")
+        let configToml = """
+            abstract = "TOML service"
+            author = "Apple"
+            """
+        try configToml.write(to: tomlURL, atomically: true, encoding: .utf8)
+
+        // write config.json with a different abstract
+        let jsonURL = tempURL.appending(path: "config.json")
+        let configJson = """
+            {"abstract": "JSON service", "author": "Apple"}
+            """
+        try configJson.write(to: jsonURL, atomically: true, encoding: .utf8)
+
+        // write binary to {name}/bin/{name}
+        let binaryDirURL = tempURL.appending(path: "bin")
+        try fm.createDirectory(at: binaryDirURL, withIntermediateDirectories: true)
+        let binaryURL = binaryDirURL.appending(path: name)
+        try "".write(to: binaryURL, atomically: true, encoding: .utf8)
+
+        let factory = DefaultPluginFactory(logger: Logger(label: "test"))
+        let plugin = try #require(try factory.create(installURL: tempURL))
+
+        #expect(plugin.name == name)
+        #expect(plugin.config.abstract == "TOML service")
     }
 }

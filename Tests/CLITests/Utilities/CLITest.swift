@@ -15,13 +15,20 @@
 //===----------------------------------------------------------------------===//
 
 import AsyncHTTPClient
+import ContainerLog
+import ContainerPersistence
 import ContainerResource
 import Containerization
 import ContainerizationOS
 import Foundation
+import Logging
+import Synchronization
+import SystemPackage
+import TOML
 import Testing
 
 class CLITest {
+    private static let commandSeq = Mutex<Int>(0)
     struct Image: Codable {
         let reference: String
     }
@@ -41,19 +48,39 @@ class CLITest {
 
     struct NetworkInspectOutput: Codable {
         let id: String
-        let state: String
         let config: NetworkConfiguration
-        let status: NetworkStatus?
+        let status: NetworkStatus
     }
 
-    init() throws {}
+    let testName: String
+    let testSuite: String
+    var log: Logger
 
-    let testUUID = UUID().uuidString
+    init() throws {
+        let name = Test.current.map { $0.name.hasSuffix("()") ? String($0.name.dropLast(2)) : $0.name } ?? UUID().uuidString
+        let suite = "\(type(of: self))"
+        self.testName = name
+        self.testSuite = suite
+        let logger = Logger(label: "com.apple.container.test") { label in
+            if let logRootString = ProcessInfo.processInfo.environment["CLITEST_LOG_ROOT"],
+                !logRootString.isEmpty
+            {
+                let logPath = FilePath(logRootString).appending("clitests").appending(suite).appending(name + ".log")
+                if let handler = try? FileLogHandler(label: label, category: "clitests", path: logPath) {
+                    return handler
+                }
+            }
+            return StderrLogHandler()
+        }
+        self.log = logger
+        self.log[metadataKey: "testID"] = "\(name)"
+        self.log[metadataKey: "suite"] = "\(suite)"
+    }
 
     var testDir: URL! {
         let tempDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent(".clitests")
-            .appendingPathComponent(testUUID)
+            .appendingPathComponent(testName)
         try! FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         return tempDir
     }
@@ -109,38 +136,87 @@ class CLITest {
         }
     }
 
-    func run(arguments: [String], stdin: Data? = nil, currentDirectory: URL? = nil) throws -> (outputData: Data, output: String, error: String, status: Int32) {
+    func run(arguments: [String], stdin: Data? = nil, currentDirectory: URL? = nil, env: [String: String] = [:]) throws -> (
+        outputData: Data, output: String, error: String, status: Int32
+    ) {
+        let seq = CLITest.commandSeq.withLock { counter in
+            defer { counter += 1 }
+            return counter
+        }
+        log.info(
+            "command start",
+            metadata: [
+                "seq": "\(seq)",
+                "args": "\(arguments.joined(separator: " "))",
+            ]
+        )
+
         let process = Process()
         process.executableURL = try executablePath
         process.arguments = arguments
         if let directory = currentDirectory {
             process.currentDirectoryURL = directory
         }
+        if !env.isEmpty {
+            var processEnv = ProcessInfo.processInfo.environment
+            for (key, value) in env {
+                processEnv[key] = value
+            }
+            process.environment = processEnv
+        }
 
         let inputPipe = Pipe()
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
         process.standardInput = inputPipe
-        process.standardOutput = outputPipe
-        process.standardError = errorPipe
 
         let outputData: Data
         let errorData: Data
         do {
+            // Redirect stdout/stderr to temp files so the child process never
+            // blocks on `write()` when one stream fills the kernel pipe buffer
+            // before the parent drains it (issue #1456).
+            let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer {
+                try? FileManager.default.removeItem(at: tempDir)
+            }
+
+            let stdoutURL = tempDir.appendingPathComponent("stdout")
+            let stderrURL = tempDir.appendingPathComponent("stderr")
+            FileManager.default.createFile(atPath: stdoutURL.path, contents: nil)
+            FileManager.default.createFile(atPath: stderrURL.path, contents: nil)
+
+            let stdoutHandle = try FileHandle(forWritingTo: stdoutURL)
+            defer { try? stdoutHandle.close() }
+            let stderrHandle = try FileHandle(forWritingTo: stderrURL)
+            defer { try? stderrHandle.close() }
+            process.standardOutput = stdoutHandle
+            process.standardError = stderrHandle
+
             try process.run()
             if let data = stdin {
                 inputPipe.fileHandleForWriting.write(data)
             }
             inputPipe.fileHandleForWriting.closeFile()
-            outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-            errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
+
+            outputData = try Data(contentsOf: stdoutURL)
+            errorData = try Data(contentsOf: stderrURL)
         } catch {
             throw CLIError.executionFailed("Failed to run CLI: \(error)")
         }
 
         let output = String(data: outputData, encoding: .utf8) ?? ""
         let error = String(data: errorData, encoding: .utf8) ?? ""
+
+        log.info(
+            "command end",
+            metadata: [
+                "seq": "\(seq)",
+                "status": "\(process.terminationStatus)",
+                "stdout": "\(String(output.prefix(64)).debugDescription)",
+                "stderr": "\(String(error.prefix(64)).debugDescription)",
+            ]
+        )
 
         return (outputData: outputData, output: output, error: error, status: process.terminationStatus)
     }
@@ -198,7 +274,8 @@ class CLITest {
         image: String? = nil,
         args: [String]? = nil,
         containerArgs: [String]? = nil,
-        autoRemove: Bool = true
+        autoRemove: Bool = true,
+        env: [String: String] = [:]
     ) throws {
         var runArgs = [
             "run"
@@ -229,7 +306,7 @@ class CLITest {
             runArgs.append(contentsOf: defaultContainerArgs)
         }
 
-        let (_, _, error, status) = try run(arguments: runArgs)
+        let (_, _, error, status) = try run(arguments: runArgs, env: env)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
@@ -252,13 +329,13 @@ class CLITest {
         return resp
     }
 
-    func doStop(name: String, signal: String = "SIGKILL") throws {
-        let (_, _, error, status) = try run(arguments: [
-            "stop",
-            "-s",
-            signal,
-            name,
-        ])
+    func doStop(name: String, signal: String? = "SIGKILL") throws {
+        var arguments = ["stop"]
+        if let signal {
+            arguments.append(contentsOf: ["-s", signal])
+        }
+        arguments.append(name)
+        let (_, _, error, status) = try run(arguments: arguments)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
@@ -431,31 +508,12 @@ class CLITest {
         return try decoder.decode([ImageInspectOutput].self, from: jsonData)
     }
 
-    func doDefaultRegistrySet(domain: String) throws {
-        let args = [
-            "system",
-            "property",
-            "set",
-            "registry.domain",
-            domain,
-        ]
-        let (_, _, error, status) = try run(arguments: args)
-        if status != 0 {
-            throw CLIError.executionFailed("command failed: \(error)")
+    func getSystemConfig() throws -> ContainerSystemConfig {
+        let (_, output, err, status) = try run(arguments: ["system", "property", "list", "--format", "toml"])
+        guard status == 0 else {
+            throw CLIError.executionFailed("system property list failed (\(status)): \(err)")
         }
-    }
-
-    func doDefaultRegistryUnset() throws {
-        let args = [
-            "system",
-            "property",
-            "clear",
-            "registry.domain",
-        ]
-        let (_, _, error, status) = try run(arguments: args)
-        if status != 0 {
-            throw CLIError.executionFailed("command failed: \(error)")
-        }
+        return try TOMLDecoder().decode(ContainerSystemConfig.self, from: Data(output.utf8))
     }
 
     func doRemove(name: String, force: Bool = false) throws {
@@ -582,5 +640,17 @@ class CLITest {
         return ProcessInfo.processInfo.environment
             .filter { (key, val) in proxyVars.contains(key) }
             .flatMap { (key, val) in ["-e", "\(key)=\(val)"] }
+    }
+
+    func doExport(name: String, filepath: String) throws {
+        let (_, _, error, status) = try run(arguments: [
+            "export",
+            name,
+            "-o",
+            filepath,
+        ])
+        if status != 0 {
+            throw CLIError.executionFailed("command failed: \(error)")
+        }
     }
 }

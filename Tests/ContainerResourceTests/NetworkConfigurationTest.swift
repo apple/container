@@ -40,10 +40,10 @@ struct NetworkConfigurationTest {
         ]
         for id in ids {
             let ipv4Subnet = try CIDRv4("192.168.64.1/24")
-            let labels = [
+            let labels = try ResourceLabels([
                 "foo": "bar",
                 "baz": String(repeating: "0", count: 4096 - "baz".count - "=".count),
-            ]
+            ])
             _ = try NetworkConfiguration(
                 id: id,
                 mode: .nat,
@@ -63,10 +63,10 @@ struct NetworkConfigurationTest {
         ]
         for id in ids {
             let ipv4Subnet = try CIDRv4("192.168.64.1/24")
-            let labels = [
+            let labels = try ResourceLabels([
                 "foo": "bar",
                 "baz": String(repeating: "0", count: 4096 - "baz".count - "=".count),
-            ]
+            ])
             #expect {
                 _ = try NetworkConfiguration(
                     id: id,
@@ -79,54 +79,6 @@ struct NetworkConfigurationTest {
                 guard let err = error as? ContainerizationError else { return false }
                 #expect(err.code == .invalidArgument)
                 #expect(err.message.starts(with: "invalid network ID"))
-                return true
-            }
-        }
-    }
-
-    @Test func testValidationGoodLabels() throws {
-        let allLabels = [
-            ["com.example.my-label": "bar"],
-            ["mycompany.com/my-label": "bar"],
-            ["foo": String(repeating: "0", count: 4096 - "foo".count - "=".count)],
-            [String(repeating: "0", count: 128): ""],
-        ]
-        for labels in allLabels {
-            let id = "foo"
-            let ipv4Subnet = try CIDRv4("192.168.64.1/24")
-            _ = try NetworkConfiguration(
-                id: id,
-                mode: .nat,
-                ipv4Subnet: ipv4Subnet,
-                labels: labels,
-                pluginInfo: defaultNetworkPluginInfo
-            )
-        }
-    }
-
-    @Test func testValidationBadLabels() throws {
-        let allLabels = [
-            [String(repeating: "0", count: 129): ""],
-            ["foo": String(repeating: "0", count: 4097 - "foo".count - "=".count)],
-            ["com..example.my-label": "bar"],
-            ["mycompany.com//my-label": "bar"],
-            ["": String(repeating: "0", count: 4096 - "foo".count - "=".count)],
-        ]
-        for labels in allLabels {
-            let id = "foo"
-            let ipv4Subnet = try CIDRv4("192.168.64.1/24")
-            #expect {
-                _ = try NetworkConfiguration(
-                    id: id,
-                    mode: .nat,
-                    ipv4Subnet: ipv4Subnet,
-                    labels: labels,
-                    pluginInfo: defaultNetworkPluginInfo
-                )
-            } throws: { error in
-                guard let err = error as? ContainerizationError else { return false }
-                #expect(err.code == .invalidArgument)
-                #expect(err.message.starts(with: "invalid label"))
                 return true
             }
         }

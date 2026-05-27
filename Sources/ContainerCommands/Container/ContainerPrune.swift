@@ -45,7 +45,12 @@ extension Application {
                     try await client.delete(id: container.id)
                     prunedContainerIds.append(container.id)
                 } catch {
-                    log.error("Failed to prune container \(container.id): \(error)")
+                    log.error(
+                        "failed to prune container",
+                        metadata: [
+                            "id": "\(container.id)",
+                            "error": "\(error)",
+                        ])
                 }
             }
 

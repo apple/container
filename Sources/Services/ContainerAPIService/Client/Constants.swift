@@ -14,6 +14,8 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+/// Global constants for the container API clients.
 public enum Constants {
+    /// The keychain ID to use for registry credentials.
     public static let keychainID = "com.apple.container.registry"
 }

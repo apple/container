@@ -14,7 +14,6 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import DNS
 import Testing
 
 @testable import DNSServer
@@ -27,7 +26,7 @@ struct NxDomainResolverTest {
             id: UInt16(1),
             type: .query,
             questions: [
-                Question(name: "foo", type: .host6)
+                Question(name: "foo.", type: .host6)
             ])
 
         let response = try await handler.answer(query: query)
@@ -46,7 +45,7 @@ struct NxDomainResolverTest {
             id: UInt16(1),
             type: .query,
             questions: [
-                Question(name: "bar", type: .host)
+                Question(name: "bar.", type: .host)
             ])
 
         let response = try await handler.answer(query: query)

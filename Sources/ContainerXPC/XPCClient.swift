@@ -19,6 +19,13 @@ import ContainerizationError
 import Foundation
 
 public final class XPCClient: Sendable {
+    /// The maximum amount of time to wait for a request to a recently
+    /// registered XPC service. Once a service has launched, XPC
+    /// requests only have milliseconds of overhead, but in some instances,
+    /// macOS can take 5 seconds (or considerably longer) to launch a
+    /// service after it has been registered.
+    public static let xpcRegistrationTimeout: Duration = .seconds(60)
+
     private nonisolated(unsafe) let connection: xpc_connection_t
     private let q: DispatchQueue?
     private let service: String
@@ -60,6 +67,32 @@ extension XPCClient {
     /// has taken place on the connection prior to it being called.
     public func remotePid() -> pid_t {
         xpc_connection_get_pid(self.connection)
+    }
+
+    /// Install a handler that is called whenever the connection receives an XPC error event.
+    ///
+    /// This replaces the existing (no-op) event handler. Call this before the first
+    /// `send()` to avoid a disconnect-before-handler race.
+    ///
+    /// ```swift
+    /// let client = XPCClient(service: "com.example.myservice")
+    /// client.setDisconnectHandler {
+    ///     print("service disconnected, cleaning up")
+    /// }
+    /// let response = try await client.send(request)
+    /// ```
+    public func setDisconnectHandler(_ handler: @Sendable @escaping () -> Void) {
+        xpc_connection_set_event_handler(connection) { object in
+            if xpc_get_type(object) == XPC_TYPE_ERROR { handler() }
+        }
+    }
+
+    /// Create a persistent session backed by this client connection.
+    ///
+    /// The session installs a disconnect handler at initialisation time, before
+    /// any messages are sent, ensuring no server-exit event is missed.
+    public func openSession() -> XPCClientSession {
+        XPCClientSession(client: self)
     }
 
     /// Send the provided message to the service.

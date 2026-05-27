@@ -24,6 +24,10 @@ test_results/
 *.pkg
 *.swp
 
+# Coverage artifacts
+*.profraw
+coverage-reports/
+
 # API docs for local preview only.
 _site/
 _serve/

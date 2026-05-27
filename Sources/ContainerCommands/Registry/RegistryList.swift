@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerResource
 import ContainerizationOCI
 import ContainerizationOS
 import Foundation
@@ -28,7 +29,7 @@ extension Application {
         @Option(name: .long, help: "Format of the output")
         var format: ListFormat = .table
 
-        @Flag(name: .shortAndLong, help: "Only output the registry name")
+        @Flag(name: .shortAndLong, help: "Only output the registry hostname")
         var quiet = false
 
         public init() {}
@@ -39,62 +40,39 @@ extension Application {
 
         public func run() async throws {
             let keychain = KeychainHelper(securityDomain: Constants.keychainID)
-            let registries = try keychain.list()
-            try printRegistries(registries: registries, format: format)
-        }
+            let registryInfos = try keychain.list()
+            let registries = registryInfos.map { RegistryResource(from: $0) }
 
-        private func createHeader() -> [[String]] {
-            [["HOSTNAME", "USERNAME", "MODIFIED", "CREATED"]]
-        }
-
-        private func printRegistries(registries: [RegistryInfo], format: ListFormat) throws {
-            if format == .json {
-                let printables = registries.map {
-                    PrintableRegistry($0)
-                }
-                let data = try JSONEncoder().encode(printables)
-                print(String(decoding: data, as: UTF8.self))
-
-                return
-            }
-
-            if self.quiet {
-                registries.forEach {
-                    print($0.hostname)
-                }
-                return
-            }
-
-            var rows = createHeader()
-            for registry in registries {
-                rows.append(registry.asRow)
-            }
-
-            let formatter = TableOutput(rows: rows)
-            print(formatter.format())
+            try Output.render(
+                json: registries,
+                display: registries.map { PrintableRegistry($0) },
+                format: format, quiet: quiet
+            )
         }
     }
 }
-extension RegistryInfo {
-    fileprivate var asRow: [String] {
+
+private struct PrintableRegistry: ListDisplayable {
+    let registry: RegistryResource
+
+    init(_ registry: RegistryResource) {
+        self.registry = registry
+    }
+
+    static var tableHeader: [String] {
+        ["HOSTNAME", "USERNAME", "MODIFIED", "CREATED"]
+    }
+
+    var tableRow: [String] {
         [
-            self.hostname,
-            self.username,
-            self.modifiedDate.ISO8601Format(),
-            self.createdDate.ISO8601Format(),
+            registry.name,
+            registry.username,
+            registry.modificationDate.ISO8601Format(),
+            registry.creationDate.ISO8601Format(),
         ]
     }
-}
-struct PrintableRegistry: Codable {
-    let hostname: String
-    let username: String
-    let modifiedDate: Date
-    let createdDate: Date
 
-    init(_ registry: RegistryInfo) {
-        self.hostname = registry.hostname
-        self.username = registry.username
-        self.modifiedDate = registry.modifiedDate
-        self.createdDate = registry.createdDate
+    var quietValue: String {
+        registry.name
     }
 }

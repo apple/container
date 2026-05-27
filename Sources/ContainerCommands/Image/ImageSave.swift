@@ -16,11 +16,14 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerPersistence
+import ContainerPlugin
 import ContainerResource
 import Containerization
 import ContainerizationError
 import ContainerizationOCI
 import Foundation
+import SystemPackage
 import TerminalProgress
 
 extension Application {
@@ -45,12 +48,16 @@ extension Application {
         @Option(
             name: .shortAndLong, help: "Pathname for the saved image", completion: .file(),
             transform: { str in
-                URL(fileURLWithPath: str, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false)
+                let path = FilePath(str)
+                guard path.isRelative else { return path.lexicallyNormalized() }
+                return FilePath(FileManager.default.currentDirectoryPath)
+                    .pushing(path)
+                    .lexicallyNormalized()
             })
-        var output: String?
+        var output: FilePath?
 
         @Option(
-            help: "Platform for the saved image (format: os/arch[/variant], takes precedence over --os and --arch)"
+            help: "Platform for the saved image (format: os/arch[/variant], takes precedence over --os and --arch) [environment: CONTAINER_DEFAULT_PLATFORM]"
         )
         var platform: String?
 
@@ -60,14 +67,8 @@ extension Application {
         @Argument var references: [String]
 
         public func run() async throws {
-            var p: Platform?
-            if let platform {
-                p = try Platform(from: platform)
-            } else if let arch {
-                p = try Platform(from: "\(os ?? "linux")/\(arch)")
-            } else if let os {
-                p = try Platform(from: "\(os)/\(arch ?? Arch.hostArchitecture().rawValue)")
-            }
+            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
+            let p = try DefaultPlatform.resolve(platform: platform, os: os, arch: arch, log: log)
 
             let progressConfig = try ProgressConfig(
                 description: "Saving image(s)"
@@ -81,7 +82,7 @@ extension Application {
             var images: [ImageDescription] = []
             for reference in references {
                 do {
-                    images.append(try await ClientImage.get(reference: reference).description)
+                    images.append(try await ClientImage.get(reference: reference, containerSystemConfig: containerSystemConfig).description)
                 } catch {
                     print("failed to get image for reference \(reference): \(error)")
                 }
@@ -91,8 +92,31 @@ extension Application {
                 throw ContainerizationError(.invalidArgument, message: "failed to save image(s)")
             }
 
+            if let p {
+                for (reference, description) in zip(references, images) {
+                    let image = ClientImage(description: description)
+                    do {
+                        _ = try await image.manifest(for: p)
+                    } catch {
+                        var available: [String] = []
+                        if let index = try? await image.index() {
+                            available = index.manifests
+                                .compactMap { $0.platform?.description }
+                                .filter { $0 != "unknown/unknown" }
+                        }
+                        let availableStr = available.isEmpty ? "none" : available.joined(separator: ", ")
+                        throw ContainerizationError(
+                            .invalidArgument,
+                            message: "image \(reference) has no content for platform \(p.description); available platforms: \(availableStr)"
+                        )
+                    }
+                }
+            }
+
             // Write to stdout; otherwise write to the output file
-            if output == nil {
+            if let output {
+                try await ClientImage.save(references: references, out: output.string, platform: p, containerSystemConfig: containerSystemConfig)
+            } else {
                 let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).tar")
                 defer {
                     try? FileManager.default.removeItem(at: tempFile)
@@ -102,7 +126,7 @@ extension Application {
                     throw ContainerizationError(.internalError, message: "unable to create temporary file")
                 }
 
-                try await ClientImage.save(references: references, out: tempFile.path(), platform: p)
+                try await ClientImage.save(references: references, out: tempFile.path(), platform: p, containerSystemConfig: containerSystemConfig)
 
                 guard let fileHandle = try? FileHandle(forReadingFrom: tempFile) else {
                     throw ContainerizationError(.internalError, message: "unable to open temporary file for reading")
@@ -115,8 +139,6 @@ extension Application {
                     FileHandle.standardOutput.write(chunk)
                 }
                 try fileHandle.close()
-            } else {
-                try await ClientImage.save(references: references, out: output!, platform: p)
             }
 
             progress.finish()

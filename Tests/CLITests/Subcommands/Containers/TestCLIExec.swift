@@ -17,6 +17,7 @@
 import Foundation
 import Testing
 
+@Suite(.serialSuites)
 class TestCLIExecCommand: CLITest {
     private func getTestName() -> String {
         Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
@@ -123,7 +124,10 @@ class TestCLIExecCommand: CLITest {
                 _ = try doExec(name: name, cmd: ["sleep", "infinity"])
             } catch CLIError.executionFailed(let message) {
                 // There's no nice way to check fail reason here
-                #expect(message.contains("is not running"), "expected container is not running if exec failed")
+                #expect(
+                    message.contains("is not running") || message.contains("failed to create process"),
+                    "expected container is not running if exec failed"
+                )
             }
 
             // Give time for the exec (or start) error handling settles down

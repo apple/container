@@ -17,8 +17,8 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerResource
+import ContainerizationError
 import Foundation
-import SwiftProtobuf
 
 extension Application {
     public struct ContainerInspect: AsyncLoggableCommand {
@@ -36,12 +36,21 @@ extension Application {
 
         public func run() async throws {
             let client = ContainerClient()
-            let objects: [any Codable] = try await client.list().filter {
-                containerIds.contains($0.id)
-            }.map {
-                PrintableContainer($0)
+            let uniqueIds = Set(containerIds)
+            let containers = try await client.list().filter {
+                uniqueIds.contains($0.id)
             }
-            print(try objects.jsonArray())
+
+            if containers.count != uniqueIds.count {
+                let found = Set(containers.map { $0.id })
+                let missing = uniqueIds.subtracting(found).sorted()
+                throw ContainerizationError(
+                    .notFound,
+                    message: "container not found: \(missing.joined(separator: ", "))"
+                )
+            }
+
+            try Output.emit(Output.renderJSON(containers.map { PrintableContainer($0) }))
         }
     }
 }

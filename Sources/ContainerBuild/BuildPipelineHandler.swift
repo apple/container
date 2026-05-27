@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import GRPC
+import GRPCCore
 import NIO
 
 protocol BuildPipelineHandler: Sendable {
@@ -30,15 +30,21 @@ public actor BuildPipeline {
             [
                 try BuildFSSync(URL(filePath: config.contextDir)),
                 try BuildRemoteContentProxy(config.contentStore),
-                try BuildImageResolver(config.contentStore, quiet: config.quiet, output: config.terminal?.handle ?? FileHandle.standardError, pull: config.pull),
+                try BuildImageResolver(
+                    config.contentStore,
+                    quiet: config.quiet,
+                    output: config.terminal?.handle ?? FileHandle.standardError,
+                    pull: config.pull,
+                    containerSystemConfig: config.containerSystemConfig
+                ),
                 try BuildStdio(quiet: config.quiet, output: config.terminal?.handle ?? FileHandle.standardError),
             ]
     }
 
-    public func run(
+    public func run<S: AsyncSequence & Sendable>(
         sender: AsyncStream<ClientStream>.Continuation,
-        receiver: GRPCAsyncResponseStream<ServerStream>
-    ) async throws {
+        receiver: S
+    ) async throws where S.Element == ServerStream {
         defer { sender.finish() }
         try await untilFirstError { group in
             for try await packet in receiver {

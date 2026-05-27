@@ -95,7 +95,6 @@ public struct ClientImage: Sendable {
 
 extension ClientImage {
     private static let serviceIdentifier = "com.apple.container.core.container-core-images"
-    public static let initImageRef = DefaultsStore.get(key: .defaultInitImage)
 
     private static func newXPCClient() -> XPCClient {
         XPCClient(service: Self.serviceIdentifier)
@@ -105,9 +104,6 @@ extension ClientImage {
         XPCMessage(route: route)
     }
 
-    private static var defaultRegistryDomain: String {
-        DefaultsStore.get(key: .defaultRegistryDomain)
-    }
 }
 
 // MARK: Static methods
@@ -117,8 +113,8 @@ extension ClientImage {
     private static let dockerRegistryHost = "registry-1.docker.io"
     private static let defaultDockerRegistryRepo = "library"
 
-    public static func normalizeReference(_ ref: String) throws -> String {
-        guard ref != Self.initImageRef else {
+    public static func normalizeReference(_ ref: String, containerSystemConfig: ContainerSystemConfig) throws -> String {
+        guard ref != containerSystemConfig.vminit.image else {
             // Don't modify the default init image reference.
             // This is to allow for easier local development against
             // an updated containerization.
@@ -128,7 +124,7 @@ extension ClientImage {
         var updatedRawReference: String = ref
         let r = try Reference.parse(ref)
         if r.domain == nil {
-            updatedRawReference = "\(Self.defaultRegistryDomain)/\(ref)"
+            updatedRawReference = "\(containerSystemConfig.registry.domain)/\(ref)"
         }
 
         let updatedReference = try Reference.parse(updatedRawReference)
@@ -139,10 +135,10 @@ extension ClientImage {
         return updatedReference.description
     }
 
-    public static func denormalizeReference(_ ref: String) throws -> String {
+    public static func denormalizeReference(_ ref: String, containerSystemConfig: ContainerSystemConfig) throws -> String {
         var updatedRawReference: String = ref
         let r = try Reference.parse(ref)
-        let defaultRegistry = Self.defaultRegistryDomain
+        let defaultRegistry = containerSystemConfig.registry.domain
         if r.domain == defaultRegistry {
             updatedRawReference = "\(r.path)"
             if let tag = r.tag {
@@ -168,13 +164,13 @@ extension ClientImage {
         }
     }
 
-    public static func get(names: [String]) async throws -> (images: [ClientImage], error: [String]) {
+    public static func get(names: [String], containerSystemConfig: ContainerSystemConfig) async throws -> (images: [ClientImage], error: [String]) {
         let all = try await self.list()
         var errors: [String] = []
         var found: [ClientImage] = []
         for name in names {
             do {
-                guard let img = try Self._search(reference: name, in: all) else {
+                guard let img = try Self._search(reference: name, in: all, containerSystemConfig: containerSystemConfig) else {
                     errors.append(name)
                     continue
                 }
@@ -186,9 +182,9 @@ extension ClientImage {
         return (found, errors)
     }
 
-    public static func get(reference: String) async throws -> ClientImage {
+    public static func get(reference: String, containerSystemConfig: ContainerSystemConfig) async throws -> ClientImage {
         let all = try await self.list()
-        guard let found = try self._search(reference: reference, in: all) else {
+        guard let found = try self._search(reference: reference, in: all, containerSystemConfig: containerSystemConfig) else {
             throw ContainerizationError(.notFound, message: "image with reference \(reference)")
         }
         return found
@@ -221,7 +217,7 @@ extension ClientImage {
         return 0
     }
 
-    private static func _search(reference: String, in all: [ClientImage]) throws -> ClientImage? {
+    private static func _search(reference: String, in all: [ClientImage], containerSystemConfig: ContainerSystemConfig) throws -> ClientImage? {
         let locallyBuiltImage = try {
             // Check if we have an image whose index descriptor contains the image name
             // as an annotation. Prefer this in all cases, since these are locally built images.
@@ -242,14 +238,19 @@ extension ClientImage {
         // If we don't find a match, try matching `ImageDescription.name` against the given
         // input string, while also checking against its normalized form.
         // Return the first match.
-        let normalizedReference = try Self.normalizeReference(reference)
+        let normalizedReference = try Self.normalizeReference(reference, containerSystemConfig: containerSystemConfig)
         return all.first(where: { image in
             image.reference == reference || image.reference == normalizedReference
         })
     }
 
     public static func pull(
-        reference: String, platform: Platform? = nil, scheme: RequestScheme = .auto, progressUpdate: ProgressUpdateHandler? = nil, maxConcurrentDownloads: Int = 3
+        reference: String,
+        platform: Platform? = nil,
+        scheme: RequestScheme = .auto,
+        containerSystemConfig: ContainerSystemConfig,
+        progressUpdate: ProgressUpdateHandler? = nil,
+        maxConcurrentDownloads: Int = 3
     ) async throws -> ClientImage {
         guard maxConcurrentDownloads > 0 else {
             throw ContainerizationError(.invalidArgument, message: "maximum number of concurrent downloads must be greater than 0, got \(maxConcurrentDownloads)")
@@ -258,7 +259,7 @@ extension ClientImage {
         let client = newXPCClient()
         let request = newRequest(.imagePull)
 
-        let reference = try self.normalizeReference(reference)
+        let reference = try self.normalizeReference(reference, containerSystemConfig: containerSystemConfig)
         guard let host = try Reference.parse(reference).domain else {
             throw ContainerizationError(.invalidArgument, message: "could not extract host from reference \(reference)")
         }
@@ -266,7 +267,7 @@ extension ClientImage {
         request.set(key: .imageReference, value: reference)
         try request.set(platform: platform)
 
-        let insecure = try scheme.schemeFor(host: host) == .http
+        let insecure = try scheme.schemeFor(host: host, internalDnsDomain: containerSystemConfig.dns.domain) == .http
         request.set(key: .insecureFlag, value: insecure)
         request.set(key: .maxConcurrentDownloads, value: Int64(maxConcurrentDownloads))
 
@@ -291,8 +292,8 @@ extension ClientImage {
         let _ = try await client.send(request)
     }
 
-    public static func save(references: [String], out: String, platform: Platform? = nil) async throws {
-        let (clientImages, errors) = try await get(names: references)
+    public static func save(references: [String], out: String, platform: Platform? = nil, containerSystemConfig: ContainerSystemConfig) async throws {
+        let (clientImages, errors) = try await get(names: references, containerSystemConfig: containerSystemConfig)
         guard errors.isEmpty else {
             // TODO: Improve error handling here
             throw ContainerizationError(.invalidArgument, message: "one or more image references are invalid: \(errors.joined(separator: ", "))")
@@ -351,10 +352,15 @@ extension ClientImage {
     }
 
     public static func fetch(
-        reference: String, platform: Platform? = nil, scheme: RequestScheme = .auto, progressUpdate: ProgressUpdateHandler? = nil, maxConcurrentDownloads: Int = 3
+        reference: String,
+        platform: Platform? = nil,
+        scheme: RequestScheme = .auto,
+        containerSystemConfig: ContainerSystemConfig,
+        progressUpdate: ProgressUpdateHandler? = nil,
+        maxConcurrentDownloads: Int = 3
     ) async throws -> ClientImage {
         do {
-            let match = try await self.get(reference: reference)
+            let match = try await self.get(reference: reference, containerSystemConfig: containerSystemConfig)
             if let platform {
                 // The image exists, but we dont know if we have the right platform pulled
                 // Check if we do, if not pull the requested platform
@@ -365,7 +371,9 @@ extension ClientImage {
             guard err.isCode(.notFound) else {
                 throw err
             }
-            return try await Self.pull(reference: reference, platform: platform, scheme: scheme, progressUpdate: progressUpdate, maxConcurrentDownloads: maxConcurrentDownloads)
+            return try await Self.pull(
+                reference: reference, platform: platform, scheme: scheme, containerSystemConfig: containerSystemConfig, progressUpdate: progressUpdate,
+                maxConcurrentDownloads: maxConcurrentDownloads)
         }
     }
 }
@@ -373,7 +381,7 @@ extension ClientImage {
 // MARK: Instance methods
 
 extension ClientImage {
-    public func push(platform: Platform? = nil, scheme: RequestScheme, progressUpdate: ProgressUpdateHandler?) async throws {
+    public func push(platform: Platform? = nil, scheme: RequestScheme, containerSystemConfig: ContainerSystemConfig, progressUpdate: ProgressUpdateHandler?) async throws {
         let client = Self.newXPCClient()
         let request = Self.newRequest(.imagePush)
 
@@ -382,7 +390,7 @@ extension ClientImage {
         }
         request.set(key: .imageReference, value: reference)
 
-        let insecure = try scheme.schemeFor(host: host) == .http
+        let insecure = try scheme.schemeFor(host: host, internalDnsDomain: containerSystemConfig.dns.domain) == .http
         request.set(key: .insecureFlag, value: insecure)
 
         try request.set(platform: platform)

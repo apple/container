@@ -27,11 +27,6 @@ import TerminalProgress
 public struct Utility {
     static let publishedPortCountLimit = 64
 
-    private static let infraImages = [
-        DefaultsStore.get(key: .defaultBuilderImage),
-        DefaultsStore.get(key: .defaultInitImage),
-    ]
-
     public static func createContainerID(name: String?) -> String {
         guard let name else {
             return UUID().uuidString.lowercased()
@@ -39,8 +34,8 @@ public struct Utility {
         return name
     }
 
-    public static func isInfraImage(name: String) -> Bool {
-        for infraImage in infraImages {
+    public static func isInfraImage(name: String, builderImage: String, initImage: String) -> Bool {
+        for infraImage in [builderImage, initImage] {
             if name == infraImage {
                 return true
             }
@@ -82,14 +77,16 @@ public struct Utility {
         resource: Flags.Resource,
         registry: Flags.Registry,
         imageFetch: Flags.ImageFetch,
+        containerSystemConfig: ContainerSystemConfig,
         progressUpdate: @escaping ProgressUpdateHandler,
         log: Logger
     ) async throws -> (ContainerConfiguration, Kernel, String?) {
-        var requestedPlatform = Parser.platform(os: management.os, arch: management.arch)
-        // Prefer --platform
-        if let platform = management.platform {
-            requestedPlatform = try Parser.platform(from: platform)
-        }
+        let requestedPlatform = try DefaultPlatform.resolveWithDefaults(
+            platform: management.platform,
+            os: management.os,
+            arch: management.arch,
+            log: log
+        )
         let scheme = try RequestScheme(registry.scheme)
 
         await progressUpdate([
@@ -102,6 +99,7 @@ public struct Utility {
             reference: image,
             platform: requestedPlatform,
             scheme: scheme,
+            containerSystemConfig: containerSystemConfig,
             progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progressUpdate),
             maxConcurrentDownloads: imageFetch.maxConcurrentDownloads
         )
@@ -129,9 +127,10 @@ public struct Utility {
             .setItemsName("blobs"),
         ])
         let fetchInitTask = await taskManager.startTask()
-        let initImageRef = management.initImage ?? ClientImage.initImageRef
+        let initImageRef = management.initImage ?? containerSystemConfig.vminit.image
         let initImage = try await ClientImage.fetch(
             reference: initImageRef, platform: .current, scheme: scheme,
+            containerSystemConfig: containerSystemConfig,
             progressUpdate: ProgressTaskCoordinator.handler(for: fetchInitTask, from: progressUpdate),
             maxConcurrentDownloads: imageFetch.maxConcurrentDownloads)
 
@@ -160,7 +159,9 @@ public struct Utility {
 
         config.resources = try Parser.resources(
             cpus: resource.cpus,
-            memory: resource.memory
+            memory: resource.memory,
+            defaultCPUs: containerSystemConfig.container.cpus,
+            defaultMemory: containerSystemConfig.container.memory
         )
 
         let tmpfs = try Parser.tmpfsMounts(management.tmpFs)
@@ -190,25 +191,33 @@ public struct Utility {
 
         config.mounts = resolvedMounts
 
+        if let shmSizeStr = management.shmSize {
+            let measurement = try Measurement.parse(parsing: shmSizeStr)
+            let bytes = measurement.converted(to: .bytes)
+            config.shmSize = UInt64(bytes.value)
+        }
+
         config.virtualization = management.virtualization
 
         // Parse network specifications with properties
         let parsedNetworks = try management.networks.map { try Parser.network($0) }
-        if management.networks.contains(ClientNetwork.noNetworkName) {
+        if management.networks.contains(NetworkClient.noNetworkName) {
             guard management.networks.count == 1 else {
-                throw ContainerizationError(.unsupported, message: "no other networks may be created along with network \(ClientNetwork.noNetworkName)")
+                throw ContainerizationError(.unsupported, message: "no other networks may be created along with network \(NetworkClient.noNetworkName)")
             }
             config.networks = []
         } else {
-            let builtinNetworkId = try await ClientNetwork.builtin?.id
+            let networkClient = NetworkClient()
+            let builtinNetworkId = try await networkClient.builtin?.id
             config.networks = try getAttachmentConfigurations(
                 containerId: config.id,
                 builtinNetworkId: builtinNetworkId,
-                networks: parsedNetworks
+                networks: parsedNetworks,
+                dnsDomain: containerSystemConfig.dns.domain,
             )
             for attachmentConfiguration in config.networks {
-                let network: NetworkState = try await ClientNetwork.get(id: attachmentConfiguration.network)
-                guard case .running(_, _) = network else {
+                let network = try await networkClient.get(id: attachmentConfiguration.network)
+                guard network.status.phase == "running" else {
                     throw ContainerizationError(.invalidState, message: "network \(attachmentConfiguration.network) is not running")
                 }
             }
@@ -217,7 +226,7 @@ public struct Utility {
         if management.dnsDisabled {
             config.dns = nil
         } else {
-            let domain = management.dns.domain ?? DefaultsStore.getOptional(key: .defaultDNSDomain)
+            let domain = management.dns.domain ?? containerSystemConfig.dns.domain
             config.dns = .init(
                 nameservers: management.dns.nameservers,
                 domain: domain,
@@ -248,6 +257,12 @@ public struct Utility {
 
         config.ssh = management.ssh
         config.readOnly = management.readOnly
+        config.useInit = management.useInit
+
+        let caps = try Parser.capabilities(capAdd: management.capAdd, capDrop: management.capDrop)
+        config.capAdd = caps.capAdd
+        config.capDrop = caps.capDrop
+        config.stopSignal = imageConfig?.stopSignal
 
         if let runtime = management.runtime {
             config.runtimeHandler = runtime
@@ -259,7 +274,8 @@ public struct Utility {
     static func getAttachmentConfigurations(
         containerId: String,
         builtinNetworkId: String?,
-        networks: [Parser.ParsedNetwork]
+        networks: [Parser.ParsedNetwork],
+        dnsDomain: String?,
     ) throws -> [AttachmentConfiguration] {
         // Validate MAC addresses if provided
         for network in networks {
@@ -272,7 +288,7 @@ public struct Utility {
         let fqdn: String?
         if !containerId.contains(".") {
             // add default domain if it exists, and container ID is unqualified
-            if let dnsDomain = DefaultsStore.getOptional(key: .defaultDNSDomain) {
+            if let dnsDomain {
                 fqdn = "\(containerId).\(dnsDomain)."
             } else {
                 fqdn = nil
@@ -296,15 +312,16 @@ public struct Utility {
             // attach the first network using the fqdn, and the rest using just the container ID
             return try networks.enumerated().map { item in
                 let macAddress = try item.element.macAddress.map { try MACAddress($0) }
+                let mtu = item.element.mtu ?? 1280
                 guard item.offset == 0 else {
                     return AttachmentConfiguration(
                         network: item.element.name,
-                        options: AttachmentOptions(hostname: containerId, macAddress: macAddress)
+                        options: AttachmentOptions(hostname: containerId, macAddress: macAddress, mtu: mtu)
                     )
                 }
                 return AttachmentConfiguration(
                     network: item.element.name,
-                    options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: macAddress)
+                    options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: macAddress, mtu: mtu)
                 )
             }
         }
@@ -313,7 +330,7 @@ public struct Utility {
         guard let builtinNetworkId else {
             throw ContainerizationError(.invalidState, message: "builtin network is not present")
         }
-        return [AttachmentConfiguration(network: builtinNetworkId, options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: nil))]
+        return [AttachmentConfiguration(network: builtinNetworkId, options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: nil, mtu: 1280))]
     }
 
     private static func getKernel(management: Flags.Management) async throws -> Kernel {

@@ -16,10 +16,7 @@
 
 import ArgumentParser
 import ContainerAPIClient
-import ContainerResource
-import ContainerizationExtras
 import Foundation
-import SwiftProtobuf
 
 extension Application {
     public struct NetworkList: AsyncLoggableCommand {
@@ -40,70 +37,9 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let networks = try await ClientNetwork.list()
-            try printNetworks(networks: networks, format: format)
-        }
-
-        private func createHeader() -> [[String]] {
-            [["NETWORK", "STATE", "SUBNET"]]
-        }
-
-        func printNetworks(networks: [NetworkState], format: ListFormat) throws {
-            if format == .json {
-                let printables = networks.map {
-                    PrintableNetwork($0)
-                }
-                let data = try JSONEncoder().encode(printables)
-                print(String(decoding: data, as: UTF8.self))
-
-                return
-            }
-
-            if self.quiet {
-                networks.forEach {
-                    print($0.id)
-                }
-                return
-            }
-
-            var rows = createHeader()
-            for network in networks {
-                rows.append(network.asRow)
-            }
-
-            let formatter = TableOutput(rows: rows)
-            print(formatter.format())
-        }
-    }
-}
-
-extension NetworkState {
-    var asRow: [String] {
-        switch self {
-        case .created(_):
-            return [self.id, self.state, "none"]
-        case .running(_, let status):
-            return [self.id, self.state, status.ipv4Subnet.description]
-        }
-    }
-}
-
-public struct PrintableNetwork: Codable {
-    let id: String
-    let state: String
-    let config: NetworkConfiguration
-    let status: NetworkStatus?
-
-    public init(_ network: NetworkState) {
-        self.id = network.id
-        self.state = network.state
-        switch network {
-        case .created(let config):
-            self.config = config
-            self.status = nil
-        case .running(let config, let status):
-            self.config = config
-            self.status = status
+            let networkClient = NetworkClient()
+            let networks = try await networkClient.list()
+            try Output.render(json: networks, display: networks, format: format, quiet: quiet)
         }
     }
 }

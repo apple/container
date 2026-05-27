@@ -39,7 +39,7 @@ public struct ContainerClient: Sendable {
     @discardableResult
     private func xpcSend(
         message: XPCMessage,
-        timeout: Duration? = .seconds(15)
+        timeout: Duration? = XPCClient.xpcRegistrationTimeout
     ) async throws -> XPCMessage {
         try await xpcClient.send(message, responseTimeout: timeout)
     }
@@ -49,7 +49,8 @@ public struct ContainerClient: Sendable {
         configuration: ContainerConfiguration,
         options: ContainerCreateOptions = .default,
         kernel: Kernel,
-        initImage: String? = nil
+        initImage: String? = nil,
+        runtimeData: Data? = nil
     ) async throws {
         do {
             let request = XPCMessage(route: .containerCreate)
@@ -63,6 +64,10 @@ public struct ContainerClient: Sendable {
 
             if let initImage {
                 request.set(key: .initImage, value: initImage)
+            }
+
+            if let runtimeData {
+                request.set(key: .runtimeData, value: runtimeData)
             }
 
             try await xpcSend(message: request)
@@ -113,7 +118,11 @@ public struct ContainerClient: Sendable {
     }
 
     /// Bootstrap the container's init process.
-    public func bootstrap(id: String, stdio: [FileHandle?]) async throws -> ClientProcess {
+    public func bootstrap(
+        id: String,
+        stdio: [FileHandle?],
+        dynamicEnv: [String: String] = [:]
+    ) async throws -> ClientProcess {
         let request = XPCMessage(route: .containerBootstrap)
 
         for (i, h) in stdio.enumerated() {
@@ -133,6 +142,9 @@ public struct ContainerClient: Sendable {
         }
 
         do {
+            let dynamicEnv = try JSONEncoder().encode(dynamicEnv)
+            request.set(key: .dynamicEnv, value: dynamicEnv)
+
             request.set(key: .id, value: id)
             try await xpcClient.send(request)
             return ClientProcessImpl(containerId: id, xpcClient: xpcClient)
@@ -299,6 +311,45 @@ public struct ContainerClient: Sendable {
         return fh
     }
 
+    /// Copy a file or directory from the host into the container.
+    public func copyIn(id: String, source: String, destination: String, mode: UInt32 = 0o644, createParents: Bool = true) async throws {
+        let request = XPCMessage(route: .containerCopyIn)
+        request.set(key: .id, value: id)
+        request.set(key: .sourcePath, value: source)
+        request.set(key: .destinationPath, value: destination)
+        request.set(key: .fileMode, value: UInt64(mode))
+        request.set(key: .createParents, value: createParents)
+
+        do {
+            try await xpcSend(message: request, timeout: .seconds(300))
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to copy into container \(id)",
+                cause: error
+            )
+        }
+    }
+
+    /// Copy a file or directory from the container to the host.
+    public func copyOut(id: String, source: String, destination: String, createParents: Bool = true) async throws {
+        let request = XPCMessage(route: .containerCopyOut)
+        request.set(key: .id, value: id)
+        request.set(key: .sourcePath, value: source)
+        request.set(key: .destinationPath, value: destination)
+        request.set(key: .createParents, value: createParents)
+
+        do {
+            try await xpcSend(message: request, timeout: .seconds(300))
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to copy from container \(id)",
+                cause: error
+            )
+        }
+    }
+
     /// Get resource usage statistics for a container.
     public func stats(id: String) async throws -> ContainerStats {
         let request = XPCMessage(route: .containerStats)
@@ -317,6 +368,22 @@ public struct ContainerClient: Sendable {
             throw ContainerizationError(
                 .internalError,
                 message: "failed to get statistics for container \(id)",
+                cause: error
+            )
+        }
+    }
+
+    public func export(id: String, archive: URL) async throws {
+        let request = XPCMessage(route: .containerExport)
+        request.set(key: .id, value: id)
+        request.set(key: .archive, value: archive.absolutePath())
+
+        do {
+            try await xpcClient.send(request)
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to export container",
                 cause: error
             )
         }

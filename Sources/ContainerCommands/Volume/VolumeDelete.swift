@@ -39,6 +39,18 @@ extension Application.VolumeCommand {
 
         public init() {}
 
+        public func validate() throws {
+            if names.count == 0 && !all {
+                throw ContainerizationError(.invalidArgument, message: "no volumes specified and --all not supplied")
+            }
+            if names.count > 0 && all {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "explicitly supplied volume name(s) conflict with the --all flag"
+                )
+            }
+        }
+
         public func run() async throws {
             let uniqueVolumeNames = Set<String>(names)
             let volumes: [Volume]
@@ -68,7 +80,7 @@ extension Application.VolumeCommand {
             }
 
             var failed = [String]()
-            let logger = log
+            let _log = log
             try await withThrowingTaskGroup(of: Volume?.self) { group in
                 for volume in volumes {
                     group.addTask {
@@ -77,7 +89,12 @@ extension Application.VolumeCommand {
                             print(volume.id)
                             return nil
                         } catch {
-                            logger.error("failed to delete volume \(volume.id): \(error)")
+                            _log.error(
+                                "failed to delete volume",
+                                metadata: [
+                                    "id": "\(volume.id)",
+                                    "error": "\(error)",
+                                ])
                             return volume
                         }
                     }

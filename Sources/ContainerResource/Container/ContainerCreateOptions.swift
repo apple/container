@@ -15,10 +15,14 @@
 //===----------------------------------------------------------------------===//
 
 public struct ContainerCreateOptions: Codable, Sendable {
+    /// Remove the container and wipe out its data on container stop
     public let autoRemove: Bool
+    /// Override the rootFs with this one other than the image-cloned version
+    public let rootFsOverride: Filesystem?
 
-    public init(autoRemove: Bool) {
+    public init(autoRemove: Bool, rootFsOverride: Filesystem? = nil) {
         self.autoRemove = autoRemove
+        self.rootFsOverride = rootFsOverride
     }
 
     public static let `default` = ContainerCreateOptions(autoRemove: false)
