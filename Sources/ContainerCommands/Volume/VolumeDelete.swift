@@ -53,7 +53,7 @@ extension Application.VolumeCommand {
 
         public func run() async throws {
             let uniqueVolumeNames = Set<String>(names)
-            let volumes: [Volume]
+            let volumes: [VolumeConfiguration]
 
             if all {
                 volumes = try await ClientVolume.list()
@@ -81,7 +81,7 @@ extension Application.VolumeCommand {
 
             var failed = [String]()
             let _log = log
-            try await withThrowingTaskGroup(of: Volume?.self) { group in
+            try await withThrowingTaskGroup(of: VolumeConfiguration?.self) { group in
                 for volume in volumes {
                     group.addTask {
                         do {

@@ -17,7 +17,7 @@
 import Foundation
 
 /// A named or anonymous volume that can be mounted in containers.
-public struct Volume: Sendable, Codable, Equatable, Identifiable {
+public struct VolumeConfiguration: Sendable, Codable, Equatable, Identifiable {
     // id of the volume.
     public var id: String { name }
     // Name of the volume.
@@ -58,7 +58,7 @@ public struct Volume: Sendable, Codable, Equatable, Identifiable {
     }
 }
 
-extension Volume {
+extension VolumeConfiguration {
     /// Reserved label key for marking anonymous volumes
     public static let anonymousLabel = "com.apple.container.resource.anonymous"
 
