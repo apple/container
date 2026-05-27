@@ -187,7 +187,7 @@ define GENERATE_COV_REPORTS
 	@cat $(COVERAGE_OUTPUT_DIR)/$(2)/coverage-percent.txt
 endef
 
-INTEGRATION_TEST_SUITES := \
+INTEGRATION_TEST_SUITES ?= \
 	TestCLIHelp \
 	TestCLIStatus \
 	TestCLIVersion \
@@ -316,7 +316,7 @@ check-licenses:
 
 .PHONY: pre-commit
 pre-commit:
-	cp Scripts/pre-commit.fmt .git/hooks
+	cp scripts/pre-commit.fmt .git/hooks
 	touch .git/hooks/pre-commit
 	cat .git/hooks/pre-commit | grep -v 'hooks/pre-commit\.fmt' > /tmp/pre-commit.new || true
 	echo 'PRECOMMIT_NOFMT=$${PRECOMMIT_NOFMT} $$(git rev-parse --show-toplevel)/.git/hooks/pre-commit.fmt' >> /tmp/pre-commit.new
