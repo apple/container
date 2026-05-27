@@ -14,73 +14,101 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationError
 import Foundation
 import SystemPackage
 import Testing
 
 @testable import ContainerResource
 
-/// Tests covering the custom `Codable` implementation on ``PublishSocket``.
+/// Tests covering the custom `Codable` implementation and validating
+/// initializer on ``PublishSocket``.
 ///
-/// `containerPath` and `hostPath` were migrated from `URL` to `FilePath`.
-/// Because `URL` is encoded by `JSONEncoder` as its `absoluteString` (e.g.
-/// `"file:///var/run/docker.sock"`), persisted bundles and any service
-/// binaries still typed against `URL` expect that exact byte format on the
-/// wire. The tests below pin the encoder to that legacy shape and verify the
-/// decoder accepts both the legacy file-URL form and a plain absolute path.
+/// `containerPath` and `hostPath` were migrated from `URL` to `FilePath`. The
+/// wire format was simultaneously changed from `URL.absoluteString`
+/// (e.g. `"file:///var/run/docker.sock"`) to the plain absolute path string
+/// (e.g. `"/var/run/docker.sock"`). The decoder retains compatibility with
+/// the legacy file-URL form so persisted bundles from earlier releases
+/// continue to load.
 struct PublishSocketTests {
-    // MARK: - Encoding
+    // MARK: - init validation
 
     @Test
-    func testEncodeProducesFileURLAbsoluteString() throws {
-        let socket = PublishSocket(
+    func testInitAcceptsAbsolutePaths() throws {
+        let socket = try PublishSocket(
+            containerPath: FilePath("/var/run/docker.sock"),
+            hostPath: FilePath("/Users/me/docker.sock")
+        )
+        #expect(socket.containerPath == FilePath("/var/run/docker.sock"))
+        #expect(socket.hostPath == FilePath("/Users/me/docker.sock"))
+        #expect(socket.permissions == nil)
+    }
+
+    @Test
+    func testInitRejectsRelativeContainerPath() {
+        #expect(throws: ContainerizationError.self) {
+            try PublishSocket(
+                containerPath: FilePath("relative/path.sock"),
+                hostPath: FilePath("/host.sock")
+            )
+        }
+    }
+
+    @Test
+    func testInitRejectsRelativeHostPath() {
+        #expect(throws: ContainerizationError.self) {
+            try PublishSocket(
+                containerPath: FilePath("/var/run/docker.sock"),
+                hostPath: FilePath("relative/host.sock")
+            )
+        }
+    }
+
+    // MARK: - Encoding (plain absolute path)
+
+    @Test
+    func testEncodeProducesPlainAbsolutePath() throws {
+        let socket = try PublishSocket(
             containerPath: FilePath("/var/run/docker.sock"),
             hostPath: FilePath("/Users/me/docker.sock")
         )
         let json = try JSONEncoder().encode(socket)
-        let decoded = try JSONSerialization.jsonObject(with: json) as? [String: Any]
-        let container = try #require(decoded)
-        #expect(container["containerPath"] as? String == "file:///var/run/docker.sock")
-        #expect(container["hostPath"] as? String == "file:///Users/me/docker.sock")
-        #expect(container["permissions"] == nil)
+        let decoded = try #require(try JSONSerialization.jsonObject(with: json) as? [String: Any])
+        #expect(decoded["containerPath"] as? String == "/var/run/docker.sock")
+        #expect(decoded["hostPath"] as? String == "/Users/me/docker.sock")
+        #expect(decoded["permissions"] == nil)
     }
 
     @Test
-    func testEncodeIsByteCompatibleWithLegacyURLEncoding() throws {
-        // Pre-migration, these fields were `URL` and JSON-encoded via
-        // `URL.absoluteString`. Encoding must produce the exact same bytes
-        // for any reader still decoding them as `URL`.
-        let containerPath = "/var/run/docker.sock"
-        let hostPath = "/Users/me/docker.sock"
-        let legacy = LegacyPublishSocket(
-            containerPath: URL(fileURLWithPath: containerPath),
-            hostPath: URL(fileURLWithPath: hostPath)
-        )
-        let current = PublishSocket(
-            containerPath: FilePath(containerPath),
-            hostPath: FilePath(hostPath)
-        )
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        #expect(try encoder.encode(current) == encoder.encode(legacy))
-    }
-
-    @Test
-    func testEncodePercentEncodesSpacesAndSpecialCharacters() throws {
-        let socket = PublishSocket(
+    func testEncodeDoesNotPercentEncode() throws {
+        // Plain-path encoding preserves spaces and special characters verbatim
+        // (no URL percent-encoding layer).
+        let socket = try PublishSocket(
             containerPath: FilePath("/tmp/a b.sock"),
             hostPath: FilePath("/tmp/dir with spaces/sock")
         )
         let json = try JSONEncoder().encode(socket)
         let decoded = try #require(try JSONSerialization.jsonObject(with: json) as? [String: Any])
-        #expect(decoded["containerPath"] as? String == "file:///tmp/a%20b.sock")
-        #expect(decoded["hostPath"] as? String == "file:///tmp/dir%20with%20spaces/sock")
+        #expect(decoded["containerPath"] as? String == "/tmp/a b.sock")
+        #expect(decoded["hostPath"] as? String == "/tmp/dir with spaces/sock")
     }
 
-    // MARK: - Decoding (canonical / legacy file-URL form)
+    // MARK: - Decoding (canonical plain-path form)
 
     @Test
-    func testDecodeFileURLForm() throws {
+    func testDecodePlainAbsolutePath() throws {
+        let json = """
+            {"containerPath":"/var/run/docker.sock","hostPath":"/Users/me/docker.sock"}
+            """.data(using: .utf8)!
+        let socket = try JSONDecoder().decode(PublishSocket.self, from: json)
+        #expect(socket.containerPath == FilePath("/var/run/docker.sock"))
+        #expect(socket.hostPath == FilePath("/Users/me/docker.sock"))
+    }
+
+    // MARK: - Decoding (legacy file-URL form, compat)
+
+    @Test
+    func testDecodeLegacyFileURLForm() throws {
         let json = """
             {"containerPath":"file:///var/run/docker.sock","hostPath":"file:///Users/me/docker.sock"}
             """.data(using: .utf8)!
@@ -91,7 +119,7 @@ struct PublishSocketTests {
     }
 
     @Test
-    func testDecodeFileURLPercentEncodingIsResolved() throws {
+    func testDecodeLegacyFileURLResolvesPercentEncoding() throws {
         // Persisted bundles created via `URL(fileURLWithPath:)` percent-encode
         // spaces; decoding must yield the original literal path.
         let json = """
@@ -104,7 +132,7 @@ struct PublishSocketTests {
     }
 
     @Test
-    func testDecodeFileURLWithLocalhostHost() throws {
+    func testDecodeLegacyFileURLWithLocalhostHost() throws {
         let json = """
             {"containerPath":"file://localhost/var/run/docker.sock","hostPath":"file:///host.sock"}
             """.data(using: .utf8)!
@@ -113,25 +141,11 @@ struct PublishSocketTests {
         #expect(socket.hostPath == FilePath("/host.sock"))
     }
 
-    // MARK: - Decoding (forward-compat plain path form)
-
-    @Test
-    func testDecodePlainAbsolutePath() throws {
-        // Forward-compat: if some other encoder emits a clean path string,
-        // accept it rather than rejecting at the boundary.
-        let json = """
-            {"containerPath":"/var/run/docker.sock","hostPath":"/Users/me/docker.sock"}
-            """.data(using: .utf8)!
-        let socket = try JSONDecoder().decode(PublishSocket.self, from: json)
-        #expect(socket.containerPath == FilePath("/var/run/docker.sock"))
-        #expect(socket.hostPath == FilePath("/Users/me/docker.sock"))
-    }
-
     // MARK: - Round-trip
 
     @Test
     func testRoundTrip() throws {
-        let original = PublishSocket(
+        let original = try PublishSocket(
             containerPath: FilePath("/var/run/docker.sock"),
             hostPath: FilePath("/tmp/socket with spaces.sock"),
             permissions: FilePermissions(rawValue: 0o660)
@@ -181,6 +195,8 @@ struct PublishSocketTests {
 
     @Test
     func testDecodeRelativePathThrows() {
+        // Reject non-absolute paths — `init` enforces absoluteness and the
+        // decoder maps the validation error to `DecodingError`.
         let json = """
             {"containerPath":"relative/path.sock","hostPath":"/host.sock"}
             """.data(using: .utf8)!
@@ -210,15 +226,4 @@ struct PublishSocketTests {
             try JSONDecoder().decode(PublishSocket.self, from: json)
         }
     }
-}
-
-// MARK: - Helpers
-
-/// Mirrors the pre-migration `URL`-typed `PublishSocket` shape, used only to
-/// confirm the new encoder produces byte-identical output for any reader
-/// still decoding these fields as `URL`.
-private struct LegacyPublishSocket: Encodable {
-    var containerPath: URL
-    var hostPath: URL
-    var permissions: FilePermissions?
 }

@@ -14,25 +14,52 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationError
 import Foundation
 import SystemPackage
 
 /// Represents a socket that should be published from container to host.
+///
+/// - Deprecated: New for 1.0.0, path types changed from `URL` to `FilePath`.
+/// - Note: Decoder handles `FilePath` and `URL` for persistent data compatibility;
+///    this compatibility will be removed in a later release.
 public struct PublishSocket: Sendable, Codable {
-    /// The path to the socket in the container.
+    /// Absolute path to the socket inside the container.
     public var containerPath: FilePath
 
-    /// The path where the socket should appear on the host.
+    /// Absolute path where the socket appears on the host.
     public var hostPath: FilePath
 
     /// File permissions for the socket on the host.
     public var permissions: FilePermissions?
 
+    /// Creates a `PublishSocket` with validated absolute paths.
+    ///
+    /// - Parameters:
+    ///   - containerPath: Absolute path to the socket inside the container.
+    ///     Must begin with `/`.
+    ///   - hostPath: Absolute path where the socket appears on the host.
+    ///     Must begin with `/`.
+    ///   - permissions: File permissions applied to the socket on the host.
+    /// - Throws: `ContainerizationError` with code `.invalidArgument` if
+    ///   either path is not absolute.
     public init(
         containerPath: FilePath,
         hostPath: FilePath,
         permissions: FilePermissions? = nil
-    ) {
+    ) throws {
+        guard containerPath.isAbsolute else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "containerPath must be absolute: \(containerPath)"
+            )
+        }
+        guard hostPath.isAbsolute else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "hostPath must be absolute: \(hostPath)"
+            )
+        }
         self.containerPath = containerPath
         self.hostPath = hostPath
         self.permissions = permissions
@@ -44,41 +71,45 @@ public struct PublishSocket: Sendable, Codable {
         case permissions
     }
 
-    /// Encode paths as file-URL absolute strings (e.g. `"file:///var/run/docker.sock"`).
+    /// Encodes each path as its plain absolute string (e.g. `"/var/run/docker.sock"`).
     ///
-    /// These fields were previously typed `URL`; `JSONEncoder` special-cases
-    /// `URL` to emit `absoluteString`. `FilePath`'s synthesized `Codable`
-    /// would instead emit a keyed container (`{"_storage": "..."}`), changing
-    /// the on-disk and XPC wire format. We therefore encode each path as the
-    /// equivalent `URL.absoluteString` so the byte form remains compatible
-    /// with persisted bundles and any readers (e.g. an older service binary)
-    /// that still decode these fields as `URL`.
+    /// Pre-1.0 wire-format change from the prior `URL`-typed encoding which
+    /// emitted `URL.absoluteString` (`"file:///var/run/docker.sock"`). The
+    /// decoder accepts both forms for compatibility with persisted bundles
+    /// from earlier releases; that compatibility will be removed in a later
+    /// release.
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(Self.encodePath(containerPath), forKey: .containerPath)
-        try container.encode(Self.encodePath(hostPath), forKey: .hostPath)
+        try container.encode(containerPath.string, forKey: .containerPath)
+        try container.encode(hostPath.string, forKey: .hostPath)
         try container.encodeIfPresent(permissions, forKey: .permissions)
     }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.containerPath = try Self.decodePath(from: container, forKey: .containerPath)
-        self.hostPath = try Self.decodePath(from: container, forKey: .hostPath)
-        self.permissions = try container.decodeIfPresent(FilePermissions.self, forKey: .permissions)
+        let containerPath = try Self.decodePath(from: container, forKey: .containerPath)
+        let hostPath = try Self.decodePath(from: container, forKey: .hostPath)
+        let permissions = try container.decodeIfPresent(FilePermissions.self, forKey: .permissions)
+        do {
+            try self.init(
+                containerPath: containerPath,
+                hostPath: hostPath,
+                permissions: permissions
+            )
+        } catch let error as ContainerizationError {
+            throw DecodingError.dataCorruptedError(
+                forKey: .containerPath,
+                in: container,
+                debugDescription: String(describing: error)
+            )
+        }
     }
 
-    /// Encode a `FilePath` as a file-URL `absoluteString` to match the prior
-    /// `URL`-typed wire format byte-for-byte.
-    private static func encodePath(_ path: FilePath) -> String {
-        URL(filePath: path.string).absoluteString
-    }
-
-    /// Decode a `FilePath` from either the canonical file-URL form
-    /// (e.g. `"file:///foo"`) emitted by `encodePath(_:)` and the legacy
-    /// `URL`-typed wire format, or a plain absolute path string. Throws
-    /// `DecodingError.dataCorrupted` on malformed, empty, or non-absolute
-    /// inputs so corrupt persisted state fails loudly rather than silently
-    /// producing an invalid socket path.
+    /// Decodes a `FilePath` accepting either the new plain-path form
+    /// (`"/var/run/docker.sock"`) or the legacy file-URL form emitted by
+    /// older releases (`"file:///var/run/docker.sock"`). Throws
+    /// `DecodingError.dataCorrupted` on a malformed file URL or empty input.
+    /// Absoluteness is enforced in `init(containerPath:hostPath:permissions:)`.
     private static func decodePath(
         from container: KeyedDecodingContainer<CodingKeys>,
         forKey key: CodingKeys
@@ -106,11 +137,11 @@ public struct PublishSocket: Sendable, Codable {
             path = raw
         }
 
-        guard path.hasPrefix("/") else {
+        guard !path.isEmpty else {
             throw DecodingError.dataCorruptedError(
                 forKey: key,
                 in: container,
-                debugDescription: "socket path must be absolute: \(raw)"
+                debugDescription: "decoded socket path is empty: \(raw)"
             )
         }
 
