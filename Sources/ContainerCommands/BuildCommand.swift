@@ -25,6 +25,7 @@ import ContainerizationError
 import ContainerizationOCI
 import ContainerizationOS
 import Foundation
+import Logging
 import NIO
 import TerminalProgress
 
@@ -165,13 +166,13 @@ extension Application {
                 progress.set(description: "Dialing builder")
 
                 let dnsNameservers = self.dns.nameservers
+                let client = ContainerClient()
                 let builder: Builder? = try await withThrowingTaskGroup(of: Builder.self) { [vsockPort, cpus, memory, dnsNameservers] group in
                     defer {
                         group.cancelAll()
                     }
 
                     group.addTask { [vsockPort, cpus, memory, log, dnsNameservers] in
-                        let client = ContainerClient()
                         while true {
                             do {
                                 let fh = try await client.dial(id: "buildkit", port: vsockPort)
@@ -333,6 +334,39 @@ extension Application {
                         }
                         return results
                     }()
+                    group.addTask { [log] in
+                        let container = try await client.get(id: "buildkit")
+                        var processConfig = container.configuration.initProcess
+                        processConfig.executable = "/bin/cat"
+                        processConfig.arguments = ["/sys/fs/cgroup/memory.stat"]
+                        processConfig.terminal = false
+
+                        var previousStats: [String: UInt64] = [:]
+
+                        while true {
+                            let stdout = Pipe()
+
+                            let process = try await client.createProcess(
+                                containerId: "buildkit",
+                                processId: UUID().uuidString.lowercased(),
+                                configuration: processConfig,
+                                stdio: [nil, stdout.fileHandleForWriting, nil]
+                            )
+
+                            try await process.start()
+                            try stdout.fileHandleForWriting.close()
+
+                            _ = try await process.wait()
+
+                            let data = stdout.fileHandleForReading.readDataToEndOfFile()
+                            if let text = String(data: data, encoding: .utf8) {
+                                checkForCacheThrashing(statsText: text, previousStats: &previousStats, log: log)
+                            }
+
+                            try await Task.sleep(for: .seconds(3))
+                        }
+                    }
+
                     group.addTask {
                         [
                             terminal, buildArg, secretsData, contextDir, ignoreFileData, label, noCache, target, quiet, cacheIn, cacheOut, pull, exports, imageNames, tempURL, log,
@@ -497,5 +531,35 @@ extension Application {
                 }
             }
         }
+    }
+}
+
+private func checkForCacheThrashing(statsText: String, previousStats: inout [String: UInt64], log: Logger) {
+    var stats: [String: UInt64] = [:]
+    for line in statsText.split(separator: "\n") {
+        let parts = line.split(separator: " ", maxSplits: 1)
+        if parts.count == 2, let value = UInt64(parts[1]) {
+            stats[String(parts[0])] = value
+        }
+    }
+
+    defer { previousStats = stats }
+
+    guard !previousStats.isEmpty else { return }
+
+    // Key signals for detecting page cache thrashing
+    // - workingset_refault_file: pages evicted then re-faulted back in (direct thrashing signal)
+    // - pgsteal_direct — direct reclaim stealing pages, stalling the processes themselves
+    let refaultDelta = (stats["workingset_refault_file"] ?? 0) - (previousStats["workingset_refault_file"] ?? 0)
+    let pgstealDirectDelta = (stats["pgsteal_direct"] ?? 0) - (previousStats["pgsteal_direct"] ?? 0)
+
+    if refaultDelta > 100 || pgstealDirectDelta > 100 {
+        log.warning(
+            "file page cache thrashing detected in builder",
+            metadata: [
+                "workingset_refault_file": "\(refaultDelta)",
+                "pgsteal_direct": "\(pgstealDirectDelta)",
+            ]
+        )
     }
 }
