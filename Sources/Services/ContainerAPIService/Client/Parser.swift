@@ -98,7 +98,6 @@ public struct Parser {
     public static func resources(
         cpus: Int64?,
         memory: String?,
-        blkio: [String] = [],
         defaultCPUs: Int,
         defaultMemory: MemorySize,
     ) throws -> ContainerConfiguration.Resources {
@@ -113,8 +112,6 @@ public struct Parser {
         if let memory {
             resource.memoryInBytes = try Parser.memoryStringAsMiB(memory).mib()
         }
-
-        resource.blockIO = try Parser.blockIO(specs: blkio)
 
         return resource
     }

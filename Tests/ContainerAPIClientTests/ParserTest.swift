@@ -1201,21 +1201,14 @@ struct ParserTest {
         #expect(result.memoryInBytes == 256.mib())
     }
 
-    @Test func testResourcesBlockIOFlags() throws {
-        let result = try Parser.resources(
-            cpus: nil,
-            memory: nil,
-            blkio: [
-                "weight=500,leaf-weight=300",
-                "device=/dev/null,weight=700,leaf-weight=400",
-                "device=/dev/null,read-bps=1mb,write-bps=2mb",
-                "device=/dev/null,read-iops=1000,write-iops=2000",
-            ],
-            defaultCPUs: 8,
-            defaultMemory: MemorySize("2g")
-        )
-
-        let blockIO = try #require(result.blockIO)
+    @Test func testBlockIOSpecsCombined() throws {
+        let parsed = try Parser.blockIO(specs: [
+            "weight=500,leaf-weight=300",
+            "device=/dev/null,weight=700,leaf-weight=400",
+            "device=/dev/null,read-bps=1mb,write-bps=2mb",
+            "device=/dev/null,read-iops=1000,write-iops=2000",
+        ])
+        let blockIO = try #require(parsed)
         #expect(blockIO.weight == 500)
         #expect(blockIO.leafWeight == 300)
         #expect(blockIO.weightDevice.first?.weight == 700)
@@ -1226,16 +1219,9 @@ struct ParserTest {
         #expect(blockIO.throttleWriteIOPSDevice.first?.rate == 2000)
     }
 
-    @Test func testResourcesBlockIOAcceptsMajorMinorLiteral() throws {
-        let result = try Parser.resources(
-            cpus: nil,
-            memory: nil,
-            blkio: ["device=8:0,weight=600,read-bps=512kb"],
-            defaultCPUs: 8,
-            defaultMemory: MemorySize("2g")
-        )
-
-        let blockIO = try #require(result.blockIO)
+    @Test func testBlockIOAcceptsMajorMinorLiteral() throws {
+        let parsed = try Parser.blockIO(specs: ["device=8:0,weight=600,read-bps=512kb"])
+        let blockIO = try #require(parsed)
         let weightDevice = try #require(blockIO.weightDevice.first)
         #expect(weightDevice.major == 8)
         #expect(weightDevice.minor == 0)
@@ -1243,44 +1229,26 @@ struct ParserTest {
         #expect(blockIO.throttleReadBpsDevice.first?.rate == 512 * 1024)
     }
 
-    @Test func testResourcesRejectsInvalidBlockIOWeight() throws {
+    @Test func testBlockIORejectsInvalidWeight() throws {
         #expect {
-            _ = try Parser.resources(
-                cpus: nil,
-                memory: nil,
-                blkio: ["weight=1"],
-                defaultCPUs: 8,
-                defaultMemory: MemorySize("2g")
-            )
+            _ = try Parser.blockIO(specs: ["weight=1"])
         } throws: { _ in
             true
         }
     }
 
-    @Test func testResourcesRejectsUnknownBlockIOKey() throws {
+    @Test func testBlockIORejectsUnknownKey() throws {
         #expect {
-            _ = try Parser.resources(
-                cpus: nil,
-                memory: nil,
-                blkio: ["device=/dev/null,bogus=1"],
-                defaultCPUs: 8,
-                defaultMemory: MemorySize("2g")
-            )
+            _ = try Parser.blockIO(specs: ["device=/dev/null,bogus=1"])
         } throws: { _ in
             true
         }
     }
 
-    @Test func testResourcesRejectsGlobalKeyOnDeviceSpec() throws {
+    @Test func testBlockIORejectsGlobalKeyOnDeviceSpec() throws {
         // read-bps without device= is meaningless.
         #expect {
-            _ = try Parser.resources(
-                cpus: nil,
-                memory: nil,
-                blkio: ["read-bps=1mb"],
-                defaultCPUs: 8,
-                defaultMemory: MemorySize("2g")
-            )
+            _ = try Parser.blockIO(specs: ["read-bps=1mb"])
         } throws: { _ in
             true
         }

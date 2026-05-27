@@ -103,12 +103,10 @@ public struct Flags {
 
         public init(
             cpus: Int64?,
-            memory: String?,
-            blkio: [String] = []
+            memory: String?
         ) {
             self.cpus = cpus
             self.memory = memory
-            self.blkio = blkio
         }
 
         @Option(name: .shortAndLong, help: "Number of CPUs to allocate to the container")
@@ -119,24 +117,6 @@ public struct Flags {
             help: "Amount of memory (1MiByte granularity), with optional K, M, G, T, or P suffix"
         )
         public var memory: String?
-
-        @Option(
-            name: .customLong("blkio"),
-            help: .init(
-                """
-                Block I/O cgroup tuning (repeatable). Comma-separated key=value pairs:
-                  weight=<10..1000>                       cgroup-wide weight
-                  leaf-weight=<10..1000>                  cgroup-wide leaf weight
-                  device=<path|major:minor>,weight=...    per-device weight
-                  device=<...>,read-bps=<rate>            per-device read throughput limit
-                  device=<...>,write-bps=<rate>           per-device write throughput limit
-                  device=<...>,read-iops=<n>              per-device read IOPS limit
-                  device=<...>,write-iops=<n>             per-device write IOPS limit
-                """,
-                valueName: "spec"
-            )
-        )
-        public var blkio: [String] = []
     }
 
     public struct DNS: ParsableArguments {
@@ -213,6 +193,7 @@ public struct Flags {
             runtime: String?,
             ssh: Bool,
             shmSize: String?,
+            blkio: [String] = [],
             tmpFs: [String],
             useInit: Bool,
             virtualization: Bool,
@@ -242,6 +223,7 @@ public struct Flags {
             self.runtime = runtime
             self.ssh = ssh
             self.shmSize = shmSize
+            self.blkio = blkio
             self.tmpFs = tmpFs
             self.useInit = useInit
             self.virtualization = virtualization
@@ -356,6 +338,15 @@ public struct Flags {
 
         @Option(name: .customLong("shm-size"), help: "Size of /dev/shm (e.g. 64M, 1G)")
         public var shmSize: String?
+
+        @Option(
+            name: .customLong("blkio"),
+            help: .init(
+                "Block I/O cgroup tuning options (Linux only; see command reference for the supported keys)",
+                valueName: "option"
+            )
+        )
+        public var blkio: [String] = []
 
         @Option(name: .customLong("tmpfs"), help: "Add a tmpfs mount to the container at the given path")
         public var tmpFs: [String] = []
