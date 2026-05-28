@@ -47,9 +47,15 @@ class CLITest {
     }
 
     struct NetworkInspectOutput: Codable {
+        struct Status: Codable {
+            let ipv4Subnet: String?
+            let ipv4Gateway: String?
+            let ipv6Subnet: String?
+        }
         let id: String
-        let config: NetworkConfiguration
-        let status: NetworkStatus
+        let state: String
+        let configuration: NetworkConfiguration
+        let status: Status?
     }
 
     let testName: String
