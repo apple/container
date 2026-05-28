@@ -701,7 +701,7 @@ public struct Parser {
             throw ContainerizationError(.invalidArgument, message: "publish host and container port counts are not equal: \(hostPortText):\(containerPortText)")
         }
 
-        return PublishPort(
+        return try PublishPort(
             hostAddress: hostAddress,
             hostPort: hostPortRangeStart,
             containerPort: containerPortRangeStart,
