@@ -360,7 +360,7 @@ extension Application {
 
                             let data = stdout.fileHandleForReading.readDataToEndOfFile()
                             if let text = String(data: data, encoding: .utf8) {
-                                checkForCacheThrashing(statsText: text, previousStats: &previousStats, log: log)
+                                Self.checkForCacheThrashing(statsText: text, previousStats: &previousStats, log: log)
                             }
 
                             try await Task.sleep(for: .seconds(3))
@@ -531,35 +531,36 @@ extension Application {
                 }
             }
         }
-    }
-}
 
-private func checkForCacheThrashing(statsText: String, previousStats: inout [String: UInt64], log: Logger) {
-    var stats: [String: UInt64] = [:]
-    for line in statsText.split(separator: "\n") {
-        let parts = line.split(separator: " ", maxSplits: 1)
-        if parts.count == 2, let value = UInt64(parts[1]) {
-            stats[String(parts[0])] = value
+        private static func checkForCacheThrashing(statsText: String, previousStats: inout [String: UInt64], log: Logger) {
+            var stats: [String: UInt64] = [:]
+            for line in statsText.split(separator: "\n") {
+                let parts = line.split(separator: " ", maxSplits: 1)
+                if parts.count == 2, let value = UInt64(parts[1]) {
+                    stats[String(parts[0])] = value
+                }
+            }
+
+            defer { previousStats = stats }
+
+            guard !previousStats.isEmpty else { return }
+
+            // Key signals for detecting page cache thrashing
+            // - workingset_refault_file: pages evicted then re-faulted back in (direct thrashing signal)
+            // - pgsteal_direct — direct reclaim stealing pages, stalling the processes themselves
+            let refaultDelta = (stats["workingset_refault_file"] ?? 0) - (previousStats["workingset_refault_file"] ?? 0)
+            let pgstealDirectDelta = (stats["pgsteal_direct"] ?? 0) - (previousStats["pgsteal_direct"] ?? 0)
+
+            if refaultDelta > 100 || pgstealDirectDelta > 100 {
+                log.warning(
+                    "file page cache thrashing detected in builder",
+                    metadata: [
+                        "workingset_refault_file": "\(refaultDelta)",
+                        "pgsteal_direct": "\(pgstealDirectDelta)",
+                    ]
+                )
+            }
         }
-    }
 
-    defer { previousStats = stats }
-
-    guard !previousStats.isEmpty else { return }
-
-    // Key signals for detecting page cache thrashing
-    // - workingset_refault_file: pages evicted then re-faulted back in (direct thrashing signal)
-    // - pgsteal_direct — direct reclaim stealing pages, stalling the processes themselves
-    let refaultDelta = (stats["workingset_refault_file"] ?? 0) - (previousStats["workingset_refault_file"] ?? 0)
-    let pgstealDirectDelta = (stats["pgsteal_direct"] ?? 0) - (previousStats["pgsteal_direct"] ?? 0)
-
-    if refaultDelta > 100 || pgstealDirectDelta > 100 {
-        log.warning(
-            "file page cache thrashing detected in builder",
-            metadata: [
-                "workingset_refault_file": "\(refaultDelta)",
-                "pgsteal_direct": "\(pgstealDirectDelta)",
-            ]
-        )
     }
 }
