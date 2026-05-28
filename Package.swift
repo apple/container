@@ -23,7 +23,7 @@ import PackageDescription
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
 let builderShimVersion = "0.12.0"
-let scVersion = "0.33.1"
+let scVersion = "0.33.2"
 
 let package = Package(
     name: "container",
@@ -34,7 +34,9 @@ let package = Package(
         .library(name: "ContainerAPIService", targets: ["ContainerAPIService"]),
         .library(name: "ContainerAPIClient", targets: ["ContainerAPIClient"]),
         .library(name: "ContainerImagesService", targets: ["ContainerImagesService", "ContainerImagesServiceClient"]),
-        .library(name: "ContainerNetworkService", targets: ["ContainerNetworkService", "ContainerNetworkServiceClient"]),
+        .library(name: "ContainerNetworkClient", targets: ["ContainerNetworkClient"]),
+        .library(name: "ContainerNetworkServer", targets: ["ContainerNetworkServer"]),
+        .library(name: "ContainerNetworkVmnetServer", targets: ["ContainerNetworkVmnetServer"]),
         .library(name: "ContainerResource", targets: ["ContainerResource"]),
         .library(name: "ContainerLog", targets: ["ContainerLog"]),
         .library(name: "ContainerPersistence", targets: ["ContainerPersistence"]),
@@ -106,7 +108,6 @@ let package = Package(
                 "ContainerBuild",
                 "ContainerAPIClient",
                 "ContainerLog",
-                "ContainerNetworkService",
                 "ContainerPersistence",
                 "ContainerPlugin",
                 "ContainerResource",
@@ -166,7 +167,7 @@ let package = Package(
                 "ContainerAPIService",
                 "ContainerAPIClient",
                 "ContainerLog",
-                "ContainerNetworkService",
+                "ContainerNetworkClient",
                 "ContainerPersistence",
                 "ContainerPlugin",
                 "ContainerResource",
@@ -188,7 +189,7 @@ let package = Package(
                 .product(name: "SystemPackage", package: "swift-system"),
                 "CVersion",
                 "ContainerAPIClient",
-                "ContainerNetworkServiceClient",
+                "ContainerNetworkClient",
                 "ContainerPersistence",
                 "ContainerPlugin",
                 "ContainerResource",
@@ -291,13 +292,12 @@ let package = Package(
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Logging", package: "swift-log"),
-                .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationExtras", package: "containerization"),
-                .product(name: "ContainerizationIO", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
                 "ContainerLog",
-                "ContainerNetworkService",
-                "ContainerNetworkServiceClient",
+                "ContainerNetworkClient",
+                "ContainerNetworkServer",
+                "ContainerNetworkVmnetServer",
                 "ContainerPersistence",
                 "ContainerPlugin",
                 "ContainerResource",
@@ -308,36 +308,42 @@ let package = Package(
             exclude: ["config.toml"]
         ),
         .target(
-            name: "ContainerNetworkService",
+            name: "ContainerNetworkClient",
             dependencies: [
-                .product(name: "Logging", package: "swift-log"),
-                .product(name: "Containerization", package: "containerization"),
-                .product(name: "ContainerizationOS", package: "containerization"),
-                "ContainerNetworkServiceClient",
-                "ContainerPersistence",
+                .product(name: "ContainerizationExtras", package: "containerization"),
                 "ContainerResource",
                 "ContainerXPC",
             ],
-            path: "Sources/Services/ContainerNetworkService/Server"
+            path: "Sources/Services/Network/Client"
+        ),
+        .target(
+            name: "ContainerNetworkServer",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                "ContainerNetworkClient",
+                "ContainerResource",
+                "ContainerXPC",
+            ],
+            path: "Sources/Services/Network/Server"
         ),
         .testTarget(
-            name: "ContainerNetworkServiceTests",
+            name: "ContainerNetworkServerTests",
             dependencies: [
-                .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationExtras", package: "containerization"),
-                "ContainerNetworkService",
+                "ContainerNetworkServer",
             ]
         ),
         .target(
-            name: "ContainerNetworkServiceClient",
+            name: "ContainerNetworkVmnetServer",
             dependencies: [
                 .product(name: "Logging", package: "swift-log"),
-                .product(name: "Containerization", package: "containerization"),
-                "ContainerLog",
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                "ContainerNetworkServer",
                 "ContainerResource",
                 "ContainerXPC",
             ],
-            path: "Sources/Services/ContainerNetworkService/Client"
+            path: "Sources/Services/NetworkVmnet/Server"
         ),
         .target(
             name: "ContainerRuntimeLinuxClient",
@@ -371,7 +377,7 @@ let package = Package(
                 .product(name: "ContainerizationOS", package: "containerization"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 "ContainerAPIClient",
-                "ContainerNetworkServiceClient",
+                "ContainerNetworkClient",
                 "ContainerOS",
                 "ContainerPersistence",
                 "ContainerResource",

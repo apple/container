@@ -14,22 +14,20 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerNetworkServer
 import ContainerResource
 import ContainerXPC
-import Containerization
 import ContainerizationError
 import ContainerizationExtras
-import Dispatch
 import Foundation
 import Logging
 import Synchronization
-import SystemConfiguration
 import XPC
 import vmnet
 
 /// Creates a vmnet network with reservation APIs.
 @available(macOS 26, *)
-public final class ReservedVmnetNetwork: Network {
+public final class ReservedVmnetNetwork: ContainerNetworkServer.Network {
     private struct State {
         var networkState: NetworkState
         var network: vmnet_network_ref?

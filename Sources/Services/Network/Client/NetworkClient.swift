@@ -113,15 +113,6 @@ extension NetworkClient {
         }
     }
 
-    public func disableAllocator() async throws -> Bool {
-        let request = XPCMessage(route: NetworkRoutes.disableAllocator.rawValue)
-
-        let client = createClient()
-
-        let response = try await client.send(request)
-        return try response.allocatorDisabled()
-    }
-
     private func createClient() -> XPCClient {
         XPCClient(service: machServiceLabel)
     }
@@ -133,10 +124,6 @@ extension XPCMessage {
             return nil
         }
         return XPCMessage(object: additionalData)
-    }
-
-    public func allocatorDisabled() throws -> Bool {
-        self.bool(key: NetworkKeys.allocatorDisabled.rawValue)
     }
 
     public func attachment() throws -> Attachment {

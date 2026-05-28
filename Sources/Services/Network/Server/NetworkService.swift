@@ -14,12 +14,22 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-public enum NetworkKeys: String {
-    case additionalData
-    case allocatorDisabled
-    case attachment
-    case hostname
-    case macAddress
-    case network
-    case state
+import ContainerResource
+import ContainerXPC
+import ContainerizationExtras
+
+/// A network service
+public protocol NetworkService: Sendable {
+    /// Gets the properties of the realized network.
+    func state() async throws -> NetworkState
+
+    /// Register a hostname and allocate associated addresses.
+    func allocate(
+        hostname: String,
+        macAddress: MACAddress?,
+        session: XPCServerSession
+    ) async throws -> (attachment: Attachment, additionalData: XPCMessage?)
+
+    /// Return the attachment for a hostname if it is registered with the network.
+    func lookup(hostname: String) async throws -> Attachment?
 }

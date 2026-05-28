@@ -52,11 +52,6 @@ actor AttachmentAllocator {
         return index
     }
 
-    /// If no addresses are allocated, prevent future allocations and return true.
-    func disableAllocator() async -> Bool {
-        allocator.disableAllocator()
-    }
-
     /// Retrieve the allocator index for a hostname.
     func lookup(hostname: String) async throws -> UInt32? {
         hostnames[hostname]
