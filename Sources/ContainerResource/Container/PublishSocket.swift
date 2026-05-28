@@ -108,8 +108,10 @@ public struct PublishSocket: Sendable, Codable {
     /// Decodes a `FilePath` accepting either the new plain-path form
     /// (`"/var/run/docker.sock"`) or the legacy file-URL form emitted by
     /// older releases (`"file:///var/run/docker.sock"`). Throws
-    /// `DecodingError.dataCorrupted` on a malformed file URL or empty input.
-    /// Absoluteness is enforced in `init(containerPath:hostPath:permissions:)`.
+    /// `DecodingError.dataCorrupted` on a malformed file URL, empty input, or a
+    /// non-absolute path — validating decoded paths here guards against
+    /// manually edited or corrupt persisted configs, complementing the
+    /// by-construction check in `init(containerPath:hostPath:permissions:)`.
     private static func decodePath(
         from container: KeyedDecodingContainer<CodingKeys>,
         forKey key: CodingKeys
@@ -145,6 +147,15 @@ public struct PublishSocket: Sendable, Codable {
             )
         }
 
-        return FilePath(path)
+        let filePath = FilePath(path)
+        guard filePath.isAbsolute else {
+            throw DecodingError.dataCorruptedError(
+                forKey: key,
+                in: container,
+                debugDescription: "decoded socket path must be absolute: \(raw)"
+            )
+        }
+
+        return filePath
     }
 }

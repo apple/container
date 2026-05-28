@@ -195,10 +195,22 @@ struct PublishSocketTests {
 
     @Test
     func testDecodeRelativePathThrows() {
-        // Reject non-absolute paths — `init` enforces absoluteness and the
-        // decoder maps the validation error to `DecodingError`.
+        // Reject non-absolute paths. `decodePath` validates absoluteness at the
+        // decode layer (and `init` enforces it by construction), surfacing the
+        // failure as a `DecodingError`.
         let json = """
             {"containerPath":"relative/path.sock","hostPath":"/host.sock"}
+            """.data(using: .utf8)!
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(PublishSocket.self, from: json)
+        }
+    }
+
+    @Test
+    func testDecodeRelativeHostPathThrows() {
+        // A relative `hostPath` is likewise rejected at the decode layer.
+        let json = """
+            {"containerPath":"/var/run/docker.sock","hostPath":"relative/host.sock"}
             """.data(using: .utf8)!
         #expect(throws: DecodingError.self) {
             try JSONDecoder().decode(PublishSocket.self, from: json)
