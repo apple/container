@@ -990,6 +990,10 @@ public actor ContainersService {
 
         state.snapshot.status = .stopped
         state.snapshot.networks = []
+        if let code {
+            state.snapshot.exitCode = code.exitCode
+            state.snapshot.exitedDate = code.exitedAt
+        }
         state.client = nil
         await self.setContainerState(id, state, context: context)
 
