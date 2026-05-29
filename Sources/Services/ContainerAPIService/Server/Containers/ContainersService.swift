@@ -264,7 +264,7 @@ public actor ContainersService {
     }
 
     /// Create a new container from the provided id and configuration.
-    public func create(configuration: ContainerConfiguration, kernel: Kernel, options: ContainerCreateOptions, initImage: String? = nil, runtimeData: Data? = nil) async throws {
+    public func create(configuration: ContainerConfiguration, options: ContainerCreateOptions, runtimeData: Data) async throws {
         log.debug(
             "ContainersService: enter",
             metadata: [
@@ -311,7 +311,7 @@ public actor ContainersService {
                 )
             }
 
-            guard self.runtimePlugins.first(where: { $0.name == configuration.runtimeHandler }) != nil else {
+            guard self.runtimePlugins.contains(where: { $0.name == configuration.runtimeHandler }) else {
                 throw ContainerizationError(
                     .notFound,
                     message: "unable to locate runtime plugin \(configuration.runtimeHandler)"
@@ -334,56 +334,21 @@ public actor ContainersService {
             }
 
             let path = self.containerRoot.appendingPathComponent(configuration.id)
-            let systemPlatform = kernel.platform
-
-            // Fetch init image (custom or default)
-            self.log.debug(
-                "ContainersService: get init block",
-                metadata: [
-                    "id": "\(configuration.id)"
-                ]
+            let runtimeConfig = RuntimeConfiguration(
+                path: path,
+                containerConfiguration: configuration,
+                options: options,
+                runtimeData: runtimeData
             )
-            let initFilesystem = try await self.getInitBlock(for: systemPlatform.ociPlatform(), imageRef: initImage)
+            try runtimeConfig.writeRuntimeConfiguration()
 
-            do {
-                self.log.debug(
-                    "create snapshot",
-                    metadata: [
-                        "id": "\(configuration.id)",
-                        "ref": "\(configuration.image.reference)",
-                    ])
-                let containerImage = ClientImage(description: configuration.image)
-                let imageFs = try await options.rootFsOverride == nil ? containerImage.getCreateSnapshot(platform: configuration.platform) : nil
-
-                self.log.debug(
-                    "configure runtime",
-                    metadata: [
-                        "id": "\(configuration.id)",
-                        "kernel": "\(kernel.path)",
-                        "initfs": "\(initImage ?? self.containerSystemConfig.vminit.image)",
-                    ])
-                let runtimeConfig = RuntimeConfiguration(
-                    path: path,
-                    initialFilesystem: initFilesystem,
-                    kernel: kernel,
-                    containerConfiguration: configuration,
-                    containerRootFilesystem: imageFs,
-                    options: options,
-                    runtimeData: runtimeData
-                )
-
-                try runtimeConfig.writeRuntimeConfiguration()
-
-                let snapshot = ContainerSnapshot(
-                    configuration: configuration,
-                    status: .stopped,
-                    networks: [],
-                    startedDate: nil
-                )
-                await self.setContainerState(configuration.id, ContainerState(snapshot: snapshot), context: context)
-            } catch {
-                throw error
-            }
+            let snapshot = ContainerSnapshot(
+                configuration: configuration,
+                status: .stopped,
+                networks: [],
+                startedDate: nil
+            )
+            await self.setContainerState(configuration.id, ContainerState(snapshot: snapshot), context: context)
         }
     }
 
@@ -1078,14 +1043,6 @@ public actor ContainersService {
         return options
     }
 
-    private func getInitBlock(for platform: Platform, imageRef: String? = nil) async throws -> Filesystem {
-        let ref = imageRef ?? containerSystemConfig.vminit.image
-        let initImage = try await ClientImage.fetch(reference: ref, platform: platform, containerSystemConfig: containerSystemConfig)
-        var fs = try await initImage.getCreateSnapshot(platform: platform)
-        fs.options = ["ro"]
-        return fs
-    }
-
     private static func registerService(
         plugin: Plugin,
         loader: PluginLoader,
@@ -1129,6 +1086,7 @@ public actor ContainersService {
     private static func isInitProcess(id: String, processID: String) -> Bool {
         id == processID
     }
+
 
     /// Get container configuration, either from existing bundle or from RuntimeConfiguration
     private static func getContainerConfiguration(at path: URL) throws -> (ContainerConfiguration, ContainerCreateOptions?) {

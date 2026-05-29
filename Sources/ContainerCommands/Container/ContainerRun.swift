@@ -19,6 +19,7 @@ import ContainerAPIClient
 import ContainerPersistence
 import ContainerPlugin
 import ContainerResource
+import ContainerRuntimeLinuxClient
 import Containerization
 import ContainerizationError
 import ContainerizationExtras
@@ -92,7 +93,7 @@ extension Application {
                 )
             }
 
-            let ck = try await Utility.containerConfigFromFlags(
+            let (config, kernel, initImageRef) = try await Utility.containerConfigFromFlags(
                 id: id,
                 image: image,
                 arguments: arguments,
@@ -106,15 +107,23 @@ extension Application {
                 log: log
             )
 
+            guard let kernel else {
+                throw ContainerizationError(.internalError, message: "failed to resolve kernel")
+            }
+            guard let initImageRef else {
+                throw ContainerizationError(.internalError, message: "failed to resolve init image")
+            }
+
+            let runtimeData = try LinuxRuntimeData.encodeData(
+                kernelPath: kernel.path.path,
+                initImageRef: initImageRef,
+                imageRef: config.image.reference
+            )
+
             progress.set(description: "Starting container")
 
             let options = ContainerCreateOptions(autoRemove: managementFlags.remove)
-            try await client.create(
-                configuration: ck.0,
-                options: options,
-                kernel: ck.1,
-                initImage: ck.2
-            )
+            try await client.create(configuration: config, options: options, runtimeData: runtimeData)
 
             let detach = self.managementFlags.detach
             do {

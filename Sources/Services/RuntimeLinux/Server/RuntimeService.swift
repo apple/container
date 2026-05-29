@@ -14,11 +14,13 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerAPIClient
 import ContainerNetworkClient
 import ContainerOS
 import ContainerPersistence
 import ContainerResource
 import ContainerRuntimeClient
+import ContainerRuntimeLinuxClient
 import ContainerXPC
 import Containerization
 import ContainerizationError
@@ -141,7 +143,7 @@ public actor RuntimeService {
 
         // Create the bundle if it doesn't exist yet
         if !self.bundleExists(at: self.root) {
-            try self.createBundle()
+            try await self.createBundle()
         }
 
         return try await self.lock.withLock { _ in
@@ -1551,15 +1553,47 @@ extension RuntimeService {
     }
 
     /// Create bundle from RuntimeConfiguration
-    private func createBundle() throws {
+    private func createBundle() async throws {
         do {
             let runtimeConfig = try RuntimeConfiguration.readRuntimeConfiguration(from: self.root)
+
+            guard let runtimeDataBlob = runtimeConfig.runtimeData else {
+                throw ContainerizationError(.invalidState, message: "runtime configuration missing runtimeData")
+            }
+
+            let linuxData = try LinuxRuntimeData.decodeData(runtimeDataBlob)
+            let initPlatform = SystemPlatform.current.ociPlatform()
+            let containerPlatform = runtimeConfig.containerConfiguration?.platform ?? initPlatform
+
+            // Resolve image refs from local cache
+            let allImages = try await ClientImage.list()
+
+            // Resolve init image ref to filesystem (uses kernel/host platform)
+            guard let initImage = allImages.first(where: { $0.reference == linuxData.initImageRef }) else {
+                throw ContainerizationError(.notFound, message: "init image not found: \(linuxData.initImageRef)")
+            }
+            var initFs = try await initImage.getCreateSnapshot(platform: initPlatform)
+            initFs.options = ["ro"]
+
+            // Resolve container image ref to filesystem (uses requested container platform)
+            let containerFs: Filesystem?
+            if let imageRef = linuxData.imageRef {
+                guard let containerImage = allImages.first(where: { $0.reference == imageRef }) else {
+                    throw ContainerizationError(.notFound, message: "container image not found: \(imageRef)")
+                }
+                containerFs = try await containerImage.getCreateSnapshot(platform: containerPlatform)
+            } else {
+                containerFs = runtimeConfig.options?.rootFsOverride
+            }
+
+            let kernel = Kernel(path: URL(fileURLWithPath: linuxData.kernelPath), platform: .current)
+
             _ = try ContainerResource.Bundle.create(
                 path: runtimeConfig.path,
-                initialFilesystem: runtimeConfig.initialFilesystem,
-                kernel: runtimeConfig.kernel,
+                initialFilesystem: initFs,
+                kernel: kernel,
                 containerConfiguration: runtimeConfig.containerConfiguration,
-                containerRootFilesystem: runtimeConfig.containerRootFilesystem,
+                containerRootFilesystem: containerFs,
                 options: runtimeConfig.options
             )
             self.log.info("created bundle", metadata: ["configPath": "\(runtimeConfig.path)"])

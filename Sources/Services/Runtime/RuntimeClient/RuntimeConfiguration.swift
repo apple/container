@@ -23,31 +23,32 @@ public struct RuntimeConfiguration: Codable, Sendable {
     static let runtimeConfigurationFilename = "runtime-configuration.json"
 
     public let path: URL
-    // TODO: Remove runtime-specific fields (initialFilesystem, kernel, containerRootFilesystem).
-    // These should be encoded into the opaque `runtimeData` field by the CLI.
-    public let initialFilesystem: Filesystem
-    public let kernel: Kernel
     public let containerConfiguration: ContainerConfiguration?
-    public let containerRootFilesystem: Filesystem?
     public let options: ContainerCreateOptions?
     public let runtimeData: Data?
 
+    // TEMPORARY: Retained for decoding old-format files. Plugin migrate handles conversion.
+    // TODO: Remove after migration period.
+    public let initialFilesystem: Filesystem?
+    public let kernel: Kernel?
+    public let containerRootFilesystem: Filesystem?
+
     public init(
         path: URL,
-        initialFilesystem: Filesystem,
-        kernel: Kernel,
         containerConfiguration: ContainerConfiguration? = nil,
-        containerRootFilesystem: Filesystem? = nil,
         options: ContainerCreateOptions? = nil,
-        runtimeData: Data? = nil
+        runtimeData: Data? = nil,
+        initialFilesystem: Filesystem? = nil,
+        kernel: Kernel? = nil,
+        containerRootFilesystem: Filesystem? = nil
     ) {
         self.path = path
-        self.initialFilesystem = initialFilesystem
-        self.kernel = kernel
         self.containerConfiguration = containerConfiguration
-        self.containerRootFilesystem = containerRootFilesystem
         self.options = options
         self.runtimeData = runtimeData
+        self.initialFilesystem = initialFilesystem
+        self.kernel = kernel
+        self.containerRootFilesystem = containerRootFilesystem
     }
 
     public var runtimeConfigurationPath: URL {

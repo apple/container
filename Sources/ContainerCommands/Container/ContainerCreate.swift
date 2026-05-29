@@ -19,6 +19,7 @@ import ContainerAPIClient
 import ContainerPersistence
 import ContainerPlugin
 import ContainerResource
+import ContainerRuntimeLinuxClient
 import ContainerizationError
 import Foundation
 import TerminalProgress
@@ -72,7 +73,7 @@ extension Application {
             let id = Utility.createContainerID(name: self.managementFlags.name)
             try Utility.validEntityName(id)
 
-            let ck = try await Utility.containerConfigFromFlags(
+            let (config, kernel, initImageRef) = try await Utility.containerConfigFromFlags(
                 id: id,
                 image: image,
                 arguments: arguments,
@@ -86,9 +87,22 @@ extension Application {
                 log: log
             )
 
+            guard let kernel else {
+                throw ContainerizationError(.internalError, message: "failed to resolve kernel")
+            }
+            guard let initImageRef else {
+                throw ContainerizationError(.internalError, message: "failed to resolve init image")
+            }
+
+            let runtimeData = try LinuxRuntimeData.encodeData(
+                kernelPath: kernel.path.path,
+                initImageRef: initImageRef,
+                imageRef: config.image.reference
+            )
+
             let options = ContainerCreateOptions(autoRemove: managementFlags.remove)
             let client = ContainerClient()
-            try await client.create(configuration: ck.0, options: options, kernel: ck.1, initImage: ck.2)
+            try await client.create(configuration: config, options: options, runtimeData: runtimeData)
 
             if !self.managementFlags.cidfile.isEmpty {
                 let path = self.managementFlags.cidfile

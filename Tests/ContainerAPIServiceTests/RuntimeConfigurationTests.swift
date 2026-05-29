@@ -49,48 +49,27 @@ struct RuntimeConfigurationTests {
             try? FileManager.default.removeItem(at: bundlePath)
         }
 
-        let initFs = Filesystem.virtiofs(
-            source: "/path/to/initfs",
-            destination: "/",
-            options: ["ro"]
+        let linuxData = LinuxRuntimeData(
+            kernelPath: "/path/to/kernel",
+            initImageRef: "init:latest",
+            imageRef: "alpine:latest"
         )
-
-        let kernel = Kernel(
-            path: URL(fileURLWithPath: "/path/to/kernel"),
-            platform: .linuxArm
-        )
+        let encodedData = try JSONEncoder().encode(linuxData)
 
         let runtimeConfig = RuntimeConfiguration(
             path: bundlePath,
-            initialFilesystem: initFs,
-            kernel: kernel,
-            containerConfiguration: nil,
-            containerRootFilesystem: nil,
-            options: nil
+            runtimeData: encodedData
         )
 
         try runtimeConfig.writeRuntimeConfiguration()
+        let readConfig = try RuntimeConfiguration.readRuntimeConfiguration(from: bundlePath)
 
-        let readRuntimeConfig = try RuntimeConfiguration.readRuntimeConfiguration(from: bundlePath)
-
-        #expect(
-            readRuntimeConfig.path == bundlePath,
-            "Path should match")
-        #expect(
-            readRuntimeConfig.kernel.path == kernel.path,
-            "Kernel path should match")
-        #expect(
-            readRuntimeConfig.initialFilesystem.source == initFs.source,
-            "Initial filesystem source should match")
-        #expect(
-            readRuntimeConfig.containerConfiguration == nil,
-            "Container configuration should be nil")
-        #expect(
-            readRuntimeConfig.containerRootFilesystem == nil,
-            "Root filesystem should be nil")
-        #expect(
-            readRuntimeConfig.options == nil,
-            "Options should be nil")
+        #expect(readConfig.path == bundlePath)
+        #expect(readConfig.runtimeData != nil)
+        #expect(readConfig.containerConfiguration == nil)
+        #expect(readConfig.options == nil)
+        #expect(readConfig.kernel == nil)
+        #expect(readConfig.initialFilesystem == nil)
     }
 
     @Test
@@ -113,14 +92,19 @@ struct RuntimeConfigurationTests {
             platform: .linuxArm
         )
 
-        let linuxData = LinuxRuntimeData(variant: "test-variant")
+        let linuxData = LinuxRuntimeData(
+            variant: "test-variant",
+            kernelPath: "/path/to/kernel",
+            initImageRef: "init:latest",
+            imageRef: "ubuntu:22.04"
+        )
         let encodedData = try JSONEncoder().encode(linuxData)
 
         let runtimeConfig = RuntimeConfiguration(
             path: bundlePath,
+            runtimeData: encodedData,
             initialFilesystem: initFs,
-            kernel: kernel,
-            runtimeData: encodedData
+            kernel: kernel
         )
 
         try runtimeConfig.writeRuntimeConfiguration()
@@ -131,5 +115,112 @@ struct RuntimeConfigurationTests {
 
         let decodedData = try JSONDecoder().decode(LinuxRuntimeData.self, from: readRuntimeConfig.runtimeData!)
         #expect(decodedData.variant == "test-variant", "Variant should round-trip through RuntimeConfiguration")
+    }
+
+    /// Test that LinuxRuntimeData encodes and decodes correctly with all fields populated.
+    @Test
+    func testLinuxRuntimeDataFullEncoding() throws {
+        let original = LinuxRuntimeData(
+            variant: "rosetta",
+            kernelPath: "/usr/local/share/container/kernel",
+            initImageRef: "ghcr.io/apple/container-init:latest",
+            imageRef: "ubuntu:22.04"
+        )
+
+        let encoded = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(LinuxRuntimeData.self, from: encoded)
+
+        #expect(decoded.variant == original.variant, "variant should round-trip")
+        #expect(decoded.kernelPath == original.kernelPath, "kernelPath should round-trip")
+        #expect(decoded.initImageRef == original.initImageRef, "initImageRef should round-trip")
+        #expect(decoded.imageRef == original.imageRef, "imageRef should round-trip")
+    }
+
+    /// Test that LinuxRuntimeData encodes and decodes correctly when optional fields are nil.
+    @Test
+    func testLinuxRuntimeDataNilContainerImageRef() throws {
+        let original = LinuxRuntimeData(
+            variant: nil,
+            kernelPath: "/usr/local/share/container/kernel",
+            initImageRef: "ghcr.io/apple/container-init:latest",
+            imageRef: nil
+        )
+
+        let encoded = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(LinuxRuntimeData.self, from: encoded)
+
+        #expect(decoded.variant == nil, "variant should be nil")
+        #expect(decoded.kernelPath == original.kernelPath, "kernelPath should round-trip")
+        #expect(decoded.initImageRef == original.initImageRef, "initImageRef should round-trip")
+        #expect(decoded.imageRef == nil, "imageRef should be nil")
+    }
+
+    /// Test that a new-format RuntimeConfiguration (runtimeData only, no legacy fields) round-trips correctly.
+    @Test
+    func testNewFormatRoundTrip() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+        let bundlePath = tempDir.appendingPathComponent("test-new-format-\(UUID())")
+
+        defer {
+            try? FileManager.default.removeItem(at: bundlePath)
+        }
+
+        let linuxData = LinuxRuntimeData(
+            variant: "default",
+            kernelPath: "/path/to/kernel",
+            initImageRef: "init:latest",
+            imageRef: "alpine:3.20"
+        )
+        let runtimeData = try JSONEncoder().encode(linuxData)
+
+        let config = RuntimeConfiguration(
+            path: bundlePath,
+            containerConfiguration: nil,
+            options: nil,
+            runtimeData: runtimeData
+        )
+
+        try config.writeRuntimeConfiguration()
+        let read = try RuntimeConfiguration.readRuntimeConfiguration(from: bundlePath)
+
+        #expect(read.runtimeData != nil)
+        #expect(read.kernel == nil, "New format should not have legacy kernel field")
+        #expect(read.initialFilesystem == nil, "New format should not have legacy filesystem field")
+
+        let decoded = try JSONDecoder().decode(LinuxRuntimeData.self, from: read.runtimeData!)
+        #expect(decoded.kernelPath == "/path/to/kernel")
+        #expect(decoded.initImageRef == "init:latest")
+        #expect(decoded.imageRef == "alpine:3.20")
+        #expect(decoded.variant == "default")
+    }
+
+    /// Test the rootFsOverride case where imageRef is nil.
+    @Test
+    func testNewFormatWithNilContainerImageRef() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+        let bundlePath = tempDir.appendingPathComponent("test-nil-ref-\(UUID())")
+
+        defer {
+            try? FileManager.default.removeItem(at: bundlePath)
+        }
+
+        let linuxData = LinuxRuntimeData(
+            kernelPath: "/path/to/kernel",
+            initImageRef: "init:latest",
+            imageRef: nil
+        )
+        let runtimeData = try JSONEncoder().encode(linuxData)
+
+        let config = RuntimeConfiguration(
+            path: bundlePath,
+            runtimeData: runtimeData
+        )
+
+        try config.writeRuntimeConfiguration()
+        let read = try RuntimeConfiguration.readRuntimeConfiguration(from: bundlePath)
+
+        let decoded = try JSONDecoder().decode(LinuxRuntimeData.self, from: read.runtimeData!)
+        #expect(decoded.imageRef == nil)
+        #expect(decoded.initImageRef == "init:latest")
     }
 }

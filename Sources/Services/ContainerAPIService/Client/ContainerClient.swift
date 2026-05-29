@@ -16,7 +16,6 @@
 
 import ContainerResource
 import ContainerXPC
-import Containerization
 import ContainerizationError
 import ContainerizationOCI
 import Foundation
@@ -48,27 +47,16 @@ public struct ContainerClient: Sendable {
     public func create(
         configuration: ContainerConfiguration,
         options: ContainerCreateOptions = .default,
-        kernel: Kernel,
-        initImage: String? = nil,
-        runtimeData: Data? = nil
+        runtimeData: Data
     ) async throws {
         do {
             let request = XPCMessage(route: .containerCreate)
 
             let data = try JSONEncoder().encode(configuration)
-            let kdata = try JSONEncoder().encode(kernel)
             let odata = try JSONEncoder().encode(options)
             request.set(key: .containerConfig, value: data)
-            request.set(key: .kernel, value: kdata)
             request.set(key: .containerOptions, value: odata)
-
-            if let initImage {
-                request.set(key: .initImage, value: initImage)
-            }
-
-            if let runtimeData {
-                request.set(key: .runtimeData, value: runtimeData)
-            }
+            request.set(key: .runtimeData, value: runtimeData)
 
             try await xpcSend(message: request)
         } catch {

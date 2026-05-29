@@ -67,6 +67,7 @@ public struct Utility {
         }
     }
 
+    // TODO: refactor to remove kernel + initimage fetch from APIService
     public static func containerConfigFromFlags(
         id: String,
         image: String,
@@ -77,9 +78,11 @@ public struct Utility {
         registry: Flags.Registry,
         imageFetch: Flags.ImageFetch,
         containerSystemConfig: ContainerSystemConfig,
+        fetchKernel: Bool = true,
+        fetchInitImage: Bool = true,
         progressUpdate: @escaping ProgressUpdateHandler,
         log: Logger
-    ) async throws -> (ContainerConfiguration, Kernel, String?) {
+    ) async throws -> (ContainerConfiguration, Kernel?, String?) {
         let requestedPlatform = try DefaultPlatform.resolveWithDefaults(
             platform: management.platform,
             os: management.os,
@@ -113,34 +116,39 @@ public struct Utility {
             platform: requestedPlatform,
             progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: progressUpdate))
 
-        await progressUpdate([
-            .setDescription("Fetching kernel"),
-            .setItemsName("binary"),
-        ])
+        var kernel: Kernel? = nil
+        if fetchKernel {
+            await progressUpdate([
+                .setDescription("Fetching kernel"),
+                .setItemsName("binary"),
+            ])
+            kernel = try await self.getKernel(management: management)
+        }
 
-        let kernel = try await self.getKernel(management: management)
+        var initImageRef: String? = nil
+        if fetchInitImage {
+            await progressUpdate([
+                .setDescription("Fetching init image"),
+                .setItemsName("blobs"),
+            ])
+            let fetchInitTask = await taskManager.startTask()
+            let initImageReference = management.initImage ?? containerSystemConfig.vminit.image
+            let initImage = try await ClientImage.fetch(
+                reference: initImageReference, platform: .current, scheme: scheme,
+                containerSystemConfig: containerSystemConfig,
+                progressUpdate: ProgressTaskCoordinator.handler(for: fetchInitTask, from: progressUpdate),
+                maxConcurrentDownloads: imageFetch.maxConcurrentDownloads)
 
-        // Pull and unpack the initial filesystem
-        await progressUpdate([
-            .setDescription("Fetching init image"),
-            .setItemsName("blobs"),
-        ])
-        let fetchInitTask = await taskManager.startTask()
-        let initImageRef = management.initImage ?? containerSystemConfig.vminit.image
-        let initImage = try await ClientImage.fetch(
-            reference: initImageRef, platform: .current, scheme: scheme,
-            containerSystemConfig: containerSystemConfig,
-            progressUpdate: ProgressTaskCoordinator.handler(for: fetchInitTask, from: progressUpdate),
-            maxConcurrentDownloads: imageFetch.maxConcurrentDownloads)
-
-        await progressUpdate([
-            .setDescription("Unpacking init image"),
-            .setItemsName("entries"),
-        ])
-        let unpackInitTask = await taskManager.startTask()
-        _ = try await initImage.getCreateSnapshot(
-            platform: .current,
-            progressUpdate: ProgressTaskCoordinator.handler(for: unpackInitTask, from: progressUpdate))
+            await progressUpdate([
+                .setDescription("Unpacking init image"),
+                .setItemsName("entries"),
+            ])
+            let unpackInitTask = await taskManager.startTask()
+            _ = try await initImage.getCreateSnapshot(
+                platform: .current,
+                progressUpdate: ProgressTaskCoordinator.handler(for: unpackInitTask, from: progressUpdate))
+            initImageRef = initImage.reference
+        }
 
         await taskManager.finish()
 
@@ -264,7 +272,21 @@ public struct Utility {
             config.runtimeHandler = runtime
         }
 
-        return (config, kernel, management.initImage)
+        return (config, kernel, initImageRef)
+    }
+
+    private static func getKernel(management: Flags.Management) async throws -> Kernel {
+        // For the image itself we'll take the user input and try with it as we can do userspace
+        // emulation for x86, but for the kernel we need it to match the hosts architecture.
+        let s: SystemPlatform = .current
+        if let userKernel = management.kernel {
+            guard FileManager.default.fileExists(atPath: userKernel) else {
+                throw ContainerizationError(.notFound, message: "kernel file not found at path \(userKernel)")
+            }
+            let p = URL(filePath: userKernel)
+            return .init(path: p, platform: s)
+        }
+        return try await ClientKernel.getDefaultKernel(for: s)
     }
 
     static func getAttachmentConfigurations(
@@ -327,20 +349,6 @@ public struct Utility {
             throw ContainerizationError(.invalidState, message: "builtin network is not present")
         }
         return [AttachmentConfiguration(network: builtinNetworkId, options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: nil, mtu: 1280))]
-    }
-
-    private static func getKernel(management: Flags.Management) async throws -> Kernel {
-        // For the image itself we'll take the user input and try with it as we can do userspace
-        // emulation for x86, but for the kernel we need it to match the hosts architecture.
-        let s: SystemPlatform = .current
-        if let userKernel = management.kernel {
-            guard FileManager.default.fileExists(atPath: userKernel) else {
-                throw ContainerizationError(.notFound, message: "kernel file not found at path \(userKernel)")
-            }
-            let p = URL(filePath: userKernel)
-            return .init(path: p, platform: s)
-        }
-        return try await ClientKernel.getDefaultKernel(for: s)
     }
 
     /// Parses key-value pairs from command line arguments.

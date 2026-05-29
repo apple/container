@@ -20,6 +20,7 @@ import ContainerBuild
 import ContainerPersistence
 import ContainerPlugin
 import ContainerResource
+import ContainerRuntimeLinuxClient
 import Containerization
 import ContainerizationError
 import ContainerizationExtras
@@ -276,24 +277,26 @@ extension Application {
                 options: dnsOptions
             )
 
-            let kernel = try await {
-                await progressUpdate([
-                    .setDescription("Fetching kernel"),
-                    .setItemsName("binary"),
-                ])
-
-                let kernel = try await ClientKernel.getDefaultKernel(for: .current)
-                return kernel
-            }()
+            await progressUpdate([
+                .setDescription("Fetching kernel"),
+                .setItemsName("binary"),
+            ])
+            let kernel = try await ClientKernel.getDefaultKernel(for: .current)
 
             await progressUpdate([
                 .setDescription("Starting BuildKit container")
             ])
 
+            let runtimeData = try LinuxRuntimeData.encodeData(
+                kernelPath: kernel.path.path,
+                initImageRef: containerSystemConfig.vminit.image,
+                imageRef: builderImage
+            )
+
             try await client.create(
                 configuration: config,
                 options: .default,
-                kernel: kernel
+                runtimeData: runtimeData
             )
 
             try await startBuildKit(client: client, id: Builder.builderContainerId, progressUpdate, taskManager)
