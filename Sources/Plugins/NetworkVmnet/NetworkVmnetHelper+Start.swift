@@ -16,8 +16,9 @@
 
 import ArgumentParser
 import ContainerLog
-import ContainerNetworkService
-import ContainerNetworkServiceClient
+import ContainerNetworkClient
+import ContainerNetworkServer
+import ContainerNetworkVmnetServer
 import ContainerPlugin
 import ContainerResource
 import ContainerXPC
@@ -99,14 +100,14 @@ extension NetworkVmnetHelper {
                     log: log
                 )
                 try await network.start()
-                let server = try await NetworkService(network: network, log: log)
+                let service = try await DefaultNetworkService(network: network, log: log)
+                let harness = NetworkHarness(service: service)
                 let xpc = XPCServer(
                     identifier: serviceIdentifier,
                     routes: [
-                        NetworkRoutes.state.rawValue: XPCServer.route(server.state),
-                        NetworkRoutes.allocate.rawValue: server.allocate,
-                        NetworkRoutes.lookup.rawValue: XPCServer.route(server.lookup),
-                        NetworkRoutes.disableAllocator.rawValue: XPCServer.route(server.disableAllocator),
+                        NetworkRoutes.state.rawValue: XPCServer.route(harness.state),
+                        NetworkRoutes.allocate.rawValue: harness.allocate,
+                        NetworkRoutes.lookup.rawValue: XPCServer.route(harness.lookup),
                     ],
                     log: log
                 )

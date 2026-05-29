@@ -189,6 +189,7 @@ public struct Flags {
             rosetta: Bool,
             runtime: String?,
             ssh: Bool,
+            shmSize: String?,
             tmpFs: [String],
             useInit: Bool,
             virtualization: Bool,
@@ -217,6 +218,7 @@ public struct Flags {
             self.rosetta = rosetta
             self.runtime = runtime
             self.ssh = ssh
+            self.shmSize = shmSize
             self.tmpFs = tmpFs
             self.useInit = useInit
             self.virtualization = virtualization

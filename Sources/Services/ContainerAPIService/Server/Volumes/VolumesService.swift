@@ -28,7 +28,7 @@ import SystemPackage
 
 public actor VolumesService {
     private let resourceRoot: FilePath
-    private let store: ContainerPersistence.FilesystemEntityStore<Volume>
+    private let store: ContainerPersistence.FilesystemEntityStore<VolumeConfiguration>
     private let log: Logger
     private let lock = AsyncLock()
     private let containersService: ContainersService
@@ -40,7 +40,7 @@ public actor VolumesService {
     public init(resourceRoot: FilePath, containersService: ContainersService, log: Logger) throws {
         try FileManager.default.createDirectory(atPath: resourceRoot.string, withIntermediateDirectories: true)
         self.resourceRoot = resourceRoot
-        self.store = try FilesystemEntityStore<Volume>(path: resourceRoot, type: "volumes", log: log)
+        self.store = try FilesystemEntityStore<VolumeConfiguration>(path: resourceRoot, type: "volumes", log: log)
         self.containersService = containersService
         self.log = log
     }
@@ -50,7 +50,7 @@ public actor VolumesService {
         driver: String = "local",
         driverOpts: [String: String] = [:],
         labels: [String: String] = [:]
-    ) async throws -> Volume {
+    ) async throws -> VolumeConfiguration {
         log.debug(
             "VolumesService: enter",
             metadata: [
@@ -96,7 +96,7 @@ public actor VolumesService {
         }
     }
 
-    public func list() async throws -> [Volume] {
+    public func list() async throws -> [VolumeConfiguration] {
         log.debug(
             "VolumesService: enter",
             metadata: [
@@ -115,7 +115,7 @@ public actor VolumesService {
         return try await store.list()
     }
 
-    public func inspect(_ name: String) async throws -> Volume {
+    public func inspect(_ name: String) async throws -> VolumeConfiguration {
         log.debug(
             "VolumesService: enter",
             metadata: [
@@ -325,7 +325,7 @@ public actor VolumesService {
         driver: String,
         driverOpts: [String: String],
         labels: [String: String]
-    ) async throws -> Volume {
+    ) async throws -> VolumeConfiguration {
         guard VolumeStorage.isValidVolumeName(name) else {
             throw VolumeError.invalidVolumeName("invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
         }
@@ -350,7 +350,7 @@ public actor VolumesService {
 
         try createVolumeImage(for: name, sizeInBytes: sizeInBytes, journal: journalConfig)
 
-        let volume = Volume(
+        let volume = VolumeConfiguration(
             name: name,
             driver: driver,
             format: "ext4",
@@ -400,7 +400,7 @@ public actor VolumesService {
         log.info("deleted volume", metadata: ["name": "\(name)"])
     }
 
-    private func _inspect(_ name: String) async throws -> Volume {
+    private func _inspect(_ name: String) async throws -> VolumeConfiguration {
         guard VolumeStorage.isValidVolumeName(name) else {
             throw VolumeError.invalidVolumeName("invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
         }

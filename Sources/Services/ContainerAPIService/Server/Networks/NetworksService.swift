@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
-import ContainerNetworkServiceClient
+import ContainerNetworkClient
 import ContainerPersistence
 import ContainerPlugin
 import ContainerResource
@@ -30,7 +30,7 @@ import SystemPackage
 public actor NetworksService {
     struct NetworkServiceState {
         var networkState: NetworkState
-        var client: ContainerNetworkServiceClient.NetworkClient
+        var client: ContainerNetworkClient.NetworkClient
     }
 
     private let pluginLoader: PluginLoader
@@ -389,7 +389,7 @@ public actor NetworksService {
         return pluginInfo
     }
 
-    private static func getClient(configuration: NetworkConfiguration) throws -> ContainerNetworkServiceClient.NetworkClient {
+    private static func getClient(configuration: NetworkConfiguration) throws -> ContainerNetworkClient.NetworkClient {
         guard let pluginInfo = configuration.pluginInfo else {
             throw ContainerizationError(.internalError, message: "network \(configuration.id) missing plugin information")
         }

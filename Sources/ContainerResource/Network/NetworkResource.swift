@@ -24,9 +24,9 @@ import Foundation
 /// config/status split used by Kubernetes and Docker. `config` is persisted;
 /// `status` reflects what the network plugin reports at runtime.
 ///
-/// The JSON encoding uses a single `status` object containing a `phase` field
-/// alongside any runtime-allocated address properties, replacing the prior flat
-/// `state`/`status` pair in the CLI output.
+/// JSON encoding produces four top-level keys: `id`, `state` (the lifecycle label:
+/// `"created"` or `"running"`), `configuration` (the persistent config), and `status`
+/// (runtime address properties, `null` when `state` is `"created"`).
 public struct NetworkResource: ManagedResource {
     /// The network's configuration — its persistent, intrinsic properties.
     public let config: NetworkConfiguration
@@ -97,20 +97,48 @@ extension NetworkResource {
 extension NetworkResource {
     enum CodingKeys: String, CodingKey {
         case id
-        case config
+        case state
+        case configuration
         case status
+    }
+
+    private enum StatusCodingKeys: String, CodingKey {
+        case ipv4Subnet
+        case ipv4Gateway
+        case ipv6Subnet
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
-        try container.encode(config, forKey: .config)
-        try container.encode(status, forKey: .status)
+        try container.encode(status.phase, forKey: .state)
+        try container.encode(config, forKey: .configuration)
+        if status.phase == "running" {
+            var statusContainer = container.nestedContainer(keyedBy: StatusCodingKeys.self, forKey: .status)
+            try statusContainer.encodeIfPresent(status.ipv4Subnet, forKey: .ipv4Subnet)
+            try statusContainer.encodeIfPresent(status.ipv4Gateway, forKey: .ipv4Gateway)
+            try statusContainer.encodeIfPresent(status.ipv6Subnet, forKey: .ipv6Subnet)
+        } else {
+            try container.encodeNil(forKey: .status)
+        }
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.config = try container.decode(NetworkConfiguration.self, forKey: .config)
-        self.status = try container.decode(NetworkStatus.self, forKey: .status)
+        let state = try container.decode(String.self, forKey: .state)
+        let config = try container.decode(NetworkConfiguration.self, forKey: .configuration)
+        if try container.decodeNil(forKey: .status) {
+            self.config = config
+            self.status = NetworkStatus(phase: state)
+        } else {
+            let statusContainer = try container.nestedContainer(keyedBy: StatusCodingKeys.self, forKey: .status)
+            self.config = config
+            self.status = NetworkStatus(
+                phase: state,
+                ipv4Subnet: try statusContainer.decodeIfPresent(CIDRv4.self, forKey: .ipv4Subnet),
+                ipv4Gateway: try statusContainer.decodeIfPresent(IPv4Address.self, forKey: .ipv4Gateway),
+                ipv6Subnet: try statusContainer.decodeIfPresent(CIDRv6.self, forKey: .ipv6Subnet)
+            )
+        }
     }
 }

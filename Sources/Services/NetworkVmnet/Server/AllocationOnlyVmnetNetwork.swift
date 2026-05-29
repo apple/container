@@ -14,11 +14,11 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerNetworkServer
 import ContainerResource
 import ContainerXPC
 import ContainerizationError
 import ContainerizationExtras
-import Foundation
 import Logging
 
 public actor AllocationOnlyVmnetNetwork: Network {

@@ -14,7 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerNetworkServiceClient
+import ContainerNetworkClient
 import ContainerOS
 import ContainerPersistence
 import ContainerResource
@@ -177,7 +177,7 @@ public actor RuntimeService {
             do {
                 for (index, info) in networkBootstrapInfos.enumerated() {
                     let attachmentConfig = config.networks[index]
-                    let client = ContainerNetworkServiceClient.NetworkClient(id: attachmentConfig.network, plugin: info.pluginInfo.plugin)
+                    let client = ContainerNetworkClient.NetworkClient(id: attachmentConfig.network, plugin: info.pluginInfo.plugin)
                     let session = client.connect()
                     sessions.append(session)
                     var (attachment, additionalData) = try await client.allocate(

@@ -367,10 +367,10 @@ public struct Utility {
 
     /// Gets an existing volume or creates it if it doesn't exist.
     /// Shows a warning for named volumes when auto-creating.
-    private static func getOrCreateVolume(parsed: ParsedVolume, log: Logger) async throws -> Volume {
-        let labels = parsed.isAnonymous ? [Volume.anonymousLabel: ""] : [:]
+    private static func getOrCreateVolume(parsed: ParsedVolume, log: Logger) async throws -> VolumeConfiguration {
+        let labels = parsed.isAnonymous ? [VolumeConfiguration.anonymousLabel: ""] : [:]
 
-        let volume: Volume
+        let volume: VolumeConfiguration
         var wasCreated = false
         do {
             volume = try await ClientVolume.create(
