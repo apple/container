@@ -28,11 +28,17 @@ extension Application {
             commandName: "create",
             abstract: "Create a new network")
 
+        @Flag(name: .customLong("internal"), help: "Restrict to host-only network")
+        var hostOnly: Bool = false
+
         @Option(name: .customLong("label"), help: "Set metadata for a network")
         var labels: [String] = []
 
-        @Flag(name: .customLong("internal"), help: "Restrict to host-only network")
-        var hostOnly: Bool = false
+        @Option(name: .customLong("option"), help: "Set a plugin-specific option (key=value)")
+        var options: [String] = []
+
+        @Option(name: .long, help: "Set the plugin to use to create this network.")
+        var plugin: String = "container-network-vmnet"
 
         @Option(
             name: .customLong("subnet"), help: "Set subnet for a network",
@@ -47,12 +53,6 @@ extension Application {
                 try CIDRv6($0)
             })
         var ipv6Subnet: CIDRv6? = nil
-
-        @Option(name: .long, help: "Set the plugin to use to create this network.")
-        var plugin: String = "container-network-vmnet"
-
-        @Option(name: .customLong("option"), help: "Set a plugin-specific option (key=value)")
-        var options: [String] = []
 
         @OptionGroup
         public var logOptions: Flags.Logging
