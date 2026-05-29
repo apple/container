@@ -342,7 +342,7 @@ public struct Flags {
         @Option(
             name: .customLong("blkio"),
             help: .init(
-                "Block I/O cgroup tuning options (Linux only; see command reference for the supported keys)",
+                "Block I/O cgroup tuning options (experimental: see command reference for the supported keys)",
                 valueName: "option"
             )
         )
