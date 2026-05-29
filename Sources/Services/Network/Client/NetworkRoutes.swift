@@ -15,8 +15,8 @@
 //===----------------------------------------------------------------------===//
 
 public enum NetworkRoutes: String {
-    /// Return the current state of the network.
-    case state = "com.apple.container.network/state"
+    /// Return the current status of the network.
+    case status = "com.apple.container.network/status"
     /// Allocates parameters for attaching a sandbox to the network.
     case allocate = "com.apple.container.network/allocate"
     /// Retrieves the allocation for a hostname.

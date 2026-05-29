@@ -53,13 +53,13 @@ extension NetworkClient {
         createClient().openSession()
     }
 
-    public func state() async throws -> NetworkState {
-        let request = XPCMessage(route: NetworkRoutes.state.rawValue)
+    public func status() async throws -> NetworkStatus {
+        let request = XPCMessage(route: NetworkRoutes.status.rawValue)
         let client = createClient()
 
         let response = try await client.send(request)
-        let state = try response.state()
-        return state
+        let status = try response.status()
+        return status
     }
 
     /// Allocate a network attachment over an existing session.
@@ -124,11 +124,11 @@ extension XPCMessage {
         return hostname
     }
 
-    public func state() throws -> NetworkState {
-        let data = self.dataNoCopy(key: NetworkKeys.state.rawValue)
+    public func status() throws -> NetworkStatus {
+        let data = self.dataNoCopy(key: NetworkKeys.status.rawValue)
         guard let data else {
             throw ContainerizationError(.invalidArgument, message: "no network snapshot data in message")
         }
-        return try JSONDecoder().decode(NetworkState.self, from: data)
+        return try JSONDecoder().decode(NetworkStatus.self, from: data)
     }
 }

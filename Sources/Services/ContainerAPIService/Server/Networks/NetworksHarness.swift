@@ -32,10 +32,9 @@ public struct NetworksHarness: Sendable {
 
     @Sendable
     public func list(_ message: XPCMessage) async throws -> XPCMessage {
-        let states = try await service.list()
+        let resources = try await service.list()
 
         let reply = message.reply()
-        let resources = states.map(NetworkResource.init)
         reply.set(key: .networkResources, value: try JSONEncoder().encode(resources))
 
         return reply
@@ -49,10 +48,10 @@ public struct NetworksHarness: Sendable {
         }
 
         let config = try JSONDecoder().decode(NetworkConfiguration.self, from: data)
-        let networkState = try await service.create(configuration: config)
+        let resource = try await service.create(configuration: config)
 
         let reply = message.reply()
-        reply.set(key: .networkResource, value: try JSONEncoder().encode(NetworkResource(networkState)))
+        reply.set(key: .networkResource, value: try JSONEncoder().encode(resource))
 
         return reply
     }

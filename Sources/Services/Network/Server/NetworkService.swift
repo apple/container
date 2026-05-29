@@ -21,7 +21,7 @@ import ContainerizationExtras
 /// A network service
 public protocol NetworkService: Sendable {
     /// Gets the properties of the realized network.
-    func state() async throws -> NetworkState
+    func status() async throws -> NetworkStatus
 
     /// Register a hostname and allocate associated addresses.
     func allocate(

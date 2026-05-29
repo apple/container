@@ -18,11 +18,11 @@ import ContainerResource
 
 extension NetworkResource: ListDisplayable {
     public static var tableHeader: [String] {
-        ["NETWORK", "STATE", "SUBNET"]
+        ["NETWORK", "SUBNET"]
     }
 
     public var tableRow: [String] {
-        [id, status.phase, status.ipv4Subnet?.description ?? "none"]
+        [id, status.ipv4Subnet.description]
     }
 
     public var quietValue: String {

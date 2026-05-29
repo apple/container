@@ -105,7 +105,7 @@ extension NetworkVmnetHelper {
                 let xpc = XPCServer(
                     identifier: serviceIdentifier,
                     routes: [
-                        NetworkRoutes.state.rawValue: XPCServer.route(harness.state),
+                        NetworkRoutes.status.rawValue: XPCServer.route(harness.status),
                         NetworkRoutes.allocate.rawValue: harness.allocate,
                         NetworkRoutes.lookup.rawValue: XPCServer.route(harness.lookup),
                     ],
