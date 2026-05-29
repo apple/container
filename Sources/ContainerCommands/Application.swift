@@ -158,7 +158,11 @@ public struct Application: AsyncLoggableCommand {
             .appending(FilePath.Component("container"))
             .appending(FilePath.Component("plugins"))
         let installRootPluginsURL = URL(fileURLWithPath: installRootPluginsPath.string)
+        // user-level plugins directory (stable across upgrades)
+        let userHomePluginsURL = PluginLoader.userHomePluginsDir()
+
         let pluginDirectories = [
+            userHomePluginsURL,
             userPluginsURL,
             appBundlePluginsURL,
             installRootPluginsURL,
