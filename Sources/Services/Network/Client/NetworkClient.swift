@@ -44,33 +44,6 @@ public struct NetworkClient: Sendable {
 
 // Runtime Methods
 extension NetworkClient {
-    public func state() async throws -> NetworkState {
-        let request = XPCMessage(route: NetworkRoutes.state.rawValue)
-        let client = createClient()
-
-        let response = try await client.send(request)
-        let state = try response.state()
-        return state
-    }
-
-    public func allocate(
-        hostname: String,
-        macAddress: MACAddress? = nil
-    ) async throws -> (attachment: Attachment, additionalData: XPCMessage?) {
-        let request = XPCMessage(route: NetworkRoutes.allocate.rawValue)
-        request.set(key: NetworkKeys.hostname.rawValue, value: hostname)
-        if let macAddress = macAddress {
-            request.set(key: NetworkKeys.macAddress.rawValue, value: macAddress.description)
-        }
-
-        let client = createClient()
-
-        let response = try await client.send(request)
-        let attachment = try response.attachment()
-        let additionalData = response.additionalData()
-        return (attachment, additionalData)
-    }
-
     /// Open a persistent connection to the network helper.
     ///
     /// The returned session should be reused for `allocate(on:)` calls. The
@@ -78,6 +51,15 @@ extension NetworkClient {
     /// session when it closes.
     public func connect() -> XPCClientSession {
         createClient().openSession()
+    }
+
+    public func state() async throws -> NetworkState {
+        let request = XPCMessage(route: NetworkRoutes.state.rawValue)
+        let client = createClient()
+
+        let response = try await client.send(request)
+        let state = try response.state()
+        return state
     }
 
     /// Allocate a network attachment over an existing session.
