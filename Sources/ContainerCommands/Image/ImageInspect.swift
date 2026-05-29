@@ -50,7 +50,7 @@ extension Application {
                 )
             }
 
-            var printable: [ImageDetail] = []
+            var printable: [ImageResource] = []
             for image in result.images {
                 guard
                     !Utility.isInfraImage(
@@ -59,10 +59,15 @@ extension Application {
                         initImage: containerSystemConfig.vminit.image
                     )
                 else { continue }
-                printable.append(try await image.details())
+                let resolved = try await image.resolvedManifests()
+                printable.append(ImageResource(config: image.description, index: resolved.index, manifests: resolved.manifests))
             }
 
-            try Output.emit(Output.renderJSON(printable))
+            let options = JSONOptions(
+                outputFormatting: [.prettyPrinted, .sortedKeys],
+                dateEncodingStrategy: .iso8601
+            )
+            try Output.emit(Output.renderJSON(printable, options: options))
         }
     }
 }

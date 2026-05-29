@@ -522,7 +522,7 @@ class TestCLIImagesCommand: CLITest {
         }
     }
 
-    @Test func testImageFullSizeFieldExists() throws {
+    @Test func testImageVariantSizeFieldExists() throws {
         // 1. pull image
         try doPull(imageName: alpine)
 
@@ -541,9 +541,11 @@ class TestCLIImagesCommand: CLITest {
             return
         }
 
-        // 4. check that the output has a non-empty 'fullSize' field
-        let size = image["fullSize"] as? String ?? ""
-        #expect(!size.isEmpty, "expected image to have non-empty 'fullSize' field: \(image)")
+        // 4. check that the image reports at least one variant with a non-zero size
+        let variants = image["variants"] as? [[String: Any]] ?? []
+        #expect(!variants.isEmpty, "expected image to report at least one variant: \(image)")
+        let hasSize = variants.contains { ($0["size"] as? Int ?? 0) > 0 }
+        #expect(hasSize, "expected at least one variant to have a non-zero 'size' field: \(image)")
     }
 
     @Test func testImageListTableFormat() throws {

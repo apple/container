@@ -18,11 +18,10 @@ import ArgumentParser
 import ContainerAPIClient
 import ContainerPersistence
 import ContainerPlugin
+import ContainerResource
 import Containerization
 import ContainerizationError
-import ContainerizationOCI
 import Foundation
-import SwiftProtobuf
 
 extension Application {
     public struct ImageList: AsyncLoggableCommand {
@@ -53,12 +52,9 @@ extension Application {
             }
             images.sort { $0.reference < $1.reference }
 
-            if format == .json {
-                try await Self.emitJSON(images: images)
-                return
-            }
-
-            if quiet {
+            // Quiet mode prints references directly and skips the more expensive
+            // per-image manifest resolution. `--format json` takes precedence.
+            if quiet && format != .json {
                 for image in images {
                     let processedReferenceString = try ClientImage.denormalizeReference(image.reference, containerSystemConfig: containerSystemConfig)
                     print(processedReferenceString)
@@ -66,14 +62,14 @@ extension Application {
                 return
             }
 
-            if verbose {
-                let items = try await Self.buildVerboseItems(images: images, containerSystemConfig: containerSystemConfig)
-                Output.emit(Output.renderTable(items))
+            let resources = try await Self.buildResources(images: images, containerSystemConfig: containerSystemConfig)
+
+            if format == .json || verbose {
+                try Self.emitJSON(resources: resources)
                 return
             }
 
-            let items = try await Self.buildTableItems(images: images, containerSystemConfig: containerSystemConfig)
-            Output.emit(Output.renderTable(items))
+            Output.emit(Output.renderTable(resources))
         }
 
         private static func validate(quiet: Bool, verbose: Bool) throws {
@@ -82,131 +78,22 @@ extension Application {
             }
         }
 
-        private static func emitJSON(images: [ClientImage]) async throws {
-            let formatter = ByteCountFormatter()
-            var printableImages: [PrintableImage] = []
+        /// Builds the resource for each image, denormalizing the reference so the
+        /// display name omits the default registry.
+        private static func buildResources(images: [ClientImage], containerSystemConfig: ContainerSystemConfig) async throws -> [ImageResource] {
+            var resources: [ImageResource] = []
             for image in images {
-                let size = try await ClientImage.getFullImageSize(image: image)
-                let formattedSize = formatter.string(fromByteCount: size)
-                printableImages.append(
-                    PrintableImage(reference: image.reference, fullSize: formattedSize, descriptor: image.descriptor)
-                )
+                let resolved = try await image.resolvedManifests()
+                let displayReference = try ClientImage.denormalizeReference(image.reference, containerSystemConfig: containerSystemConfig)
+                resources.append(
+                    ImageResource(config: image.description, index: resolved.index, manifests: resolved.manifests, displayReference: displayReference))
             }
-            try Output.emit(Output.renderJSON(printableImages))
+            return resources
         }
 
-        private static func buildTableItems(images: [ClientImage], containerSystemConfig: ContainerSystemConfig) async throws -> [ImageRow] {
-            var items: [ImageRow] = []
-            for image in images {
-                let processedReferenceString = try ClientImage.denormalizeReference(image.reference, containerSystemConfig: containerSystemConfig)
-                let reference = try ContainerizationOCI.Reference.parse(processedReferenceString)
-                let digest = try await image.resolved().digest
-                items.append(
-                    ImageRow(
-                        name: reference.name,
-                        tag: reference.tag ?? "<none>",
-                        trimmedDigest: Utility.trimDigest(digest: digest)
-                    ))
-            }
-            return items
+        private static func emitJSON(resources: [ImageResource]) throws {
+            let options = JSONOptions(dateEncodingStrategy: .iso8601)
+            try Output.emit(Output.renderJSON(resources, options: options))
         }
-
-        private static func buildVerboseItems(images: [ClientImage], containerSystemConfig: ContainerSystemConfig) async throws -> [VerboseImageRow] {
-            let formatter = ByteCountFormatter()
-            var items: [VerboseImageRow] = []
-            for image in images {
-                let imageDigest = try await image.resolved().digest
-                let processedReferenceString = try ClientImage.denormalizeReference(image.reference, containerSystemConfig: containerSystemConfig)
-                let reference = try ContainerizationOCI.Reference.parse(processedReferenceString)
-                for descriptor in try await image.index().manifests {
-                    if let referenceType = descriptor.annotations?["vnd.docker.reference.type"],
-                        referenceType == "attestation-manifest"
-                    {
-                        continue
-                    }
-
-                    guard let platform = descriptor.platform else {
-                        continue
-                    }
-
-                    var config: ContainerizationOCI.Image
-                    var manifest: ContainerizationOCI.Manifest
-                    do {
-                        config = try await image.config(for: platform)
-                        manifest = try await image.manifest(for: platform)
-                    } catch {
-                        continue
-                    }
-
-                    let created = config.created ?? ""
-                    let size = descriptor.size + manifest.config.size + manifest.layers.reduce(0) { $0 + $1.size }
-                    let formattedSize = formatter.string(fromByteCount: size)
-
-                    items.append(
-                        VerboseImageRow(
-                            name: reference.name,
-                            tag: reference.tag ?? "<none>",
-                            indexDigest: Utility.trimDigest(digest: imageDigest),
-                            os: platform.os,
-                            arch: platform.architecture,
-                            variant: platform.variant ?? "",
-                            fullSize: formattedSize,
-                            created: created,
-                            manifestDigest: Utility.trimDigest(digest: descriptor.digest)
-                        ))
-                }
-            }
-            return items
-        }
-
-        struct PrintableImage: Codable {
-            let reference: String
-            let fullSize: String
-            let descriptor: Descriptor
-        }
-    }
-}
-
-private struct ImageRow: ListDisplayable {
-    let name: String
-    let tag: String
-    let trimmedDigest: String
-
-    static var tableHeader: [String] {
-        ["NAME", "TAG", "DIGEST"]
-    }
-
-    var tableRow: [String] {
-        [name, tag, trimmedDigest]
-    }
-
-    // Required by ListDisplayable but unused — ImageList handles quiet mode
-    // separately to avoid expensive digest resolution.
-    var quietValue: String {
-        name
-    }
-}
-
-private struct VerboseImageRow: ListDisplayable {
-    let name: String
-    let tag: String
-    let indexDigest: String
-    let os: String
-    let arch: String
-    let variant: String
-    let fullSize: String
-    let created: String
-    let manifestDigest: String
-
-    static var tableHeader: [String] {
-        ["NAME", "TAG", "INDEX DIGEST", "OS", "ARCH", "VARIANT", "FULL SIZE", "CREATED", "MANIFEST DIGEST"]
-    }
-
-    var tableRow: [String] {
-        [name, tag, indexDigest, os, arch, variant, fullSize, created, manifestDigest]
-    }
-
-    var quietValue: String {
-        name
     }
 }

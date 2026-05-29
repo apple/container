@@ -30,7 +30,8 @@ import Testing
 class CLITest {
     private static let commandSeq = Mutex<Int>(0)
     struct Image: Codable {
-        let reference: String
+        let name: String
+        var reference: String { name }
     }
 
     // These structs need to track their counterpart presentation structs in CLI.
