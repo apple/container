@@ -339,7 +339,7 @@ extension APIServer {
                     ipv4Subnet: containerSystemConfig.network.subnet,
                     ipv6Subnet: containerSystemConfig.network.subnetv6,
                     labels: try .init([ResourceLabelKeys.role: ResourceRoleValues.builtin]),
-                    pluginInfo: NetworkPluginInfo(plugin: "container-network-vmnet")
+                    plugin: "container-network-vmnet"
                 )
                 _ = try await service.create(configuration: config)
             }

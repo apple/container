@@ -51,8 +51,8 @@ extension Application {
         @Option(name: .long, help: "Set the plugin to use to create this network.")
         var plugin: String = "container-network-vmnet"
 
-        @Option(name: .long, help: "Set the variant of the network plugin to use.")
-        var pluginVariant: String?
+        @Option(name: .customLong("option"), help: "Set a plugin-specific option (key=value)")
+        var options: [String] = []
 
         @OptionGroup
         public var logOptions: Flags.Logging
@@ -64,6 +64,7 @@ extension Application {
 
         public func run() async throws {
             let parsedLabels = try ResourceLabels(Utility.parseKeyValuePairs(labels))
+            let parsedOptions = Utility.parseKeyValuePairs(options)
             let mode: NetworkMode = hostOnly ? .hostOnly : .nat
             let config = try NetworkConfiguration(
                 id: self.name,
@@ -71,7 +72,8 @@ extension Application {
                 ipv4Subnet: ipv4Subnet,
                 ipv6Subnet: ipv6Subnet,
                 labels: parsedLabels,
-                pluginInfo: NetworkPluginInfo(plugin: self.plugin, variant: self.pluginVariant)
+                plugin: self.plugin,
+                options: parsedOptions
             )
             let networkClient = NetworkClient()
             let network = try await networkClient.create(configuration: config)

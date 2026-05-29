@@ -40,7 +40,7 @@ import struct ContainerizationOCI.Process
 public actor RuntimeService {
     private let connection: xpc_connection_t
     private let root: URL
-    private let interfaceStrategies: [NetworkPluginInfo: InterfaceStrategy]
+    private let interfaceStrategies: [NetworkInterfaceKey: InterfaceStrategy]
     private var container: ContainerInfo?
     private let monitor: ExitMonitor
     private let eventLoopGroup: any EventLoopGroup
@@ -96,7 +96,7 @@ public actor RuntimeService {
 
     public init(
         root: URL,
-        interfaceStrategies: [NetworkPluginInfo: InterfaceStrategy],
+        interfaceStrategies: [NetworkInterfaceKey: InterfaceStrategy],
         eventLoopGroup: any EventLoopGroup,
         connection: xpc_connection_t,
         log: Logger
@@ -177,7 +177,7 @@ public actor RuntimeService {
             do {
                 for (index, info) in networkBootstrapInfos.enumerated() {
                     let attachmentConfig = config.networks[index]
-                    let client = ContainerNetworkClient.NetworkClient(id: attachmentConfig.network, plugin: info.pluginInfo.plugin)
+                    let client = ContainerNetworkClient.NetworkClient(id: attachmentConfig.network, plugin: info.plugin)
                     let session = client.connect()
                     sessions.append(session)
                     var (attachment, additionalData) = try await client.allocate(
@@ -196,9 +196,10 @@ public actor RuntimeService {
                             mtu: mtu
                         )
                     }
-                    guard let iStrategy = self.interfaceStrategies[info.pluginInfo] else {
+                    guard let iStrategy = self.interfaceStrategies[NetworkInterfaceKey(plugin: info.plugin, variant: info.options["variant"])] else {
                         throw ContainerizationError(
-                            .internalError, message: "no available interface strategy for network \(attachment.network), \(info.pluginInfo)")
+                            .internalError,
+                            message: "no available interface strategy for network \(attachment.network), plugin=\(info.plugin) variant=\(info.options["variant"] ?? "nil")")
                     }
                     let interface = try iStrategy.toInterface(
                         attachment: attachment,
