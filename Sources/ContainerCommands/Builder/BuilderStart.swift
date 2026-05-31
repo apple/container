@@ -92,6 +92,16 @@ extension Application {
             progressUpdate: @escaping ProgressUpdateHandler,
             containerSystemConfig: ContainerSystemConfig,
         ) async throws {
+            let dns = Utility.dnsConfiguration(
+                from: .init(
+                    domain: dnsDomain,
+                    nameservers: dnsNameservers,
+                    options: dnsOptions,
+                    searchDomains: dnsSearchDomains
+                ),
+                defaults: containerSystemConfig.container.dns
+            )
+
             await progressUpdate([
                 .setDescription("Fetching BuildKit image"),
                 .setItemsName("blobs"),
@@ -154,21 +164,7 @@ extension Application {
                 let sshForwarded = existingContainer.configuration.ssh
                 let sshWanted = ssh && ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] != nil
                 let sshChanged = sshForwarded != sshWanted
-                let dnsChanged = {
-                    if !dnsNameservers.isEmpty {
-                        return existingDNS?.nameservers != dnsNameservers
-                    }
-                    if dnsDomain != nil {
-                        return existingDNS?.domain != dnsDomain
-                    }
-                    if !dnsSearchDomains.isEmpty {
-                        return existingDNS?.searchDomains != dnsSearchDomains
-                    }
-                    if !dnsOptions.isEmpty {
-                        return existingDNS?.options != dnsOptions
-                    }
-                    return false
-                }()
+                let dnsChanged = Self.dnsConfigurationChanged(existing: existingDNS, desired: dns)
 
                 switch existingContainer.status {
                 case .running:
@@ -288,10 +284,10 @@ extension Application {
                 AttachmentConfiguration(network: defaultNetwork.id, options: AttachmentOptions(hostname: Builder.builderContainerId))
             ]
             config.dns = ContainerConfiguration.DNSConfiguration(
-                nameservers: dnsNameservers,
-                domain: dnsDomain,
-                searchDomains: dnsSearchDomains,
-                options: dnsOptions
+                nameservers: dns.nameservers,
+                domain: dns.domain,
+                searchDomains: dns.searchDomains,
+                options: dns.options
             )
 
             let kernel = try await {
@@ -322,6 +318,17 @@ extension Application {
 
             try await startBuildKit(client: client, id: Builder.builderContainerId, progressUpdate, taskManager)
             log.debug("starting BuildKit and BuildKit-shim")
+        }
+
+        static func dnsConfigurationChanged(
+            existing: ContainerConfiguration.DNSConfiguration?,
+            desired: ContainerConfiguration.DNSConfiguration
+        ) -> Bool {
+            let existing = existing ?? .init()
+            return existing.nameservers != desired.nameservers
+                || existing.domain != desired.domain
+                || existing.searchDomains != desired.searchDomains
+                || existing.options != desired.options
         }
     }
 }

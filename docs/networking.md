@@ -59,6 +59,25 @@ With both steps done, confirm it end-to-end from your Mac:
 See [Host integration](./host-integration.md) for the reverse direction — reaching a
 service running on your Mac from inside a container.
 
+## Set default DNS settings for containers
+
+To avoid passing `--dns`, `--dns-search`, and `--dns-option` on every `container run`,
+`container build`, or `container builder start` invocation, set defaults in
+`~/.config/container/config.toml`:
+
+```toml
+[container.dns]
+domain = "corp.local"
+nameservers = ["1.1.1.1", "8.8.8.8"]
+searchDomains = ["corp.local", "lab.corp.local"]
+options = ["ndots:2", "timeout:1"]
+```
+
+CLI flags override these defaults when provided. Use `container run --no-dns` to skip DNS
+configuration entirely. The top-level [`[dns]`](./container-system-config.md#dns) section
+configures the internal DNS domain used by the host and API server. Restart the daemon
+(`container system stop && container system start`) for changes to take effect.
+
 ## Container-to-container networking
 
 From one container, use another container's DNS name to reach a service it exposes.
