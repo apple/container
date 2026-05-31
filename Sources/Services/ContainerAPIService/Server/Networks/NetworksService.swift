@@ -403,6 +403,17 @@ public actor NetworksService {
             args += ["--variant", variant]
         }
 
+        // TODO: variant could possibly stay inside the options and does not need to be a dedicated commandline argument?
+        let options = configuration.options.filter({ key, _ in key != "variant" })
+        if !options.isEmpty {
+            guard let encodedOptions = try? JSONSerialization.data(withJSONObject: options),
+                let stringifiedOptions = String(data: encodedOptions, encoding: .utf8)
+            else {
+                throw ContainerizationError(.internalError, message: "failed to encode network configuration options as json string")
+            }
+            args += ["--option-json", stringifiedOptions]
+        }
+
         let entityPath = try store.entityPath(configuration.id)
         try pluginLoader.registerWithLaunchd(
             plugin: networkPlugin,

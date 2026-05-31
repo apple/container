@@ -67,10 +67,19 @@ extension NetworkVmnetHelper {
             return .reserved
         }()
 
+        @Option(name: .customLong("option-json"), help: "UTF8-encoded JSON string that contains the configuration options for this network")
+        var stringifiedOptions: String = "{}"
+
         var logRoot = LogRoot.path
 
         func run() async throws {
             let commandName = NetworkVmnetHelper._commandName
+            guard let encodedOptions = stringifiedOptions.data(using: .utf8),
+                let options = try? JSONSerialization.jsonObject(with: encodedOptions) as? [String: String]
+            else {
+                throw ContainerizationError(.invalidArgument, message: "failed to decode network configuration options from JSON string")
+            }
+
             let logPath = logRoot.map { $0.appending("\(commandName)-\(id).log") }
             let log = ServiceLogger.bootstrap(category: "NetworkVmnetHelper", metadata: ["id": "\(id)"], debug: debug, logPath: logPath)
             log.info("starting helper", metadata: ["name": "\(commandName)"])
@@ -89,7 +98,9 @@ extension NetworkVmnetHelper {
                     ipv4Subnet: ipv4Subnet,
                     ipv6Subnet: ipv6Subnet,
                     plugin: NetworkVmnetHelper._commandName,
-                    options: ["variant": self.variant.rawValue]
+                    options: options.merging(
+                        ["variant": self.variant.rawValue],
+                        uniquingKeysWith: { _, new in new })
                 )
                 let network = try Self.createNetwork(
                     configuration: configuration,
