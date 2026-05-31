@@ -254,6 +254,7 @@ coverage-integration: all
 	echo "Starting CLI integration tests with coverage" && \
 	{ \
 		export CLITEST_LOG_ROOT=$(LOG_ROOT) ; \
+		export CONTAINER_CLI_PATH=$(ROOT_DIR)/bin/container ; \
 		$(SWIFT) test --skip-build --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(INTEGRATION_FILTER)" ; \
 		exit_code=$$? ; \
 		cp $(COV_DATA_DIR)/*.profraw $(COVERAGE_OUTPUT_DIR)/integration/ ; \
@@ -279,6 +280,7 @@ integration: init-block
 	echo "Starting CLI integration tests" && \
 	{ \
 		CLITEST_LOG_ROOT=$(LOG_ROOT) && export CLITEST_LOG_ROOT ; \
+		CONTAINER_CLI_PATH=$(ROOT_DIR)/bin/container && export CONTAINER_CLI_PATH ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(INTEGRATION_FILTER)" ; \
 		exit_code=$$? ; \
 		echo Ensuring apiserver stopped after the CLI integration tests ; \

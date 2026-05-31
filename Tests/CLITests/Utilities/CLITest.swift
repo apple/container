@@ -105,39 +105,14 @@ class CLITest {
             let fileManager = FileManager.default
             let currentDir = fileManager.currentDirectoryPath
 
-            let releaseURL = URL(fileURLWithPath: currentDir)
-                .appendingPathComponent(".build")
-                .appendingPathComponent("release")
+            let binURL = URL(fileURLWithPath: currentDir)
+                .appendingPathComponent("bin")
                 .appendingPathComponent("container")
 
-            let debugURL = URL(fileURLWithPath: currentDir)
-                .appendingPathComponent(".build")
-                .appendingPathComponent("debug")
-                .appendingPathComponent("container")
-
-            let releaseExists = fileManager.fileExists(atPath: releaseURL.path)
-            let debugExists = fileManager.fileExists(atPath: debugURL.path)
-
-            if releaseExists && debugExists {  // choose the latest build
-                do {
-                    let releaseAttributes = try fileManager.attributesOfItem(atPath: releaseURL.path)
-                    let debugAttributes = try fileManager.attributesOfItem(atPath: debugURL.path)
-
-                    if let releaseDate = releaseAttributes[.modificationDate] as? Date,
-                        let debugDate = debugAttributes[.modificationDate] as? Date
-                    {
-                        return (releaseDate > debugDate) ? releaseURL : debugURL
-                    }
-                } catch {
-                    throw CLIError.binaryAttributesNotFound(error)
-                }
-            } else if releaseExists {
-                return releaseURL
-            } else if debugExists {
-                return debugURL
+            guard fileManager.fileExists(atPath: binURL.path) else {
+                throw CLIError.binaryNotFound
             }
-            // both do not exist
-            throw CLIError.binaryNotFound
+            return binURL
         }
     }
 
@@ -271,7 +246,6 @@ class CLITest {
         case containerNotFound(String)
         case containerRunFailed(String)
         case binaryNotFound
-        case binaryAttributesNotFound(Error)
     }
 
     func doLongRun(
