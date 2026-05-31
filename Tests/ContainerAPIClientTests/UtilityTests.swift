@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerPersistence
 import ContainerResource
 import ContainerizationError
 import Foundation
@@ -88,6 +89,76 @@ struct UtilityTests {
         #expect(throws: Error.self) {
             try Utility.validMACAddress("02.42.ac.11.00.02")  // Wrong separator
         }
+    }
+
+    @Test
+    func testDNSConfigurationUsesDefaultsWhenFlagsAbsent() {
+        let defaults = ContainerDNSConfig(
+            domain: "corp.local",
+            nameservers: ["1.1.1.1"],
+            searchDomains: ["corp.local"],
+            options: ["ndots:2"]
+        )
+
+        let flags = Flags.DNS(
+            domain: nil,
+            nameservers: [],
+            options: [],
+            searchDomains: []
+        )
+
+        let result = Utility.dnsConfiguration(from: flags, defaults: defaults)
+
+        #expect(result.domain == "corp.local")
+        #expect(result.nameservers == ["1.1.1.1"])
+        #expect(result.searchDomains == ["corp.local"])
+        #expect(result.options == ["ndots:2"])
+    }
+
+    @Test
+    func testDNSConfigurationFlagsOverrideDefaults() {
+        let defaults = ContainerDNSConfig(
+            domain: "corp.local",
+            nameservers: ["1.1.1.1"],
+            searchDomains: ["corp.local"],
+            options: ["ndots:2"]
+        )
+        let flags = Flags.DNS(
+            domain: "cli.local",
+            nameservers: ["8.8.8.8"],
+            options: ["debug"],
+            searchDomains: ["cli.local"]
+        )
+
+        let result = Utility.dnsConfiguration(from: flags, defaults: defaults)
+
+        #expect(result.domain == "cli.local")
+        #expect(result.nameservers == ["8.8.8.8"])
+        #expect(result.searchDomains == ["cli.local"])
+        #expect(result.options == ["debug"])
+    }
+
+    @Test
+    func testDNSConfigurationPartialFlagsFallbackToDefaults() {
+        let defaults = ContainerDNSConfig(
+            domain: "corp.local",
+            nameservers: ["1.1.1.1"],
+            searchDomains: ["corp.local"],
+            options: ["ndots:2"]
+        )
+        let flags = Flags.DNS(
+            domain: nil,
+            nameservers: ["8.8.8.8"],
+            options: [],
+            searchDomains: []
+        )
+
+        let result = Utility.dnsConfiguration(from: flags, defaults: defaults)
+
+        #expect(result.domain == "corp.local")
+        #expect(result.nameservers == ["8.8.8.8"])
+        #expect(result.searchDomains == ["corp.local"])
+        #expect(result.options == ["ndots:2"])
     }
 
     @Test
