@@ -219,7 +219,11 @@ public struct Utility {
         if management.dnsDisabled {
             config.dns = nil
         } else {
-            config.dns = dnsConfiguration(from: management.dns, defaults: containerSystemConfig.container.dns)
+            config.dns = dnsConfiguration(
+                from: management.dns,
+                defaults: containerSystemConfig.container.dns,
+                hostDomainFallback: containerSystemConfig.dns.domain
+            )
         }
 
         config.rosetta = management.rosetta || (Platform.current.architecture == "arm64" && requestedPlatform.architecture == "amd64")
@@ -324,13 +328,14 @@ public struct Utility {
 
     public static func dnsConfiguration(
         from flags: Flags.DNS,
-        defaults: ContainerDNSConfig
+        defaults: ContainerDNSConfig,
+        hostDomainFallback: String? = nil
     ) -> ContainerConfiguration.DNSConfiguration {
         let nameservers =
             flags.nameservers.isEmpty
             ? defaults.nameservers
             : flags.nameservers
-        let domain = flags.domain ?? defaults.domain
+        let domain = flags.domain ?? defaults.domain ?? hostDomainFallback
         let searchDomains =
             flags.searchDomains.isEmpty
             ? defaults.searchDomains
