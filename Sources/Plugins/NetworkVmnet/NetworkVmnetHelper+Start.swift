@@ -104,7 +104,7 @@ extension NetworkVmnetHelper {
                     log: log
                 )
                 try await network.start()
-                let service = try await DefaultNetworkService(network: network, log: log)
+                let service: NetworkService = try await Self.createNetworkService(network: network, variant: variant, log: log)
                 let harness = NetworkHarness(service: service)
                 let xpc = XPCServer(
                     identifier: serviceIdentifier,
@@ -126,6 +126,15 @@ extension NetworkVmnetHelper {
                         "error": "\(error)",
                     ])
                 NetworkVmnetHelper.exit(withError: error)
+            }
+        }
+
+        private static func createNetworkService(network: Network, variant: NetworkVariant, log: Logger) async throws -> NetworkService {
+            switch variant {
+            case .bridged, .bridgedViaHelper:
+                return try await BridgeNetworkService(network: network, variant: variant, log: log)
+            default:
+                return try await DefaultNetworkService(network: network, log: log)
             }
         }
 
