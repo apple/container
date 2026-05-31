@@ -162,6 +162,36 @@ struct UtilityTests {
     }
 
     @Test
+    func testDNSConfigurationDomainFallsBackToHostDomain() {
+        let defaults = ContainerDNSConfig()
+        let flags = Flags.DNS(
+            domain: nil,
+            nameservers: [],
+            options: [],
+            searchDomains: []
+        )
+
+        let result = Utility.dnsConfiguration(from: flags, defaults: defaults, hostDomainFallback: "host.local")
+
+        #expect(result.domain == "host.local")
+    }
+
+    @Test
+    func testDNSConfigurationContainerDomainWinsOverHostDomain() {
+        let defaults = ContainerDNSConfig(domain: "container.local")
+        let flags = Flags.DNS(
+            domain: nil,
+            nameservers: [],
+            options: [],
+            searchDomains: []
+        )
+
+        let result = Utility.dnsConfiguration(from: flags, defaults: defaults, hostDomainFallback: "host.local")
+
+        #expect(result.domain == "container.local")
+    }
+
+    @Test
     func testPublishPortParser() throws {
         let ports = try Parser.publishPorts([
             "127.0.0.1:8000:9080",
