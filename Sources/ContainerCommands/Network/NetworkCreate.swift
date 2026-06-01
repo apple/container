@@ -28,11 +28,17 @@ extension Application {
             commandName: "create",
             abstract: "Create a new network")
 
+        @Flag(name: .customLong("internal"), help: "Restrict to host-only network")
+        var hostOnly: Bool = false
+
         @Option(name: .customLong("label"), help: "Set metadata for a network")
         var labels: [String] = []
 
-        @Flag(name: .customLong("internal"), help: "Restrict to host-only network")
-        var hostOnly: Bool = false
+        @Option(name: .customLong("option"), help: "Set a plugin-specific option (key=value)")
+        var options: [String] = []
+
+        @Option(name: .long, help: "Set the plugin to use to create this network.")
+        var plugin: String = "container-network-vmnet"
 
         @Option(
             name: .customLong("subnet"), help: "Set subnet for a network",
@@ -48,12 +54,6 @@ extension Application {
             })
         var ipv6Subnet: CIDRv6? = nil
 
-        @Option(name: .long, help: "Set the plugin to use to create this network.")
-        var plugin: String = "container-network-vmnet"
-
-        @Option(name: .long, help: "Set the variant of the network plugin to use.")
-        var pluginVariant: String?
-
         @OptionGroup
         public var logOptions: Flags.Logging
 
@@ -64,6 +64,7 @@ extension Application {
 
         public func run() async throws {
             let parsedLabels = try ResourceLabels(Utility.parseKeyValuePairs(labels))
+            let parsedOptions = Utility.parseKeyValuePairs(options)
             let mode: NetworkMode = hostOnly ? .hostOnly : .nat
             let config = try NetworkConfiguration(
                 id: self.name,
@@ -71,7 +72,8 @@ extension Application {
                 ipv4Subnet: ipv4Subnet,
                 ipv6Subnet: ipv6Subnet,
                 labels: parsedLabels,
-                pluginInfo: NetworkPluginInfo(plugin: self.plugin, variant: self.pluginVariant)
+                plugin: self.plugin,
+                options: parsedOptions
             )
             let networkClient = NetworkClient()
             let network = try await networkClient.create(configuration: config)

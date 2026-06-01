@@ -435,10 +435,10 @@ public actor ContainersService {
 
             var networkBootstrapInfos = [NetworkBootstrapInfo]()
             for n in config.networks {
-                guard let pluginInfo = try await self.networksService?.pluginInfo(id: n.network) else {
-                    throw ContainerizationError(.internalError, message: "failed to get plugin info for network \(n.network)")
+                guard let (plugin, options) = try await self.networksService?.pluginConfiguration(id: n.network) else {
+                    throw ContainerizationError(.internalError, message: "failed to get plugin configuration for network \(n.network)")
                 }
-                networkBootstrapInfos.append(NetworkBootstrapInfo(pluginInfo: pluginInfo))
+                networkBootstrapInfos.append(NetworkBootstrapInfo(plugin: plugin, options: options))
             }
 
             do {

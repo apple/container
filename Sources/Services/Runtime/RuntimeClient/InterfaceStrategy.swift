@@ -18,6 +18,17 @@ import ContainerResource
 import ContainerXPC
 import Containerization
 
+/// Key identifying which interface strategy to use for a network attachment.
+public struct NetworkInterfaceKey: Hashable, Sendable {
+    public let plugin: String
+    public let variant: String?
+
+    public init(plugin: String, variant: String?) {
+        self.plugin = plugin
+        self.variant = variant
+    }
+}
+
 /// A strategy for mapping network attachment information to a network interface.
 public protocol InterfaceStrategy: Sendable {
     /// Map a client network attachment request to a network interface specification.

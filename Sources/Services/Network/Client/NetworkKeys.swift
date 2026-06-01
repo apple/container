@@ -14,18 +14,11 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerResource
-
-extension NetworkResource: ListDisplayable {
-    public static var tableHeader: [String] {
-        ["NETWORK", "SUBNET"]
-    }
-
-    public var tableRow: [String] {
-        [id, status.ipv4Subnet.description]
-    }
-
-    public var quietValue: String {
-        id
-    }
+public enum NetworkKeys: String {
+    case additionalData
+    case attachment
+    case hostname
+    case macAddress
+    case network
+    case status
 }

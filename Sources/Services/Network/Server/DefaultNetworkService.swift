@@ -14,15 +14,13 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerNetworkServiceClient
 import ContainerResource
 import ContainerXPC
 import ContainerizationError
 import ContainerizationExtras
-import Foundation
 import Logging
 
-public actor NetworkService: Sendable {
+public actor DefaultNetworkService: NetworkService {
     private let network: any Network
     private let log: Logger
     private var allocator: AttachmentAllocator
@@ -34,13 +32,11 @@ public actor NetworkService: Sendable {
         network: any Network,
         log: Logger
     ) async throws {
-        let state = await network.state
-        guard case .running(_, let status) = state else {
-            throw ContainerizationError(.invalidState, message: "invalid network state - network \(state.id) must be running")
+        guard let status = await network.status else {
+            throw ContainerizationError(.invalidState, message: "network \(network.id) must be running")
         }
 
         let subnet = status.ipv4Subnet
-
         let size = Int(subnet.upper.value - subnet.lower.value - 3)
         self.network = network
         self.log = log
@@ -50,34 +46,33 @@ public actor NetworkService: Sendable {
     }
 
     @Sendable
-    public func state(_ message: XPCMessage) async throws -> XPCMessage {
-        let reply = message.reply()
-        let state = await network.state
-        try reply.setState(state)
-        return reply
+    public func status() async throws -> NetworkStatus {
+        guard let status = await network.status else {
+            throw ContainerizationError(.invalidState, message: "network \(network.id) is not running")
+        }
+        return status
     }
 
     @Sendable
-    public func allocate(_ message: XPCMessage, _ session: XPCServerSession) async throws -> XPCMessage {
+    public func allocate(
+        hostname: String,
+        macAddress: MACAddress?,
+        session: XPCServerSession
+    ) async throws -> (attachment: Attachment, additionalData: XPCMessage?) {
         log.debug("enter", metadata: ["func": "\(#function)"])
         defer { log.debug("exit", metadata: ["func": "\(#function)"]) }
 
-        let state = await network.state
-        guard case .running(_, let status) = state else {
-            throw ContainerizationError(.invalidState, message: "invalid network state - network \(state.id) must be running")
+        guard let status = await network.status else {
+            throw ContainerizationError(.invalidState, message: "network \(network.id) must be running")
         }
 
-        let hostname = try message.hostname()
-        let macAddress =
-            try message.string(key: NetworkKeys.macAddress.rawValue)
-            .map { try MACAddress($0) }
-            ?? MACAddress((UInt64.random(in: 0...UInt64.max) & 0x0cff_ffff_ffff) | 0xf200_0000_0000)
+        let macAddress = macAddress ?? MACAddress((UInt64.random(in: 0...UInt64.max) & 0x0cff_ffff_ffff) | 0xf200_0000_0000)
         let index = try await allocator.allocate(hostname: hostname)
         let ipv6Address = try status.ipv6Subnet
             .map { try CIDRv6(macAddress.ipv6Address(network: $0.lower), prefix: $0.prefix) }
         let ip = IPv4Address(index)
         let attachment = Attachment(
-            network: state.id,
+            network: network.id,
             hostname: hostname,
             ipv4Address: try CIDRv4(ip, prefix: status.ipv4Subnet.prefix),
             ipv4Gateway: status.ipv4Gateway,
@@ -93,12 +88,10 @@ public actor NetworkService: Sendable {
                 "ipv6Address": "\(attachment.ipv6Address?.description ?? "unavailable")",
                 "macAddress": "\(attachment.macAddress?.description ?? "unspecified")",
             ])
-        let reply = message.reply()
-        try reply.setAttachment(attachment)
+
+        var additionalData: XPCMessage?
         try network.withAdditionalData {
-            if let additionalData = $0 {
-                try reply.setAdditionalData(additionalData.underlying)
-            }
+            additionalData = $0
         }
         macAddresses[index] = macAddress
 
@@ -110,7 +103,7 @@ public actor NetworkService: Sendable {
         }
         allocationsBySession[session]!.append((hostname: hostname, index: index))
 
-        return reply
+        return (attachment: attachment, additionalData: additionalData)
     }
 
     private func releaseSession(_ session: XPCServerSession) async {
@@ -125,31 +118,30 @@ public actor NetworkService: Sendable {
     }
 
     @Sendable
-    public func lookup(_ message: XPCMessage) async throws -> XPCMessage {
+    public func lookup(hostname: String) async throws -> Attachment? {
         log.debug("enter", metadata: ["func": "\(#function)"])
         defer { log.debug("exit", metadata: ["func": "\(#function)"]) }
 
-        let state = await network.state
-        guard case .running(_, let status) = state else {
-            throw ContainerizationError(.invalidState, message: "invalid network state - network \(state.id) must be running")
+        guard let status = await network.status else {
+            throw ContainerizationError(.invalidState, message: "network \(network.id) must be running")
         }
 
-        let hostname = try message.hostname()
+        // Invariant: hostname -> index if and only if index -> MAC address
         let index = try await allocator.lookup(hostname: hostname)
-        let reply = message.reply()
         guard let index else {
-            return reply
+            return nil
         }
         guard let macAddress = macAddresses[index] else {
-            return reply
+            return nil
         }
+
         let address = IPv4Address(index)
         let subnet = status.ipv4Subnet
         let ipv4Address = try CIDRv4(address, prefix: subnet.prefix)
         let ipv6Address = try status.ipv6Subnet
             .map { try CIDRv6(macAddress.ipv6Address(network: $0.lower), prefix: $0.prefix) }
         let attachment = Attachment(
-            network: state.id,
+            network: network.id,
             hostname: hostname,
             ipv4Address: ipv4Address,
             ipv4Gateway: status.ipv4Gateway,
@@ -162,39 +154,7 @@ public actor NetworkService: Sendable {
                 "hostname": "\(hostname)",
                 "address": "\(address)",
             ])
-        try reply.setAttachment(attachment)
-        return reply
-    }
 
-    @Sendable
-    public func disableAllocator(_ message: XPCMessage) async throws -> XPCMessage {
-        log.debug("enter", metadata: ["func": "\(#function)"])
-        defer { log.debug("exit", metadata: ["func": "\(#function)"]) }
-
-        let success = await allocator.disableAllocator()
-        log.info("attempted allocator disable", metadata: ["success": "\(success)"])
-        let reply = message.reply()
-        reply.setAllocatorDisabled(success)
-        return reply
-    }
-}
-
-extension XPCMessage {
-    fileprivate func setAdditionalData(_ additionalData: xpc_object_t) throws {
-        xpc_dictionary_set_value(self.underlying, NetworkKeys.additionalData.rawValue, additionalData)
-    }
-
-    fileprivate func setAllocatorDisabled(_ allocatorDisabled: Bool) {
-        self.set(key: NetworkKeys.allocatorDisabled.rawValue, value: allocatorDisabled)
-    }
-
-    fileprivate func setAttachment(_ attachment: Attachment) throws {
-        let data = try JSONEncoder().encode(attachment)
-        self.set(key: NetworkKeys.attachment.rawValue, value: data)
-    }
-
-    fileprivate func setState(_ state: NetworkState) throws {
-        let data = try JSONEncoder().encode(state)
-        self.set(key: NetworkKeys.state.rawValue, value: data)
+        return attachment
     }
 }

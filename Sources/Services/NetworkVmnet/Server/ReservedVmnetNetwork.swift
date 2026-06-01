@@ -14,24 +14,22 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerNetworkServer
 import ContainerResource
 import ContainerXPC
-import Containerization
 import ContainerizationError
 import ContainerizationExtras
-import Dispatch
 import Foundation
 import Logging
 import Synchronization
-import SystemConfiguration
 import XPC
 import vmnet
 
 /// Creates a vmnet network with reservation APIs.
 @available(macOS 26, *)
-public final class ReservedVmnetNetwork: Network {
+public final class ReservedVmnetNetwork: ContainerNetworkServer.Network {
     private struct State {
-        var networkState: NetworkState
+        var status: NetworkStatus?
         var network: vmnet_network_ref?
     }
 
@@ -42,6 +40,7 @@ public final class ReservedVmnetNetwork: Network {
         let ipv6Subnet: CIDRv6
     }
 
+    private let configuration: NetworkConfiguration
     private let stateMutex: Mutex<State>
     private let log: Logger
 
@@ -56,14 +55,16 @@ public final class ReservedVmnetNetwork: Network {
         }
 
         log.info("creating vmnet network")
+        self.configuration = configuration
         self.log = log
-        let initialState = State(networkState: .created(configuration))
-        stateMutex = Mutex(initialState)
+        stateMutex = Mutex(State())
         log.info("created vmnet network")
     }
 
-    public var state: NetworkState {
-        stateMutex.withLock { $0.networkState }
+    public nonisolated var id: String { configuration.id }
+
+    public var status: NetworkStatus? {
+        stateMutex.withLock { $0.status }
     }
 
     public nonisolated func withAdditionalData(_ handler: (XPCMessage?) throws -> Void) throws {
@@ -74,18 +75,17 @@ public final class ReservedVmnetNetwork: Network {
 
     public func start() async throws {
         try stateMutex.withLock { state in
-            guard case .created(let configuration) = state.networkState else {
-                throw ContainerizationError(.invalidArgument, message: "cannot start network that is in \(state.networkState.state) state")
+            guard state.status == nil else {
+                throw ContainerizationError(.invalidArgument, message: "cannot start network \(configuration.id): already started")
             }
 
             let networkInfo = try startNetwork(configuration: configuration, log: log)
 
-            let networkStatus = NetworkPluginStatus(
+            state.status = NetworkStatus(
                 ipv4Subnet: networkInfo.ipv4Subnet,
                 ipv4Gateway: networkInfo.ipv4Gateway,
-                ipv6Subnet: networkInfo.ipv6Subnet,
+                ipv6Subnet: networkInfo.ipv6Subnet
             )
-            state.networkState = NetworkState.running(configuration, networkStatus)
             state.network = networkInfo.network
         }
     }

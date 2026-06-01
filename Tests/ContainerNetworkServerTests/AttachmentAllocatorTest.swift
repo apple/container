@@ -14,11 +14,9 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerizationError
-import ContainerizationExtras
 import Testing
 
-@testable import ContainerNetworkService
+@testable import ContainerNetworkServer
 
 struct AttachmentAllocatorTest {
     @Test func testAllocateSingleHostname() async throws {
@@ -143,53 +141,6 @@ struct AttachmentAllocatorTest {
         #expect(finalAddress1 == address1)
         #expect(finalAddress3 == address3)
         #expect(finalAddress4 == newAddress)
-    }
-
-    @Test func testDisableAllocatorWhenEmpty() async throws {
-        let allocator = try AttachmentAllocator(lower: 100, size: 10)
-
-        let disabled = await allocator.disableAllocator()
-
-        #expect(disabled == true)
-
-        // After disabling, allocation should fail
-        await #expect(throws: Error.self) {
-            try await allocator.allocate(hostname: "test-host")
-        }
-    }
-
-    @Test func testDisableAllocatorWhenNotEmpty() async throws {
-        let allocator = try AttachmentAllocator(lower: 100, size: 10)
-
-        _ = try await allocator.allocate(hostname: "test-host")
-
-        let disabled = await allocator.disableAllocator()
-
-        #expect(disabled == false)
-
-        // Since disable failed, should still be able to allocate
-        let address = try await allocator.allocate(hostname: "another-host")
-        #expect(address >= 100)
-        #expect(address < 110)
-    }
-
-    @Test func testDisableAfterDeallocatingAll() async throws {
-        let allocator = try AttachmentAllocator(lower: 100, size: 10)
-
-        _ = try await allocator.allocate(hostname: "host1")
-        _ = try await allocator.allocate(hostname: "host2")
-
-        try await allocator.deallocate(hostname: "host1")
-        try await allocator.deallocate(hostname: "host2")
-
-        let disabled = await allocator.disableAllocator()
-
-        #expect(disabled == true)
-
-        // After disabling, allocation should fail
-        await #expect(throws: Error.self) {
-            try await allocator.allocate(hostname: "test-host")
-        }
     }
 
     @Test func testMultipleDeallocationsOfSameHostname() async throws {

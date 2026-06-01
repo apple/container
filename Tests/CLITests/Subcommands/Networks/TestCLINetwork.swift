@@ -290,7 +290,7 @@ class TestCLINetwork: CLITest {
         let (_, output, error, status) = try run(arguments: ["network", "list"])
         #expect(status == 0, "network list should succeed, stderr: \(error)")
 
-        let headers = ["NETWORK", "STATE", "SUBNET"]
+        let headers = ["NETWORK", "SUBNET"]
         #expect(headers.allSatisfy { output.contains($0) }, "table should contain all headers")
         #expect(output.contains(name), "table should contain the created network")
     }

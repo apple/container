@@ -53,9 +53,8 @@ class CLITest {
             let ipv6Subnet: String?
         }
         let id: String
-        let state: String
         let configuration: NetworkConfiguration
-        let status: Status?
+        let status: Status
     }
 
     let testName: String

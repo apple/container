@@ -103,11 +103,6 @@ public enum XPCKeys: String {
     /// Network
     case networkId
     case networkConfig
-    case networkState
-    case networkStates
-    // Added in 0.12.0: NetworkResource encoding (status.phase shape).
-    // DEPRECATED 0.12.0: networkState/networkStates retained for down-revision
-    // client compatibility; remove at next major version boundary.
     case networkResource
     case networkResources
 

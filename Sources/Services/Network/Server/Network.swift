@@ -14,13 +14,20 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-public enum NetworkRoutes: String {
-    /// Return the current state of the network.
-    case state = "com.apple.container.network/state"
-    /// Allocates parameters for attaching a sandbox to the network.
-    case allocate = "com.apple.container.network/allocate"
-    /// Disables the allocator if no sandboxes are attached.
-    case disableAllocator = "com.apple.container.network/disableAllocator"
-    /// Retrieves the allocation for a hostname.
-    case lookup = "com.apple.container.network/lookup"
+import ContainerResource
+import ContainerXPC
+
+/// Defines common characteristics and operations for a network.
+public protocol Network: Sendable {
+    /// The network's identifier.
+    var id: String { get }
+
+    /// The network's runtime status. `nil` before ``start()`` completes.
+    var status: NetworkStatus? { get async }
+
+    /// Use implementation-dependent network attributes.
+    nonisolated func withAdditionalData(_ handler: (XPCMessage?) throws -> Void) throws
+
+    /// Start the network.
+    func start() async throws
 }

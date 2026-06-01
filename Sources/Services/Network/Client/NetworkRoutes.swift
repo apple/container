@@ -14,17 +14,11 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerResource
-import ContainerXPC
-
-/// Defines common characteristics and operations for a network.
-public protocol Network: Sendable {
-    // Contains network attributes while the network is running
-    var state: NetworkState { get async }
-
-    // Use implementation-dependent network attributes
-    nonisolated func withAdditionalData(_ handler: (XPCMessage?) throws -> Void) throws
-
-    // Start the network
-    func start() async throws
+public enum NetworkRoutes: String {
+    /// Return the current status of the network.
+    case status = "com.apple.container.network/status"
+    /// Allocates parameters for attaching a sandbox to the network.
+    case allocate = "com.apple.container.network/allocate"
+    /// Retrieves the allocation for a hostname.
+    case lookup = "com.apple.container.network/lookup"
 }
