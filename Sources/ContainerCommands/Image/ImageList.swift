@@ -21,6 +21,7 @@ import ContainerPlugin
 import ContainerResource
 import Containerization
 import ContainerizationError
+import ContainerizationOCI
 import Foundation
 
 extension Application {
@@ -64,8 +65,14 @@ extension Application {
 
             let resources = try await Self.buildResources(images: images, containerSystemConfig: containerSystemConfig)
 
-            if format == .json || verbose {
+            if format == .json {
                 try Self.emitJSON(resources: resources)
+                return
+            }
+
+            if verbose {
+                let rows = resources.flatMap { VerboseImageRow.rows(for: $0) }
+                Output.emit(Output.renderTable(rows))
                 return
             }
 
@@ -95,5 +102,56 @@ extension Application {
             let options = JSONOptions(dateEncodingStrategy: .iso8601)
             try Output.emit(Output.renderJSON(resources, options: options))
         }
+    }
+}
+
+/// A single row of the verbose image listing — one per platform variant.
+private struct VerboseImageRow: ListDisplayable {
+    let name: String
+    let tag: String
+    let indexDigest: String
+    let os: String
+    let arch: String
+    let variant: String
+    let fullSize: String
+    let created: String
+    let manifestDigest: String
+
+    static var tableHeader: [String] {
+        ["NAME", "TAG", "INDEX DIGEST", "OS", "ARCH", "VARIANT", "FULL SIZE", "CREATED", "MANIFEST DIGEST"]
+    }
+
+    var tableRow: [String] {
+        [name, tag, indexDigest, os, arch, variant, fullSize, created, manifestDigest]
+    }
+
+    var quietValue: String {
+        name
+    }
+
+    /// Flattens an ImageResource into one verbose image row entry per platform variant.
+    static func rows(for resource: ImageResource) -> [VerboseImageRow] {
+        let formatter = ByteCountFormatter()
+        let reference = try? ContainerizationOCI.Reference.parse(resource.displayReference)
+        let name = reference?.name ?? resource.displayReference
+        let tag = reference?.tag ?? "<none>"
+        let indexDigest = Utility.trimDigest(digest: resource.index.digest)
+        return
+            resource.variants
+            // Skip attestation manifests, which use the `unknown/unknown` platform.
+            .filter { !($0.platform.os == "unknown" && $0.platform.architecture == "unknown") }
+            .map { variant in
+                VerboseImageRow(
+                    name: name,
+                    tag: tag,
+                    indexDigest: indexDigest,
+                    os: variant.platform.os,
+                    arch: variant.platform.architecture,
+                    variant: variant.platform.variant ?? "",
+                    fullSize: formatter.string(fromByteCount: variant.size),
+                    created: variant.config.created ?? "",
+                    manifestDigest: Utility.trimDigest(digest: variant.digest)
+                )
+            }
     }
 }

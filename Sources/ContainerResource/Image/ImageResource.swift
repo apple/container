@@ -28,13 +28,16 @@ public struct ImageResource: ManagedResource {
     public struct Variant: Sendable, Codable {
         /// The platform this variant targets.
         public let platform: Platform
+        /// The digest of this variant's manifest.
+        public let digest: String
         /// The total size of this variant in bytes.
         public let size: Int64
         /// The OCI image config for this variant.
         public let config: ContainerizationOCI.Image
 
-        public init(platform: Platform, size: Int64, config: ContainerizationOCI.Image) {
+        public init(platform: Platform, digest: String, size: Int64, config: ContainerizationOCI.Image) {
             self.platform = platform
+            self.digest = digest
             self.size = size
             self.config = config
         }
@@ -140,7 +143,7 @@ extension ImageResource {
             let size =
                 content.descriptor.size + content.manifest.config.size
                 + content.manifest.layers.reduce(0) { $0 + $1.size }
-            variants.append(Variant(platform: platform, size: size, config: content.config))
+            variants.append(Variant(platform: platform, digest: content.descriptor.digest, size: size, config: content.config))
             // Use the earliest variant's creation timestamp as the image's date.
             if let createdString = content.config.created, let date = Self.parseCreated(createdString) {
                 created = created.map { min($0, date) } ?? date
