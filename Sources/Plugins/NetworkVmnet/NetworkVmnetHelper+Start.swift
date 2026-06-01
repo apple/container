@@ -28,12 +28,8 @@ import Foundation
 import Logging
 import SystemPackage
 
-enum Variant: String, ExpressibleByArgument {
-    case reserved
-    case allocationOnly
-}
-
 extension NetworkMode: ExpressibleByArgument {}
+extension NetworkVariant: ExpressibleByArgument {}
 
 extension NetworkVmnetHelper {
     struct Start: AsyncParsableCommand {
@@ -61,7 +57,7 @@ extension NetworkVmnetHelper {
         var ipv6Subnet: String?
 
         @Option(name: .long, help: "Variant of the network helper to use.")
-        var variant: Variant = {
+        var variant: NetworkVariant = {
             guard #available(macOS 26, *) else {
                 return .allocationOnly
             }
@@ -134,7 +130,7 @@ extension NetworkVmnetHelper {
             }
         }
 
-        private static func createNetwork(configuration: NetworkConfiguration, variant: Variant, log: Logger) throws -> Network {
+        private static func createNetwork(configuration: NetworkConfiguration, variant: NetworkVariant, log: Logger) throws -> Network {
             switch variant {
             case .allocationOnly:
                 return try AllocationOnlyVmnetNetwork(configuration: configuration, log: log)
