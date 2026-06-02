@@ -11,10 +11,11 @@ To build the `container` project, you need:
 
 ## Compile and test
 
-Build `container` and the background services from source, and run basic and integration tests:
+Build `container` and the background services from source, and run basic and integration tests in an isolated application data directory:
 
 ```bash
-make all test integration
+rm -rf test-data
+make APP_ROOT=test-data all test integration
 ```
 
 Copy the binaries to `/usr/local/bin` and `/usr/local/libexec` (requires entering an administrator password):

@@ -240,9 +240,9 @@ struct PrintableContainerDisplayTests {
 
 struct NetworkResourceDisplayTests {
     @Test
-    func tableHeaderHasThreeColumns() {
-        #expect(NetworkResource.tableHeader.count == 3)
-        #expect(NetworkResource.tableHeader == ["NETWORK", "STATE", "SUBNET"])
+    func tableHeaderHasTwoColumns() {
+        #expect(NetworkResource.tableHeader.count == 2)
+        #expect(NetworkResource.tableHeader == ["NETWORK", "SUBNET"])
     }
 }
 

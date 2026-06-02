@@ -216,10 +216,7 @@ public struct Utility {
                 dnsDomain: containerSystemConfig.dns.domain,
             )
             for attachmentConfiguration in config.networks {
-                let network = try await networkClient.get(id: attachmentConfiguration.network)
-                guard network.status.phase == "running" else {
-                    throw ContainerizationError(.invalidState, message: "network \(attachmentConfiguration.network) is not running")
-                }
+                _ = try await networkClient.get(id: attachmentConfiguration.network)
             }
         }
 
@@ -262,6 +259,7 @@ public struct Utility {
         let caps = try Parser.capabilities(capAdd: management.capAdd, capDrop: management.capDrop)
         config.capAdd = caps.capAdd
         config.capDrop = caps.capDrop
+        config.stopSignal = imageConfig?.stopSignal
 
         if let runtime = management.runtime {
             config.runtimeHandler = runtime
@@ -366,10 +364,10 @@ public struct Utility {
 
     /// Gets an existing volume or creates it if it doesn't exist.
     /// Shows a warning for named volumes when auto-creating.
-    private static func getOrCreateVolume(parsed: ParsedVolume, log: Logger) async throws -> Volume {
-        let labels = parsed.isAnonymous ? [Volume.anonymousLabel: ""] : [:]
+    private static func getOrCreateVolume(parsed: ParsedVolume, log: Logger) async throws -> VolumeConfiguration {
+        let labels = parsed.isAnonymous ? [VolumeConfiguration.anonymousLabel: ""] : [:]
 
-        let volume: Volume
+        let volume: VolumeConfiguration
         var wasCreated = false
         do {
             volume = try await ClientVolume.create(

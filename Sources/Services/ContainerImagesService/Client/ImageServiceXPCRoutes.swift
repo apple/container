@@ -33,6 +33,7 @@ public enum ImagesServiceXPCRoute: String {
     case contentGet
     case contentDelete
     case contentClean
+    case contentSize
     case contentIngestStart
     case contentIngestComplete
     case contentIngestCancel

@@ -19,7 +19,7 @@ import ContainerAPIClient
 import ContainerPersistence
 import ContainerPlugin
 import ContainerResource
-import ContainerSandboxServiceClient
+import ContainerRuntimeClient
 import ContainerXPC
 import Containerization
 import ContainerizationEXT4
@@ -34,11 +34,11 @@ import SystemPackage
 public actor ContainersService {
     struct ContainerState {
         var snapshot: ContainerSnapshot
-        var client: SandboxClient? = nil
+        var client: RuntimeClient? = nil
 
-        func getClient() throws -> SandboxClient {
+        func getClient() throws -> RuntimeClient {
             guard let client else {
-                var message = "no sandbox client exists"
+                var message = "no runtime client exists"
                 if snapshot.status == .stopped {
                     message += ": container is stopped"
                 }
@@ -216,7 +216,7 @@ public actor ContainersService {
 
             for (id, state) in await self.containers {
                 let bundlePath = self.containerRoot.appendingPathComponent(id)
-                let containerSize = Self.calculateDirectorySize(at: bundlePath.path)
+                let containerSize = FileManager.default.allocatedSize(of: bundlePath)
                 totalSize += containerSize
 
                 if state.snapshot.status == .running {
@@ -241,39 +241,6 @@ public actor ContainersService {
             }
             return imageRefs
         }
-    }
-
-    /// Calculate directory size using APFS-aware resource keys
-    /// - Parameter path: Path to directory
-    /// - Returns: Total allocated size in bytes
-    private static nonisolated func calculateDirectorySize(at path: String) -> UInt64 {
-        let url = URL(fileURLWithPath: path)
-        let fileManager = FileManager.default
-
-        guard
-            let enumerator = fileManager.enumerator(
-                at: url,
-                includingPropertiesForKeys: [.totalFileAllocatedSizeKey],
-                options: [.skipsHiddenFiles]
-            )
-        else {
-            return 0
-        }
-
-        var totalSize: UInt64 = 0
-        for case let fileURL as URL in enumerator {
-            guard
-                let resourceValues = try? fileURL.resourceValues(
-                    forKeys: [.totalFileAllocatedSizeKey]
-                ),
-                let fileSize = resourceValues.totalFileAllocatedSize
-            else {
-                continue
-            }
-            totalSize += UInt64(fileSize)
-        }
-
-        return totalSize
     }
 
     /// Create a new container from the provided id and configuration.
@@ -335,7 +302,7 @@ public actor ContainersService {
             // to boot. We can go lower, but this is a somewhat safe threshold. Containerization
             // also gives a little bit extra than the user asked for to account for guest agent overhead.
             //
-            // NOTE: We could potentially leave this validation to the sandbox service(s), as
+            // NOTE: We could potentially leave this validation to the runtime service(s), as
             // it's possible there could be an implementation that can get away with a lower
             // amount and be perfectly safe.
             let minimumMemory: UInt64 = 200.mib()
@@ -435,10 +402,10 @@ public actor ContainersService {
 
             var networkBootstrapInfos = [NetworkBootstrapInfo]()
             for n in config.networks {
-                guard let pluginInfo = try await self.networksService?.pluginInfo(id: n.network) else {
-                    throw ContainerizationError(.internalError, message: "failed to get plugin info for network \(n.network)")
+                guard let (plugin, options) = try await self.networksService?.pluginConfiguration(id: n.network) else {
+                    throw ContainerizationError(.internalError, message: "failed to get plugin configuration for network \(n.network)")
                 }
-                networkBootstrapInfos.append(NetworkBootstrapInfo(pluginInfo: pluginInfo))
+                networkBootstrapInfos.append(NetworkBootstrapInfo(plugin: plugin, options: options))
             }
 
             do {
@@ -451,18 +418,18 @@ public actor ContainersService {
                 )
 
                 let runtime = state.snapshot.configuration.runtimeHandler
-                let sandboxClient = try await SandboxClient.create(
+                let runtimeClient = try await RuntimeClient.create(
                     id: id,
                     runtime: runtime
                 )
-                try await sandboxClient.bootstrap(stdio: stdio, networkBootstrapInfos: networkBootstrapInfos, dynamicEnv: dynamicEnv)
+                try await runtimeClient.bootstrap(stdio: stdio, networkBootstrapInfos: networkBootstrapInfos, dynamicEnv: dynamicEnv)
 
                 try await self.exitMonitor.registerProcess(
                     id: id,
                     onExit: self.handleContainerExit
                 )
 
-                state.client = sandboxClient
+                state.client = runtimeClient
                 await self.setContainerState(id, state, context: context)
             } catch {
                 let label = Self.fullLaunchdServiceLabel(
@@ -629,15 +596,20 @@ public actor ContainersService {
         let state = try self._getContainerState(id: id)
 
         // Stop should be idempotent.
-        let client: SandboxClient
+        let client: RuntimeClient
         do {
             client = try state.getClient()
         } catch {
             return
         }
 
+        var resolvedOptions = options
+        if resolvedOptions.signal == nil, let stopSignal = state.snapshot.configuration.stopSignal {
+            resolvedOptions.signal = stopSignal
+        }
+
         do {
-            try await client.stop(options: options)
+            try await client.stop(options: resolvedOptions)
         } catch let err as ContainerizationError {
             if err.code != .interrupted {
                 throw err
@@ -763,6 +735,30 @@ public actor ContainersService {
         }
     }
 
+    /// Copy a file or directory from the host into the container.
+    public func copyIn(id: String, source: String, destination: String, mode: UInt32, createParents: Bool = true) async throws {
+        self.log.debug("\(#function)")
+
+        let state = try self._getContainerState(id: id)
+        guard state.snapshot.status == .running else {
+            throw ContainerizationError(.invalidState, message: "container \(id) is not running")
+        }
+        let client = try state.getClient()
+        try await client.copyIn(source: source, destination: destination, mode: mode, createParents: createParents)
+    }
+
+    /// Copy a file or directory from the container to the host.
+    public func copyOut(id: String, source: String, destination: String, createParents: Bool = true) async throws {
+        self.log.debug("\(#function)")
+
+        let state = try self._getContainerState(id: id)
+        guard state.snapshot.status == .running else {
+            throw ContainerizationError(.invalidState, message: "container \(id) is not running")
+        }
+        let client = try state.getClient()
+        try await client.copyOut(source: source, destination: destination, createParents: createParents)
+    }
+
     /// Get statistics for the container.
     public func stats(id: String) async throws -> ContainerStats {
         log.debug(
@@ -818,7 +814,7 @@ public actor ContainersService {
             }
             let opts = ContainerStopOptions(
                 timeoutInSeconds: 5,
-                signal: SIGKILL
+                signal: "SIGKILL"
             )
             let client = try state.getClient()
             try await client.stop(options: opts)
@@ -871,7 +867,7 @@ public actor ContainersService {
 
         let containerPath = self.containerRoot.appendingPathComponent(id).path
 
-        return Self.calculateDirectorySize(at: containerPath)
+        return FileManager.default.allocatedSize(of: URL(fileURLWithPath: containerPath))
     }
 
     public func exportRootfs(id: String, archive: URL) async throws {
@@ -917,8 +913,8 @@ public actor ContainersService {
 
         await self.exitMonitor.stopTracking(id: id)
 
-        // Shutdown and deregister the sandbox service
-        self.log.info("shutting down sandbox service", metadata: ["id": "\(id)"])
+        // Shutdown and deregister the runtime service
+        self.log.info("shutting down runtime service", metadata: ["id": "\(id)"])
 
         let path = self.containerRoot.appendingPathComponent(id)
         let bundle = ContainerResource.Bundle(path: path)
@@ -928,7 +924,7 @@ public actor ContainersService {
             instanceId: id
         )
 
-        // Try to shutdown the client gracefully, but if the sandbox service
+        // Try to shutdown the client gracefully, but if the runtime service
         // is already dead (e.g., killed externally), we should still continue
         // with state cleanup.
         if let client = state.client {
@@ -936,7 +932,7 @@ public actor ContainersService {
                 try await client.shutdown()
             } catch {
                 self.log.error(
-                    "failed to shutdown sandbox service",
+                    "failed to shutdown runtime service",
                     metadata: [
                         "id": "\(id)",
                         "error": "\(error)",
@@ -949,10 +945,10 @@ public actor ContainersService {
         // the process was killed externally.
         do {
             try ServiceManager.deregister(fullServiceLabel: label)
-            self.log.info("deregistered sandbox service", metadata: ["id": "\(id)"])
+            self.log.info("deregistered runtime service", metadata: ["id": "\(id)"])
         } catch {
             self.log.error(
-                "failed to deregister sandbox service",
+                "failed to deregister runtime service",
                 metadata: [
                     "id": "\(id)",
                     "error": "\(error)",

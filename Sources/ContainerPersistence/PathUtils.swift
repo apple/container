@@ -51,11 +51,10 @@ public enum PathUtils {
                 // rather than argv[0]: when the binary is invoked through PATH (e.g.
                 // `container ...`), argv[0] is just the basename and resolves to an
                 // empty FilePath, which FileManager treats as CWD-relative.
-                let installRootURL = CommandLine.executablePathUrl
-                    .deletingLastPathComponent()
-                    .appendingPathComponent("..")
-                    .standardized
-                return FilePath(installRootURL.path(percentEncoded: false))
+                let installRootPath = CommandLine.executablePath
+                    .removingLastComponent()
+                    .removingLastComponent()
+                return installRootPath
             }
         }
     }

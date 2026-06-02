@@ -21,14 +21,12 @@ import Testing
 @testable import ContainerResource
 
 struct NetworkConfigurationTest {
-    let defaultNetworkPluginInfo = NetworkPluginInfo(plugin: "container-network-vmnet")
-
     @Test func testValidationOkDefaults() throws {
         let id = "foo"
         _ = try NetworkConfiguration(
             id: id,
             mode: .nat,
-            pluginInfo: defaultNetworkPluginInfo
+            plugin: "container-network-vmnet"
         )
     }
 
@@ -49,7 +47,7 @@ struct NetworkConfigurationTest {
                 mode: .nat,
                 ipv4Subnet: ipv4Subnet,
                 labels: labels,
-                pluginInfo: defaultNetworkPluginInfo
+                plugin: "container-network-vmnet"
             )
         }
     }
@@ -73,7 +71,7 @@ struct NetworkConfigurationTest {
                     mode: .nat,
                     ipv4Subnet: ipv4Subnet,
                     labels: labels,
-                    pluginInfo: defaultNetworkPluginInfo
+                    plugin: "container-network-vmnet"
                 )
             } throws: { error in
                 guard let err = error as? ContainerizationError else { return false }

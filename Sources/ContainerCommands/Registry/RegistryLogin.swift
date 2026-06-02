@@ -47,7 +47,7 @@ extension Application {
         var server: String
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
+            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
             var username = self.username
             var password = ""
             if passwordStdin {

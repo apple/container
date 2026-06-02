@@ -30,7 +30,8 @@ import Testing
 class CLITest {
     private static let commandSeq = Mutex<Int>(0)
     struct Image: Codable {
-        let reference: String
+        let name: String
+        var reference: String { name }
     }
 
     // These structs need to track their counterpart presentation structs in CLI.
@@ -47,9 +48,14 @@ class CLITest {
     }
 
     struct NetworkInspectOutput: Codable {
+        struct Status: Codable {
+            let ipv4Subnet: String?
+            let ipv4Gateway: String?
+            let ipv6Subnet: String?
+        }
         let id: String
-        let config: NetworkConfiguration
-        let status: NetworkStatus
+        let configuration: NetworkConfiguration
+        let status: Status
     }
 
     let testName: String
@@ -329,13 +335,13 @@ class CLITest {
         return resp
     }
 
-    func doStop(name: String, signal: String = "SIGKILL") throws {
-        let (_, _, error, status) = try run(arguments: [
-            "stop",
-            "-s",
-            signal,
-            name,
-        ])
+    func doStop(name: String, signal: String? = "SIGKILL") throws {
+        var arguments = ["stop"]
+        if let signal {
+            arguments.append(contentsOf: ["-s", signal])
+        }
+        arguments.append(name)
+        let (_, _, error, status) = try run(arguments: arguments)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }

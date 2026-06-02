@@ -244,14 +244,11 @@ The MAC address must be in the format `XX:XX:XX:XX:XX:XX` (with colons or hyphen
 container run --network default,mac=02:42:ac:11:00:02 ubuntu:latest
 ```
 
-To verify the MAC address is set correctly, run `ip addr show` inside the container:
+To verify the MAC address is set correctly, read the interface MAC directly from sysfs inside the container:
 
 ```console
-% container run --rm --network default,mac=02:42:ac:11:00:02 ubuntu:latest ip addr show eth0
-2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
-    link/ether 02:42:ac:11:00:02 brd ff:ff:ff:ff:ff:ff
-    inet 192.168.64.2/24 brd 192.168.64.255 scope global eth0
-       valid_lft forever preferred_lft forever
+% container run --rm --network default,mac=02:42:ac:11:00:02 ubuntu:latest cat /sys/class/net/eth0/address
+02:42:ac:11:00:02
 ```
 
 If you don't specify a MAC address, `container` will generate one for you. The generated address has a first nibble set to hexadecimal `f` (`fX:XX:XX:XX:XX:XX`) in case you want to minimize the very small chance of conflict between your MAC address and generated addresses. 
@@ -603,10 +600,14 @@ CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o wrapper wrapper.go
 
 **3. Create a Containerfile:**
 
-```dockerfile
-FROM ghcr.io/apple/containerization/vminit:latest AS base
+Use the `vminit` image tag corresponding to the `scVersion` value in the project `Package.swift` file.
 
-FROM ghcr.io/apple/containerization/vminit:latest
+Or, use `vminit:latest` if you have a local `containerization` project in [edit mode](../BUILDING.md#develop-using-a-local-copy-of-containerization).
+
+```dockerfile
+FROM ghcr.io/apple/containerization/vminit:0.32.2 AS base
+
+FROM ghcr.io/apple/containerization/vminit:0.32.2
 COPY --from=base /sbin/vminitd /sbin/vminitd.real
 COPY wrapper /sbin/vminitd
 ```

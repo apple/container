@@ -5,7 +5,7 @@
 >
 > Example: [release 0.4.1 tag](https://github.com/apple/container/tree/0.4.1)
 
-Note: Command availability may vary depending on host operating system and macOS version.
+Command availability may vary depending on your macOS version.
 
 ## Core Commands
 
@@ -465,6 +465,39 @@ container stats --no-stream web
 container stats --format json --no-stream web
 ```
 
+### `container copy (cp)`
+
+Copies files between a container and the local filesystem. The container must be running. One of the source or destination must be a container reference in the form `container_id:path`.
+
+**Usage**
+
+```bash
+container copy [--debug] <source> <destination>
+```
+
+**Arguments**
+
+*   `<source>`: Source path (local path or `container_id:path`)
+*   `<destination>`: Destination path (local path or `container_id:path`)
+
+**Path Format**
+
+*   Local path: `/path/to/file` or `relative/path`
+*   Container path: `container_id:/path/in/container`
+
+**Examples**
+
+```bash
+# copy a file from host to container
+container cp ./config.json mycontainer:/etc/app/
+
+# copy a file from container to host
+container cp mycontainer:/var/log/app.log ./logs/
+
+# copy using the full command name
+container copy ./data.txt mycontainer:/tmp/
+```
+
 ### `container prune`
 
 Removes stopped containers to reclaim disk space. The command outputs the amount of space freed after deletion.
@@ -720,7 +753,7 @@ Creates a new network with the given name.
 **Usage**
 
 ```bash
-container network create [--label <label> ...] [--subnet <subnet>] [--subnet-v6 <subnet-v6>] [--debug] <name>
+container network create [--label <label> ...] [--subnet <subnet>] [--subnet-v6 <subnet-v6>] [--plugin <plugin>] [--option <key=value> ...] [--debug] <name>
 ```
 
 **Arguments**
@@ -732,6 +765,8 @@ container network create [--label <label> ...] [--subnet <subnet>] [--subnet-v6 
 *   `--label <label>`: Set metadata for a network
 *   `--subnet <subnet>`: Set the IPv4 subnet for a network (CIDR format, e.g., 192.168.100.0/24)
 *   `--subnet-v6 <subnet-v6>`: Set the IPv6 prefix for a network (CIDR format, e.g., fd00:1234::/64)
+*   `--plugin <plugin>`: Network plugin to use (default: `container-network-vmnet`)
+*   `--option <key=value>`: Set a plugin-specific option; may be repeated
 
 ### `container network delete (rm)`
 
@@ -863,7 +898,8 @@ container run -v $VOL:/data alpine
 container volume rm $VOL
 ```
 
-**Note**: Unlike Docker, anonymous volumes do NOT auto-cleanup with `--rm`. Manual deletion is required.
+> [!NOTE]
+> Unlike Docker, anonymous volumes do NOT auto-cleanup with `--rm`. Manual deletion is required.
 
 ### `container volume delete (rm)`
 
@@ -1021,6 +1057,9 @@ container system start [--app-root <app-root>] [--install-root <install-root>] [
 *   `--log-root <log-root>`: Path to the root directory for log data, using macOS log facility if not set
 *   `--enable-kernel-install/--disable-kernel-install`: Specify whether the default kernel should be installed or not (default: prompt user)
 
+> [!NOTE]
+> The `--log-root` option is principally intended for short-term test and diagnostic purposes. The log handler for this option neither aggregates log messages, nor does it rotate logs.
+
 ### `container system stop`
 
 Stops the container services and deregisters them from launchd. You can specify a prefix to target services created with a different launchd prefix.
@@ -1117,6 +1156,9 @@ Equivalent to the JSON output but in YAML format. Each entry in the array repres
 ### `container system logs`
 
 Displays logs from the container services. You can specify a time interval or follow new logs in real time.
+
+> [!NOTE]
+> If you run `container system start with --log-root`, services only write log messages to files under the log root, and `container system logs` will show no service log messages.
 
 **Usage**
 

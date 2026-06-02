@@ -39,7 +39,7 @@ public struct JSONOptions: Sendable {
 ///
 /// All list commands route their output through these methods. JSON rendering
 /// is separate from table/quiet rendering because the JSON model often differs
-/// from the display model (e.g., `Volume` for JSON vs `PrintableVolume` for table).
+/// from the display model.
 public enum Output {
     /// Renders an `Encodable` value as a JSON string.
     public static func renderJSON<T: Encodable>(_ value: T, options: JSONOptions = .compact) throws -> String {
@@ -83,7 +83,7 @@ public enum Output {
     /// Renders list output in the requested format.
     ///
     /// The JSON and display models may be the same type (e.g., `PrintableContainer`)
-    /// or different types (e.g., `Volume` for JSON and `PrintableVolume` for table).
+    /// or different types.
     public static func render<J: Encodable, D: ListDisplayable>(
         json: J, display: [D], format: ListFormat, quiet: Bool
     ) throws {

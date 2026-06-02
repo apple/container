@@ -38,6 +38,7 @@ extension Application.VolumeCommand {
         public func run() async throws {
             let uniqueNames = Set(names)
             let volumes = try await ClientVolume.list().filter { uniqueNames.contains($0.id) }
+            let volumeResources = volumes.map { VolumeResource(config: $0) }
 
             if volumes.count != uniqueNames.count {
                 let found = Set(volumes.map { $0.id })
@@ -52,7 +53,7 @@ extension Application.VolumeCommand {
                 outputFormatting: [.prettyPrinted, .sortedKeys],
                 dateEncodingStrategy: .iso8601
             )
-            try Output.emit(Output.renderJSON(volumes, options: options))
+            try Output.emit(Output.renderJSON(volumeResources, options: options))
         }
     }
 }

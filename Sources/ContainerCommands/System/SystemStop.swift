@@ -66,8 +66,7 @@ extension Application {
                 log.info("stopping containers", metadata: ["stopTimeoutSeconds": "\(Self.stopTimeoutSeconds)"])
                 do {
                     let containers = try await client.list().map { $0.id }
-                    let signal = Signal.term.rawValue
-                    let opts = ContainerStopOptions(timeoutInSeconds: Self.stopTimeoutSeconds, signal: signal)
+                    let opts = ContainerStopOptions(timeoutInSeconds: Self.stopTimeoutSeconds, signal: nil)
                     try await ContainerStop.stopContainers(
                         client: client,
                         containers: containers,
