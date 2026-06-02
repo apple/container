@@ -37,12 +37,29 @@ public actor VolumesService {
     private static let entityFile = "entity.json"
     private static let blockFile = "volume.img"
 
-    public init(resourceRoot: FilePath, containersService: ContainersService, log: Logger) throws {
+    public init(resourceRoot: FilePath, containersService: ContainersService, log: Logger) async throws {
         try FileManager.default.createDirectory(atPath: resourceRoot.string, withIntermediateDirectories: true)
         self.resourceRoot = resourceRoot
         self.store = try FilesystemEntityStore<VolumeConfiguration>(path: resourceRoot, type: "volumes", log: log)
         self.containersService = containersService
         self.log = log
+
+        // Migrate configs stored with the old `createdAt` key to `creationDate`.
+        // Deprecated: As of 1.0.0. Use ``creationDate`` instead of ``createdAt``.
+        // Note: Will be removed in a later release.
+        let configurations = try await store.list()
+        for configuration in configurations {
+            do {
+                try await store.update(configuration)
+            } catch {
+                log.error(
+                    "failed to migrate volume configuration",
+                    metadata: [
+                        "name": "\(configuration.name)",
+                        "error": "\(error)",
+                    ])
+            }
+        }
     }
 
     public func create(

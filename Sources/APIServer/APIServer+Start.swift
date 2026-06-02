@@ -80,7 +80,7 @@ extension APIServer {
                 await containersService.setNetworksService(networkService)
                 initializeHealthCheckService(log: log, routes: &routes)
                 try initializeKernelService(log: log, routes: &routes)
-                let volumesService = try initializeVolumeService(containersService: containersService, log: log, routes: &routes)
+                let volumesService = try await initializeVolumeService(containersService: containersService, log: log, routes: &routes)
                 try initializeDiskUsageService(
                     containersService: containersService,
                     volumesService: volumesService,
@@ -359,11 +359,11 @@ extension APIServer {
             containersService: ContainersService,
             log: Logger,
             routes: inout [XPCRoute: XPCServer.RouteHandler]
-        ) throws -> VolumesService {
+        ) async throws -> VolumesService {
             log.info("initializing volume service")
 
             let resourceRoot = appRoot.appending(FilePath.Component("volumes"))
-            let service = try VolumesService(resourceRoot: resourceRoot, containersService: containersService, log: log)
+            let service = try await VolumesService(resourceRoot: resourceRoot, containersService: containersService, log: log)
             let harness = VolumesHarness(service: service, log: log)
 
             routes[XPCRoute.volumeCreate] = XPCServer.route(harness.create)

@@ -317,6 +317,9 @@ class TestCLIAnonymousVolumes: CLITest {
         let (_, output, error, status) = try run(arguments: ["volume", "list", "--format", "json"])
         #expect(status == 0, "volume list should succeed: \(error)")
 
+        #expect(output.contains("\"creationDate\""), "JSON output should use creationDate key")
+        #expect(!output.contains("\"createdAt\""), "JSON output must not use deprecated createdAt key")
+
         // Parse JSON to verify metadata
         let data = output.data(using: .utf8)!
         let decoder = JSONDecoder()

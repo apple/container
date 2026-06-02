@@ -248,6 +248,8 @@ class TestCLIVolumes: CLITest {
         }
 
         #expect(inspectOutput.contains(volumeName), "volume inspect should contain volume name")
+        #expect(inspectOutput.contains("\"creationDate\""), "inspect JSON should use creationDate key")
+        #expect(!inspectOutput.contains("\"createdAt\""), "inspect JSON must not use deprecated createdAt key")
 
         // Delete volume
         try doVolumeDelete(name: volumeName)

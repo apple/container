@@ -47,7 +47,7 @@ extension Application {
                 )
             }
 
-            try Output.emit(Output.renderJSON(items))
+            try Output.emit(Output.renderJSON(items, options: .pretty))
         }
     }
 }

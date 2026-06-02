@@ -101,8 +101,8 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
             self.plugin = plugin
             self.options = try container.decodeIfPresent([String: String].self, forKey: .options) ?? [:]
         } else if let legacy = try container.decodeIfPresent(_LegacyPluginInfo.self, forKey: .pluginInfo) {
-            // - Deprecated: As of 1.0.0. Use ``plugin`` and ``options`` instead.
-            // - Note: Will be removed in a later release.
+            // Deprecated: As of 1.0.0. Use ``plugin`` and ``options`` instead.
+            // Note: Will be removed in a later release.
             self.plugin = legacy.plugin
             var opts: [String: String] = [:]
             if let variant = legacy.variant { opts["variant"] = variant }

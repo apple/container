@@ -50,7 +50,7 @@ extension Application {
                 )
             }
 
-            try Output.emit(Output.renderJSON(containers.map { PrintableContainer($0) }))
+            try Output.emit(Output.renderJSON(containers.map { PrintableContainer($0) }, options: .pretty))
         }
     }
 }

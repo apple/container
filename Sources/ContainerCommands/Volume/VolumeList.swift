@@ -41,14 +41,7 @@ extension Application.VolumeCommand {
 
         public func run() async throws {
             let volumes = try await ClientVolume.list()
-            let volumeResources = volumes.map { VolumeResource(config: $0) }
-
-            if format == .json {
-                let options = JSONOptions(dateEncodingStrategy: .iso8601)
-                try Output.emit(Output.renderJSON(volumeResources, options: options))
-                return
-            }
-
+            let volumeResources = volumes.map { VolumeResource(configuration: $0) }
             try Output.render(json: volumeResources, display: volumeResources, format: format, quiet: quiet)
         }
     }

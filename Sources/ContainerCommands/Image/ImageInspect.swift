@@ -63,11 +63,7 @@ extension Application {
                 printable.append(ImageResource(config: image.description, index: resolved.index, manifests: resolved.manifests))
             }
 
-            let options = JSONOptions(
-                outputFormatting: [.prettyPrinted, .sortedKeys],
-                dateEncodingStrategy: .iso8601
-            )
-            try Output.emit(Output.renderJSON(printable, options: options))
+            try Output.emit(Output.renderJSON(printable, options: .pretty))
         }
     }
 }

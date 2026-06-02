@@ -23,8 +23,8 @@ public struct JSONOptions: Sendable {
     public var outputFormatting: JSONEncoder.OutputFormatting = []
     public var dateEncodingStrategy: JSONEncoder.DateEncodingStrategy = .deferredToDate
 
-    public static let compact = JSONOptions()
-    public static let prettySorted = JSONOptions(outputFormatting: [.prettyPrinted, .sortedKeys])
+    public static let compact = JSONOptions(outputFormatting: [.sortedKeys], dateEncodingStrategy: .iso8601)
+    public static let pretty = JSONOptions(outputFormatting: [.prettyPrinted, .sortedKeys], dateEncodingStrategy: .iso8601)
 
     public init(
         outputFormatting: JSONEncoder.OutputFormatting = [],
@@ -85,10 +85,10 @@ public enum Output {
     /// The JSON and display models may be the same type (e.g., `PrintableContainer`)
     /// or different types.
     public static func render<J: Encodable, D: ListDisplayable>(
-        json: J, display: [D], format: ListFormat, quiet: Bool
+        json: J, display: [D], format: ListFormat, quiet: Bool, jsonOptions: JSONOptions = .compact
     ) throws {
         switch format {
-        case .json: try emit(renderJSON(json))
+        case .json: try emit(renderJSON(json, options: jsonOptions))
         case .yaml: try emit(renderYAML(json))
         case .table: emit(renderList(display, quiet: quiet))
         case .toml: try emit(renderTOML(json))

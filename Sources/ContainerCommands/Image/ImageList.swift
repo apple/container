@@ -99,8 +99,7 @@ extension Application {
         }
 
         private static func emitJSON(resources: [ImageResource]) throws {
-            let options = JSONOptions(dateEncodingStrategy: .iso8601)
-            try Output.emit(Output.renderJSON(resources, options: options))
+            try Output.emit(Output.renderJSON(resources, options: .compact))
         }
     }
 }

@@ -181,6 +181,7 @@ class TestCLINetwork: CLITest {
             }
 
             let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
             let networks = try decoder.decode([NetworkInspectOutput].self, from: jsonData)
             guard networks.count == 1 else {
                 throw CLIError.invalidOutput("expected exactly one network from inspect, got \(networks.count)")

@@ -19,37 +19,37 @@ import Foundation
 /// A volume resource, representing a configured volume.
 public struct VolumeResource: ManagedResource {
     /// The volume's configuration — its persistent, intrinsic properties.
-    public let config: VolumeConfiguration
+    public let configuration: VolumeConfiguration
 
     // MARK: ManagedResource
 
     /// The unique identifier for this volume. Identical to ``VolumeConfiguration/name``.
-    public var id: String { config.name }
+    public var id: String { configuration.name }
 
     /// The user-assigned name for this volume. For volumes, name and ID are the same.
-    public var name: String { config.name }
+    public var name: String { configuration.name }
 
     /// The time at which this volume was created.
-    public var creationDate: Date { config.createdAt }
+    public var creationDate: Date { configuration.creationDate }
 
     /// Key-value labels for this volume. If the underlying
     /// ``VolumeConfiguration/labels`` dictionary contains values that fail
     /// ``ResourceLabels`` validation, this returns an empty label set.
     public var labels: ResourceLabels {
-        (try? ResourceLabels(config.labels)) ?? ResourceLabels()
+        (try? ResourceLabels(configuration.labels)) ?? ResourceLabels()
     }
 
     /// Whether this is an anonymous volume (detected via the configuration's labels).
-    public var isAnonymous: Bool { config.isAnonymous }
+    public var isAnonymous: Bool { configuration.isAnonymous }
 
     // MARK: Initialization
 
     /// Creates a volume resource.
     ///
     /// - Parameters:
-    ///   - config: The volume's intrinsic configuration.
-    public init(config: VolumeConfiguration) {
-        self.config = config
+    ///   - configuration: The volume's intrinsic configuration.
+    public init(configuration: VolumeConfiguration) {
+        self.configuration = configuration
     }
 }
 
@@ -74,17 +74,17 @@ extension VolumeResource {
 extension VolumeResource {
     enum CodingKeys: String, CodingKey {
         case id
-        case config
+        case configuration
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
-        try container.encode(config, forKey: .config)
+        try container.encode(configuration, forKey: .configuration)
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.config = try container.decode(VolumeConfiguration.self, forKey: .config)
+        self.configuration = try container.decode(VolumeConfiguration.self, forKey: .configuration)
     }
 }

@@ -164,15 +164,15 @@ struct RenderJSONTests {
     }
 
     @Test
-    func prettySortedIsMultiLine() throws {
+    func prettyIsMultiLine() throws {
         let items = [TestItem(id: "a", name: "b")]
-        let json = try Output.renderJSON(items, options: .prettySorted)
+        let json = try Output.renderJSON(items, options: .pretty)
         #expect(json.contains("\n"))
     }
 
     @Test
-    func prettySortedHasSortedKeys() throws {
-        let json = try Output.renderJSON(["z": 1, "a": 2], options: .prettySorted)
+    func prettyHasSortedKeys() throws {
+        let json = try Output.renderJSON(["z": 1, "a": 2], options: .pretty)
         let aIndex = json.range(of: "\"a\"")!.lowerBound
         let zIndex = json.range(of: "\"z\"")!.lowerBound
         #expect(aIndex < zIndex)
@@ -211,14 +211,15 @@ struct RenderJSONTests {
 
 struct JSONOptionsTests {
     @Test
-    func compactPresetHasNoFormatting() {
+    func compactPresetHasSortedKeys() {
         let opts = JSONOptions.compact
-        #expect(opts.outputFormatting == [])
+        #expect(opts.outputFormatting == [.sortedKeys])
+        #expect(!opts.outputFormatting.contains(.prettyPrinted))
     }
 
     @Test
-    func prettySortedPresetHasBothFlags() {
-        let opts = JSONOptions.prettySorted
+    func prettyPresetHasBothFlags() {
+        let opts = JSONOptions.pretty
         #expect(opts.outputFormatting.contains(.prettyPrinted))
         #expect(opts.outputFormatting.contains(.sortedKeys))
     }

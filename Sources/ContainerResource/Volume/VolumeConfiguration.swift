@@ -17,7 +17,7 @@
 import Foundation
 
 /// A named or anonymous volume that can be mounted in containers.
-public struct VolumeConfiguration: Sendable, Codable, Equatable, Identifiable {
+public struct VolumeConfiguration: Sendable, Equatable, Identifiable {
     // id of the volume.
     public var id: String { name }
     // Name of the volume.
@@ -29,7 +29,7 @@ public struct VolumeConfiguration: Sendable, Codable, Equatable, Identifiable {
     // The mount point of the volume on the host.
     public var source: String
     // Timestamp when the volume was created.
-    public var createdAt: Date
+    public var creationDate: Date
     // User-defined key/value metadata.
     public var labels: [String: String]
     // Driver-specific options.
@@ -42,7 +42,7 @@ public struct VolumeConfiguration: Sendable, Codable, Equatable, Identifiable {
         driver: String = "local",
         format: String = "ext4",
         source: String,
-        createdAt: Date = Date(),
+        creationDate: Date = Date(),
         labels: [String: String] = [:],
         options: [String: String] = [:],
         sizeInBytes: UInt64? = nil
@@ -51,10 +51,48 @@ public struct VolumeConfiguration: Sendable, Codable, Equatable, Identifiable {
         self.driver = driver
         self.format = format
         self.source = source
-        self.createdAt = createdAt
+        self.creationDate = creationDate
         self.labels = labels
         self.options = options
         self.sizeInBytes = sizeInBytes
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case name, driver, format, source, labels, options, sizeInBytes
+        case creationDate
+        // TODO: retain for deserialization compatibility, remove in next major version
+        case createdAt
+    }
+}
+
+extension VolumeConfiguration: Codable {
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(String.self, forKey: .name)
+        driver = try container.decode(String.self, forKey: .driver)
+        format = try container.decode(String.self, forKey: .format)
+        source = try container.decode(String.self, forKey: .source)
+        // Deprecated: As of 1.0.0. Use ``creationDate`` instead of ``createdAt``.
+        // Note: Will be removed in a later release.
+        creationDate =
+            try container.decodeIfPresent(Date.self, forKey: .creationDate)
+            ?? container.decodeIfPresent(Date.self, forKey: .createdAt)
+            ?? Date(timeIntervalSince1970: 0)
+        labels = try container.decodeIfPresent([String: String].self, forKey: .labels) ?? [:]
+        options = try container.decodeIfPresent([String: String].self, forKey: .options) ?? [:]
+        sizeInBytes = try container.decodeIfPresent(UInt64.self, forKey: .sizeInBytes)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(name, forKey: .name)
+        try container.encode(driver, forKey: .driver)
+        try container.encode(format, forKey: .format)
+        try container.encode(source, forKey: .source)
+        try container.encode(creationDate, forKey: .creationDate)
+        try container.encode(labels, forKey: .labels)
+        try container.encode(options, forKey: .options)
+        try container.encodeIfPresent(sizeInBytes, forKey: .sizeInBytes)
     }
 }
 
