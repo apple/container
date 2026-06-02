@@ -36,15 +36,12 @@ final class TestCLIVersion: CLITest {
         let server: VersionInfo?
     }
 
-    private func expectedBuildType() throws -> String {
-        let path = try executablePath
-        if path.path.contains("/debug/") {
-            return "debug"
-        } else if path.path.contains("/release/") {
-            return "release"
-        }
-        // Fallback: prefer debug when ambiguous (matches SwiftPM default for tests)
+    private func expectedBuildType() -> String {
+        #if DEBUG
         return "debug"
+        #else
+        return "release"
+        #endif
     }
 
     @Test func defaultDisplaysTable() throws {
@@ -60,7 +57,7 @@ final class TestCLIVersion: CLITest {
         #expect(lines[1].hasPrefix("container"))
 
         // Build should reflect the binary we are running (debug/release)
-        let expected = try expectedBuildType()
+        let expected = expectedBuildType()
         #expect(lines.joined(separator: "\n").contains(" \(expected) "))
         _ = data  // silence unused warning if assertions short-circuit
     }
@@ -75,7 +72,7 @@ final class TestCLIVersion: CLITest {
         #expect(!decoded[0].version.isEmpty)
         #expect(!decoded[0].commit.isEmpty)
 
-        let expected = try expectedBuildType()
+        let expected = expectedBuildType()
         #expect(decoded[0].buildType == expected)
     }
 
@@ -89,7 +86,7 @@ final class TestCLIVersion: CLITest {
         #expect(!decoded[0].version.isEmpty)
         #expect(!decoded[0].commit.isEmpty)
 
-        let expected = try expectedBuildType()
+        let expected = expectedBuildType()
         #expect(decoded[0].buildType == expected)
     }
 
@@ -110,7 +107,7 @@ final class TestCLIVersion: CLITest {
         #expect(status == 0, "version --format json should succeed, stderr: \(err)")
         let decoded = try JSONDecoder().decode([VersionOutput].self, from: data)
 
-        let expected = try expectedBuildType()
+        let expected = expectedBuildType()
         #expect(decoded[0].buildType == expected, "Expected build type \(expected) but got \(decoded[0].buildType)")
     }
 }
