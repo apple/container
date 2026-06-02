@@ -14,9 +14,9 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationOCI
 import Foundation
 import Testing
-import ContainerizationOCI
 
 @testable import ContainerResource
 

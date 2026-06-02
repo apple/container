@@ -33,11 +33,12 @@ struct SandboxServiceHostsTest {
             extraHosts: extraHosts
         )
 
-        #expect(hosts == [
-            ContainerConfiguration.HostEntry(ipAddress: "127.0.0.1", hostnames: ["localhost"]),
-            ContainerConfiguration.HostEntry(ipAddress: "192.168.64.22", hostnames: ["web"]),
-            ContainerConfiguration.HostEntry(ipAddress: "192.168.64.1", hostnames: ["host.docker.internal"]),
-            ContainerConfiguration.HostEntry(ipAddress: "10.0.0.15", hostnames: ["db", "db.internal"]),
-        ])
+        #expect(
+            hosts == [
+                ContainerConfiguration.HostEntry(ipAddress: "127.0.0.1", hostnames: ["localhost"]),
+                ContainerConfiguration.HostEntry(ipAddress: "192.168.64.22", hostnames: ["web"]),
+                ContainerConfiguration.HostEntry(ipAddress: "192.168.64.1", hostnames: ["host.docker.internal"]),
+                ContainerConfiguration.HostEntry(ipAddress: "10.0.0.15", hostnames: ["db", "db.internal"]),
+            ])
     }
 }

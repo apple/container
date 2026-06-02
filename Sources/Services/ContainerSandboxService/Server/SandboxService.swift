@@ -259,13 +259,14 @@ public actor SandboxService {
                 czConfig.process.stdout = stdout
                 czConfig.process.stderr = stderr
                 czConfig.process.stdin = stdin
-                czConfig.hosts = Hosts(entries: Self.resolvedHosts(
-                    hostname: czConfig.hostname ?? id,
-                    primaryAddress: interfaces.first?.ipv4Address.address.description,
-                    extraHosts: config.hosts
-                ).map {
-                    Hosts.Entry(ipAddress: $0.ipAddress, hostnames: $0.hostnames)
-                })
+                czConfig.hosts = Hosts(
+                    entries: Self.resolvedHosts(
+                        hostname: czConfig.hostname ?? id,
+                        primaryAddress: interfaces.first?.ipv4Address.address.description,
+                        extraHosts: config.hosts
+                    ).map {
+                        Hosts.Entry(ipAddress: $0.ipAddress, hostnames: $0.hostnames)
+                    })
                 czConfig.bootLog = BootLog.file(path: bundle.bootlog, append: true)
             }
 
