@@ -98,7 +98,12 @@ extension ImagesHelper {
             let imageStore = try ImageStore(path: rootURL, contentStore: contentStore)
             let unpackStrategy = SnapshotStore.defaultUnpackStrategy(initImage: containerSystemConfig.vminit.image)
             let snapshotStore = try SnapshotStore(path: rootURL, unpackStrategy: unpackStrategy, log: log)
-            let service = try ImagesService(contentStore: contentStore, imageStore: imageStore, snapshotStore: snapshotStore, log: log)
+            let service = try ImagesService(
+                contentStore: contentStore,
+                imageStore: imageStore,
+                snapshotStore: snapshotStore,
+                log: log
+            )
             let harness = ImagesServiceHarness(service: service, log: log)
 
             routes[ImagesServiceXPCRoute.imagePull.rawValue] = XPCServer.route(harness.pull)
@@ -124,6 +129,7 @@ extension ImagesHelper {
             routes[ImagesServiceXPCRoute.contentClean.rawValue] = XPCServer.route(harness.clean)
             routes[ImagesServiceXPCRoute.contentGet.rawValue] = XPCServer.route(harness.get)
             routes[ImagesServiceXPCRoute.contentDelete.rawValue] = XPCServer.route(harness.delete)
+            routes[ImagesServiceXPCRoute.contentSize.rawValue] = XPCServer.route(harness.totalSize)
             routes[ImagesServiceXPCRoute.contentIngestStart.rawValue] = XPCServer.route(harness.newIngestSession)
             routes[ImagesServiceXPCRoute.contentIngestCancel.rawValue] = XPCServer.route(harness.cancelIngestSession)
             routes[ImagesServiceXPCRoute.contentIngestComplete.rawValue] = XPCServer.route(harness.completeIngestSession)

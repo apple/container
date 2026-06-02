@@ -82,17 +82,14 @@ extension NetworkVmnetHelper {
                 log.info("configuring XPC server")
                 let ipv4Subnet = try self.ipv4Subnet.map { try CIDRv4($0) }
                 let ipv6Subnet = try self.ipv6Subnet.map { try CIDRv6($0) }
-                let pluginInfo = NetworkPluginInfo(
-                    plugin: NetworkVmnetHelper._commandName,
-                    variant: self.variant.rawValue
-                )
 
                 let configuration = try NetworkConfiguration(
                     id: id,
                     mode: mode,
                     ipv4Subnet: ipv4Subnet,
                     ipv6Subnet: ipv6Subnet,
-                    pluginInfo: pluginInfo
+                    plugin: NetworkVmnetHelper._commandName,
+                    options: ["variant": self.variant.rawValue]
                 )
                 let network = try Self.createNetwork(
                     configuration: configuration,
@@ -105,7 +102,7 @@ extension NetworkVmnetHelper {
                 let xpc = XPCServer(
                     identifier: serviceIdentifier,
                     routes: [
-                        NetworkRoutes.state.rawValue: XPCServer.route(harness.state),
+                        NetworkRoutes.status.rawValue: XPCServer.route(harness.status),
                         NetworkRoutes.allocate.rawValue: harness.allocate,
                         NetworkRoutes.lookup.rawValue: XPCServer.route(harness.lookup),
                     ],

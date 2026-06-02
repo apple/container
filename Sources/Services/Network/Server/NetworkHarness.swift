@@ -28,10 +28,10 @@ public actor NetworkHarness: Sendable {
     }
 
     @Sendable
-    public func state(_ message: XPCMessage) async throws -> XPCMessage {
+    public func status(_ message: XPCMessage) async throws -> XPCMessage {
         let reply = message.reply()
-        let state = try await service.state()
-        try reply.setState(state)
+        let status = try await service.status()
+        try reply.setStatus(status)
         return reply
     }
 
@@ -80,8 +80,9 @@ extension XPCMessage {
         self.set(key: NetworkKeys.attachment.rawValue, value: data)
     }
 
-    fileprivate func setState(_ state: NetworkState) throws {
-        let data = try JSONEncoder().encode(state)
-        self.set(key: NetworkKeys.state.rawValue, value: data)
+    fileprivate func setStatus(_ status: NetworkStatus) throws {
+        let data = try JSONEncoder().encode(status)
+        self.set(key: NetworkKeys.status.rawValue, value: data)
     }
+
 }

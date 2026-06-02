@@ -32,13 +32,11 @@ public actor DefaultNetworkService: NetworkService {
         network: any Network,
         log: Logger
     ) async throws {
-        let state = await network.state
-        guard case .running(_, let status) = state else {
-            throw ContainerizationError(.invalidState, message: "invalid network state - network \(state.id) must be running")
+        guard let status = await network.status else {
+            throw ContainerizationError(.invalidState, message: "network \(network.id) must be running")
         }
 
         let subnet = status.ipv4Subnet
-
         let size = Int(subnet.upper.value - subnet.lower.value - 3)
         self.network = network
         self.log = log
@@ -48,8 +46,11 @@ public actor DefaultNetworkService: NetworkService {
     }
 
     @Sendable
-    public func state() async throws -> NetworkState {
-        await network.state
+    public func status() async throws -> NetworkStatus {
+        guard let status = await network.status else {
+            throw ContainerizationError(.invalidState, message: "network \(network.id) is not running")
+        }
+        return status
     }
 
     @Sendable
@@ -61,9 +62,8 @@ public actor DefaultNetworkService: NetworkService {
         log.debug("enter", metadata: ["func": "\(#function)"])
         defer { log.debug("exit", metadata: ["func": "\(#function)"]) }
 
-        let state = await network.state
-        guard case .running(_, let status) = state else {
-            throw ContainerizationError(.invalidState, message: "invalid network state - network \(state.id) must be running")
+        guard let status = await network.status else {
+            throw ContainerizationError(.invalidState, message: "network \(network.id) must be running")
         }
 
         let macAddress = macAddress ?? MACAddress((UInt64.random(in: 0...UInt64.max) & 0x0cff_ffff_ffff) | 0xf200_0000_0000)
@@ -72,7 +72,7 @@ public actor DefaultNetworkService: NetworkService {
             .map { try CIDRv6(macAddress.ipv6Address(network: $0.lower), prefix: $0.prefix) }
         let ip = IPv4Address(index)
         let attachment = Attachment(
-            network: state.id,
+            network: network.id,
             hostname: hostname,
             ipv4Address: try CIDRv4(ip, prefix: status.ipv4Subnet.prefix),
             ipv4Gateway: status.ipv4Gateway,
@@ -122,9 +122,8 @@ public actor DefaultNetworkService: NetworkService {
         log.debug("enter", metadata: ["func": "\(#function)"])
         defer { log.debug("exit", metadata: ["func": "\(#function)"]) }
 
-        let state = await network.state
-        guard case .running(_, let status) = state else {
-            throw ContainerizationError(.invalidState, message: "invalid network state - network \(state.id) must be running")
+        guard let status = await network.status else {
+            throw ContainerizationError(.invalidState, message: "network \(network.id) must be running")
         }
 
         // Invariant: hostname -> index if and only if index -> MAC address
@@ -136,14 +135,13 @@ public actor DefaultNetworkService: NetworkService {
             return nil
         }
 
-        // populate attachment
         let address = IPv4Address(index)
         let subnet = status.ipv4Subnet
         let ipv4Address = try CIDRv4(address, prefix: subnet.prefix)
         let ipv6Address = try status.ipv6Subnet
             .map { try CIDRv6(macAddress.ipv6Address(network: $0.lower), prefix: $0.prefix) }
         let attachment = Attachment(
-            network: state.id,
+            network: network.id,
             hostname: hostname,
             ipv4Address: ipv4Address,
             ipv4Gateway: status.ipv4Gateway,

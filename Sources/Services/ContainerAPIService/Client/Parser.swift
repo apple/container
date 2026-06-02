@@ -22,6 +22,7 @@ import ContainerizationExtras
 import ContainerizationOCI
 import ContainerizationOS
 import Foundation
+import SystemPackage
 
 /// A parsed volume specification from user input
 public struct ParsedVolume {
@@ -739,7 +740,6 @@ public struct Parser {
             let hostPath = String(parts[0])
             let containerPath = String(parts[1])
 
-            // Validate paths are not empty
             if hostPath.isEmpty {
                 throw ContainerizationError(
                     .invalidArgument, message: "host socket path cannot be empty")
@@ -749,28 +749,18 @@ public struct Parser {
                     .invalidArgument, message: "container socket path cannot be empty")
             }
 
-            // Ensure container path must start with /
-            if !containerPath.hasPrefix("/") {
-                throw ContainerizationError(
-                    .invalidArgument,
-                    message: "container socket path must be absolute: \(containerPath)")
-            }
+            let absoluteHostPath = FilePathOps.absolutePath(FilePath(hostPath))
 
-            // Convert host path to absolute path for consistency
-            let hostURL = URL(fileURLWithPath: hostPath)
-            let absoluteHostPath = hostURL.absoluteURL.path
-
-            // Check if host socket already exists and might be in use
-            if FileManager.default.fileExists(atPath: absoluteHostPath) {
+            if FileManager.default.fileExists(atPath: absoluteHostPath.string) {
                 do {
-                    let attrs = try FileManager.default.attributesOfItem(atPath: absoluteHostPath)
+                    let attrs = try FileManager.default.attributesOfItem(atPath: absoluteHostPath.string)
                     if let fileType = attrs[.type] as? FileAttributeType, fileType == .typeSocket {
                         throw ContainerizationError(
                             .invalidArgument,
                             message: "host socket \(absoluteHostPath) already exists and may be in use")
                     }
                     // If it exists but is not a socket, we can remove it and create socket
-                    try FileManager.default.removeItem(atPath: absoluteHostPath)
+                    try FileManager.default.removeItem(atPath: absoluteHostPath.string)
                 } catch let error as ContainerizationError {
                     throw error
                 } catch {
@@ -778,17 +768,15 @@ public struct Parser {
                 }
             }
 
-            // Create host directory if it doesn't exist
-            let hostDir = hostURL.deletingLastPathComponent()
-            if !FileManager.default.fileExists(atPath: hostDir.path) {
+            let hostDir = absoluteHostPath.removingLastComponent()
+            if !FileManager.default.fileExists(atPath: hostDir.string) {
                 try FileManager.default.createDirectory(
-                    at: hostDir, withIntermediateDirectories: true)
+                    atPath: hostDir.string, withIntermediateDirectories: true)
             }
 
-            // Create and return PublishSocket object with validated paths
-            return PublishSocket(
-                containerPath: URL(fileURLWithPath: containerPath),
-                hostPath: URL(fileURLWithPath: absoluteHostPath),
+            return try PublishSocket(
+                containerPath: FilePath(containerPath),
+                hostPath: absoluteHostPath,
                 permissions: nil
             )
 

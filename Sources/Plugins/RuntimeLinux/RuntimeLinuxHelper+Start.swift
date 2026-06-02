@@ -64,11 +64,11 @@ extension RuntimeLinuxHelper {
                 signal(SIGPIPE, SIG_IGN)
 
                 // FIXME: The network plugins that the runtime supports should be configurable elsewhere
-                var interfaceStrategies: [NetworkPluginInfo: InterfaceStrategy] = [
-                    NetworkPluginInfo(plugin: "container-network-vmnet", variant: "allocationOnly"): IsolatedInterfaceStrategy()
+                var interfaceStrategies: [NetworkInterfaceKey: InterfaceStrategy] = [
+                    NetworkInterfaceKey(plugin: "container-network-vmnet", variant: "allocationOnly"): IsolatedInterfaceStrategy()
                 ]
                 if #available(macOS 26, *) {
-                    interfaceStrategies[NetworkPluginInfo(plugin: "container-network-vmnet", variant: "reserved")] = NonisolatedInterfaceStrategy(log: log)
+                    interfaceStrategies[NetworkInterfaceKey(plugin: "container-network-vmnet", variant: "reserved")] = NonisolatedInterfaceStrategy(log: log)
                 }
 
                 log.info("configuring XPC server")

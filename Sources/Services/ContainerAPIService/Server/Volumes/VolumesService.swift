@@ -158,7 +158,7 @@ public actor VolumesService {
         }
 
         let volumePath = self.volumePath(for: name)
-        return self.calculateDirectorySize(at: volumePath)
+        return FileManager.default.allocatedSize(of: URL(fileURLWithPath: volumePath))
     }
 
     /// Calculate disk usage for volumes
@@ -201,7 +201,7 @@ public actor VolumesService {
                 // Calculate sizes
                 for volume in allVolumes {
                     let volumePath = self.volumePath(for: volume.name)
-                    let volumeSize = self.calculateDirectorySize(at: volumePath)
+                    let volumeSize = FileManager.default.allocatedSize(of: URL(fileURLWithPath: volumePath))
                     totalSize += volumeSize
 
                     if !inUseSet.contains(volume.name) {
@@ -212,33 +212,6 @@ public actor VolumesService {
                 return (allVolumes.count, inUseSet.count, totalSize, reclaimableSize)
             }
         }
-    }
-
-    private nonisolated func calculateDirectorySize(at path: String) -> UInt64 {
-        let url = URL(fileURLWithPath: path)
-        let fileManager = FileManager.default
-
-        guard
-            let enumerator = fileManager.enumerator(
-                at: url,
-                includingPropertiesForKeys: [.totalFileAllocatedSizeKey],
-                options: [.skipsHiddenFiles]
-            )
-        else {
-            return 0
-        }
-
-        var totalSize: UInt64 = 0
-        for case let fileURL as URL in enumerator {
-            guard let resourceValues = try? fileURL.resourceValues(forKeys: [.totalFileAllocatedSizeKey]),
-                let fileSize = resourceValues.totalFileAllocatedSize
-            else {
-                continue
-            }
-            totalSize += UInt64(fileSize)
-        }
-
-        return totalSize
     }
 
     private func parseSize(_ sizeString: String) throws -> UInt64 {

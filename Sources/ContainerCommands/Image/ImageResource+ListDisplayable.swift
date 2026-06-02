@@ -14,29 +14,26 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import Containerization
+import ContainerAPIClient
+import ContainerResource
 import ContainerizationOCI
 
-public struct ImageDetail: Codable {
-    public let name: String
-    public let index: Descriptor
-    public let variants: [Variants]
-
-    public struct Variants: Codable {
-        public let platform: Platform
-        public let config: ContainerizationOCI.Image
-        public let size: Int64
-
-        public init(platform: Platform, size: Int64, config: ContainerizationOCI.Image) {
-            self.platform = platform
-            self.config = config
-            self.size = size
-        }
+extension ImageResource: ListDisplayable {
+    public static var tableHeader: [String] {
+        ["NAME", "TAG", "DIGEST"]
     }
 
-    public init(name: String, index: Descriptor, variants: [Variants]) {
-        self.name = name
-        self.index = index
-        self.variants = variants
+    public var tableRow: [String] {
+        // `displayReference` is already denormalized by the caller.
+        let reference = try? ContainerizationOCI.Reference.parse(displayReference)
+        return [
+            reference?.name ?? displayReference,
+            reference?.tag ?? "<none>",
+            Utility.trimDigest(digest: index.digest),
+        ]
+    }
+
+    public var quietValue: String {
+        name
     }
 }

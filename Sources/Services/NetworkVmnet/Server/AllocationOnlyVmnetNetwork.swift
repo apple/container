@@ -25,8 +25,9 @@ public actor AllocationOnlyVmnetNetwork: Network {
     // The IPv4 subnet to be used if none explicitly passed in the `NetworkConfiguration`
     private static let defaultIPv4Subnet = try! CIDRv4("192.168.64.1/24")
 
+    private let configuration: NetworkConfiguration
     private let log: Logger
-    private var _state: NetworkState
+    private var _status: NetworkStatus?
 
     /// Configure a bridge network that allows external system access using
     /// network address translation.
@@ -42,21 +43,22 @@ public actor AllocationOnlyVmnetNetwork: Network {
             throw ContainerizationError(.unsupported, message: "IPv6 subnet assignment is not yet implemented")
         }
 
+        self.configuration = configuration
         self.log = log
-        self._state = .created(configuration)
+        self._status = nil
     }
 
-    public var state: NetworkState {
-        self._state
-    }
+    public nonisolated var id: String { configuration.id }
+
+    public var status: NetworkStatus? { _status }
 
     public nonisolated func withAdditionalData(_ handler: (XPCMessage?) throws -> Void) throws {
         try handler(nil)
     }
 
     public func start() async throws {
-        guard case .created(let configuration) = _state else {
-            throw ContainerizationError(.invalidState, message: "cannot start network \(_state.id) in \(_state.state) state")
+        guard _status == nil else {
+            throw ContainerizationError(.invalidState, message: "cannot start network \(configuration.id): already started")
         }
 
         log.info(
@@ -68,14 +70,12 @@ public actor AllocationOnlyVmnetNetwork: Network {
         )
 
         let ipv4Subnet = configuration.ipv4Subnet ?? Self.defaultIPv4Subnet
-
         let gateway = IPv4Address(ipv4Subnet.lower.value + 1)
-        let status = NetworkPluginStatus(
+        self._status = NetworkStatus(
             ipv4Subnet: ipv4Subnet,
             ipv4Gateway: gateway,
-            ipv6Subnet: nil,
+            ipv6Subnet: nil
         )
-        self._state = .running(configuration, status)
         log.info(
             "started allocation-only network",
             metadata: [

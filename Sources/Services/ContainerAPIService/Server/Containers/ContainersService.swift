@@ -216,7 +216,7 @@ public actor ContainersService {
 
             for (id, state) in await self.containers {
                 let bundlePath = self.containerRoot.appendingPathComponent(id)
-                let containerSize = Self.calculateDirectorySize(at: bundlePath.path)
+                let containerSize = FileManager.default.allocatedSize(of: bundlePath)
                 totalSize += containerSize
 
                 if state.snapshot.status == .running {
@@ -241,39 +241,6 @@ public actor ContainersService {
             }
             return imageRefs
         }
-    }
-
-    /// Calculate directory size using APFS-aware resource keys
-    /// - Parameter path: Path to directory
-    /// - Returns: Total allocated size in bytes
-    private static nonisolated func calculateDirectorySize(at path: String) -> UInt64 {
-        let url = URL(fileURLWithPath: path)
-        let fileManager = FileManager.default
-
-        guard
-            let enumerator = fileManager.enumerator(
-                at: url,
-                includingPropertiesForKeys: [.totalFileAllocatedSizeKey],
-                options: [.skipsHiddenFiles]
-            )
-        else {
-            return 0
-        }
-
-        var totalSize: UInt64 = 0
-        for case let fileURL as URL in enumerator {
-            guard
-                let resourceValues = try? fileURL.resourceValues(
-                    forKeys: [.totalFileAllocatedSizeKey]
-                ),
-                let fileSize = resourceValues.totalFileAllocatedSize
-            else {
-                continue
-            }
-            totalSize += UInt64(fileSize)
-        }
-
-        return totalSize
     }
 
     /// Create a new container from the provided id and configuration.
@@ -435,10 +402,10 @@ public actor ContainersService {
 
             var networkBootstrapInfos = [NetworkBootstrapInfo]()
             for n in config.networks {
-                guard let pluginInfo = try await self.networksService?.pluginInfo(id: n.network) else {
-                    throw ContainerizationError(.internalError, message: "failed to get plugin info for network \(n.network)")
+                guard let (plugin, options) = try await self.networksService?.pluginConfiguration(id: n.network) else {
+                    throw ContainerizationError(.internalError, message: "failed to get plugin configuration for network \(n.network)")
                 }
-                networkBootstrapInfos.append(NetworkBootstrapInfo(pluginInfo: pluginInfo))
+                networkBootstrapInfos.append(NetworkBootstrapInfo(plugin: plugin, options: options))
             }
 
             do {
@@ -900,7 +867,7 @@ public actor ContainersService {
 
         let containerPath = self.containerRoot.appendingPathComponent(id).path
 
-        return Self.calculateDirectorySize(at: containerPath)
+        return FileManager.default.allocatedSize(of: URL(fileURLWithPath: containerPath))
     }
 
     public func exportRootfs(id: String, archive: URL) async throws {

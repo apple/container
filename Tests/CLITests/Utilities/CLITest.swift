@@ -30,7 +30,8 @@ import Testing
 class CLITest {
     private static let commandSeq = Mutex<Int>(0)
     struct Image: Codable {
-        let reference: String
+        let name: String
+        var reference: String { name }
     }
 
     // These structs need to track their counterpart presentation structs in CLI.
@@ -53,9 +54,8 @@ class CLITest {
             let ipv6Subnet: String?
         }
         let id: String
-        let state: String
         let configuration: NetworkConfiguration
-        let status: Status?
+        let status: Status
     }
 
     let testName: String

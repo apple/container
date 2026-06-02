@@ -266,9 +266,6 @@ extension Application {
             guard let defaultNetwork = try await networkClient.builtin else {
                 throw ContainerizationError(.invalidState, message: "default network is not present")
             }
-            guard defaultNetwork.status.phase == "running" else {
-                throw ContainerizationError(.invalidState, message: "default network is not running")
-            }
             config.networks = [
                 AttachmentConfiguration(network: defaultNetwork.id, options: AttachmentOptions(hostname: Builder.builderContainerId))
             ]

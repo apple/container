@@ -550,27 +550,3 @@ extension ImageDescription {
         return name
     }
 }
-
-extension ClientImage {
-    public func details() async throws -> ImageDetail {
-        let descriptor = try await self.resolved()
-        let reference = self.reference
-        var variants: [ImageDetail.Variants] = []
-        for desc in try await self.index().manifests {
-            guard let platform = desc.platform else {
-                continue
-            }
-            let config: ContainerizationOCI.Image
-            let manifest: ContainerizationOCI.Manifest
-            do {
-                config = try await self.config(for: platform)
-                manifest = try await self.manifest(for: platform)
-            } catch {
-                continue
-            }
-            let size = desc.size + manifest.config.size + manifest.layers.reduce(0, { (l, r) in l + r.size })
-            variants.append(.init(platform: platform, size: size, config: config))
-        }
-        return ImageDetail(name: reference, index: descriptor, variants: variants)
-    }
-}

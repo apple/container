@@ -19,12 +19,15 @@ import ContainerXPC
 
 /// Defines common characteristics and operations for a network.
 public protocol Network: Sendable {
-    // Contains network attributes while the network is running
-    var state: NetworkState { get async }
+    /// The network's identifier.
+    var id: String { get }
 
-    // Use implementation-dependent network attributes
+    /// The network's runtime status. `nil` before ``start()`` completes.
+    var status: NetworkStatus? { get async }
+
+    /// Use implementation-dependent network attributes.
     nonisolated func withAdditionalData(_ handler: (XPCMessage?) throws -> Void) throws
 
-    // Start the network
+    /// Start the network.
     func start() async throws
 }
