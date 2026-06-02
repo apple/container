@@ -18,16 +18,6 @@ import ContainerizationError
 import ContainerizationExtras
 import Foundation
 
-public struct NetworkPluginInfo: Codable, Sendable, Hashable {
-    public let plugin: String
-    public let variant: String?
-
-    public init(plugin: String, variant: String? = nil) {
-        self.plugin = plugin
-        self.variant = variant
-    }
-}
-
 /// Configuration parameters for network creation.
 public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     /// A unique identifier for the network
@@ -46,12 +36,14 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     public let ipv6Subnet: CIDRv6?
 
     /// Key-value labels for the network.
-    public var labels: [String: String] = [:]
+    /// Resource labels should not be mutated, except while building a network configurations.
+    public let labels: ResourceLabels
 
-    /// Details about the network plugin that manages this network.
-    /// FIXME: This field only needs to be optional while we wait for the field
-    /// to be proliferated to most users when they update container.
-    public var pluginInfo: NetworkPluginInfo?
+    /// The network plugin that manages this network.
+    public let plugin: String
+
+    /// Plugin-specific options for this network.
+    public let options: [String: String]
 
     /// Creates a network configuration
     public init(
@@ -59,8 +51,9 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         mode: NetworkMode,
         ipv4Subnet: CIDRv4? = nil,
         ipv6Subnet: CIDRv6? = nil,
-        labels: [String: String] = [:],
-        pluginInfo: NetworkPluginInfo,
+        labels: ResourceLabels = .init(),
+        plugin: String,
+        options: [String: String] = [:]
     ) throws {
         self.id = id
         self.creationDate = Date()
@@ -68,7 +61,8 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         self.ipv4Subnet = ipv4Subnet
         self.ipv6Subnet = ipv6Subnet
         self.labels = labels
-        self.pluginInfo = pluginInfo
+        self.plugin = plugin
+        self.options = options
         try validate()
     }
 
@@ -79,8 +73,10 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         case ipv4Subnet
         case ipv6Subnet
         case labels
+        case plugin
+        case options
+        // TODO: retain for deserialization compatibility, remove in next major version
         case pluginInfo
-        // TODO: retain for deserialization compatability for now, remove later
         case subnet
     }
 
@@ -98,8 +94,24 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         ipv4Subnet = try subnetText.map { try CIDRv4($0) }
         ipv6Subnet = try container.decodeIfPresent(String.self, forKey: .ipv6Subnet)
             .map { try CIDRv6($0) }
-        labels = try container.decodeIfPresent([String: String].self, forKey: .labels) ?? [:]
-        pluginInfo = try container.decodeIfPresent(NetworkPluginInfo.self, forKey: .pluginInfo)
+        let decodedLabels = try container.decodeIfPresent([String: String].self, forKey: .labels) ?? [:]
+        labels = try .init(decodedLabels)
+
+        if let plugin = try container.decodeIfPresent(String.self, forKey: .plugin) {
+            self.plugin = plugin
+            self.options = try container.decodeIfPresent([String: String].self, forKey: .options) ?? [:]
+        } else if let legacy = try container.decodeIfPresent(_LegacyPluginInfo.self, forKey: .pluginInfo) {
+            // - Deprecated: As of 1.0.0. Use ``plugin`` and ``options`` instead.
+            // - Note: Will be removed in a later release.
+            self.plugin = legacy.plugin
+            var opts: [String: String] = [:]
+            if let variant = legacy.variant { opts["variant"] = variant }
+            self.options = opts
+        } else {
+            self.plugin = "container-network-vmnet"
+            self.options = [:]
+        }
+
         try validate()
     }
 
@@ -113,52 +125,19 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         try container.encodeIfPresent(ipv4Subnet, forKey: .ipv4Subnet)
         try container.encodeIfPresent(ipv6Subnet, forKey: .ipv6Subnet)
         try container.encode(labels, forKey: .labels)
-        try container.encodeIfPresent(pluginInfo, forKey: .pluginInfo)
+        try container.encode(plugin, forKey: .plugin)
+        try container.encode(options, forKey: .options)
     }
 
     private func validate() throws {
-        guard id.isValidNetworkID() else {
+        guard NetworkResource.nameValid(id) else {
             throw ContainerizationError(.invalidArgument, message: "invalid network ID: \(id)")
-        }
-
-        for (key, value) in labels {
-            try validateLabel(key: key, value: value)
-        }
-    }
-
-    /// TODO: Extract when we clean up client dependencies.
-    private func validateLabel(key: String, value: String) throws {
-        let keyLengthMax = 128
-        let labelLengthMax = 4096
-        guard key.count <= keyLengthMax else {
-            throw ContainerizationError(.invalidArgument, message: "invalid label, key length is greater than \(keyLengthMax): \(key)")
-        }
-
-        guard key.isValidLabelKey() else {
-            throw ContainerizationError(.invalidArgument, message: "invalid label key: \(key)")
-        }
-
-        let fullLabel = "\(key)=\(value)"
-        guard fullLabel.count <= labelLengthMax else {
-            throw ContainerizationError(.invalidArgument, message: "invalid label, key length is greater than \(labelLengthMax): \(fullLabel)")
         }
     }
 }
 
-extension String {
-    /// Ensure that the network ID has the correct syntax.
-    fileprivate func isValidNetworkID() -> Bool {
-        let pattern = #"^[a-z0-9](?:[a-z0-9._-]{0,61}[a-z0-9])?$"#
-        return self.range(of: pattern, options: .regularExpression) != nil
-    }
-
-    /// Ensure label key conforms to OCI or Docker label guidelines.
-    /// TODO: Extract when we clean up client dependencies.
-    fileprivate func isValidLabelKey() -> Bool {
-        let dockerPattern = #/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*$/#
-        let ociPattern = #/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*(?:/(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*))*$/#
-        let dockerMatch = !self.ranges(of: dockerPattern).isEmpty
-        let ociMatch = !self.ranges(of: ociPattern).isEmpty
-        return dockerMatch || ociMatch
-    }
+/// Decode helper for stored configurations that used the old `pluginInfo` key.
+private struct _LegacyPluginInfo: Codable {
+    let plugin: String
+    let variant: String?
 }

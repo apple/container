@@ -1,0 +1,11 @@
+abstract = "vmnet network management plugin"
+author = "Apple"
+version = 0.1
+
+[servicesConfig]
+loadAtBoot = false
+runAtLoad = true
+defaultArguments = []
+
+[[servicesConfig.services]]
+type = "network"

@@ -22,6 +22,7 @@ import ContainerizationOS
 import Foundation
 import Testing
 
+@Suite(.serialSuites, .serialized)
 class TestCLINetwork: CLITest {
     private static let retries = 10
     private static let retryDelaySeconds = Int64(3)
@@ -49,6 +50,16 @@ class TestCLINetwork: CLITest {
             defer {
                 _ = try? run(arguments: networkDeleteArgs)
             }
+
+            let listResult = try? run(arguments: ["network", "ls", "--quiet"])
+            let networkIds =
+                listResult?.output
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter({ !$0.isEmpty })
+                ?? ["OUTPUT MISSING"]
+            #expect(networkIds == networkIds.sorted(), "network IDs should be sorted")
+
             let port = UInt16.random(in: 50000..<60000)
             try doLongRun(
                 name: name,
@@ -181,7 +192,7 @@ class TestCLINetwork: CLITest {
                 "foo": "bar",
                 "baz": "qux",
             ]
-            #expect(expectedLabels == networks[0].config.labels)
+            #expect(expectedLabels == networks[0].configuration.labels.dictionary)
 
             // delete should succeed
             _ = try run(arguments: networkDeleteArgs)
@@ -189,6 +200,19 @@ class TestCLINetwork: CLITest {
             Issue.record("failed to safely delete network \(error)")
             return
         }
+    }
+
+    @Test func testNetworkMTU() async throws {
+        let name = getLowercasedTestName()
+        try? doStop(name: name)
+        try? doRemove(name: name)
+
+        try doLongRun(name: name, args: ["--network", "default,mtu=1500"])
+        defer { try? doStop(name: name) }
+
+        try waitForContainerRunning(name)
+        let output = try doExec(name: name, cmd: ["ip", "link", "show", "eth0"])
+        #expect(output.contains("mtu 1500"), "expected mtu 1500 in ip link output: \(output)")
     }
 
     @available(macOS 26, *)
@@ -241,10 +265,58 @@ class TestCLINetwork: CLITest {
                 name,
                 curlImage,
                 "curl",
+                "--connect-timeout",
+                "5",
                 "http://google.com",
             ])
 
-            #expect(failed == 6, "external connection should fail")
+            // hostOnly mode blocks off-host traffic; depending on whether vmnet/firewall
+            // rejects (7) or drops (28) packets, or DNS itself can't reach an external
+            // resolver (6), curl will fail with one of these codes.
+            let hostOnlyBlockedCodes: Set<Int32> = [6, 7, 28]
+            #expect(hostOnlyBlockedCodes.contains(failed), "external connection should fail")
         }
+    }
+
+    @Test func testNetworkListTableFormat() throws {
+        let name = getLowercasedTestName()
+        _ = try? run(arguments: ["network", "delete", name])
+        let createResult = try run(arguments: ["network", "create", name])
+        if createResult.status != 0 {
+            throw CLIError.executionFailed("network create failed: \(createResult.error)")
+        }
+        defer { _ = try? run(arguments: ["network", "delete", name]) }
+
+        let (_, output, error, status) = try run(arguments: ["network", "list"])
+        #expect(status == 0, "network list should succeed, stderr: \(error)")
+
+        let headers = ["NETWORK", "SUBNET"]
+        #expect(headers.allSatisfy { output.contains($0) }, "table should contain all headers")
+        #expect(output.contains(name), "table should contain the created network")
+    }
+
+    @Test func testNetworkListJSONFormat() throws {
+        let name = getLowercasedTestName()
+        _ = try? run(arguments: ["network", "delete", name])
+        let createResult = try run(arguments: ["network", "create", name])
+        if createResult.status != 0 {
+            throw CLIError.executionFailed("network create failed: \(createResult.error)")
+        }
+        defer { _ = try? run(arguments: ["network", "delete", name]) }
+
+        let (data, _, error, status) = try run(arguments: ["network", "list", "--format", "json"])
+        #expect(status == 0, "network list --format json should succeed, stderr: \(error)")
+
+        guard let json = try JSONSerialization.jsonObject(with: data, options: []) as? [[String: Any]] else {
+            Issue.record("JSON output should be an array of objects")
+            return
+        }
+        #expect(json.contains { ($0["id"] as? String) == name }, "JSON should contain the created network")
+    }
+
+    @Test func testInspectMissingNetworkFails() throws {
+        let (_, _, error, status) = try run(arguments: ["network", "inspect", "definitely-missing-network"])
+        #expect(status != 0, "Expected non-zero exit for missing network")
+        #expect(error.contains("network not found"))
     }
 }

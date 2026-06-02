@@ -167,6 +167,8 @@ public struct Flags {
 
         public init(
             arch: String,
+            capAdd: [String],
+            capDrop: [String],
             cidfile: String,
             detach: Bool,
             dns: Flags.DNS,
@@ -187,11 +189,15 @@ public struct Flags {
             rosetta: Bool,
             runtime: String?,
             ssh: Bool,
+            shmSize: String?,
             tmpFs: [String],
+            useInit: Bool,
             virtualization: Bool,
             volumes: [String]
         ) {
             self.arch = arch
+            self.capAdd = capAdd
+            self.capDrop = capDrop
             self.cidfile = cidfile
             self.detach = detach
             self.dns = dns
@@ -212,13 +218,27 @@ public struct Flags {
             self.rosetta = rosetta
             self.runtime = runtime
             self.ssh = ssh
+            self.shmSize = shmSize
             self.tmpFs = tmpFs
+            self.useInit = useInit
             self.virtualization = virtualization
             self.volumes = volumes
         }
 
         @Option(name: .shortAndLong, help: "Set arch if image can target multiple architectures")
         public var arch: String = Arch.hostArchitecture().rawValue
+
+        @Option(
+            name: .customLong("cap-add"),
+            help: .init("Add a Linux capability (e.g. CAP_NET_RAW, or ALL)", valueName: "cap")
+        )
+        public var capAdd: [String] = []
+
+        @Option(
+            name: .customLong("cap-drop"),
+            help: .init("Drop a Linux capability (e.g. CAP_NET_RAW, or ALL)", valueName: "cap")
+        )
+        public var capDrop: [String] = []
 
         @Option(name: .long, help: "Write the container ID to the path provided")
         public var cidfile = ""
@@ -238,6 +258,15 @@ public struct Flags {
         )
         public var entrypoint: String?
 
+        @Flag(name: .customLong("init"), help: "Run an init process inside the container that forwards signals and reaps processes")
+        public var useInit = false
+
+        @Option(
+            name: .long,
+            help: .init("Use a custom init image instead of the default", valueName: "image")
+        )
+        public var initImage: String?
+
         @Option(
             name: .shortAndLong,
             help: .init("Set a custom kernel path", valueName: "path"),
@@ -248,12 +277,6 @@ public struct Flags {
         )
         public var kernel: String?
 
-        @Option(
-            name: .long,
-            help: .init("Use a custom init image instead of the default", valueName: "image")
-        )
-        public var initImage: String?
-
         @Option(name: [.short, .customLong("label")], help: "Add a key=value label to the container")
         public var labels: [String] = []
 
@@ -263,7 +286,7 @@ public struct Flags {
         @Option(name: .long, help: "Use the specified name as the container ID")
         public var name: String?
 
-        @Option(name: [.customLong("network")], help: "Attach the container to a network (format: <name>[,mac=XX:XX:XX:XX:XX:XX])")
+        @Option(name: [.customLong("network")], help: "Attach the container to a network (format: <name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE])")
         public var networks: [String] = []
 
         @Flag(name: [.customLong("no-dns")], help: "Do not configure DNS in the container")
@@ -281,7 +304,7 @@ public struct Flags {
         )
         public var publishPorts: [String] = []
 
-        @Option(name: .long, help: "Platform for the image if it's multi-platform. This takes precedence over --os and --arch")
+        @Option(name: .long, help: "Platform for the image if it's multi-platform. This takes precedence over --os and --arch [environment: CONTAINER_DEFAULT_PLATFORM]")
         public var platform: String?
 
         @Option(
@@ -293,20 +316,26 @@ public struct Flags {
         )
         public var publishSockets: [String] = []
 
+        @Flag(name: .long, help: "Mount the container's root filesystem as read-only")
+        public var readOnly = false
+
         @Flag(name: [.customLong("rm"), .long], help: "Remove the container after it stops")
         public var remove = false
 
         @Flag(name: .long, help: "Enable Rosetta in the container")
         public var rosetta = false
 
+        @Option(name: .long, help: "Set the runtime handler for the container (default: container-runtime-linux)")
+        public var runtime: String?
+
         @Flag(name: .long, help: "Forward SSH agent socket to container")
         public var ssh = false
 
+        @Option(name: .customLong("shm-size"), help: "Size of /dev/shm (e.g. 64M, 1G)")
+        public var shmSize: String?
+
         @Option(name: .customLong("tmpfs"), help: "Add a tmpfs mount to the container at the given path")
         public var tmpFs: [String] = []
-
-        @Option(name: [.customLong("volume"), .short], help: "Bind mount a volume into the container")
-        public var volumes: [String] = []
 
         @Flag(
             name: .long,
@@ -315,11 +344,23 @@ public struct Flags {
         )
         public var virtualization: Bool = false
 
-        @Flag(name: .long, help: "Mount the container's root filesystem as read-only")
-        public var readOnly = false
+        @Option(name: [.customLong("volume"), .short], help: "Bind mount a volume into the container")
+        public var volumes: [String] = []
 
-        @Option(name: .long, help: "Set the runtime handler for the container (default: container-runtime-linux)")
-        public var runtime: String?
+        public func validate() throws {
+            if dnsDisabled {
+                let hasDNSConfig =
+                    !dns.nameservers.isEmpty
+                    || dns.domain != nil
+                    || !dns.options.isEmpty
+                    || !dns.searchDomains.isEmpty
+                if hasDNSConfig {
+                    throw ValidationError(
+                        "`--no-dns` cannot be used with DNS configuration flags (`--dns`, `--dns-domain`, `--dns-option`, `--dns-search`)"
+                    )
+                }
+            }
+        }
     }
 
     public struct Progress: ParsableArguments {
@@ -330,12 +371,15 @@ public struct Flags {
         }
 
         public enum ProgressType: String, ExpressibleByArgument {
+            case auto
             case none
             case ansi
+            case plain
+            case color
         }
 
-        @Option(name: .long, help: ArgumentHelp("Progress type (format: none|ansi)", valueName: "type"))
-        public var progress: ProgressType = .ansi
+        @Option(name: .long, help: ArgumentHelp("Progress type (format: auto|none|ansi|plain|color)", valueName: "type"))
+        public var progress: ProgressType = .auto
     }
 
     public struct ImageFetch: ParsableArguments {

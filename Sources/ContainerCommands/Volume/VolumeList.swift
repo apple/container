@@ -29,7 +29,7 @@ extension Application.VolumeCommand {
         )
 
         @Option(name: .long, help: "Format of the output")
-        var format: Application.ListFormat = .table
+        var format: ListFormat = .table
 
         @Flag(name: .shortAndLong, help: "Only output the volume name")
         var quiet: Bool = false
@@ -41,52 +41,15 @@ extension Application.VolumeCommand {
 
         public func run() async throws {
             let volumes = try await ClientVolume.list()
-            try printVolumes(volumes: volumes, format: format)
-        }
+            let volumeResources = volumes.map { VolumeResource(config: $0) }
 
-        private func createHeader() -> [[String]] {
-            [["NAME", "TYPE", "DRIVER", "OPTIONS"]]
-        }
-
-        func printVolumes(volumes: [Volume], format: Application.ListFormat) throws {
             if format == .json {
-                let data = try JSONEncoder().encode(volumes)
-                print(String(decoding: data, as: UTF8.self))
+                let options = JSONOptions(dateEncodingStrategy: .iso8601)
+                try Output.emit(Output.renderJSON(volumeResources, options: options))
                 return
             }
 
-            if quiet {
-                volumes.forEach {
-                    print($0.name)
-                }
-                return
-            }
-
-            // Sort volumes by creation time (newest first)
-            let sortedVolumes = volumes.sorted { v1, v2 in
-                v1.createdAt > v2.createdAt
-            }
-
-            var rows = createHeader()
-            for volume in sortedVolumes {
-                rows.append(volume.asRow)
-            }
-
-            let formatter = TableOutput(rows: rows)
-            print(formatter.format())
+            try Output.render(json: volumeResources, display: volumeResources, format: format, quiet: quiet)
         }
-    }
-}
-
-extension Volume {
-    var asRow: [String] {
-        let volumeType = self.isAnonymous ? "anonymous" : "named"
-        let optionsString = options.isEmpty ? "" : options.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
-        return [
-            self.name,
-            volumeType,
-            self.driver,
-            optionsString,
-        ]
     }
 }

@@ -16,6 +16,8 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerPersistence
+import ContainerPlugin
 import Containerization
 import ContainerizationError
 import ContainerizationOCI
@@ -45,6 +47,7 @@ extension Application {
         var server: String
 
         public func run() async throws {
+            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
             var username = self.username
             var password = ""
             if passwordStdin {
@@ -67,7 +70,7 @@ extension Application {
             }
 
             let server = Reference.resolveDomain(domain: server)
-            let scheme = try RequestScheme(registry.scheme).schemeFor(host: server)
+            let scheme = try RequestScheme(registry.scheme).schemeFor(host: server, internalDnsDomain: containerSystemConfig.dns.domain)
             let _url = "\(scheme)://\(server)"
             guard let url = URL(string: _url) else {
                 throw ContainerizationError(.invalidArgument, message: "cannot convert \(_url) to URL")

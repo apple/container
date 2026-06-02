@@ -29,14 +29,12 @@ struct PluginConfigTest {
             create: true
         )
         defer { try? FileManager.default.removeItem(at: tempURL) }
-        let configURL = tempURL.appending(path: "config.json")
-        let configJson = """
-            {
-                "abstract" : "Default network management service",
-                "author": "Apple"
-            }
+        let configURL = tempURL.appending(path: "config.toml")
+        let configToml = """
+            abstract = "Default network management service"
+            author = "Apple"
             """
-        try configJson.write(to: configURL, atomically: true, encoding: .utf8)
+        try configToml.write(to: configURL, atomically: true, encoding: .utf8)
         let config = try #require(try PluginConfig(configURL: configURL))
 
         #expect(config.isCLI)
@@ -53,25 +51,22 @@ struct PluginConfigTest {
             create: true
         )
         defer { try? FileManager.default.removeItem(at: tempURL) }
-        let configURL = tempURL.appending(path: "config.json")
-        let configJson = """
-            {
-                "abstract" : "Default network management service",
-                "author": "Apple",
-                "servicesConfig" : {
-                    "loadAtBoot" : true,
-                    "runAtLoad" : true,
-                    "defaultArguments" : ["start"],
-                    "services" : [
-                        {
-                            "type" : "network",
-                            "description": "foo"
-                        }
-                    ]
-                }
-            }
+        let configURL = tempURL.appending(path: "config.toml")
+        let configToml = """
+            abstract = "Default network management service"
+            author = "Apple"
+            version = 0.1
+
+            [servicesConfig]
+            loadAtBoot = true
+            runAtLoad = true
+            defaultArguments = ["start"]
+
+            [[servicesConfig.services]]
+            type = "network"
+            description = "foo"
             """
-        try configJson.write(to: configURL, atomically: true, encoding: .utf8)
+        try configToml.write(to: configURL, atomically: true, encoding: .utf8)
         let config = try #require(try PluginConfig(configURL: configURL))
 
         #expect(!config.isCLI)
@@ -85,5 +80,44 @@ struct PluginConfigTest {
         #expect(servicesConfig.services[0].type == .network)
         #expect(servicesConfig.services[0].description == "foo")
         #expect(servicesConfig.defaultArguments == ["start"])
+    }
+
+    @Test
+    func testMalformedTomlThrows() async throws {
+        let tempURL = try FileManager.default.url(
+            for: .itemReplacementDirectory,
+            in: .userDomainMask,
+            appropriateFor: .temporaryDirectory,
+            create: true
+        )
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let configURL = tempURL.appending(path: "config.toml")
+        let malformedToml = """
+            abstract = "unclosed string
+            [invalid
+            """
+        try malformedToml.write(to: configURL, atomically: true, encoding: .utf8)
+        #expect(throws: (any Error).self) {
+            try PluginConfig(configURL: configURL)
+        }
+    }
+
+    @Test
+    func testUnsupportedExtensionReturnsNil() async throws {
+        let tempURL = try FileManager.default.url(
+            for: .itemReplacementDirectory,
+            in: .userDomainMask,
+            appropriateFor: .temporaryDirectory,
+            create: true
+        )
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let configURL = tempURL.appending(path: "config.yaml")
+        let content = """
+            abstract: "YAML config"
+            author: "Apple"
+            """
+        try content.write(to: configURL, atomically: true, encoding: .utf8)
+        let config = try PluginConfig(configURL: configURL)
+        #expect(config == nil)
     }
 }

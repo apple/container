@@ -16,11 +16,10 @@
 
 import ArgumentParser
 import ContainerAPIClient
-import ContainerLog
+import ContainerPersistence
+import ContainerResource
 import ContainerizationError
 import Foundation
-import Logging
-import SwiftProtobuf
 
 extension Application {
     public struct ImageInspect: AsyncLoggableCommand {
@@ -36,44 +35,39 @@ extension Application {
 
         public init() {}
 
-        struct InspectError: Error {
-            let succeeded: [String]
-            let failed: [(String, Error)]
-        }
-
         public func run() async throws {
-            var printable = [any Codable]()
-            var succeededImages: [String] = []
-            var allErrors: [(String, Error)] = []
+            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
+            let uniqueNames = Set(images)
+            let result = try await ClientImage.get(
+                names: Array(uniqueNames), containerSystemConfig: containerSystemConfig
+            )
 
-            let result = try await ClientImage.get(names: images)
+            if !result.error.isEmpty {
+                let missing = result.error.sorted()
+                throw ContainerizationError(
+                    .notFound,
+                    message: "image not found: \(missing.joined(separator: ", "))"
+                )
+            }
 
+            var printable: [ImageResource] = []
             for image in result.images {
-                guard !Utility.isInfraImage(name: image.reference) else { continue }
-                printable.append(try await image.details())
-                succeededImages.append(image.reference)
+                guard
+                    !Utility.isInfraImage(
+                        name: image.reference,
+                        builderImage: containerSystemConfig.build.image,
+                        initImage: containerSystemConfig.vminit.image
+                    )
+                else { continue }
+                let resolved = try await image.resolvedManifests()
+                printable.append(ImageResource(config: image.description, index: resolved.index, manifests: resolved.manifests))
             }
 
-            for missing in result.error {
-                allErrors.append((missing, ContainerizationError(.notFound, message: "Image not found")))
-            }
-
-            if !printable.isEmpty {
-                print(try printable.jsonArray())
-            }
-
-            if !allErrors.isEmpty {
-                for (name, error) in allErrors {
-                    log.error(
-                        "image inspect failed",
-                        metadata: [
-                            "name": "\(name)",
-                            "error": "\(error.localizedDescription)",
-                        ])
-                }
-
-                throw InspectError(succeeded: succeededImages, failed: allErrors)
-            }
+            let options = JSONOptions(
+                outputFormatting: [.prettyPrinted, .sortedKeys],
+                dateEncodingStrategy: .iso8601
+            )
+            try Output.emit(Output.renderJSON(printable, options: options))
         }
     }
 }

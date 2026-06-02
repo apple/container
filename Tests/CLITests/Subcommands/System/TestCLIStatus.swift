@@ -18,6 +18,7 @@ import Foundation
 import Testing
 
 /// Tests for `container system status` output formats and content validation.
+@Suite(.serialSuites)
 final class TestCLIStatus: CLITest {
     struct StatusJSON: Codable {
         let status: String
@@ -52,10 +53,10 @@ final class TestCLIStatus: CLITest {
         let fullOutput = lines.joined(separator: "\n")
         #expect(fullOutput.contains("status"))
         #expect(fullOutput.contains("running"))
-        #expect(fullOutput.contains("app-root"))
-        #expect(fullOutput.contains("install-root"))
-        #expect(fullOutput.contains("apiserver-version"))
-        #expect(fullOutput.contains("apiserver-commit"))
+        #expect(fullOutput.contains("appRoot"))
+        #expect(fullOutput.contains("installRoot"))
+        #expect(fullOutput.contains("apiserver.version"))
+        #expect(fullOutput.contains("apiserver.commit"))
 
         _ = data  // silence unused warning if assertions short-circuit
     }

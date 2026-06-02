@@ -16,6 +16,8 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerPersistence
+import ContainerPlugin
 import ContainerResource
 import Containerization
 import ContainerizationError
@@ -61,20 +63,16 @@ extension Application {
         var arguments: [String] = []
 
         public func run() async throws {
+            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
             var exitCode: Int32 = 127
             let id = Utility.createContainerID(name: self.managementFlags.name)
 
-            var progressConfig: ProgressConfig
-            switch self.progressFlags.progress {
-            case .none: progressConfig = try ProgressConfig(disableProgressUpdates: true)
-            case .ansi:
-                progressConfig = try ProgressConfig(
-                    showTasks: true,
-                    showItems: true,
-                    ignoreSmallSize: true,
-                    totalTasks: 6
-                )
-            }
+            let progressConfig = try self.progressFlags.makeConfig(
+                showTasks: true,
+                showItems: true,
+                ignoreSmallSize: true,
+                totalTasks: 6
+            )
 
             let progress = ProgressBar(config: progressConfig)
             defer {
@@ -103,6 +101,7 @@ extension Application {
                 resource: resourceFlags,
                 registry: registryFlags,
                 imageFetch: imageFetchFlags,
+                containerSystemConfig: containerSystemConfig,
                 progressUpdate: progress.handler,
                 log: log
             )
@@ -128,7 +127,12 @@ extension Application {
                     try? io.close()
                 }
 
-                let process = try await client.bootstrap(id: id, stdio: io.stdio)
+                var dynamicEnv: [String: String] = [:]
+                if let sshAuthSock = ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] {
+                    dynamicEnv["SSH_AUTH_SOCK"] = sshAuthSock
+                }
+
+                let process = try await client.bootstrap(id: id, stdio: io.stdio, dynamicEnv: dynamicEnv)
                 progress.finish()
 
                 if !self.managementFlags.cidfile.isEmpty {

@@ -19,7 +19,7 @@ import Containerization
 import ContainerizationArchive
 import ContainerizationOCI
 import Foundation
-import GRPC
+import GRPCCore
 
 struct BuildRemoteContentProxy: BuildPipelineHandler {
     let local: ContentStore

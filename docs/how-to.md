@@ -200,6 +200,11 @@ Test access using `curl`:
 
 ## Access a host service from a container
 
+> [!IMPORTANT]
+> Due to macOS security constraints around packet filter rules, this feature has limited functionality:
+> - Creating a localhost domain disables Private Relay.
+> - The local domain packet filter rule is removed on a restart.
+
 Create a DNS domain with `--localhost <ipv4-address>` to make a domain used by a container to access a host service. Any IPv4 address can be used as `<ipv4-address>`, which will be assigned to the domain name in container.
 
 Choose an IP address that is least likely to conflict with any networks or reserved IP addresses in your environment. Reasonably safe address ranges include:
@@ -239,14 +244,11 @@ The MAC address must be in the format `XX:XX:XX:XX:XX:XX` (with colons or hyphen
 container run --network default,mac=02:42:ac:11:00:02 ubuntu:latest
 ```
 
-To verify the MAC address is set correctly, run `ip addr show` inside the container:
+To verify the MAC address is set correctly, read the interface MAC directly from sysfs inside the container:
 
 ```console
-% container run --rm --network default,mac=02:42:ac:11:00:02 ubuntu:latest ip addr show eth0
-2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
-    link/ether 02:42:ac:11:00:02 brd ff:ff:ff:ff:ff:ff
-    inet 192.168.64.2/24 brd 192.168.64.255 scope global eth0
-       valid_lft forever preferred_lft forever
+% container run --rm --network default,mac=02:42:ac:11:00:02 ubuntu:latest cat /sys/class/net/eth0/address
+02:42:ac:11:00:02
 ```
 
 If you don't specify a MAC address, `container` will generate one for you. The generated address has a first nibble set to hexadecimal `f` (`fX:XX:XX:XX:XX:XX`) in case you want to minimize the very small chance of conflict between your MAC address and generated addresses. 
@@ -340,7 +342,7 @@ Use `container ls` to see that the container is on the `foo` subnet:
 
 ```console
  % container ls
-ID             IMAGE            OS     ARCH   STATE    ADDR
+ID             IMAGE            OS     ARCH   STATE    IP
 my-web-server  web-test:latest  linux  arm64  running  192.168.65.2
 ```
 
@@ -355,18 +357,12 @@ Networks support both IPv4 and IPv6. When creating a network without explicit su
 
 ## Configure default network subnets
 
-You can customize the default IPv4 and IPv6 subnets used for new networks using system properties.
+You can customize the default IPv4 and IPv6 subnets used for new networks by editing your runtime configuration file at `~/.config/container/config.toml`:
 
-### Set default IPv4 subnet
-
-```bash
-container system property set network.subnet 192.168.100.1/24
-```
-
-### Set default IPv6 prefix
-
-```bash
-container system property set network.subnetv6 fd00:abcd::/64
+```toml
+[network]
+subnet = "192.168.100.1/24"
+subnetv6 = "fd00:abcd::/64"
 ```
 
 These settings apply to networks created without explicit `--subnet` or `--subnet-v6` options.
@@ -471,6 +467,51 @@ You can also output statistics in JSON format for scripting:
 - **Block I/O**: Disk bytes read and written.
 - **Pids**: Number of processes running in the container.
 
+## Control Linux capabilities
+
+By default, containers start with a restricted set of Linux capabilities:
+
+`CAP_AUDIT_WRITE`, `CAP_CHOWN`, `CAP_DAC_OVERRIDE`, `CAP_FOWNER`, `CAP_FSETID`, `CAP_KILL`, `CAP_MKNOD`, `CAP_NET_BIND_SERVICE`, `CAP_NET_RAW`, `CAP_SETFCAP`, `CAP_SETGID`, `CAP_SETPCAP`, `CAP_SETUID`, `CAP_SYS_CHROOT`
+
+You can customize the capability set using `--cap-add` and `--cap-drop` with `container run` or `container create`.
+
+Capability names can be specified with or without the `CAP_` prefix, and are case-insensitive:
+
+These are equivalent:
+```bash
+container run --cap-add CAP_NET_ADMIN alpine ip link set lo down
+container run --cap-add NET_ADMIN alpine ip link set lo down
+container run --cap-add net_admin alpine ip link set lo down
+```
+
+To grant all capabilities:
+
+```bash
+container run --cap-add ALL alpine sh -c "ip link set lo down && echo ok"
+```
+
+To drop all capabilities and selectively re-add only what you need:
+
+```bash
+container run --cap-drop ALL --cap-add SETUID --cap-add SETGID alpine id
+```
+
+Adds are processed after drops, so `--cap-drop ALL --cap-add ALL` results in all capabilities being granted.
+
+To grant all capabilities except specific ones:
+
+```bash
+container run --cap-add ALL --cap-drop NET_ADMIN alpine sh
+```
+
+To drop a single capability from the default set:
+
+```console
+% container run --cap-drop CHOWN alpine chown 100 /tmp
+chown: /tmp: Operation not permitted
+```
+
+
 ## Expose virtualization capabilities to a container
 
 > [!NOTE]
@@ -495,6 +536,21 @@ container run --name nested-virtualization --virtualization --kernel /path/to/a/
 [    0.017506] kvm [1]: GIC system register CPU interface enabled
 [    0.017685] kvm [1]: vgic interrupt IRQ9
 [    0.017893] kvm [1]: Hyp mode initialized successfully
+```
+
+## Run a container with a provided init process
+
+By default, the command you specify in `container run` runs as PID 1 inside the container. This means it is responsible for reaping zombie processes and handling signals, which many applications are not designed to do. The `--init` flag runs a lightweight init process as PID 1 that automatically forwards signals and reaps orphaned child processes.
+
+```bash
+container run --init ubuntu:latest my-app
+```
+
+The init process is also available with `container create`:
+
+```bash
+container create --init --name my-container ubuntu:latest my-app
+container start my-container
 ```
 
 ## Use a custom init image
@@ -544,10 +600,14 @@ CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o wrapper wrapper.go
 
 **3. Create a Containerfile:**
 
-```dockerfile
-FROM ghcr.io/apple/containerization/vminit:latest AS base
+Use the `vminit` image tag corresponding to the `scVersion` value in the project `Package.swift` file.
 
-FROM ghcr.io/apple/containerization/vminit:latest
+Or, use `vminit:latest` if you have a local `containerization` project in [edit mode](../BUILDING.md#develop-using-a-local-copy-of-containerization).
+
+```dockerfile
+FROM ghcr.io/apple/containerization/vminit:0.32.2 AS base
+
+FROM ghcr.io/apple/containerization/vminit:0.32.2
 COPY --from=base /sbin/vminitd /sbin/vminitd.real
 COPY wrapper /sbin/vminitd
 ```
@@ -577,27 +637,43 @@ Check the VM boot logs to confirm your custom init code executed:
 
 The `container system property` subcommand manages the configuration settings for the `container` CLI and services. You can customize various aspects of container behavior, including build settings, default images, and network configuration.
 
-Use `container system property list` to show information for all available properties:
+Use `container system property list` to show all properties that have set defaults:
 
 ```console
 % bin/container system property ls
-ID                 TYPE    VALUE                                     DESCRIPTION
-build.rosetta      Bool    true                                      Build amd64 images on arm64 using Rosetta, instead of QEMU.
-dns.domain         String  *undefined*                               If defined, the local DNS domain to use for containers with unqualified names.
-image.builder      String  ghcr.io/apple/container-builder-shim/...  The image reference for the utility container that `container build` uses.
-image.init         String  ghcr.io/apple/containerization/vminit...  The image reference for the default initial filesystem image.
-kernel.binaryPath  String  opt/kata/share/kata-containers/vmlinu...  If the kernel URL is for an archive, the archive member pathname for the kernel file.
-kernel.url         String  https://github.com/kata-containers/ka...  The URL for the kernel file to install, or the URL for an archive containing the kernel file.
-network.subnet     String  *undefined*                               Default subnet for IPv4 allocation.
-network.subnetv6   String  *undefined*                               Default IPv6 network prefix.
+[build]
+cpus = 2
+memory = "2048mb"
+rosetta = true
+image = "ghcr.io/apple/container-builder-shim/builder:0.11.0"
+
+[container]
+cpus = 4
+memory = "1gb"
+
+[dns]
+domain = "test"
+
+[kernel]
+binaryPath = "opt/kata/share/kata-containers/vmlinux-6.18.5-177"
+url = "https://github.com/kata-containers/kata-containers/releases/download/3.26.0/kata-static-3.26.0-arm64.tar.zst"
+
+[network]
+
+[registry]
+domain = "docker.io"
+
+[vminit]
+image = "ghcr.io/apple/containerization/vminit:0.30.1"
 ```
 
 ### Example: Disable Rosetta for builds
 
-If you want to prevent the use of Rosetta translation during container builds on Apple Silicon Macs:
+If you want to prevent the use of Rosetta translation during container builds on Apple Silicon Macs, set the following in `~/.config/container/config.toml`:
 
-```bash
-container system property set build.rosetta false
+```toml
+[build]
+rosetta = false
 ```
 
 This is useful when you want to ensure builds only produce native arm64 images and avoid any x86_64 emulation.

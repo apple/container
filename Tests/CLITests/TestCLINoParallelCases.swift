@@ -15,12 +15,12 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
-import ContainerizationOCI
+import ContainerizationExtras
 import Foundation
 import Testing
 
 /// Tests that need total control over environment to avoid conflicts.
-@Suite(.serialized)
+@Suite(.serialSuites, .serialized)
 class TestCLINoParallelCases: CLITest {
     func getTestName() -> String {
         Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()

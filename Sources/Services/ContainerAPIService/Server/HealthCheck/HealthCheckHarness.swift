@@ -48,7 +48,7 @@ public actor HealthCheckHarness {
         reply.set(key: .apiServerCommit, value: get_git_commit().map { String(cString: $0) } ?? "unspecified")
         // Extra optional fields for richer client display
         reply.set(key: .apiServerBuild, value: ReleaseVersion.buildType())
-        reply.set(key: .apiServerAppName, value: "container API Server")
+        reply.set(key: .apiServerAppName, value: "container-apiserver")
         return reply
     }
 }

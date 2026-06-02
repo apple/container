@@ -16,19 +16,20 @@
 
 //
 import Foundation
+import TOML
 
 /// PluginConfig details all of the fields to describe and register a plugin.
 /// A plugin is registered by creating a subdirectory  `<application-root>/user-plugins`,
 /// where the name of the subdirectory is the name of the plugin, and then placing a
-/// file named `config.json` inside with the schema below.
-/// If `services` is filled in then there MUST be a binary named  matching the plugin name
-/// in a `bin` subdirectory inside the same directory as the `config.json`.
-/// An example of a valid plugin directory structure would be
+/// file named `config.toml` (or fall back to the legacy `config.json` file) inside with
+/// the schema below. If `services` is filled in then there MUST be a binary named
+/// matching the plugin name in a `bin` subdirectory inside the same directory as
+/// the `config.toml`. An example of a valid plugin directory structure would be
 /// $ tree foobar
 /// foobar
 /// ├── bin
 /// │   └── foobar
-/// └── config.json
+/// └── config.toml (`config.json`)
 public struct PluginConfig: Sendable, Codable {
     /// Categories of services that can be offered through plugins.
     public enum DaemonPluginType: String, Sendable, Codable {
@@ -93,6 +94,12 @@ public struct PluginConfig: Sendable, Codable {
     /// Services configuration. Specify nil for a CLI plugin, and an empty array for
     /// that does not publish any XPC services.
     public let servicesConfig: ServicesConfig?
+
+    public init(abstract: String, author: String?, servicesConfig: ServicesConfig?) {
+        self.abstract = abstract
+        self.author = author
+        self.servicesConfig = servicesConfig
+    }
 }
 
 extension PluginConfig {
@@ -100,6 +107,8 @@ extension PluginConfig {
 }
 
 extension PluginConfig {
+    /// Initialize from a config file, selecting the decoder based on file extension.
+    /// Supports `.toml` (via TOMLDecoder) and `.json` (via JSONDecoder).
     public init?(configURL: URL) throws {
         let fm = FileManager.default
         if !fm.fileExists(atPath: configURL.path) {
@@ -110,7 +119,16 @@ extension PluginConfig {
             return nil
         }
 
-        let decoder: JSONDecoder = JSONDecoder()
-        self = try decoder.decode(PluginConfig.self, from: data)
+        switch configURL.pathExtension {
+        case "toml":
+            guard let content = String(data: data, encoding: .utf8) else {
+                return nil
+            }
+            self = try TOMLDecoder().decode(PluginConfig.self, from: content)
+        case "json":
+            self = try JSONDecoder().decode(PluginConfig.self, from: data)
+        default:
+            return nil
+        }
     }
 }

@@ -34,19 +34,19 @@ extension Application {
         @Option(
             name: .shortAndLong,
             help: "Path to the root directory for application data",
-            transform: { URL(filePath: $0) })
-        var appRoot = ApplicationRoot.defaultURL
+            transform: { FilePath(FileManager.default.currentDirectoryPath).resolve($0, defaultPath: FilePath($0)) })
+        var appRoot = ApplicationRoot.defaultPath
 
         @Option(
             name: .long,
             help: "Path to the root directory for application executables and plugins",
-            transform: { URL(filePath: $0) })
-        var installRoot = InstallRoot.defaultURL
+            transform: { FilePath(FileManager.default.currentDirectoryPath).resolve($0, defaultPath: FilePath($0)) })
+        var installRoot = InstallRoot.defaultPath
 
         @Option(
             name: .long,
             help: "Path to the root directory for log data, using macOS log facility if not set",
-            transform: { FilePath($0) })
+            transform: { FilePath(FileManager.default.currentDirectoryPath).resolve($0, defaultPath: FilePath($0)) })
         var logRoot: FilePath? = nil
 
         @Flag(
@@ -72,31 +72,44 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            // Without the true path to the binary in the plist, `container-apiserver` won't launch properly.
-            // TODO: Can we use the plugin loader to bootstrap the API server?
-            let executableUrl = CommandLine.executablePathUrl
-                .deletingLastPathComponent()
-                .appendingPathComponent("container-apiserver")
-                .resolvingSymlinksInPath()
+            try ConfigurationLoader.copyConfigurationToReadOnly(to: appRoot)
+            // Pass appRoot before installRoot: ConfigurationLoader uses first-match-wins
+            // precedence, so user-provided config in appRoot overrides the defaults
+            // shipped under installRoot. Both layers are passed explicitly because
+            // users can override --app-root and --install-root from the CLI, and the
+            // loader's default search would otherwise ignore those overrides.
+            let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load(
+                configurationFiles: [
+                    ConfigurationLoader.configurationFile(in: appRoot, of: .appRoot),
+                    ConfigurationLoader.configurationFile(in: installRoot, of: .installRoot),
+                ])
 
-            var args = [executableUrl.absolutePath()]
+            // Without the true path to the binary in the plist, `container-apiserver` won't launch properly.
+            // Resolve the symlink to get the true binary path before writing the launchd plist.
+            // Gatekeeper / amfid validates code signatures relative to the enclosing .app bundle
+            // hierarchy; launching via a symlink outside the bundle fails that check.
+            // TODO: Can we use the plugin loader to bootstrap the API server?
+            let executablePath = try CommandLine.executablePath
+                .removingLastComponent()
+                .appending(FilePath.Component("container-apiserver"))
+                .resolvingSymlinks()
+
+            var args = [executablePath.string]
 
             args.append("start")
             if logOptions.debug {
                 args.append("--debug")
             }
 
-            let apiServerDataUrl = appRoot.appending(path: "apiserver")
-            try! FileManager.default.createDirectory(at: apiServerDataUrl, withIntermediateDirectories: true)
+            let apiServerDataPath = appRoot.appending(FilePath.Component("apiserver"))
+            let apiServerDataURL = URL(fileURLWithPath: apiServerDataPath.string)
+            try! FileManager.default.createDirectory(at: apiServerDataURL, withIntermediateDirectories: true)
 
             var env = PluginLoader.filterEnvironment()
-            env[ApplicationRoot.environmentName] = appRoot.path(percentEncoded: false)
-            env[InstallRoot.environmentName] = installRoot.path(percentEncoded: false)
+            env[ApplicationRoot.environmentName] = appRoot.string
+            env[InstallRoot.environmentName] = installRoot.string
             if let logRoot {
-                env[LogRoot.environmentName] =
-                    logRoot.isAbsolute
-                    ? logRoot.string
-                    : FilePath(FileManager.default.currentDirectoryPath).appending(logRoot.components).string
+                env[LogRoot.environmentName] = logRoot.string
             }
             let plist = LaunchPlist(
                 label: "com.apple.container.apiserver",
@@ -107,7 +120,8 @@ extension Application {
                 machServices: ["com.apple.container.apiserver"]
             )
 
-            let plistURL = apiServerDataUrl.appending(path: "apiserver.plist")
+            let plistPath = apiServerDataPath.appending(FilePath.Component("apiserver.plist"))
+            let plistURL = URL(fileURLWithPath: plistPath.string)
             let data = try plist.encode()
             try data.write(to: plistURL)
 
@@ -125,20 +139,19 @@ extension Application {
                 )
             }
 
-            if await !initImageExists() {
-                try? await installInitialFilesystem()
+            if await !initImageExists(containerSystemConfig: containerSystemConfig) {
+                try? await installInitialFilesystem(initImage: containerSystemConfig.vminit.image)
             }
 
             guard await !kernelExists() else {
                 return
             }
-            try await installDefaultKernel()
+            try await installDefaultKernel(kernelURL: containerSystemConfig.kernel.url, kernelBinaryPath: containerSystemConfig.kernel.binaryPath)
         }
 
-        private func installInitialFilesystem() async throws {
-            let dep = Dependencies.initFs
+        private func installInitialFilesystem(initImage: String) async throws {
             var pullCommand = try ImagePull.parse()
-            pullCommand.reference = dep.source
+            pullCommand.reference = initImage
             print("Installing base container filesystem...")
             do {
                 try await pullCommand.run()
@@ -147,15 +160,11 @@ extension Application {
             }
         }
 
-        private func installDefaultKernel() async throws {
-            let kernelDependency = Dependencies.kernel
-            let defaultKernelURL = kernelDependency.source
-            let defaultKernelBinaryPath = DefaultsStore.get(key: .defaultKernelBinaryPath)
-
+        private func installDefaultKernel(kernelURL: URL, kernelBinaryPath: String) async throws {
             var shouldInstallKernel = false
             if kernelInstall == nil {
                 print("No default kernel configured.")
-                print("Install the recommended default kernel from [\(kernelDependency.source)]? [Y/n]: ", terminator: "")
+                print("Install the recommended default kernel from [\(kernelURL)]? [Y/n]: ", terminator: "")
                 guard let read = readLine(strippingNewline: true) else {
                     throw ContainerizationError(.internalError, message: "failed to read user input")
                 }
@@ -171,12 +180,15 @@ extension Application {
                 return
             }
             print("Installing kernel...")
-            try await KernelSet.downloadAndInstallWithProgressBar(tarRemoteURL: defaultKernelURL, kernelFilePath: defaultKernelBinaryPath, force: true)
+            try await KernelSet.downloadAndInstallWithProgressBar(tarRemoteURL: kernelURL, kernelFilePath: kernelBinaryPath, force: true)
         }
 
-        private func initImageExists() async -> Bool {
+        private func initImageExists(containerSystemConfig: ContainerSystemConfig) async -> Bool {
             do {
-                let img = try await ClientImage.get(reference: Dependencies.initFs.source)
+                let img = try await ClientImage.get(
+                    reference: containerSystemConfig.vminit.image,
+                    containerSystemConfig: containerSystemConfig
+                )
                 let _ = try await img.getSnapshot(platform: .current)
                 return true
             } catch {
@@ -190,20 +202,6 @@ extension Application {
                 return true
             } catch {
                 return false
-            }
-        }
-    }
-
-    private enum Dependencies: String {
-        case kernel
-        case initFs
-
-        var source: String {
-            switch self {
-            case .initFs:
-                return DefaultsStore.get(key: .defaultInitImage)
-            case .kernel:
-                return DefaultsStore.get(key: .defaultKernelURL)
             }
         }
     }

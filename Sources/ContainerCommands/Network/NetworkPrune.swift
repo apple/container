@@ -30,9 +30,10 @@ extension Application.NetworkCommand {
         public var logOptions: Flags.Logging
 
         public func run() async throws {
+            let networkClient = NetworkClient()
             let client = ContainerClient()
             let allContainers = try await client.list()
-            let allNetworks = try await ClientNetwork.list()
+            let allNetworks = try await networkClient.list()
 
             var networksInUse = Set<String>()
             for container in allContainers {
@@ -49,7 +50,7 @@ extension Application.NetworkCommand {
 
             for network in networksToPrune {
                 do {
-                    try await ClientNetwork.delete(id: network.id)
+                    try await networkClient.delete(id: network.id)
                     prunedNetworks.append(network.id)
                 } catch {
                     // Note: This failure may occur due to a race condition between the network/

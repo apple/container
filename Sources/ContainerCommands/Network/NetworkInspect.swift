@@ -16,8 +16,8 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerizationError
 import Foundation
-import SwiftProtobuf
 
 extension Application {
     public struct NetworkInspect: AsyncLoggableCommand {
@@ -34,12 +34,20 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let objects: [any Codable] = try await ClientNetwork.list().filter {
-                networks.contains($0.id)
-            }.map {
-                PrintableNetwork($0)
+            let networkClient = NetworkClient()
+            let uniqueNames = Set(networks)
+            let items = try await networkClient.list().filter { uniqueNames.contains($0.id) }
+
+            if items.count != uniqueNames.count {
+                let found = Set(items.map { $0.id })
+                let missing = uniqueNames.subtracting(found).sorted()
+                throw ContainerizationError(
+                    .notFound,
+                    message: "network not found: \(missing.joined(separator: ", "))"
+                )
             }
-            print(try objects.jsonArray())
+
+            try Output.emit(Output.renderJSON(items))
         }
     }
 }

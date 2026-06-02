@@ -27,8 +27,8 @@ import Synchronization
 import SystemPackage
 
 public actor VolumesService {
-    private let resourceRoot: URL
-    private let store: ContainerPersistence.FilesystemEntityStore<Volume>
+    private let resourceRoot: FilePath
+    private let store: ContainerPersistence.FilesystemEntityStore<VolumeConfiguration>
     private let log: Logger
     private let lock = AsyncLock()
     private let containersService: ContainersService
@@ -37,10 +37,10 @@ public actor VolumesService {
     private static let entityFile = "entity.json"
     private static let blockFile = "volume.img"
 
-    public init(resourceRoot: URL, containersService: ContainersService, log: Logger) throws {
-        try FileManager.default.createDirectory(at: resourceRoot, withIntermediateDirectories: true)
+    public init(resourceRoot: FilePath, containersService: ContainersService, log: Logger) throws {
+        try FileManager.default.createDirectory(atPath: resourceRoot.string, withIntermediateDirectories: true)
         self.resourceRoot = resourceRoot
-        self.store = try FilesystemEntityStore<Volume>(path: resourceRoot, type: "volumes", log: log)
+        self.store = try FilesystemEntityStore<VolumeConfiguration>(path: resourceRoot, type: "volumes", log: log)
         self.containersService = containersService
         self.log = log
     }
@@ -50,7 +50,7 @@ public actor VolumesService {
         driver: String = "local",
         driverOpts: [String: String] = [:],
         labels: [String: String] = [:]
-    ) async throws -> Volume {
+    ) async throws -> VolumeConfiguration {
         log.debug(
             "VolumesService: enter",
             metadata: [
@@ -96,7 +96,7 @@ public actor VolumesService {
         }
     }
 
-    public func list() async throws -> [Volume] {
+    public func list() async throws -> [VolumeConfiguration] {
         log.debug(
             "VolumesService: enter",
             metadata: [
@@ -115,7 +115,7 @@ public actor VolumesService {
         return try await store.list()
     }
 
-    public func inspect(_ name: String) async throws -> Volume {
+    public func inspect(_ name: String) async throws -> VolumeConfiguration {
         log.debug(
             "VolumesService: enter",
             metadata: [
@@ -158,7 +158,7 @@ public actor VolumesService {
         }
 
         let volumePath = self.volumePath(for: name)
-        return self.calculateDirectorySize(at: volumePath)
+        return FileManager.default.allocatedSize(of: URL(fileURLWithPath: volumePath))
     }
 
     /// Calculate disk usage for volumes
@@ -201,7 +201,7 @@ public actor VolumesService {
                 // Calculate sizes
                 for volume in allVolumes {
                     let volumePath = self.volumePath(for: volume.name)
-                    let volumeSize = self.calculateDirectorySize(at: volumePath)
+                    let volumeSize = FileManager.default.allocatedSize(of: URL(fileURLWithPath: volumePath))
                     totalSize += volumeSize
 
                     if !inUseSet.contains(volume.name) {
@@ -212,33 +212,6 @@ public actor VolumesService {
                 return (allVolumes.count, inUseSet.count, totalSize, reclaimableSize)
             }
         }
-    }
-
-    private nonisolated func calculateDirectorySize(at path: String) -> UInt64 {
-        let url = URL(fileURLWithPath: path)
-        let fileManager = FileManager.default
-
-        guard
-            let enumerator = fileManager.enumerator(
-                at: url,
-                includingPropertiesForKeys: [.totalFileAllocatedSizeKey],
-                options: [.skipsHiddenFiles]
-            )
-        else {
-            return 0
-        }
-
-        var totalSize: UInt64 = 0
-        for case let fileURL as URL in enumerator {
-            guard let resourceValues = try? fileURL.resourceValues(forKeys: [.totalFileAllocatedSizeKey]),
-                let fileSize = resourceValues.totalFileAllocatedSize
-            else {
-                continue
-            }
-            totalSize += UInt64(fileSize)
-        }
-
-        return totalSize
     }
 
     private func parseSize(_ sizeString: String) throws -> UInt64 {
@@ -257,8 +230,9 @@ public actor VolumesService {
         return sizeInBytes
     }
 
+    // FIXME: These don't guarantee that name doesn't have component separators.
     private nonisolated func volumePath(for name: String) -> String {
-        resourceRoot.appendingPathComponent(name).path
+        resourceRoot.appending(name).string
     }
 
     private nonisolated func entityPath(for name: String) -> String {
@@ -275,14 +249,36 @@ public actor VolumesService {
         try fm.createDirectory(atPath: volumePath, withIntermediateDirectories: true, attributes: nil)
     }
 
-    private func createVolumeImage(for name: String, sizeInBytes: UInt64 = VolumeStorage.defaultVolumeSizeBytes) throws {
+    static func parseJournalConfig(_ value: String) throws -> EXT4.JournalConfig {
+        let parts = value.split(separator: ":", maxSplits: 1)
+        guard let modeSubstring = parts.first else {
+            throw VolumeError.storageError("invalid journal configuration: expected 'mode' or 'mode:size'")
+        }
+        let modeString = String(modeSubstring)
+        let mode: EXT4.JournalConfig.JournalMode
+        switch modeString {
+        case "writeback": mode = .writeback
+        case "ordered": mode = .ordered
+        case "journal": mode = .journal
+        default:
+            throw VolumeError.storageError("invalid journal mode '\(modeString)': must be writeback, ordered, or journal")
+        }
+        let size: UInt64? =
+            try parts.count > 1
+            ? UInt64(Measurement.parse(parsing: String(parts[1])).converted(to: .bytes).value)
+            : nil
+        return EXT4.JournalConfig(size: size, defaultMode: mode)
+    }
+
+    private func createVolumeImage(for name: String, sizeInBytes: UInt64 = VolumeStorage.defaultVolumeSizeBytes, journal: EXT4.JournalConfig? = nil) throws {
         let blockPath = blockPath(for: name)
 
         // Use the containerization library's EXT4 formatter
         let formatter = try EXT4.Formatter(
             FilePath(blockPath),
             blockSize: 4096,
-            minDiskSize: sizeInBytes
+            minDiskSize: sizeInBytes,
+            journal: journal
         )
 
         try formatter.close()
@@ -302,7 +298,7 @@ public actor VolumesService {
         driver: String,
         driverOpts: [String: String],
         labels: [String: String]
-    ) async throws -> Volume {
+    ) async throws -> VolumeConfiguration {
         guard VolumeStorage.isValidVolumeName(name) else {
             throw VolumeError.invalidVolumeName("invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
         }
@@ -323,9 +319,11 @@ public actor VolumesService {
             sizeInBytes = VolumeStorage.defaultVolumeSizeBytes
         }
 
-        try createVolumeImage(for: name, sizeInBytes: sizeInBytes)
+        let journalConfig = try driverOpts["journal"].map { try Self.parseJournalConfig($0) }
 
-        let volume = Volume(
+        try createVolumeImage(for: name, sizeInBytes: sizeInBytes, journal: journalConfig)
+
+        let volume = VolumeConfiguration(
             name: name,
             driver: driver,
             format: "ext4",
@@ -375,7 +373,7 @@ public actor VolumesService {
         log.info("deleted volume", metadata: ["name": "\(name)"])
     }
 
-    private func _inspect(_ name: String) async throws -> Volume {
+    private func _inspect(_ name: String) async throws -> VolumeConfiguration {
         guard VolumeStorage.isValidVolumeName(name) else {
             throw VolumeError.invalidVolumeName("invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
         }

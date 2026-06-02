@@ -17,7 +17,13 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerPersistence
+import ContainerPlugin
 import Foundation
+
+enum ListOutputFormat: String, Decodable, ExpressibleByArgument {
+    case json
+    case toml
+}
 
 extension Application {
     public struct PropertyList: AsyncLoggableCommand {
@@ -28,10 +34,7 @@ extension Application {
         )
 
         @Option(name: .long, help: "Format of the output")
-        var format: ListFormat = .table
-
-        @Flag(name: .shortAndLong, help: "Only output the property ID")
-        var quiet = false
+        var format: ListOutputFormat = .toml
 
         @OptionGroup
         public var logOptions: Flags.Logging
@@ -39,57 +42,13 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let vals = DefaultsStore.allValues()
-            try printValues(vals, format: format)
-        }
-
-        private func createHeader() -> [[String]] {
-            [["ID", "TYPE", "VALUE", "DESCRIPTION"]]
-        }
-
-        private func printValues(_ vals: [DefaultsStoreValue], format: ListFormat) throws {
-            if format == .json {
-                let data = try JSONEncoder().encode(vals)
-                print(String(decoding: data, as: UTF8.self))
-                return
-            }
-
-            if self.quiet {
-                vals.forEach {
-                    print($0.id)
+            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
+            let output =
+                switch format {
+                case .json: try Output.renderJSON(containerSystemConfig)
+                case .toml: try Output.renderTOML(containerSystemConfig)
                 }
-                return
-            }
-
-            var rows = createHeader()
-            for property in vals {
-                rows.append(property.asRow)
-            }
-
-            let formatter = TableOutput(rows: rows)
-            print(formatter.format())
+            Output.emit(output)
         }
-    }
-}
-
-extension DefaultsStoreValue {
-    var asRow: [String] {
-        [id, String(describing: type), value?.description.elided(to: 40) ?? "*undefined*", description]
-    }
-}
-
-extension String {
-    func elided(to maxCount: Int) -> String {
-        let ellipsis = "..."
-        guard self.count > maxCount else {
-            return self
-        }
-
-        if maxCount < ellipsis.count {
-            return ellipsis
-        }
-
-        let prefixCount = maxCount - ellipsis.count
-        return self.prefix(prefixCount) + ellipsis
     }
 }

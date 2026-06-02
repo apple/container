@@ -27,9 +27,13 @@ public struct Plugin: Sendable, Codable {
     /// Configuration for the plugin.
     public let config: PluginConfig
 
-    public init(binaryURL: URL, config: PluginConfig) {
+    /// Pathname to resources directory for plugins.
+    public let resourceURL: URL?
+
+    public init(binaryURL: URL, config: PluginConfig, resourceURL: URL? = nil) {
         self.binaryURL = binaryURL
         self.config = config
+        self.resourceURL = resourceURL
     }
 }
 

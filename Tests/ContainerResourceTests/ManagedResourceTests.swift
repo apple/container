@@ -26,7 +26,7 @@ struct ManagedResourceTests {
         var id: String
         var name: String
         var creationDate: Date
-        var labels: [String: String]
+        var labels: ResourceLabels
         typealias ErrorCode = MockManagedResourceErrorCode
 
         static func nameValid(_ name: String) -> Bool {
