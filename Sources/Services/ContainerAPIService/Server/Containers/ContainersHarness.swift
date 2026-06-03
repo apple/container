@@ -381,9 +381,10 @@ public struct ContainersHarness: Sendable {
                 message: "archive cannot be empty"
             )
         }
+        let live = message.bool(key: .live)
         let archiveUrl = URL(fileURLWithPath: archive)
 
-        try await service.exportRootfs(id: id, archive: archiveUrl)
+        try await service.exportRootfs(id: id, archive: archiveUrl, live: live)
         return message.reply()
     }
 }

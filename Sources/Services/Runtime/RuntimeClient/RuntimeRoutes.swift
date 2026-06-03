@@ -52,6 +52,8 @@ public enum RuntimeRoutes: String {
     case exec = "com.apple.container.runtime/exec"
 
     // MARK: - File Management
+    /// Perform a filesystem operation inside the container.
+    case filesystemOperation = "com.apple.container.runtime/filesystemOperation"
     /// Copy a file or directory into the container.
     case copyIn = "com.apple.container.runtime/copyIn"
     /// Copy a file or directory out of the container.
