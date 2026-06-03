@@ -251,6 +251,20 @@ extension Application {
                     ignoreFileData = try? Data(contentsOf: ignoreFileURL)
                 }
 
+                // BUG: See https://github.com/apple/container/issues/735.
+                // Reject dockerfiles larger than 16kb before attempting to build.
+                // TODO: Remove when #735 was been resolved.
+                let maxDockerfileSize = 16 * 1024  // 16 KiB
+                guard buildFileData.count < maxDockerfileSize else {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: """
+                            Dockerfile size (\(buildFileData.count) bytes) exceeds the maximum allowed size of \(maxDockerfileSize) bytes. \
+                            See https://github.com/apple/container/issues/735.
+                            """
+                    )
+                }
+
                 let secretsData: [String: Data] = try self.secrets.mapValues { secret in
                     switch secret {
                     case .data(let data):
