@@ -40,6 +40,9 @@ extension Application {
             })
         var output: String?
 
+        @Flag(name: .long, help: "Export a container while it is running")
+        var live: Bool = false
+
         @Argument(help: "container ID")
         var id: String
 
@@ -53,7 +56,7 @@ extension Application {
             }
 
             let archive = tempDir.appendingPathComponent("archive.tar")
-            try await client.export(id: id, archive: archive)
+            try await client.export(id: id, archive: archive, live: live)
 
             if output == nil {
                 guard let fileHandle = try? FileHandle(forReadingFrom: archive) else {

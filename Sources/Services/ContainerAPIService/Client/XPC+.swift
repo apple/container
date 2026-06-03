@@ -58,6 +58,8 @@ public enum XPCKeys: String {
     case plugin
     /// Archive path to export rootfs
     case archive
+    /// Whether to allow export from a running container
+    case live
     /// Special-case environment variables recomputed on each container start
     case dynamicEnv
 

@@ -381,12 +381,12 @@ container exec [--detach] [--env <env> ...] [--env-file <env-file> ...] [--gid <
 
 ### `container export`
 
-Exports a stopped container's filesystem as a tar archive. The container must be stopped before exporting. If no output file is specified, the tar stream is written to stdout.
+Exports a container's filesystem as a tar archive. By default, the container must be stopped before exporting. Use `--live` to export while the container is running. If no output file is specified, the tar stream is written to stdout.
 
 **Usage**
 
 ```bash
-container export [-o <output>] [--debug] <container-id>
+container export [-o <output>] [--live] [--debug] <container-id>
 ```
 
 **Arguments**
@@ -396,6 +396,7 @@ container export [-o <output>] [--debug] <container-id>
 **Options**
 
 *   `-o, --output <output>`: Pathname for the saved container filesystem (defaults to stdout)
+*   `--live`: Export a container while it is running
 
 **Examples**
 
