@@ -640,13 +640,17 @@ class CLITest {
             .flatMap { (key, val) in ["-e", "\(key)=\(val)"] }
     }
 
-    func doExport(name: String, filepath: String) throws {
-        let (_, _, error, status) = try run(arguments: [
+    func doExport(name: String, filepath: String, live: Bool = false) throws {
+        var args = [
             "export",
-            name,
             "-o",
             filepath,
-        ])
+        ]
+        if live {
+            args.append("--live")
+        }
+        args.append(name)
+        let (_, _, error, status) = try run(arguments: args)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
