@@ -160,8 +160,9 @@ extension Application {
 
                 if !self.processFlags.tty {
                     var handler = SignalThreshold(threshold: 3, signals: [SIGINT, SIGTERM])
+                    let log = self.log
                     handler.start {
-                        print("Received 3 SIGINT/SIGTERM's, forcefully exiting.")
+                        log.warning("Received 3 SIGINT/SIGTERM's, forcefully exiting.")
                         Darwin.exit(1)
                     }
                 }

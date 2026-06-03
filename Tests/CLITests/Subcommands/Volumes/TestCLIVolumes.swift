@@ -366,7 +366,7 @@ class TestCLIVolumes: CLITest {
 
         #expect(output.contains(volumeName1) || !output.contains("No volumes to prune"), "should prune volume1")
         #expect(output.contains(volumeName2) || !output.contains("No volumes to prune"), "should prune volume2")
-        #expect(output.contains("Reclaimed"), "should show reclaimed space")
+        #expect(error.contains("Reclaimed"), "should show reclaimed space")
 
         // Verify volumes are gone
         let (_, listAfter, _, statusAfter) = try run(arguments: ["volume", "list", "--quiet"])

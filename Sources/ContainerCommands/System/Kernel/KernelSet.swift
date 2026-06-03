@@ -57,7 +57,7 @@ extension Application {
             if recommended {
                 let url = containerSystemConfig.kernel.url
                 let path: String = containerSystemConfig.kernel.binaryPath
-                print("Installing the recommended kernel from \(url)...")
+                log.info("Installing the recommended kernel from \(url)...")
                 try await Self.downloadAndInstallWithProgressBar(tarRemoteURL: url, kernelFilePath: path, force: force)
                 return
             }

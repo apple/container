@@ -84,7 +84,7 @@ extension Application {
                 do {
                     images.append(try await ClientImage.get(reference: reference, containerSystemConfig: containerSystemConfig).description)
                 } catch {
-                    print("failed to get image for reference \(reference): \(error)")
+                    log.error("failed to get image for reference \(reference): \(error)")
                 }
             }
 

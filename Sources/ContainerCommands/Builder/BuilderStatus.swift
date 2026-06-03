@@ -59,7 +59,7 @@ extension Application {
             } catch {
                 if let czError = error as? ContainerizationError, czError.code == .notFound {
                     if !quiet {
-                        print("builder is not running")
+                        log.warning("builder is not running")
                         return
                     }
                 }

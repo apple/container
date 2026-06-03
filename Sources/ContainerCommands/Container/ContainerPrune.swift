@@ -60,7 +60,7 @@ extension Application {
             for name in prunedContainerIds {
                 print(name)
             }
-            print("Reclaimed \(freed) in disk space")
+            log.info("Reclaimed \(freed) in disk space")
         }
     }
 }

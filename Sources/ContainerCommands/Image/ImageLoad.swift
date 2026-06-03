@@ -108,7 +108,6 @@ extension Application {
             }
             await taskManager.finish()
             progress.finish()
-            print("Loaded images:")
             for image in result.images {
                 print(image.reference)
             }

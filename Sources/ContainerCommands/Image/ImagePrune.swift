@@ -82,7 +82,7 @@ extension Application {
             let formatter = ByteCountFormatter()
             formatter.countStyle = .file
             let freed = formatter.string(fromByteCount: Int64(size))
-            print("Reclaimed \(freed) in disk space")
+            log.info("Reclaimed \(freed) in disk space")
         }
 
         private func hasTag(_ reference: String) -> Bool {
