@@ -16,11 +16,17 @@
 BUILD_CONFIGURATION ?= debug
 WARNINGS_AS_ERRORS ?= true
 SWIFT_CONFIGURATION := $(if $(filter-out false,$(WARNINGS_AS_ERRORS)),-Xswiftc -warnings-as-errors)
+# Code-coverage instrumentation, layered onto the shared build stages. Empty for
+# ordinary builds; the coverage-* targets opt in via a target-specific value so
+# only those goals compile instrumented binaries.
+COVERAGE_FLAG ?=
 export RELEASE_VERSION ?= $(shell git describe --tags --always)
 export GIT_COMMIT := $(shell git rev-parse HEAD)
 
 # Commonly used locations
 SWIFT := "/usr/bin/swift"
+# Shared swift build invocation; callers append --build-tests / --product / etc.
+SWIFT_BUILD = $(SWIFT) build -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION)
 DEST_DIR ?= /usr/local/
 ROOT_DIR := $(shell git rev-parse --show-toplevel)
 BUILD_BIN_DIR = $(shell $(SWIFT) build -c $(BUILD_CONFIGURATION) --show-bin-path)
@@ -56,13 +62,29 @@ all: init-block
 build:
 	@echo Building container binaries...
 	@$(SWIFT) --version
-	@$(SWIFT) build -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION)
+	@$(SWIFT_BUILD)
+
+.PHONY: build-tests
+# Shared build stage for every test target: builds the test bundle (and the
+# product binaries) once so the test targets can run with --skip-build. This is
+# a distinct target from `build` so `make all test` builds products and tests as
+# two separate steps rather than colliding on a single once-built target.
+# COVERAGE_FLAG instruments the binaries when set by the coverage-* targets.
+build-tests:
+	@echo Building container binaries and tests...
+	@$(SWIFT) --version
+	@$(SWIFT_BUILD) --build-tests $(COVERAGE_FLAG)
+
+.PHONY: coverage-all
+coverage-all: build-tests
+	@"$(MAKE)" BUILD_CONFIGURATION=$(BUILD_CONFIGURATION) DEST_DIR="$(ROOT_DIR)/" SUDO= install
+	@"$(MAKE)" init-block
 
 .PHONY: cli
 cli:
 	@echo Building container CLI...
 	@$(SWIFT) --version
-	@$(SWIFT) build -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --product container
+	@$(SWIFT_BUILD) --product container
 	@echo Installing container CLI to bin/...
 	@mkdir -p bin
 	@install "$(BUILD_BIN_DIR)/container" "bin/container"
@@ -150,8 +172,8 @@ dsym:
 	@(cd "$(dir $(DSYM_DIR))" ; zip -r $(notdir $(DSYM_PATH)) $(notdir $(DSYM_DIR)))
 
 .PHONY: test
-test:
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI
+test: build-tests
+	@$(SWIFT) test --skip-build -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI
 
 .PHONY: install-kernel
 install-kernel:
@@ -167,30 +189,42 @@ COV_DATA_DIR = $(shell $(SWIFT) test --show-coverage-path | xargs dirname)
 COV_REPORT_FILE = $(ROOT_DIR)/code-coverage-report
 COVERAGE_OUTPUT_DIR := $(ROOT_DIR)/coverage-reports
 TEST_BINARY = $(BUILD_BIN_DIR)/containerPackageTests.xctest/Contents/MacOS/containerPackageTests
+# All product binaries that may be instrumented for coverage.
+# Used as additional -object args to llvm-cov for integration/combined reports.
+COV_BINARIES := \
+	$(BUILD_BIN_DIR)/container \
+	$(BUILD_BIN_DIR)/container-apiserver \
+	$(BUILD_BIN_DIR)/container-runtime-linux \
+	$(BUILD_BIN_DIR)/container-network-vmnet \
+	$(BUILD_BIN_DIR)/container-core-images
+COV_OBJECT_FLAGS := $(patsubst %,-object %,$(COV_BINARIES))
 # Set of files we do not want to get caught in the coverage generation
 LLVM_COV_IGNORE := \
 	--ignore-filename-regex=".build/" \
 	--ignore-filename-regex=".pb.swift" \
 	--ignore-filename-regex=".proto" \
-	--ignore-filename-regex=".grpc.swift"
+	--ignore-filename-regex=".grpc.swift" \
+	--ignore-filename-regex="/Tests/" \
+	--ignore-filename-regex="ContainerTestSupport/"
 
 # Generate JSON + HTML coverage reports and a coverage-percent.txt from a profdata file.
-# $(1) = profdata path, $(2) = tier name (unit/integration/combined)
+# $(1) = profdata path, $(2) = tier name (unit/integration/combined), $(3) = additional -object flags (optional)
 define GENERATE_COV_REPORTS
 	@echo Exporting $(2) coverage JSON...
 	@xcrun llvm-cov export --compilation-dir=`pwd` \
 		-instr-profile=$(1) \
 		$(LLVM_COV_IGNORE) \
-		$(TEST_BINARY) > $(COVERAGE_OUTPUT_DIR)/$(2)/coverage-summary.json
+		$(TEST_BINARY) $(3) > $(COVERAGE_OUTPUT_DIR)/$(2)/coverage-summary.json
 	@echo Generating $(2) coverage HTML report...
 	@xcrun llvm-cov show --compilation-dir=`pwd` --format=html \
 		-instr-profile=$(1) \
 		$(LLVM_COV_IGNORE) \
 		-output-dir=$(COVERAGE_OUTPUT_DIR)/$(2)/html \
-		$(TEST_BINARY)
+		$(TEST_BINARY) $(3)
 	@echo Extracting $(2) coverage percentages...
 	@jq -r '"line coverage: \(.data[0].totals.lines.percent | . * 100 | round | . / 100)%\nfunction coverage: \(.data[0].totals.functions.percent | . * 100 | round | . / 100)%"' \
 		$(COVERAGE_OUTPUT_DIR)/$(2)/coverage-summary.json > $(COVERAGE_OUTPUT_DIR)/$(2)/coverage-percent.txt
+	@echo "-- $(2) coverage --"
 	@cat $(COVERAGE_OUTPUT_DIR)/$(2)/coverage-percent.txt
 endef
 
@@ -227,24 +261,24 @@ empty :=
 space := $(empty) $(empty)
 INTEGRATION_FILTER := $(subst $(space),|,$(strip $(INTEGRATION_TEST_SUITES)))
 
-.PHONY: coverage-build
-coverage-build:
-	@echo Building tests with coverage instrumentation...
-	@$(SWIFT) build --build-tests --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION)
+# Opt the coverage targets in to instrumentation. The value propagates to the
+# shared build-tests prerequisite so compilation is instrumented only for these
+# goals; non-coverage test targets build the same bundle uninstrumented.
+coverage coverage-all coverage-unit coverage-integration: COVERAGE_FLAG = --enable-code-coverage
 
 .PHONY: coverage
 # Merge the raw coverage data generated from coverage-unit and coverage-integration into one unified report
-coverage: coverage-build coverage-unit coverage-integration
+coverage: coverage-unit coverage-integration
 	@echo Merging combined coverage profdata...
 	@mkdir -p $(COVERAGE_OUTPUT_DIR)/combined
 	@xcrun llvm-profdata merge -sparse \
 		$(COVERAGE_OUTPUT_DIR)/unit/default.profdata \
 		$(COVERAGE_OUTPUT_DIR)/integration/default.profdata \
 		-o $(COVERAGE_OUTPUT_DIR)/combined/default.profdata
-	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/combined/default.profdata,combined)
+	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/combined/default.profdata,combined,$(COV_OBJECT_FLAGS))
 
 .PHONY: coverage-unit
-coverage-unit:
+coverage-unit: build-tests
 	@echo Running unit test coverage...
 	@rm -f $(COV_DATA_DIR)/*.profraw
 	@mkdir -p $(COVERAGE_OUTPUT_DIR)/unit
@@ -254,13 +288,15 @@ coverage-unit:
 	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/unit/default.profdata,unit)
 
 .PHONY: coverage-integration
-coverage-integration: all
+coverage-integration: coverage-all
 	@echo Ensuring apiserver stopped before the coverage integration tests...
 	@bin/container system stop && sleep 3 && scripts/ensure-container-stopped.sh
 	@echo Running integration test coverage...
 	@rm -f $(COV_DATA_DIR)/*.profraw
 	@mkdir -p $(COVERAGE_OUTPUT_DIR)/integration
-	@bin/container --debug system start --timeout 60 $(SYSTEM_START_OPTS) && \
+	@rm -f $(COVERAGE_OUTPUT_DIR)/integration/*.profraw
+	@LLVM_PROFILE_FILE=$(COVERAGE_OUTPUT_DIR)/integration/%p-%m%c.profraw \
+	bin/container --debug system start --timeout 60 $(SYSTEM_START_OPTS) && \
 	echo "Starting CLI integration tests with coverage" && \
 	{ \
 		export CLITEST_LOG_ROOT=$(LOG_ROOT) ; \
@@ -274,10 +310,10 @@ coverage-integration: all
 	}
 	@echo Merging integration coverage profdata...
 	@xcrun llvm-profdata merge -sparse $(COVERAGE_OUTPUT_DIR)/integration/*.profraw -o $(COVERAGE_OUTPUT_DIR)/integration/default.profdata
-	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/integration/default.profdata,integration)
+	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/integration/default.profdata,integration,$(COV_OBJECT_FLAGS))
 
 .PHONY: integration
-integration: init-block
+integration: build-tests init-block
 	@echo Ensuring apiserver stopped before the CLI integration tests...
 	@bin/container system stop && sleep 3 && scripts/ensure-container-stopped.sh
 	@if [ -n "$(APP_ROOT)" ]; then \
@@ -291,7 +327,7 @@ integration: init-block
 	{ \
 		CLITEST_LOG_ROOT=$(LOG_ROOT) && export CLITEST_LOG_ROOT ; \
 		CONTAINER_CLI_PATH=$(ROOT_DIR)/bin/container && export CONTAINER_CLI_PATH ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(INTEGRATION_FILTER)" ; \
+		$(SWIFT) test --skip-build -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(INTEGRATION_FILTER)" ; \
 		exit_code=$$? ; \
 		echo Ensuring apiserver stopped after the CLI integration tests ; \
 		scripts/ensure-container-stopped.sh ; \
