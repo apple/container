@@ -67,7 +67,7 @@ extension Application {
             let parsedOptions = Utility.parseKeyValuePairs(options)
             let mode: NetworkMode = hostOnly ? .hostOnly : .nat
             let config = try NetworkConfiguration(
-                id: self.name,
+                name: self.name,
                 mode: mode,
                 ipv4Subnet: ipv4Subnet,
                 ipv6Subnet: ipv6Subnet,

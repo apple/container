@@ -91,7 +91,7 @@ public actor NetworksService {
 
             if let updatedLabels {
                 let updatedConfiguration = try NetworkConfiguration(
-                    id: configuration.id,
+                    name: configuration.name,
                     mode: configuration.mode,
                     ipv4Subnet: configuration.ipv4Subnet,
                     ipv6Subnet: configuration.ipv6Subnet,
@@ -114,7 +114,7 @@ public actor NetworksService {
                 let finalConfiguration =
                     updatedLabels.flatMap { labels in
                         try? NetworkConfiguration(
-                            id: configuration.id,
+                            name: configuration.name,
                             mode: configuration.mode,
                             ipv4Subnet: configuration.ipv4Subnet,
                             ipv6Subnet: configuration.ipv6Subnet,
@@ -195,7 +195,7 @@ public actor NetworksService {
             let networkStatus = try await client.status()
 
             let finalConfiguration = try NetworkConfiguration(
-                id: configuration.id,
+                name: configuration.name,
                 mode: configuration.mode,
                 ipv4Subnet: configuration.ipv4Subnet,
                 ipv6Subnet: configuration.ipv6Subnet,

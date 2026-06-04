@@ -20,8 +20,11 @@ import Foundation
 
 /// Configuration parameters for network creation.
 public struct NetworkConfiguration: Codable, Sendable, Identifiable {
-    /// A unique identifier for the network
-    public let id: String
+    /// The name of the network.
+    public let name: String
+
+    /// The unique identifier for the network. Identical to ``name``.
+    public var id: String { name }
 
     /// The network type
     public let mode: NetworkMode
@@ -47,7 +50,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
 
     /// Creates a network configuration
     public init(
-        id: String,
+        name: String,
         mode: NetworkMode,
         ipv4Subnet: CIDRv4? = nil,
         ipv6Subnet: CIDRv6? = nil,
@@ -55,7 +58,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         plugin: String,
         options: [String: String] = [:]
     ) throws {
-        self.id = id
+        self.name = name
         self.creationDate = Date()
         self.mode = mode
         self.ipv4Subnet = ipv4Subnet
@@ -67,6 +70,9 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     }
 
     enum CodingKeys: String, CodingKey {
+        case name
+        // Deprecated: As of 1.0.0. Use ``name`` instead of ``id``.
+        // Note: Will be removed in a later release.
         case id
         case creationDate
         case mode
@@ -85,7 +91,9 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
-        id = try container.decode(String.self, forKey: .id)
+        name =
+            try container.decodeIfPresent(String.self, forKey: .name)
+            ?? container.decode(String.self, forKey: .id)
         creationDate = try container.decodeIfPresent(Date.self, forKey: .creationDate) ?? Date(timeIntervalSince1970: 0)
         mode = try container.decode(NetworkMode.self, forKey: .mode)
         let subnetText =
@@ -119,7 +127,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
 
-        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
         try container.encode(creationDate, forKey: .creationDate)
         try container.encode(mode, forKey: .mode)
         try container.encodeIfPresent(ipv4Subnet, forKey: .ipv4Subnet)
@@ -130,8 +138,8 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     }
 
     private func validate() throws {
-        guard NetworkResource.nameValid(id) else {
-            throw ContainerizationError(.invalidArgument, message: "invalid network ID: \(id)")
+        guard NetworkResource.nameValid(name) else {
+            throw ContainerizationError(.invalidArgument, message: "invalid network name: \(name)")
         }
     }
 }

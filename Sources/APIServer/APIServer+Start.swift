@@ -334,7 +334,7 @@ extension APIServer {
             if defaultNetwork == nil {
                 // FIXME: default network should be configurable elsewhere
                 let config = try NetworkConfiguration(
-                    id: NetworkClient.defaultNetworkName,
+                    name: NetworkClient.defaultNetworkName,
                     mode: .nat,
                     ipv4Subnet: containerSystemConfig.network.subnet,
                     ipv6Subnet: containerSystemConfig.network.subnetv6,

@@ -84,7 +84,7 @@ extension NetworkVmnetHelper {
                 let ipv6Subnet = try self.ipv6Subnet.map { try CIDRv6($0) }
 
                 let configuration = try NetworkConfiguration(
-                    id: id,
+                    name: id,
                     mode: mode,
                     ipv4Subnet: ipv4Subnet,
                     ipv6Subnet: ipv6Subnet,
