@@ -80,9 +80,10 @@ Normally, vmnet creates the container network using the CIDR address 192.168.64.
 - After creating the first container, run `ifconfig` again, and locate the new bridge interface to determine the container subnet address.
 - Run `container ls` to check the IP address given to the container by the network helper. If the address corresponds to a different network:
   - Run `container system stop` to terminate the services for `container`.
-  - Using the macOS `defaults` command, update the default subnet value used by the network helper process. For example, if the bridge address shown by `ifconfig` is 192.168.66.1, run:
-    ```bash
-    defaults write com.apple.container.defaults network.subnet 192.168.66.1/24
+  - Following the [container system config tutorial](tutorials/container-system-config-tutorial.md), add or update the default network subnet in `~/.config/container/config.toml`. For example, if the bridge address shown by `ifconfig` is 192.168.66.1, use:
+    ```toml
+    [network]
+    subnet = "192.168.66.1/24"
     ```
   - Run `container system start` to launch services again.
   - Try running the container again and verify that its IP address matches the current bridge interface value.
