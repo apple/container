@@ -36,6 +36,9 @@ public enum ImagesServiceXPCKeys: String {
     case insecureFlag
     case garbageCollect
     case maxConcurrentDownloads
+    case maxConcurrentUploads
+    case allTags
+    case imageRepository
     case forceLoad
     case rejectedMembers
 

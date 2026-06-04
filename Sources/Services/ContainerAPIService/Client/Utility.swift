@@ -43,6 +43,10 @@ public struct Utility {
         return false
     }
 
+    public static func repositoryName(for ref: Reference) -> String {
+        ref.resolvedDomain.map { "\($0)/\(ref.path)" } ?? ref.name
+    }
+
     public static func trimDigest(digest: String) -> String {
         var digest = digest
         digest.trimPrefix("sha256:")

@@ -141,6 +141,55 @@ public actor ImagesService {
         }
     }
 
+    public func pushAllTags(repositoryName: String, platform: Platform?, insecure: Bool, maxConcurrentUploads: Int, progressUpdate: ProgressUpdateHandler?) async throws
+        -> [ImageDescription]
+    {
+        self.log.debug(
+            "ImagesService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "repositoryName": "\(repositoryName)",
+                "platform": "\(String(describing: platform))",
+                "insecure": "\(insecure)",
+                "maxConcurrentUploads": "\(maxConcurrentUploads)",
+            ]
+        )
+        defer {
+            self.log.debug(
+                "ImagesService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "repositoryName": "\(repositoryName)",
+                    "platform": "\(String(describing: platform))",
+                ]
+            )
+        }
+
+        let allImages = try await imageStore.list()
+        let matchingImages = allImages.filter { image in
+            guard let ref = try? Reference.parse(image.reference) else { return false }
+            return Utility.repositoryName(for: ref) == repositoryName
+        }
+
+        guard !matchingImages.isEmpty else {
+            throw ContainerizationError(.notFound, message: "no tags found for repository \(repositoryName)")
+        }
+
+        guard maxConcurrentUploads > 0 else {
+            throw ContainerizationError(.invalidArgument, message: "maximum number of concurrent uploads must be greater than 0, got \(maxConcurrentUploads)")
+        }
+
+        try await Self.withAuthentication(ref: repositoryName) { auth in
+            try await self.imageStore.push(
+                references: matchingImages.map { $0.reference },
+                platform: platform, insecure: insecure, auth: auth,
+                maxConcurrentUploads: maxConcurrentUploads,
+                progress: ContainerizationProgressAdapter.handler(from: progressUpdate))
+        }
+
+        return matchingImages.map { $0.description.fromCZ }
+    }
+
     public func tag(old: String, new: String) async throws -> ImageDescription {
         self.log.debug(
             "ImagesService: enter",
