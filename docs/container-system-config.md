@@ -98,7 +98,7 @@ Quoted string with a numeric prefix and a binary unit suffix. Parsing is case-in
 |---------------------|--------------------------|------------------------|
 | `b`                 | bytes                    | `"1024b"`              |
 | `k`, `kb`, `kib`    | kibibytes (1024 bytes)   | `"512k"`, `"512kb"`    |
-| `m`, `mb`, `mib`    | mebibytes (1024 KiB)     | `"2048mb"`, `"2g"`     |
+| `m`, `mb`, `mib`    | mebibytes (1024 KiB)     | `"2048mb"`             |
 | `g`, `gb`, `gib`    | gibibytes (1024 MiB)     | `"4g"`, `"4gb"`        |
 | `t`, `tb`, `tib`    | tebibytes                | `"1t"`                 |
 | `p`, `pb`, `pib`    | pebibytes                | `"1p"`                 |
