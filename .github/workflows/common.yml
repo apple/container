@@ -35,6 +35,8 @@ jobs:
           fetch-depth: 0
 
       - name: Check formatting
+        env:
+          HAWKEYE_AUTO_INSTALL: "1"
         run: |
           ./scripts/install-hawkeye.sh
           make fmt

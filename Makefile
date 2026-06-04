@@ -326,6 +326,7 @@ pre-commit:
 	echo 'PRECOMMIT_NOFMT=$${PRECOMMIT_NOFMT} $$(git rev-parse --git-path hooks/pre-commit.fmt)' >> /tmp/pre-commit.new
 	mv /tmp/pre-commit.new $(HOOKS_DIR)/pre-commit
 	chmod +x $(HOOKS_DIR)/pre-commit
+	@./scripts/ensure-hawkeye-exists.sh
 
 .PHONY: serve-docs
 serve-docs:
