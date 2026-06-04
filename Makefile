@@ -319,12 +319,13 @@ check-licenses:
 
 .PHONY: pre-commit
 pre-commit:
-	cp scripts/pre-commit.fmt .git/hooks
-	touch .git/hooks/pre-commit
-	cat .git/hooks/pre-commit | grep -v 'hooks/pre-commit\.fmt' > /tmp/pre-commit.new || true
-	echo 'PRECOMMIT_NOFMT=$${PRECOMMIT_NOFMT} $$(git rev-parse --show-toplevel)/.git/hooks/pre-commit.fmt' >> /tmp/pre-commit.new
-	mv /tmp/pre-commit.new .git/hooks/pre-commit
-	chmod +x .git/hooks/pre-commit
+	$(eval HOOKS_DIR := $(shell git rev-parse --git-path hooks))
+	cp scripts/pre-commit.fmt $(HOOKS_DIR)/
+	touch $(HOOKS_DIR)/pre-commit
+	cat $(HOOKS_DIR)/pre-commit | grep -v 'hooks/pre-commit\.fmt' > /tmp/pre-commit.new || true
+	echo 'PRECOMMIT_NOFMT=$${PRECOMMIT_NOFMT} $$(git rev-parse --git-path hooks/pre-commit.fmt)' >> /tmp/pre-commit.new
+	mv /tmp/pre-commit.new $(HOOKS_DIR)/pre-commit
+	chmod +x $(HOOKS_DIR)/pre-commit
 
 .PHONY: serve-docs
 serve-docs:
