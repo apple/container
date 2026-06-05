@@ -90,10 +90,9 @@ extension Application {
         private static func buildResources(images: [ClientImage], containerSystemConfig: ContainerSystemConfig) async throws -> [ImageResource] {
             var resources: [ImageResource] = []
             for image in images {
-                let resolved = try await image.resolvedManifests()
-                let displayReference = try ClientImage.denormalizeReference(image.reference, containerSystemConfig: containerSystemConfig)
                 resources.append(
-                    ImageResource(config: image.description, index: resolved.index, manifests: resolved.manifests, displayReference: displayReference))
+                    try await image.toImageResource(containerSystemConfig: containerSystemConfig)
+                )
             }
             return resources
         }
@@ -134,7 +133,7 @@ private struct VerboseImageRow: ListDisplayable {
         let reference = try? ContainerizationOCI.Reference.parse(resource.displayReference)
         let name = reference?.name ?? resource.displayReference
         let tag = reference?.tag ?? "<none>"
-        let indexDigest = Utility.trimDigest(digest: resource.index.digest)
+        let indexDigest = Utility.trimDigest(digest: resource.configuration.descriptor.digest)
         return
             resource.variants
             // Skip attestation manifests, which use the `unknown/unknown` platform.

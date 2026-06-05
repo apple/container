@@ -14,19 +14,21 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerPersistence
 import ContainerResource
 import ContainerizationOCI
+import Foundation
 
 extension ClientImage {
-    /// Resolves, from the content store, the index descriptor and per-platform
+    /// Resolves, from the content store, the index descriptor and per-variant
     /// manifest content needed to build an ``ImageResource``.
     ///
     /// Manifests without a platform, or whose config/manifest cannot be
-    /// fetched, are skipped. The returned content is the input expected by
-    /// ``ImageResource/init(config:index:manifests:)``.
-    public func resolvedManifests() async throws -> (index: Descriptor, manifests: [ImageResource.ManifestContent]) {
-        let index = try await self.resolved()
-        var manifests: [ImageResource.ManifestContent] = []
+    /// fetched, are skipped.
+    public func toImageResource(containerSystemConfig: ContainerSystemConfig) async throws -> ImageResource {
+        var variants: [ImageResource.Variant] = []
+        var earliest: Date?
+
         for desc in try await self.index().manifests {
             guard let platform = desc.platform else {
                 continue
@@ -39,8 +41,32 @@ extension ClientImage {
             } catch {
                 continue
             }
-            manifests.append(.init(descriptor: desc, manifest: manifest, config: config))
+            let size =
+                desc.size + manifest.config.size
+                + manifest.layers.reduce(0) { $0 + $1.size }
+
+            variants.append(.init(platform: platform, digest: desc.digest, size: size, config: config))
+
+            // Use the earliest variant's creation timestamp as the image's date.
+            if let date = config.created.flatMap(Self.parseCreated) {
+                earliest = min(earliest ?? date, date)
+            }
         }
-        return (index, manifests)
+
+        let created = earliest ?? Date(timeIntervalSince1970: 0)
+        let displayName = try Self.denormalizeReference(self.description.reference, containerSystemConfig: containerSystemConfig)
+        let configuration = ImageResource.ImageConfiguration(description: self.description, creationDate: created)
+        return ImageResource(configuration: configuration, variants: variants, displayReference: displayName)
+    }
+
+    private static func parseCreated(_ value: String) -> Date? {
+        let withFractional = ISO8601DateFormatter()
+        withFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = withFractional.date(from: value) {
+            return date
+        }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: value)
     }
 }

@@ -29,7 +29,7 @@ extension ImageResource: ListDisplayable {
         return [
             reference?.name ?? displayReference,
             reference?.tag ?? "<none>",
-            Utility.trimDigest(digest: index.digest),
+            Utility.trimDigest(digest: configuration.descriptor.digest),
         ]
     }
 

@@ -59,8 +59,9 @@ extension Application {
                         initImage: containerSystemConfig.vminit.image
                     )
                 else { continue }
-                let resolved = try await image.resolvedManifests()
-                printable.append(ImageResource(config: image.description, index: resolved.index, manifests: resolved.manifests))
+                printable.append(
+                    try await image.toImageResource(containerSystemConfig: containerSystemConfig)
+                )
             }
 
             try Output.emit(Output.renderJSON(printable, options: .pretty))
