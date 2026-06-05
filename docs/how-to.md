@@ -94,7 +94,7 @@ container image push registry.example.com/fido/web-test:latest
 
 ## Get container or image details
 
-`container image list` and `container list` provide basic information for all of your images and containers. You can also use `list` and `inspect` commands to print detailed JSON output for one or more resources.
+`container image list` and `container list` provide basic information for all of your images and containers. You can also use `list` and `inspect` commands to print detailed machine-readable output for resources.
 
 Use the `inspect` command and send the result to the `jq` command to get pretty-printed JSON for the images or containers that you specify:
 
@@ -605,9 +605,9 @@ Use the `vminit` image tag corresponding to the `scVersion` value in the project
 Or, use `vminit:latest` if you have a local `containerization` project in [edit mode](../BUILDING.md#develop-using-a-local-copy-of-containerization).
 
 ```dockerfile
-FROM ghcr.io/apple/containerization/vminit:0.32.2 AS base
+FROM ghcr.io/apple/containerization/vminit:0.33.3 AS base
 
-FROM ghcr.io/apple/containerization/vminit:0.32.2
+FROM ghcr.io/apple/containerization/vminit:0.33.3
 COPY --from=base /sbin/vminitd /sbin/vminitd.real
 COPY wrapper /sbin/vminitd
 ```
@@ -645,7 +645,7 @@ Use `container system property list` to show all properties that have set defaul
 cpus = 2
 memory = "2048mb"
 rosetta = true
-image = "ghcr.io/apple/container-builder-shim/builder:0.11.0"
+image = "ghcr.io/apple/container-builder-shim/builder:0.12.0"
 
 [container]
 cpus = 4
@@ -664,7 +664,7 @@ url = "https://github.com/kata-containers/kata-containers/releases/download/3.26
 domain = "docker.io"
 
 [vminit]
-image = "ghcr.io/apple/containerization/vminit:0.30.1"
+image = "ghcr.io/apple/containerization/vminit:0.33.3"
 ```
 
 ### Example: Disable Rosetta for builds
