@@ -51,13 +51,13 @@ extension Application {
                 }
 
                 try Output.render(
-                    payload: [PrintableContainer(container)],
+                    payload: [ManagedContainer(container)],
                     display: [PrintableBuilder(container)],
                     format: format,
                     quiet: quiet
                 )
             } catch let error as ContainerizationError where error.code == .notFound {
-                try Output.render(payload: [PrintableContainer](), format: format) {
+                try Output.render(payload: [ManagedContainer](), format: format) {
                     quiet ? "" : "builder is not running"
                 }
             }

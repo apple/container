@@ -107,7 +107,7 @@ public enum Output {
     /// Renders list output in the requested format.
     ///
     /// The machine-readable payload and the display model may be the same type
-    /// (e.g., `PrintableContainer`) or different types.
+    /// (e.g., `ManagedContainer`) or different types.
     public static func render<J: Encodable, D: ListDisplayable>(
         payload: J, display: [D], format: ListFormat, quiet: Bool, jsonOptions: JSONOptions = .compact
     ) throws {

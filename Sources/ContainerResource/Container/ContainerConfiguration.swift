@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerizationOCI
+import Foundation
 
 public struct ContainerConfiguration: Sendable, Codable {
     /// Identifier for the container.
@@ -61,6 +62,8 @@ public struct ContainerConfiguration: Sendable, Codable {
     public var shmSize: UInt64?
     /// Signal to send to the container process on stop (from image config).
     public var stopSignal: String?
+    /// The time at which the container was created.
+    public var creationDate: Date = Date()
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -85,6 +88,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         case capDrop
         case shmSize
         case stopSignal
+        case creationDate
     }
 
     /// Create a configuration from the supplied Decoder, initializing missing
@@ -120,6 +124,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         capDrop = try container.decodeIfPresent([String].self, forKey: .capDrop) ?? []
         shmSize = try container.decodeIfPresent(UInt64.self, forKey: .shmSize)
         stopSignal = try container.decodeIfPresent(String.self, forKey: .stopSignal)
+        creationDate = try container.decodeIfPresent(Date.self, forKey: .creationDate) ?? Date(timeIntervalSince1970: 0)
     }
 
     public struct DNSConfiguration: Sendable, Codable {

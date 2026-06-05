@@ -251,15 +251,15 @@ struct JSONOptionsTests {
     }
 }
 
-// MARK: - PrintableContainer conformance tests
+// MARK: - ManagedContainer conformance tests
 
-struct PrintableContainerDisplayTests {
+struct ManagedContainerDisplayTests {
     @Test
     func tableHeaderHasNineColumns() {
-        #expect(PrintableContainer.tableHeader.count == 9)
-        #expect(PrintableContainer.tableHeader[0] == "ID")
-        #expect(PrintableContainer.tableHeader[4] == "STATE")
-        #expect(PrintableContainer.tableHeader[8] == "STARTED")
+        #expect(ManagedContainer.tableHeader.count == 9)
+        #expect(ManagedContainer.tableHeader[0] == "ID")
+        #expect(ManagedContainer.tableHeader[4] == "STATE")
+        #expect(ManagedContainer.tableHeader[8] == "STARTED")
     }
 }
 
