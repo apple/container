@@ -29,14 +29,11 @@ import Testing
 
 class CLITest {
     private static let commandSeq = Mutex<Int>(0)
-    struct Image: Codable {
-        let name: String
-        var reference: String { name }
-    }
 
     // These structs need to track their counterpart presentation structs in CLI.
-    struct ImageInspectOutput: Codable {
-        let name: String
+    struct ImageResourceOutput: Codable {
+        let configuration: imageConfiguration
+
         let variants: [variant]
         struct variant: Codable {
             let platform: imagePlatform
@@ -45,6 +42,10 @@ class CLITest {
                 let architecture: String
             }
         }
+    }
+
+    struct imageConfiguration: Codable {
+        let name: String
     }
 
     struct NetworkInspectOutput: Codable {
@@ -427,7 +428,7 @@ class CLITest {
         let decoder = JSONDecoder()
 
         struct inspectOutput: Codable {
-            let name: String
+            let configuration: imageConfiguration
         }
 
         typealias inspectOutputs = [inspectOutput]
@@ -436,7 +437,7 @@ class CLITest {
         guard io.count > 0 else {
             throw CLIError.containerNotFound(name)
         }
-        return io[0].name
+        return io[0].configuration.name
     }
 
     func doPull(imageName: String, args: [String]? = nil) throws {
@@ -469,7 +470,7 @@ class CLITest {
         return out.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: .newlines)
     }
 
-    func doInspectImages(image: String) throws -> [ImageInspectOutput] {
+    func doInspectImages(image: String) throws -> [ImageResourceOutput] {
         let (_, output, error, status) = try run(arguments: [
             "image",
             "inspect",
@@ -485,7 +486,7 @@ class CLITest {
         }
 
         let decoder = JSONDecoder()
-        return try decoder.decode([ImageInspectOutput].self, from: jsonData)
+        return try decoder.decode([ImageResourceOutput].self, from: jsonData)
     }
 
     func getSystemConfig() throws -> ContainerSystemConfig {
@@ -560,14 +561,14 @@ class CLITest {
     func isImagePresent(targetImage: String) throws -> Bool {
         let images = try doListImages()
         return images.contains(where: { image in
-            if image.reference == targetImage {
+            if image.configuration.name == targetImage {
                 return true
             }
             return false
         })
     }
 
-    func doListImages() throws -> [Image] {
+    func doListImages() throws -> [ImageResourceOutput] {
         let (_, output, error, status) = try run(arguments: [
             "image",
             "list",
@@ -583,7 +584,7 @@ class CLITest {
         }
 
         let decoder = JSONDecoder()
-        return try decoder.decode([Image].self, from: jsonData)
+        return try decoder.decode([ImageResourceOutput].self, from: jsonData)
     }
 
     func doImageTag(image: String, newName: String) throws {
