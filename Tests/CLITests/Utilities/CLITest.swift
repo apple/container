@@ -369,13 +369,19 @@ class CLITest {
     }
 
     struct inspectOutput: Codable {
-        let status: String
+        struct Status: Codable {
+            let state: String
+            let networks: [ContainerResource.Attachment]
+        }
         let configuration: ContainerConfiguration
-        let networks: [ContainerResource.Attachment]
+        let status: Status
+
+        /// Convenience passthrough: network attachments now live under `status`.
+        var networks: [ContainerResource.Attachment] { status.networks }
     }
 
     func getContainerStatus(_ name: String) throws -> String {
-        try inspectContainer(name).status
+        try inspectContainer(name).status.state
     }
 
     func getContainerId(_ name: String) throws -> String {
@@ -398,6 +404,7 @@ class CLITest {
         }
 
         let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601  // CLI encodes dates (e.g. creationDate) as ISO8601
 
         typealias inspectOutputs = [inspectOutput]
 
