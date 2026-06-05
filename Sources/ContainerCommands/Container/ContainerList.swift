@@ -47,7 +47,7 @@ extension Application {
             let filters = self.all ? ContainerListFilters.all : ContainerListFilters(status: .running)
             let containers = try await client.list(filters: filters)
             let items = containers.map { PrintableContainer($0) }
-            try Output.render(json: items, display: items, format: format, quiet: quiet)
+            try Output.render(payload: items, display: items, format: format, quiet: quiet)
         }
     }
 }

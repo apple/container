@@ -37,9 +37,9 @@ public struct JSONOptions: Sendable {
 
 /// Shared rendering helpers for CLI output.
 ///
-/// All list commands route their output through these methods. JSON rendering
-/// is separate from table/quiet rendering because the JSON model often differs
-/// from the display model.
+/// All list commands route their output through these methods. The machine-readable
+/// payload is encoded separately from table/quiet output, since the payload model
+/// often differs from the display model.
 public enum Output {
     /// Renders an `Encodable` value as a JSON string.
     public static func renderJSON<T: Encodable>(_ value: T, options: JSONOptions = .compact) throws -> String {
@@ -57,9 +57,16 @@ public enum Output {
     }
 
     /// Renders an `Encodable` value as a TOML string.
+    ///
+    /// TOML has no top-level array, so array payloads are wrapped under a stable
+    /// `items` key (JSON and YAML emit a top-level array instead); a non-array
+    /// value encodes as a normal top-level table.
     public static func renderTOML<T: Encodable>(_ value: T) throws -> String {
         let encoder = TOMLEncoder()
         encoder.outputFormatting = .sortedKeys
+        if value is [Any] {
+            return try encoder.encodeToString(["items": value])
+        }
         return try encoder.encodeToString(value)
     }
 
@@ -80,18 +87,32 @@ public enum Output {
         return TableOutput(rows: rows).format()
     }
 
-    /// Renders list output in the requested format.
+    /// Renders `payload` in the requested format, encoding it for the
+    /// machine-readable formats and delegating `.table` to the caller.
     ///
-    /// The JSON and display models may be the same type (e.g., `PrintableContainer`)
-    /// or different types.
-    public static func render<J: Encodable, D: ListDisplayable>(
-        json: J, display: [D], format: ListFormat, quiet: Bool, jsonOptions: JSONOptions = .compact
+    /// This is the single place where `ListFormat` is matched exhaustively, so
+    /// adopting commands handle every format by construction: a new `ListFormat`
+    /// case becomes a compile error here until it is given an encoder.
+    public static func render<J: Encodable>(
+        payload: J, format: ListFormat, jsonOptions: JSONOptions = .compact, table: () throws -> String
     ) throws {
         switch format {
-        case .json: try emit(renderJSON(json, options: jsonOptions))
-        case .yaml: try emit(renderYAML(json))
-        case .table: emit(renderList(display, quiet: quiet))
-        case .toml: try emit(renderTOML(json))
+        case .json: try emit(renderJSON(payload, options: jsonOptions))
+        case .yaml: try emit(renderYAML(payload))
+        case .toml: try emit(renderTOML(payload))
+        case .table: try emit(table())
+        }
+    }
+
+    /// Renders list output in the requested format.
+    ///
+    /// The machine-readable payload and the display model may be the same type
+    /// (e.g., `PrintableContainer`) or different types.
+    public static func render<J: Encodable, D: ListDisplayable>(
+        payload: J, display: [D], format: ListFormat, quiet: Bool, jsonOptions: JSONOptions = .compact
+    ) throws {
+        try render(payload: payload, format: format, jsonOptions: jsonOptions) {
+            renderList(display, quiet: quiet)
         }
     }
 

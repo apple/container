@@ -42,7 +42,7 @@ extension Application.VolumeCommand {
         public func run() async throws {
             let volumes = try await ClientVolume.list()
             let volumeResources = volumes.map { VolumeResource(configuration: $0) }
-            try Output.render(json: volumeResources, display: volumeResources, format: format, quiet: quiet)
+            try Output.render(payload: volumeResources, display: volumeResources, format: format, quiet: quiet)
         }
     }
 }

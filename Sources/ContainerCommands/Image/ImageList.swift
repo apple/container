@@ -54,8 +54,8 @@ extension Application {
             images.sort { $0.reference < $1.reference }
 
             // Quiet mode prints references directly and skips the more expensive
-            // per-image manifest resolution. `--format json` takes precedence.
-            if quiet && format != .json {
+            // per-image manifest resolution.
+            if quiet && format == .table {
                 for image in images {
                     let processedReferenceString = try ClientImage.denormalizeReference(image.reference, containerSystemConfig: containerSystemConfig)
                     print(processedReferenceString)
@@ -65,18 +65,12 @@ extension Application {
 
             let resources = try await Self.buildResources(images: images, containerSystemConfig: containerSystemConfig)
 
-            if format == .json {
-                try Self.emitJSON(resources: resources)
-                return
+            try Output.render(payload: resources, format: format) {
+                if verbose {
+                    return Output.renderTable(resources.flatMap { VerboseImageRow.rows(for: $0) })
+                }
+                return Output.renderTable(resources)
             }
-
-            if verbose {
-                let rows = resources.flatMap { VerboseImageRow.rows(for: $0) }
-                Output.emit(Output.renderTable(rows))
-                return
-            }
-
-            Output.emit(Output.renderTable(resources))
         }
 
         private static func validate(quiet: Bool, verbose: Bool) throws {
@@ -96,10 +90,6 @@ extension Application {
                     ImageResource(config: image.description, index: resolved.index, manifests: resolved.manifests, displayReference: displayReference))
             }
             return resources
-        }
-
-        private static func emitJSON(resources: [ImageResource]) throws {
-            try Output.emit(Output.renderJSON(resources, options: .compact))
         }
     }
 }

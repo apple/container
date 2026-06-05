@@ -207,6 +207,32 @@ struct RenderJSONTests {
     }
 }
 
+// MARK: - renderTOML tests
+
+struct RenderTOMLTests {
+    @Test
+    func topLevelArrayProducesNonEmptyTOML() throws {
+        let items = [TestItem(id: "a", name: "first"), TestItem(id: "c", name: "second")]
+        let toml = try Output.renderTOML(items)
+        #expect(!toml.isEmpty)
+        #expect(toml.contains("first"))
+        #expect(toml.contains("second"))
+    }
+
+    @Test
+    func emptyArrayProducesNonEmptyTOML() throws {
+        let toml = try Output.renderTOML([TestItem]())
+        #expect(!toml.isEmpty)
+    }
+
+    @Test
+    func singleValueEncodesAsTopLevelTable() throws {
+        let toml = try Output.renderTOML(TestItem(id: "x", name: "y"))
+        #expect(toml.contains("id"))
+        #expect(toml.contains("x"))
+    }
+}
+
 // MARK: - JSONOptions tests
 
 struct JSONOptionsTests {

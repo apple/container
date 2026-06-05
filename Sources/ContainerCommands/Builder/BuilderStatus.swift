@@ -46,24 +46,20 @@ extension Application {
                 let client = ContainerClient()
                 let container = try await client.get(id: "buildkit")
 
-                if format == .json {
-                    try Output.emit(Output.renderJSON([PrintableContainer(container)]))
+                if format == .table && quiet && container.status != .running {
                     return
                 }
 
-                if quiet && container.status != .running {
-                    return
+                try Output.render(
+                    payload: [PrintableContainer(container)],
+                    display: [PrintableBuilder(container)],
+                    format: format,
+                    quiet: quiet
+                )
+            } catch let error as ContainerizationError where error.code == .notFound {
+                try Output.render(payload: [PrintableContainer](), format: format) {
+                    quiet ? "" : "builder is not running"
                 }
-
-                Output.emit(Output.renderList([PrintableBuilder(container)], quiet: quiet))
-            } catch {
-                if let czError = error as? ContainerizationError, czError.code == .notFound {
-                    if !quiet {
-                        log.warning("builder is not running")
-                        return
-                    }
-                }
-                throw error
             }
         }
     }

@@ -35,16 +35,12 @@ extension Application {
 
         public func run() async throws {
             let stats = try await ClientDiskUsage.get()
-
-            if format == .json {
-                try Output.emit(Output.renderJSON(stats, options: .pretty))
-                return
+            try Output.render(payload: stats, format: format, jsonOptions: .pretty) {
+                diskUsageTable(stats: stats)
             }
-
-            printTable(stats: stats)
         }
 
-        private func printTable(stats: DiskUsageStats) {
+        private func diskUsageTable(stats: DiskUsageStats) -> String {
             var rows: [[String]] = []
 
             // Header row
@@ -78,7 +74,7 @@ extension Application {
             ])
 
             let tableFormatter = TableOutput(rows: rows)
-            print(tableFormatter.format())
+            return tableFormatter.format()
         }
 
         private func formatSize(_ bytes: UInt64) -> String {
