@@ -104,24 +104,32 @@ public actor ContainersService {
             do {
                 let (config, options) = try Self.getContainerConfiguration(at: dir)
                 if options?.autoRemove ?? false {
+                    log.info(
+                        "reap auto-remove container",
+                        metadata: [
+                            "id": "\(config.id)"
+                        ])
+
                     let label = Self.fullLaunchdServiceLabel(
                         runtimeName: config.runtimeHandler,
                         instanceId: config.id)
 
                     var status: Int32 = -1
                     try? ServiceManager.deregister(fullServiceLabel: label, status: &status)
-                    if status == 0 {
-                        log.info(
-                            "reap auto-remove container",
+                    if status != 0 {
+                        log.warning(
+                            "failed to deregister service",
                             metadata: [
-                                "id": "\(config.id)"
+                                "id": "\(config.id)",
+                                "service": "\(label)",
+                                "status": "\(status)",
                             ]
                         )
-
-                        let bundle = ContainerResource.Bundle(path: dir)
-                        try? bundle.delete()
-                        continue
                     }
+
+                    let bundle = ContainerResource.Bundle(path: dir)
+                    try? bundle.delete()
+                    continue
                 }
 
                 let state = ContainerState(
@@ -169,6 +177,16 @@ public actor ContainersService {
             )
         }
 
+        let labelPatterns: [(key: String, regex: Regex<AnyRegexOutput>)] = try filters.labels.map { key, pattern in
+            do {
+                return (key: key, regex: try Regex(pattern))
+            } catch {
+                throw ContainerizationError(
+                    .invalidArgument, message: "failed to compile regex '\(pattern)' for \(key)",
+                    cause: error)
+            }
+        }
+
         return self.containers.values.compactMap { state -> ContainerSnapshot? in
             let snapshot = state.snapshot
 
@@ -184,8 +202,10 @@ public actor ContainersService {
                 }
             }
 
-            for (key, value) in filters.labels {
-                guard snapshot.configuration.labels[key] == value else {
+            for (key, regex) in labelPatterns {
+                let label = snapshot.configuration.labels[key] ?? ""
+
+                guard label.contains(regex) else {
                     return nil
                 }
             }

@@ -63,7 +63,7 @@ extension APIServer {
                 var routes = [XPCRoute: XPCServer.RouteHandler]()
                 let pluginLoader = try initializePluginLoader(log: log)
 
-                try await initializePlugins(pluginLoader: pluginLoader, log: log, routes: &routes)
+                try await initializePlugins(pluginLoader: pluginLoader, log: log, routes: &routes, debug: debug)
                 let containersService = try initializeContainersService(
                     pluginLoader: pluginLoader,
                     containerSystemConfig: containerSystemConfig,
@@ -227,14 +227,15 @@ extension APIServer {
         private func initializePlugins(
             pluginLoader: PluginLoader,
             log: Logger,
-            routes: inout [XPCRoute: XPCServer.RouteHandler]
+            routes: inout [XPCRoute: XPCServer.RouteHandler],
+            debug: Bool = false
         ) async throws {
             log.info("initializing plugins")
 
             let bootPlugins = pluginLoader.findPlugins().filter { $0.shouldBoot }
 
             let service = PluginsService(pluginLoader: pluginLoader, log: log)
-            try await service.loadAll(bootPlugins)
+            try await service.loadAll(bootPlugins, debug: debug)
 
             let harness = PluginsHarness(service: service, log: log)
             routes[XPCRoute.pluginGet] = XPCServer.route(harness.get)

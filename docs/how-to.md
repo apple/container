@@ -633,6 +633,122 @@ Check the VM boot logs to confirm your custom init code executed:
 [    0.129230] custom-init: === CUSTOM INIT IMAGE RUNNING ===
 ```
 
+## Use container machines
+
+A container machine provides a lightweight, persistent, and integrated Linux environment that feels like an extension of your Mac. A container machine is created from standard OCI images with a familiar UX.
+
+### Create a container machine
+
+Create a container machine from any Linux image that includes `/sbin/init`:
+
+```bash
+container machine create alpine:3.22 --name my-machine
+```
+
+On first boot, `container` provisions a user that matches your host account, grants it passwordless `sudo`, and selects a login shell. Later boots skip this step. Your host home directory is mounted read-write by default; pass `--home-mount ro` or `--home-mount none` to change that.
+
+### Run commands in a container machine
+
+Pass a command to run it in the container machine, or omit it to open an interactive shell:
+
+```bash
+container machine run -n my-machine uname
+container machine run -n my-machine
+```
+
+`run` boots the container machine first if it is stopped.
+
+### Set a default container machine
+
+Set a default container machine so you can leave off `-n`/`--name`:
+
+```bash
+container machine set-default my-machine
+container machine run
+```
+
+### Manage container machines
+
+List your container machines:
+
+```bash
+container machine ls
+```
+
+Show a container machine's configuration and status:
+
+```bash
+container machine inspect my-machine
+```
+
+Stop a running container machine:
+
+```bash
+container machine stop my-machine
+```
+
+Delete a container machine, including its persistent storage. `container` stops it first if it is running:
+
+```bash
+container machine rm my-machine
+```
+
+Change a container machine's CPUs and memory. The new values apply after you restart the container machine:
+
+```bash
+container machine set -n my-machine cpus=4 memory=8G
+container machine stop my-machine
+container machine run -n my-machine -- nproc
+```
+
+### Build your own container machine image
+
+Any Linux image that includes `/sbin/init` works as a container machine. For example, this Dockerfile builds an Ubuntu 24.04 container machine image with `systemd`, SSH, and common command-line tools:
+
+```dockerfile
+FROM ubuntu:24.04
+
+ENV container container
+
+RUN apt-get update && \
+    apt-get install -y \
+    dbus systemd openssh-server net-tools iproute2 iputils-ping curl wget vim-tiny man sudo && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    yes | unminimize
+
+RUN >/etc/machine-id
+RUN >/var/lib/dbus/machine-id
+
+RUN systemctl set-default multi-user.target
+RUN systemctl mask \
+      dev-hugepages.mount \
+      sys-fs-fuse-connections.mount \
+      systemd-update-utmp.service \
+      systemd-tmpfiles-setup.service \
+      console-getty.service \
+      systemd-binfmt.service
+RUN systemctl disable \
+      networkd-dispatcher.service
+
+RUN sed -i -e 's/^AcceptEnv LANG LC_\*$/#AcceptEnv LANG LC_*/' /etc/ssh/sshd_config
+```
+
+Build the image and create a container machine from it:
+
+```bash
+container build -t local/ubuntu-machine:latest .
+container machine create local/ubuntu-machine:latest --name ubuntu
+```
+
+By default, `container` runs a built-in setup script on first boot to provision the user described above. To use your own setup instead, add an executable script at `/etc/machine/create-user.sh` to the image. It runs once, as root, on first boot, with these variables set:
+
+- `CONTAINER_GID`
+- `CONTAINER_HOME`
+- `CONTAINER_MACHINE_ID`
+- `CONTAINER_UID`
+- `CONTAINER_USER`
+
 ## Configure system properties
 
 The `container system property` subcommand manages the configuration settings for the `container` CLI and services. You can customize various aspects of container behavior, including build settings, default images, and network configuration.

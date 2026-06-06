@@ -156,6 +156,8 @@ public struct ContainerConfiguration: Sendable, Codable {
         public var memoryInBytes: UInt64 = 1024.mib()
         /// Storage quota/size in bytes.
         public var storage: UInt64?
+        /// Additional CPU cores allocated for VM overhead (guest agent, etc).
+        public var cpuOverhead: Int = 1
 
         public init() {}
     }

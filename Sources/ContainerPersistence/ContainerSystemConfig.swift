@@ -28,6 +28,7 @@ public final class ContainerSystemConfig: Codable, Sendable, Initable {
     public let container: ContainerConfig
     public let dns: DNSConfig
     public let kernel: KernelConfig
+    public let machine: MachineConfig
     public let network: NetworkConfig
     public let registry: RegistryConfig
     public let vminit: VminitConfig
@@ -37,6 +38,7 @@ public final class ContainerSystemConfig: Codable, Sendable, Initable {
         container: ContainerConfig = .init(),
         dns: DNSConfig = .init(),
         kernel: KernelConfig = .init(),
+        machine: MachineConfig = MachineConfig.default,
         network: NetworkConfig = .init(),
         registry: RegistryConfig = .init(),
         vminit: VminitConfig = .init()
@@ -45,6 +47,7 @@ public final class ContainerSystemConfig: Codable, Sendable, Initable {
         self.container = container
         self.dns = dns
         self.kernel = kernel
+        self.machine = machine
         self.network = network
         self.registry = registry
         self.vminit = vminit
@@ -55,6 +58,7 @@ public final class ContainerSystemConfig: Codable, Sendable, Initable {
         self.container = .init()
         self.dns = .init()
         self.kernel = .init()
+        self.machine = MachineConfig.default
         self.network = .init()
         self.registry = .init()
         self.vminit = .init()
@@ -66,6 +70,7 @@ public final class ContainerSystemConfig: Codable, Sendable, Initable {
         self.container = try container.decodeIfPresent(ContainerConfig.self, forKey: .container) ?? .init()
         self.dns = try container.decodeIfPresent(DNSConfig.self, forKey: .dns) ?? .init()
         self.kernel = try container.decodeIfPresent(KernelConfig.self, forKey: .kernel) ?? .init()
+        self.machine = try container.decodeIfPresent(MachineConfig.self, forKey: .machine) ?? .init(cpus: nil, memory: nil, homeMount: nil)
         self.network = try container.decodeIfPresent(NetworkConfig.self, forKey: .network) ?? .init()
         self.registry = try container.decodeIfPresent(RegistryConfig.self, forKey: .registry) ?? .init()
         self.vminit = try container.decodeIfPresent(VminitConfig.self, forKey: .vminit) ?? .init()

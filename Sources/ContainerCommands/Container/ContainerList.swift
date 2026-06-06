@@ -44,7 +44,8 @@ extension Application {
 
         public func run() async throws {
             let client = ContainerClient()
-            let filters = self.all ? ContainerListFilters.all : ContainerListFilters(status: .running)
+
+            let filters = ContainerListFilters(status: self.all ? nil : .running).withoutMachines()
             let containers = try await client.list(filters: filters)
             let items = containers.map { ManagedContainer($0) }
             try Output.render(payload: items, display: items, format: format, quiet: quiet)

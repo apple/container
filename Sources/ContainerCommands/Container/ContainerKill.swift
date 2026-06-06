@@ -56,7 +56,8 @@ extension Application {
 
             let containers: [String]
             if self.all {
-                containers = try await client.list(filters: ContainerListFilters(status: .running)).map { $0.id }
+                let filters = ContainerListFilters(status: .running).withoutMachines()
+                containers = try await client.list(filters: filters).map { $0.id }
             } else {
                 containers = containerIds
             }

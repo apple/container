@@ -49,6 +49,8 @@ let package = Package(
         .library(name: "ContainerOS", targets: ["ContainerOS"]),
         .library(name: "SocketForwarder", targets: ["SocketForwarder"]),
         .library(name: "TerminalProgress", targets: ["TerminalProgress"]),
+        .library(name: "MachineAPIClient", targets: ["MachineAPIClient"]),
+        .library(name: "MachineAPIService", targets: ["MachineAPIService"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion)),
@@ -116,6 +118,7 @@ let package = Package(
                 "ContainerVersion",
                 .product(name: "SystemPackage", package: "swift-system"),
                 "ContainerXPC",
+                "MachineAPIClient",
                 "TerminalProgress",
                 "Yams",
             ],
@@ -561,6 +564,54 @@ let package = Package(
             dependencies: [
                 .product(name: "SystemPackage", package: "swift-system")
             ]
+        ),
+        .target(
+            name: "MachineAPIClient",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                .product(name: "Logging", package: "swift-log"),
+                "ContainerAPIClient",
+                "ContainerPersistence",
+                "ContainerResource",
+                "ContainerXPC",
+                "TerminalProgress",
+            ],
+            path: "Sources/Services/MachineAPIService/Client"
+        ),
+        .target(
+            name: "MachineAPIService",
+            dependencies: [
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationEXT4", package: "containerization"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                "ContainerAPIClient",
+                "ContainerResource",
+                "ContainerRuntimeClient",
+                "ContainerXPC",
+                "MachineAPIClient",
+            ],
+            path: "Sources/Services/MachineAPIService/Server"
+        ),
+        .executableTarget(
+            name: "machine-apiserver",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "Logging", package: "swift-log"),
+                "ContainerAPIClient",
+                "ContainerLog",
+                "ContainerPersistence",
+                "ContainerPlugin",
+                "ContainerVersion",
+                "ContainerXPC",
+                "MachineAPIClient",
+                "MachineAPIService",
+            ],
+            path: "Sources/Plugins/MachineAPIServer",
+            exclude: ["config.toml", "Resources"]
         ),
     ]
 )

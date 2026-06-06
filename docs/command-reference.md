@@ -1058,6 +1058,250 @@ container registry list [--format <format>] [--quiet] [--debug]
 *   `--format <format>`: Format of the output (values: json, table, yaml, toml; default: table)
 *   `-q, --quiet`: Only output the registry hostname
 
+## Container Machine Management
+
+`m` is an alias for `container machine`.
+
+### `container machine create`
+
+Creates a container machine from an image and boots it. Use `--cpus`, `--memory`, and `--home-mount` to configure it, or `--no-boot` to create it without booting.
+
+**Usage**
+
+```bash
+container machine create [<options>] <image>
+```
+
+**Arguments**
+
+*   `<image>`: Container image reference (e.g., alpine:3.22)
+
+**Options**
+
+*   `-n, --name <name>`: Name for the container machine
+*   `--set-default`: Set this container machine as the default
+*   `--no-boot`: Create the container machine without booting it
+*   `--cpus <cpus>`: Number of virtual CPUs
+*   `--memory <memory>`: Memory allocation (e.g., 2G, 8G). Default: half of system memory
+*   `--home-mount <home-mount>`: User's home directory mount option (ro, rw, none). Default: rw
+
+**Management Options**
+
+*   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: host architecture)
+*   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
+*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
+
+**Registry Options**
+
+*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
+
+**Progress Options**
+
+*   `--progress <type>`: Progress type (format: auto|none|ansi|plain|color) (default: auto)
+
+**Image Fetch Options**
+
+*   `--max-concurrent-downloads <max-concurrent-downloads>`: Maximum number of concurrent downloads (default: 3)
+
+**Examples**
+
+```bash
+# create and boot a container machine named my-machine
+container machine create alpine:3.22 --name my-machine
+
+# create a container machine with custom resources and set it as the default
+container machine create --cpus 4 --memory 8G --set-default alpine:3.22
+
+# create a container machine without booting it
+container machine create --no-boot alpine:3.22
+```
+
+### `container machine run`
+
+Runs a command in a container machine, booting it first if needed. With no command, it opens an interactive login shell. By default the command runs as a user matching the host user.
+
+**Usage**
+
+```bash
+container machine run [<options>] [<executable>] [<arguments> ...]
+```
+
+**Arguments**
+
+*   `<executable>`: Command to run (default: login shell)
+*   `<arguments>`: Command arguments
+
+**Options**
+
+*   `-n, --name <name>`: Container machine ID (uses default if not specified)
+*   `-d, --detach`: Run a process in a container machine and detach from it
+*   `--root`: Run as root instead of matching host user
+
+**Process Options**
+
+*   `-e, --env <env>`: Set environment variables (format: key=value, or just key to inherit from host)
+*   `--env-file <env-file>`: Read in a file of environment variables (key=value format, ignores # comments and blank lines)
+*   `--gid <gid>`: Set the group ID for the process
+*   `-i, --interactive`: Keep the standard input open even if not attached
+*   `-t, --tty`: Open a TTY with the process
+*   `-u, --user <user>`: Set the user for the process (format: name|uid[:gid])
+*   `--uid <uid>`: Set the user ID for the process
+*   `-w, --workdir, --cwd <dir>`: Set the initial working directory inside the container
+
+**Examples**
+
+```bash
+# open an interactive shell in the default container machine
+container machine run
+
+# run a command in a named container machine
+container machine run -n my-machine uname -a
+
+# pass arguments to the command after --
+container machine run -n my-machine -- cat /proc/cpuinfo
+```
+
+### `container machine list (ls)`
+
+Lists container machines. The default container machine is marked in the `DEFAULT` column.
+
+**Usage**
+
+```bash
+container machine list [--format <format>] [--quiet] [--debug]
+```
+
+**Options**
+
+*   `--format <format>`: Format of the output (values: json, table; default: table)
+*   `-q, --quiet`: Only output the container machine ID
+
+### `container machine inspect`
+
+Displays detailed information about a container machine in JSON. Uses the default container machine if no ID is given.
+
+**Usage**
+
+```bash
+container machine inspect [--debug] [<id>]
+```
+
+**Arguments**
+
+*   `<id>`: Container machine ID (uses default if not specified)
+
+**Options**
+
+No options.
+
+### `container machine set`
+
+Sets configuration values on a container machine. Changes take effect after the container machine is stopped and restarted. Uses the default container machine if no ID is given.
+
+**Usage**
+
+```bash
+container machine set [--name <name>] [--debug] <setting> ...
+```
+
+**Arguments**
+
+*   `<setting>`: Configuration values (format: key=value)
+
+**Settings**
+
+*   `cpus=<number>`: Number of virtual CPUs
+*   `memory=<size>`: Memory allocation (e.g., 2G, 1G). Default: half of system memory
+*   `home-mount=<string>`: User home directory mount option (ro, rw, none). Default: rw
+
+**Options**
+
+*   `-n, --name <name>`: Container machine ID (uses default if not specified)
+
+**Examples**
+
+```bash
+# set CPUs and memory on the default container machine
+container machine set cpus=4 memory=8G
+
+# update the home mount on a named container machine
+container machine set -n my-machine home-mount=ro
+```
+
+### `container machine set-default`
+
+Sets the default container machine. Commands that take an optional container machine ID use the default when you don't provide one.
+
+**Usage**
+
+```bash
+container machine set-default [--debug] <id>
+```
+
+**Arguments**
+
+*   `<id>`: Container machine ID
+
+**Options**
+
+No options.
+
+### `container machine logs`
+
+Fetches logs from a container machine. You can follow output, limit the number of lines, or view the boot log. Uses the default container machine if no ID is given.
+
+**Usage**
+
+```bash
+container machine logs [--boot] [--follow] [-n <n>] [--debug] [<id>]
+```
+
+**Arguments**
+
+*   `<id>`: Container machine ID (uses default if not specified)
+
+**Options**
+
+*   `--boot`: Display the boot log for the container machine instead of stdio
+*   `-f, --follow`: Follow log output
+*   `-n <n>`: Number of lines to show from the end of the logs. If not provided this will print all of the logs
+
+### `container machine stop`
+
+Stops a running container machine. Uses the default container machine if no ID is given.
+
+**Usage**
+
+```bash
+container machine stop [--debug] [<id>]
+```
+
+**Arguments**
+
+*   `<id>`: Container machine ID (uses default if not specified)
+
+**Options**
+
+No options.
+
+### `container machine delete (rm)`
+
+Deletes a container machine, stopping it first if it is running. If it was the default, set a new one with `container machine set-default`.
+
+**Usage**
+
+```bash
+container machine delete [--debug] <id>
+```
+
+**Arguments**
+
+*   `<id>`: Container machine ID
+
+**Options**
+
+No options.
+
 ## System Management
 
 System commands manage the container apiserver, logs, DNS settings and kernel. These are only available on macOS hosts.
