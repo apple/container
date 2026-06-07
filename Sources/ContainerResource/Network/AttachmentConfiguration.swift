@@ -41,9 +41,14 @@ public struct AttachmentOptions: Codable, Sendable {
     /// The MTU for the network interface.
     public let mtu: UInt32?
 
-    public init(hostname: String, macAddress: MACAddress? = nil, mtu: UInt32? = nil) {
+    /// A specific IPv4 address requested for the attachment (optional).
+    /// Only supported by network plugins that allow static address assignment.
+    public let ip: IPv4Address?
+
+    public init(hostname: String, macAddress: MACAddress? = nil, mtu: UInt32? = nil, ip: IPv4Address? = nil) {
         self.hostname = hostname
         self.macAddress = macAddress
         self.mtu = mtu
+        self.ip = ip
     }
 }

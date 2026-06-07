@@ -14,12 +14,17 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-public enum NetworkKeys: String {
-    case additionalData
-    case attachment
-    case hostname
-    case ip
-    case macAddress
-    case network
-    case status
+import ArgumentParser
+import ContainerVersion
+
+@main
+struct NetworkVmnetHelperPlugin: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "container-network-vmnet-helper",
+        abstract: "XPC service for managing a bridged physical network",
+        version: ReleaseVersion.singleLine(appName: "container-network-vmnet-helper"),
+        subcommands: [
+            Start.self
+        ]
+    )
 }

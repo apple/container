@@ -183,6 +183,7 @@ public actor RuntimeService {
                     var (attachment, additionalData) = try await client.allocate(
                         hostname: attachmentConfig.options.hostname,
                         macAddress: attachmentConfig.options.macAddress,
+                        ip: attachmentConfig.options.ip,
                         on: session
                     )
                     if let mtu = attachmentConfig.options.mtu {
@@ -202,7 +203,7 @@ public actor RuntimeService {
                             .internalError,
                             message: "no available interface strategy for network \(attachment.network), plugin=\(info.plugin) variant=\(attachment.variant ?? "nil")")
                     }
-                    let interface = try iStrategy.toInterface(
+                    let interface = try await iStrategy.toInterface(
                         attachment: attachment,
                         interfaceIndex: index,
                         additionalData: additionalData
@@ -211,6 +212,10 @@ public actor RuntimeService {
                     interfaces.append(interface)
                 }
             } catch {
+                // Reap interfaces already created before the failure.
+                for case let managed as ManagedInterface in interfaces {
+                    managed.teardown()
+                }
                 for session in sessions { session.close() }
                 throw error
             }
@@ -1264,6 +1269,13 @@ public actor RuntimeService {
         }
 
         await self.stopSocketForwarders()
+
+        // Reap interfaces backed by external processes. They also clean
+        // up after themselves when their data path closes, so this is
+        // belt and suspenders.
+        for case let managed as ManagedInterface in container.interfaces {
+            managed.teardown()
+        }
 
         for session in networkSessions { session.close() }
         networkSessions = []

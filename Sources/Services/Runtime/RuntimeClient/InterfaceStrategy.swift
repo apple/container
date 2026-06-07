@@ -41,5 +41,5 @@ public protocol InterfaceStrategy: Sendable {
     ///     specific for the network to which the container will attach.
     ///
     /// - Returns: An XPC message with no parameters.
-    func toInterface(attachment: Attachment, interfaceIndex: Int, additionalData: XPCMessage?) throws -> Interface
+    func toInterface(attachment: Attachment, interfaceIndex: Int, additionalData: XPCMessage?) async throws -> Interface
 }

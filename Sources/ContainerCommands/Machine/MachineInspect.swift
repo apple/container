@@ -66,6 +66,8 @@ private struct InspectOutput: Codable {
     let homeMount: MachineConfig.HomeMountOption
     let diskSize: UInt64?
     let ipAddress: String?
+    let networks: [String]
+    let kernelArgs: [String]
 
     init(_ snapshot: MachineSnapshot) {
         self.id = snapshot.id
@@ -81,5 +83,7 @@ private struct InspectOutput: Codable {
         self.homeMount = snapshot.bootConfig.homeMount
         self.diskSize = snapshot.diskSize
         self.ipAddress = snapshot.ipAddress
+        self.networks = snapshot.bootConfig.networks
+        self.kernelArgs = snapshot.bootConfig.kernelArgs
     }
 }

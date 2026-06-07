@@ -43,6 +43,9 @@ public struct NonisolatedInterfaceStrategy: InterfaceStrategy {
         }
 
         log.info("creating NATNetworkInterface with network reference")
+        // Only the first interface carries a gateway, so the guest installs a
+        // single default route (and resolver) via it. Later interfaces reach
+        // only their own subnet. Egress network must be listed first.
         let ipv4Gateway = interfaceIndex == 0 ? attachment.ipv4Gateway : nil
         return NATNetworkInterface(
             ipv4Address: attachment.ipv4Address,

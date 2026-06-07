@@ -909,6 +909,40 @@ struct ParserTest {
         }
     }
 
+    @Test
+    func testParseNetworkWithIP() throws {
+        let result = try Parser.network("backend,ip=192.168.1.50")
+        #expect(result.name == "backend")
+        #expect(result.ip == (try IPv4Address("192.168.1.50")))
+    }
+
+    @Test
+    func testParseNetworkInvalidIP() throws {
+        #expect {
+            _ = try Parser.network("backend,ip=not-an-address")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid ip value")
+        }
+    }
+
+    @Test
+    func testParseNetworkWithIPMacAndMTU() throws {
+        let result = try Parser.network("backend,mac=02:42:ac:11:00:02,mtu=1500,ip=192.168.1.50")
+        #expect(result.name == "backend")
+        #expect(result.macAddress == "02:42:ac:11:00:02")
+        #expect(result.mtu == 1500)
+        #expect(result.ip == (try IPv4Address("192.168.1.50")))
+    }
+
+    @Test
+    func testParseNetworkWithoutIP() throws {
+        let result = try Parser.network("backend,mtu=1500")
+        #expect(result.ip == nil)
+    }
+
     // MARK: - Relative Path Passthrough Tests
 
     @Test

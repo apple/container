@@ -57,10 +57,15 @@ public actor DefaultNetworkService: NetworkService {
     public func allocate(
         hostname: String,
         macAddress: MACAddress?,
+        ip: IPv4Address?,
         session: XPCServerSession
     ) async throws -> (attachment: Attachment, additionalData: XPCMessage?) {
         log.debug("enter", metadata: ["func": "\(#function)"])
         defer { log.debug("exit", metadata: ["func": "\(#function)"]) }
+
+        guard ip == nil else {
+            throw ContainerizationError(.unsupported, message: "network \(network.id) does not support static IP assignment")
+        }
 
         guard let status = await network.status else {
             throw ContainerizationError(.invalidState, message: "network \(network.id) must be running")

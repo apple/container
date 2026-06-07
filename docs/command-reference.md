@@ -1220,6 +1220,8 @@ container machine set [--name <name>] [--debug] <setting> ...
 *   `home-mount=<string>`: User home directory mount option (ro, rw, none). Default: rw
 *   `virtualization=<bool>`: Enable nested virtualization (`true`|`false`). Requires Apple Silicon M3+ and macOS 15+ and kernel with CONFIG_KVM=y.
 *   `kernel=<path>`: Path to a custom kernel binary. An empty value (`kernel=`) clears the override and falls back to the system default.
+*   `network=<spec>`: Attach the machine to a network (format: `<name>[,ip=ADDR][,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE]`). Repeatable. **Order matters:** only the first network gets a gateway, so it owns the default route and DNS resolver while later networks reach only their own on-link subnet — list the network that should provide egress (e.g. the NAT network) first. An empty value (`network=`) resets to the builtin NAT network.
+*   `kernel-arg=<arg>`: Extra kernel command-line argument (e.g. `quiet`, `console=ttyS0`). Repeatable. An empty value (`kernel-arg=`) clears all extra arguments.
 
 **Options**
 
@@ -1239,6 +1241,13 @@ container machine set virtualization=true kernel=/opt/kernels/vmlinux-kvm
 
 # clear the custom kernel override
 container machine set kernel=
+
+# attach to NAT (egress) plus a bridged network; NAT is listed first so it
+# keeps the default route, the bridge adds on-link reachability to the LAN
+container machine set network=default network=my-bridge
+
+# reset the network configuration back to the builtin NAT network
+container machine set network=
 ```
 
 ### `container machine set-default`

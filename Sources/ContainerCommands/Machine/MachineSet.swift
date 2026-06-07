@@ -55,17 +55,24 @@ extension Application {
             let resolvedName = try await resolveMachineId(name, client: client)
             let snapshot = try await client.inspect(id: resolvedName)
 
-            let kwargs = Dictionary(
-                try rawArgs.map { arg in
-                    let parts = arg.split(separator: "=", maxSplits: 1)
-                    guard parts.count == 2 else {
-                        throw ContainerizationError(.invalidArgument, message: "invalid argument format '\(arg)'. Expected 'key=value'")
-                    }
+            // `network` and `kernel-arg` are repeatable list settings, which a
+            // flat key/value map cannot express, so collect them separately. An
+            // empty value resets the list; an absent key leaves it unchanged.
+            let pairs = try MachineSetArguments.pairs(rawArgs)
+            let networks = MachineSetArguments.list(forKey: "network", in: pairs)
+            let kernelArgs = MachineSetArguments.list(forKey: "kernel-arg", in: pairs)
 
-                    return (String(parts[0]), String(parts[1]))
-                },
-                uniquingKeysWith: { _, last in last }
-            )
+            // Validate network specs up front: syntax, and that the network
+            // exists, for a clear error before the change is persisted.
+            if let networks {
+                let networkClient = NetworkClient()
+                for spec in networks {
+                    let parsed = try Parser.network(spec)
+                    _ = try await networkClient.get(id: parsed.name)
+                }
+            }
+
+            let kwargs = MachineSetArguments.scalars(pairs, excluding: ["network", "kernel-arg"])
 
             if kwargs["virtualization"] == "true" {
                 try MachineCapabilities.requireNestedVirtualizationSupported()
@@ -75,7 +82,7 @@ extension Application {
                 validatedKwargs["kernel"] = try MachineConfig.validateKernelPath(raw).string
             }
 
-            let newConfig = try snapshot.bootConfig.with(validatedKwargs)
+            let newConfig = try snapshot.bootConfig.with(validatedKwargs, networks: networks, kernelArgs: kernelArgs)
 
             try await client.setConfig(id: resolvedName, bootConfig: newConfig)
 

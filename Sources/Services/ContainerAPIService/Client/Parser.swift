@@ -814,17 +814,19 @@ public struct Parser {
         public let name: String
         public let macAddress: String?
         public let mtu: UInt32?
+        public let ip: IPv4Address?
 
-        public init(name: String, macAddress: String? = nil, mtu: UInt32? = nil) {
+        public init(name: String, macAddress: String? = nil, mtu: UInt32? = nil, ip: IPv4Address? = nil) {
             self.name = name
             self.macAddress = macAddress
             self.mtu = mtu
+            self.ip = ip
         }
     }
 
     /// Parse network attachment with optional properties
-    /// Format: network_name[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE]
-    /// Example: "backend,mac=02:42:ac:11:00:02,mtu=1500"
+    /// Format: network_name[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE][,ip=ADDR]
+    /// Example: "backend,mac=02:42:ac:11:00:02,mtu=1500,ip=192.168.1.50"
     public static func network(_ networkSpec: String) throws -> ParsedNetwork {
         guard !networkSpec.isEmpty else {
             throw ContainerizationError(.invalidArgument, message: "network specification cannot be empty")
@@ -843,6 +845,7 @@ public struct Parser {
 
         var macAddress: String?
         var mtu: UInt32?
+        var ip: IPv4Address?
 
         // Parse properties if any
         for part in parts.dropFirst() {
@@ -877,15 +880,23 @@ public struct Parser {
                     )
                 }
                 mtu = mtuValue
+            case "ip":
+                guard let address = try? IPv4Address(value) else {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "invalid ip value '\(value)': must be an IPv4 address"
+                    )
+                }
+                ip = address
             default:
                 throw ContainerizationError(
                     .invalidArgument,
-                    message: "unknown network property '\(key)'. Available properties: mac, mtu"
+                    message: "unknown network property '\(key)'. Available properties: mac, mtu, ip"
                 )
             }
         }
 
-        return ParsedNetwork(name: networkName, macAddress: macAddress, mtu: mtu)
+        return ParsedNetwork(name: networkName, macAddress: macAddress, mtu: mtu, ip: ip)
     }
 
     // MARK: DNS
