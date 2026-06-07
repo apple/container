@@ -133,3 +133,24 @@ struct RuntimeConfigurationTests {
         #expect(decodedData.variant == "test-variant", "Variant should round-trip through RuntimeConfiguration")
     }
 }
+
+struct BackupExclusionTests {
+    @Test
+    func testExcludeFromBackupMarksDirectory() throws {
+        var root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("app-root-\(UUID())")
+
+        defer {
+            try? FileManager.default.removeItem(at: root)
+        }
+
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        var resourceValues = URLResourceValues()
+        resourceValues.isExcludedFromBackup = true
+        try root.setResourceValues(resourceValues)
+
+        let readBack = try root.resourceValues(forKeys: [.isExcludedFromBackupKey])
+        #expect(readBack.isExcludedFromBackup == true)
+    }
+}
