@@ -160,6 +160,14 @@ public struct ContainerConfiguration: Sendable, Codable {
         public var cpuOverhead: Int = 1
 
         public init() {}
+
+        public init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            self.cpus = try c.decodeIfPresent(Int.self, forKey: .cpus) ?? 4
+            self.memoryInBytes = try c.decodeIfPresent(UInt64.self, forKey: .memoryInBytes) ?? 1024.mib()
+            self.storage = try c.decodeIfPresent(UInt64.self, forKey: .storage)
+            self.cpuOverhead = try c.decodeIfPresent(Int.self, forKey: .cpuOverhead) ?? 1
+        }
     }
 
     public init(
