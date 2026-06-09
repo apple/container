@@ -16,8 +16,6 @@
 
 import ArgumentParser
 import ContainerAPIClient
-import ContainerResource
-import ContainerizationError
 import Foundation
 
 extension Application {
@@ -34,32 +32,21 @@ extension Application {
 
         public func run() async throws {
             let client = ContainerClient()
-            let filters = ContainerListFilters(status: .stopped).withoutMachines()
-            let containersToPrune = try await client.list(filters: filters)
+            let result = try await client.prune()
 
-            var prunedContainerIds = [String]()
-            var totalSize: UInt64 = 0
-
-            for container in containersToPrune {
-                do {
-                    let actualSize = try await client.diskUsage(id: container.id)
-                    totalSize += actualSize
-                    try await client.delete(id: container.id)
-                    prunedContainerIds.append(container.id)
-                } catch {
-                    log.error(
-                        "failed to prune container",
-                        metadata: [
-                            "id": "\(container.id)",
-                            "error": "\(error)",
-                        ])
-                }
+            for failure in result.failed {
+                log.error(
+                    "failed to prune container",
+                    metadata: [
+                        "id": "\(failure.id)",
+                        "error": "\(failure.error)",
+                    ])
             }
 
             let formatter = ByteCountFormatter()
-            let freed = formatter.string(fromByteCount: Int64(totalSize))
+            let freed = formatter.string(fromByteCount: Int64(result.reclaimedBytes))
 
-            for name in prunedContainerIds {
+            for name in result.pruned {
                 print(name)
             }
             log.info("Reclaimed \(freed) in disk space")
