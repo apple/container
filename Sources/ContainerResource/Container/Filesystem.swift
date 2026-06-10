@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import SystemPackage
 
 /// Options to pass to a mount call.
 public typealias MountOptions = [String]
@@ -95,7 +96,7 @@ public struct Filesystem: Sendable, Codable {
     ) -> Filesystem {
         .init(
             type: .block(format: format, cache: cache, sync: sync),
-            source: URL(fileURLWithPath: source).absolutePath(),
+            source: absoluteFilePath(for: source).string,
             destination: destination,
             options: options
         )
@@ -108,7 +109,7 @@ public struct Filesystem: Sendable, Codable {
     ) -> Filesystem {
         .init(
             type: .volume(name: name, format: format, cache: cache, sync: sync),
-            source: URL(fileURLWithPath: source).absolutePath(),
+            source: absoluteFilePath(for: source).string,
             destination: destination,
             options: options
         )
@@ -118,7 +119,7 @@ public struct Filesystem: Sendable, Codable {
     public static func virtiofs(source: String, destination: String, options: MountOptions) -> Filesystem {
         .init(
             type: .virtiofs,
-            source: URL(fileURLWithPath: source).absolutePath(),
+            source: absoluteFilePath(for: source).string,
             destination: destination,
             options: options
         )
@@ -183,4 +184,12 @@ public struct Filesystem: Sendable, Codable {
         try fm.copyItem(atPath: src, toPath: to)
         return .init(type: self.type, source: to, destination: self.destination, options: self.options)
     }
+}
+
+private func absoluteFilePath(for source: String) -> FilePath {
+    let path = FilePath(source)
+    guard path.isRelative else { return path.lexicallyNormalized() }
+    return FilePath(FileManager.default.currentDirectoryPath)
+        .pushing(path)
+        .lexicallyNormalized()
 }

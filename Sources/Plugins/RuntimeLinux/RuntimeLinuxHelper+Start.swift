@@ -18,8 +18,8 @@ import ArgumentParser
 import ContainerLog
 import ContainerPlugin
 import ContainerResource
-import ContainerSandboxService
-import ContainerSandboxServiceClient
+import ContainerRuntimeClient
+import ContainerRuntimeLinuxServer
 import ContainerXPC
 import Foundation
 import Logging
@@ -64,17 +64,17 @@ extension RuntimeLinuxHelper {
                 signal(SIGPIPE, SIG_IGN)
 
                 // FIXME: The network plugins that the runtime supports should be configurable elsewhere
-                var interfaceStrategies: [NetworkPluginInfo: InterfaceStrategy] = [
-                    NetworkPluginInfo(plugin: "container-network-vmnet", variant: "allocationOnly"): IsolatedInterfaceStrategy()
+                var interfaceStrategies: [NetworkInterfaceKey: InterfaceStrategy] = [
+                    NetworkInterfaceKey(plugin: "container-network-vmnet", variant: "allocationOnly"): IsolatedInterfaceStrategy()
                 ]
                 if #available(macOS 26, *) {
-                    interfaceStrategies[NetworkPluginInfo(plugin: "container-network-vmnet", variant: "reserved")] = NonisolatedInterfaceStrategy(log: log)
+                    interfaceStrategies[NetworkInterfaceKey(plugin: "container-network-vmnet", variant: "reserved")] = NonisolatedInterfaceStrategy(log: log)
                 }
 
                 log.info("configuring XPC server")
                 nonisolated(unsafe) let anonymousConnection = xpc_connection_create(nil, nil)
 
-                let server = SandboxService(
+                let server = RuntimeService(
                     root: .init(fileURLWithPath: root),
                     interfaceStrategies: interfaceStrategies,
                     eventLoopGroup: eventLoopGroup,
@@ -85,7 +85,7 @@ extension RuntimeLinuxHelper {
                 let endpointServer = XPCServer(
                     identifier: machServiceLabel,
                     routes: [
-                        SandboxRoutes.createEndpoint.rawValue: server.createEndpoint
+                        RuntimeRoutes.createEndpoint.rawValue: XPCServer.route(server.createEndpoint)
                     ],
                     log: log
                 )
@@ -93,17 +93,19 @@ extension RuntimeLinuxHelper {
                 let mainServer = XPCServer(
                     connection: anonymousConnection,
                     routes: [
-                        SandboxRoutes.bootstrap.rawValue: server.bootstrap,
-                        SandboxRoutes.createProcess.rawValue: server.createProcess,
-                        SandboxRoutes.state.rawValue: server.state,
-                        SandboxRoutes.stop.rawValue: server.stop,
-                        SandboxRoutes.kill.rawValue: server.kill,
-                        SandboxRoutes.resize.rawValue: server.resize,
-                        SandboxRoutes.wait.rawValue: server.wait,
-                        SandboxRoutes.start.rawValue: server.startProcess,
-                        SandboxRoutes.dial.rawValue: server.dial,
-                        SandboxRoutes.shutdown.rawValue: server.shutdown,
-                        SandboxRoutes.statistics.rawValue: server.statistics,
+                        RuntimeRoutes.bootstrap.rawValue: XPCServer.route(server.bootstrap),
+                        RuntimeRoutes.createProcess.rawValue: XPCServer.route(server.createProcess),
+                        RuntimeRoutes.state.rawValue: XPCServer.route(server.state),
+                        RuntimeRoutes.stop.rawValue: XPCServer.route(server.stop),
+                        RuntimeRoutes.kill.rawValue: XPCServer.route(server.kill),
+                        RuntimeRoutes.resize.rawValue: XPCServer.route(server.resize),
+                        RuntimeRoutes.wait.rawValue: XPCServer.route(server.wait),
+                        RuntimeRoutes.start.rawValue: XPCServer.route(server.startProcess),
+                        RuntimeRoutes.dial.rawValue: XPCServer.route(server.dial),
+                        RuntimeRoutes.shutdown.rawValue: XPCServer.route(server.shutdown),
+                        RuntimeRoutes.statistics.rawValue: XPCServer.route(server.statistics),
+                        RuntimeRoutes.copyIn.rawValue: XPCServer.route(server.copyIn),
+                        RuntimeRoutes.copyOut.rawValue: XPCServer.route(server.copyOut),
                     ],
                     log: log
                 )

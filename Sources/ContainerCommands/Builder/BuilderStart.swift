@@ -18,6 +18,7 @@ import ArgumentParser
 import ContainerAPIClient
 import ContainerBuild
 import ContainerPersistence
+import ContainerPlugin
 import ContainerResource
 import Containerization
 import ContainerizationError
@@ -29,9 +30,6 @@ import TerminalProgress
 
 extension Application {
     public struct BuilderStart: AsyncLoggableCommand {
-        static let defaultCPUs = 2
-        static let defaultMemoryInBytes: UInt64 = 2048.mib()
-
         public static var configuration: CommandConfiguration {
             var config = CommandConfiguration()
             config.commandName = "start"
@@ -57,6 +55,7 @@ extension Application {
         public init() {}
 
         public func run() async throws {
+            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
             let progressConfig = try ProgressConfig(
                 showTasks: true,
                 showItems: true,
@@ -67,7 +66,7 @@ extension Application {
                 progress.finish()
             }
             progress.start()
-            try await Self.start(
+            try await BuilderStart.start(
                 cpus: self.cpus,
                 memory: self.memory,
                 log: log,
@@ -75,7 +74,8 @@ extension Application {
                 dnsDomain: self.dns.domain,
                 dnsSearchDomains: self.dns.searchDomains,
                 dnsOptions: self.dns.options,
-                progressUpdate: progress.handler
+                progressUpdate: progress.handler,
+                containerSystemConfig: containerSystemConfig,
             )
             progress.finish()
         }
@@ -88,7 +88,8 @@ extension Application {
             dnsDomain: String? = nil,
             dnsSearchDomains: [String] = [],
             dnsOptions: [String] = [],
-            progressUpdate: @escaping ProgressUpdateHandler
+            progressUpdate: @escaping ProgressUpdateHandler,
+            containerSystemConfig: ContainerSystemConfig,
         ) async throws {
             await progressUpdate([
                 .setDescription("Fetching BuildKit image"),
@@ -97,7 +98,7 @@ extension Application {
             let taskManager = ProgressTaskCoordinator()
             let fetchTask = await taskManager.startTask()
 
-            let builderImage: String = DefaultsStore.get(key: .defaultBuilderImage)
+            let builderImage: String = containerSystemConfig.build.image
             let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
             let exportsMount: String = systemHealth.appRoot
                 .appendingPathComponent(Application.BuilderCommand.builderResourceDir)
@@ -122,6 +123,15 @@ extension Application {
             }
             targetEnvVars.sort()
 
+            let defaultBuildCPUs: Int = containerSystemConfig.build.cpus
+            let defaultBuildMemory = containerSystemConfig.build.memory
+            let resources = try Parser.resources(
+                cpus: cpus,
+                memory: memory,
+                defaultCPUs: defaultBuildCPUs,
+                defaultMemory: defaultBuildMemory,
+            )
+
             let client = ContainerClient()
             let existingContainer = try? await client.get(id: "buildkit")
             if let existingContainer {
@@ -138,16 +148,8 @@ extension Application {
 
                 // Check if we need to recreate the builder due to different image
                 let imageChanged = existingImage != builderImage
-                let resolvedResources = try Parser.resources(
-                    cpus: cpus,
-                    memory: memory,
-                    cpuPropertyKey: .defaultBuildCPUs,
-                    memoryPropertyKey: .defaultBuildMemory,
-                    defaultCPUs: Self.defaultCPUs,
-                    defaultMemoryInBytes: Self.defaultMemoryInBytes
-                )
-                let cpuChanged = existingResources.cpus != resolvedResources.cpus
-                let memChanged = existingResources.memoryInBytes != resolvedResources.memoryInBytes
+                let cpuChanged = existingResources.cpus != resources.cpus
+                let memChanged = existingResources.memoryInBytes != resources.memoryInBytes
                 let dnsChanged = {
                     if !dnsNameservers.isEmpty {
                         return existingDNS?.nameservers != dnsNameservers
@@ -191,7 +193,7 @@ extension Application {
                 }
             }
 
-            let useRosetta = DefaultsStore.getBool(key: .buildRosetta) ?? true
+            let useRosetta = containerSystemConfig.build.rosetta
             let shimArguments = [
                 "--debug",
                 "--vsock",
@@ -203,6 +205,7 @@ extension Application {
             let image = try await ClientImage.fetch(
                 reference: builderImage,
                 platform: builderPlatform,
+                containerSystemConfig: containerSystemConfig,
                 progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progressUpdate)
             )
             // Unpack fetched image before use
@@ -235,18 +238,12 @@ extension Application {
                 user: .id(uid: 0, gid: 0)
             )
 
-            let resources = try Parser.resources(
-                cpus: cpus,
-                memory: memory,
-                cpuPropertyKey: .defaultBuildCPUs,
-                memoryPropertyKey: .defaultBuildMemory,
-                defaultCPUs: Self.defaultCPUs,
-                defaultMemoryInBytes: Self.defaultMemoryInBytes
-            )
-
             var config = ContainerConfiguration(id: Builder.builderContainerId, image: imageDesc, process: processConfig)
             config.resources = resources
-            config.labels = [ResourceLabelKeys.role: ResourceRoleValues.builder]
+            config.labels = [
+                ResourceLabelKeys.plugin: "builder",
+                ResourceLabelKeys.role: ResourceRoleValues.builder,
+            ]
             config.capAdd = ["ALL"]
             config.mounts = [
                 .init(
@@ -268,9 +265,6 @@ extension Application {
             let networkClient = NetworkClient()
             guard let defaultNetwork = try await networkClient.builtin else {
                 throw ContainerizationError(.invalidState, message: "default network is not present")
-            }
-            guard case .running(_, _) = defaultNetwork else {
-                throw ContainerizationError(.invalidState, message: "default network is not running")
             }
             config.networks = [
                 AttachmentConfiguration(network: defaultNetwork.id, options: AttachmentOptions(hostname: Builder.builderContainerId))

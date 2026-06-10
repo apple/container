@@ -16,6 +16,8 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerPersistence
+import ContainerPlugin
 import Containerization
 import ContainerizationError
 import Foundation
@@ -45,19 +47,25 @@ extension Application {
             }
         }
 
-        static func removeImage(options: RemoveImageOptions, log: Logger) async throws {
+        static func removeImage(options: RemoveImageOptions, containerSystemConfig: ContainerSystemConfig, log: Logger) async throws {
             let (found, notFound) = try await {
                 if options.all {
                     let found = try await ClientImage.list()
                     let notFound: [String] = []
                     return (found, notFound)
                 }
-                return try await ClientImage.get(names: options.images)
+                return try await ClientImage.get(names: options.images, containerSystemConfig: containerSystemConfig)
             }()
             var failures: [String] = options.force ? [] : notFound
             var didDeleteAnyImage = false
             for image in found {
-                guard !Utility.isInfraImage(name: image.reference) else {
+                guard
+                    !Utility.isInfraImage(
+                        name: image.reference,
+                        builderImage: containerSystemConfig.build.image,
+                        initImage: containerSystemConfig.vminit.image
+                    )
+                else {
                     continue
                 }
                 do {
@@ -74,7 +82,7 @@ extension Application {
             let freed = formatter.string(fromByteCount: Int64(size))
 
             if didDeleteAnyImage {
-                print("Reclaimed \(freed) in disk space")
+                log.info("Reclaimed \(freed) in disk space")
             }
             if failures.count > 0 {
                 throw ContainerizationError(.internalError, message: "failed to delete one or more images: \(failures)")
@@ -101,7 +109,8 @@ extension Application {
         }
 
         public mutating func run() async throws {
-            try await DeleteImageImplementation.removeImage(options: options, log: log)
+            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
+            try await DeleteImageImplementation.removeImage(options: options, containerSystemConfig: containerSystemConfig, log: log)
         }
     }
 }

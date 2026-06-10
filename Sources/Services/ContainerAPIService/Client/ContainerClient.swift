@@ -49,7 +49,8 @@ public struct ContainerClient: Sendable {
         configuration: ContainerConfiguration,
         options: ContainerCreateOptions = .default,
         kernel: Kernel,
-        initImage: String? = nil
+        initImage: String? = nil,
+        runtimeData: Data? = nil
     ) async throws {
         do {
             let request = XPCMessage(route: .containerCreate)
@@ -63,6 +64,10 @@ public struct ContainerClient: Sendable {
 
             if let initImage {
                 request.set(key: .initImage, value: initImage)
+            }
+
+            if let runtimeData {
+                request.set(key: .runtimeData, value: runtimeData)
             }
 
             try await xpcSend(message: request)
@@ -153,12 +158,12 @@ public struct ContainerClient: Sendable {
     }
 
     /// Send a signal to the container.
-    public func kill(id: String, signal: Int32) async throws {
+    public func kill(id: String, signal: String) async throws {
         do {
             let request = XPCMessage(route: .containerKill)
             request.set(key: .id, value: id)
             request.set(key: .processIdentifier, value: id)
-            request.set(key: .signal, value: Int64(signal))
+            request.set(key: .signal, value: signal)
 
             try await xpcClient.send(request)
         } catch {
@@ -304,6 +309,45 @@ public struct ContainerClient: Sendable {
             )
         }
         return fh
+    }
+
+    /// Copy a file or directory from the host into the container.
+    public func copyIn(id: String, source: String, destination: String, mode: UInt32 = 0o644, createParents: Bool = true) async throws {
+        let request = XPCMessage(route: .containerCopyIn)
+        request.set(key: .id, value: id)
+        request.set(key: .sourcePath, value: source)
+        request.set(key: .destinationPath, value: destination)
+        request.set(key: .fileMode, value: UInt64(mode))
+        request.set(key: .createParents, value: createParents)
+
+        do {
+            try await xpcSend(message: request, timeout: .seconds(300))
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to copy into container \(id)",
+                cause: error
+            )
+        }
+    }
+
+    /// Copy a file or directory from the container to the host.
+    public func copyOut(id: String, source: String, destination: String, createParents: Bool = true) async throws {
+        let request = XPCMessage(route: .containerCopyOut)
+        request.set(key: .id, value: id)
+        request.set(key: .sourcePath, value: source)
+        request.set(key: .destinationPath, value: destination)
+        request.set(key: .createParents, value: createParents)
+
+        do {
+            try await xpcSend(message: request, timeout: .seconds(300))
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to copy from container \(id)",
+                cause: error
+            )
+        }
     }
 
     /// Get resource usage statistics for a container.

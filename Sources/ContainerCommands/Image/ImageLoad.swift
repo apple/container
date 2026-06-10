@@ -18,7 +18,9 @@ import ArgumentParser
 import ContainerAPIClient
 import Containerization
 import ContainerizationError
+import ContainerizationOS
 import Foundation
+import SystemPackage
 import TerminalProgress
 
 extension Application {
@@ -32,9 +34,9 @@ extension Application {
         @Option(
             name: .shortAndLong, help: "Path to the image tar archive", completion: .file(),
             transform: { str in
-                URL(fileURLWithPath: str, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false)
+                FilePathOps.absolutePath(FilePath(str))
             })
-        var input: String?
+        var input: FilePath?
 
         @Flag(name: .shortAndLong, help: "Load images even if the archive contains invalid files")
         public var force = false
@@ -49,7 +51,14 @@ extension Application {
             }
 
             // Read from stdin; otherwise read from the input file
-            if input == nil {
+            let resolvedPath: FilePath
+            if let input {
+                guard FileManager.default.fileExists(atPath: input.string) else {
+                    log.error("file does not exist", metadata: ["path": "\(input)"])
+                    Application.exit(withError: ArgumentParser.ExitCode(1))
+                }
+                resolvedPath = input
+            } else {
                 guard FileManager.default.createFile(atPath: tempFile.path(), contents: nil) else {
                     throw ContainerizationError(.internalError, message: "unable to create temporary file")
                 }
@@ -65,11 +74,7 @@ extension Application {
                     fileHandle.write(chunk)
                 }
                 try fileHandle.close()
-            } else {
-                guard FileManager.default.fileExists(atPath: input!) else {
-                    print("File does not exist \(input!)")
-                    Application.exit(withError: ArgumentParser.ExitCode(1))
-                }
+                resolvedPath = FilePath(tempFile.path())
             }
 
             let progressConfig = try ProgressConfig(
@@ -85,7 +90,7 @@ extension Application {
 
             progress.set(description: "Loading tar archive")
             let result = try await ClientImage.load(
-                from: input ?? tempFile.path(),
+                from: resolvedPath.string,
                 force: force)
             if !result.rejectedMembers.isEmpty {
                 log.warning("archive contains invalid members", metadata: ["paths": "\(result.rejectedMembers)"])
@@ -100,7 +105,6 @@ extension Application {
             }
             await taskManager.finish()
             progress.finish()
-            print("Loaded images:")
             for image in result.images {
                 print(image.reference)
             }

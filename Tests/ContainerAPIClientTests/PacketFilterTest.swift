@@ -16,7 +16,9 @@
 
 import ContainerizationError
 import ContainerizationExtras
+import DNSServer
 import Foundation
+import SystemPackage
 import Testing
 
 @testable import ContainerAPIClient
@@ -31,34 +33,35 @@ struct PacketFilterTest {
             appropriateFor: .temporaryDirectory,
             create: true
         )
+        let tempPath = FilePath(tempURL.path)
         defer { try? FileManager.default.removeItem(at: tempURL) }
-        let configURL = tempURL.appending(path: "pf.conf")
+        let configPath = tempPath.appending("pf.conf")
 
-        let pf = PacketFilter(configURL: configURL, anchorsURL: tempURL)
+        let pf = PacketFilter(configPath: configPath, anchorsPath: tempPath)
         let from1 = try! IPAddress("203.0.113.113")
-        let domain1 = "aaa.com"
+        let domain1 = try! DNSName("aaa.com")
         let to = try! IPAddress("127.0.0.1")
         try pf.createRedirectRule(from: from1, to: to, domain: domain1)
 
-        let anchorURL = tempURL.appending(path: "com.apple.container")
-        var actualAnchorText = try String(contentsOf: anchorURL, encoding: .utf8)
+        let anchorPath = tempPath.appending("com.apple.container")
+        var actualAnchorText = try String(contentsOfFile: anchorPath.string, encoding: .utf8)
         var expectedAnchorTest = """
-            rdr inet from any to \(from1) -> \(to) # \(domain1)\n
+            rdr inet from any to \(from1) -> \(to) # \(domain1.pqdn)\n
             """
 
         #expect(actualAnchorText == expectedAnchorTest)
 
         let from2 = try! IPAddress("172.31.72.1")
-        let domain2 = "bbb.com"
+        let domain2 = try! DNSName("bbb.com")
         try pf.createRedirectRule(from: from2, to: to, domain: domain2)
 
-        actualAnchorText = try String(contentsOf: anchorURL, encoding: .utf8)
+        actualAnchorText = try String(contentsOfFile: anchorPath.string, encoding: .utf8)
         expectedAnchorTest += """
-            rdr inet from any to \(from2) -> \(to) # \(domain2)\n
+            rdr inet from any to \(from2) -> \(to) # \(domain2.pqdn)\n
             """
         #expect(actualAnchorText == expectedAnchorTest)
 
-        let actualConfigText = try String(contentsOf: configURL, encoding: .utf8)
+        let actualConfigText = try String(contentsOfFile: configPath.string, encoding: .utf8)
         let expectedConfigText = try Regex(
             #"""
             scrub-anchor "([^"]+)"
@@ -75,8 +78,8 @@ struct PacketFilterTest {
         try pf.removeRedirectRule(from: from1, to: to, domain: domain1)
         try pf.removeRedirectRule(from: from2, to: to, domain: domain2)
 
-        #expect(!fm.fileExists(atPath: anchorURL.path))
-        let configText = try String(contentsOf: configURL, encoding: .utf8)
+        #expect(!fm.fileExists(atPath: anchorPath.string))
+        let configText = try String(contentsOfFile: configPath.string, encoding: .utf8)
         #expect(configText == "")
     }
 

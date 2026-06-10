@@ -16,8 +16,9 @@
 
 import ArgumentParser
 import ContainerLog
-import ContainerNetworkService
-import ContainerNetworkServiceClient
+import ContainerNetworkClient
+import ContainerNetworkServer
+import ContainerNetworkVmnetServer
 import ContainerPlugin
 import ContainerResource
 import ContainerXPC
@@ -81,17 +82,14 @@ extension NetworkVmnetHelper {
                 log.info("configuring XPC server")
                 let ipv4Subnet = try self.ipv4Subnet.map { try CIDRv4($0) }
                 let ipv6Subnet = try self.ipv6Subnet.map { try CIDRv6($0) }
-                let pluginInfo = NetworkPluginInfo(
-                    plugin: NetworkVmnetHelper._commandName,
-                    variant: self.variant.rawValue
-                )
 
                 let configuration = try NetworkConfiguration(
-                    id: id,
+                    name: id,
                     mode: mode,
                     ipv4Subnet: ipv4Subnet,
                     ipv6Subnet: ipv6Subnet,
-                    pluginInfo: pluginInfo
+                    plugin: NetworkVmnetHelper._commandName,
+                    options: ["variant": self.variant.rawValue]
                 )
                 let network = try Self.createNetwork(
                     configuration: configuration,
@@ -99,15 +97,14 @@ extension NetworkVmnetHelper {
                     log: log
                 )
                 try await network.start()
-                let server = try await NetworkService(network: network, log: log)
+                let service = try await DefaultNetworkService(network: network, log: log)
+                let harness = NetworkHarness(service: service)
                 let xpc = XPCServer(
                     identifier: serviceIdentifier,
                     routes: [
-                        NetworkRoutes.state.rawValue: server.state,
-                        NetworkRoutes.allocate.rawValue: server.allocate,
-                        NetworkRoutes.deallocate.rawValue: server.deallocate,
-                        NetworkRoutes.lookup.rawValue: server.lookup,
-                        NetworkRoutes.disableAllocator.rawValue: server.disableAllocator,
+                        NetworkRoutes.status.rawValue: XPCServer.route(harness.status),
+                        NetworkRoutes.allocate.rawValue: harness.allocate,
+                        NetworkRoutes.lookup.rawValue: XPCServer.route(harness.lookup),
                     ],
                     log: log
                 )

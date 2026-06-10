@@ -26,8 +26,43 @@ struct HelpCommand: AsyncLoggableCommand {
     @OptionGroup(visibility: .hidden)
     public var logOptions: Flags.Logging
 
+    @Argument(parsing: .captureForPassthrough)
+    var subcommandPath: [String] = []
+
     func run() async throws {
-        let pluginLoader = try? await Application.createPluginLoader()
-        await Application.printModifiedHelpText(pluginLoader: pluginLoader)
+        if subcommandPath.isEmpty {
+            let pluginLoader = try? await Application.createPluginLoader()
+            await Application.printModifiedHelpText(pluginLoader: pluginLoader)
+            return
+        }
+        guard let target = Self.resolveSubcommand(path: subcommandPath) else {
+            throw ValidationError("unknown command '\(subcommandPath.joined(separator: " "))'")
+        }
+        print(Application.helpMessage(for: target))
+    }
+
+    static func resolveSubcommand(path: [String]) -> ParsableCommand.Type? {
+        var current: ParsableCommand.Type = Application.self
+        for name in path {
+            guard let next = childSubcommands(of: current).first(where: { matches($0, name: name) }) else {
+                return nil
+            }
+            current = next
+        }
+        return current
+    }
+
+    private static func childSubcommands(of command: ParsableCommand.Type) -> [ParsableCommand.Type] {
+        var all = command.configuration.subcommands
+        for group in command.configuration.groupedSubcommands {
+            all.append(contentsOf: group.subcommands)
+        }
+        return all
+    }
+
+    private static func matches(_ command: ParsableCommand.Type, name: String) -> Bool {
+        let cfg = command.configuration
+        if cfg.commandName == name { return true }
+        return cfg.aliases.contains(name)
     }
 }

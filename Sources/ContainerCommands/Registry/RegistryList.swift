@@ -44,7 +44,7 @@ extension Application {
             let registries = registryInfos.map { RegistryResource(from: $0) }
 
             try Output.render(
-                json: registries,
+                payload: registries,
                 display: registries.map { PrintableRegistry($0) },
                 format: format, quiet: quiet
             )

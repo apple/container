@@ -17,6 +17,7 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerResource
+import ContainerizationError
 import Foundation
 
 extension Application.VolumeCommand {
@@ -35,18 +36,20 @@ extension Application.VolumeCommand {
         public init() {}
 
         public func run() async throws {
-            var volumes: [Volume] = []
+            let uniqueNames = Set(names)
+            let volumes = try await ClientVolume.list().filter { uniqueNames.contains($0.id) }
+            let volumeResources = volumes.map { VolumeResource(configuration: $0) }
 
-            for name in names {
-                let volume = try await ClientVolume.inspect(name)
-                volumes.append(volume)
+            if volumes.count != uniqueNames.count {
+                let found = Set(volumes.map { $0.id })
+                let missing = uniqueNames.subtracting(found).sorted()
+                throw ContainerizationError(
+                    .notFound,
+                    message: "volume not found: \(missing.joined(separator: ", "))"
+                )
             }
 
-            let options = JSONOptions(
-                outputFormatting: [.prettyPrinted, .sortedKeys],
-                dateEncodingStrategy: .iso8601
-            )
-            try Output.emit(Output.renderJSON(volumes, options: options))
+            try Output.emit(Output.renderJSON(volumeResources, options: .pretty))
         }
     }
 }

@@ -27,11 +27,6 @@ import TerminalProgress
 public struct Utility {
     static let publishedPortCountLimit = 64
 
-    private static let infraImages = [
-        DefaultsStore.get(key: .defaultBuilderImage),
-        DefaultsStore.get(key: .defaultInitImage),
-    ]
-
     public static func createContainerID(name: String?) -> String {
         guard let name else {
             return UUID().uuidString.lowercased()
@@ -39,8 +34,8 @@ public struct Utility {
         return name
     }
 
-    public static func isInfraImage(name: String) -> Bool {
-        for infraImage in infraImages {
+    public static func isInfraImage(name: String, builderImage: String, initImage: String) -> Bool {
+        for infraImage in [builderImage, initImage] {
             if name == infraImage {
                 return true
             }
@@ -49,12 +44,11 @@ public struct Utility {
     }
 
     public static func trimDigest(digest: String) -> String {
-        var digest = digest
-        digest.trimPrefix("sha256:")
-        if digest.count > 24 {
-            digest = String(digest.prefix(24)) + "..."
+        var hex = digest
+        if let colonIndex = digest.firstIndex(of: ":") {
+            hex = String(digest[digest.index(after: colonIndex)...])
         }
-        return digest
+        return String(hex.prefix(12))
     }
 
     public static func validEntityName(_ name: String) throws {
@@ -82,6 +76,7 @@ public struct Utility {
         resource: Flags.Resource,
         registry: Flags.Registry,
         imageFetch: Flags.ImageFetch,
+        containerSystemConfig: ContainerSystemConfig,
         progressUpdate: @escaping ProgressUpdateHandler,
         log: Logger
     ) async throws -> (ContainerConfiguration, Kernel, String?) {
@@ -103,6 +98,7 @@ public struct Utility {
             reference: image,
             platform: requestedPlatform,
             scheme: scheme,
+            containerSystemConfig: containerSystemConfig,
             progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progressUpdate),
             maxConcurrentDownloads: imageFetch.maxConcurrentDownloads
         )
@@ -130,9 +126,10 @@ public struct Utility {
             .setItemsName("blobs"),
         ])
         let fetchInitTask = await taskManager.startTask()
-        let initImageRef = management.initImage ?? ClientImage.initImageRef
+        let initImageRef = management.initImage ?? containerSystemConfig.vminit.image
         let initImage = try await ClientImage.fetch(
             reference: initImageRef, platform: .current, scheme: scheme,
+            containerSystemConfig: containerSystemConfig,
             progressUpdate: ProgressTaskCoordinator.handler(for: fetchInitTask, from: progressUpdate),
             maxConcurrentDownloads: imageFetch.maxConcurrentDownloads)
 
@@ -161,7 +158,9 @@ public struct Utility {
 
         config.resources = try Parser.resources(
             cpus: resource.cpus,
-            memory: resource.memory
+            memory: resource.memory,
+            defaultCPUs: containerSystemConfig.container.cpus,
+            defaultMemory: containerSystemConfig.container.memory
         )
 
         let tmpfs = try Parser.tmpfsMounts(management.tmpFs)
@@ -191,6 +190,12 @@ public struct Utility {
 
         config.mounts = resolvedMounts
 
+        if let shmSizeStr = management.shmSize {
+            let measurement = try Measurement.parse(parsing: shmSizeStr)
+            let bytes = measurement.converted(to: .bytes)
+            config.shmSize = UInt64(bytes.value)
+        }
+
         config.virtualization = management.virtualization
 
         // Parse network specifications with properties
@@ -206,20 +211,18 @@ public struct Utility {
             config.networks = try getAttachmentConfigurations(
                 containerId: config.id,
                 builtinNetworkId: builtinNetworkId,
-                networks: parsedNetworks
+                networks: parsedNetworks,
+                dnsDomain: containerSystemConfig.dns.domain,
             )
             for attachmentConfiguration in config.networks {
-                let network: NetworkState = try await networkClient.get(id: attachmentConfiguration.network)
-                guard case .running(_, _) = network else {
-                    throw ContainerizationError(.invalidState, message: "network \(attachmentConfiguration.network) is not running")
-                }
+                _ = try await networkClient.get(id: attachmentConfiguration.network)
             }
         }
 
         if management.dnsDisabled {
             config.dns = nil
         } else {
-            let domain = management.dns.domain ?? DefaultsStore.getOptional(key: .defaultDNSDomain)
+            let domain = management.dns.domain ?? containerSystemConfig.dns.domain
             config.dns = .init(
                 nameservers: management.dns.nameservers,
                 domain: domain,
@@ -255,6 +258,7 @@ public struct Utility {
         let caps = try Parser.capabilities(capAdd: management.capAdd, capDrop: management.capDrop)
         config.capAdd = caps.capAdd
         config.capDrop = caps.capDrop
+        config.stopSignal = imageConfig?.stopSignal
 
         if let runtime = management.runtime {
             config.runtimeHandler = runtime
@@ -266,7 +270,8 @@ public struct Utility {
     static func getAttachmentConfigurations(
         containerId: String,
         builtinNetworkId: String?,
-        networks: [Parser.ParsedNetwork]
+        networks: [Parser.ParsedNetwork],
+        dnsDomain: String?,
     ) throws -> [AttachmentConfiguration] {
         // Validate MAC addresses if provided
         for network in networks {
@@ -279,7 +284,7 @@ public struct Utility {
         let fqdn: String?
         if !containerId.contains(".") {
             // add default domain if it exists, and container ID is unqualified
-            if let dnsDomain = DefaultsStore.getOptional(key: .defaultDNSDomain) {
+            if let dnsDomain {
                 fqdn = "\(containerId).\(dnsDomain)."
             } else {
                 fqdn = nil
@@ -358,10 +363,10 @@ public struct Utility {
 
     /// Gets an existing volume or creates it if it doesn't exist.
     /// Shows a warning for named volumes when auto-creating.
-    private static func getOrCreateVolume(parsed: ParsedVolume, log: Logger) async throws -> Volume {
-        let labels = parsed.isAnonymous ? [Volume.anonymousLabel: ""] : [:]
+    private static func getOrCreateVolume(parsed: ParsedVolume, log: Logger) async throws -> VolumeConfiguration {
+        let labels = parsed.isAnonymous ? [VolumeConfiguration.anonymousLabel: ""] : [:]
 
-        let volume: Volume
+        let volume: VolumeConfiguration
         var wasCreated = false
         do {
             volume = try await ClientVolume.create(

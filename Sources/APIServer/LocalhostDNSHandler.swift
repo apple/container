@@ -23,6 +23,7 @@ import DNSServer
 import Foundation
 import Logging
 import Synchronization
+import SystemPackage
 
 actor LocalhostDNSHandler: DNSHandler {
     private let ttl: UInt32
@@ -30,25 +31,30 @@ actor LocalhostDNSHandler: DNSHandler {
 
     private var dns: [DNSName: IPv4Address]
 
-    public init(resolversURL: URL = HostDNSResolver.defaultConfigPath, ttl: UInt32 = 5, log: Logger) {
+    public init(configPath: FilePath = HostDNSResolver.defaultConfigPath, ttl: UInt32 = 5, log: Logger) {
         self.ttl = ttl
 
-        self.watcher = DirectoryWatcher(directoryURL: resolversURL, log: log)
+        self.watcher = DirectoryWatcher(directoryPath: configPath, log: log)
         self.dns = [DNSName: IPv4Address]()
     }
 
     public func monitorResolvers() async {
-        await self.watcher.startWatching { [weak self] fileURLs in
+        await self.watcher.startWatching { [weak self] filePaths in
             var dns: [DNSName: IPv4Address] = [:]
             let regex = try Regex(HostDNSResolver.localhostOptionsRegex)
 
-            for file in fileURLs.filter({ $0.lastPathComponent.starts(with: HostDNSResolver.containerizationPrefix) }) {
-                let content = try String(contentsOf: file, encoding: .utf8)
+            for file in filePaths.filter({
+                $0.lastComponent?.string.starts(with: HostDNSResolver.containerizationPrefix) == true
+            }) {
+                let content = try String(contentsOfFile: file.string, encoding: .utf8)
 
                 if let match = content.firstMatch(of: regex),
                     let ipv4 = (match[1].substring.flatMap { try? IPv4Address(String($0)) })
                 {
-                    let name = String(file.lastPathComponent.dropFirst(HostDNSResolver.containerizationPrefix.count))
+                    guard let lastName = file.lastComponent?.string else {
+                        continue
+                    }
+                    let name = String(lastName.dropFirst(HostDNSResolver.containerizationPrefix.count))
                     guard let dnsName = try? DNSName(name) else {
                         continue
                     }

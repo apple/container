@@ -49,7 +49,7 @@ extension TestCLIBuildBase {
 
             #expect(response.status == 0, "build with tar export should succeed")
             #expect(FileManager.default.fileExists(atPath: exportPath.path), "tar file should exist at \(exportPath.path)")
-            #expect(response.output.contains("Successfully exported to \(exportPath.path)"), "should show export success message")
+            #expect(response.output.contains(exportPath.path), "should show export success message")
 
             let attributes = try FileManager.default.attributesOfItem(atPath: exportPath.path)
             let fileSize = attributes[.size] as? Int ?? 0
@@ -79,7 +79,7 @@ extension TestCLIBuildBase {
 
             let expectedTar = exportDir.appendingPathComponent("out.tar")
             #expect(FileManager.default.fileExists(atPath: expectedTar.path), "tar file should exist at \(expectedTar.path)")
-            #expect(response.output.contains("Successfully exported to \(expectedTar.path)"), "should show export success message")
+            #expect(response.output.contains(expectedTar.path), "should show export success message")
         }
 
         @Test func testBuildExportTarMultipleRuns() throws {

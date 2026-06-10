@@ -196,6 +196,7 @@ public struct Flags {
             rosetta: Bool,
             runtime: String?,
             ssh: Bool,
+            shmSize: String?,
             tmpFs: [String],
             useInit: Bool,
             virtualization: Bool,
@@ -224,6 +225,7 @@ public struct Flags {
             self.rosetta = rosetta
             self.runtime = runtime
             self.ssh = ssh
+            self.shmSize = shmSize
             self.tmpFs = tmpFs
             self.useInit = useInit
             self.virtualization = virtualization
@@ -336,6 +338,9 @@ public struct Flags {
         @Flag(name: .long, help: "Forward SSH agent socket to container")
         public var ssh = false
 
+        @Option(name: .customLong("shm-size"), help: "Size of /dev/shm (e.g. 64M, 1G)")
+        public var shmSize: String?
+
         @Option(name: .customLong("tmpfs"), help: "Add a tmpfs mount to the container at the given path")
         public var tmpFs: [String] = []
 
@@ -348,6 +353,21 @@ public struct Flags {
 
         @Option(name: [.customLong("volume"), .short], help: "Bind mount a volume into the container")
         public var volumes: [String] = []
+
+        public func validate() throws {
+            if dnsDisabled {
+                let hasDNSConfig =
+                    !dns.nameservers.isEmpty
+                    || dns.domain != nil
+                    || !dns.options.isEmpty
+                    || !dns.searchDomains.isEmpty
+                if hasDNSConfig {
+                    throw ValidationError(
+                        "`--no-dns` cannot be used with DNS configuration flags (`--dns`, `--dns-domain`, `--dns-option`, `--dns-search`)"
+                    )
+                }
+            }
+        }
     }
 
     @OptionGroupPassthrough

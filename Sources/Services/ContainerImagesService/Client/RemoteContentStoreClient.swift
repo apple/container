@@ -143,6 +143,13 @@ public struct RemoteContentStoreClient: ContentStore {
         request.set(key: .ingestSessionId, value: id)
         try await client.send(request)
     }
+
+    public func totalAllocatedSize() async throws -> UInt64 {
+        let client = Self.newClient()
+        let request = XPCMessage(route: .contentSize)
+        let response = try await client.send(request)
+        return response.uint64(key: .imageSize)
+    }
 }
 
 #endif

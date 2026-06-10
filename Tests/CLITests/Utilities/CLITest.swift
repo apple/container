@@ -16,6 +16,7 @@
 
 import AsyncHTTPClient
 import ContainerLog
+import ContainerPersistence
 import ContainerResource
 import Containerization
 import ContainerizationOS
@@ -23,17 +24,16 @@ import Foundation
 import Logging
 import Synchronization
 import SystemPackage
+import TOML
 import Testing
 
 class CLITest {
     private static let commandSeq = Mutex<Int>(0)
-    struct Image: Codable {
-        let reference: String
-    }
 
     // These structs need to track their counterpart presentation structs in CLI.
-    struct ImageInspectOutput: Codable {
-        let name: String
+    struct ImageResourceOutput: Codable {
+        let configuration: imageConfiguration
+
         let variants: [variant]
         struct variant: Codable {
             let platform: imagePlatform
@@ -44,11 +44,19 @@ class CLITest {
         }
     }
 
+    struct imageConfiguration: Codable {
+        let name: String
+    }
+
     struct NetworkInspectOutput: Codable {
+        struct Status: Codable {
+            let ipv4Subnet: String?
+            let ipv4Gateway: String?
+            let ipv6Subnet: String?
+        }
         let id: String
-        let state: String
-        let config: NetworkConfiguration
-        let status: NetworkStatus?
+        let configuration: NetworkConfiguration
+        let status: Status
     }
 
     let testName: String
@@ -99,43 +107,18 @@ class CLITest {
             let fileManager = FileManager.default
             let currentDir = fileManager.currentDirectoryPath
 
-            let releaseURL = URL(fileURLWithPath: currentDir)
-                .appendingPathComponent(".build")
-                .appendingPathComponent("release")
+            let binURL = URL(fileURLWithPath: currentDir)
+                .appendingPathComponent("bin")
                 .appendingPathComponent("container")
 
-            let debugURL = URL(fileURLWithPath: currentDir)
-                .appendingPathComponent(".build")
-                .appendingPathComponent("debug")
-                .appendingPathComponent("container")
-
-            let releaseExists = fileManager.fileExists(atPath: releaseURL.path)
-            let debugExists = fileManager.fileExists(atPath: debugURL.path)
-
-            if releaseExists && debugExists {  // choose the latest build
-                do {
-                    let releaseAttributes = try fileManager.attributesOfItem(atPath: releaseURL.path)
-                    let debugAttributes = try fileManager.attributesOfItem(atPath: debugURL.path)
-
-                    if let releaseDate = releaseAttributes[.modificationDate] as? Date,
-                        let debugDate = debugAttributes[.modificationDate] as? Date
-                    {
-                        return (releaseDate > debugDate) ? releaseURL : debugURL
-                    }
-                } catch {
-                    throw CLIError.binaryAttributesNotFound(error)
-                }
-            } else if releaseExists {
-                return releaseURL
-            } else if debugExists {
-                return debugURL
+            guard fileManager.fileExists(atPath: binURL.path) else {
+                throw CLIError.binaryNotFound
             }
-            // both do not exist
-            throw CLIError.binaryNotFound
+            return binURL
         }
     }
 
-    func run(arguments: [String], stdin: Data? = nil, currentDirectory: URL? = nil, env: [String: String] = [:]) throws -> (
+    func run(arguments: [String], stdin: Data? = nil, currentDirectory: URL? = nil, tty: Bool = false, env: [String: String] = [:]) throws -> (
         outputData: Data, output: String, error: String, status: Int32
     ) {
         let seq = CLITest.commandSeq.withLock { counter in
@@ -164,24 +147,49 @@ class CLITest {
             process.environment = processEnv
         }
 
-        let inputPipe = Pipe()
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
-        process.standardInput = inputPipe
-        process.standardOutput = outputPipe
-        process.standardError = errorPipe
+        var inputPipe: Pipe?
+        if tty {
+            let terminal = try Terminal.create()
+            process.standardInput = terminal.child.handle
+        } else {
+            let pipe = Pipe()
+            process.standardInput = pipe
+            inputPipe = pipe
+        }
 
         let outputData: Data
         let errorData: Data
         do {
-            try process.run()
-            if let data = stdin {
-                inputPipe.fileHandleForWriting.write(data)
+            // Redirect stdout/stderr to temp files so the child process never
+            // blocks on `write()` when one stream fills the kernel pipe buffer
+            // before the parent drains it (issue #1456).
+            let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer {
+                try? FileManager.default.removeItem(at: tempDir)
             }
-            inputPipe.fileHandleForWriting.closeFile()
-            outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-            errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+
+            let stdoutURL = tempDir.appendingPathComponent("stdout")
+            let stderrURL = tempDir.appendingPathComponent("stderr")
+            FileManager.default.createFile(atPath: stdoutURL.path, contents: nil)
+            FileManager.default.createFile(atPath: stderrURL.path, contents: nil)
+
+            let stdoutHandle = try FileHandle(forWritingTo: stdoutURL)
+            defer { try? stdoutHandle.close() }
+            let stderrHandle = try FileHandle(forWritingTo: stderrURL)
+            defer { try? stderrHandle.close() }
+            process.standardOutput = stdoutHandle
+            process.standardError = stderrHandle
+
+            try process.run()
+            if let data = stdin, let pipe = inputPipe {
+                pipe.fileHandleForWriting.write(data)
+            }
+            inputPipe?.fileHandleForWriting.closeFile()
             process.waitUntilExit()
+
+            outputData = try Data(contentsOf: stdoutURL)
+            errorData = try Data(contentsOf: stderrURL)
         } catch {
             throw CLIError.executionFailed("Failed to run CLI: \(error)")
         }
@@ -247,7 +255,6 @@ class CLITest {
         case containerNotFound(String)
         case containerRunFailed(String)
         case binaryNotFound
-        case binaryAttributesNotFound(Error)
     }
 
     func doLongRun(
@@ -310,13 +317,13 @@ class CLITest {
         return resp
     }
 
-    func doStop(name: String, signal: String = "SIGKILL") throws {
-        let (_, _, error, status) = try run(arguments: [
-            "stop",
-            "-s",
-            signal,
-            name,
-        ])
+    func doStop(name: String, signal: String? = "SIGKILL") throws {
+        var arguments = ["stop"]
+        if let signal {
+            arguments.append(contentsOf: ["-s", signal])
+        }
+        arguments.append(name)
+        let (_, _, error, status) = try run(arguments: arguments)
         if status != 0 {
             throw CLIError.executionFailed("command failed: \(error)")
         }
@@ -370,13 +377,19 @@ class CLITest {
     }
 
     struct inspectOutput: Codable {
-        let status: String
+        struct Status: Codable {
+            let state: String
+            let networks: [ContainerResource.Attachment]
+        }
         let configuration: ContainerConfiguration
-        let networks: [ContainerResource.Attachment]
+        let status: Status
+
+        /// Convenience passthrough: network attachments now live under `status`.
+        var networks: [ContainerResource.Attachment] { status.networks }
     }
 
     func getContainerStatus(_ name: String) throws -> String {
-        try inspectContainer(name).status
+        try inspectContainer(name).status.state
     }
 
     func getContainerId(_ name: String) throws -> String {
@@ -399,6 +412,7 @@ class CLITest {
         }
 
         let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601  // CLI encodes dates (e.g. creationDate) as ISO8601
 
         typealias inspectOutputs = [inspectOutput]
 
@@ -428,7 +442,7 @@ class CLITest {
         let decoder = JSONDecoder()
 
         struct inspectOutput: Codable {
-            let name: String
+            let configuration: imageConfiguration
         }
 
         typealias inspectOutputs = [inspectOutput]
@@ -437,7 +451,7 @@ class CLITest {
         guard io.count > 0 else {
             throw CLIError.containerNotFound(name)
         }
-        return io[0].name
+        return io[0].configuration.name
     }
 
     func doPull(imageName: String, args: [String]? = nil) throws {
@@ -470,7 +484,7 @@ class CLITest {
         return out.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: .newlines)
     }
 
-    func doInspectImages(image: String) throws -> [ImageInspectOutput] {
+    func doInspectImages(image: String) throws -> [ImageResourceOutput] {
         let (_, output, error, status) = try run(arguments: [
             "image",
             "inspect",
@@ -486,34 +500,15 @@ class CLITest {
         }
 
         let decoder = JSONDecoder()
-        return try decoder.decode([ImageInspectOutput].self, from: jsonData)
+        return try decoder.decode([ImageResourceOutput].self, from: jsonData)
     }
 
-    func doDefaultRegistrySet(domain: String) throws {
-        let args = [
-            "system",
-            "property",
-            "set",
-            "registry.domain",
-            domain,
-        ]
-        let (_, _, error, status) = try run(arguments: args)
-        if status != 0 {
-            throw CLIError.executionFailed("command failed: \(error)")
+    func getSystemConfig() throws -> ContainerSystemConfig {
+        let (_, output, err, status) = try run(arguments: ["system", "property", "list", "--format", "toml"])
+        guard status == 0 else {
+            throw CLIError.executionFailed("system property list failed (\(status)): \(err)")
         }
-    }
-
-    func doDefaultRegistryUnset() throws {
-        let args = [
-            "system",
-            "property",
-            "clear",
-            "registry.domain",
-        ]
-        let (_, _, error, status) = try run(arguments: args)
-        if status != 0 {
-            throw CLIError.executionFailed("command failed: \(error)")
-        }
+        return try TOMLDecoder().decode(ContainerSystemConfig.self, from: Data(output.utf8))
     }
 
     func doRemove(name: String, force: Bool = false) throws {
@@ -580,14 +575,14 @@ class CLITest {
     func isImagePresent(targetImage: String) throws -> Bool {
         let images = try doListImages()
         return images.contains(where: { image in
-            if image.reference == targetImage {
+            if image.configuration.name == targetImage {
                 return true
             }
             return false
         })
     }
 
-    func doListImages() throws -> [Image] {
+    func doListImages() throws -> [ImageResourceOutput] {
         let (_, output, error, status) = try run(arguments: [
             "image",
             "list",
@@ -603,7 +598,7 @@ class CLITest {
         }
 
         let decoder = JSONDecoder()
-        return try decoder.decode([Image].self, from: jsonData)
+        return try decoder.decode([ImageResourceOutput].self, from: jsonData)
     }
 
     func doImageTag(image: String, newName: String) throws {

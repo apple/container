@@ -32,6 +32,8 @@ public enum XPCKeys: String {
     case containerConfig
     /// Container options key.
     case containerOptions
+    /// Opaque runtime-specific data.
+    case runtimeData
     /// Vsock port number key.
     case port
     /// Exit code for a process
@@ -101,8 +103,8 @@ public enum XPCKeys: String {
     /// Network
     case networkId
     case networkConfig
-    case networkState
-    case networkStates
+    case networkResource
+    case networkResources
 
     /// Kernel
     case kernel
@@ -134,6 +136,12 @@ public enum XPCKeys: String {
 
     /// Disk usage
     case diskUsageStats
+
+    /// Copy parameters
+    case sourcePath
+    case destinationPath
+    case fileMode
+    case createParents
 }
 
 public enum XPCRoute: String {
@@ -153,6 +161,8 @@ public enum XPCRoute: String {
     case containerEvent
     case containerStats
     case containerDiskUsage
+    case containerCopyIn
+    case containerCopyOut
     case containerExport
 
     case pluginLoad

@@ -17,6 +17,7 @@
 import Foundation
 import Testing
 
+@Suite(.serialSuites)
 class TestCLIRegistry: CLITest {
     @Test func testListDefaultFormat() throws {
         let (_, output, error, status) = try run(arguments: ["registry", "list"])

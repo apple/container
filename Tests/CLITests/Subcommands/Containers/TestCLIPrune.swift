@@ -17,19 +17,19 @@
 import Foundation
 import Testing
 
-@Suite(.serialized)
+@Suite(.serialSuites, .serialized)
 class TestCLIPruneCommand: CLITest {
     private func getTestName() -> String {
         Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
     }
 
     @Test func testContainerPruneNoContainers() throws {
-        let (_, output, error, status) = try run(arguments: ["prune"])
+        let (_, _, error, status) = try run(arguments: ["prune"])
         if status != 0 {
             throw CLIError.executionFailed("container prune failed: \(error)")
         }
 
-        #expect(output.contains("Reclaimed Zero KB in disk space"), "should show no containers message")
+        #expect(error.contains("Reclaimed Zero KB in disk space"), "should show no containers message")
     }
 
     @Test func testContainerPruneStoppedContainers() throws {
@@ -79,7 +79,7 @@ class TestCLIPruneCommand: CLITest {
         }
 
         #expect(output.contains(pc0Id) && output.contains(pc1Id), "should show the stopped containers id")
-        #expect(!output.contains("Reclaimed Zero KB in disk space"), "reclaimed spaces should not Zero KB")
+        #expect(!error.contains("Reclaimed Zero KB in disk space"), "reclaimed spaces should not Zero KB")
 
         let checkStatus = try getContainerStatus(npcName)
         #expect(checkStatus == "running", "not pruned container should still be running")

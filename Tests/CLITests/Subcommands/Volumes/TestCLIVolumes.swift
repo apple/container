@@ -18,7 +18,7 @@ import ContainerAPIClient
 import Foundation
 import Testing
 
-@Suite(.serialized)
+@Suite(.serialSuites, .serialized)
 class TestCLIVolumes: CLITest {
 
     func doVolumeCreate(name: String) throws {
@@ -248,6 +248,8 @@ class TestCLIVolumes: CLITest {
         }
 
         #expect(inspectOutput.contains(volumeName), "volume inspect should contain volume name")
+        #expect(inspectOutput.contains("\"creationDate\""), "inspect JSON should use creationDate key")
+        #expect(!inspectOutput.contains("\"createdAt\""), "inspect JSON must not use deprecated createdAt key")
 
         // Delete volume
         try doVolumeDelete(name: volumeName)
@@ -327,12 +329,12 @@ class TestCLIVolumes: CLITest {
 
     @Test func testVolumePruneNoVolumes() throws {
         // Prune with no volumes should succeed with 0 reclaimed
-        let (_, output, error, status) = try run(arguments: ["volume", "prune"])
+        let (_, _, error, status) = try run(arguments: ["volume", "prune"])
         if status != 0 {
             throw CLIError.executionFailed("volume prune failed: \(error)")
         }
 
-        #expect(output.contains("Zero KB"), "should show no space reclaimed")
+        #expect(error.contains("Zero KB"), "should show no space reclaimed")
     }
 
     @Test func testVolumePruneUnusedVolumes() throws {
@@ -364,7 +366,7 @@ class TestCLIVolumes: CLITest {
 
         #expect(output.contains(volumeName1) || !output.contains("No volumes to prune"), "should prune volume1")
         #expect(output.contains(volumeName2) || !output.contains("No volumes to prune"), "should prune volume2")
-        #expect(output.contains("Reclaimed"), "should show reclaimed space")
+        #expect(error.contains("Reclaimed"), "should show reclaimed space")
 
         // Verify volumes are gone
         let (_, listAfter, _, statusAfter) = try run(arguments: ["volume", "list", "--quiet"])
@@ -451,5 +453,113 @@ class TestCLIVolumes: CLITest {
         let (_, listFinal, _, statusFinal) = try run(arguments: ["volume", "list", "--quiet"])
         #expect(statusFinal == 0)
         #expect(!listFinal.contains(volumeName), "volume should be pruned after container is deleted")
+    }
+
+    // MARK: - Delete validation tests
+
+    @Test func testVolumeDeleteNoArgs() throws {
+        let (_, _, _, status) = try run(arguments: ["volume", "delete"])
+        #expect(status != 0, "Expected non-zero exit when no args and no --all")
+    }
+
+    @Test func testVolumeDeleteExplicitNamesConflictWithAll() throws {
+        let (_, _, error, status) = try run(arguments: ["volume", "delete", "--all", "some-volume"])
+        #expect(status != 0, "Expected non-zero exit for conflicting flags")
+        #expect(error.contains("conflict"))
+    }
+
+    // MARK: - Inspect validation tests
+
+    @Test func testVolumeInspectMissingFails() throws {
+        let (_, _, error, status) = try run(arguments: ["volume", "inspect", "definitely-missing-volume"])
+        #expect(status != 0, "Expected non-zero exit for missing volume")
+        #expect(error.contains("volume not found"))
+    }
+
+    // MARK: - Journal option tests
+
+    @Test func testVolumeCreateWithJournalOrdered() throws {
+        let testName = getTestName()
+        let volumeName = "\(testName)_vol"
+
+        doVolumeDeleteIfExists(name: volumeName)
+        defer { doVolumeDeleteIfExists(name: volumeName) }
+
+        let (_, _, error, status) = try run(arguments: [
+            "volume", "create", "--opt", "journal=ordered", volumeName,
+        ])
+        #expect(status == 0, "volume create with journal=ordered should succeed: \(error)")
+
+        let (_, listOutput, _, listStatus) = try run(arguments: ["volume", "list", "--quiet"])
+        #expect(listStatus == 0)
+        #expect(listOutput.contains(volumeName), "journaled volume should appear in list")
+    }
+
+    @Test func testVolumeCreateWithJournalAndSize() throws {
+        let testName = getTestName()
+        let volumeName = "\(testName)_vol"
+
+        doVolumeDeleteIfExists(name: volumeName)
+        defer { doVolumeDeleteIfExists(name: volumeName) }
+
+        let (_, _, error, status) = try run(arguments: [
+            "volume", "create", "--opt", "journal=writeback:64m", volumeName,
+        ])
+        #expect(status == 0, "volume create with journal=writeback:64m should succeed: \(error)")
+    }
+
+    @Test func testVolumeCreateWithInvalidJournalModeErrors() throws {
+        let testName = getTestName()
+        let volumeName = "\(testName)_vol"
+
+        doVolumeDeleteIfExists(name: volumeName)
+        defer { doVolumeDeleteIfExists(name: volumeName) }
+
+        let (_, _, _, status) = try run(arguments: [
+            "volume", "create", "--opt", "journal=none", volumeName,
+        ])
+        #expect(status != 0, "volume create with journal=none should fail")
+    }
+
+    @Test func testJournaledVolumeDataPersistence() throws {
+        let testName = getTestName()
+        let volumeName = "\(testName)_vol"
+        let container1Name = "\(testName)_c1"
+        let container2Name = "\(testName)_c2"
+        let testData = "journaled-data"
+        let testFile = "/data/test.txt"
+
+        doVolumeDeleteIfExists(name: volumeName)
+        doRemoveIfExists(name: container1Name, force: true)
+        doRemoveIfExists(name: container2Name, force: true)
+
+        defer {
+            try? doStop(name: container1Name)
+            doRemoveIfExists(name: container1Name, force: true)
+            try? doStop(name: container2Name)
+            doRemoveIfExists(name: container2Name, force: true)
+            doVolumeDeleteIfExists(name: volumeName)
+        }
+
+        let (_, _, createError, createStatus) = try run(arguments: [
+            "volume", "create", "--opt", "journal=ordered", volumeName,
+        ])
+        guard createStatus == 0 else {
+            throw CLIError.executionFailed("volume create failed: \(createError)")
+        }
+
+        try doLongRun(name: container1Name, args: ["-v", "\(volumeName):/data"])
+        try waitForContainerRunning(container1Name)
+        _ = try doExec(name: container1Name, cmd: ["sh", "-c", "echo '\(testData)' > \(testFile)"])
+        try doStop(name: container1Name)
+
+        try doLongRun(name: container2Name, args: ["-v", "\(volumeName):/data"])
+        try waitForContainerRunning(container2Name)
+        var output = try doExec(name: container2Name, cmd: ["cat", testFile])
+        output = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        #expect(output == testData, "expected '\(testData)', got '\(output)'")
+
+        try doStop(name: container2Name)
+        try doVolumeDelete(name: volumeName)
     }
 }

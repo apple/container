@@ -15,7 +15,6 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
-import ContainerPersistence
 import ContainerResource
 import Containerization
 import ContainerizationError
@@ -35,15 +34,17 @@ public actor SnapshotStore {
     /// If the given platform for the image cannot be unpacked return `nil`.
     public typealias UnpackStrategy = @Sendable (Containerization.Image, Platform) async throws -> Unpacker?
 
-    public static let defaultUnpackStrategy: UnpackStrategy = { image, platform in
-        guard platform.os == "linux" else {
-            return nil
+    public static func defaultUnpackStrategy(initImage: String) -> UnpackStrategy {
+        { image, platform in
+            guard platform.os == "linux" else {
+                return nil
+            }
+            var minBlockSize = 512.gib()
+            if image.reference == initImage {
+                minBlockSize = 512.mib()
+            }
+            return EXT4Unpacker(blockSizeInBytes: minBlockSize)
         }
-        var minBlockSize = 512.gib()
-        if image.reference == DefaultsStore.get(key: .defaultInitImage) {
-            minBlockSize = 512.mib()
-        }
-        return EXT4Unpacker(blockSizeInBytes: minBlockSize)
     }
 
     let path: URL
@@ -182,7 +183,7 @@ public actor SnapshotStore {
             guard self.fm.fileExists(atPath: unpackedPath.absolutePath()) else {
                 continue
             }
-            deletedBytes += (try? self.fm.directorySize(dir: unpackedPath)) ?? 0
+            deletedBytes += self.fm.allocatedSize(of: unpackedPath)
             try self.fm.removeItem(at: unpackedPath)
         }
         return deletedBytes
@@ -212,38 +213,28 @@ public actor SnapshotStore {
     }
 
     /// Get the disk size for a specific snapshot descriptor
-    public func getSnapshotSize(descriptor: Descriptor) throws -> UInt64 {
+    public func getSnapshotSize(descriptor: Descriptor) -> UInt64 {
         let snapshotPath = self.snapshotDir(descriptor)
         guard self.fm.fileExists(atPath: snapshotPath.path) else {
             return 0
         }
-        return try self.fm.directorySize(dir: snapshotPath)
+        return self.fm.allocatedSize(of: snapshotPath)
     }
-}
 
-extension FileManager {
-    fileprivate func directorySize(dir: URL) throws -> UInt64 {
-        var size: UInt64 = 0
-        let resourceKeys: [URLResourceKey] = [.totalFileAllocatedSizeKey]
-
-        guard
-            let enumerator = self.enumerator(
-                at: dir,
-                includingPropertiesForKeys: resourceKeys,
-                options: [.skipsHiddenFiles]
-            )
-        else {
-            return 0
+    /// Returns (trimmed digest, size) pairs for every unpackable snapshot owned by the image.
+    public func getSnapshotSizes(for image: Containerization.Image) async throws -> [(digest: String, size: UInt64)] {
+        var results: [(digest: String, size: UInt64)] = []
+        for descriptor in try await image.unpackableDescriptors() {
+            let size = self.getSnapshotSize(descriptor: descriptor)
+            guard size > 0 else { continue }
+            results.append((descriptor.digest.trimmingDigestPrefix, size))
         }
+        return results
+    }
 
-        for case let fileURL as URL in enumerator {
-            if let resourceValues = try? fileURL.resourceValues(forKeys: [.totalFileAllocatedSizeKey]),
-                let fileSize = resourceValues.totalFileAllocatedSize
-            {
-                size += UInt64(fileSize)
-            }
-        }
-        return size
+    /// Total allocated bytes across all snapshot storage (including orphans).
+    public func totalAllocatedSize() -> UInt64 {
+        self.fm.allocatedSize(of: self.path)
     }
 }
 

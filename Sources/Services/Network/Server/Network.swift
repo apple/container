@@ -1,0 +1,33 @@
+//===----------------------------------------------------------------------===//
+// Copyright © 2025-2026 Apple Inc. and the container project authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//===----------------------------------------------------------------------===//
+
+import ContainerResource
+import ContainerXPC
+
+/// Defines common characteristics and operations for a network.
+public protocol Network: Sendable {
+    /// The network's identifier.
+    var id: String { get }
+
+    /// The network's runtime status. `nil` before ``start()`` completes.
+    var status: NetworkStatus? { get async }
+
+    /// Use implementation-dependent network attributes.
+    nonisolated func withAdditionalData(_ handler: (XPCMessage?) throws -> Void) throws
+
+    /// Start the network.
+    func start() async throws
+}

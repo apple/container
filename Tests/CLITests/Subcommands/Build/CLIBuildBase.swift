@@ -23,7 +23,7 @@ import Testing
 // for these tests are nested in extensions of CLIBuildBase so that we can set
 // the serialized parallelization attribute across all builder tests.
 */
-@Suite(.serialized)
+@Suite(.serialSuites, .serialized)
 class TestCLIBuildBase: CLITest {
     override init() throws {
         try super.init()

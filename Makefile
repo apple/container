@@ -24,13 +24,12 @@ SWIFT := "/usr/bin/swift"
 DEST_DIR ?= /usr/local/
 ROOT_DIR := $(shell git rev-parse --show-toplevel)
 BUILD_BIN_DIR = $(shell $(SWIFT) build -c $(BUILD_CONFIGURATION) --show-bin-path)
-COV_DATA_DIR = $(shell $(SWIFT) test --show-coverage-path | xargs dirname)
-COV_REPORT_FILE = $(ROOT_DIR)/code-coverage-report
 STAGING_DIR := bin/$(BUILD_CONFIGURATION)/staging/
 PKG_PATH := bin/$(BUILD_CONFIGURATION)/container-installer-unsigned.pkg
 DSYM_DIR := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM
 DSYM_PATH := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM.zip
 CODESIGN_OPTS ?= --force --sign - --timestamp=none
+
 
 # Conditionally use a temporary data directory for integration tests
 SYSTEM_START_OPTS :=
@@ -101,6 +100,8 @@ $(STAGING_DIR):
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/bin)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin)"
+	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/bin)"
+	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/resources)"
 
 	@install "$(BUILD_BIN_DIR)/container" "$(join $(STAGING_DIR), bin/container)"
 	@install "$(BUILD_BIN_DIR)/container-apiserver" "$(join $(STAGING_DIR), bin/container-apiserver)"
@@ -110,6 +111,10 @@ $(STAGING_DIR):
 	@install Sources/Plugins/NetworkVmnet/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/config.toml)"
 	@install "$(BUILD_BIN_DIR)/container-core-images" "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin/container-core-images)"
 	@install Sources/Plugins/CoreImages/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/config.toml)"
+	@install "$(BUILD_BIN_DIR)/machine-apiserver" "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/bin/machine-apiserver)"
+	@install Sources/Plugins/MachineAPIServer/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/config.toml)"
+	@install Sources/Plugins/MachineAPIServer/Resources/init "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/resources/init)"
+	@install Sources/Plugins/MachineAPIServer/Resources/create-user.sh "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/resources/create-user.sh)"
 
 	@echo Install update script
 	@install scripts/update-container.sh "$(join $(STAGING_DIR), bin/update-container.sh)"
@@ -124,6 +129,7 @@ installer-pkg: $(STAGING_DIR)
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin/container-core-images)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. --entitlements=signing/container-runtime-linux.entitlements "$(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/bin/container-runtime-linux)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. --entitlements=signing/container-network-vmnet.entitlements "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin/container-network-vmnet)"
+	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/bin/machine-apiserver)"
 
 	@echo Creating application installer
 	@pkgbuild --root "$(STAGING_DIR)" --identifier com.apple.container-installer --install-location /usr/local --version ${RELEASE_VERSION} $(PKG_PATH)
@@ -154,29 +160,121 @@ install-kernel:
 	@echo Starting system to install kernel
 	@bin/container --debug system start --timeout 60 --enable-kernel-install $(SYSTEM_START_OPTS)
 
+
+# Coverage report generation helpers
+# Directory that swift test spits out raw coverage data
+COV_DATA_DIR = $(shell $(SWIFT) test --show-coverage-path | xargs dirname)
+COV_REPORT_FILE = $(ROOT_DIR)/code-coverage-report
+COVERAGE_OUTPUT_DIR := $(ROOT_DIR)/coverage-reports
+TEST_BINARY = $(BUILD_BIN_DIR)/containerPackageTests.xctest/Contents/MacOS/containerPackageTests
+# Set of files we do not want to get caught in the coverage generation
+LLVM_COV_IGNORE := \
+	--ignore-filename-regex=".build/" \
+	--ignore-filename-regex=".pb.swift" \
+	--ignore-filename-regex=".proto" \
+	--ignore-filename-regex=".grpc.swift"
+
+# Generate JSON + HTML coverage reports and a coverage-percent.txt from a profdata file.
+# $(1) = profdata path, $(2) = tier name (unit/integration/combined)
+define GENERATE_COV_REPORTS
+	@echo Exporting $(2) coverage JSON...
+	@xcrun llvm-cov export --compilation-dir=`pwd` \
+		-instr-profile=$(1) \
+		$(LLVM_COV_IGNORE) \
+		$(TEST_BINARY) > $(COVERAGE_OUTPUT_DIR)/$(2)/coverage-summary.json
+	@echo Generating $(2) coverage HTML report...
+	@xcrun llvm-cov show --compilation-dir=`pwd` --format=html \
+		-instr-profile=$(1) \
+		$(LLVM_COV_IGNORE) \
+		-output-dir=$(COVERAGE_OUTPUT_DIR)/$(2)/html \
+		$(TEST_BINARY)
+	@echo Extracting $(2) coverage percentages...
+	@jq -r '"line coverage: \(.data[0].totals.lines.percent | . * 100 | round | . / 100)%\nfunction coverage: \(.data[0].totals.functions.percent | . * 100 | round | . / 100)%"' \
+		$(COVERAGE_OUTPUT_DIR)/$(2)/coverage-summary.json > $(COVERAGE_OUTPUT_DIR)/$(2)/coverage-percent.txt
+	@cat $(COVERAGE_OUTPUT_DIR)/$(2)/coverage-percent.txt
+endef
+
+INTEGRATION_TEST_SUITES ?= \
+	TestCLIHelp \
+	TestCLIStatus \
+	TestCLIVersion \
+	TestCLINetwork \
+	TestCLIRunLifecycle \
+	TestCLIRunCapabilities \
+	TestCLIExecCommand \
+	TestCLICreateCommand \
+	TestCLIRunCommand1 \
+	TestCLIRunCommand2 \
+	TestCLIRunCommand3 \
+	TestCLIPruneCommand \
+	TestCLIRegistry \
+	TestCLIStatsCommand \
+	TestCLIImagesCommand \
+	TestCLIRunBase \
+	TestCLIRunInitImage \
+	TestCLIBuildBase \
+	TestCLIExportCommand \
+	TestCLIVolumes \
+	TestCLIKernelSet \
+	TestCLIAnonymousVolumes \
+	TestCLINotFound \
+	TestCLISystemDF \
+	TestCLIMachineCommand \
+	TestCLIMachineRuntime \
+	TestCLINoParallelCases
+
+empty :=
+space := $(empty) $(empty)
+INTEGRATION_FILTER := $(subst $(space),|,$(strip $(INTEGRATION_TEST_SUITES)))
+
+.PHONY: coverage-build
+coverage-build:
+	@echo Building tests with coverage instrumentation...
+	@$(SWIFT) build --build-tests --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION)
+
 .PHONY: coverage
-coverage: init-block
-	@echo Ensuring apiserver stopped before the coverage analysis
+# Merge the raw coverage data generated from coverage-unit and coverage-integration into one unified report
+coverage: coverage-build coverage-unit coverage-integration
+	@echo Merging combined coverage profdata...
+	@mkdir -p $(COVERAGE_OUTPUT_DIR)/combined
+	@xcrun llvm-profdata merge -sparse \
+		$(COVERAGE_OUTPUT_DIR)/unit/default.profdata \
+		$(COVERAGE_OUTPUT_DIR)/integration/default.profdata \
+		-o $(COVERAGE_OUTPUT_DIR)/combined/default.profdata
+	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/combined/default.profdata,combined)
+
+.PHONY: coverage-unit
+coverage-unit:
+	@echo Running unit test coverage...
+	@rm -f $(COV_DATA_DIR)/*.profraw
+	@mkdir -p $(COVERAGE_OUTPUT_DIR)/unit
+	@$(SWIFT) test --skip-build --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI
+	@echo Merging unit coverage profdata...
+	@xcrun llvm-profdata merge -sparse $(COV_DATA_DIR)/*.profraw -o $(COVERAGE_OUTPUT_DIR)/unit/default.profdata
+	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/unit/default.profdata,unit)
+
+.PHONY: coverage-integration
+coverage-integration: all
+	@echo Ensuring apiserver stopped before the coverage integration tests...
 	@bin/container system stop && sleep 3 && scripts/ensure-container-stopped.sh
-	@bin/container --debug system start $(SYSTEM_START_OPTS) && \
-	echo "Starting coverage analysis" && \
+	@echo Running integration test coverage...
+	@rm -f $(COV_DATA_DIR)/*.profraw
+	@mkdir -p $(COVERAGE_OUTPUT_DIR)/integration
+	@bin/container --debug system start --timeout 60 $(SYSTEM_START_OPTS) && \
+	echo "Starting CLI integration tests with coverage" && \
 	{ \
-		exit_code=0; \
-		$(SWIFT) test --no-parallel --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) || exit_code=1 ; \
-		echo Ensuring apiserver stopped after the CLI integration tests ; \
+		export CLITEST_LOG_ROOT=$(LOG_ROOT) ; \
+		export CONTAINER_CLI_PATH=$(ROOT_DIR)/bin/container ; \
+		$(SWIFT) test --skip-build --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(INTEGRATION_FILTER)" ; \
+		exit_code=$$? ; \
+		cp $(COV_DATA_DIR)/*.profraw $(COVERAGE_OUTPUT_DIR)/integration/ ; \
+		echo Ensuring apiserver stopped after the coverage integration tests ; \
 		scripts/ensure-container-stopped.sh ; \
-		echo Generating code coverage report... ; \
-		xcrun llvm-profdata merge -sparse $(COV_DATA_DIR)/*.profraw -o $(COV_DATA_DIR)/default.profdata ; \
-		xcrun llvm-cov show --compilation-dir=`pwd` \
-			-instr-profile=$(COV_DATA_DIR)/default.profdata \
-			--ignore-filename-regex=".build/" \
-			--ignore-filename-regex=".pb.swift" \
-			--ignore-filename-regex=".proto" \
-			--ignore-filename-regex=".grpc.swift" \
-			$(BUILD_BIN_DIR)/containerPackageTests.xctest/Contents/MacOS/containerPackageTests > $(COV_REPORT_FILE) ; \
-		echo Code coverage report generated: $(COV_REPORT_FILE) ; \
 		exit $${exit_code} ; \
 	}
+	@echo Merging integration coverage profdata...
+	@xcrun llvm-profdata merge -sparse $(COVERAGE_OUTPUT_DIR)/integration/*.profraw -o $(COVERAGE_OUTPUT_DIR)/integration/default.profdata
+	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/integration/default.profdata,integration)
 
 .PHONY: integration
 integration: init-block
@@ -191,32 +289,10 @@ integration: init-block
 	@bin/container --debug system start --timeout 60 --enable-kernel-install $(SYSTEM_START_OPTS) && \
 	echo "Starting CLI integration tests" && \
 	{ \
-		exit_code=0; \
 		CLITEST_LOG_ROOT=$(LOG_ROOT) && export CLITEST_LOG_ROOT ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIHelp || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIStatus || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIVersion || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLINetwork || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunLifecycle || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunCapabilities || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIExecCommand || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLICreateCommand || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunCommand1 || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunCommand2 || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunCommand3 || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIPruneCommand || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRegistry || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIStatsCommand || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIImagesCommand || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunBase || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIRunInitImage || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIBuildBase || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIExportCommand || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIVolumes || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIKernelSet || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLIAnonymousVolumes || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLINotFound || exit_code=1 ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter TestCLINoParallelCases || exit_code=1 ; \
+		CONTAINER_CLI_PATH=$(ROOT_DIR)/bin/container && export CONTAINER_CLI_PATH ; \
+		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(INTEGRATION_FILTER)" ; \
+		exit_code=$$? ; \
 		echo Ensuring apiserver stopped after the CLI integration tests ; \
 		scripts/ensure-container-stopped.sh ; \
 		exit $${exit_code} ; \
@@ -252,12 +328,14 @@ check-licenses:
 
 .PHONY: pre-commit
 pre-commit:
-	cp Scripts/pre-commit.fmt .git/hooks
-	touch .git/hooks/pre-commit
-	cat .git/hooks/pre-commit | grep -v 'hooks/pre-commit\.fmt' > /tmp/pre-commit.new || true
-	echo 'PRECOMMIT_NOFMT=$${PRECOMMIT_NOFMT} $$(git rev-parse --show-toplevel)/.git/hooks/pre-commit.fmt' >> /tmp/pre-commit.new
-	mv /tmp/pre-commit.new .git/hooks/pre-commit
-	chmod +x .git/hooks/pre-commit
+	$(eval HOOKS_DIR := $(shell git rev-parse --git-path hooks))
+	cp scripts/pre-commit.fmt $(HOOKS_DIR)/
+	touch $(HOOKS_DIR)/pre-commit
+	cat $(HOOKS_DIR)/pre-commit | grep -v 'hooks/pre-commit\.fmt' > /tmp/pre-commit.new || true
+	echo 'PRECOMMIT_NOFMT=$${PRECOMMIT_NOFMT} $$(git rev-parse --git-path hooks/pre-commit.fmt)' >> /tmp/pre-commit.new
+	mv /tmp/pre-commit.new $(HOOKS_DIR)/pre-commit
+	chmod +x $(HOOKS_DIR)/pre-commit
+	@./scripts/ensure-hawkeye-exists.sh
 
 .PHONY: serve-docs
 serve-docs:
@@ -285,4 +363,5 @@ clean:
 	@rm -rf bin/ libexec/
 	@rm -rf _site _serve
 	@rm -f $(COV_REPORT_FILE)
+	@rm -rf $(COVERAGE_OUTPUT_DIR)
 	@$(SWIFT) package clean
