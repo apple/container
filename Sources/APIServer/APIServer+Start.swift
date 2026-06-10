@@ -321,10 +321,19 @@ extension APIServer {
             log.info("initializing networks service")
 
             let resourceRoot = appRoot.appending(FilePath.Component("networks"))
+            let defaultNetworkConfig = try NetworkConfiguration(
+                name: NetworkClient.defaultNetworkName,
+                mode: .nat,
+                ipv4Subnet: containerSystemConfig.network.subnet,
+                ipv6Subnet: containerSystemConfig.network.subnetv6,
+                labels: try .init([ResourceLabelKeys.role: ResourceRoleValues.builtin]),
+                plugin: "container-network-vmnet"
+            )
             let service = try await NetworksService(
                 pluginLoader: pluginLoader,
                 resourceRoot: resourceRoot,
                 containersService: containersService,
+                defaultNetworkConfiguration: defaultNetworkConfig,
                 log: log,
                 debugHelpers: debug
             )
@@ -334,15 +343,7 @@ extension APIServer {
                 .first
             if defaultNetwork == nil {
                 // FIXME: default network should be configurable elsewhere
-                let config = try NetworkConfiguration(
-                    name: NetworkClient.defaultNetworkName,
-                    mode: .nat,
-                    ipv4Subnet: containerSystemConfig.network.subnet,
-                    ipv6Subnet: containerSystemConfig.network.subnetv6,
-                    labels: try .init([ResourceLabelKeys.role: ResourceRoleValues.builtin]),
-                    plugin: "container-network-vmnet"
-                )
-                _ = try await service.create(configuration: config)
+                _ = try await service.create(configuration: defaultNetworkConfig)
             }
 
             let harness = NetworksHarness(service: service, log: log)
