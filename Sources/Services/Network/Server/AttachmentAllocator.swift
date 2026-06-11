@@ -1,4 +1,4 @@
-//===----------------------------------------------------------------------===//
+/===----------------------------------------------------------------------===//
 // Copyright © 2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -53,7 +53,7 @@ actor AttachmentAllocator {
     }
 
     /// Retrieve the allocator index for a hostname.
-    func lookup(hostname: String) async throws -> UInt32? {
+    func lookup(hostname: String) throws -> UInt32? {
         hostnames[hostname]
     }
 }
