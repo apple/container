@@ -1,0 +1,14 @@
+{
+  "version": "1.0.0",
+  "organization": "Apple Container",
+  "date": "June 2026",
+  "abstract": "Operational guide for Apple's native `container` CLI on Apple silicon Macs. Helps AI agents install and verify the runtime, run Linux development shells, build and manage OCI images, operate services, networks, volumes, registries, persistent machines, and diagnose vmnet, DNS, VPN, BuildKit, and machine boot failures.",
+  "references": [
+    "https://github.com/apple/container",
+    "https://github.com/apple/container/blob/main/docs/command-reference.md",
+    "https://github.com/apple/container/blob/main/docs/how-to.md",
+    "https://github.com/apple/container/blob/main/docs/container-machine.md",
+    "https://github.com/apple/container/blob/main/docs/container-system-config.md",
+    "https://github.com/apple/containerization"
+  ]
+}
