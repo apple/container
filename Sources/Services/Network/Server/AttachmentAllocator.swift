@@ -1,4 +1,4 @@
-/===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 // Copyright © 2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
