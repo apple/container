@@ -27,8 +27,9 @@ public struct RuntimeConfiguration: Codable, Sendable {
     public let options: ContainerCreateOptions?
     public let runtimeData: Data?
 
-    // TEMPORARY: Retained for decoding old-format files. Plugin migrate handles conversion.
-    // TODO: Remove after migration period.
+    // Legacy fields retained for decoding old-format files.
+    // Only used by the runtime plugin during migration at bootstrap.
+    // TODO: remove after migration period
     public let initialFilesystem: Filesystem?
     public let kernel: Kernel?
     public let containerRootFilesystem: Filesystem?
@@ -37,18 +38,15 @@ public struct RuntimeConfiguration: Codable, Sendable {
         path: URL,
         containerConfiguration: ContainerConfiguration? = nil,
         options: ContainerCreateOptions? = nil,
-        runtimeData: Data? = nil,
-        initialFilesystem: Filesystem? = nil,
-        kernel: Kernel? = nil,
-        containerRootFilesystem: Filesystem? = nil
+        runtimeData: Data? = nil
     ) {
         self.path = path
         self.containerConfiguration = containerConfiguration
         self.options = options
         self.runtimeData = runtimeData
-        self.initialFilesystem = initialFilesystem
-        self.kernel = kernel
-        self.containerRootFilesystem = containerRootFilesystem
+        self.initialFilesystem = nil
+        self.kernel = nil
+        self.containerRootFilesystem = nil
     }
 
     public var runtimeConfigurationPath: URL {
@@ -56,7 +54,6 @@ public struct RuntimeConfiguration: Codable, Sendable {
     }
 
     public func writeRuntimeConfiguration() throws {
-        // Ensure the parent directory exists
         let directory = self.runtimeConfigurationPath.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 

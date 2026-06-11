@@ -116,8 +116,7 @@ extension Application {
 
             let runtimeData = try LinuxRuntimeData.encodeData(
                 kernelPath: kernel.path.path,
-                initImageRef: initImageRef,
-                imageRef: config.image.reference
+                initImageRef: initImageRef
             )
 
             progress.set(description: "Starting container")

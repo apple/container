@@ -16,7 +16,6 @@
 
 import CVersion
 import ContainerAPIClient
-import ContainerPersistence
 import ContainerPlugin
 import ContainerResource
 import ContainerRuntimeClient
@@ -57,7 +56,6 @@ public actor ContainersService {
     private let pluginLoader: PluginLoader
     private let runtimePlugins: [Plugin]
     private let exitMonitor: ExitMonitor
-    private let containerSystemConfig: ContainerSystemConfig
 
     private let lock: AsyncLock
     private var containers: [String: ContainerState]
@@ -68,7 +66,6 @@ public actor ContainersService {
     public init(
         appRoot: URL,
         pluginLoader: PluginLoader,
-        containerSystemConfig: ContainerSystemConfig,
         log: Logger,
         debugHelpers: Bool = false
     ) throws {
@@ -78,7 +75,6 @@ public actor ContainersService {
         self.lock = AsyncLock(log: log)
         self.containerRoot = containerRoot
         self.pluginLoader = pluginLoader
-        self.containerSystemConfig = containerSystemConfig
         self.log = log
         self.debugHelpers = debugHelpers
         self.runtimePlugins = pluginLoader.findPlugins().filter { $0.hasType(.runtime) }
@@ -1086,7 +1082,6 @@ public actor ContainersService {
     private static func isInitProcess(id: String, processID: String) -> Bool {
         id == processID
     }
-
 
     /// Get container configuration, either from existing bundle or from RuntimeConfiguration
     private static func getContainerConfiguration(at path: URL) throws -> (ContainerConfiguration, ContainerCreateOptions?) {

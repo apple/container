@@ -24,7 +24,7 @@ struct RuntimeLinuxHelper: AsyncParsableCommand {
         abstract: "XPC Service for managing a Linux sandbox",
         version: ReleaseVersion.singleLine(appName: "container-runtime-linux"),
         subcommands: [
-            Start.self,
+            Start.self
         ]
     )
 }

@@ -275,20 +275,6 @@ public struct Utility {
         return (config, kernel, initImageRef)
     }
 
-    private static func getKernel(management: Flags.Management) async throws -> Kernel {
-        // For the image itself we'll take the user input and try with it as we can do userspace
-        // emulation for x86, but for the kernel we need it to match the hosts architecture.
-        let s: SystemPlatform = .current
-        if let userKernel = management.kernel {
-            guard FileManager.default.fileExists(atPath: userKernel) else {
-                throw ContainerizationError(.notFound, message: "kernel file not found at path \(userKernel)")
-            }
-            let p = URL(filePath: userKernel)
-            return .init(path: p, platform: s)
-        }
-        return try await ClientKernel.getDefaultKernel(for: s)
-    }
-
     static func getAttachmentConfigurations(
         containerId: String,
         builtinNetworkId: String?,
@@ -349,6 +335,20 @@ public struct Utility {
             throw ContainerizationError(.invalidState, message: "builtin network is not present")
         }
         return [AttachmentConfiguration(network: builtinNetworkId, options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: nil, mtu: 1280))]
+    }
+
+    private static func getKernel(management: Flags.Management) async throws -> Kernel {
+        // For the image itself we'll take the user input and try with it as we can do userspace
+        // emulation for x86, but for the kernel we need it to match the hosts architecture.
+        let s: SystemPlatform = .current
+        if let userKernel = management.kernel {
+            guard FileManager.default.fileExists(atPath: userKernel) else {
+                throw ContainerizationError(.notFound, message: "kernel file not found at path \(userKernel)")
+            }
+            let p = URL(filePath: userKernel)
+            return .init(path: p, platform: s)
+        }
+        return try await ClientKernel.getDefaultKernel(for: s)
     }
 
     /// Parses key-value pairs from command line arguments.

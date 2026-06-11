@@ -1556,37 +1556,47 @@ extension RuntimeService {
     private func createBundle() async throws {
         do {
             let runtimeConfig = try RuntimeConfiguration.readRuntimeConfiguration(from: self.root)
-
-            guard let runtimeDataBlob = runtimeConfig.runtimeData else {
-                throw ContainerizationError(.invalidState, message: "runtime configuration missing runtimeData")
-            }
-
-            let linuxData = try LinuxRuntimeData.decodeData(runtimeDataBlob)
             let initPlatform = SystemPlatform.current.ociPlatform()
             let containerPlatform = runtimeConfig.containerConfiguration?.platform ?? initPlatform
 
-            // Resolve image refs from local cache
-            let allImages = try await ClientImage.list()
-
-            // Resolve init image ref to filesystem (uses kernel/host platform)
-            guard let initImage = allImages.first(where: { $0.reference == linuxData.initImageRef }) else {
-                throw ContainerizationError(.notFound, message: "init image not found: \(linuxData.initImageRef)")
-            }
-            var initFs = try await initImage.getCreateSnapshot(platform: initPlatform)
-            initFs.options = ["ro"]
-
-            // Resolve container image ref to filesystem (uses requested container platform)
+            let initFs: Filesystem
             let containerFs: Filesystem?
-            if let imageRef = linuxData.imageRef {
-                guard let containerImage = allImages.first(where: { $0.reference == imageRef }) else {
-                    throw ContainerizationError(.notFound, message: "container image not found: \(imageRef)")
-                }
-                containerFs = try await containerImage.getCreateSnapshot(platform: containerPlatform)
-            } else {
-                containerFs = runtimeConfig.options?.rootFsOverride
-            }
+            let kernel: Kernel
 
-            let kernel = Kernel(path: URL(fileURLWithPath: linuxData.kernelPath), platform: .current)
+            if let runtimeDataBlob = runtimeConfig.runtimeData {
+                // New format — decode LinuxRuntimeData and resolve refs
+                let linuxData = try LinuxRuntimeData.decodeData(runtimeDataBlob)
+
+                // Resolve the init image reference to a filesystem
+                let systemConfig = try await ConfigurationLoader.load()
+                let initImage = try await ClientImage.get(reference: linuxData.initImageRef, containerSystemConfig: systemConfig)
+                var initFsResolved = try await initImage.getCreateSnapshot(platform: initPlatform)
+                initFsResolved.options = ["ro"]
+                initFs = initFsResolved
+
+                // An explicit root filesystem override takes precedence over resolving
+                // the container image (e.g. a prebuilt persistent root supplied directly).
+                if let override = runtimeConfig.options?.rootFsOverride {
+                    containerFs = override
+                } else if let imageDescription = runtimeConfig.containerConfiguration?.image {
+                    let containerImage = ClientImage(description: imageDescription)
+                    containerFs = try await containerImage.getCreateSnapshot(platform: containerPlatform)
+                } else {
+                    containerFs = nil
+                }
+
+                kernel = Kernel(path: URL(fileURLWithPath: linuxData.kernelPath), platform: .current)
+            } else if let legacyKernel = runtimeConfig.kernel,
+                let legacyInitFs = runtimeConfig.initialFilesystem
+            {
+                // Old-format config — boot directly from the legacy fields.
+                // TODO: remove after migration period
+                initFs = legacyInitFs
+                containerFs = runtimeConfig.containerRootFilesystem
+                kernel = legacyKernel
+            } else {
+                throw ContainerizationError(.invalidState, message: "runtime configuration missing both runtimeData and legacy fields")
+            }
 
             _ = try ContainerResource.Bundle.create(
                 path: runtimeConfig.path,

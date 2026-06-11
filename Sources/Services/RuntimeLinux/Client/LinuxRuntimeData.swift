@@ -23,36 +23,29 @@ public struct LinuxRuntimeData: Codable, Sendable {
     public let variant: String?
     /// Path to the kernel binary on the host.
     public let kernelPath: String
-    /// Reference to the init image (resolved from local cache at bootstrap).
+    /// Reference to the init image, resolved from the local image store at bootstrap.
     public let initImageRef: String
-    /// Reference to the container root image (resolved from local cache at bootstrap).
-    /// Nil when using rootFsOverride.
-    public let imageRef: String?
 
     public init(
         variant: String? = nil,
         kernelPath: String,
-        initImageRef: String,
-        imageRef: String?
+        initImageRef: String
     ) {
         self.variant = variant
         self.kernelPath = kernelPath
         self.initImageRef = initImageRef
-        self.imageRef = imageRef
     }
 
     /// Encode Linux-specific runtime data into an opaque blob to pass through the API server.
     public static func encodeData(
         kernelPath: String,
         initImageRef: String,
-        imageRef: String?,
         variant: String? = nil
     ) throws -> Data {
         let data = LinuxRuntimeData(
             variant: variant,
             kernelPath: kernelPath,
-            initImageRef: initImageRef,
-            imageRef: imageRef
+            initImageRef: initImageRef
         )
         return try JSONEncoder().encode(data)
     }

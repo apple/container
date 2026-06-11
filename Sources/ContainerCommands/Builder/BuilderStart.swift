@@ -283,14 +283,27 @@ extension Application {
             ])
             let kernel = try await ClientKernel.getDefaultKernel(for: .current)
 
+            // Ensure the init image is present locally and resolve it to a canonical
+            // reference for the runtime to load at bootstrap.
+            await progressUpdate([
+                .setDescription("Fetching init image"),
+                .setItemsName("blobs"),
+            ])
+            let initFetchTask = await taskManager.startTask()
+            let initImage = try await ClientImage.fetch(
+                reference: containerSystemConfig.vminit.image,
+                platform: .current,
+                containerSystemConfig: containerSystemConfig,
+                progressUpdate: ProgressTaskCoordinator.handler(for: initFetchTask, from: progressUpdate)
+            )
+
             await progressUpdate([
                 .setDescription("Starting BuildKit container")
             ])
 
             let runtimeData = try LinuxRuntimeData.encodeData(
                 kernelPath: kernel.path.path,
-                initImageRef: containerSystemConfig.vminit.image,
-                imageRef: builderImage
+                initImageRef: initImage.reference
             )
 
             try await client.create(

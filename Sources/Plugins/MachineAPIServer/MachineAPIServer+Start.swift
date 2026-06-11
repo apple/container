@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerLog
+import ContainerPersistence
 import ContainerPlugin
 import ContainerXPC
 import Foundation
@@ -60,7 +61,13 @@ extension MachineAPIServer {
                 log.info("configuring XPC server")
 
                 let resourceRoot = FilePath(resources)
-                let service = try MachinesService(appRoot: pluginStateRoot, resourceRoot: resourceRoot, log: log)
+                let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
+                let service = try MachinesService(
+                    appRoot: pluginStateRoot,
+                    resourceRoot: resourceRoot,
+                    containerSystemConfig: containerSystemConfig,
+                    log: log
+                )
                 let harness = MachinesHarness(service: service)
 
                 let server = XPCServer(

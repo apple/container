@@ -21,14 +21,12 @@ import Containerization
 import Foundation
 import Testing
 
-/// Unit tests for RuntimeConfiguration functionality.
-///
-/// These tests verify the runtime configuration serialization and deserialization,
-/// ensuring that configuration can be properly written, read, and used to create bundles.
+/// Unit tests for RuntimeConfiguration and LinuxRuntimeData serialization,
+/// covering the round-trip of the configuration format and the decoding of
+/// legacy-format configurations the runtime still boots from directly.
 struct RuntimeConfigurationTests {
 
-    /// Test that reading non-existent runtime configuration file throws
-    /// appropriate error
+    /// Reading a non-existent runtime configuration file throws.
     @Test
     func testReadNonExistentRuntimeConfiguration() throws {
         let tempDir = FileManager.default.temporaryDirectory
@@ -39,7 +37,7 @@ struct RuntimeConfigurationTests {
         }
     }
 
-    /// Test that runtime configuration reads and writes as expected
+    /// A RuntimeConfiguration reads, writes, and round-trips through disk.
     @Test
     func testRuntimeConfigurationReadWrite() throws {
         let tempDir = FileManager.default.temporaryDirectory
@@ -49,29 +47,25 @@ struct RuntimeConfigurationTests {
             try? FileManager.default.removeItem(at: bundlePath)
         }
 
-        let linuxData = LinuxRuntimeData(
+        let runtimeData = try LinuxRuntimeData.encodeData(
             kernelPath: "/path/to/kernel",
-            initImageRef: "init:latest",
-            imageRef: "alpine:latest"
-        )
-        let encodedData = try JSONEncoder().encode(linuxData)
-
-        let runtimeConfig = RuntimeConfiguration(
-            path: bundlePath,
-            runtimeData: encodedData
+            initImageRef: "init:latest"
         )
 
+        let runtimeConfig = RuntimeConfiguration(path: bundlePath, runtimeData: runtimeData)
         try runtimeConfig.writeRuntimeConfiguration()
-        let readConfig = try RuntimeConfiguration.readRuntimeConfiguration(from: bundlePath)
 
+        let readConfig = try RuntimeConfiguration.readRuntimeConfiguration(from: bundlePath)
         #expect(readConfig.path == bundlePath)
         #expect(readConfig.runtimeData != nil)
         #expect(readConfig.containerConfiguration == nil)
         #expect(readConfig.options == nil)
+        // A freshly-written configuration carries no legacy fields.
         #expect(readConfig.kernel == nil)
         #expect(readConfig.initialFilesystem == nil)
     }
 
+    /// The variant round-trips through RuntimeConfiguration's runtimeData blob.
     @Test
     func testRuntimeConfigurationWithVariant() throws {
         let tempDir = FileManager.default.temporaryDirectory
@@ -81,146 +75,108 @@ struct RuntimeConfigurationTests {
             try? FileManager.default.removeItem(at: bundlePath)
         }
 
-        let initFs = Filesystem.virtiofs(
-            source: "/path/to/initfs",
-            destination: "/",
-            options: ["ro"]
-        )
-
-        let kernel = Kernel(
-            path: URL(fileURLWithPath: "/path/to/kernel"),
-            platform: .linuxArm
-        )
-
-        let linuxData = LinuxRuntimeData(
-            variant: "test-variant",
+        let runtimeData = try LinuxRuntimeData.encodeData(
             kernelPath: "/path/to/kernel",
             initImageRef: "init:latest",
-            imageRef: "ubuntu:22.04"
-        )
-        let encodedData = try JSONEncoder().encode(linuxData)
-
-        let runtimeConfig = RuntimeConfiguration(
-            path: bundlePath,
-            runtimeData: encodedData,
-            initialFilesystem: initFs,
-            kernel: kernel
+            variant: "test-variant"
         )
 
+        let runtimeConfig = RuntimeConfiguration(path: bundlePath, runtimeData: runtimeData)
         try runtimeConfig.writeRuntimeConfiguration()
 
-        let readRuntimeConfig = try RuntimeConfiguration.readRuntimeConfiguration(from: bundlePath)
+        let readConfig = try RuntimeConfiguration.readRuntimeConfiguration(from: bundlePath)
+        #expect(readConfig.runtimeData != nil, "runtimeData should be persisted")
 
-        #expect(readRuntimeConfig.runtimeData != nil, "runtimeData should be persisted")
-
-        let decodedData = try JSONDecoder().decode(LinuxRuntimeData.self, from: readRuntimeConfig.runtimeData!)
-        #expect(decodedData.variant == "test-variant", "Variant should round-trip through RuntimeConfiguration")
+        let decoded = try LinuxRuntimeData.decodeData(readConfig.runtimeData!)
+        #expect(decoded.variant == "test-variant", "variant should round-trip")
     }
 
-    /// Test that LinuxRuntimeData encodes and decodes correctly with all fields populated.
+    /// LinuxRuntimeData round-trips through Codable.
     @Test
-    func testLinuxRuntimeDataFullEncoding() throws {
+    func testLinuxRuntimeDataReferenceRoundTrip() throws {
         let original = LinuxRuntimeData(
             variant: "rosetta",
             kernelPath: "/usr/local/share/container/kernel",
-            initImageRef: "ghcr.io/apple/container-init:latest",
-            imageRef: "ubuntu:22.04"
+            initImageRef: "ghcr.io/apple/container-init:latest"
         )
 
         let encoded = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(LinuxRuntimeData.self, from: encoded)
 
-        #expect(decoded.variant == original.variant, "variant should round-trip")
-        #expect(decoded.kernelPath == original.kernelPath, "kernelPath should round-trip")
-        #expect(decoded.initImageRef == original.initImageRef, "initImageRef should round-trip")
-        #expect(decoded.imageRef == original.imageRef, "imageRef should round-trip")
+        #expect(decoded.variant == "rosetta")
+        #expect(decoded.kernelPath == "/usr/local/share/container/kernel")
+        #expect(decoded.initImageRef == "ghcr.io/apple/container-init:latest")
     }
 
-    /// Test that LinuxRuntimeData encodes and decodes correctly when optional fields are nil.
+    /// A RuntimeConfiguration with runtimeData round-trips end to end through disk.
     @Test
-    func testLinuxRuntimeDataNilContainerImageRef() throws {
-        let original = LinuxRuntimeData(
-            variant: nil,
-            kernelPath: "/usr/local/share/container/kernel",
-            initImageRef: "ghcr.io/apple/container-init:latest",
-            imageRef: nil
-        )
-
-        let encoded = try JSONEncoder().encode(original)
-        let decoded = try JSONDecoder().decode(LinuxRuntimeData.self, from: encoded)
-
-        #expect(decoded.variant == nil, "variant should be nil")
-        #expect(decoded.kernelPath == original.kernelPath, "kernelPath should round-trip")
-        #expect(decoded.initImageRef == original.initImageRef, "initImageRef should round-trip")
-        #expect(decoded.imageRef == nil, "imageRef should be nil")
-    }
-
-    /// Test that a new-format RuntimeConfiguration (runtimeData only, no legacy fields) round-trips correctly.
-    @Test
-    func testNewFormatRoundTrip() throws {
+    func testRuntimeConfigurationRoundTrip() throws {
         let tempDir = FileManager.default.temporaryDirectory
-        let bundlePath = tempDir.appendingPathComponent("test-new-format-\(UUID())")
+        let bundlePath = tempDir.appendingPathComponent("test-roundtrip-\(UUID())")
 
         defer {
             try? FileManager.default.removeItem(at: bundlePath)
         }
 
-        let linuxData = LinuxRuntimeData(
-            variant: "default",
+        let runtimeData = try LinuxRuntimeData.encodeData(
             kernelPath: "/path/to/kernel",
             initImageRef: "init:latest",
-            imageRef: "alpine:3.20"
-        )
-        let runtimeData = try JSONEncoder().encode(linuxData)
-
-        let config = RuntimeConfiguration(
-            path: bundlePath,
-            containerConfiguration: nil,
-            options: nil,
-            runtimeData: runtimeData
+            variant: "default"
         )
 
+        let config = RuntimeConfiguration(path: bundlePath, runtimeData: runtimeData)
         try config.writeRuntimeConfiguration()
-        let read = try RuntimeConfiguration.readRuntimeConfiguration(from: bundlePath)
 
+        let read = try RuntimeConfiguration.readRuntimeConfiguration(from: bundlePath)
         #expect(read.runtimeData != nil)
-        #expect(read.kernel == nil, "New format should not have legacy kernel field")
-        #expect(read.initialFilesystem == nil, "New format should not have legacy filesystem field")
+        #expect(read.kernel == nil)
+        #expect(read.initialFilesystem == nil)
 
-        let decoded = try JSONDecoder().decode(LinuxRuntimeData.self, from: read.runtimeData!)
+        let decoded = try LinuxRuntimeData.decodeData(read.runtimeData!)
         #expect(decoded.kernelPath == "/path/to/kernel")
-        #expect(decoded.initImageRef == "init:latest")
-        #expect(decoded.imageRef == "alpine:3.20")
         #expect(decoded.variant == "default")
+        #expect(decoded.initImageRef == "init:latest")
     }
 
-    /// Test the rootFsOverride case where imageRef is nil.
+    /// A legacy-format configuration (legacy kernel/filesystem fields, no runtimeData) is
+    /// decodable, with legacy fields populated. The runtime boots directly from these fields.
+    ///
+    /// TODO: remove after migration period
     @Test
-    func testNewFormatWithNilContainerImageRef() throws {
+    func testLegacyConfigurationDecodes() throws {
         let tempDir = FileManager.default.temporaryDirectory
-        let bundlePath = tempDir.appendingPathComponent("test-nil-ref-\(UUID())")
+        let bundlePath = tempDir.appendingPathComponent("test-legacy-\(UUID())")
 
         defer {
             try? FileManager.default.removeItem(at: bundlePath)
         }
 
-        let linuxData = LinuxRuntimeData(
-            kernelPath: "/path/to/kernel",
-            initImageRef: "init:latest",
-            imageRef: nil
-        )
-        let runtimeData = try JSONEncoder().encode(linuxData)
+        try FileManager.default.createDirectory(at: bundlePath, withIntermediateDirectories: true)
 
-        let config = RuntimeConfiguration(
+        // Produce accurate legacy-format JSON from real Kernel/Filesystem values, matching
+        // what a pre-conversion version wrote to disk.
+        let kernel = Kernel(path: URL(fileURLWithPath: "/usr/local/lib/container/kernel"), platform: .linuxArm)
+        let initFs = Filesystem.virtiofs(source: "/var/lib/container/snapshots/init123/snapshot", destination: "/", options: ["ro"])
+        let legacy = LegacyRuntimeConfiguration(
             path: bundlePath,
-            runtimeData: runtimeData
+            kernel: kernel,
+            initialFilesystem: initFs
         )
+        let configPath = bundlePath.appendingPathComponent("runtime-configuration.json")
+        try JSONEncoder().encode(legacy).write(to: configPath)
 
-        try config.writeRuntimeConfiguration()
-        let read = try RuntimeConfiguration.readRuntimeConfiguration(from: bundlePath)
-
-        let decoded = try JSONDecoder().decode(LinuxRuntimeData.self, from: read.runtimeData!)
-        #expect(decoded.imageRef == nil)
-        #expect(decoded.initImageRef == "init:latest")
+        let config = try RuntimeConfiguration.readRuntimeConfiguration(from: bundlePath)
+        #expect(config.runtimeData == nil)
+        #expect(config.kernel?.path.path == "/usr/local/lib/container/kernel")
+        #expect(config.initialFilesystem?.source == "/var/lib/container/snapshots/init123/snapshot")
     }
+}
+
+/// Mirror of the legacy RuntimeConfiguration on-disk format, used by tests to produce
+/// accurate legacy-format JSON via the real Kernel/Filesystem Codable conformances.
+/// TODO: remove after migration period
+private struct LegacyRuntimeConfiguration: Codable {
+    let path: URL
+    let kernel: Kernel
+    let initialFilesystem: Filesystem
 }
