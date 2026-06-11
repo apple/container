@@ -16,9 +16,10 @@ A container machine automatically maps your username into the Linux environment 
 
 ```bash
 container machine create alpine:latest --name dev
-container machine run -n dev whoami       # your host username, not root
-container machine run -n dev pwd          # /home/<you> — your persistent Linux home directory
-container machine run -n dev              # interactive shell; cd into your repos in $HOME
+container machine run -n dev whoami        # your host username, not root
+container machine run -n dev pwd           # /Users/<you> — $PWD is inherited from the host
+container machine run -n dev echo '$HOME'  # /home/<you> — Linux home directory inside the machine
+container machine run -n dev               # interactive shell; $HOME resolves to /home/<you>
 ```
 
 `container machine run` is how you get a shell or run a single command. If the container machine is stopped, `run` boots it first.
