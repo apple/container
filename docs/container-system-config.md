@@ -16,6 +16,7 @@ Source of truth: [`Sources/ContainerPersistence/ContainerSystemConfig.swift`](..
 [container]  # default per-container resources
 [dns]        # default DNS domain for DNS resolution on host
 [kernel]     # guest kernel binary path and download URL
+[machine]    # default per-machine resources and home mount
 [network]    # default subnets for new networks
 [registry]   # default registry domain
 [vminit]     # default vminitd image to use
@@ -58,6 +59,17 @@ Guest kernel used when launching container VMs. Defaults change per release as k
 |--------------|----------|--------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
 | `binaryPath` | `String` | `"opt/kata/share/kata-containers/vmlinux-6.18.15-186"`                                                 | Path **inside** the downloaded kernel archive that points to the kernel binary. |
 | `url`        | `URL`    | `"https://github.com/kata-containers/kata-containers/releases/download/3.28.0/kata-static-3.28.0-arm64.tar.zst"` | Archive to download when no kernel is installed. Encoded and decoded as a plain string in TOML. |
+
+## `[machine]`
+
+Defaults applied when `container machine create` is invoked without `--cpus`, `--memory`, or `--home-mount`.
+Does not affect existing machines — use `container machine set` to change running machines.
+
+| Key         | Type       | Default                                              | Description                                                                        |
+|-------------|------------|------------------------------------------------------|------------------------------------------------------------------------------------|
+| `cpus`      | `Int`      | `max(processorCount / 2, 4)`                         | Default CPU count per machine.                                                     |
+| `memory`    | [MemorySize](#memorysize-format) | Half of host physical memory (min 1 GiB)             | Default RAM per machine.                                                           |
+| `homeMount` | `String`   | `"rw"`                                               | Home directory mount mode: `"rw"` (read-write), `"ro"` (read-only), or `"none"` (no mount). |
 
 ## `[network]`
 
