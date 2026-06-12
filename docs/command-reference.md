@@ -1318,11 +1318,14 @@ container system start [--app-root <app-root>] [--install-root <install-root>] [
 
 **Options**
 
-*   `-a, --app-root <app-root>`: Path to the root directory for application data
-*   `--install-root <install-root>`: Path to the root directory for application executables and plugins
+*   `-a, --app-root <app-root>`: Path to the root directory for container data, including API server state and plugin state
+*   `--install-root <install-root>`: Path to the root directory for container executables and plugins
 *   `--log-root <log-root>`: Path to the root directory for log data, using macOS log facility if not set
 *   `--enable-kernel-install/--disable-kernel-install`: Specify whether the default kernel should be installed or not (default: prompt user)
 *   `--timeout <timeout>`: Number of seconds to wait for API service to become responsive
+
+> [!NOTE]
+> The application root and installation root serve different purposes. Use `--app-root` when you want `container` to store its runtime data somewhere other than the default location, such as an external APFS volume or a temporary directory for integration tests. Most users do not need to change `--install-root`; it is used to locate installed `container` executables and plugins.
 
 > [!NOTE]
 > The `--log-root` option is principally intended for short-term test and diagnostic purposes. The log handler for this option neither aggregates log messages, nor does it rotate logs.
