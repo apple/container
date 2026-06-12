@@ -63,7 +63,7 @@ extension Application {
                 let filters = ContainerListFilters().withoutMachines()
                 containers = try await client.list(filters: filters).map { $0.id }
             } else {
-                containers = containerIds
+                containers = try await client.resolve(ids: containerIds)
             }
 
             let opts = ContainerStopOptions(
