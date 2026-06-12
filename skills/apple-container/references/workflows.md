@@ -2,25 +2,46 @@
 
 ## Install Or Upgrade
 
-1. Verify the host:
+1. Verify the host. Apple silicon (`arm64`) and macOS 26 (Tahoe) or newer are required for real use:
    ```bash
    sw_vers
    uname -m
    ```
-2. Use the latest signed installer from Apple Container releases.
-3. Start services:
+2. Install. Homebrew is the simplest path:
    ```bash
-   container system start
-   container system status
+   brew install container
    ```
-4. Upgrade with:
+   If Homebrew is unavailable, use Apple's signed installer (the official steps):
+   - Download the latest signed installer package from https://github.com/apple/container/releases.
+   - Double-click the package and follow the instructions.
+   - Enter the administrator password when prompted, so files can be placed under `/usr/local`.
+
+   To do the same from a terminal without a GUI (admin password required):
+   ```bash
+   sudo installer -pkg ./container-*-installer-signed.pkg -target /
+   ```
+3. Start and verify services:
+   ```bash
+   container system start   # first run may offer to install the default kernel; accept it
+   container system status
+   container --version
+   ```
+4. Upgrade with the bundled helper (installed under `/usr/local`):
    ```bash
    container system stop
    /usr/local/bin/update-container.sh
    container system start
    ```
+5. Uninstall when asked:
+   ```bash
+   /usr/local/bin/uninstall-container.sh -k   # keep user data (images, volumes, machines)
+   /usr/local/bin/uninstall-container.sh -d   # delete all data
+   ```
+   With Homebrew, `brew uninstall container` removes the CLI; data under `~/.config/container`
+   and the application data root persists unless you remove it explicitly.
 
-Installation, upgrade, downgrade, and uninstall may require administrator privileges. Ask the user before running privileged commands.
+Installation, upgrade, downgrade, and uninstall may require administrator privileges. Ask the user
+before running privileged commands. Reference: https://apple.github.io/container/documentation/
 
 ## Replace A Docker-Style Dev Shell
 

@@ -31,6 +31,16 @@ run uname -m
 section "Container CLI"
 if ! command -v container >/dev/null 2>&1; then
   echo "container CLI not found on PATH"
+  echo
+  echo "Install it (ask before the privileged step):"
+  echo "  brew install container        # if Homebrew is present"
+  echo "  # otherwise install Apple's signed .pkg from:"
+  echo "  #   https://github.com/apple/container/releases"
+  echo "  #   sudo installer -pkg ./container-*-installer-signed.pkg -target /"
+  echo "  container system start"
+  echo
+  echo "Requires Apple silicon and macOS 26 (Tahoe) or newer."
+  echo "Docs: https://apple.github.io/container/documentation/"
   exit 0
 fi
 run container --version
