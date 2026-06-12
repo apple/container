@@ -43,7 +43,20 @@ uname -m
 sw_vers -productVersion
 ```
 
-Use Apple silicon (`arm64`) and macOS 26 or newer. If missing, install the latest signed package from Apple's GitHub releases. Ask before running privileged installer commands.
+Use Apple silicon (`arm64`) and macOS 26 or newer. If the CLI is missing, install it (ask before
+the privileged step):
+
+```bash
+brew install container        # simplest, if Homebrew is present
+# otherwise, install Apple's signed .pkg from https://github.com/apple/container/releases:
+sudo installer -pkg ./container-*-installer-signed.pkg -target /
+container system start
+```
+
+If the service refuses to start on Intel or on macOS earlier than 26, the host is unsupported —
+`brew install container` can still succeed on macOS 15, so a successful install is not proof the
+host can run containers. Stop here and tell the user rather than working around it. Full setup
+guide: https://apple.github.io/container/documentation/
 
 ## First Start Asks For Kernel
 

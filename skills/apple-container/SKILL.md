@@ -19,19 +19,73 @@ Operate Apple's `container` CLI as a native macOS Linux container runtime for de
    command -v container
    container --version
    ```
-   Require Apple silicon (`arm64`) and macOS 26 or newer.
-2. If `container` exists, start or verify the service:
+   Require Apple silicon (`arm64`) and macOS 26 (Tahoe) or newer. The runtime relies on
+   macOS 26 virtualization and networking APIs; older macOS is not supported for real use.
+2. If `container` is not installed, install it (see [Install](#install)). Ask before running
+   privileged steps, since the installer writes under `/usr/local` and needs an admin password.
+3. Once `container` exists, start or verify the service:
    ```bash
    container system status || container system start
    ```
-3. Run a smoke test before using it for real work:
+4. Run a smoke test before using it for real work:
    ```bash
    container run --rm docker.io/library/alpine:latest sh -lc 'uname -a; nslookup github.com'
    ```
-4. For project work, mount the current directory and set `/work`:
+5. For project work, mount the current directory and set `/work`:
    ```bash
    container run --rm -it -v "$PWD:/work" -w /work docker.io/library/ubuntu:24.04 bash
    ```
+
+## Install
+
+Use Homebrew when available; it is the least error-prone path and keeps `container` upgradable
+with the user's other tooling:
+
+```bash
+brew install container
+```
+
+If Homebrew is not installed, use Apple's signed installer rather than installing Homebrew just for
+this. The official steps:
+
+1. Download the latest signed installer package for `container` from the
+   [GitHub release page](https://github.com/apple/container/releases).
+2. Double-click the package file and follow the instructions.
+3. Enter the administrator password when prompted, so the installer can place files under
+   `/usr/local`.
+
+When driving this from the terminal without a GUI, run the same package non-interactively (ask the
+user before the privileged step):
+
+```bash
+# After downloading container-<version>-installer-signed.pkg to the current directory:
+sudo installer -pkg ./container-*-installer-signed.pkg -target /
+```
+
+The installer places files under `/usr/local` and bundles helper scripts:
+
+```bash
+/usr/local/bin/update-container.sh           # upgrade in place
+/usr/local/bin/update-container.sh -v 0.3.0  # pin a specific version (downgrade)
+/usr/local/bin/uninstall-container.sh -k     # uninstall, keep user data
+/usr/local/bin/uninstall-container.sh -d     # uninstall, delete all data
+```
+
+After installing, initialize and verify the runtime:
+
+```bash
+container system start    # first run may prompt to install the recommended kernel; accept it
+container system status
+container --version
+```
+
+Note: `brew install container` succeeds on macOS 15 (Sequoia), but the runtime is only supported
+on macOS 26 (Tahoe) or newer — a clean install does not by itself prove the host can run
+containers. Always confirm the macOS version from step 1 before relying on it.
+
+Docs: [installation & user guide](https://apple.github.io/container/documentation/) ·
+[Homebrew formula](https://formulae.brew.sh/formula/container) ·
+[GitHub project](https://github.com/apple/container)
 
 ## When To Prefer Apple Container
 
