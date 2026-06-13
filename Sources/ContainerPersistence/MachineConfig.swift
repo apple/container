@@ -37,6 +37,10 @@ public struct MachineConfig: Codable, Sendable {
 
     public static let defaultHomeMount: HomeMountOption = .rw
 
+    public static var defaultHomeMountPath: String {
+        FileManager.default.homeDirectoryForCurrentUser.path
+    }
+
     /// Home mount option for the /Users/<name> directory.
     public enum HomeMountOption: String, Sendable, Codable {
         case ro
@@ -50,18 +54,22 @@ public struct MachineConfig: Codable, Sendable {
     public let memory: MemorySize
     /// Home mount configuration. nil = system default.
     public let homeMount: HomeMountOption
+    /// Custom home directory mount source path.
+    public let homeMountPath: String
 
     /// Settable keys and their descriptions, for CLI help text generation.
     public static let settableKeys: [(key: String, valueName: String, description: String)] = [
         ("cpus", "<number>", "Number of virtual CPUs"),
         ("memory", "<size>", "Memory allocation (e.g., 2G, 1G). Default: half of system memory"),
         ("home-mount", "<string>", "User home directory mount option (ro, rw, none). Default: rw"),
+        ("home-mount-path", "<path>", "Custom home directory mount source path. Default: current user home"),
     ]
 
-    public init(cpus: Int?, memory: MemorySize?, homeMount: HomeMountOption?) throws {
+    public init(cpus: Int?, memory: MemorySize?, homeMount: HomeMountOption?, homeMountPath: String? = nil) throws {
         self.cpus = cpus ?? Self.defaultCPUs
         self.memory = memory ?? Self.defaultMemory
         self.homeMount = homeMount ?? Self.defaultHomeMount
+        self.homeMountPath = homeMountPath ?? Self.defaultHomeMountPath
 
         try self.validate()
     }
@@ -72,8 +80,9 @@ public struct MachineConfig: Codable, Sendable {
         let cpus = try container.decodeIfPresent(Int.self, forKey: .cpus)
         let memory = try container.decodeIfPresent(MemorySize.self, forKey: .memory)
         let homeMount = try container.decodeIfPresent(HomeMountOption.self, forKey: .homeMount)
+        let homeMountPath = try container.decodeIfPresent(String.self, forKey: .homeMountPath)
 
-        try self.init(cpus: cpus, memory: memory, homeMount: homeMount)
+        try self.init(cpus: cpus, memory: memory, homeMount: homeMount, homeMountPath: homeMountPath)
     }
 
     private func validate() throws {
@@ -88,6 +97,13 @@ public struct MachineConfig: Codable, Sendable {
             throw ContainerizationError(
                 .invalidArgument,
                 message: "invalid memory value '\(self.memory)'. Must be greater than 1gb."
+            )
+        }
+
+        guard !self.homeMountPath.isEmpty else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "home mount path must not be empty"
             )
         }
     }
@@ -117,11 +133,13 @@ extension MachineConfig {
         let cpus = try kwargs["cpus"].map { try Self.parseInt($0, for: "cpus") }
         let memory = try kwargs["memory"].map { try MemorySize($0) }
         let homeMount = try kwargs["home-mount"].map { try Self.parseHomeMount($0) }
+        let homeMountPath = kwargs["home-mount-path"]
 
         return try .init(
             cpus: cpus ?? self.cpus,
             memory: memory ?? self.memory,
-            homeMount: homeMount ?? self.homeMount
+            homeMount: homeMount ?? self.homeMount,
+            homeMountPath: homeMountPath ?? self.homeMountPath
         )
     }
 

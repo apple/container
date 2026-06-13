@@ -64,6 +64,9 @@ extension Application {
         @Option(name: .long, help: "User's home directory mount option (ro, rw, none). Default: rw")
         public var homeMount: String?
 
+        @Option(name: .long, help: "Custom home directory mount source path")
+        public var homeMountPath: String?
+
         @Argument(help: "Container image reference (e.g., alpine:3.22)")
         var image: String
 
@@ -88,6 +91,7 @@ extension Application {
                     "cpus": cpus.map { "\($0)" },
                     "memory": memory,
                     "home-mount": homeMount,
+                    "home-mount-path": homeMountPath,
                 ].compactMapValues { $0 }
             )
 
