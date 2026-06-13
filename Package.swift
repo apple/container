@@ -473,6 +473,13 @@ let package = Package(
                 "CAuditToken",
             ]
         ),
+        .testTarget(
+            name: "ContainerXPCTests",
+            dependencies: [
+                "ContainerXPC",
+                .product(name: "Logging", package: "swift-log"),
+            ]
+        ),
         .target(
             name: "ContainerOS",
             dependencies: [
