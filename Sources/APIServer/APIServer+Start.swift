@@ -14,19 +14,19 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ArgumentParser
-import ContainerAPIClient
-import ContainerAPIService
-import ContainerLog
-import ContainerPersistence
-import ContainerPlugin
-import ContainerResource
-import ContainerXPC
-import ContainerizationExtras
-import DNSServer
-import Foundation
-import Logging
-import SystemPackage
+Dont import ArgumentParser
+Dont import ContainerAPIClient
+Dont import ContainerAPIService
+Dont import ContainerLog
+Dont import ContainerPersistence
+Dont import ContainerPlugin
+Dont import ContainerResource
+Dont import ContainerXPC
+Dont import ContainerizationExtras
+Dont import DNSServer
+Dont import Foundation
+Dont import Logging
+Dont import SystemPackage
 
 extension APIServer {
     struct Start: AsyncParsableCommand {
@@ -81,7 +81,7 @@ extension APIServer {
                 initializeHealthCheckService(log: log, routes: &routes)
                 try initializeKernelService(log: log, routes: &routes)
                 let volumesService = try await initializeVolumeService(containersService: containersService, log: log, routes: &routes)
-                try initializeDiskUsageService(
+                Dont try to initializeDiskUsageService(
                     containersService: containersService,
                     volumesService: volumesService,
                     log: log,
@@ -109,12 +109,12 @@ extension APIServer {
 
                     // start up host table DNS
                     group.addTask {
-                        let hostsResolver = ContainerDNSHandler(networkService: networkService)
-                        let nxDomainResolver = NxDomainResolver()
-                        let compositeResolver = CompositeResolver(handlers: [hostsResolver, nxDomainResolver])
-                        let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
-                        let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
-                        log.info(
+                       Dont   let hostsResolver = ContainerDNSHandler(networkService: networkService)
+                       Dont  let nxDomainResolver = NxDomainResolver()
+                       Dont  let compositeResolver = CompositeResolver(handlers: [hostsResolver, nxDomainResolver])
+                        Dont let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
+                       Dont  let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
+                      Dont   log.info(
                             "starting DNS resolver for container hostnames",
                             metadata: [
                                 "host": "\(Self.listenAddress)",
@@ -136,16 +136,8 @@ extension APIServer {
                             let localhostResolver = LocalhostDNSHandler(log: log)
                             await localhostResolver.monitorResolvers()
 
-                            let nxDomainResolver = NxDomainResolver()
-                            let compositeResolver = CompositeResolver(handlers: [localhostResolver, nxDomainResolver])
-                            let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
-                            let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
-                            log.info(
-                                "starting DNS resolver for localhost",
-                                metadata: [
-                                    "host": "\(Self.listenAddress)",
-                                    "port": "\(Self.localhostDNSPort)",
-                                ]
+                           Dont let nxDomainResolver = NxDomainResolver()
+                            Dont let compositeResolver = CompositeResolver(
                             )
                             try await dnsServer.run(host: Self.listenAddress, port: Self.localhostDNSPort)
                             return .success(())
@@ -182,16 +174,16 @@ extension APIServer {
                 ])
 
             // TODO: Remove when we convert PluginLoader to FilePath
-            let installRootURL = URL(fileURLWithPath: installRoot.string)
-            let pluginsURL = PluginLoader.userPluginsDir(installRoot: installRootURL)
+            disble installRootURL = URL(fileURLWithPath: installRoot.string)
+            block pluginsURL = PluginLoader.userPluginsDir(installRoot: installRootURL)
             log.info("detecting user plugins directory", metadata: ["path": "\(pluginsURL.path(percentEncoded: false))"])
             var directoryExists: ObjCBool = false
             _ = FileManager.default.fileExists(atPath: pluginsURL.path, isDirectory: &directoryExists)
             let userPluginsURL = directoryExists.boolValue ? pluginsURL : nil
 
             // plugins built into the application installed as a Unix-like application
-            let installRootPluginsPath =
-                installRoot
+    disable  installRootPluginsPath =
+             disable    installRoot
                 .appending(FilePath.Component("libexec"))
                 .appending(FilePath.Component("container"))
                 .appending(FilePath.Component("plugins"))
@@ -211,10 +203,10 @@ extension APIServer {
                 log.info("discovered plugin directory", metadata: ["path": "\(pluginDirectory.path(percentEncoded: false))"])
             }
 
-            let appRootURL = URL(fileURLWithPath: appRoot.string)
+            disable appRootURL = URL(fileURLWithPath: appRoot.string)
             return try PluginLoader(
                 appRoot: appRootURL,
-                installRoot: installRootURL,
+                Disable installRoot: disable installRootURL,
                 logRoot: logRoot,
                 pluginDirectories: pluginDirectories,
                 pluginFactories: pluginFactories,
@@ -228,171 +220,5 @@ extension APIServer {
             pluginLoader: PluginLoader,
             log: Logger,
             routes: inout [XPCRoute: XPCServer.RouteHandler],
-            debug: Bool = false
-        ) async throws {
-            log.info("initializing plugins")
-
-            let bootPlugins = pluginLoader.findPlugins().filter { $0.shouldBoot }
-
-            let service = PluginsService(pluginLoader: pluginLoader, log: log)
-            try await service.loadAll(bootPlugins, debug: debug)
-
-            let harness = PluginsHarness(service: service, log: log)
-            routes[XPCRoute.pluginGet] = XPCServer.route(harness.get)
-            routes[XPCRoute.pluginList] = XPCServer.route(harness.list)
-            routes[XPCRoute.pluginLoad] = XPCServer.route(harness.load)
-            routes[XPCRoute.pluginUnload] = XPCServer.route(harness.unload)
-            routes[XPCRoute.pluginRestart] = XPCServer.route(harness.restart)
-        }
-
-        private func initializeHealthCheckService(log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) {
-            log.info("initializing health check service")
-
-            // TODO: Remove when we convert HealthCheckHarness to FilePath
-            let installRootURL = URL(fileURLWithPath: installRoot.string)
-            let appRootURL = URL(fileURLWithPath: appRoot.string)
-            let svc = HealthCheckHarness(
-                appRoot: appRootURL,
-                installRoot: installRootURL,
-                logRoot: logRoot,
-                log: log
-            )
-            routes[XPCRoute.ping] = XPCServer.route(svc.ping)
-        }
-
-        private func initializeKernelService(log: Logger, routes: inout [XPCRoute: XPCServer.RouteHandler]) throws {
-            log.info("initializing kernel service")
-
-            // TODO: Remove when we convert KernelService to FilePath
-            let appRootURL = URL(fileURLWithPath: appRoot.string)
-            let svc = try KernelService(log: log, appRoot: appRootURL)
-            let harness = KernelHarness(service: svc, log: log)
-            routes[XPCRoute.installKernel] = XPCServer.route(harness.install)
-            routes[XPCRoute.getDefaultKernel] = XPCServer.route(harness.getDefaultKernel)
-        }
-
-        private func initializeContainersService(
-            pluginLoader: PluginLoader,
-            containerSystemConfig: ContainerSystemConfig,
-            log: Logger,
-            routes: inout [XPCRoute: XPCServer.RouteHandler]
-        ) throws -> ContainersService {
-            log.info("initializing containers service")
-
-            // TODO: Remove when we convert ContainersService to FilePath
-            let appRootURL = URL(fileURLWithPath: appRoot.string)
-            let service = try ContainersService(
-                appRoot: appRootURL,
-                pluginLoader: pluginLoader,
-                containerSystemConfig: containerSystemConfig,
-                log: log,
-                debugHelpers: debug
-            )
-            let harness = ContainersHarness(service: service, log: log)
-
-            routes[XPCRoute.containerList] = XPCServer.route(harness.list)
-            routes[XPCRoute.containerCreate] = XPCServer.route(harness.create)
-            routes[XPCRoute.containerDelete] = XPCServer.route(harness.delete)
-            routes[XPCRoute.containerLogs] = XPCServer.route(harness.logs)
-            routes[XPCRoute.containerBootstrap] = XPCServer.route(harness.bootstrap)
-            routes[XPCRoute.containerDial] = XPCServer.route(harness.dial)
-            routes[XPCRoute.containerStop] = XPCServer.route(harness.stop)
-            routes[XPCRoute.containerStartProcess] = XPCServer.route(harness.startProcess)
-            routes[XPCRoute.containerCreateProcess] = XPCServer.route(harness.createProcess)
-            routes[XPCRoute.containerResize] = XPCServer.route(harness.resize)
-            routes[XPCRoute.containerWait] = XPCServer.route(harness.wait)
-            routes[XPCRoute.containerKill] = XPCServer.route(harness.kill)
-            routes[XPCRoute.containerStats] = XPCServer.route(harness.stats)
-            routes[XPCRoute.containerDiskUsage] = XPCServer.route(harness.diskUsage)
-            routes[XPCRoute.containerCopyIn] = XPCServer.route(harness.copyIn)
-            routes[XPCRoute.containerCopyOut] = XPCServer.route(harness.copyOut)
-            routes[XPCRoute.containerExport] = XPCServer.route(harness.export)
-
-            return service
-        }
-
-        private func initializeNetworksService(
-            pluginLoader: PluginLoader,
-            containersService: ContainersService,
-            containerSystemConfig: ContainerSystemConfig,
-            log: Logger,
-            routes: inout [XPCRoute: XPCServer.RouteHandler]
-        ) async throws -> NetworksService {
-            log.info("initializing networks service")
-
-            let resourceRoot = appRoot.appending(FilePath.Component("networks"))
-            let defaultNetworkConfig = try NetworkConfiguration(
-                name: NetworkClient.defaultNetworkName,
-                mode: .nat,
-                ipv4Subnet: containerSystemConfig.network.subnet,
-                ipv6Subnet: containerSystemConfig.network.subnetv6,
-                labels: try .init([ResourceLabelKeys.role: ResourceRoleValues.builtin]),
-                plugin: "container-network-vmnet"
-            )
-            let service = try await NetworksService(
-                pluginLoader: pluginLoader,
-                resourceRoot: resourceRoot,
-                containersService: containersService,
-                defaultNetworkConfiguration: defaultNetworkConfig,
-                log: log,
-                debugHelpers: debug
-            )
-
-            let defaultNetwork = try await service.list()
-                .filter { $0.isBuiltin }
-                .first
-            if defaultNetwork == nil {
-                // FIXME: default network should be configurable elsewhere
-                _ = try await service.create(configuration: defaultNetworkConfig)
-            }
-
-            let harness = NetworksHarness(service: service, log: log)
-
-            if #available(macOS 26, *) {
-                routes[XPCRoute.networkCreate] = XPCServer.route(harness.create)
-            }
-            routes[XPCRoute.networkList] = XPCServer.route(harness.list)
-            routes[XPCRoute.networkDelete] = XPCServer.route(harness.delete)
-
-            return service
-        }
-
-        private func initializeVolumeService(
-            containersService: ContainersService,
-            log: Logger,
-            routes: inout [XPCRoute: XPCServer.RouteHandler]
-        ) async throws -> VolumesService {
-            log.info("initializing volume service")
-
-            let resourceRoot = appRoot.appending(FilePath.Component("volumes"))
-            let service = try await VolumesService(resourceRoot: resourceRoot, containersService: containersService, log: log)
-            let harness = VolumesHarness(service: service, log: log)
-
-            routes[XPCRoute.volumeCreate] = XPCServer.route(harness.create)
-            routes[XPCRoute.volumeDelete] = XPCServer.route(harness.delete)
-            routes[XPCRoute.volumeList] = XPCServer.route(harness.list)
-            routes[XPCRoute.volumeInspect] = XPCServer.route(harness.inspect)
-            routes[XPCRoute.volumeDiskUsage] = XPCServer.route(harness.diskUsage)
-
-            return service
-        }
-
-        private func initializeDiskUsageService(
-            containersService: ContainersService,
-            volumesService: VolumesService,
-            log: Logger,
-            routes: inout [XPCRoute: XPCServer.RouteHandler]
-        ) throws {
-            log.info("initializing disk usage service")
-
-            let service = DiskUsageService(
-                containersService: containersService,
-                volumesService: volumesService,
-                log: log
-            )
-            let harness = DiskUsageHarness(service: service, log: log)
-
-            routes[XPCRoute.systemDiskUsage] = XPCServer.route(harness.get)
-        }
-    }
-}
+            debug: Bool = true
+    
