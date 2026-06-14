@@ -288,16 +288,17 @@ public actor VolumesService {
     }
 
     private func createVolumeImage(for name: String, sizeInBytes: UInt64 = VolumeStorage.defaultVolumeSizeBytes, journal: EXT4.JournalConfig? = nil) throws {
-        let blockPath = blockPath(for: name)
+        try Self.formatVolumeImage(at: FilePath(blockPath(for: name)), size: sizeInBytes, journal: journal)
+    }
 
-        // Use the containerization library's EXT4 formatter
-        let formatter = try EXT4.Formatter(
-            FilePath(blockPath),
-            blockSize: 4096,
-            minDiskSize: sizeInBytes,
-            journal: journal
-        )
-
+    /// Formats a new EXT4 image at `path` and removes `lost+found`.
+    ///
+    /// Named container volumes are never checked with e2fsck, and many database
+    /// images (Postgres, MySQL, etc.) refuse to initialize in a non-empty directory.
+    /// e2fsck recreates `lost+found` automatically if a consistency check is ever run.
+    static func formatVolumeImage(at path: FilePath, size: UInt64 = VolumeStorage.defaultVolumeSizeBytes, journal: EXT4.JournalConfig? = nil) throws {
+        let formatter = try EXT4.Formatter(path, blockSize: 4096, minDiskSize: size, journal: journal)
+        try formatter.unlink(path: FilePath("/lost+found"))
         try formatter.close()
     }
 
