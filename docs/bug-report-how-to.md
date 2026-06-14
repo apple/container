@@ -9,6 +9,7 @@ This guide helps you collect the essential information needed to file effective 
 Clear reproduction steps are essential for maintainers to understand and fix the issue.
 
 ### What to include
+
 1. **Starting state**: What was your setup before the issue?
    - Fresh installation or existing project?
    - Any specific configuration files?
@@ -25,7 +26,8 @@ Clear reproduction steps are essential for maintainers to understand and fix the
    - Only happened once
 
 ### Example
-```
+
+```text
 1. Create new container: `container create --name test-app ubuntu:latest`
 2. Start the container: `container start test-app`
 3. Container fails during bootstrap with error:
@@ -40,19 +42,23 @@ Provide a comprehensive description of your problem. Include what currently happ
 ### What to include
 
 #### Current behavior
+
 - Exact error messages (copy-paste, don't paraphrase)
 - Exit codes or status indicators
 - Performance issues (slowness, hangs, crashes)
 - Unexpected outputs or results
 
 #### Expected behavior
+
 - The correct output or result you anticipated
 - Reference to documentation if available
 - How it works in previous versions (if applicable)
 - Logical expectations based on the command or action
 
 #### Relevant logs
+
 Include any log output that helps illustrate the problem:
+
 - Error messages or stack traces
 - Warning messages related to your issue
 - Output from failed commands
@@ -61,62 +67,78 @@ Include any log output that helps illustrate the problem:
 ## Environment information
 
 ### Operating system details
+
 Run this command in Terminal to get your macOS version:
+
 ```bash
 sw_vers
 ```
 
 Example output:
-```
-ProductName:		macOS
-ProductVersion:		26.0
-BuildVersion:		12A345
+
+```text
+ProductName:  macOS
+ProductVersion:  26.0
+BuildVersion:  12A345
 ```
 
 ### Xcode version
+
 Get your Xcode version with:
+
 ```bash
 xcodebuild -version
 ```
 
 Example output:
-```
+
+```text
 Xcode 15.0
 Build version 15A240d
 ```
 
 ### Container CLI version
+
 Check your Container CLI version:
+
 ```bash
 container --version
 ```
 
 Example output:
-```
+
+```text
 container CLI version 0.10.0-27-g9fd15f0 (build: debug, commit: 9fd15f0)
 ```
 
 ## Log information
 
 ### Finding relevant logs
+
 When reporting issues, include logs that show:
+
 - Error messages or stack traces
 - Warning messages related to your issue
 - Output from failed commands
 
 ### Getting container logs
+
 For Container CLI issues, run commands with verbose output:
+
 ```bash
 container --debug <command>
 ```
 
 You can also use the `container logs` command to get logs from running containers. See the [container logs](command-reference.md#container-logs) documentation for full details.
+
 ```bash
 container logs <container-id>
 ```
 
 ### System logs
+
 For system-level container issues, use the built-in system logs command. See the [container system logs](command-reference.md#container-system-logs) documentation for full details.
+
 ```bash
 container system logs
 ```
@@ -124,16 +146,19 @@ container system logs
 ## Common information gaps
 
 ### Missing context
+
 - What were you trying to accomplish?
 - What changed recently in your setup?
 - Does the issue occur in a fresh installation from main?
 
 ### Incomplete error information
+
 - Full error messages (not just the last line)
 - Stack traces where relevant
 - Related warning messages
 
 ### Environment variations
+
 - Does it work with a new instance of the container?
 - Does it work with a fresh install of the Container package?
 - Have your network settings changed?

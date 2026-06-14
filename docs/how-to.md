@@ -1,7 +1,7 @@
 # How-to
 
 > [!IMPORTANT]
-> This file contains documentation for the CURRENT BRANCH. To find documentation for official releases, find the target release on the [Release Page](https://github.com/apple/container/releases) and click the tag corresponding to your release version. 
+> This file contains documentation for the CURRENT BRANCH. To find documentation for official releases, find the target release on the [Release Page](https://github.com/apple/container/releases) and click the tag corresponding to your release version.
 >
 > Example: [release 0.4.1 tag](https://github.com/apple/container/tree/0.4.1)
 
@@ -202,6 +202,7 @@ Test access using `curl`:
 
 > [!IMPORTANT]
 > Due to macOS security constraints around packet filter rules, this feature has limited functionality:
+>
 > - Creating a localhost domain disables Private Relay.
 > - The local domain packet filter rule is removed on a restart.
 
@@ -235,10 +236,11 @@ hello
 ## Set a custom MAC address for your container
 
 Use the `mac` option to specify a custom MAC address for your container's network interface. This is useful for:
+
 - Network testing scenarios requiring predictable MAC addresses
 - Consistent network configuration across container restarts
 
-The MAC address must be in the format `XX:XX:XX:XX:XX:XX` (with colons or hyphens as separators). Set the two least significant bits of the first octet to `10` (locally signed, unicast address). 
+The MAC address must be in the format `XX:XX:XX:XX:XX:XX` (with colons or hyphens as separators). Set the two least significant bits of the first octet to `10` (locally signed, unicast address).
 
 ```bash
 container run --network default,mac=02:42:ac:11:00:02 ubuntu:latest
@@ -251,7 +253,7 @@ To verify the MAC address is set correctly, read the interface MAC directly from
 02:42:ac:11:00:02
 ```
 
-If you don't specify a MAC address, `container` will generate one for you. The generated address has a first nibble set to hexadecimal `f` (`fX:XX:XX:XX:XX:XX`) in case you want to minimize the very small chance of conflict between your MAC address and generated addresses. 
+If you don't specify a MAC address, `container` will generate one for you. The generated address has a first nibble set to hexadecimal `f` (`fX:XX:XX:XX:XX:XX`) in case you want to minimize the very small chance of conflict between your MAC address and generated addresses.
 
 ## Mount your host SSH authentication socket in your container
 
@@ -412,6 +414,7 @@ Use the `--boot` option to see the logs for the virtual machine boot and init pr
 ## Monitor container resource usage
 
 The `container stats` command displays real-time resource usage statistics for your running containers, similar to the `top` command for processes. This is useful for:
+
 - Monitoring CPU and memory consumption
 - Tracking network and disk I/O
 - Identifying resource-intensive containers
@@ -478,6 +481,7 @@ You can customize the capability set using `--cap-add` and `--cap-drop` with `co
 Capability names can be specified with or without the `CAP_` prefix, and are case-insensitive:
 
 These are equivalent:
+
 ```bash
 container run --cap-add CAP_NET_ADMIN alpine ip link set lo down
 container run --cap-add NET_ADMIN alpine ip link set lo down
@@ -511,11 +515,10 @@ To drop a single capability from the default set:
 chown: /tmp: Operation not permitted
 ```
 
-
 ## Expose virtualization capabilities to a container
 
 > [!NOTE]
-> This feature requires a M3 or newer Apple silicon machine and a Linux kernel that supports virtualization. For a kernel configuration that has all of the right features enabled, see https://github.com/apple/containerization/blob/0.5.0/kernel/config-arm64#L602.
+> This feature requires a M3 or newer Apple silicon machine and a Linux kernel that supports virtualization. For a kernel configuration that has all of the right features enabled, see <https://github.com/apple/containerization/blob/0.5.0/kernel/config-arm64#L602>.
 
 You can enable virtualization capabilities in containers by using the `--virtualization` option of `container run` and `container create`.
 
@@ -743,12 +746,13 @@ If you have [bash-completion](https://github.com/scop/bash-completion) installed
 
 > [!NOTE]
 > The path to the directory is dependent on how bash-completion was installed. Find the correct path and then copy the completion script there. For example, if you used homebrew to install `bash-completion`:
->  ```bash
->  container --generate-completion-script bash > /opt/homebrew/etc/bash_completion.d/container
->  source /opt/homebrew/etc/bash_completion.d/container
+>
+> ```bash
+> container --generate-completion-script bash > /opt/homebrew/etc/bash_completion.d/container
+> source /opt/homebrew/etc/bash_completion.d/container
 >  ```
 
-Without bash-completion, you’ll need to source the completion script directly. Create and copy it to a directory such as `~/.bash_completions`. 
+Without bash-completion, you’ll need to source the completion script directly. Create and copy it to a directory such as `~/.bash_completions`.
 
 ```bash
 mkdir -p ~/.bash_completions

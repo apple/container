@@ -1,7 +1,7 @@
 # Tutorial
 
 > [!IMPORTANT]
-> This file contains documentation for the CURRENT BRANCH. To find documentation for official releases, find the target release on the [Release Page](https://github.com/apple/container/releases) and click the tag corresponding to your release version. 
+> This file contains documentation for the CURRENT BRANCH. To find documentation for official releases, find the target release on the [Release Page](https://github.com/apple/container/releases) and click the tag corresponding to your release version.
 >
 > Example: [release 0.4.1 tag](https://github.com/apple/container/tree/0.4.1)
 
@@ -257,7 +257,7 @@ Your web server is accessible from other containers as well as from your host. L
 > [!NOTE]
 > Container relies on the new features and enhancements present in macOS 26.
 > As a result, the functionality of accessing the web server from another container will not work on macOS 15.
-> See https://github.com/apple/container/blob/main/docs/technical-overview.md#macos-15-limitations for more details.
+> See <https://github.com/apple/container/blob/main/docs/technical-overview.md#macos-15-limitations> for more details.
 
 ```bash
 container run -it --rm web-test curl http://192.168.64.3
@@ -306,10 +306,12 @@ container image push some-registry.example.com/fido/web-test:latest
 > [!NOTE]
 > By default `container` is configured to use Docker Hub.
 > You can change the default registry by setting `domain` under `[registry]` in `~/.config/container/config.toml`:
+>
 > ```toml
 > [registry]
 > domain = "some-registry.example.com"
 > ```
+>
 > See the other sub commands under `container registry` for more options.
 
 ### Pull and run your image
