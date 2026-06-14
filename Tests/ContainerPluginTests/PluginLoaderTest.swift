@@ -257,6 +257,52 @@ struct PluginLoaderTest {
         #expect(!programArguments.contains("--debug"))
     }
 
+    // MARK: - External volume plist placement tests
+
+    /// When serviceRoot is separate from appRoot, the plist must land under
+    /// serviceRoot and NOT under appRoot — which might be on an external or
+    /// removable volume where launchd cannot register Mach services.
+    @Test
+    func testRegisterWithLaunchdPlistNotUnderAppRoot() async throws {
+        let appRootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("app-root-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: appRootURL) }
+
+        // serviceRoot is distinct from appRoot, simulating the case where appRoot
+        // is on an external volume but serviceRoot is on the internal system volume.
+        let serviceRootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("service-root-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: serviceRootURL) }
+
+        let factory = try setupMock(tempURL: appRootURL)
+        let loader = try PluginLoader(
+            appRoot: appRootURL,
+            installRoot: URL(filePath: "/usr/local/"),
+            logRoot: nil,
+            pluginDirectories: [appRootURL],
+            pluginFactories: [factory],
+            serviceRoot: serviceRootURL
+        )
+
+        let plugin = loader.findPlugin(name: "service")!
+        try loader.registerWithLaunchd(plugin: plugin)
+
+        let expectedPlistURL = serviceRootURL
+            .appendingPathComponent("plugin-state", isDirectory: true)
+            .appending(path: plugin.name)
+            .appendingPathComponent("service.plist")
+
+        // Plist exists under serviceRoot (internal volume)
+        #expect(FileManager.default.fileExists(atPath: expectedPlistURL.path))
+
+        // Plist must NOT exist under appRoot (which could be an external volume)
+        let appRootPlistURL = appRootURL
+            .appendingPathComponent("plugin-state", isDirectory: true)
+            .appending(path: plugin.name)
+            .appendingPathComponent("service.plist")
+        #expect(!FileManager.default.fileExists(atPath: appRootPlistURL.path))
+    }
+
     private func setupMock(tempURL: URL) throws -> MockPluginFactory {
         let cliConfig = PluginConfig(abstract: "cli", author: "CLI", servicesConfig: nil)
         let cliPlugin: Plugin = Plugin(binaryURL: URL(filePath: "/bin/cli"), config: cliConfig)
