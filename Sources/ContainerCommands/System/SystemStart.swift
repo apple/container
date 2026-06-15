@@ -128,11 +128,14 @@ extension Application {
                 machServices: ["com.apple.container.apiserver"]
             )
 
-            // Write the plist under serviceRoot, which must be on an internal system
-            // volume. launchd cannot register Mach services from plists on external or
-            // removable volumes, so serviceRoot is kept separate from appRoot.
-            // CONTAINER_SERVICE_ROOT is propagated to the daemon via the plist
-            // environment so that plugin registration also uses this root.
+            // Write the plist under serviceRoot, intentionally separate from appRoot.
+            // launchd cannot register Mach services from plists on external or removable
+            // volumes; keeping service files on the internal system volume (serviceRoot)
+            // while application data lives in appRoot preserves that guarantee even when
+            // the user's home directory is on an external volume.
+            // CONTAINER_SERVICE_ROOT is forwarded into the plist environment so the
+            // daemon's PluginLoader writes plugin plists to the same root without
+            // requiring any additional wiring at other call sites.
             let plistDir = serviceRoot
                 .appending(FilePath.Component("apiserver"))
             let plistDirURL = URL(fileURLWithPath: plistDir.string)

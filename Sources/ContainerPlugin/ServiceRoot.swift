@@ -36,12 +36,18 @@ public struct ServiceRoot {
     /// The default root directory used when ``environmentName`` is not set:
     /// a `com.apple.container` subdirectory under the user's temporary directory.
     ///
-    /// The temporary directory (`NSTemporaryDirectory()`) is always located on
-    /// the internal system volume on macOS, making it safe for launchd plist
-    /// registration even when ``ApplicationRoot`` is on an external volume.
-    public static let defaultPath = FilePath(
-        FileManager.default.temporaryDirectory.path(percentEncoded: false)
-    ).appending(FilePath.Component("com.apple.container"))
+    /// `NSTemporaryDirectory()` is guaranteed by macOS to reside on the internal
+    /// system volume (typically `/private/var/folders/…`), making it safe for
+    /// launchd plist registration even when ``ApplicationRoot`` is on an external
+    /// or removable volume.
+    public static let defaultPath: FilePath = {
+        let tmpPath = FileManager.default.temporaryDirectory.path(percentEncoded: false)
+        precondition(
+            !tmpPath.isEmpty,
+            "NSTemporaryDirectory() returned an empty path; cannot determine a safe location for launchd plists"
+        )
+        return FilePath(tmpPath).appending(FilePath.Component("com.apple.container"))
+    }()
 
     /// The resolved root directory path, always lexically normalized.
     ///
