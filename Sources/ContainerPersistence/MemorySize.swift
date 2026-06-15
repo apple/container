@@ -54,3 +54,9 @@ public struct MemorySize: Codable, Sendable, Equatable, CustomStringConvertible 
         return "\(value)\(label)"
     }
 }
+
+extension MemorySize {
+    public func toUInt64(unit: UnitInformationStorage) -> UInt64 {
+        UInt64(self.measurement.converted(to: unit).value.rounded())
+    }
+}

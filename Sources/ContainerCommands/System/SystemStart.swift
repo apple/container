@@ -21,6 +21,7 @@ import ContainerPlugin
 import ContainerXPC
 import ContainerizationError
 import Foundation
+import MachineAPIClient
 import SystemPackage
 import TerminalProgress
 
@@ -136,6 +137,16 @@ extension Application {
                 throw ContainerizationError(
                     .internalError,
                     message: "failed to get a response from apiserver: \(error)"
+                )
+            }
+
+            do {
+                print("Verifying machine API server is running...")
+                _ = try await MachineClient().list()
+            } catch {
+                throw ContainerizationError(
+                    .internalError,
+                    message: "failed to get a response from machine API server: \(error)"
                 )
             }
 

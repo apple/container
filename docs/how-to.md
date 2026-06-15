@@ -633,6 +633,10 @@ Check the VM boot logs to confirm your custom init code executed:
 [    0.129230] custom-init: === CUSTOM INIT IMAGE RUNNING ===
 ```
 
+## Use container machines
+
+Container machines are persistent Linux environments built from OCI images — your home directory is mounted in, the user account matches your host account, and the filesystem survives stop and start. See [container-machine.md](./container-machine.md) for the full guide.
+
 ## Configure system properties
 
 The `container system property` subcommand manages the configuration settings for the `container` CLI and services. You can customize various aspects of container behavior, including build settings, default images, and network configuration.

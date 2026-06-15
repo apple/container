@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerResource
 import ContainerizationError
 import Foundation
 
@@ -33,7 +34,8 @@ extension Application {
 
         public func run() async throws {
             let client = ContainerClient()
-            let containersToPrune = try await client.list().filter { $0.status == .stopped }
+            let filters = ContainerListFilters(status: .stopped).withoutMachines()
+            let containersToPrune = try await client.list(filters: filters)
 
             var prunedContainerIds = [String]()
             var totalSize: UInt64 = 0

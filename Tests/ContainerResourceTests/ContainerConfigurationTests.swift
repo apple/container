@@ -51,6 +51,28 @@ func makeTestConfiguration(
     return config
 }
 
+struct ContainerConfigurationResourcesTests {
+    @Test func roundTripsCpuOverhead() throws {
+        var config = makeTestConfiguration()
+        config.resources.cpuOverhead = 2
+        let data = try JSONEncoder().encode(config)
+        let decoded = try JSONDecoder().decode(ContainerConfiguration.self, from: data)
+        #expect(decoded.resources.cpuOverhead == 2)
+    }
+
+    @Test func decodesMissingCpuOverheadAsDefault() throws {
+        let config = makeTestConfiguration()
+        let data = try JSONEncoder().encode(config)
+        var obj = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        var resources = try #require(obj["resources"] as? [String: Any])
+        resources.removeValue(forKey: "cpuOverhead")
+        obj["resources"] = resources
+        let stripped = try JSONSerialization.data(withJSONObject: obj)
+        let decoded = try JSONDecoder().decode(ContainerConfiguration.self, from: stripped)
+        #expect(decoded.resources.cpuOverhead == 1)
+    }
+}
+
 struct ContainerConfigurationCreationDateTests {
     @Test func roundTripsCreationDate() throws {
         let when = Date(timeIntervalSince1970: 1_700_000_000)
