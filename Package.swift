@@ -207,6 +207,11 @@ let package = Package(
                 "ContainerResource",
                 "ContainerRuntimeLinuxClient",
                 "ContainerRuntimeClient",
+                "ContainerAPIService",
+                "ContainerPlugin",
+                "ContainerPersistence",
+                "DNSServer",
+                .product(name: "Logging", package: "swift-log")
             ]
         ),
         .target(
