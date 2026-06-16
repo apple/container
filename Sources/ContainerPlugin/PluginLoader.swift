@@ -201,13 +201,19 @@ extension PluginLoader {
 }
 
 extension PluginLoader {
-    public static let proxyKeys = Set([
-        "http_proxy", "HTTP_PROXY",
-        "https_proxy", "HTTPS_PROXY",
-        "no_proxy", "NO_PROXY",
-        // Allows LLVM coverage profiling data to be written by launchd-managed helper processes.
-        "LLVM_PROFILE_FILE",
-    ])
+    public static let proxyKeys: Set<String> = {
+        var keys: Set<String> = [
+            "http_proxy", "HTTP_PROXY",
+            "https_proxy", "HTTPS_PROXY",
+            "no_proxy", "NO_PROXY",
+        ]
+        #if CONTAINER_COVERAGE
+        // Allows LLVM coverage profiling data to be written by launchd-managed
+        // helper processes. Compiled in only for coverage enabled builds.
+        keys.insert("LLVM_PROFILE_FILE")
+        #endif
+        return keys
+    }()
 
     public func registerWithLaunchd(
         plugin: Plugin,

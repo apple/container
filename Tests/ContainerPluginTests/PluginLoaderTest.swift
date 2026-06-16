@@ -157,6 +157,7 @@ struct PluginLoaderTest {
             ])
     }
 
+    #if CONTAINER_COVERAGE
     @Test
     func testFilterEnvironmentWithLLVMProfileFile() async throws {
         let env = [
@@ -167,6 +168,7 @@ struct PluginLoaderTest {
 
         #expect(filtered == ["LLVM_PROFILE_FILE": "/tmp/coverage/%p-%m%c.profraw"])
     }
+    #endif
 
     @Test
     func testFilterEnvironmentEmpty() async throws {

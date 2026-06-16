@@ -262,9 +262,8 @@ space := $(empty) $(empty)
 INTEGRATION_FILTER := $(subst $(space),|,$(strip $(INTEGRATION_TEST_SUITES)))
 
 # Opt the coverage targets in to instrumentation. The value propagates to the
-# shared build-tests prerequisite so compilation is instrumented only for these
-# goals; non-coverage test targets build the same bundle uninstrumented.
-coverage coverage-all coverage-unit coverage-integration: COVERAGE_FLAG = --enable-code-coverage
+# shared build-tests target so compilation is instrumented when necessary.
+coverage coverage-all coverage-unit coverage-integration: COVERAGE_FLAG = --enable-code-coverage -Xswiftc -DCONTAINER_COVERAGE
 
 .PHONY: coverage
 # Merge the raw coverage data generated from coverage-unit and coverage-integration into one unified report
