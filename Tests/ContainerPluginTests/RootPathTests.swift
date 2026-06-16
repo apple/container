@@ -14,12 +14,12 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import SystemPackage
+import Foundation
 import Logging
+import SystemPackage
 import Testing
 
 @testable import ContainerPlugin
-import Foundation
 
 struct ApplicationRootTests {
     @Test func defaultPathIsAbsolute() {
@@ -29,7 +29,7 @@ struct ApplicationRootTests {
     @Test func defaultPathEndsWithContainerComponent() {
         #expect(ApplicationRoot.defaultPath.lastComponent?.string == "com.apple.container")
     }
-    
+
     @Test
     func testAppRootIsExcludedFromBackups() async throws {
         let tempDir = FileManager.default.temporaryDirectory
