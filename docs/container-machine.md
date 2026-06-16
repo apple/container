@@ -4,8 +4,8 @@ Container machine provides a highly integrated Linux environment that works seam
 
 ## Why container machines
 
-Containers are typically modeled after an application or task. A container machine is a convenience wrapper around a Linux environment: it pairs a standard OCI image with dedicated persistent root storage, boots the image's init system, and adds host integrations such as automatic user and home directory sharing.
-Both regular containers and container machines keep their changes until you delete them, but container machines are optimized for long-lived, reusable Linux environments instead of single-application workloads. Your repositories and dotfiles are available on both platforms, so you can use editors and tools directly on macOS while simultaneously building and running your application inside the Linux environment.
+Containers are typically modeled after an application or task. A container machine uses a standard OCI image to provide a long-lived Linux environment with host integrations such as automatic user and home directory sharing.
+Both regular containers and container machines keep their changes until you delete them, but container machines are organized around reusable Linux environments rather than single-application workloads. Your repositories and dotfiles are available on both platforms, so you can use editors and tools directly on macOS while simultaneously building and running your application inside the Linux environment.
 
 - **Edit on the Mac, build inside.** Your repo lives in `$HOME` on macOS and is mounted at `/Users/<username>` inside the container machine. Use your macOS editor or IDE; compile and run inside your container machine.
 - **Use macOS-native tooling against Linux artifacts.** Profilers, screenshot tools, browsers, and GUI debuggers on your Mac all see the same files the container machine sees — there is no copy step between "I built it" and "I am inspecting it".
