@@ -1151,7 +1151,7 @@ public actor ContainersService {
             return (config, runtimeConfig.options)
         }
     }
-    
+
     private static func createAppRoot(at appRoot: URL, log: Logger) throws {
         try FileManager.default.createDirectory(
             at: appRoot,

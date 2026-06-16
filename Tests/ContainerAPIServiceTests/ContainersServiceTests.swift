@@ -14,15 +14,15 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import Foundation
-import Testing
-import Logging
-import ContainerPlugin
-import ContainerPersistence
 import ContainerAPIService
+import ContainerPersistence
+import ContainerPlugin
+import Foundation
+import Logging
+import Testing
 
 struct ContainersServiceTests {
-    
+
     @Test
     func testAppRootIsExcludedFromBackups() async throws {
         let tempDir = FileManager.default.temporaryDirectory
@@ -36,7 +36,7 @@ struct ContainersServiceTests {
 
         var logger = Logger(label: "test.ContainersService")
         logger.logLevel = .critical
-        
+
         let pluginLoader = try PluginLoader(
             appRoot: appRoot,
             installRoot: installRoot,
