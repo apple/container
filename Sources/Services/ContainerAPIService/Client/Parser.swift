@@ -52,6 +52,12 @@ public struct Parser {
         return Int64(mb.value)
     }
 
+    public static func memoryStringAsBytes(_ memory: String) throws -> UInt64 {
+        let ram = try Measurement.parse(parsing: memory)
+        let mb = ram.converted(to: .bytes)
+        return UInt64(mb.value)
+    }
+
     public static func user(
         user: String?, uid: UInt32?, gid: UInt32?,
         defaultUser: ProcessConfiguration.User = .id(uid: 0, gid: 0)

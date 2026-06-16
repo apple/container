@@ -118,7 +118,7 @@ class CLITest {
         }
     }
 
-    func run(arguments: [String], stdin: Data? = nil, currentDirectory: URL? = nil, env: [String: String] = [:]) throws -> (
+    func run(arguments: [String], stdin: Data? = nil, currentDirectory: URL? = nil, tty: Bool = false, env: [String: String] = [:]) throws -> (
         outputData: Data, output: String, error: String, status: Int32
     ) {
         let seq = CLITest.commandSeq.withLock { counter in
@@ -147,8 +147,15 @@ class CLITest {
             process.environment = processEnv
         }
 
-        let inputPipe = Pipe()
-        process.standardInput = inputPipe
+        var inputPipe: Pipe?
+        if tty {
+            let terminal = try Terminal.create()
+            process.standardInput = terminal.child.handle
+        } else {
+            let pipe = Pipe()
+            process.standardInput = pipe
+            inputPipe = pipe
+        }
 
         let outputData: Data
         let errorData: Data
@@ -175,10 +182,10 @@ class CLITest {
             process.standardError = stderrHandle
 
             try process.run()
-            if let data = stdin {
-                inputPipe.fileHandleForWriting.write(data)
+            if let data = stdin, let pipe = inputPipe {
+                pipe.fileHandleForWriting.write(data)
             }
-            inputPipe.fileHandleForWriting.closeFile()
+            inputPipe?.fileHandleForWriting.closeFile()
             process.waitUntilExit()
 
             outputData = try Data(contentsOf: stdoutURL)

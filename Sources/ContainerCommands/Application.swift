@@ -79,6 +79,12 @@ public struct Application: AsyncLoggableCommand {
                 ]
             ),
             CommandGroup(
+                name: "Machine",
+                subcommands: [
+                    MachineCommand.self
+                ]
+            ),
+            CommandGroup(
                 name: "Volume",
                 subcommands: [
                     VolumeCommand.self

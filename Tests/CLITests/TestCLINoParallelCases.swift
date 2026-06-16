@@ -71,6 +71,8 @@ class TestCLINoParallelCases: CLITest {
 
     @Test func testImagePruneUnusedImages() throws {
         // 1. Pull the images
+        _ = try? run(arguments: ["rm", "--all", "--force"])
+        defer { _ = try? run(arguments: ["rm", "--all", "--force"]) }
         _ = try? run(arguments: ["image", "rm", "--all"])
         defer { _ = try? run(arguments: ["image", "rm", "--all"]) }
         try doPull(imageName: alpine)

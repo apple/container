@@ -24,7 +24,7 @@ extension Application {
         public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "prune",
-            abstract: "Remove all dangling images. If -a is specified, also remove all images not referenced by any container.")
+            abstract: "Remove unused or all images")
 
         @OptionGroup
         public var logOptions: Flags.Logging

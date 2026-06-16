@@ -513,16 +513,20 @@ public actor RuntimeService {
         self.log.debug("enter", metadata: ["func": "\(#function)"])
         defer { self.log.debug("exit", metadata: ["func": "\(#function)"]) }
 
+        let stopOptions = try message.stopOptions()
+        let signal = try Signal(stopOptions.signal ?? "SIGTERM")
+        let timeout: Duration = .seconds(stopOptions.timeoutInSeconds)
+
         return try await self.lock.withLock { _ in
             switch await self.state {
             case .running, .booted:
                 await self.setState(.stopping)
 
                 let ctr = try await self.getContainer()
-                let stopOptions = try message.stopOptions()
                 let exitStatus = try await self.gracefulStopContainer(
                     ctr.container,
-                    stopOpts: stopOptions
+                    signal: signal,
+                    timeout: timeout
                 )
 
                 do {
@@ -980,6 +984,7 @@ public actor RuntimeService {
         log: Logger? = nil,
     ) throws {
         czConfig.cpus = config.resources.cpus
+        czConfig.cpuOverhead = config.resources.cpuOverhead
         czConfig.memoryInBytes = config.resources.memoryInBytes
         czConfig.sysctl = config.sysctls.reduce(into: [String: String]()) {
             $0[$1.key] = $1.value
@@ -1034,11 +1039,11 @@ public actor RuntimeService {
             czConfig.sockets.append(socketConfig)
         }
 
-        let containerId = config.id
+        let hostnameSource = config.networks.first?.options.hostname ?? config.id
         czConfig.hostname =
-            containerId.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: true)
+            hostnameSource.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: true)
             .first
-            .map { String($0) } ?? containerId
+            .map { String($0) } ?? config.id
 
         if let dns = config.dns {
             czConfig.dns = DNS(
@@ -1206,7 +1211,7 @@ public actor RuntimeService {
         return container
     }
 
-    private func gracefulStopContainer(_ lc: LinuxContainer, stopOpts: ContainerStopOptions) async throws -> ExitStatus {
+    private func gracefulStopContainer(_ lc: LinuxContainer, signal: Signal, timeout: Duration) async throws -> ExitStatus {
         // Try and gracefully shut down the process. Even if this succeeds we need to power off
         // the vm, but we should try this first always.
         var code = ExitStatus(exitCode: 255)
@@ -1216,9 +1221,8 @@ public actor RuntimeService {
                     try await lc.wait()
                 }
                 group.addTask {
-                    let signal = try Signal(stopOpts.signal ?? "SIGTERM")
                     try await lc.kill(signal)
-                    try await Task.sleep(for: .seconds(stopOpts.timeoutInSeconds))
+                    try await Task.sleep(for: timeout)
                     try await lc.kill(.kill)
 
                     return ExitStatus(exitCode: 137)
