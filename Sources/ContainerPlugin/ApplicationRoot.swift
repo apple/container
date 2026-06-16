@@ -16,6 +16,7 @@
 
 import Foundation
 import SystemPackage
+import Logging
 
 /// Provides the application data root path.
 public struct ApplicationRoot {
@@ -45,4 +46,29 @@ public struct ApplicationRoot {
 
     /// The pathname to the root directory
     public static let pathname = path.string
+    
+    /// Explicitly creates the application data root directory and excludes it from backups.
+    public static func ensureCreated(at appRoot: URL, log: Logger) throws {
+        try FileManager.default.createDirectory(
+            at: appRoot,
+            withIntermediateDirectories: true
+        )
+
+        do {
+            var mutableAppRoot = appRoot
+            var resourceValues = URLResourceValues()
+            resourceValues.isExcludedFromBackup = true
+            try mutableAppRoot.setResourceValues(resourceValues)
+
+            log.info(
+                "excluded app root from backups",
+                metadata: ["path": "\(appRoot.path)"]
+            )
+        } catch {
+            log.warning(
+                "failed to exclude app root from backups",
+                metadata: ["error": "\(error)"]
+            )
+        }
+    }
 }

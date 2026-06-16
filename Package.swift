@@ -213,7 +213,6 @@ let package = Package(
                 "ContainerAPIService",
                 "ContainerPlugin",
                 "ContainerPersistence",
-                "DNSServer",
                 .product(name: "Logging", package: "swift-log"),
             ]
         ),

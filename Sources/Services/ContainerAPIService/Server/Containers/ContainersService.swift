@@ -72,12 +72,9 @@ public actor ContainersService {
         log: Logger,
         debugHelpers: Bool = false
     ) throws {
-        try Self.createAppRoot(at: appRoot, log: log)
+        try ApplicationRoot.ensureCreated(at: appRoot, log: log)
         let containerRoot = appRoot.appendingPathComponent("containers")
-        try FileManager.default.createDirectory(
-            at: containerRoot,
-            withIntermediateDirectories: true
-        )
+        try FileManager.default.createDirectory(at: containerRoot, withIntermediateDirectories: true)
         self.exitMonitor = ExitMonitor(log: log)
         self.lock = AsyncLock(log: log)
         self.containerRoot = containerRoot
@@ -1149,31 +1146,6 @@ public actor ContainersService {
                 throw ContainerizationError(.internalError, message: "runtime configuration missing container configuration")
             }
             return (config, runtimeConfig.options)
-        }
-    }
-
-    private static func createAppRoot(at appRoot: URL, log: Logger) throws {
-        try FileManager.default.createDirectory(
-            at: appRoot,
-            withIntermediateDirectories: true
-        )
-
-        do {
-            var appRoot = appRoot
-
-            var resourceValues = URLResourceValues()
-            resourceValues.isExcludedFromBackup = true
-            try appRoot.setResourceValues(resourceValues)
-
-            log.info(
-                "excluded app root from backups",
-                metadata: ["path": "\(appRoot.path)"]
-            )
-        } catch {
-            log.warning(
-                "failed to exclude app root from backups",
-                metadata: ["error": "\(error)"]
-            )
         }
     }
 }
