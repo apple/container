@@ -389,7 +389,7 @@ public struct Flags {
             self.maxConcurrentDownloads = maxConcurrentDownloads
         }
 
-        @Option(name: .long, help: "Maximum number of concurrent downloads (default: 3)")
+        @Option(name: .long, help: "Maximum number of concurrent downloads")
         public var maxConcurrentDownloads: Int = 3
     }
 }
