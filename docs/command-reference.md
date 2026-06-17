@@ -1064,7 +1064,7 @@ container registry list [--format <format>] [--quiet] [--debug]
 
 ### `container machine create`
 
-Creates a container machine from an image and boots it. Use `--cpus`, `--memory`, and `--home-mount` to configure it, or `--no-boot` to create it without booting.
+Creates a container machine from an image and boots it. Use `--cpus`, `--memory`, `--home-mount`, and `--home-mount-path` to configure it, or `--no-boot` to create it without booting.
 
 **Usage**
 
@@ -1084,6 +1084,7 @@ container machine create [<options>] <image>
 *   `--cpus <cpus>`: Number of virtual CPUs
 *   `--memory <memory>`: Memory allocation (e.g., 2G, 8G). Default: half of system memory
 *   `--home-mount <home-mount>`: User's home directory mount option (ro, rw, none). Default: rw
+*   `--home-mount-path <path>`: Custom home directory mount source path (default: current user home)
 
 **Management Options**
 
@@ -1213,6 +1214,7 @@ container machine set [--name <name>] [--debug] <setting> ...
 *   `cpus=<number>`: Number of virtual CPUs
 *   `memory=<size>`: Memory allocation (e.g., 2G, 1G). Default: half of system memory
 *   `home-mount=<string>`: User home directory mount option (ro, rw, none). Default: rw
+*   `home-mount-path=<path>`: Custom home directory mount source path (default: current user home)
 
 **Options**
 

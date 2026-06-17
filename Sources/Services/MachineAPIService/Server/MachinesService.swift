@@ -363,6 +363,7 @@ public actor MachinesService {
                 sbin: path.appending(MachineBundle.sbinDirectory),
                 initializedFile: path.appending(MachineBundle.initializedFile),
                 homeMountOption: bootConfig.homeMount,
+                homeMountPath: bootConfig.homeMountPath,
             )
 
             config.resources.cpus = bootConfig.cpus
@@ -628,6 +629,7 @@ extension MachineConfiguration {
         sbin: FilePath,
         initializedFile: FilePath,
         homeMountOption: MachineConfig.HomeMountOption,
+        homeMountPath: String,
     ) async throws -> ContainerConfiguration {
         var config = ContainerConfiguration(
             id: cid,
@@ -642,7 +644,7 @@ extension MachineConfiguration {
             )
         )
 
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let home = homeMountPath
         config.mounts = [
             .virtiofs(
                 source: sbin.string,
