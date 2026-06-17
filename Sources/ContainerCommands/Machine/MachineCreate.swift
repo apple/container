@@ -64,10 +64,21 @@ extension Application {
         @Option(name: .long, help: "User's home directory mount option (ro, rw, none). Default: rw")
         public var homeMount: String?
 
+        @Flag(name: .long, help: "Enable nested virtualization (requires Apple Silicon M3+ and macOS 15+ and kernel with CONFIG_KVM=y)")
+        public var virtualization: Bool = false
+
+        @Option(name: .long, help: "Path to a custom kernel binary (e.g. vmlinux).")
+        public var kernel: String?
+
         @Argument(help: "Container image reference (e.g., alpine:3.22)")
         var image: String
 
         public func run() async throws {
+            if virtualization {
+                try MachineCapabilities.requireNestedVirtualizationSupported()
+            }
+            let resolvedKernel = try kernel.map { try MachineCapabilities.validateKernelPath($0) }
+
             let progressConfig = try self.progressFlags.makeConfig(
                 showTasks: true,
                 showItems: true,
@@ -88,6 +99,8 @@ extension Application {
                     "cpus": cpus.map { "\($0)" },
                     "memory": memory,
                     "home-mount": homeMount,
+                    "virtualization": virtualization ? "true" : nil,
+                    "kernel": resolvedKernel,
                 ].compactMapValues { $0 }
             )
 

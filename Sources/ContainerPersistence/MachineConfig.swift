@@ -23,7 +23,8 @@ import Foundation
 /// Changes take effect on the next boot. `nil` values mean
 /// "use the container runtime default."
 public struct MachineConfig: Codable, Sendable {
-    public static let `default`: MachineConfig = try! .init(cpus: nil, memory: nil, homeMount: nil)
+    public static let `default`: MachineConfig = try! .init(
+        cpus: nil, memory: nil, homeMount: nil, virtualization: nil, kernelPath: nil)
 
     public static var defaultCPUs: Int {
         max(ProcessInfo.processInfo.processorCount / 2, 4)
@@ -50,18 +51,32 @@ public struct MachineConfig: Codable, Sendable {
     public let memory: MemorySize
     /// Home mount configuration. nil = system default.
     public let homeMount: HomeMountOption
+    /// Whether to expose nested virtualization to the container machine.
+    public let virtualization: Bool
+    /// Optional path to a custom kernel binary. nil falls back to the system default.
+    public let kernelPath: String?
 
     /// Settable keys and their descriptions, for CLI help text generation.
     public static let settableKeys: [(key: String, valueName: String, description: String)] = [
         ("cpus", "<number>", "Number of virtual CPUs"),
         ("memory", "<size>", "Memory allocation (e.g., 2G, 1G). Default: half of system memory"),
         ("home-mount", "<string>", "User home directory mount option (ro, rw, none). Default: rw"),
+        ("virtualization", "<bool>", "Enable nested virtualization (true|false). Requires Apple Silicon M3+ and macOS 15+ and kernel with CONFIG_KVM=y."),
+        ("kernel", "<path>", "Path to a custom kernel binary. Empty value resets to the system default."),
     ]
 
-    public init(cpus: Int?, memory: MemorySize?, homeMount: HomeMountOption?) throws {
+    public init(
+        cpus: Int?,
+        memory: MemorySize?,
+        homeMount: HomeMountOption?,
+        virtualization: Bool?,
+        kernelPath: String?
+    ) throws {
         self.cpus = cpus ?? Self.defaultCPUs
         self.memory = memory ?? Self.defaultMemory
         self.homeMount = homeMount ?? Self.defaultHomeMount
+        self.virtualization = virtualization ?? false
+        self.kernelPath = kernelPath
 
         try self.validate()
     }
@@ -72,8 +87,15 @@ public struct MachineConfig: Codable, Sendable {
         let cpus = try container.decodeIfPresent(Int.self, forKey: .cpus)
         let memory = try container.decodeIfPresent(MemorySize.self, forKey: .memory)
         let homeMount = try container.decodeIfPresent(HomeMountOption.self, forKey: .homeMount)
+        let virtualization = try container.decodeIfPresent(Bool.self, forKey: .virtualization)
+        let kernelPath = try container.decodeIfPresent(String.self, forKey: .kernelPath)
 
-        try self.init(cpus: cpus, memory: memory, homeMount: homeMount)
+        try self.init(
+            cpus: cpus,
+            memory: memory,
+            homeMount: homeMount,
+            virtualization: virtualization,
+            kernelPath: kernelPath)
     }
 
     private func validate() throws {
@@ -117,11 +139,21 @@ extension MachineConfig {
         let cpus = try kwargs["cpus"].map { try Self.parseInt($0, for: "cpus") }
         let memory = try kwargs["memory"].map { try MemorySize($0) }
         let homeMount = try kwargs["home-mount"].map { try Self.parseHomeMount($0) }
+        let virtualization = try kwargs["virtualization"].map { try Self.parseBool($0, for: "virtualization") }
+        // Empty string explicitly clears the kernel override; absent key leaves it unchanged.
+        let kernelPath: String?
+        if let raw = kwargs["kernel"] {
+            kernelPath = raw.isEmpty ? nil : raw
+        } else {
+            kernelPath = self.kernelPath
+        }
 
         return try .init(
             cpus: cpus ?? self.cpus,
             memory: memory ?? self.memory,
-            homeMount: homeMount ?? self.homeMount
+            homeMount: homeMount ?? self.homeMount,
+            virtualization: virtualization ?? self.virtualization,
+            kernelPath: kernelPath
         )
     }
 
@@ -145,5 +177,18 @@ extension MachineConfig {
             )
         }
         return opt
+    }
+
+    /// Parse a boolean setting accepting only "true" or "false".
+    private static func parseBool(_ value: String, for key: String) throws -> Bool {
+        switch value {
+        case "true": return true
+        case "false": return false
+        default:
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "invalid value '\(value)' for \(key). Expected 'true' or 'false'."
+            )
+        }
     }
 }
