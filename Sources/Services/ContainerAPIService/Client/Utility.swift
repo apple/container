@@ -333,14 +333,20 @@ public struct Utility {
         // For the image itself we'll take the user input and try with it as we can do userspace
         // emulation for x86, but for the kernel we need it to match the hosts architecture.
         let s: SystemPlatform = .current
+        var kernel: Kernel
         if let userKernel = management.kernel {
             guard FileManager.default.fileExists(atPath: userKernel) else {
                 throw ContainerizationError(.notFound, message: "kernel file not found at path \(userKernel)")
             }
             let p = URL(filePath: userKernel)
-            return .init(path: p, platform: s)
+            kernel = .init(path: p, platform: s)
+        } else {
+            kernel = try await ClientKernel.getDefaultKernel(for: s)
         }
-        return try await ClientKernel.getDefaultKernel(for: s)
+        // Persist any user-supplied boot args onto the kernel command line. A key supplied
+        // here overrides the runtime's matching built-in default (see RuntimeService.bootstrap).
+        kernel.commandLine.kernelArgs.append(contentsOf: management.kernelArgs)
+        return kernel
     }
 
     /// Parses key-value pairs from command line arguments.
