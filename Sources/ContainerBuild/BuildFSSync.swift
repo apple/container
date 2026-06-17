@@ -199,7 +199,7 @@ actor BuildFSSync: BuildPipelineHandler {
         _ packet: BuildTransfer,
         _ buildID: String
     ) async throws {
-        let wantsTar = packet.mode() == "tar"
+        let wantsTar = packet.mode().flatMap { Builder.TransferMode(rawValue: $0) } == .tar
 
         var entries: [String: Set<DirEntry>] = [:]
         let followPaths: [String] = packet.followPaths() ?? []
@@ -221,10 +221,38 @@ actor BuildFSSync: BuildPipelineHandler {
             if url.isSymlink {
                 let target: URL = url.resolvingSymlinksInPath()
                 if self.contextDir.parentOf(target) {
-                    let relPath = try target.relativeChildPath(to: self.contextDir)
-                    let entry = DirEntry(url: target, isDirectory: target.hasDirectoryPath, relativePath: relPath)
-                    let parentPath: String = try target.deletingLastPathComponent().relativeChildPath(to: self.contextDir)
-                    entries[parentPath, default: []].insert(entry)
+                    var ancestor = target
+                    while self.contextDir.parentOf(ancestor)
+                        && ancestor.cleanPath != self.contextDir.cleanPath
+                    {
+                        let isDir = (try? ancestor.isDir()) ?? ancestor.hasDirectoryPath
+                        let relPath = try ancestor.relativeChildPath(to: self.contextDir)
+                        let parentPath = try ancestor.deletingLastPathComponent().relativeChildPath(to: self.contextDir)
+                        entries[parentPath, default: []].insert(
+                            DirEntry(url: ancestor, isDirectory: isDir, relativePath: relPath)
+                        )
+                        ancestor = ancestor.deletingLastPathComponent()
+                    }
+
+                    if target.hasDirectoryPath,
+                        let enumerator = FileManager.default.enumerator(
+                            at: target,
+                            includingPropertiesForKeys: [.isDirectoryKey],
+                            options: [.skipsHiddenFiles]
+                        )
+                    {
+                        while let child = enumerator.nextObject() as? URL {
+                            guard self.contextDir.parentOf(child),
+                                child.cleanPath != self.contextDir.cleanPath
+                            else { continue }
+                            let isDir = (try? child.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+                            let relPath = try child.relativeChildPath(to: self.contextDir)
+                            let parentPath = try child.deletingLastPathComponent().relativeChildPath(to: self.contextDir)
+                            entries[parentPath, default: []].insert(
+                                DirEntry(url: child, isDirectory: isDir, relativePath: relPath)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -405,12 +433,12 @@ actor BuildFSSync: BuildPipelineHandler {
             // the same value tar mode provides via Archiver's use of
             // destinationOfSymbolicLink — rather than a host-resolved path.
             self.target = path.isSymlink ? try FileManager.default.destinationOfSymbolicLink(atPath: path.cleanPath) : ""
+            self.isDir = path.isSymlink ? false : path.isDirectory
 
             self.name = try path.relativeChildPath(to: contextDir)
             self.modTime = try path.modTime()
             self.mode = try path.mode()
             self.size = try path.size()
-            self.isDir = path.hasDirectoryPath
             self.uid = 0
             self.gid = 0
         }
