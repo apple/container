@@ -51,7 +51,7 @@ struct ApplicationRootTests {
         let readBack = try appRoot.resourceValues(forKeys: [.isExcludedFromBackupKey])
         #expect(
             readBack.isExcludedFromBackup == true,
-            "ApplicationRoot.ensureCreated should explicitly exclude appRoot from Time Machine backups."
+            "ApplicationRoot.ensureCreated should explicitly exclude appRoot from backups."
         )
     }
 }
