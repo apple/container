@@ -210,10 +210,6 @@ let package = Package(
                 "ContainerResource",
                 "ContainerRuntimeLinuxClient",
                 "ContainerRuntimeClient",
-                "ContainerAPIService",
-                "ContainerPlugin",
-                "ContainerPersistence",
-                .product(name: "Logging", package: "swift-log"),
             ]
         ),
         .target(
@@ -466,7 +462,8 @@ let package = Package(
         .testTarget(
             name: "ContainerPluginTests",
             dependencies: [
-                "ContainerPlugin"
+                "ContainerPlugin",
+                .product(name: "Logging", package: "swift-log"),
             ]
         ),
         .target(

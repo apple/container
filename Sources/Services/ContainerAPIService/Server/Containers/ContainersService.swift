@@ -72,7 +72,6 @@ public actor ContainersService {
         log: Logger,
         debugHelpers: Bool = false
     ) throws {
-        try ApplicationRoot.ensureCreated(at: appRoot, log: log)
         let containerRoot = appRoot.appendingPathComponent("containers")
         try FileManager.default.createDirectory(at: containerRoot, withIntermediateDirectories: true)
         self.exitMonitor = ExitMonitor(log: log)
