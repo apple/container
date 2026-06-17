@@ -372,14 +372,9 @@ public actor MachinesService {
 
             let kernel: Kernel
             if let kernelPath = bootConfig.kernelPath {
-                guard FileManager.default.isReadableFile(atPath: kernelPath) else {
-                    throw ContainerizationError(
-                        .invalidState,
-                        message: "configured kernel binary not found or unreadable: \(kernelPath)"
-                    )
-                }
+                let validated = try MachineConfig.validateKernelPath(kernelPath.string)
                 kernel = Kernel(
-                    path: URL(fileURLWithPath: kernelPath),
+                    path: URL(fileURLWithPath: validated.string),
                     platform: self.systemPlatform(from: state.snapshot.configuration.platform)
                 )
             } else {

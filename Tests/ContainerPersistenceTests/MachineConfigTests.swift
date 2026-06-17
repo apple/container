@@ -17,6 +17,7 @@
 import ContainerPersistence
 import ContainerizationError
 import Foundation
+import SystemPackage
 import Testing
 
 struct MachineConfigTests {
@@ -45,12 +46,12 @@ struct MachineConfigTests {
 
     @Test func withSetsKernelPath() throws {
         let updated = try MachineConfig.default.with(["kernel": "/opt/kernels/vmlinux"])
-        #expect(updated.kernelPath == "/opt/kernels/vmlinux")
+        #expect(updated.kernelPath == FilePath("/opt/kernels/vmlinux"))
     }
 
     @Test func withEmptyKernelClearsKernelPath() throws {
         let withCustom = try MachineConfig.default.with(["kernel": "/opt/kernels/vmlinux"])
-        #expect(withCustom.kernelPath == "/opt/kernels/vmlinux")
+        #expect(withCustom.kernelPath == FilePath("/opt/kernels/vmlinux"))
         let cleared = try withCustom.with(["kernel": ""])
         #expect(cleared.kernelPath == nil)
     }
@@ -83,7 +84,7 @@ struct MachineConfigTests {
         let data = try JSONEncoder().encode(config)
         let decoded = try JSONDecoder().decode(MachineConfig.self, from: data)
         #expect(decoded.virtualization == true)
-        #expect(decoded.kernelPath == "/some/vmlinux")
+        #expect(decoded.kernelPath == FilePath("/some/vmlinux"))
     }
 
     @Test func settableKeysIncludeNewFields() {

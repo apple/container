@@ -72,7 +72,7 @@ extension Application {
             }
             var validatedKwargs = kwargs
             if let raw = kwargs["kernel"], !raw.isEmpty {
-                validatedKwargs["kernel"] = try MachineCapabilities.validateKernelPath(raw)
+                validatedKwargs["kernel"] = try MachineConfig.validateKernelPath(raw).string
             }
 
             let newConfig = try snapshot.bootConfig.with(validatedKwargs)

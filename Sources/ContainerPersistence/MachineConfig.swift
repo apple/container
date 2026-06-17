@@ -16,6 +16,7 @@
 
 import ContainerizationError
 import Foundation
+import SystemPackage
 
 /// Boot-time configuration for a container machine.
 ///
@@ -54,7 +55,15 @@ public struct MachineConfig: Codable, Sendable {
     /// Whether to expose nested virtualization to the container machine.
     public let virtualization: Bool
     /// Optional path to a custom kernel binary. nil falls back to the system default.
-    public let kernelPath: String?
+    public let kernelPath: FilePath?
+
+    private enum CodingKeys: String, CodingKey {
+        case cpus
+        case memory
+        case homeMount
+        case virtualization
+        case kernelPath
+    }
 
     /// Settable keys and their descriptions, for CLI help text generation.
     public static let settableKeys: [(key: String, valueName: String, description: String)] = [
@@ -70,7 +79,7 @@ public struct MachineConfig: Codable, Sendable {
         memory: MemorySize?,
         homeMount: HomeMountOption?,
         virtualization: Bool?,
-        kernelPath: String?
+        kernelPath: FilePath?
     ) throws {
         self.cpus = cpus ?? Self.defaultCPUs
         self.memory = memory ?? Self.defaultMemory
@@ -88,7 +97,10 @@ public struct MachineConfig: Codable, Sendable {
         let memory = try container.decodeIfPresent(MemorySize.self, forKey: .memory)
         let homeMount = try container.decodeIfPresent(HomeMountOption.self, forKey: .homeMount)
         let virtualization = try container.decodeIfPresent(Bool.self, forKey: .virtualization)
-        let kernelPath = try container.decodeIfPresent(String.self, forKey: .kernelPath)
+        // FilePath's default Codable conformance encodes its internal SystemChar storage,
+        // which the project's ConfigSnapshotDecoder can't handle. Persist as a plain String
+        // and lift to FilePath in memory.
+        let kernelPath = try container.decodeIfPresent(String.self, forKey: .kernelPath).map { FilePath($0) }
 
         try self.init(
             cpus: cpus,
@@ -96,6 +108,15 @@ public struct MachineConfig: Codable, Sendable {
             homeMount: homeMount,
             virtualization: virtualization,
             kernelPath: kernelPath)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(cpus, forKey: .cpus)
+        try container.encode(memory, forKey: .memory)
+        try container.encode(homeMount, forKey: .homeMount)
+        try container.encode(virtualization, forKey: .virtualization)
+        try container.encodeIfPresent(kernelPath?.string, forKey: .kernelPath)
     }
 
     private func validate() throws {
@@ -141,9 +162,9 @@ extension MachineConfig {
         let homeMount = try kwargs["home-mount"].map { try Self.parseHomeMount($0) }
         let virtualization = try kwargs["virtualization"].map { try Self.parseBool($0, for: "virtualization") }
         // Empty string explicitly clears the kernel override; absent key leaves it unchanged.
-        let kernelPath: String?
+        let kernelPath: FilePath?
         if let raw = kwargs["kernel"] {
-            kernelPath = raw.isEmpty ? nil : raw
+            kernelPath = raw.isEmpty ? nil : FilePath(raw)
         } else {
             kernelPath = self.kernelPath
         }
@@ -181,14 +202,50 @@ extension MachineConfig {
 
     /// Parse a boolean setting accepting only "true" or "false".
     private static func parseBool(_ value: String, for key: String) throws -> Bool {
-        switch value {
-        case "true": return true
-        case "false": return false
-        default:
+        guard let result = Parsers.parseBool(string: value) else {
             throw ContainerizationError(
                 .invalidArgument,
                 message: "invalid value '\(value)' for \(key). Expected 'true' or 'false'."
             )
         }
+        return result
+    }
+}
+
+extension MachineConfig {
+    /// Resolves the user-supplied kernel path to absolute and confirms it points to a
+    /// readable, non-empty regular file. Used at create, set, and boot time.
+    public static func validateKernelPath(_ path: String) throws -> FilePath {
+        let absolute = URL(fileURLWithPath: path).path
+        let fm = FileManager.default
+
+        var isDirectory: ObjCBool = false
+        guard fm.fileExists(atPath: absolute, isDirectory: &isDirectory) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "kernel binary not found at '\(absolute)'"
+            )
+        }
+        guard !isDirectory.boolValue else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "kernel path '\(absolute)' is a directory, expected a file"
+            )
+        }
+        guard fm.isReadableFile(atPath: absolute) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "kernel binary at '\(absolute)' is not readable"
+            )
+        }
+        let attrs = try fm.attributesOfItem(atPath: absolute)
+        let size = (attrs[.size] as? NSNumber)?.uint64Value ?? 0
+        guard size > 0 else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "kernel binary at '\(absolute)' is empty"
+            )
+        }
+        return FilePath(absolute)
     }
 }

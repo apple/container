@@ -77,7 +77,7 @@ extension Application {
             if virtualization {
                 try MachineCapabilities.requireNestedVirtualizationSupported()
             }
-            let resolvedKernel = try kernel.map { try MachineCapabilities.validateKernelPath($0) }
+            let resolvedKernel = try kernel.map { try MachineConfig.validateKernelPath($0) }
 
             let progressConfig = try self.progressFlags.makeConfig(
                 showTasks: true,
@@ -100,7 +100,7 @@ extension Application {
                     "memory": memory,
                     "home-mount": homeMount,
                     "virtualization": virtualization ? "true" : nil,
-                    "kernel": resolvedKernel,
+                    "kernel": resolvedKernel?.string,
                 ].compactMapValues { $0 }
             )
 

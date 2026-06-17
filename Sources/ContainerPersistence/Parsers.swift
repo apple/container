@@ -14,19 +14,19 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerizationError
-import Virtualization
+import Foundation
 
-/// Pre-flight checks for container machine settings that depend on host capabilities.
-enum MachineCapabilities {
-    /// Throws when the host can't run a VM with `isNestedVirtualizationEnabled = true`.
-    /// Apple Silicon M3+ with macOS 15+ is required.
-    static func requireNestedVirtualizationSupported() throws {
-        guard VZGenericPlatformConfiguration.isNestedVirtualizationSupported else {
-            throw ContainerizationError(
-                .unsupported,
-                message: "nested virtualization is not supported on this host (requires Apple Silicon M3+ and macOS 15+)"
-            )
+/// Generic value parsers shared across the project. Lives in `ContainerPersistence`
+/// so both higher-level CLI parsers and the persistence layer can reuse the same
+/// canonical implementations.
+public enum Parsers {
+    /// Parse a boolean string accepting "true"/"t"/"false"/"f" (case-insensitive).
+    /// Returns nil if the input matches none.
+    public static func parseBool(string: String) -> Bool? {
+        switch string.lowercased() {
+        case "true", "t": return true
+        case "false", "f": return false
+        default: return nil
         }
     }
 }
