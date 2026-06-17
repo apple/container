@@ -14,11 +14,13 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerAPIClient
 import ContainerNetworkClient
 import ContainerOS
 import ContainerPersistence
 import ContainerResource
 import ContainerRuntimeClient
+import ContainerRuntimeLinuxClient
 import ContainerXPC
 import Containerization
 import ContainerizationError
@@ -141,7 +143,7 @@ public actor RuntimeService {
 
         // Create the bundle if it doesn't exist yet
         if !self.bundleExists(at: self.root) {
-            try self.createBundle()
+            try await self.createBundle()
         }
 
         return try await self.lock.withLock { _ in
@@ -1551,15 +1553,57 @@ extension RuntimeService {
     }
 
     /// Create bundle from RuntimeConfiguration
-    private func createBundle() throws {
+    private func createBundle() async throws {
         do {
             let runtimeConfig = try RuntimeConfiguration.readRuntimeConfiguration(from: self.root)
+            let initPlatform = SystemPlatform.current.ociPlatform()
+            let containerPlatform = runtimeConfig.containerConfiguration?.platform ?? initPlatform
+
+            let initFs: Filesystem
+            let containerFs: Filesystem?
+            let kernel: Kernel
+
+            if let runtimeDataBlob = runtimeConfig.runtimeData {
+                // New format — decode LinuxRuntimeData and resolve refs
+                let linuxData = try LinuxRuntimeData.decodeData(runtimeDataBlob)
+
+                // Resolve the init image reference to a filesystem
+                let systemConfig = try await ConfigurationLoader.load()
+                let initImage = try await ClientImage.get(reference: linuxData.initImageRef, containerSystemConfig: systemConfig)
+                var initFsResolved = try await initImage.getCreateSnapshot(platform: initPlatform)
+                initFsResolved.options = ["ro"]
+                initFs = initFsResolved
+
+                // An explicit root filesystem override takes precedence over resolving
+                // the container image (e.g. a prebuilt persistent root supplied directly).
+                if let override = runtimeConfig.options?.rootFsOverride {
+                    containerFs = override
+                } else if let imageDescription = runtimeConfig.containerConfiguration?.image {
+                    let containerImage = ClientImage(description: imageDescription)
+                    containerFs = try await containerImage.getCreateSnapshot(platform: containerPlatform)
+                } else {
+                    containerFs = nil
+                }
+
+                kernel = Kernel(path: URL(fileURLWithPath: linuxData.kernelPath), platform: .current)
+            } else if let legacyKernel = runtimeConfig.kernel,
+                let legacyInitFs = runtimeConfig.initialFilesystem
+            {
+                // Old-format config — boot directly from the legacy fields.
+                // TODO: remove after migration period
+                initFs = legacyInitFs
+                containerFs = runtimeConfig.containerRootFilesystem
+                kernel = legacyKernel
+            } else {
+                throw ContainerizationError(.invalidState, message: "runtime configuration missing both runtimeData and legacy fields")
+            }
+
             _ = try ContainerResource.Bundle.create(
                 path: runtimeConfig.path,
-                initialFilesystem: runtimeConfig.initialFilesystem,
-                kernel: runtimeConfig.kernel,
+                initialFilesystem: initFs,
+                kernel: kernel,
                 containerConfiguration: runtimeConfig.containerConfiguration,
-                containerRootFilesystem: runtimeConfig.containerRootFilesystem,
+                containerRootFilesystem: containerFs,
                 options: runtimeConfig.options
             )
             self.log.info("created bundle", metadata: ["configPath": "\(runtimeConfig.path)"])

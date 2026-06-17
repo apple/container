@@ -19,9 +19,39 @@ import Foundation
 /// Linux-specific runtime data passed through the opaque runtimeData field
 /// in RuntimeConfiguration. Encoded by the CLI, decoded by the Linux runtime.
 public struct LinuxRuntimeData: Codable, Sendable {
+    /// Runtime variant identifier.
     public let variant: String?
+    /// Path to the kernel binary on the host.
+    public let kernelPath: String
+    /// Reference to the init image, resolved from the local image store at bootstrap.
+    public let initImageRef: String
 
-    public init(variant: String? = nil) {
+    public init(
+        variant: String? = nil,
+        kernelPath: String,
+        initImageRef: String
+    ) {
         self.variant = variant
+        self.kernelPath = kernelPath
+        self.initImageRef = initImageRef
+    }
+
+    /// Encode Linux-specific runtime data into an opaque blob to pass through the API server.
+    public static func encodeData(
+        kernelPath: String,
+        initImageRef: String,
+        variant: String? = nil
+    ) throws -> Data {
+        let data = LinuxRuntimeData(
+            variant: variant,
+            kernelPath: kernelPath,
+            initImageRef: initImageRef
+        )
+        return try JSONEncoder().encode(data)
+    }
+
+    /// Decode Linux-specific runtime data from the opaque blob.
+    public static func decodeData(_ data: Data) throws -> LinuxRuntimeData {
+        try JSONDecoder().decode(LinuxRuntimeData.self, from: data)
     }
 }

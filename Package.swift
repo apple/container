@@ -591,6 +591,7 @@ let package = Package(
                 "ContainerAPIClient",
                 "ContainerResource",
                 "ContainerRuntimeClient",
+                "ContainerRuntimeLinuxClient",
                 "ContainerXPC",
                 "MachineAPIClient",
             ],

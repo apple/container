@@ -66,7 +66,6 @@ extension APIServer {
                 try await initializePlugins(pluginLoader: pluginLoader, log: log, routes: &routes, debug: debug)
                 let containersService = try initializeContainersService(
                     pluginLoader: pluginLoader,
-                    containerSystemConfig: containerSystemConfig,
                     log: log,
                     routes: &routes
                 )
@@ -273,7 +272,6 @@ extension APIServer {
 
         private func initializeContainersService(
             pluginLoader: PluginLoader,
-            containerSystemConfig: ContainerSystemConfig,
             log: Logger,
             routes: inout [XPCRoute: XPCServer.RouteHandler]
         ) throws -> ContainersService {
@@ -284,7 +282,6 @@ extension APIServer {
             let service = try ContainersService(
                 appRoot: appRootURL,
                 pluginLoader: pluginLoader,
-                containerSystemConfig: containerSystemConfig,
                 log: log,
                 debugHelpers: debug
             )

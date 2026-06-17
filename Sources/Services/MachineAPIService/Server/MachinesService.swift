@@ -18,6 +18,7 @@ import ContainerAPIClient
 import ContainerPersistence
 import ContainerResource
 import ContainerRuntimeClient
+import ContainerRuntimeLinuxClient
 import Containerization
 import ContainerizationEXT4
 import ContainerizationError
@@ -49,6 +50,7 @@ public actor MachinesService {
 
     private let resourceRoot: FilePath
     private let machineRoot: FilePath
+    private let containerSystemConfig: ContainerSystemConfig
     private let lock = AsyncLock()
     private var machines: [String: MachineState]
     private let exitMonitor: ExitMonitor
@@ -63,8 +65,9 @@ public actor MachinesService {
         return self.machines[id]
     }
 
-    public init(appRoot: FilePath, resourceRoot: FilePath, log: Logger) throws {
+    public init(appRoot: FilePath, resourceRoot: FilePath, containerSystemConfig: ContainerSystemConfig, log: Logger) throws {
         self.resourceRoot = resourceRoot
+        self.containerSystemConfig = containerSystemConfig
 
         let machineRoot = appRoot.appending(Self.machinesDir)
         try FileManager.default.createDirectory(atPath: machineRoot.string, withIntermediateDirectories: true)
@@ -370,13 +373,24 @@ public actor MachinesService {
             config.resources.memoryInBytes = bootConfig.memory.toUInt64(unit: .bytes)
 
             let kernel = try await ClientKernel.getDefaultKernel(for: .current)
+            // Ensure the init image is present locally and resolve it to a canonical
+            // reference for the runtime to load at bootstrap.
+            let initImage = try await ClientImage.fetch(
+                reference: self.containerSystemConfig.vminit.image,
+                platform: .current,
+                containerSystemConfig: self.containerSystemConfig
+            )
+            let runtimeData = try LinuxRuntimeData.encodeData(
+                kernelPath: kernel.path.path,
+                initImageRef: initImage.reference
+            )
 
             var fhs: [FileHandle] = []
             do {
                 try await self.client.create(
                     configuration: config,
                     options: ContainerCreateOptions(autoRemove: true, rootFsOverride: rootfs),
-                    kernel: kernel
+                    runtimeData: runtimeData
                 )
 
                 let process = try await self.client.bootstrap(

@@ -20,6 +20,7 @@ import ContainerBuild
 import ContainerPersistence
 import ContainerPlugin
 import ContainerResource
+import ContainerRuntimeLinuxClient
 import Containerization
 import ContainerizationError
 import ContainerizationExtras
@@ -276,24 +277,39 @@ extension Application {
                 options: dnsOptions
             )
 
-            let kernel = try await {
-                await progressUpdate([
-                    .setDescription("Fetching kernel"),
-                    .setItemsName("binary"),
-                ])
+            await progressUpdate([
+                .setDescription("Fetching kernel"),
+                .setItemsName("binary"),
+            ])
+            let kernel = try await ClientKernel.getDefaultKernel(for: .current)
 
-                let kernel = try await ClientKernel.getDefaultKernel(for: .current)
-                return kernel
-            }()
+            // Ensure the init image is present locally and resolve it to a canonical
+            // reference for the runtime to load at bootstrap.
+            await progressUpdate([
+                .setDescription("Fetching init image"),
+                .setItemsName("blobs"),
+            ])
+            let initFetchTask = await taskManager.startTask()
+            let initImage = try await ClientImage.fetch(
+                reference: containerSystemConfig.vminit.image,
+                platform: .current,
+                containerSystemConfig: containerSystemConfig,
+                progressUpdate: ProgressTaskCoordinator.handler(for: initFetchTask, from: progressUpdate)
+            )
 
             await progressUpdate([
                 .setDescription("Starting BuildKit container")
             ])
 
+            let runtimeData = try LinuxRuntimeData.encodeData(
+                kernelPath: kernel.path.path,
+                initImageRef: initImage.reference
+            )
+
             try await client.create(
                 configuration: config,
                 options: .default,
-                kernel: kernel
+                runtimeData: runtimeData
             )
 
             try await startBuildKit(client: client, id: Builder.builderContainerId, progressUpdate, taskManager)

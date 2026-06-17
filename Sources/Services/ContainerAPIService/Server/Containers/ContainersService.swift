@@ -16,7 +16,6 @@
 
 import CVersion
 import ContainerAPIClient
-import ContainerPersistence
 import ContainerPlugin
 import ContainerResource
 import ContainerRuntimeClient
@@ -57,7 +56,6 @@ public actor ContainersService {
     private let pluginLoader: PluginLoader
     private let runtimePlugins: [Plugin]
     private let exitMonitor: ExitMonitor
-    private let containerSystemConfig: ContainerSystemConfig
 
     private let lock: AsyncLock
     private var containers: [String: ContainerState]
@@ -68,7 +66,6 @@ public actor ContainersService {
     public init(
         appRoot: URL,
         pluginLoader: PluginLoader,
-        containerSystemConfig: ContainerSystemConfig,
         log: Logger,
         debugHelpers: Bool = false
     ) throws {
@@ -78,7 +75,6 @@ public actor ContainersService {
         self.lock = AsyncLock(log: log)
         self.containerRoot = containerRoot
         self.pluginLoader = pluginLoader
-        self.containerSystemConfig = containerSystemConfig
         self.log = log
         self.debugHelpers = debugHelpers
         self.runtimePlugins = pluginLoader.findPlugins().filter { $0.hasType(.runtime) }
@@ -264,7 +260,7 @@ public actor ContainersService {
     }
 
     /// Create a new container from the provided id and configuration.
-    public func create(configuration: ContainerConfiguration, kernel: Kernel, options: ContainerCreateOptions, initImage: String? = nil, runtimeData: Data? = nil) async throws {
+    public func create(configuration: ContainerConfiguration, options: ContainerCreateOptions, runtimeData: Data) async throws {
         log.debug(
             "ContainersService: enter",
             metadata: [
@@ -311,7 +307,7 @@ public actor ContainersService {
                 )
             }
 
-            guard self.runtimePlugins.first(where: { $0.name == configuration.runtimeHandler }) != nil else {
+            guard self.runtimePlugins.contains(where: { $0.name == configuration.runtimeHandler }) else {
                 throw ContainerizationError(
                     .notFound,
                     message: "unable to locate runtime plugin \(configuration.runtimeHandler)"
@@ -334,56 +330,21 @@ public actor ContainersService {
             }
 
             let path = self.containerRoot.appendingPathComponent(configuration.id)
-            let systemPlatform = kernel.platform
-
-            // Fetch init image (custom or default)
-            self.log.debug(
-                "ContainersService: get init block",
-                metadata: [
-                    "id": "\(configuration.id)"
-                ]
+            let runtimeConfig = RuntimeConfiguration(
+                path: path,
+                containerConfiguration: configuration,
+                options: options,
+                runtimeData: runtimeData
             )
-            let initFilesystem = try await self.getInitBlock(for: systemPlatform.ociPlatform(), imageRef: initImage)
+            try runtimeConfig.writeRuntimeConfiguration()
 
-            do {
-                self.log.debug(
-                    "create snapshot",
-                    metadata: [
-                        "id": "\(configuration.id)",
-                        "ref": "\(configuration.image.reference)",
-                    ])
-                let containerImage = ClientImage(description: configuration.image)
-                let imageFs = try await options.rootFsOverride == nil ? containerImage.getCreateSnapshot(platform: configuration.platform) : nil
-
-                self.log.debug(
-                    "configure runtime",
-                    metadata: [
-                        "id": "\(configuration.id)",
-                        "kernel": "\(kernel.path)",
-                        "initfs": "\(initImage ?? self.containerSystemConfig.vminit.image)",
-                    ])
-                let runtimeConfig = RuntimeConfiguration(
-                    path: path,
-                    initialFilesystem: initFilesystem,
-                    kernel: kernel,
-                    containerConfiguration: configuration,
-                    containerRootFilesystem: imageFs,
-                    options: options,
-                    runtimeData: runtimeData
-                )
-
-                try runtimeConfig.writeRuntimeConfiguration()
-
-                let snapshot = ContainerSnapshot(
-                    configuration: configuration,
-                    status: .stopped,
-                    networks: [],
-                    startedDate: nil
-                )
-                await self.setContainerState(configuration.id, ContainerState(snapshot: snapshot), context: context)
-            } catch {
-                throw error
-            }
+            let snapshot = ContainerSnapshot(
+                configuration: configuration,
+                status: .stopped,
+                networks: [],
+                startedDate: nil
+            )
+            await self.setContainerState(configuration.id, ContainerState(snapshot: snapshot), context: context)
         }
     }
 
@@ -1076,14 +1037,6 @@ public actor ContainersService {
         let bundle = ContainerResource.Bundle(path: path)
         let options: ContainerCreateOptions = try bundle.load(filename: "options.json")
         return options
-    }
-
-    private func getInitBlock(for platform: Platform, imageRef: String? = nil) async throws -> Filesystem {
-        let ref = imageRef ?? containerSystemConfig.vminit.image
-        let initImage = try await ClientImage.fetch(reference: ref, platform: platform, containerSystemConfig: containerSystemConfig)
-        var fs = try await initImage.getCreateSnapshot(platform: platform)
-        fs.options = ["ro"]
-        return fs
     }
 
     private static func registerService(
