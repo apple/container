@@ -63,7 +63,7 @@ Guest kernel used when launching container VMs. Defaults change per release as k
 ## `[machine]`
 
 Defaults applied when `container machine create` is invoked without `--cpus`, `--memory`, or `--home-mount`.
-Does not affect existing machines — use `container machine set` to change running machines.
+Does not affect existing machines — use `container machine set` to update an existing machine, then stop and restart it for changes to take effect.
 
 | Key         | Type       | Default                                              | Description                                                                        |
 |-------------|------------|------------------------------------------------------|------------------------------------------------------------------------------------|
