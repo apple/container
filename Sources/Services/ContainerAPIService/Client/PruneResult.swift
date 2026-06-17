@@ -32,9 +32,13 @@ public struct PruneResult: Sendable {
 
     public let reclaimedBytes: UInt64
 
-    public init(pruned: [String], failed: [Failure], reclaimedBytes: UInt64) {
+    /// Blob digests removed during garbage collection. Only populated by image prune.
+    public let deletedDigests: [String]
+
+    public init(pruned: [String], failed: [Failure], reclaimedBytes: UInt64, deletedDigests: [String] = []) {
         self.pruned = pruned
         self.failed = failed
         self.reclaimedBytes = reclaimedBytes
+        self.deletedDigests = deletedDigests
     }
 }
