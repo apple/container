@@ -25,6 +25,8 @@ import Testing
 */
 @Suite(.serialSuites, .serialized)
 class TestCLIBuildBase: CLITest {
+    var transferMode: String = "tar"
+
     override init() throws {
         try super.init()
 
@@ -134,6 +136,8 @@ class TestCLIBuildBase: CLITest {
             "-f",
             tempDockerfileContext.appendingPathComponent("Dockerfile").path,
         ]
+        args.append(contentsOf: ["--transfer-mode", transferMode])
+
         for tag in tags {
             args.append("-t")
             args.append(tag)
@@ -169,6 +173,7 @@ class TestCLIBuildBase: CLITest {
             "-f",
             "-",
         ]
+        args.append(contentsOf: ["--transfer-mode", transferMode])
         for tag in tags {
             args.append("-t")
             args.append(tag)
@@ -270,7 +275,7 @@ class TestCLIBuildBase: CLITest {
             let targetURL = contextDir.appendingPathComponent(target)
             try FileManager.default.createSymbolicLink(
                 atPath: fullPath.path,
-                withDestinationPath: targetURL.relativePathFrom(from: fullPath)
+                withDestinationPath: targetURL.relativePathFrom(from: fullPath.deletingLastPathComponent())
             )
             lchown(fullPath.path, uid, gid)
         }

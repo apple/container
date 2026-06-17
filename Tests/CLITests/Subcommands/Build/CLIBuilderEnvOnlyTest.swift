@@ -27,7 +27,9 @@ extension TestCLIBuildBase {
             try? builderDelete(force: true)
         }
 
-        @Test func testBuildEnvironmentOnlyImageFromScratch() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildEnvironmentOnlyImageFromScratch(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             let dockerfile =
                 """
@@ -51,7 +53,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testBuildEnvironmentOnlyImageFromAlpine() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildEnvironmentOnlyImageFromAlpine(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             let dockerfile =
                 """
@@ -72,7 +76,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testMultiStageBuildWithEnvOnlyBase() throws {
+        @Test(arguments: ["tar", "json"]) func testMultiStageBuildWithEnvOnlyBase(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             let baseImageName = "test-env-base:\(UUID().uuidString)"
 
@@ -112,7 +118,9 @@ extension TestCLIBuildBase {
             )
         }
 
-        @Test func testComplexArgAndEnvCombinations() throws {
+        @Test(arguments: ["tar", "json"]) func testComplexArgAndEnvCombinations(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             let dockerfile =
                 """
@@ -142,7 +150,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testLabelOnlyDockerfile() throws {
+        @Test(arguments: ["tar", "json"]) func testLabelOnlyDockerfile(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             let dockerfile =
                 """

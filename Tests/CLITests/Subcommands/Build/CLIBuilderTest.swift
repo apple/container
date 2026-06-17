@@ -28,7 +28,9 @@ extension TestCLIBuildBase {
             try? builderDelete(force: true)
         }
 
-        @Test func testBuildDotFileSucceeds() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildDotFileSucceeds(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
                 """
@@ -46,7 +48,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testBuildFromPreviousStage() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildFromPreviousStage(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             let dockerfile =
                 """
@@ -63,7 +67,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully build \(imageName)")
         }
 
-        @Test func testBuildFromLocalImage() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildFromLocalImage(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
                 """
@@ -92,7 +98,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(newImageName) == newImageName, "expected to have successfully built \(newImageName)")
         }
 
-        @Test func testBuildAddFromSpecialDirs() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildAddFromSpecialDirs(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir = URL(filePath: "/tmp/container/.clitests/\(testSuite)/\(testName)")
             try! FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
 
@@ -113,7 +121,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testBuildScratchAdd() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildScratchAdd(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
                 """
@@ -128,7 +138,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testBuildAddAll() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildAddAll(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
                 """
@@ -151,7 +163,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testBuildArg() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildArg(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
                 """
@@ -164,7 +178,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testBuildSecret() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildSecret(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
                 """
@@ -202,7 +218,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testBuildNetworkAccess() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildNetworkAccess(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
                 """
@@ -228,7 +246,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testBuildDockerfileKeywords() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildDockerfileKeywords(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             let dockerfile =
                 """
@@ -326,7 +346,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testBuildSymlink() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildSymlink(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
                 """
@@ -382,7 +404,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testBuildAndRun() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildAndRun(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let name: String = "test-build-and-run"
 
             let tempDir: URL = try createTempDir()
@@ -409,7 +433,9 @@ extension TestCLIBuildBase {
             #expect(output == expected, "expected file contents to be \(expected), instead got \(output)")
         }
 
-        @Test func testBuildDifferentPaths() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildDifferentPaths(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let buildContextDir: URL = try createTempDir()
             let dockerfile: String =
                 """
@@ -435,7 +461,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testBuildMultiArch() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildMultiArch(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
                 """
@@ -473,7 +501,9 @@ extension TestCLIBuildBase {
             )
         }
 
-        @Test func testBuildMultipleTags() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildMultipleTags(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
                 """
@@ -501,7 +531,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(tag3) == tag3, "expected to have successfully built \(tag3)")
         }
 
-        @Test func testBuildAfterContextChange() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildAfterContextChange(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let name = "test-build-context-change"
             let tempDir: URL = try createTempDir()
 
@@ -554,7 +586,9 @@ extension TestCLIBuildBase {
             #expect(output == "updated", "expected file contents to be 'updated', instead got '\(output)'")
         }
 
-        @Test func testBuildWithDockerfileFromStdin() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildWithDockerfileFromStdin(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             let dockerfile =
                 """
@@ -569,7 +603,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testLowercaseDockerfile() throws {
+        @Test(arguments: ["tar", "json"]) func testLowercaseDockerfile(transferMode: String) throws {
+
+            self.transferMode = transferMode
             // Test 1: COPY with uppercase
             let tempDir1: URL = try createTempDir()
             let dockerfile1 =
@@ -635,7 +671,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName4) == imageName4, "expected add to work")
         }
 
-        @Test func testRunWithBindMount() throws {
+        @Test(arguments: ["tar", "json"]) func testRunWithBindMount(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             let dockerfile =
                 """
@@ -674,7 +712,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testBuildDockerIgnore() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildDockerIgnore(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             let dockerfile =
                 """
@@ -796,7 +836,9 @@ extension TestCLIBuildBase {
         }
 
         // Test 1: Basic .dockerignore
-        @Test func testDockerIgnoreBasic() throws {
+        @Test(arguments: ["tar", "json"]) func testDockerIgnoreBasic(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             defer {
                 try! FileManager.default.removeItem(at: tempDir)
@@ -819,7 +861,7 @@ extension TestCLIBuildBase {
             let contextDir = tempDir.appendingPathComponent("context")
             let dockerfilePath = contextDir.appendingPathComponent("Dockerfile")
             let imageName = "registry.local/dockerignore-basic:\(UUID().uuidString)"
-            let args = ["build", "-f", dockerfilePath.path, "-t", imageName, contextDir.path]
+            let args = ["build", "-f", dockerfilePath.path, "--transfer-mode", transferMode, "-t", imageName, contextDir.path]
             let response = try run(arguments: args)
             if response.status != 0 {
                 throw CLIError.executionFailed("build failed: stdout=\(response.output) stderr=\(response.error)")
@@ -837,7 +879,9 @@ extension TestCLIBuildBase {
         }
 
         // Test 2: Dockerfile-specific ignore file (Dockerfile.dockerignore takes precedence over .dockerignore)
-        @Test func testDockerIgnoreDockerfileSpecific() throws {
+        @Test(arguments: ["tar", "json"]) func testDockerIgnoreDockerfileSpecific(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             defer {
                 try! FileManager.default.removeItem(at: tempDir)
@@ -864,7 +908,7 @@ extension TestCLIBuildBase {
             let contextDir = tempDir.appendingPathComponent("context")
             let dockerfilePath = contextDir.appendingPathComponent("Dockerfile")
             let imageName = "registry.local/dockerignore-specific:\(UUID().uuidString)"
-            let args = ["build", "-f", dockerfilePath.path, "-t", imageName, contextDir.path]
+            let args = ["build", "-f", dockerfilePath.path, "--transfer-mode", transferMode, "-t", imageName, contextDir.path]
             let response = try run(arguments: args)
             if response.status != 0 {
                 throw CLIError.executionFailed("build failed: stdout=\(response.output) stderr=\(response.error)")
@@ -885,7 +929,9 @@ extension TestCLIBuildBase {
             #expect(Set(listFiles) == Set(["Dockerfile", ".dockerignore", "Dockerfile.dockerignore", "general.txt"]), "temporary directory must not be detected")
         }
 
-        @Test func testDockerIgnoreOutsideContext() throws {
+        @Test(arguments: ["tar", "json"]) func testDockerIgnoreOutsideContext(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             defer {
                 try! FileManager.default.removeItem(at: tempDir)
@@ -913,7 +959,7 @@ extension TestCLIBuildBase {
             let contextDir = tempDir.appendingPathComponent("context")
             let dockerfilePath = tempDir.appendingPathComponent("Dockerfile")
             let imageName = "registry.local/dockerignore-specific:\(UUID().uuidString)"
-            let args = ["build", "-f", dockerfilePath.path, "-t", imageName, contextDir.path]
+            let args = ["build", "-f", dockerfilePath.path, "--transfer-mode", transferMode, "-t", imageName, contextDir.path]
             let response = try run(arguments: args)
             if response.status != 0 {
                 throw CLIError.executionFailed("build failed: stdout=\(response.output) stderr=\(response.error)")
@@ -931,7 +977,9 @@ extension TestCLIBuildBase {
         }
 
         // Test 5: Build succeeds when Dockerfile is listed in .dockerignore
-        @Test func testDockerIgnoreIgnoredDockerfile() async throws {
+        @Test(arguments: ["tar", "json"]) func testDockerIgnoreIgnoredDockerfile(transferMode: String) async throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             defer {
                 try! FileManager.default.removeItem(at: tempDir)
@@ -955,7 +1003,7 @@ extension TestCLIBuildBase {
             let contextDir = tempDir.appendingPathComponent("context")
             let dockerfilePath = contextDir.appendingPathComponent("Dockerfile")
             let imageName = "registry.local/dockerignore-ignored-dockerfile:\(UUID().uuidString)"
-            let args = ["build", "-f", dockerfilePath.path, "-t", imageName, contextDir.path]
+            let args = ["build", "-f", dockerfilePath.path, "--transfer-mode", transferMode, "-t", imageName, contextDir.path]
             let response = try run(arguments: args)
             if response.status != 0 {
                 throw CLIError.executionFailed("build failed: stdout=\(response.output) stderr=\(response.error)")
@@ -976,7 +1024,9 @@ extension TestCLIBuildBase {
         }
 
         // Test 8: Dockerfile in nested subdirectory; Dockerfile.dockerignore next to it takes precedence over root .dockerignore
-        @Test func testDockerIgnoreSubdirDockerfile() throws {
+        @Test(arguments: ["tar", "json"]) func testDockerIgnoreSubdirDockerfile(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             defer {
                 try! FileManager.default.removeItem(at: tempDir)
@@ -1004,7 +1054,7 @@ extension TestCLIBuildBase {
             let contextDir = tempDir.appendingPathComponent("context")
             let nestedDockerfile = contextDir.appendingPathComponent("nested/project/Dockerfile")
             let imageName = "registry.local/dockerignore-subdir:\(UUID().uuidString)"
-            let args = ["build", "-f", nestedDockerfile.path, "-t", imageName, contextDir.path]
+            let args = ["build", "-f", nestedDockerfile.path, "--transfer-mode", transferMode, "-t", imageName, contextDir.path]
             let response = try run(arguments: args)
             if response.status != 0 {
                 throw CLIError.executionFailed("build failed: stdout=\(response.output) stderr=\(response.error)")
@@ -1028,7 +1078,9 @@ extension TestCLIBuildBase {
         }
 
         // Test 9: Custom-named Dockerfile (app1.Dockerfile) uses app1.Dockerfile.dockerignore
-        @Test func testDockerIgnoreCustomDockerfileName() throws {
+        @Test(arguments: ["tar", "json"]) func testDockerIgnoreCustomDockerfileName(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             defer {
                 try! FileManager.default.removeItem(at: tempDir)
@@ -1056,7 +1108,7 @@ extension TestCLIBuildBase {
             let contextDir = tempDir.appendingPathComponent("context")
             let customDockerfile = contextDir.appendingPathComponent("app1.Dockerfile")
             let imageName = "registry.local/dockerignore-custom-name:\(UUID().uuidString)"
-            let args = ["build", "-f", customDockerfile.path, "-t", imageName, contextDir.path]
+            let args = ["build", "-f", customDockerfile.path, "--transfer-mode", transferMode, "-t", imageName, contextDir.path]
             let response = try run(arguments: args)
             if response.status != 0 {
                 throw CLIError.executionFailed("build failed: stdout=\(response.output) stderr=\(response.error)")
@@ -1077,7 +1129,9 @@ extension TestCLIBuildBase {
         }
 
         // Test 10: Custom-named Dockerfile in subdirectory uses its co-located .dockerignore
-        @Test func testDockerIgnoreCustomNameSubdir() throws {
+        @Test(arguments: ["tar", "json"]) func testDockerIgnoreCustomNameSubdir(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             defer {
                 try! FileManager.default.removeItem(at: tempDir)
@@ -1107,7 +1161,7 @@ extension TestCLIBuildBase {
             let contextDir = tempDir.appendingPathComponent("context")
             let customDockerfile = contextDir.appendingPathComponent("nested/project/app2.Dockerfile")
             let imageName = "registry.local/dockerignore-custom-subdir:\(UUID().uuidString)"
-            let args = ["build", "-f", customDockerfile.path, "-t", imageName, contextDir.path]
+            let args = ["build", "-f", customDockerfile.path, "--transfer-mode", transferMode, "-t", imageName, contextDir.path]
             let response = try run(arguments: args)
             if response.status != 0 {
                 throw CLIError.executionFailed("build failed: stdout=\(response.output) stderr=\(response.error)")
@@ -1131,7 +1185,9 @@ extension TestCLIBuildBase {
         }
 
         // Test 11: app.Dockerfile coexists with Dockerfile; app.Dockerfile.dockerignore is used, not Dockerfile.dockerignore
-        @Test func testDockerIgnoreCoexistingDockerfiles() throws {
+        @Test(arguments: ["tar", "json"]) func testDockerIgnoreCoexistingDockerfiles(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             defer {
                 try! FileManager.default.removeItem(at: tempDir)
@@ -1158,7 +1214,7 @@ extension TestCLIBuildBase {
             let contextDir = tempDir.appendingPathComponent("context")
             let appDockerfilePath = contextDir.appendingPathComponent("app.Dockerfile")
             let imageName = "registry.local/dockerignore-coexisting:\(UUID().uuidString)"
-            let args = ["build", "-f", appDockerfilePath.path, "-t", imageName, contextDir.path]
+            let args = ["build", "-f", appDockerfilePath.path, "--transfer-mode", transferMode, "-t", imageName, contextDir.path]
             let response = try run(arguments: args)
             if response.status != 0 {
                 throw CLIError.executionFailed("build failed: stdout=\(response.output) stderr=\(response.error)")
@@ -1179,7 +1235,9 @@ extension TestCLIBuildBase {
         }
 
         // Test: Build context is read-only; Dockerfile and Dockerfile.dockerignore live outside the context
-        @Test func testDockerIgnoreReadonlyContext() throws {
+        @Test(arguments: ["tar", "json"]) func testDockerIgnoreReadonlyContext(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             let contextDir = tempDir.appendingPathComponent("context")
             defer {
@@ -1217,7 +1275,7 @@ extension TestCLIBuildBase {
 
             let dockerfilePath = tempDir.appendingPathComponent("Dockerfile")
             let imageName = "registry.local/dockerignore-readonly-context:\(UUID().uuidString.prefix(6))"
-            let args = ["build", "-f", dockerfilePath.path, "-t", imageName, contextDir.path]
+            let args = ["build", "-f", dockerfilePath.path, "--transfer-mode", transferMode, "-t", imageName, contextDir.path]
             let response = try run(arguments: args)
             if response.status != 0 {
                 throw CLIError.executionFailed("build failed: stdout=\(response.output) stderr=\(response.error)")
@@ -1234,7 +1292,9 @@ extension TestCLIBuildBase {
             #expect(secretResult.status != 0, "secret.txt should NOT be present (excluded by Dockerfile.dockerignore)")
         }
 
-        @Test func testNonExistingDockerfile() throws {
+        @Test(arguments: ["tar", "json"]) func testNonExistingDockerfile(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             defer {
                 try! FileManager.default.removeItem(at: tempDir)
@@ -1242,7 +1302,7 @@ extension TestCLIBuildBase {
 
             let imageName = "registry.local/non-existing-dockerfile:\(UUID().uuidString)"
 
-            var args = ["build", "-f", "non-existing-path", "-t", imageName, tempDir.path]
+            var args = ["build", "-f", "non-existing-path", "--transfer-mode", transferMode, "-t", imageName, tempDir.path]
             var response = try run(arguments: args)
 
             #expect(response.status != 0)
@@ -1253,7 +1313,9 @@ extension TestCLIBuildBase {
             #expect(response.status != 0)
         }
 
-        @Test func testBuildNoCachePullLatestImage() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildNoCachePullLatestImage(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             defer {
                 try! FileManager.default.removeItem(at: tempDir)
@@ -1277,7 +1339,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testBuildQuotedImageDockerfileArg() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildQuotedImageDockerfileArg(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             defer {
                 try! FileManager.default.removeItem(at: tempDir)
@@ -1296,7 +1360,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testBuildQuotedStringDockerfileArg() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildQuotedStringDockerfileArg(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             defer {
                 try! FileManager.default.removeItem(at: tempDir)
@@ -1315,7 +1381,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testBuildForwardReferencedDockerfileArg() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildForwardReferencedDockerfileArg(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             defer {
                 try! FileManager.default.removeItem(at: tempDir)
@@ -1337,7 +1405,9 @@ extension TestCLIBuildBase {
             )
         }
 
-        @Test func testBuildQuotedImageBuildArg() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildQuotedImageBuildArg(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             defer {
                 try! FileManager.default.removeItem(at: tempDir)
@@ -1362,7 +1432,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testBuildQuotedStringBuildArg() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildQuotedStringBuildArg(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             defer {
                 try! FileManager.default.removeItem(at: tempDir)
@@ -1387,7 +1459,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testBuildForwardReferencedBuildArg() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildForwardReferencedBuildArg(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             defer {
                 try! FileManager.default.removeItem(at: tempDir)
@@ -1413,7 +1487,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testCopyFromLocalImage() throws {
+        @Test(arguments: ["tar", "json"]) func testCopyFromLocalImage(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let baseTempDir: URL = try createTempDir()
             let tempDir: URL = try createTempDir()
             defer {
@@ -1448,7 +1524,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testCopyFromBuildStage() throws {
+        @Test(arguments: ["tar", "json"]) func testCopyFromBuildStage(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             defer {
                 try! FileManager.default.removeItem(at: tempDir)
@@ -1473,7 +1551,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testCopyRenameFromStage() throws {
+        @Test(arguments: ["tar", "json"]) func testCopyRenameFromStage(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             defer {
                 try! FileManager.default.removeItem(at: tempDir)
@@ -1498,7 +1578,9 @@ extension TestCLIBuildBase {
             #expect(try self.inspectImage(imageName) == imageName, "expected to have successfully built \(imageName)")
         }
 
-        @Test func testCopyMissingFileFails() throws {
+        @Test(arguments: ["tar", "json"]) func testCopyMissingFileFails(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             defer {
                 try! FileManager.default.removeItem(at: tempDir)
@@ -1520,7 +1602,9 @@ extension TestCLIBuildBase {
         }
     }
 
-    @Test func testCopyInvalidStageFails() throws {
+    @Test(arguments: ["tar", "json"]) func testCopyInvalidStageFails(transferMode: String) throws {
+
+        self.transferMode = transferMode
         let tempDir: URL = try createTempDir()
         defer {
             try! FileManager.default.removeItem(at: tempDir)
@@ -1539,7 +1623,9 @@ extension TestCLIBuildBase {
         }
     }
 
-    @Test func testCopyFromNonexistentImageFails() throws {
+    @Test(arguments: ["tar", "json"]) func testCopyFromNonexistentImageFails(transferMode: String) throws {
+
+        self.transferMode = transferMode
         let tempDir: URL = try createTempDir()
         defer {
             try! FileManager.default.removeItem(at: tempDir)
