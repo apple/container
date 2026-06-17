@@ -298,6 +298,14 @@ public actor VolumesService {
             journal: journal
         )
 
+        // Remove the `lost+found` directory that the EXT4 formatter creates so that a
+        // freshly created named volume presents as an empty directory, matching the
+        // behavior of Docker, Colima, and OrbStack. Database images such as Postgres
+        // and MySQL treat a non-empty data directory as a fatal error during first-run
+        // initialization, and `lost+found` is not required for the filesystem to
+        // function (e2fsck recreates it on demand if a consistency check is ever run).
+        try formatter.unlink(path: FilePath("/lost+found"))
+
         try formatter.close()
     }
 
