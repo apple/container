@@ -24,7 +24,14 @@ export RELEASE_VERSION ?= $(shell git describe --tags --always)
 export GIT_COMMIT := $(shell git rev-parse HEAD)
 
 # Commonly used locations
-SWIFT := "/usr/bin/swift"
+# Resolve `swift` through swiftly's proxy when present, so the repo's .swift-version
+# pin is honored even from a non-login CI shell that never sourced swiftly. `command -v`
+# returns the proxy's absolute path, so all $(SWIFT) calls use it regardless of PATH.
+# Falls back to `swift` on PATH when swiftly is absent.
+# Override with e.g. `make SWIFT=/usr/bin/swift` to force the Xcode toolchain.
+SWIFTLY_ENV ?= $(HOME)/.swiftly/env.sh
+SWIFT ?= $(shell [ -f "$(SWIFTLY_ENV)" ] && . "$(SWIFTLY_ENV)"; command -v swift)
+export SDKROOT ?= $(shell xcrun --sdk macosx --show-sdk-path)
 # Shared swift build invocation; callers append --build-tests / --product / etc.
 SWIFT_BUILD = $(SWIFT) build -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION)
 DEST_DIR ?= /usr/local/
