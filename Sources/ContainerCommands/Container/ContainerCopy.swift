@@ -65,7 +65,7 @@ extension Application {
             switch (srcRef, dstRef) {
             case (.container(let id, let path), .local(let localPath)):
                 let srcPath = FilePath(path)
-                let destPath = FilePath((localPath as NSString).standardizingPath)
+                let destPath = FilePath(URL(fileURLWithPath: localPath, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false))
                 var isDirectory: ObjCBool = false
                 let exists = FileManager.default.fileExists(atPath: destPath.string, isDirectory: &isDirectory)
 
@@ -90,7 +90,7 @@ extension Application {
                     try await client.copyOut(id: id, source: path, destination: destPath.string)
                 }
             case (.local(let localPath), .container(let id, let path)):
-                let srcPath = FilePath((localPath as NSString).standardizingPath)
+                let srcPath = FilePath(URL(fileURLWithPath: localPath, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false))
                 var isDirectory: ObjCBool = false
                 guard FileManager.default.fileExists(atPath: srcPath.string, isDirectory: &isDirectory) else {
                     throw ContainerizationError(.notFound, message: "source path does not exist: \(localPath)")
