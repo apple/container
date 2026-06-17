@@ -29,6 +29,21 @@ extension Application {
             case container(id: String, path: String)
         }
 
+        /// Resolve a local filesystem path to an absolute, standardized path.
+        ///
+        /// Expands a leading tilde and resolves relative paths against the current
+        /// working directory before standardizing. Without this, a relative path such
+        /// as `file` is forwarded verbatim to the API server, which resolves it
+        /// against its own working directory (`/`) and fails to find the source.
+        static func resolveLocalPath(_ path: String) -> String {
+            let expanded = (path as NSString).expandingTildeInPath
+            let absolute =
+                expanded.hasPrefix("/")
+                ? expanded
+                : "\(FileManager.default.currentDirectoryPath)/\(expanded)"
+            return (absolute as NSString).standardizingPath
+        }
+
         static func parsePathRef(_ ref: String) throws -> PathRef {
             let parts = ref.components(separatedBy: ":")
             switch parts.count {
@@ -65,7 +80,7 @@ extension Application {
             switch (srcRef, dstRef) {
             case (.container(let id, let path), .local(let localPath)):
                 let srcPath = FilePath(path)
-                let destPath = FilePath((localPath as NSString).standardizingPath)
+                let destPath = FilePath(Self.resolveLocalPath(localPath))
                 var isDirectory: ObjCBool = false
                 let exists = FileManager.default.fileExists(atPath: destPath.string, isDirectory: &isDirectory)
 
@@ -90,7 +105,7 @@ extension Application {
                     try await client.copyOut(id: id, source: path, destination: destPath.string)
                 }
             case (.local(let localPath), .container(let id, let path)):
-                let srcPath = FilePath((localPath as NSString).standardizingPath)
+                let srcPath = FilePath(Self.resolveLocalPath(localPath))
                 var isDirectory: ObjCBool = false
                 guard FileManager.default.fileExists(atPath: srcPath.string, isDirectory: &isDirectory) else {
                     throw ContainerizationError(.notFound, message: "source path does not exist: \(localPath)")
