@@ -1084,6 +1084,8 @@ container machine create [<options>] <image>
 *   `--cpus <cpus>`: Number of virtual CPUs
 *   `--memory <memory>`: Memory allocation (e.g., 2G, 8G). Default: half of system memory
 *   `--home-mount <home-mount>`: User's home directory mount option (ro, rw, none). Default: rw
+*   `--virtualization`: Enable nested virtualization. Requires Apple Silicon M3+ and macOS 15+ and kernel with CONFIG_KVM=y.
+*   `--kernel <path>`: Path to a custom kernel binary (e.g. `vmlinux`).
 
 **Management Options**
 
@@ -1114,6 +1116,9 @@ container machine create --cpus 4 --memory 8G --set-default alpine:3.22
 
 # create a container machine without booting it
 container machine create --no-boot alpine:3.22
+
+# enable nested virtualization with a custom kernel built with CONFIG_KVM=y
+container machine create --virtualization --kernel ./vmlinux-kvm alpine:3.22
 ```
 
 ### `container machine run`
@@ -1213,6 +1218,8 @@ container machine set [--name <name>] [--debug] <setting> ...
 *   `cpus=<number>`: Number of virtual CPUs
 *   `memory=<size>`: Memory allocation (e.g., 2G, 1G). Default: half of system memory
 *   `home-mount=<string>`: User home directory mount option (ro, rw, none). Default: rw
+*   `virtualization=<bool>`: Enable nested virtualization (`true`|`false`). Requires Apple Silicon M3+ and macOS 15+ and kernel with CONFIG_KVM=y.
+*   `kernel=<path>`: Path to a custom kernel binary. An empty value (`kernel=`) clears the override and falls back to the system default.
 
 **Options**
 
@@ -1226,6 +1233,12 @@ container machine set cpus=4 memory=8G
 
 # update the home mount on a named container machine
 container machine set -n my-machine home-mount=ro
+
+# enable on nested virtualization and custom kernel
+container machine set virtualization=true kernel=/opt/kernels/vmlinux-kvm
+
+# clear the custom kernel override
+container machine set kernel=
 ```
 
 ### `container machine set-default`

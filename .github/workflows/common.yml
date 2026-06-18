@@ -28,6 +28,8 @@ jobs:
     permissions:
       contents: read
       packages: read
+    env:
+      DEVELOPER_DIR: "/Applications/Xcode_swift_6.3.app/Contents/Developer"
     steps:
       - name: Checkout repository
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -55,8 +57,6 @@ jobs:
             git diff --name-only -- .
             false
           fi
-        env:
-          DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
 
       - name: Set build configuration
         env:
@@ -71,8 +71,6 @@ jobs:
         run: |
           make container dsym docs
           tar cfz _site.tgz _site
-        env:
-          DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
 
       - name: Validate coverage inputs
         if: ${{ inputs.coverage }}
@@ -106,14 +104,10 @@ jobs:
       - name: Test the container project
         if: ${{ !inputs.coverage }}
         run: make APP_ROOT="${APP_ROOT}" LOG_ROOT="${LOG_ROOT}" test install-kernel integration
-        env:
-          DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
 
       - name: Test the container project with coverage
         if: ${{ inputs.coverage }}
         run: make APP_ROOT="${APP_ROOT}" LOG_ROOT="${LOG_ROOT}" install-kernel coverage
-        env:
-          DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
 
       - name: Extract coverage percentages
         if: ${{ inputs.coverage }}
