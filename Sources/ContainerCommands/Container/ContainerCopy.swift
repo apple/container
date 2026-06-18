@@ -69,12 +69,13 @@ extension Application {
                 var isDirectory: ObjCBool = false
                 let exists = FileManager.default.fileExists(atPath: destPath.string, isDirectory: &isDirectory)
 
+                var finalDestPath = destPath
                 if exists && isDirectory.boolValue {
                     guard let lastComponent = srcPath.lastComponent else {
                         throw ContainerizationError(.invalidArgument, message: "source path has no last component: \(path)")
                     }
-                    let finalDest = destPath.appending(lastComponent)
-                    try await client.copyOut(id: id, source: path, destination: finalDest.string)
+                    finalDestPath = destPath.appending(lastComponent)
+                    try await client.copyOut(id: id, source: path, destination: finalDestPath.string)
                 } else if localPath.hasSuffix("/") {
                     try await client.copyOut(id: id, source: path, destination: destPath.string)
                     var resultIsDir: ObjCBool = false
@@ -89,6 +90,7 @@ extension Application {
                 } else {
                     try await client.copyOut(id: id, source: path, destination: destPath.string)
                 }
+                print(finalDestPath.string)
             case (.local(let localPath), .container(let id, let path)):
                 let srcPath = FilePath(URL(fileURLWithPath: localPath, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false))
                 var isDirectory: ObjCBool = false
@@ -100,6 +102,8 @@ extension Application {
                 }
 
                 try await client.copyIn(id: id, source: srcPath.string, destination: path, createParents: true)
+                let printedDest = path.hasSuffix("/") ? "\(id):\(path)\(srcPath.lastComponent!)" : "\(id):\(path)"
+                print(printedDest)
             case (.container, .container):
                 throw ContainerizationError(.invalidArgument, message: "copying between containers is not supported")
             case (.local, .local):

@@ -905,4 +905,54 @@ class TestCLICopyCommand: CLITest {
             Issue.record("testCopyInDirectoryContentsToExistingDirectoryTrailingSlash failed: \(error)")
         }
     }
+
+    // MARK: - Relative path resolution
+
+    @Test func testCopyInRelativeSourcePath() throws {
+        do {
+            let name = getTestName()
+            try doCreate(name: name)
+            defer { try? doStop(name: name) }
+            try doStart(name: name)
+            try waitForContainerRunning(name)
+
+            let content = "relative source"
+            try content.write(to: testDir.appendingPathComponent("relfile.txt"), atomically: true, encoding: .utf8)
+
+            let (_, _, error, status) = try run(
+                arguments: ["copy", "./relfile.txt", "\(name):/tmp/"],
+                currentDirectory: testDir)
+            if status != 0 { throw CLIError.executionFailed("copy failed: \(error)") }
+
+            let result = try doExec(name: name, cmd: ["cat", "/tmp/relfile.txt"])
+            #expect(result.trimmingCharacters(in: .whitespacesAndNewlines) == content)
+            try doStop(name: name)
+        } catch {
+            Issue.record("testCopyInRelativeSourcePath failed: \(error)")
+        }
+    }
+
+    @Test func testCopyOutRelativeDestinationPath() throws {
+        do {
+            let name = getTestName()
+            try doCreate(name: name)
+            defer { try? doStop(name: name) }
+            try doStart(name: name)
+            try waitForContainerRunning(name)
+
+            let content = "relative dest"
+            _ = try doExec(name: name, cmd: ["sh", "-c", "echo -n '\(content)' > /tmp/relfile.txt"])
+
+            let (_, _, error, status) = try run(
+                arguments: ["copy", "\(name):/tmp/relfile.txt", "./"],
+                currentDirectory: testDir)
+            if status != 0 { throw CLIError.executionFailed("copy failed: \(error)") }
+
+            let result = try String(contentsOfFile: testDir.appendingPathComponent("relfile.txt").path, encoding: .utf8)
+            #expect(result == content)
+            try doStop(name: name)
+        } catch {
+            Issue.record("testCopyOutRelativeDestinationPath failed: \(error)")
+        }
+    }
 }
