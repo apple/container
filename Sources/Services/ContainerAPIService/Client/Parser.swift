@@ -1041,11 +1041,6 @@ public struct Parser {
     // MARK: Miscellaneous
 
     public static func parseBool(string: String) -> Bool? {
-        let lower = string.lowercased()
-        switch lower {
-        case "true", "t": return true
-        case "false", "f": return false
-        default: return nil
-        }
+        Parsers.parseBool(string: string)
     }
 }
