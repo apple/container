@@ -94,6 +94,11 @@ extension Application {
             case (.local(let localPath), .container(let id, let path)):
                 let srcPath = FilePath(URL(fileURLWithPath: localPath, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false))
                 var isDirectory: ObjCBool = false
+
+                guard let lastComponent = srcPath.lastComponent else {
+                    throw ContainerizationError(.invalidArgument, message: "source path has no last component: \(localPath)")
+                }
+
                 guard FileManager.default.fileExists(atPath: srcPath.string, isDirectory: &isDirectory) else {
                     throw ContainerizationError(.notFound, message: "source path does not exist: \(localPath)")
                 }
@@ -102,7 +107,7 @@ extension Application {
                 }
 
                 try await client.copyIn(id: id, source: srcPath.string, destination: path, createParents: true)
-                let printedDest = path.hasSuffix("/") ? "\(id):\(path)\(srcPath.lastComponent!)" : "\(id):\(path)"
+                let printedDest = path.hasSuffix("/") ? "\(id):\(path)\(lastComponent.string)" : "\(id):\(path)"
                 print(printedDest)
             case (.container, .container):
                 throw ContainerizationError(.invalidArgument, message: "copying between containers is not supported")
