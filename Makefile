@@ -65,8 +65,40 @@ include Protobuf.Makefile
 all: container
 all: init-block
 
+.PHONY: swift-doctor
+# TEMPORARY debug hook: prints toolchain/swiftly/Xcode state so a PR push surfaces
+# what the CI runner actually has, without editing the workflow. Never fails the
+# build. Remove once toolchain selection is sorted.
+swift-doctor:
+	@echo "===== swift-doctor: toolchain diagnostics ====="
+	@set +e; \
+	echo "whoami=$$(whoami)  HOME=$$HOME"; \
+	echo ".swift-version=$$(cat .swift-version 2>&1)"; \
+	echo "DEVELOPER_DIR=$${DEVELOPER_DIR:-<unset>}"; \
+	echo "Make SWIFT=[$(SWIFT)]"; \
+	echo "--- swift on PATH ---"; \
+	command -v swift 2>&1; swift --version 2>&1; \
+	echo "--- \$$(SWIFT) --version ---"; $(SWIFT) --version 2>&1; \
+	echo "--- swiftly ---"; \
+	echo "SWIFTLY_ENV=$(SWIFTLY_ENV)"; \
+	ls -la "$(SWIFTLY_ENV)" 2>&1; \
+	echo "which swiftly: $$(command -v swiftly 2>&1)"; \
+	if [ -f "$(SWIFTLY_ENV)" ]; then \
+		. "$(SWIFTLY_ENV)"; \
+		echo "after source -> SWIFTLY_BIN_DIR=$$SWIFTLY_BIN_DIR  swift=$$(command -v swift)"; \
+		swiftly list 2>&1; \
+		swift --version 2>&1; \
+	fi; \
+	echo "--- build system default ---"; \
+	swift build --help 2>&1 | grep -A4 -i "build-system"; \
+	echo "--- xcode ---"; \
+	xcode-select -p 2>&1; ls -d /Applications/Xcode*.app 2>&1; \
+	xcrun --sdk macosx --show-sdk-path 2>&1; \
+	echo "==============================================="; \
+	true
+
 .PHONY: build
-build:
+build: swift-doctor
 	@echo Building container binaries...
 	@$(SWIFT) --version
 	@$(SWIFT_BUILD)
