@@ -655,4 +655,19 @@ class CLITest {
             throw CLIError.executionFailed("command failed: \(error)")
         }
     }
+
+    func doCommit(name: String, reference: String, live: Bool = false) throws -> String {
+        var args = [
+            "commit"
+        ]
+        if live {
+            args.append("--live")
+        }
+        args.append(contentsOf: [name, reference])
+        let (_, output, error, status) = try run(arguments: args)
+        if status != 0 {
+            throw CLIError.executionFailed("command failed: \(error)")
+        }
+        return output.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }
