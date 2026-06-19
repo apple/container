@@ -47,6 +47,14 @@ public struct OSLogHandler: LogHandler {
 }
 
 extension OSLogHandler {
+    public func log(event: LogEvent) {
+        self.emit(
+            level: event.level,
+            message: event.message,
+            metadata: event.metadata
+        )
+    }
+
     public func log(
         level: Logger.Level,
         message: Logger.Message,
@@ -55,6 +63,18 @@ extension OSLogHandler {
         file: String,
         function: String,
         line: UInt
+    ) {
+        self.emit(
+            level: level,
+            message: message,
+            metadata: metadata
+        )
+    }
+
+    private func emit(
+        level: Logger.Level,
+        message: Logger.Message,
+        metadata: Logger.Metadata?
     ) {
         var formattedMetadata = self.formattedMetadata
         if let metadataOverride = metadata, !metadataOverride.isEmpty {

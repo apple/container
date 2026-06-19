@@ -60,6 +60,14 @@ public struct FileLogHandler: LogHandler {
         self.fileHandle.seekToEndOfFile()
     }
 
+    public func log(event: LogEvent) {
+        self.emit(
+            level: event.level,
+            message: event.message,
+            metadata: event.metadata
+        )
+    }
+
     public func log(
         level: Logger.Level,
         message: Logger.Message,
@@ -68,6 +76,18 @@ public struct FileLogHandler: LogHandler {
         file: String,
         function: String,
         line: UInt
+    ) {
+        self.emit(
+            level: level,
+            message: message,
+            metadata: metadata
+        )
+    }
+
+    private func emit(
+        level: Logger.Level,
+        message: Logger.Message,
+        metadata: Logger.Metadata?
     ) {
         let timestampFormatter: ISO8601DateFormatter = {
             let formatter = ISO8601DateFormatter()
