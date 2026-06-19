@@ -148,9 +148,13 @@ public enum XPCKeys: String {
     case fileMode
     case createParents
 
-    /// Optional `since: Date` filter on `logs`.
+    /// Optional tail line limit for container logs.
+    case logTail
+    /// Optional lower timestamp bound for container logs.
     case logSince
-    /// Optional `timestamps: Bool` flag on `logs`.
+    /// Optional upper timestamp bound for container logs.
+    case logUntil
+    /// Timestamp preference for container logs.
     case logTimestamps
 }
 

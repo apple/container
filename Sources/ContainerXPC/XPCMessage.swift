@@ -117,6 +117,7 @@ extension XPCMessage {
         return Data(bytes: bytes, count: length)
     }
 
+    /// Returns true when the message contains a value for the provided key.
     public func contains(key: String) -> Bool {
         lock.withLock {
             xpc_dictionary_get_value(self.object, key) != nil

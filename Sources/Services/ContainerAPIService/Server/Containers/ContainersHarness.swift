@@ -289,9 +289,7 @@ public struct ContainersHarness: Sendable {
                 message: "id cannot be empty"
             )
         }
-
         let options = Self.logOptions(from: message)
-
         let fds = try await service.logs(id: id, options: options)
         let reply = message.reply()
         try reply.set(key: .logs, value: fds)
@@ -299,9 +297,15 @@ public struct ContainersHarness: Sendable {
     }
 
     static func logOptions(from message: XPCMessage) -> ContainerLogOptions {
+        let tail = message.contains(key: .logTail) ? Int(message.int64(key: .logTail)) : nil
         let since = message.contains(key: .logSince) ? message.date(key: .logSince) : nil
-        let timestamps = message.bool(key: .logTimestamps)
-        return ContainerLogOptions(since: since, timestamps: timestamps)
+        let until = message.contains(key: .logUntil) ? message.date(key: .logUntil) : nil
+        return ContainerLogOptions(
+            tail: tail,
+            since: since,
+            until: until,
+            timestamps: message.bool(key: .logTimestamps)
+        )
     }
 
     @Sendable

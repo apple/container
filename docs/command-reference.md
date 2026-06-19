@@ -394,12 +394,12 @@ container export mycontainer > mycontainer.tar
 
 ### `container logs`
 
-Fetches logs from a container. You can follow the logs (`-f`/`--follow`), restrict the number of lines shown, or view boot logs.
+Fetches logs from a container. You can follow the logs (`-f`/`--follow`), restrict the number of lines shown, filter by RFC 3339 timestamp, or view boot logs.
 
 **Usage**
 
 ```bash
-container logs [--boot] [--follow] [-n <n>] [--debug] <container-id>
+container logs [--boot] [--follow] [-n <n>] [--tail <n>] [--since <timestamp>] [--until <timestamp>] [--debug] <container-id>
 ```
 
 **Arguments**
@@ -410,7 +410,9 @@ container logs [--boot] [--follow] [-n <n>] [--debug] <container-id>
 
 *   `--boot`: Display the boot log for the container instead of stdio
 *   `-f, --follow`: Follow log output
-*   `-n <n>`: Number of lines to show from the end of the logs. If not provided this will print all of the logs
+*   `-n, --tail <n>`: Number of lines to show from the end of the logs. If not provided this will print all of the logs
+*   `--since <timestamp>`: Show logs after the specified RFC 3339 timestamp
+*   `--until <timestamp>`: Show logs before the specified RFC 3339 timestamp
 
 ### `container inspect`
 

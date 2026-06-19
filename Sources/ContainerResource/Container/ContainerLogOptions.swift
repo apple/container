@@ -16,27 +16,40 @@
 
 import Foundation
 
-/// Options that refine how `ContainerClient.logs(id:options:)` returns
-/// container log file handles.
+/// Options that refine how container logs are returned.
 ///
-/// Both fields are optional / additive; ``default`` is the zero-value
-/// equivalent to the original `logs(id:)` behavior.
-public struct ContainerLogOptions: Sendable, Codable {
-    /// If non-nil, log lines whose ISO-8601 timestamp prefix is older than
-    /// this date are filtered out before the file handle is returned to the
-    /// client. Lines without a parseable timestamp are passed through
-    /// unchanged.
+/// ``default`` is the zero-option equivalent to the original `logs(id:)`
+/// behavior.
+public struct ContainerLogOptions: Codable, Equatable, Sendable {
+    /// If non-nil and non-negative, return only the last `tail` log lines.
+    public let tail: Int?
+
+    /// If non-nil, return log lines whose timestamp prefix is not older than
+    /// this date. Lines without a parseable timestamp prefix are preserved.
     public let since: Date?
 
-    /// If true, the client wants timestamps preserved on the returned lines.
-    /// At present this is a hint only — the daemon does not decorate raw log
-    /// lines that lack a timestamp prefix; line decoration is a follow-up.
+    /// If non-nil, return log lines whose timestamp prefix is not newer than
+    /// this date. Lines without a parseable timestamp prefix are preserved.
+    public let until: Date?
+
+    /// If true, callers want timestamps preserved on returned log lines.
+    ///
+    /// The current log files are already returned as stored; this value is
+    /// carried through the API boundary for callers that need stable timestamp
+    /// behavior as the log implementation evolves.
     public let timestamps: Bool
 
-    public static let `default` = ContainerLogOptions(since: nil, timestamps: false)
+    public static let `default` = ContainerLogOptions()
 
-    public init(since: Date? = nil, timestamps: Bool = false) {
+    public init(
+        tail: Int? = nil,
+        since: Date? = nil,
+        until: Date? = nil,
+        timestamps: Bool = false
+    ) {
+        self.tail = tail
         self.since = since
+        self.until = until
         self.timestamps = timestamps
     }
 }

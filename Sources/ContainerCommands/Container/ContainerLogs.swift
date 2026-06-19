@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerResource
 import ContainerizationError
 import Darwin
 import Dispatch
@@ -36,8 +37,14 @@ extension Application {
         @Flag(name: .shortAndLong, help: "Follow log output")
         var follow: Bool = false
 
-        @Option(name: .short, help: "Number of lines to show from the end of the logs. If not provided this will print all of the logs")
+        @Option(name: [.short, .customLong("tail")], help: "Number of lines to show from the end of the logs. If not provided this will print all of the logs")
         var numLines: Int?
+
+        @Option(name: .long, help: "Show logs after the specified RFC 3339 timestamp")
+        var since: ContainerLogTimestamp?
+
+        @Option(name: .long, help: "Show logs before the specified RFC 3339 timestamp")
+        var until: ContainerLogTimestamp?
 
         @OptionGroup
         public var logOptions: Flags.Logging
@@ -45,15 +52,48 @@ extension Application {
         @Argument(help: "Container ID")
         var containerId: String
 
+        public func validate() throws {
+            try Self.validateLogOptions(follow: follow, since: since, until: until)
+        }
+
         public func run() async throws {
             let client = ContainerClient()
-            let fhs = try await client.logs(id: containerId)
+            let options = Self.retrievalOptions(
+                numLines: numLines,
+                follow: follow,
+                since: since,
+                until: until
+            )
+            let fhs = try await client.logs(id: containerId, options: options)
             let fileHandle = boot ? fhs[1] : fhs[0]
 
             try await Self.tail(
                 fh: fileHandle,
-                n: numLines,
+                n: follow ? numLines : nil,
                 follow: follow
+            )
+        }
+
+        static func validateLogOptions(
+            follow: Bool,
+            since: ContainerLogTimestamp?,
+            until: ContainerLogTimestamp?
+        ) throws {
+            if follow && (since != nil || until != nil) {
+                throw ValidationError("--follow cannot be combined with --since or --until")
+            }
+        }
+
+        static func retrievalOptions(
+            numLines: Int?,
+            follow: Bool,
+            since: ContainerLogTimestamp?,
+            until: ContainerLogTimestamp?
+        ) -> ContainerLogOptions {
+            ContainerLogOptions(
+                tail: follow ? nil : numLines,
+                since: since?.date,
+                until: until?.date
             )
         }
 
@@ -138,5 +178,22 @@ extension Application {
                 print(line)
             }
         }
+    }
+}
+
+struct ContainerLogTimestamp: ExpressibleByArgument, Equatable {
+    let date: Date
+
+    init?(argument: String) {
+        let fractionalFormatter = ISO8601DateFormatter()
+        fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+
+        if let date = fractionalFormatter.date(from: argument) ?? formatter.date(from: argument) {
+            self.date = date
+            return
+        }
+        return nil
     }
 }

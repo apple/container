@@ -15,87 +15,131 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
-@testable import ContainerAPIService
+import ContainerResource
 import ContainerXPC
 import Foundation
 import Testing
 
+@testable import ContainerAPIService
+
 struct ContainerLogsTests {
+    @Test func filtersLogsBySinceUntilAndTail() throws {
+        let content = """
+            2026-01-01T00:00:00Z old
+            2026-01-02T00:00:00Z first
+            2026-01-03T00:00:00Z second
+            2026-01-04T00:00:00Z new
 
-    @Test("Log filtering can return output larger than a pipe buffer")
-    func testFilterLargeOutput() throws {
-        let since = Date(timeIntervalSince1970: 1_700_000_000)
-        let line = "2027-01-01T00:00:00Z retained log line with enough bytes to grow the output\n"
-        let content = String(repeating: line, count: 2_000)
-        let handle = try fileHandle(containing: Data(content.utf8))
+            """
+        let options = ContainerLogOptions(
+            tail: 1,
+            since: date("2026-01-02T00:00:00Z"),
+            until: date("2026-01-03T00:00:00Z")
+        )
 
-        let filtered = ContainersService.filterFileHandleSince(handle, since: since)
-        let data = try #require(try filtered.readToEnd())
+        let data = ContainersService.filteredLogData(Data(content.utf8), options: options)
 
-        #expect(data == Data(content.utf8))
+        #expect(String(data: data, encoding: .utf8) == "2026-01-03T00:00:00Z second\n")
     }
 
-    @Test("Log filtering preserves empty lines and trailing newline")
-    func testFilterPreservesEmptyLinesAndTrailingNewline() throws {
-        let since = Date(timeIntervalSince1970: 1_700_000_000)
-        let content = "2020-01-01T00:00:00Z old\n\n2027-01-01T00:00:00Z new\n"
-        let expected = "\n2027-01-01T00:00:00Z new\n"
+    @Test func preservesUnparseableLinesEmptyLinesAndTrailingNewline() throws {
+        let content = """
+            2026-01-01T00:00:00Z old
+            unparseable
 
-        let data = try #require(ContainersService.filteredLogData(Data(content.utf8), since: since))
+            2026-01-03T00:00:00Z retained
 
-        #expect(String(data: data, encoding: .utf8) == expected)
+            """
+        let options = ContainerLogOptions(
+            since: date("2026-01-02T00:00:00Z")
+        )
+
+        let data = ContainersService.filteredLogData(Data(content.utf8), options: options)
+
+        #expect(String(data: data, encoding: .utf8) == "unparseable\n\n2026-01-03T00:00:00Z retained\n")
     }
 
-    @Test("Non-UTF8 logs fall back to the original bytes")
-    func testNonUTF8LogsReturnOriginalBytes() throws {
-        let bytes = Data([0xff, 0xfe, 0x00, 0x41])
+    @Test func tailZeroReturnsEmptyLogData() throws {
+        let content = """
+            2026-01-01T00:00:00Z old
+            2026-01-02T00:00:00Z new
+
+            """
+
+        let data = ContainersService.filteredLogData(Data(content.utf8), options: ContainerLogOptions(tail: 0))
+
+        #expect(data.isEmpty)
+    }
+
+    @Test func negativeTailDoesNotDropLogs() throws {
+        let content = """
+            2026-01-01T00:00:00Z old
+            2026-01-02T00:00:00Z new
+
+            """
+
+        let data = ContainersService.filteredLogData(Data(content.utf8), options: ContainerLogOptions(tail: -1))
+
+        #expect(String(data: data, encoding: .utf8) == content)
+    }
+
+    @Test func nonUTF8LogsCanBeTailedWithoutDecoding() throws {
+        let bytes = Data([0xff, 0xfe, 0x0a, 0x41, 0x0a])
+        let data = ContainersService.filteredLogData(bytes, options: ContainerLogOptions(tail: 1))
+
+        #expect(data == Data([0x41, 0x0a]))
+    }
+
+    @Test func nonUTF8LogsApplyTailWhenOpeningFilteredHandle() throws {
+        let bytes = Data([0xff, 0xfe, 0x0a, 0x41, 0x0a])
         let handle = try fileHandle(containing: bytes)
 
-        let filtered = ContainersService.filterFileHandleSince(handle, since: Date())
+        let filtered = ContainersService.applyLogOptions(to: handle, options: ContainerLogOptions(tail: 1))
         let data = try #require(try filtered.readToEnd())
 
-        #expect(data == bytes)
+        #expect(data == Data([0x41, 0x0a]))
     }
 
-    @Test("Harness preserves explicit epoch log since option")
-    func testHarnessPreservesEpochSince() {
+    @Test func harnessDecodesLogOptions() {
         let message = XPCMessage(route: .containerLogs)
-        let epoch = Date(timeIntervalSince1970: 0)
-        message.set(key: .logSince, value: epoch)
-
-        let options = ContainersHarness.logOptions(from: message)
-
-        #expect(options.since == epoch)
-    }
-
-    @Test("Harness preserves explicit pre-epoch log since option")
-    func testHarnessPreservesPreEpochSince() {
-        let message = XPCMessage(route: .containerLogs)
-        let preEpoch = Date(timeIntervalSince1970: -1)
-        message.set(key: .logSince, value: preEpoch)
-
-        let options = ContainersHarness.logOptions(from: message)
-
-        #expect(options.since == preEpoch)
-    }
-
-    @Test("Harness leaves absent log since option unset")
-    func testHarnessLeavesAbsentSinceUnset() {
-        let message = XPCMessage(route: .containerLogs)
+        let since = Date(timeIntervalSince1970: 0)
+        let until = Date(timeIntervalSince1970: -1)
+        message.set(key: .logTail, value: Int64(0))
+        message.set(key: .logSince, value: since)
+        message.set(key: .logUntil, value: until)
         message.set(key: .logTimestamps, value: true)
 
         let options = ContainersHarness.logOptions(from: message)
 
-        #expect(options.since == nil)
+        #expect(options.tail == 0)
+        #expect(options.since == since)
+        #expect(options.until == until)
         #expect(options.timestamps)
     }
 
+    @Test func harnessLeavesAbsentLogOptionsUnset() {
+        let message = XPCMessage(route: .containerLogs)
+
+        let options = ContainersHarness.logOptions(from: message)
+
+        #expect(options.tail == nil)
+        #expect(options.since == nil)
+        #expect(options.until == nil)
+        #expect(!options.timestamps)
+    }
+
     private func fileHandle(containing data: Data) throws -> FileHandle {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("container-log-test-")
-            .appendingPathExtension(UUID().uuidString)
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("container-log-test-\(UUID().uuidString)")
         try data.write(to: url)
         let handle = try FileHandle(forReadingFrom: url)
         try? FileManager.default.removeItem(at: url)
         return handle
+    }
+
+    private func date(_ value: String) -> Date {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: value)!
     }
 }

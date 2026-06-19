@@ -20,24 +20,28 @@ import Testing
 @testable import ContainerResource
 
 struct ContainerLogOptionsTests {
-
-    @Test("Default log options preserve existing logs behavior")
-    func testDefaultOptions() {
+    @Test func defaultOptionsPreserveExistingBehavior() {
         let options = ContainerLogOptions.default
 
+        #expect(options.tail == nil)
         #expect(options.since == nil)
+        #expect(options.until == nil)
         #expect(!options.timestamps)
     }
 
-    @Test("Custom log options round-trip through JSON")
-    func testCustomOptionsRoundTrip() throws {
+    @Test func customOptionsRoundTripThroughJSON() throws {
         let since = Date(timeIntervalSince1970: 1_800_000_000)
-        let options = ContainerLogOptions(since: since, timestamps: true)
+        let until = Date(timeIntervalSince1970: 1_900_000_000)
+        let options = ContainerLogOptions(
+            tail: 100,
+            since: since,
+            until: until,
+            timestamps: true
+        )
 
         let data = try JSONEncoder().encode(options)
         let decoded = try JSONDecoder().decode(ContainerLogOptions.self, from: data)
 
-        #expect(decoded.since == since)
-        #expect(decoded.timestamps)
+        #expect(decoded == options)
     }
 }

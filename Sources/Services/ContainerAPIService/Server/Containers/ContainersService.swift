@@ -27,7 +27,6 @@ import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOCI
 import ContainerizationOS
-import Darwin
 import Foundation
 import Logging
 import SystemPackage
@@ -730,10 +729,12 @@ public actor ContainersService {
         try await client.resize(processID, size: size)
     }
 
+    /// Get the logs for the container.
     public func logs(id: String) async throws -> [FileHandle] {
         try await logs(id: id, options: .default)
     }
 
+    /// Get the logs for the container.
     public func logs(id: String, options: ContainerLogOptions) async throws -> [FileHandle] {
         log.debug(
             "ContainersService: enter",
@@ -752,27 +753,156 @@ public actor ContainersService {
             )
         }
 
+        // Logs doesn't care if the container is running or not, just that
+        // the bundle is there, and that the files actually exist. We do
+        // first try and get the container state so we get a nicer error message
+        // (container foo not found) however.
         do {
             _ = try _getContainerState(id: id)
             let path = self.containerRoot.appendingPathComponent(id)
             let bundle = ContainerResource.Bundle(path: path)
-            var handles = [
+            let handles = [
                 try FileHandle(forReadingFrom: bundle.containerLog),
                 try FileHandle(forReadingFrom: bundle.bootlog),
             ]
-
-            if let since = options.since {
-                handles = handles.map { fh in
-                    Self.filterFileHandleSince(fh, since: since)
-                }
+            return handles.map { handle in
+                Self.applyLogOptions(to: handle, options: options)
             }
-
-            return handles
         } catch {
             throw ContainerizationError(
                 .internalError,
                 message: "failed to open container logs: \(error)"
             )
+        }
+    }
+
+    static func applyLogOptions(to handle: FileHandle, options: ContainerLogOptions) -> FileHandle {
+        guard options.tail != nil || options.since != nil || options.until != nil else {
+            return handle
+        }
+        guard let data = try? handle.readToEnd() else {
+            return handle
+        }
+        let filtered = Self.filteredLogData(data, options: options)
+        guard let filteredHandle = Self.temporaryFileHandle(containing: filtered) else {
+            try? handle.seek(toOffset: 0)
+            return handle
+        }
+        try? handle.close()
+        return filteredHandle
+    }
+
+    static func filteredLogData(_ data: Data, options: ContainerLogOptions) -> Data {
+        guard !data.isEmpty else {
+            return Data()
+        }
+
+        var lines = logDataLines(data)
+
+        let timestampParser = LogTimestampParser()
+        lines = lines.filter { line in
+            guard let timestamp = timestampParser.timestampPrefix(from: line.data) else {
+                return true
+            }
+            if let since = options.since, timestamp < since {
+                return false
+            }
+            if let until = options.until, timestamp > until {
+                return false
+            }
+            return true
+        }
+
+        if let tail = options.tail, tail >= 0 {
+            if tail == 0 {
+                return Data()
+            }
+            lines = Array(lines.suffix(tail))
+        }
+
+        return joinedLogData(lines)
+    }
+
+    private static func temporaryFileHandle(containing data: Data) -> FileHandle? {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("container-log-\(UUID().uuidString)")
+        do {
+            try data.write(to: url)
+            let handle = try FileHandle(forReadingFrom: url)
+            try? FileManager.default.removeItem(at: url)
+            return handle
+        } catch {
+            try? FileManager.default.removeItem(at: url)
+            return nil
+        }
+    }
+
+    private static func logDataLines(_ data: Data) -> [LogDataLine] {
+        var lines: [LogDataLine] = []
+        var current = Data()
+
+        for byte in data {
+            if byte == LogByte.lineFeed {
+                lines.append(LogDataLine(data: current, terminated: true))
+                current.removeAll()
+            } else {
+                current.append(byte)
+            }
+        }
+        if !current.isEmpty {
+            lines.append(LogDataLine(data: current, terminated: false))
+        }
+        return lines
+    }
+
+    private static func joinedLogData(_ lines: [LogDataLine]) -> Data {
+        var result = Data()
+        for (index, line) in lines.enumerated() {
+            result.append(line.data)
+            if line.terminated || index < lines.count - 1 {
+                result.append(LogByte.lineFeed)
+            }
+        }
+        return result
+    }
+
+    private struct LogDataLine {
+        var data: Data
+        var terminated: Bool
+    }
+
+    private enum LogByte {
+        static let lineFeed = UInt8(ascii: "\n")
+    }
+
+    private struct LogTimestampParser {
+        private let fractionalFormatter: ISO8601DateFormatter
+        private let formatter: ISO8601DateFormatter
+
+        init() {
+            let fractionalFormatter = ISO8601DateFormatter()
+            fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            self.fractionalFormatter = fractionalFormatter
+
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime]
+            self.formatter = formatter
+        }
+
+        func timestampPrefix(from line: Data) -> Date? {
+            let token = Data(line.prefix { $0 != UInt8(ascii: " ") })
+            guard let timestamp = String(data: token, encoding: .utf8) else {
+                return nil
+            }
+            return timestampPrefix(fromTimestampToken: timestamp)
+        }
+
+        private func timestampPrefix(fromTimestampToken timestamp: String) -> Date? {
+            if let date = fractionalFormatter.date(from: timestamp) {
+                return date
+            }
+
+            return formatter.date(from: timestamp)
         }
     }
 
@@ -798,92 +928,6 @@ public actor ContainersService {
         }
         let client = try state.getClient()
         try await client.copyOut(source: source, destination: destination, createParents: createParents)
-    }
-
-    static func filterFileHandleSince(_ fh: FileHandle, since: Date) -> FileHandle {
-        guard let data = try? fh.readToEnd() else {
-            return fh
-        }
-        guard let result = Self.filteredLogData(data, since: since) else {
-            try? fh.seek(toOffset: 0)
-            return fh
-        }
-
-        if let filteredHandle = Self.temporaryFileHandle(containing: result) {
-            return filteredHandle
-        }
-        try? fh.seek(toOffset: 0)
-        return fh
-    }
-
-    static func filteredLogData(_ data: Data, since: Date) -> Data? {
-        guard let content = String(data: data, encoding: .utf8) else {
-            return nil
-        }
-
-        let iso8601 = ISO8601DateFormatter()
-        iso8601.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let fallbackFormatter = ISO8601DateFormatter()
-        fallbackFormatter.formatOptions = [.withInternetDateTime]
-
-        let lines = content.components(separatedBy: "\n")
-        var filtered: [String] = []
-        for line in lines {
-            guard !line.isEmpty else {
-                filtered.append(line)
-                continue
-            }
-            let parts = line.split(separator: " ", maxSplits: 1)
-            guard let timestampStr = parts.first else {
-                filtered.append(line)
-                continue
-            }
-            if let date = iso8601.date(from: String(timestampStr)) ?? fallbackFormatter.date(from: String(timestampStr)) {
-                if date >= since {
-                    filtered.append(line)
-                }
-            } else {
-                filtered.append(line)
-            }
-        }
-
-        let result = filtered.joined(separator: "\n")
-        return result.data(using: .utf8)
-    }
-
-    private static func temporaryFileHandle(containing data: Data) -> FileHandle? {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("container-log-filter-")
-            .appendingPathExtension(UUID().uuidString)
-        let fd = open(url.path, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR)
-        guard fd >= 0 else {
-            return nil
-        }
-
-        let success = data.withUnsafeBytes { buffer in
-            guard let baseAddress = buffer.baseAddress else {
-                return true
-            }
-            var remaining = buffer.count
-            var pointer = baseAddress
-            while remaining > 0 {
-                let written = write(fd, pointer, remaining)
-                guard written > 0 else {
-                    return false
-                }
-                remaining -= written
-                pointer += written
-            }
-            return true
-        }
-
-        guard success, lseek(fd, 0, SEEK_SET) >= 0 else {
-            close(fd)
-            try? FileManager.default.removeItem(at: url)
-            return nil
-        }
-
-        try? FileManager.default.removeItem(at: url)
-        return FileHandle(fileDescriptor: fd, closeOnDealloc: true)
     }
 
     /// Get statistics for the container.
