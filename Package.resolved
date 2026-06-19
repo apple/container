@@ -177,8 +177,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-log.git",
       "state" : {
-        "revision" : "bbd81b6725ae874c69e9b8c8804d462356b55523",
-        "version" : "1.10.1"
+        "revision" : "92448c359f00ebe36ae97d3bd9086f13c7692b5a",
+        "version" : "1.13.2"
       }
     },
     {
