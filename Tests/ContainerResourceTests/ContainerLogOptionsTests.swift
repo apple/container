@@ -46,4 +46,31 @@ struct ContainerLogOptionsTests {
 
         #expect(decoded == options)
     }
+
+    @Test func parsesDockerCompatibleLogTimestamps() throws {
+        let reference = Date(timeIntervalSince1970: 1_900_000_000)
+
+        #expect(ContainerLogTimestampParser.parse("2026-06-18T10:00:00Z") == date("2026-06-18T10:00:00Z"))
+        #expect(ContainerLogTimestampParser.parse("2026-06-18T10:00:00.123456789Z") != nil)
+        #expect(ContainerLogTimestampParser.parse("1781776800.25") == Date(timeIntervalSince1970: 1_781_776_800.25))
+        #expect(ContainerLogTimestampParser.parse("1m30s", relativeTo: reference) == reference.addingTimeInterval(-90))
+        #expect(ContainerLogTimestampParser.parse("250ms", relativeTo: reference) == reference.addingTimeInterval(-0.25))
+        #expect(ContainerLogTimestampParser.parse("1.5h", relativeTo: reference) == reference.addingTimeInterval(-5_400))
+    }
+
+    @Test func rejectsInvalidLogTimestamps() {
+        #expect(ContainerLogTimestampParser.parse("not-a-date") == nil)
+        #expect(ContainerLogTimestampParser.parse("-1s") == nil)
+        #expect(ContainerLogTimestampParser.parse("1781776800.") == nil)
+        #expect(ContainerLogTimestampParser.parse("1d") == nil)
+    }
+
+    private func date(_ value: String) -> Date {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions =
+            value.contains(".")
+            ? [.withInternetDateTime, .withFractionalSeconds]
+            : [.withInternetDateTime]
+        return formatter.date(from: value)!
+    }
 }

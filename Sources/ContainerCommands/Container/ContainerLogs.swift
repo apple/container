@@ -37,10 +37,10 @@ extension Application {
         @Option(name: [.short, .customLong("tail")], help: "Number of lines to show from the end of the logs. If not provided this will print all of the logs")
         var numLines: Int?
 
-        @Option(name: .long, help: "Show logs after the specified RFC 3339 timestamp")
+        @Option(name: .long, help: "Show logs after the specified RFC 3339 timestamp, Unix timestamp, or relative duration")
         var since: ContainerLogTimestamp?
 
-        @Option(name: .long, help: "Show logs before the specified RFC 3339 timestamp")
+        @Option(name: .long, help: "Show logs before the specified RFC 3339 timestamp, Unix timestamp, or relative duration")
         var until: ContainerLogTimestamp?
 
         @OptionGroup
@@ -108,12 +108,7 @@ struct ContainerLogTimestamp: ExpressibleByArgument, Equatable {
     let date: Date
 
     init?(argument: String) {
-        let fractionalFormatter = ISO8601DateFormatter()
-        fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-
-        if let date = fractionalFormatter.date(from: argument) ?? formatter.date(from: argument) {
+        if let date = ContainerLogTimestampParser.parse(argument) {
             self.date = date
             return
         }

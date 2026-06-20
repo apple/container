@@ -35,6 +35,20 @@ struct ContainerLogsCommandTests {
     }
 
     @Test
+    func parsesUnixTimestamp() throws {
+        let timestamp = try #require(ContainerLogTimestamp(argument: "1781776800"))
+
+        #expect(timestamp.date == Date(timeIntervalSince1970: 1_781_776_800))
+    }
+
+    @Test
+    func parsesFractionalUnixTimestamp() throws {
+        let timestamp = try #require(ContainerLogTimestamp(argument: "1781776800.25"))
+
+        #expect(timestamp.date == Date(timeIntervalSince1970: 1_781_776_800.25))
+    }
+
+    @Test
     func rejectsInvalidTimestamp() {
         #expect(ContainerLogTimestamp(argument: "not-a-date") == nil)
     }
