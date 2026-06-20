@@ -95,6 +95,7 @@ struct ContainerLogsTests {
         let handle = try fileHandle(containing: bytes)
 
         let filtered = try ContainersService.applyLogOptions(to: handle, options: ContainerLogOptions(tail: 1))
+        defer { try? filtered.close() }
         let data = try #require(try filtered.readToEnd())
 
         #expect(data == Data([0x41, 0x0a]))
@@ -124,6 +125,7 @@ struct ContainerLogsTests {
             to: handle,
             options: ContainerLogOptions(since: date("2026-01-01T00:00:00Z"))
         )
+        defer { try? filtered.close() }
         let data = try filtered.readToEnd() ?? Data()
 
         #expect(data.isEmpty)
@@ -132,6 +134,7 @@ struct ContainerLogsTests {
     @Test func boundedTailPreservesLongLogicalLine() throws {
         let longLine = String(repeating: "x", count: 40_000)
         let handle = try fileHandle(containing: Data("old\n\(longLine)\ntwo\n".utf8))
+        defer { try? handle.close() }
 
         let data = try ContainersService.tailLogData(from: handle, lineCount: 2)
 
