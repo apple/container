@@ -93,6 +93,7 @@ let package = Package(
                 "ContainerLog",
                 "ContainerPersistence",
                 "ContainerResource",
+                "MachineAPIClient",
                 "Yams",
             ],
             path: "Tests/CLITests"
