@@ -27,6 +27,7 @@ import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOCI
 import ContainerizationOS
+import Darwin
 import Foundation
 import Logging
 import SystemPackage
@@ -888,12 +889,48 @@ public actor ContainersService {
         let url =
             temporaryDirectory
             .appendingPathComponent("container-log-\(UUID().uuidString)")
+        let fd = Darwin.open(url.path, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR)
+        guard fd >= 0 else {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to prepare filtered container logs",
+                cause: POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            )
+        }
+
+        var closeFileDescriptor = true
         do {
-            try data.write(to: url)
-            let handle = try FileHandle(forReadingFrom: url)
+            try data.withUnsafeBytes { buffer in
+                guard var pointer = buffer.baseAddress else {
+                    return
+                }
+                var remaining = buffer.count
+                while remaining > 0 {
+                    let written = Darwin.write(fd, pointer, remaining)
+                    if written < 0 {
+                        if errno == EINTR {
+                            continue
+                        }
+                        throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+                    }
+                    guard written > 0 else {
+                        throw POSIXError(.EIO)
+                    }
+                    remaining -= written
+                    pointer = pointer.advanced(by: written)
+                }
+            }
+            guard Darwin.lseek(fd, 0, SEEK_SET) >= 0 else {
+                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            }
+            let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+            closeFileDescriptor = false
             try? FileManager.default.removeItem(at: url)
             return handle
         } catch {
+            if closeFileDescriptor {
+                Darwin.close(fd)
+            }
             try? FileManager.default.removeItem(at: url)
             throw ContainerizationError(
                 .internalError,
