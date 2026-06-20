@@ -112,7 +112,14 @@ public struct ContainerLogTimestampParser: Sendable {
             guard let multiplier = durationMultiplier(unit) else {
                 return nil
             }
-            total += amount * multiplier
+            let component = amount * multiplier
+            guard component.isFinite else {
+                return nil
+            }
+            total += component
+            guard total.isFinite else {
+                return nil
+            }
             parsedComponent = true
         }
 
@@ -133,17 +140,15 @@ public struct ContainerLogTimestampParser: Sendable {
         return nil
     }
 
-    private static var timestampLayouts: [String] {
-        [
-            "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSSXXXXX",
-            "yyyy-MM-dd'T'HH:mm:ssXXXXX",
-            "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS",
-            "yyyy-MM-dd'T'HH:mm:ss",
-            "yyyy-MM-dd'T'HH:mmXXXXX",
-            "yyyy-MM-dd'T'HH:mm",
-            "yyyy-MM-dd",
-        ]
-    }
+    private static let timestampLayouts = [
+        "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSSXXXXX",
+        "yyyy-MM-dd'T'HH:mm:ssXXXXX",
+        "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS",
+        "yyyy-MM-dd'T'HH:mm:ss",
+        "yyyy-MM-dd'T'HH:mmXXXXX",
+        "yyyy-MM-dd'T'HH:mm",
+        "yyyy-MM-dd",
+    ]
 
     private static func durationMultiplier(_ unit: String) -> TimeInterval? {
         switch unit {

@@ -49,6 +49,16 @@ struct ContainerLogsCommandTests {
     }
 
     @Test
+    func parsesRelativeDurationTimestamp() throws {
+        let before = Date()
+        let timestamp = try #require(ContainerLogTimestamp(argument: "1m30s"))
+        let after = Date()
+
+        #expect(timestamp.date >= before.addingTimeInterval(-90))
+        #expect(timestamp.date <= after.addingTimeInterval(-90))
+    }
+
+    @Test
     func rejectsInvalidTimestamp() {
         #expect(ContainerLogTimestamp(argument: "not-a-date") == nil)
     }
