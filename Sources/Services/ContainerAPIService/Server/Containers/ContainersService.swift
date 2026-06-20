@@ -923,9 +923,11 @@ public actor ContainersService {
             guard Darwin.lseek(fd, 0, SEEK_SET) >= 0 else {
                 throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
             }
+            guard Darwin.unlink(url.path) == 0 else {
+                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            }
             let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
             closeFileDescriptor = false
-            try? FileManager.default.removeItem(at: url)
             return handle
         } catch {
             if closeFileDescriptor {
