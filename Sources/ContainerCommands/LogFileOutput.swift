@@ -36,14 +36,6 @@ struct LogFileOutput {
         }
     }
 
-    /// Writes existing raw log data without binding output to a specific file handle.
-    static func write(data: Data, n: Int?, output: FileHandle = .standardOutput) {
-        let selected = n.map { tailData(data, lineCount: $0) } ?? data
-        if !selected.isEmpty {
-            output.write(selected)
-        }
-    }
-
     /// Returns the final `lineCount` log records from `data`.
     static func tailData(_ data: Data, lineCount: Int) -> Data {
         guard lineCount != 0 else {

@@ -107,6 +107,21 @@ struct ContainerLogsCommandTests {
     }
 
     @Test
+    func logFileOutputWritesAllBytesWithoutUTF8Decoding() async throws {
+        let outputURL = temporaryFileURL()
+        defer { try? FileManager.default.removeItem(at: outputURL) }
+        _ = FileManager.default.createFile(atPath: outputURL.path, contents: nil)
+        let bytes = Data([0xff, 0xfe, 0x0a, 0x41, 0x0a])
+
+        let inputHandle = try fileHandle(containing: bytes)
+        let outputHandle = try FileHandle(forWritingTo: outputURL)
+        try await LogFileOutput.write(fh: inputHandle, n: nil, follow: false, output: outputHandle)
+        try outputHandle.close()
+
+        #expect(try Data(contentsOf: outputURL) == bytes)
+    }
+
+    @Test
     func logFileOutputTailDataPreservesBlankLinesAndTrailingNewline() {
         let data = Data("one\n\ntwo\n".utf8)
 
