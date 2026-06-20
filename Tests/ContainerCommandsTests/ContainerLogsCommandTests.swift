@@ -99,7 +99,9 @@ struct ContainerLogsCommandTests {
         _ = FileManager.default.createFile(atPath: outputURL.path, contents: nil)
 
         let inputHandle = try fileHandle(containing: Data("one\ntwo\n".utf8))
+        defer { try? inputHandle.close() }
         let outputHandle = try FileHandle(forWritingTo: outputURL)
+        defer { try? outputHandle.close() }
         try await LogFileOutput.write(fh: inputHandle, n: -1, follow: false, output: outputHandle)
         try outputHandle.close()
 
@@ -114,7 +116,9 @@ struct ContainerLogsCommandTests {
         let bytes = Data([0xff, 0xfe, 0x0a, 0x41, 0x0a])
 
         let inputHandle = try fileHandle(containing: bytes)
+        defer { try? inputHandle.close() }
         let outputHandle = try FileHandle(forWritingTo: outputURL)
+        defer { try? outputHandle.close() }
         try await LogFileOutput.write(fh: inputHandle, n: nil, follow: false, output: outputHandle)
         try outputHandle.close()
 
