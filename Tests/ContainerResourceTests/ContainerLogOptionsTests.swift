@@ -57,6 +57,9 @@ struct ContainerLogOptionsTests {
         #expect(ContainerLogTimestampParser.parse("1m30s", relativeTo: reference) == reference.addingTimeInterval(-90))
         #expect(ContainerLogTimestampParser.parse("250ms", relativeTo: reference) == reference.addingTimeInterval(-0.25))
         #expect(ContainerLogTimestampParser.parse("1.5h", relativeTo: reference) == reference.addingTimeInterval(-5_400))
+        #expect(ContainerLogTimestampParser.parse("+1s", relativeTo: reference) == reference.addingTimeInterval(-1))
+        #expect(ContainerLogTimestampParser.parse("-1s", relativeTo: reference) == reference.addingTimeInterval(1))
+        #expect(ContainerLogTimestampParser.parse("-.5h", relativeTo: reference) == reference.addingTimeInterval(1_800))
     }
 
     @Test func parsesDateOnlyLogTimestampInLocalTime() throws {
@@ -71,7 +74,7 @@ struct ContainerLogOptionsTests {
 
     @Test func rejectsInvalidLogTimestamps() {
         #expect(ContainerLogTimestampParser.parse("not-a-date") == nil)
-        #expect(ContainerLogTimestampParser.parse("-1s") == nil)
+        #expect(ContainerLogTimestampParser.parse("-s") == nil)
         #expect(ContainerLogTimestampParser.parse("1781776800.") == nil)
         #expect(ContainerLogTimestampParser.parse("1d") == nil)
     }

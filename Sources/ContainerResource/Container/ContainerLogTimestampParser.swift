@@ -70,12 +70,23 @@ public struct ContainerLogTimestampParser: Sendable {
 
     /// Parses Go-style durations such as `1m30s`, `250ms`, and `1.5h`.
     public static func parseDuration(_ value: String) -> TimeInterval? {
-        guard !value.isEmpty, !value.hasPrefix("-") else {
+        guard !value.isEmpty else {
+            return nil
+        }
+
+        var sign: TimeInterval = 1
+        var index = value.startIndex
+        if value[index] == "-" {
+            sign = -1
+            index = value.index(after: index)
+        } else if value[index] == "+" {
+            index = value.index(after: index)
+        }
+        guard index < value.endIndex else {
             return nil
         }
 
         var total: TimeInterval = 0
-        var index = value.startIndex
         var parsedComponent = false
 
         while index < value.endIndex {
@@ -119,7 +130,7 @@ public struct ContainerLogTimestampParser: Sendable {
             parsedComponent = true
         }
 
-        return parsedComponent ? total : nil
+        return parsedComponent ? total * sign : nil
     }
 
     private static func parseLayoutTimestamp(_ value: String) -> Date? {
