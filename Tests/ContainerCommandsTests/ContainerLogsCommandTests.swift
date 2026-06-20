@@ -92,6 +92,51 @@ struct ContainerLogsCommandTests {
         try Application.ContainerLogs.validateLogOptions(follow: true, since: nil, until: nil)
     }
 
+    @Test
+    func logFileOutputNegativeTailWritesAllBytes() async throws {
+        let outputURL = temporaryFileURL()
+        defer { try? FileManager.default.removeItem(at: outputURL) }
+        _ = FileManager.default.createFile(atPath: outputURL.path, contents: nil)
+
+        let inputHandle = try fileHandle(containing: Data("one\ntwo\n".utf8))
+        let outputHandle = try FileHandle(forWritingTo: outputURL)
+        try await LogFileOutput.write(fh: inputHandle, n: -1, follow: false, output: outputHandle)
+        try outputHandle.close()
+
+        #expect(String(data: try Data(contentsOf: outputURL), encoding: .utf8) == "one\ntwo\n")
+    }
+
+    @Test
+    func logFileOutputTailDataPreservesBlankLinesAndTrailingNewline() {
+        let data = Data("one\n\ntwo\n".utf8)
+
+        let tail = LogFileOutput.tailData(data, lineCount: 2)
+
+        #expect(String(data: tail, encoding: .utf8) == "\ntwo\n")
+    }
+
+    @Test
+    func logFileOutputZeroTailReturnsEmptyData() {
+        let data = Data("one\ntwo\n".utf8)
+
+        let tail = LogFileOutput.tailData(data, lineCount: 0)
+
+        #expect(tail.isEmpty)
+    }
+
+    private func fileHandle(containing data: Data) throws -> FileHandle {
+        let url = temporaryFileURL()
+        try data.write(to: url)
+        let handle = try FileHandle(forReadingFrom: url)
+        try? FileManager.default.removeItem(at: url)
+        return handle
+    }
+
+    private func temporaryFileURL() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("container-log-command-test-\(UUID().uuidString)")
+    }
+
     private func date(_ value: String) -> Date {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions =

@@ -414,6 +414,8 @@ container logs [--boot] [--follow] [-n <n>] [--tail <n>] [--since <timestamp>] [
 *   `--since <timestamp>`: Show logs after the specified RFC 3339 timestamp
 *   `--until <timestamp>`: Show logs before the specified RFC 3339 timestamp
 
+`--since` and `--until` apply to static stdio and boot log replay. Followed stdio time filters are not supported by this change.
+
 ### `container inspect`
 
 Displays detailed container information in JSON. Pass one or more container IDs to inspect multiple containers.
@@ -1276,4 +1278,3 @@ container system property list
 # output as JSON for scripting
 container system property list --format json
 ```
-

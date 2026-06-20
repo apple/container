@@ -100,6 +100,15 @@ struct ContainerLogsTests {
         #expect(data == Data([0x41, 0x0a]))
     }
 
+    @Test func boundedTailPreservesLongLogicalLine() throws {
+        let longLine = String(repeating: "x", count: 40_000)
+        let handle = try fileHandle(containing: Data("old\n\(longLine)\ntwo\n".utf8))
+
+        let data = try ContainersService.tailLogData(from: handle, lineCount: 2)
+
+        #expect(String(data: data, encoding: .utf8) == "\(longLine)\ntwo\n")
+    }
+
     @Test func harnessDecodesLogOptions() {
         let message = XPCMessage(route: .containerLogs)
         let since = Date(timeIntervalSince1970: 0)

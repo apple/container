@@ -50,6 +50,7 @@ public actor ContainersService {
 
     private static let machServicePrefix = "com.apple.container"
     private static let launchdDomainString = try! ServiceManager.getDomainString()
+    private static let logTailReadChunkSize = UInt64(32 * 1024)
 
     private let log: Logger
     private let debugHelpers: Bool
@@ -780,6 +781,24 @@ public actor ContainersService {
         guard options.tail != nil || options.since != nil || options.until != nil else {
             return handle
         }
+        if let tail = options.tail, options.since == nil, options.until == nil {
+            guard tail >= 0 else {
+                return handle
+            }
+
+            do {
+                let data = try Self.tailLogData(from: handle, lineCount: tail)
+                guard let filteredHandle = Self.temporaryFileHandle(containing: data) else {
+                    try? handle.seek(toOffset: 0)
+                    return handle
+                }
+                try? handle.close()
+                return filteredHandle
+            } catch {
+                try? handle.seek(toOffset: 0)
+                return handle
+            }
+        }
         guard let data = try? handle.readToEnd() else {
             return handle
         }
@@ -790,6 +809,45 @@ public actor ContainersService {
         }
         try? handle.close()
         return filteredHandle
+    }
+
+    static func tailLogData(from handle: FileHandle, lineCount: Int) throws -> Data {
+        guard lineCount != 0 else {
+            return Data()
+        }
+        guard lineCount > 0 else {
+            try handle.seek(toOffset: 0)
+            return handle.readDataToEndOfFile()
+        }
+
+        var buffer = Data()
+        try prependTailData(from: handle, lineCount: lineCount, into: &buffer)
+        return filteredLogData(buffer, options: ContainerLogOptions(tail: lineCount))
+    }
+
+    private static func prependTailData(
+        from handle: FileHandle,
+        lineCount: Int,
+        into buffer: inout Data
+    ) throws {
+        var offset = try handle.seekToEnd()
+        while offset > 0, countedLogLines(in: buffer) <= lineCount {
+            let readSize = min(logTailReadChunkSize, offset)
+            offset -= readSize
+            try handle.seek(toOffset: offset)
+            buffer.insert(contentsOf: handle.readData(ofLength: Int(readSize)), at: 0)
+        }
+    }
+
+    private static func countedLogLines(in data: Data) -> Int {
+        guard !data.isEmpty else {
+            return 0
+        }
+
+        let separatorCount = data.reduce(0) { count, byte in
+            byte == LogByte.lineFeed ? count + 1 : count
+        }
+        return data.last == LogByte.lineFeed ? separatorCount : separatorCount + 1
     }
 
     static func filteredLogData(_ data: Data, options: ContainerLogOptions) -> Data {

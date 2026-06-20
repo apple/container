@@ -17,9 +17,6 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerResource
-import ContainerizationError
-import Darwin
-import Dispatch
 import Foundation
 
 extension Application {
@@ -66,11 +63,16 @@ extension Application {
             )
             let fhs = try await client.logs(id: containerId, options: options)
             let fileHandle = boot ? fhs[1] : fhs[0]
+            defer {
+                for handle in fhs {
+                    try? handle.close()
+                }
+            }
 
-            try await Self.tail(
+            try await LogFileOutput.write(
                 fh: fileHandle,
                 n: follow ? numLines : nil,
-                follow: follow
+                follow: follow,
             )
         }
 
@@ -95,88 +97,6 @@ extension Application {
                 since: since?.date,
                 until: until?.date
             )
-        }
-
-        private static func tail(
-            fh: FileHandle,
-            n: Int?,
-            follow: Bool
-        ) async throws {
-            if let n {
-                var buffer = Data()
-                let size = try fh.seekToEnd()
-                var offset = size
-                var lines: [String] = []
-
-                while offset > 0, lines.count < n {
-                    let readSize = min(1024, offset)
-                    offset -= readSize
-                    try fh.seek(toOffset: offset)
-
-                    let data = fh.readData(ofLength: Int(readSize))
-                    buffer.insert(contentsOf: data, at: 0)
-
-                    if let chunk = String(data: buffer, encoding: .utf8) {
-                        lines = chunk.components(separatedBy: .newlines)
-                        lines = lines.filter { !$0.isEmpty }
-                    }
-                }
-
-                lines = Array(lines.suffix(n))
-                for line in lines {
-                    print(line)
-                }
-            } else {
-                // Fast path if all they want is the full file.
-                guard let data = try fh.readToEnd() else {
-                    // Seems you get nil if it's a zero byte read, or you
-                    // try and read from dev/null.
-                    return
-                }
-                guard let str = String(data: data, encoding: .utf8) else {
-                    throw ContainerizationError(
-                        .internalError,
-                        message: "failed to convert container logs to utf8"
-                    )
-                }
-                print(str.trimmingCharacters(in: .newlines))
-            }
-
-            fflush(stdout)
-            if follow {
-                setbuf(stdout, nil)
-                try await Self.followFile(fh: fh)
-            }
-        }
-
-        private static func followFile(fh: FileHandle) async throws {
-            _ = try fh.seekToEnd()
-            let stream = AsyncStream<String> { cont in
-                fh.readabilityHandler = { handle in
-                    let data = handle.availableData
-                    if data.isEmpty {
-                        // Triggers on container restart - can exit here as well
-                        do {
-                            _ = try fh.seekToEnd()  // To continue streaming existing truncated log files
-                        } catch {
-                            fh.readabilityHandler = nil
-                            cont.finish()
-                            return
-                        }
-                    }
-                    if let str = String(data: data, encoding: .utf8), !str.isEmpty {
-                        var lines = str.components(separatedBy: .newlines)
-                        lines = lines.filter { !$0.isEmpty }
-                        for line in lines {
-                            cont.yield(line)
-                        }
-                    }
-                }
-            }
-
-            for await line in stream {
-                print(line)
-            }
         }
     }
 }
