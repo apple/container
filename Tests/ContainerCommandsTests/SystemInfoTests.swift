@@ -120,4 +120,27 @@ struct SystemInfoTests {
         #expect(table.contains("defaults.registryDomain"))
         #expect(!table.contains("defaults.dnsDomain"))
     }
+
+    @Test
+    func imageCountIsRecordedOnResourceCounts() {
+        let resources = Application.ResourceCounts(containersTotal: 3, containersRunning: 1)
+        let updated = Application.SystemInfo.withImageCount(resources, imageCount: 7)
+        #expect(updated?.images == 7)
+        // And it surfaces in the rendered table.
+        let table = Application.SystemInfo.infoTable(makePayload(resources: updated))
+        #expect(table.contains("images.total"))
+        #expect(table.contains("7"))
+    }
+
+    @Test
+    func imageCountWithoutResourceCountsStaysNil() {
+        #expect(Application.SystemInfo.withImageCount(nil, imageCount: 7) == nil)
+    }
+
+    @Test
+    func imageCountOmittedWhenUnavailable() {
+        let resources = Application.ResourceCounts(containersTotal: 2, containersRunning: 0)
+        let updated = Application.SystemInfo.withImageCount(resources, imageCount: nil)
+        #expect(updated?.images == nil)
+    }
 }

@@ -86,8 +86,8 @@ extension Application {
                         containersRunning: running
                     )
                 }
-                if var resources, let images = try? await ClientImage.list() {
-                    resources.images = images.count
+                if let images = try? await ClientImage.list() {
+                    resources = Self.withImageCount(resources, imageCount: images.count)
                 }
             }
 
@@ -112,6 +112,16 @@ extension Application {
                 resources: resources,
                 defaults: defaults
             )
+        }
+
+        /// Records the image count on the resource counts when both are
+        /// available. Returns the counts unchanged (including `nil`) when there
+        /// are no resource counts yet, i.e. the daemon's container list was
+        /// unavailable.
+        static func withImageCount(_ resources: ResourceCounts?, imageCount: Int?) -> ResourceCounts? {
+            guard var resources, let imageCount else { return resources }
+            resources.images = imageCount
+            return resources
         }
 
         static func infoTable(_ info: InfoPayload) -> String {
