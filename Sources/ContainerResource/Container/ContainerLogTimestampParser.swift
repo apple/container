@@ -33,12 +33,8 @@ public struct ContainerLogTimestampParser: Sendable {
         let internetFormatter = ISO8601DateFormatter()
         internetFormatter.formatOptions = [.withInternetDateTime]
 
-        let dateOnlyFormatter = ISO8601DateFormatter()
-        dateOnlyFormatter.formatOptions = [.withFullDate]
-
         return fractionalFormatter.date(from: value)
             ?? internetFormatter.date(from: value)
-            ?? dateOnlyFormatter.date(from: value)
             ?? parseLayoutTimestamp(value)
     }
 

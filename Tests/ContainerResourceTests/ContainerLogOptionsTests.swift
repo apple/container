@@ -19,6 +19,7 @@ import Testing
 
 @testable import ContainerResource
 
+@Suite(.serialized)
 struct ContainerLogOptionsTests {
     @Test func defaultOptionsPreserveExistingBehavior() {
         let options = ContainerLogOptions.default
@@ -58,6 +59,16 @@ struct ContainerLogOptionsTests {
         #expect(ContainerLogTimestampParser.parse("1.5h", relativeTo: reference) == reference.addingTimeInterval(-5_400))
     }
 
+    @Test func parsesDateOnlyLogTimestampInLocalTime() throws {
+        let previousTimeZone = NSTimeZone.default
+        NSTimeZone.default = TimeZone(secondsFromGMT: 3_600)!
+        defer { NSTimeZone.default = previousTimeZone }
+
+        let timestamp = try #require(ContainerLogTimestampParser.parse("2026-06-18"))
+
+        #expect(timestamp == localDate("2026-06-18"))
+    }
+
     @Test func rejectsInvalidLogTimestamps() {
         #expect(ContainerLogTimestampParser.parse("not-a-date") == nil)
         #expect(ContainerLogTimestampParser.parse("-1s") == nil)
@@ -71,6 +82,15 @@ struct ContainerLogOptionsTests {
             value.contains(".")
             ? [.withInternetDateTime, .withFractionalSeconds]
             : [.withInternetDateTime]
+        return formatter.date(from: value)!
+    }
+
+    private func localDate(_ value: String) -> Date {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone.current
+        formatter.dateFormat = "yyyy-MM-dd"
         return formatter.date(from: value)!
     }
 }

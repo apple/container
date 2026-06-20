@@ -394,7 +394,7 @@ container export mycontainer > mycontainer.tar
 
 ### `container logs`
 
-Fetches logs from a container. You can follow the logs (`-f`/`--follow`), restrict the number of lines shown, filter by RFC 3339 timestamp, or view boot logs.
+Fetches logs from a container. You can follow the logs (`-f`/`--follow`), restrict the number of lines shown, filter by timestamp, or view boot logs.
 
 **Usage**
 
