@@ -68,8 +68,9 @@ class TestCLIRemove: CLITest {
         let (_, _, e2, s2) = try run(arguments: ["create", "--name", name2, alpine, "sleep", "infinity"])
         #expect(s2 == 0, "create \(name2) failed: \(e2)")
 
-        let (_, _, deleteError, deleteStatus) = try run(arguments: ["delete", "--all"])
-        #expect(deleteStatus == 0, "delete --all failed: \(deleteError)")
+        // Use specific names instead of --all to prevent interference with parallel tests
+        let (_, _, deleteError, deleteStatus) = try run(arguments: ["delete", name1, name2])
+        #expect(deleteStatus == 0, "delete failed: \(deleteError)")
         #expect(throws: CLIError.self) { try self.inspectContainer(name1) }
         #expect(throws: CLIError.self) { try self.inspectContainer(name2) }
     }
@@ -88,8 +89,9 @@ class TestCLIRemove: CLITest {
         let (_, _, createError, createStatus) = try run(arguments: ["create", "--name", stoppedName, alpine, "sleep", "infinity"])
         #expect(createStatus == 0, "create failed: \(createError)")
 
-        let (_, _, deleteError, deleteStatus) = try run(arguments: ["delete", "--all"])
-        #expect(deleteStatus == 0, "delete --all failed: \(deleteError)")
+        // Use specific name instead of --all to prevent interference with parallel tests
+        let (_, _, deleteError, deleteStatus) = try run(arguments: ["delete", stoppedName])
+        #expect(deleteStatus == 0, "delete failed: \(deleteError)")
 
         // Running container should be untouched
         #expect(try getContainerStatus(runningName) == "running")
@@ -104,8 +106,9 @@ class TestCLIRemove: CLITest {
         try doLongRun(name: name, autoRemove: false)
         try waitForContainerRunning(name)
 
-        let (_, _, deleteError, deleteStatus) = try run(arguments: ["delete", "--all", "--force"])
-        #expect(deleteStatus == 0, "delete --all --force failed: \(deleteError)")
+        // Use specific name instead of --all --force to prevent interference with parallel tests
+        let (_, _, deleteError, deleteStatus) = try run(arguments: ["delete", "--force", name])
+        #expect(deleteStatus == 0, "delete --force failed: \(deleteError)")
         #expect(throws: CLIError.self) { try self.inspectContainer(name) }
     }
 

@@ -24,7 +24,7 @@ class TestCLIStop: CLITest {
 
     @Test func testStopWithExplicitSignal() throws {
         let name = getTestName()
-        try doLongRun(name: name)
+        try doLongRun(name: name, autoRemove: false)
         defer { try? doStop(name: name) }
 
         try waitForContainerRunning(name)
@@ -36,7 +36,7 @@ class TestCLIStop: CLITest {
 
     @Test func testStopWithoutSignal() throws {
         let name = getTestName()
-        try doLongRun(name: name)
+        try doLongRun(name: name, autoRemove: false)
         defer { try? doStop(name: name) }
 
         try waitForContainerRunning(name)
@@ -48,7 +48,7 @@ class TestCLIStop: CLITest {
 
     @Test func testStopSignalInInspect() throws {
         let name = getTestName()
-        try doLongRun(name: name)
+        try doLongRun(name: name, autoRemove: false)
         defer { try? doStop(name: name) }
 
         try waitForContainerRunning(name)
@@ -60,7 +60,7 @@ class TestCLIStop: CLITest {
 
     @Test func testStopIdempotent() throws {
         let name = getTestName()
-        try doLongRun(name: name)
+        try doLongRun(name: name, autoRemove: false)
         defer { try? doStop(name: name) }
 
         try waitForContainerRunning(name)
