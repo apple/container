@@ -766,8 +766,17 @@ public actor ContainersService {
                 try FileHandle(forReadingFrom: bundle.containerLog),
                 try FileHandle(forReadingFrom: bundle.bootlog),
             ]
-            return handles.map { handle in
-                Self.applyLogOptions(to: handle, options: options)
+            var filteredHandles: [FileHandle] = []
+            do {
+                for handle in handles {
+                    filteredHandles.append(try Self.applyLogOptions(to: handle, options: options))
+                }
+                return filteredHandles
+            } catch {
+                for handle in handles + filteredHandles {
+                    try? handle.close()
+                }
+                throw error
             }
         } catch {
             throw ContainerizationError(
@@ -777,7 +786,11 @@ public actor ContainersService {
         }
     }
 
-    static func applyLogOptions(to handle: FileHandle, options: ContainerLogOptions) -> FileHandle {
+    static func applyLogOptions(
+        to handle: FileHandle,
+        options: ContainerLogOptions,
+        temporaryDirectory: URL = FileManager.default.temporaryDirectory
+    ) throws -> FileHandle {
         guard options.tail != nil || options.since != nil || options.until != nil else {
             return handle
         }
@@ -786,27 +799,14 @@ public actor ContainersService {
                 return handle
             }
 
-            do {
-                let data = try Self.tailLogData(from: handle, lineCount: tail)
-                guard let filteredHandle = Self.temporaryFileHandle(containing: data) else {
-                    try? handle.seek(toOffset: 0)
-                    return handle
-                }
-                try? handle.close()
-                return filteredHandle
-            } catch {
-                try? handle.seek(toOffset: 0)
-                return handle
-            }
+            let data = try Self.tailLogData(from: handle, lineCount: tail)
+            let filteredHandle = try Self.temporaryFileHandle(containing: data, in: temporaryDirectory)
+            try? handle.close()
+            return filteredHandle
         }
-        guard let data = try? handle.readToEnd() else {
-            return handle
-        }
+        let data = try handle.readToEnd() ?? Data()
         let filtered = Self.filteredLogData(data, options: options)
-        guard let filteredHandle = Self.temporaryFileHandle(containing: filtered) else {
-            try? handle.seek(toOffset: 0)
-            return handle
-        }
+        let filteredHandle = try Self.temporaryFileHandle(containing: filtered, in: temporaryDirectory)
         try? handle.close()
         return filteredHandle
     }
@@ -881,8 +881,12 @@ public actor ContainersService {
         return joinedLogData(lines)
     }
 
-    private static func temporaryFileHandle(containing data: Data) -> FileHandle? {
-        let url = FileManager.default.temporaryDirectory
+    private static func temporaryFileHandle(
+        containing data: Data,
+        in temporaryDirectory: URL
+    ) throws -> FileHandle {
+        let url =
+            temporaryDirectory
             .appendingPathComponent("container-log-\(UUID().uuidString)")
         do {
             try data.write(to: url)
@@ -891,7 +895,11 @@ public actor ContainersService {
             return handle
         } catch {
             try? FileManager.default.removeItem(at: url)
-            return nil
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to prepare filtered container logs",
+                cause: error
+            )
         }
     }
 

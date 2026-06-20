@@ -94,10 +94,39 @@ struct ContainerLogsTests {
         let bytes = Data([0xff, 0xfe, 0x0a, 0x41, 0x0a])
         let handle = try fileHandle(containing: bytes)
 
-        let filtered = ContainersService.applyLogOptions(to: handle, options: ContainerLogOptions(tail: 1))
+        let filtered = try ContainersService.applyLogOptions(to: handle, options: ContainerLogOptions(tail: 1))
         let data = try #require(try filtered.readToEnd())
 
         #expect(data == Data([0x41, 0x0a]))
+    }
+
+    @Test func filteredHandleCreationFailureThrows() throws {
+        let handle = try fileHandle(containing: Data("one\ntwo\n".utf8))
+        defer { try? handle.close() }
+        let blockedDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("container-log-test-\(UUID().uuidString)")
+        try Data("not a directory".utf8).write(to: blockedDirectory)
+        defer { try? FileManager.default.removeItem(at: blockedDirectory) }
+
+        #expect(throws: Error.self) {
+            _ = try ContainersService.applyLogOptions(
+                to: handle,
+                options: ContainerLogOptions(tail: 1),
+                temporaryDirectory: blockedDirectory
+            )
+        }
+    }
+
+    @Test func emptyLogsApplyTimeFiltersWithoutThrowing() throws {
+        let handle = try fileHandle(containing: Data())
+
+        let filtered = try ContainersService.applyLogOptions(
+            to: handle,
+            options: ContainerLogOptions(since: date("2026-01-01T00:00:00Z"))
+        )
+        let data = try filtered.readToEnd() ?? Data()
+
+        #expect(data.isEmpty)
     }
 
     @Test func boundedTailPreservesLongLogicalLine() throws {
