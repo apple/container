@@ -645,6 +645,68 @@ public actor ContainersService {
         try await handleContainerExit(id: id)
     }
 
+    /// Freeze writes on the root filesystem of a running container.
+    public func freeze(id: String) async throws {
+        log.debug(
+            "ContainersService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "id": "\(id)",
+            ]
+        )
+        defer {
+            log.debug(
+                "ContainersService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "id": "\(id)",
+                ]
+            )
+        }
+
+        let state = try self._getContainerState(id: id)
+        guard state.snapshot.status == .running else {
+            throw ContainerizationError(
+                .invalidState,
+                message: "container \(id) is \(state.snapshot.status) and cannot be frozen"
+            )
+        }
+
+        let client = try state.getClient()
+        try await client.filesystemOperation(operation: .freeze, path: "/")
+    }
+
+    /// Thaw writes on the root filesystem of a running container.
+    public func thaw(id: String) async throws {
+        log.debug(
+            "ContainersService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "id": "\(id)",
+            ]
+        )
+        defer {
+            log.debug(
+                "ContainersService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "id": "\(id)",
+                ]
+            )
+        }
+
+        let state = try self._getContainerState(id: id)
+        guard state.snapshot.status == .running else {
+            throw ContainerizationError(
+                .invalidState,
+                message: "container \(id) is \(state.snapshot.status) and cannot be thawed"
+            )
+        }
+
+        let client = try state.getClient()
+        try await client.filesystemOperation(operation: .thaw, path: "/")
+    }
+
     public func dial(id: String, port: UInt32) async throws -> FileHandle {
         log.debug(
             "ContainersService: enter",

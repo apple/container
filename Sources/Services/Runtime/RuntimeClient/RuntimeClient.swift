@@ -327,6 +327,7 @@ extension RuntimeClient {
                 switch operation {
                 case .freeze: "freeze"
                 case .thaw: "thaw"
+                case .trim: "trim"
                 }
             }())
         request.set(key: RuntimeKeys.filesystemPath.rawValue, value: path)
