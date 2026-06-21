@@ -1242,7 +1242,9 @@ public actor RuntimeService {
 
                 return code
             }
-        } catch {}
+        } catch {
+            self.log.error("graceful stop failed; forcing vm shutdown", metadata: ["error": "\(error)"])
+        }
 
         // Now actually bring down the vm.
         try await lc.stop()
