@@ -880,18 +880,16 @@ public actor ContainersService {
 
         let timestampParser = LogTimestampParser()
         var result = Data()
-        var retainedTail: [LogDataLine] = []
+        let tailLimit = options.tail ?? -1
+        var retainedTail = LogTailBuffer(capacity: tailLimit)
         var current = Data()
 
         func appendIncludedLine(_ line: LogDataLine) throws {
             guard try shouldIncludeLogLine(line, options: options, timestampParser: timestampParser) else {
                 return
             }
-            if let tail = options.tail, tail > 0 {
+            if tailLimit > 0 {
                 retainedTail.append(line)
-                if retainedTail.count > tail {
-                    retainedTail.removeFirst(retainedTail.count - tail)
-                }
             } else {
                 appendLogLine(line, to: &result)
             }
@@ -915,8 +913,8 @@ public actor ContainersService {
             try appendIncludedLine(LogDataLine(data: current, terminated: false))
         }
 
-        if let tail = options.tail, tail > 0 {
-            return joinedLogData(retainedTail)
+        if tailLimit > 0 {
+            return joinedLogData(retainedTail.lines)
         }
         return result
     }
@@ -1043,6 +1041,46 @@ public actor ContainersService {
     private struct LogDataLine {
         var data: Data
         var terminated: Bool
+    }
+
+    /// Fixed-size tail retention for filtered replay.
+    ///
+    /// The service can scan large log files when `tail` is combined with time
+    /// filters. A ring buffer avoids repeated `removeFirst` reindexing while
+    /// preserving the caller-visible order of the retained lines.
+    private struct LogTailBuffer {
+        private let capacity: Int
+        private var storage: [LogDataLine] = []
+        private var nextIndex = 0
+
+        init(capacity: Int) {
+            self.capacity = max(capacity, 0)
+            self.storage.reserveCapacity(self.capacity)
+        }
+
+        mutating func append(_ line: LogDataLine) {
+            guard capacity > 0 else {
+                return
+            }
+
+            if storage.count < capacity {
+                storage.append(line)
+                return
+            }
+
+            storage[nextIndex] = line
+            nextIndex = (nextIndex + 1) % capacity
+        }
+
+        var lines: [LogDataLine] {
+            guard storage.count == capacity, nextIndex != 0 else {
+                return storage
+            }
+
+            let oldestSegment = Array(storage[nextIndex..<storage.endIndex])
+            let newestSegment = Array(storage[storage.startIndex..<nextIndex])
+            return oldestSegment + newestSegment
+        }
     }
 
     private enum LogByte {

@@ -21,7 +21,10 @@ import Foundation
 /// ``default`` is the zero-option equivalent to the original `logs(id:)`
 /// behavior.
 public struct ContainerLogOptions: Codable, Equatable, Sendable {
-    /// If non-nil and non-negative, return only the last `tail` log lines.
+    /// If non-nil, refine how many log lines are returned.
+    ///
+    /// Positive values return the last `tail` lines, zero returns no lines,
+    /// and negative values follow Docker's behavior of returning all lines.
     public let tail: Int?
 
     /// If non-nil, return log lines whose timestamp prefix is not older than

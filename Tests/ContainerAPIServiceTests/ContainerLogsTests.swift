@@ -168,6 +168,37 @@ struct ContainerLogsTests {
         #expect(String(data: data, encoding: .utf8) == "\(longLine)\ntwo\n")
     }
 
+    @Test func filteredHandleRetainsTailInOrderAfterTimeFilters() throws {
+        let content = """
+            2026-01-01T00:00:00Z one
+            2026-01-02T00:00:00Z two
+            2026-01-03T00:00:00Z three
+            2026-01-04T00:00:00Z four
+            2026-01-05T00:00:00Z five
+
+            """
+        let handle = try fileHandle(containing: Data(content.utf8))
+        let filtered = try ContainersService.applyLogOptions(
+            to: handle,
+            options: ContainerLogOptions(
+                tail: 3,
+                since: date("2026-01-01T00:00:00Z")
+            )
+        )
+        defer { try? filtered.close() }
+
+        let data = try filtered.readToEnd() ?? Data()
+
+        #expect(
+            String(data: data, encoding: .utf8) == """
+                2026-01-03T00:00:00Z three
+                2026-01-04T00:00:00Z four
+                2026-01-05T00:00:00Z five
+
+                """
+        )
+    }
+
     @Test func harnessDecodesLogOptions() {
         let message = XPCMessage(route: .containerLogs)
         let since = Date(timeIntervalSince1970: 0)
