@@ -779,6 +779,8 @@ public actor ContainersService {
                 }
                 throw error
             }
+        } catch let error as ContainerizationError {
+            throw error
         } catch {
             throw ContainerizationError(
                 .internalError,

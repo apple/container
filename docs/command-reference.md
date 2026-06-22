@@ -414,7 +414,7 @@ container logs [--boot] [--follow] [-n <n>] [--tail <n>] [--since <timestamp>] [
 *   `--since <timestamp>`: Show logs after the specified RFC 3339 timestamp
 *   `--until <timestamp>`: Show logs before the specified RFC 3339 timestamp
 
-`--since` and `--until` apply to static stdio and boot log replay. `--follow --until` stops following once the requested deadline is reached.
+`--since` and `--until` apply to static stdio and boot log replay. Followed time filters are not supported by this change.
 
 ### `container inspect`
 

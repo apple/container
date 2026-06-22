@@ -72,16 +72,18 @@ extension Application {
             try await LogFileOutput.write(
                 fh: fileHandle,
                 n: follow ? numLines : nil,
-                follow: follow,
-                until: until?.date
+                follow: follow
             )
         }
 
         static func validateLogOptions(
-            follow _: Bool,
-            since _: ContainerLogTimestamp?,
-            until _: ContainerLogTimestamp?
+            follow: Bool,
+            since: ContainerLogTimestamp?,
+            until: ContainerLogTimestamp?
         ) throws {
+            if follow && (since != nil || until != nil) {
+                throw ValidationError("--follow cannot be combined with --since or --until")
+            }
         }
 
         static func retrievalOptions(

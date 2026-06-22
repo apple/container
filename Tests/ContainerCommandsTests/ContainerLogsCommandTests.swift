@@ -57,33 +57,35 @@ struct ContainerLogsCommandTests {
     }
 
     @Test
-    func logOptionsLeaveTailForLocalFollowHandling() throws {
-        let since = try #require(ContainerLogTimestamp(argument: "2026-06-18T10:00:00Z"))
-        let until = try #require(ContainerLogTimestamp(argument: "2026-06-18T11:00:00Z"))
+    func logOptionsLeaveTailForLocalFollowHandling() {
         let options = Application.ContainerLogs.retrievalOptions(
             numLines: 25,
             follow: true,
-            since: since,
-            until: until
+            since: nil,
+            until: nil
         )
 
         #expect(options.tail == nil)
-        #expect(options.since == since.date)
-        #expect(options.until == until.date)
+        #expect(options.since == nil)
+        #expect(options.until == nil)
     }
 
     @Test
-    func validateAcceptsFollowWithSince() throws {
+    func validateRejectsFollowWithSince() throws {
         let since = try #require(ContainerLogTimestamp(argument: "2026-06-18T10:00:00Z"))
 
-        try Application.ContainerLogs.validateLogOptions(follow: true, since: since, until: nil)
+        #expect(throws: Error.self) {
+            try Application.ContainerLogs.validateLogOptions(follow: true, since: since, until: nil)
+        }
     }
 
     @Test
-    func validateAcceptsFollowWithUntil() throws {
+    func validateRejectsFollowWithUntil() throws {
         let until = try #require(ContainerLogTimestamp(argument: "2026-06-18T10:00:00Z"))
 
-        try Application.ContainerLogs.validateLogOptions(follow: true, since: nil, until: until)
+        #expect(throws: Error.self) {
+            try Application.ContainerLogs.validateLogOptions(follow: true, since: nil, until: until)
+        }
     }
 
     @Test

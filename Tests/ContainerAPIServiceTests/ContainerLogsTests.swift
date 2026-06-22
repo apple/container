@@ -17,6 +17,7 @@
 import ContainerAPIClient
 import ContainerResource
 import ContainerXPC
+import ContainerizationError
 import Foundation
 import Testing
 
@@ -54,8 +55,13 @@ struct ContainerLogsTests {
             since: date("2026-01-02T00:00:00Z")
         )
 
-        #expect(throws: Error.self) {
+        #expect {
             _ = try ContainersService.filteredLogData(Data(content.utf8), options: options)
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.code == .invalidArgument
         }
     }
 
@@ -112,8 +118,13 @@ struct ContainerLogsTests {
     @Test func nonUTF8LogsRejectTimeFilters() throws {
         let bytes = Data([0xff, 0xfe, 0x0a, 0x41, 0x0a])
 
-        #expect(throws: Error.self) {
+        #expect {
             _ = try ContainersService.filteredLogData(bytes, options: ContainerLogOptions(since: date("2026-01-01T00:00:00Z")))
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.code == .invalidArgument
         }
     }
 
