@@ -156,6 +156,8 @@ public enum XPCKeys: String {
     case logUntil
     /// Timestamp preference for container logs.
     case logTimestamps
+    /// Stream selected for container log filtering.
+    case logStream
 }
 
 public enum XPCRoute: String {

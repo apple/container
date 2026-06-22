@@ -58,6 +58,7 @@ extension Application {
             let options = Self.retrievalOptions(
                 numLines: numLines,
                 follow: follow,
+                boot: boot,
                 since: since,
                 until: until
             )
@@ -89,13 +90,15 @@ extension Application {
         static func retrievalOptions(
             numLines: Int?,
             follow: Bool,
+            boot: Bool,
             since: ContainerLogTimestamp?,
             until: ContainerLogTimestamp?
         ) -> ContainerLogOptions {
             ContainerLogOptions(
                 tail: follow ? nil : numLines,
                 since: since?.date,
-                until: until?.date
+                until: until?.date,
+                stream: boot ? .boot : .stdio
             )
         }
     }

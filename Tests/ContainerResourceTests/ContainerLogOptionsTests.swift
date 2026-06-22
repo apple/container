@@ -27,6 +27,7 @@ struct ContainerLogOptionsTests {
         #expect(options.since == nil)
         #expect(options.until == nil)
         #expect(!options.timestamps)
+        #expect(options.stream == nil)
     }
 
     @Test func customOptionsRoundTripThroughJSON() throws {
@@ -36,7 +37,8 @@ struct ContainerLogOptionsTests {
             tail: 100,
             since: since,
             until: until,
-            timestamps: true
+            timestamps: true,
+            stream: .boot
         )
 
         let data = try JSONEncoder().encode(options)

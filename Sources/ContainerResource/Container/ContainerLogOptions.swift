@@ -16,6 +16,14 @@
 
 import Foundation
 
+/// Identifies which stored log stream should receive filtering options.
+public enum ContainerLogStream: String, Codable, Equatable, Sendable {
+    /// Workload stdio logs.
+    case stdio
+    /// VM boot logs.
+    case boot
+}
+
 /// Options that refine how container logs are returned.
 ///
 /// ``default`` is the zero-option equivalent to the original `logs(id:)`
@@ -44,17 +52,24 @@ public struct ContainerLogOptions: Codable, Equatable, Sendable {
     /// behavior as the log implementation evolves.
     public let timestamps: Bool
 
+    /// The log stream that should receive filtering options.
+    ///
+    /// When nil, filtering applies to every returned stream.
+    public let stream: ContainerLogStream?
+
     public static let `default` = ContainerLogOptions()
 
     public init(
         tail: Int? = nil,
         since: Date? = nil,
         until: Date? = nil,
-        timestamps: Bool = false
+        timestamps: Bool = false,
+        stream: ContainerLogStream? = nil
     ) {
         self.tail = tail
         self.since = since
         self.until = until
         self.timestamps = timestamps
+        self.stream = stream
     }
 }

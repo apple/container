@@ -282,6 +282,9 @@ public struct ContainerClient: Sendable {
                 request.set(key: .logUntil, value: until)
             }
             request.set(key: .logTimestamps, value: options.timestamps)
+            if let stream = options.stream {
+                request.set(key: .logStream, value: stream.rawValue)
+            }
 
             let response = try await xpcClient.send(request)
             let fds = response.fileHandles(key: .logs)

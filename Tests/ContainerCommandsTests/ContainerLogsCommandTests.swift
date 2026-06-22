@@ -47,6 +47,7 @@ struct ContainerLogsCommandTests {
         let options = Application.ContainerLogs.retrievalOptions(
             numLines: 25,
             follow: false,
+            boot: false,
             since: since,
             until: until
         )
@@ -54,6 +55,7 @@ struct ContainerLogsCommandTests {
         #expect(options.tail == 25)
         #expect(options.since == since.date)
         #expect(options.until == until.date)
+        #expect(options.stream == .stdio)
     }
 
     @Test
@@ -61,6 +63,7 @@ struct ContainerLogsCommandTests {
         let options = Application.ContainerLogs.retrievalOptions(
             numLines: 25,
             follow: true,
+            boot: false,
             since: nil,
             until: nil
         )
@@ -68,6 +71,20 @@ struct ContainerLogsCommandTests {
         #expect(options.tail == nil)
         #expect(options.since == nil)
         #expect(options.until == nil)
+        #expect(options.stream == .stdio)
+    }
+
+    @Test
+    func logOptionsSelectBootStream() {
+        let options = Application.ContainerLogs.retrievalOptions(
+            numLines: nil,
+            follow: false,
+            boot: true,
+            since: nil,
+            until: nil
+        )
+
+        #expect(options.stream == .boot)
     }
 
     @Test

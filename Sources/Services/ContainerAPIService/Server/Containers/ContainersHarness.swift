@@ -289,22 +289,37 @@ public struct ContainersHarness: Sendable {
                 message: "id cannot be empty"
             )
         }
-        let options = Self.logOptions(from: message)
+        let options = try Self.logOptions(from: message)
         let fds = try await service.logs(id: id, options: options)
         let reply = message.reply()
         try reply.set(key: .logs, value: fds)
         return reply
     }
 
-    static func logOptions(from message: XPCMessage) -> ContainerLogOptions {
+    static func logOptions(from message: XPCMessage) throws -> ContainerLogOptions {
         let tail = message.contains(key: .logTail) ? Int(message.int64(key: .logTail)) : nil
         let since = message.contains(key: .logSince) ? message.date(key: .logSince) : nil
         let until = message.contains(key: .logUntil) ? message.date(key: .logUntil) : nil
+        let stream: ContainerLogStream?
+        if message.contains(key: .logStream) {
+            guard let value = message.string(key: .logStream),
+                let decoded = ContainerLogStream(rawValue: value)
+            else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "invalid container log stream"
+                )
+            }
+            stream = decoded
+        } else {
+            stream = nil
+        }
         return ContainerLogOptions(
             tail: tail,
             since: since,
             until: until,
-            timestamps: message.bool(key: .logTimestamps)
+            timestamps: message.bool(key: .logTimestamps),
+            stream: stream
         )
     }
 

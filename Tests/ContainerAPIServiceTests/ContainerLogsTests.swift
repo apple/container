@@ -65,6 +65,19 @@ struct ContainerLogsTests {
         }
     }
 
+    @Test func timeFiltersRejectBlankApplicationLines() throws {
+        let content = "2026-01-01T00:00:00Z old\n\n2026-01-03T00:00:00Z retained\n"
+
+        #expect {
+            _ = try ContainersService.filteredLogData(Data(content.utf8), options: ContainerLogOptions(since: date("2026-01-02T00:00:00Z")))
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.code == .invalidArgument
+        }
+    }
+
     @Test func tailOnlyPreservesUnparseableLinesEmptyLinesAndTrailingNewline() throws {
         let content = "unparseable\n\nretained\n"
 
@@ -199,7 +212,34 @@ struct ContainerLogsTests {
         )
     }
 
-    @Test func harnessDecodesLogOptions() {
+    @Test func filtersOnlySelectedLogStream() throws {
+        let stdioHandle = try fileHandle(containing: Data("2026-01-01T00:00:00Z old\n2026-01-03T00:00:00Z retained\n".utf8))
+        let bootHandle = try fileHandle(containing: Data("boot log without timestamp\n".utf8))
+
+        let handles = try ContainersService.applyLogOptions(
+            to: [
+                ContainersService.LogHandle(stream: .stdio, handle: stdioHandle),
+                ContainersService.LogHandle(stream: .boot, handle: bootHandle),
+            ],
+            options: ContainerLogOptions(
+                since: date("2026-01-02T00:00:00Z"),
+                stream: .stdio
+            )
+        )
+        defer {
+            for handle in handles {
+                try? handle.close()
+            }
+        }
+
+        let stdioData = try #require(try handles[0].readToEnd())
+        let bootData = try #require(try handles[1].readToEnd())
+
+        #expect(String(data: stdioData, encoding: .utf8) == "2026-01-03T00:00:00Z retained\n")
+        #expect(String(data: bootData, encoding: .utf8) == "boot log without timestamp\n")
+    }
+
+    @Test func harnessDecodesLogOptions() throws {
         let message = XPCMessage(route: .containerLogs)
         let since = Date(timeIntervalSince1970: 0)
         let until = Date(timeIntervalSince1970: -1)
@@ -207,24 +247,41 @@ struct ContainerLogsTests {
         message.set(key: .logSince, value: since)
         message.set(key: .logUntil, value: until)
         message.set(key: .logTimestamps, value: true)
+        message.set(key: .logStream, value: ContainerLogStream.boot.rawValue)
 
-        let options = ContainersHarness.logOptions(from: message)
+        let options = try ContainersHarness.logOptions(from: message)
 
         #expect(options.tail == 0)
         #expect(options.since == since)
         #expect(options.until == until)
         #expect(options.timestamps)
+        #expect(options.stream == .boot)
     }
 
-    @Test func harnessLeavesAbsentLogOptionsUnset() {
+    @Test func harnessLeavesAbsentLogOptionsUnset() throws {
         let message = XPCMessage(route: .containerLogs)
 
-        let options = ContainersHarness.logOptions(from: message)
+        let options = try ContainersHarness.logOptions(from: message)
 
         #expect(options.tail == nil)
         #expect(options.since == nil)
         #expect(options.until == nil)
         #expect(!options.timestamps)
+        #expect(options.stream == nil)
+    }
+
+    @Test func harnessRejectsInvalidLogStream() {
+        let message = XPCMessage(route: .containerLogs)
+        message.set(key: .logStream, value: "invalid")
+
+        #expect {
+            _ = try ContainersHarness.logOptions(from: message)
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.code == .invalidArgument
+        }
     }
 
     private func fileHandle(containing data: Data) throws -> FileHandle {

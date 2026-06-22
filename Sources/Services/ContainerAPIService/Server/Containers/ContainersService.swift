@@ -764,21 +764,10 @@ public actor ContainersService {
             let path = self.containerRoot.appendingPathComponent(id)
             let bundle = ContainerResource.Bundle(path: path)
             let handles = [
-                try FileHandle(forReadingFrom: bundle.containerLog),
-                try FileHandle(forReadingFrom: bundle.bootlog),
+                LogHandle(stream: .stdio, handle: try FileHandle(forReadingFrom: bundle.containerLog)),
+                LogHandle(stream: .boot, handle: try FileHandle(forReadingFrom: bundle.bootlog)),
             ]
-            var filteredHandles: [FileHandle] = []
-            do {
-                for handle in handles {
-                    filteredHandles.append(try Self.applyLogOptions(to: handle, options: options))
-                }
-                return filteredHandles
-            } catch {
-                for handle in handles + filteredHandles {
-                    try? handle.close()
-                }
-                throw error
-            }
+            return try Self.applyLogOptions(to: handles, options: options)
         } catch let error as ContainerizationError {
             throw error
         } catch {
@@ -786,6 +775,28 @@ public actor ContainersService {
                 .internalError,
                 message: "failed to open container logs: \(error)"
             )
+        }
+    }
+
+    static func applyLogOptions(
+        to handles: [LogHandle],
+        options: ContainerLogOptions
+    ) throws -> [FileHandle] {
+        var filteredHandles: [FileHandle] = []
+        do {
+            for logHandle in handles {
+                guard options.stream == nil || options.stream == logHandle.stream else {
+                    filteredHandles.append(logHandle.handle)
+                    continue
+                }
+                filteredHandles.append(try Self.applyLogOptions(to: logHandle.handle, options: options))
+            }
+            return filteredHandles
+        } catch {
+            for handle in handles.map(\.handle) + filteredHandles {
+                try? handle.close()
+            }
+            throw error
         }
     }
 
@@ -925,7 +936,7 @@ public actor ContainersService {
         timestampParser: LogTimestampParser
     ) throws -> Bool {
         guard let timestamp = timestampParser.timestampPrefix(from: line.data) else {
-            guard (options.since == nil && options.until == nil) || line.data.isEmpty else {
+            guard options.since == nil && options.until == nil else {
                 throw ContainerizationError(
                     .invalidArgument,
                     message: "cannot apply timestamp filters to container logs without timestamp prefixes"
@@ -1041,6 +1052,11 @@ public actor ContainersService {
     private struct LogDataLine {
         var data: Data
         var terminated: Bool
+    }
+
+    struct LogHandle {
+        var stream: ContainerLogStream
+        var handle: FileHandle
     }
 
     /// Fixed-size tail retention for filtered replay.
