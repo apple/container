@@ -411,10 +411,10 @@ container logs [--boot] [--follow] [-n <n>] [--tail <n>] [--since <timestamp>] [
 *   `--boot`: Display the boot log for the container instead of stdio
 *   `-f, --follow`: Follow log output
 *   `-n, --tail <n>`: Number of lines to show from the end of the logs. If not provided this will print all of the logs
-*   `--since <timestamp>`: Show logs after the specified RFC 3339 timestamp, Unix timestamp, or relative duration
-*   `--until <timestamp>`: Show logs before the specified RFC 3339 timestamp, Unix timestamp, or relative duration
+*   `--since <timestamp>`: Show logs after the specified RFC 3339 timestamp, Unix timestamp, local timestamp, or relative duration
+*   `--until <timestamp>`: Show logs before the specified RFC 3339 timestamp, Unix timestamp, local timestamp, or relative duration
 
-Timestamp filters accept RFC 3339 timestamps such as `2026-06-18T10:00:00Z`, Unix timestamps such as `1781776800.25`, and relative durations such as `1m30s`.
+Timestamp filters accept RFC 3339 timestamps such as `2026-06-18T10:00:00Z`, Unix timestamps such as `1781776800.25`, local date/time values such as `2026-06-18` or `2026-06-18T10:00:00`, and relative durations such as `1m30s`. Local date/time values are interpreted in the current local timezone.
 
 `--since` and `--until` apply to static stdio and boot log replay. Followed time filters are not supported by this change.
 
