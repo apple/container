@@ -1104,19 +1104,6 @@ public actor ContainersService {
     }
 
     private struct LogTimestampParser {
-        private let fractionalFormatter: ISO8601DateFormatter
-        private let formatter: ISO8601DateFormatter
-
-        init() {
-            let fractionalFormatter = ISO8601DateFormatter()
-            fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            self.fractionalFormatter = fractionalFormatter
-
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime]
-            self.formatter = formatter
-        }
-
         func timestampPrefix(from line: Data) -> Date? {
             let token = Data(line.prefix { $0 != UInt8(ascii: " ") })
             guard let timestamp = String(data: token, encoding: .utf8) else {
@@ -1126,11 +1113,7 @@ public actor ContainersService {
         }
 
         private func timestampPrefix(fromTimestampToken timestamp: String) -> Date? {
-            if let date = fractionalFormatter.date(from: timestamp) {
-                return date
-            }
-
-            return formatter.date(from: timestamp)
+            ContainerLogTimestampParser.parseAbsoluteTimestamp(timestamp)
         }
     }
 
