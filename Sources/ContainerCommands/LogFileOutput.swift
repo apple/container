@@ -23,6 +23,7 @@ struct LogFileOutput {
         fh: FileHandle,
         n: Int?,
         follow: Bool,
+        until: Date? = nil,
         output: FileHandle = .standardOutput
     ) async throws {
         if let n {
@@ -32,7 +33,7 @@ struct LogFileOutput {
         }
 
         if follow {
-            try await followFile(fh: fh, output: output)
+            try await followFile(fh: fh, output: output, until: until)
         }
     }
 
@@ -108,8 +109,12 @@ struct LogFileOutput {
 
     private static func followFile(
         fh: FileHandle,
-        output: FileHandle
+        output: FileHandle,
+        until: Date?
     ) async throws {
+        guard until.map({ $0 > Date() }) ?? true else {
+            return
+        }
         _ = try? fh.seekToEnd()
         let stream = AsyncStream<Data> { continuation in
             fh.readabilityHandler = { handle in
@@ -125,7 +130,20 @@ struct LogFileOutput {
                 }
                 continuation.yield(data)
             }
+
+            let stopTask = until.map { deadline in
+                Task {
+                    let seconds = deadline.timeIntervalSinceNow
+                    guard seconds > 0 else {
+                        continuation.finish()
+                        return
+                    }
+                    try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                    continuation.finish()
+                }
+            }
             continuation.onTermination = { _ in
+                stopTask?.cancel()
                 fh.readabilityHandler = nil
             }
         }

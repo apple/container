@@ -73,17 +73,15 @@ extension Application {
                 fh: fileHandle,
                 n: follow ? numLines : nil,
                 follow: follow,
+                until: until?.date
             )
         }
 
         static func validateLogOptions(
-            follow: Bool,
-            since: ContainerLogTimestamp?,
-            until: ContainerLogTimestamp?
+            follow _: Bool,
+            since _: ContainerLogTimestamp?,
+            until _: ContainerLogTimestamp?
         ) throws {
-            if follow && (since != nil || until != nil) {
-                throw ValidationError("--follow cannot be combined with --since or --until")
-            }
         }
 
         static func retrievalOptions(

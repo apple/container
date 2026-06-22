@@ -805,8 +805,7 @@ public actor ContainersService {
             try? handle.close()
             return filteredHandle
         }
-        let data = try handle.readToEnd() ?? Data()
-        let filtered = Self.filteredLogData(data, options: options)
+        let filtered = try Self.filteredLogData(from: handle, options: options)
         let filteredHandle = try Self.temporaryFileHandle(containing: filtered, in: temporaryDirectory)
         try? handle.close()
         return filteredHandle
@@ -823,7 +822,7 @@ public actor ContainersService {
 
         var buffer = Data()
         try prependTailData(from: handle, lineCount: lineCount, into: &buffer)
-        return filteredLogData(buffer, options: ContainerLogOptions(tail: lineCount))
+        return try filteredLogData(buffer, options: ContainerLogOptions(tail: lineCount))
     }
 
     private static func prependTailData(
@@ -851,25 +850,15 @@ public actor ContainersService {
         return data.last == LogByte.lineFeed ? separatorCount : separatorCount + 1
     }
 
-    static func filteredLogData(_ data: Data, options: ContainerLogOptions) -> Data {
+    static func filteredLogData(_ data: Data, options: ContainerLogOptions) throws -> Data {
         guard !data.isEmpty else {
             return Data()
         }
 
         var lines = logDataLines(data)
-
         let timestampParser = LogTimestampParser()
-        lines = lines.filter { line in
-            guard let timestamp = timestampParser.timestampPrefix(from: line.data) else {
-                return true
-            }
-            if let since = options.since, timestamp < since {
-                return false
-            }
-            if let until = options.until, timestamp > until {
-                return false
-            }
-            return true
+        lines = try lines.filter { line in
+            try shouldIncludeLogLine(line, options: options, timestampParser: timestampParser)
         }
 
         if let tail = options.tail, tail >= 0 {
@@ -880,6 +869,77 @@ public actor ContainersService {
         }
 
         return joinedLogData(lines)
+    }
+
+    private static func filteredLogData(from handle: FileHandle, options: ContainerLogOptions) throws -> Data {
+        if options.tail == 0 {
+            return Data()
+        }
+
+        let timestampParser = LogTimestampParser()
+        var result = Data()
+        var retainedTail: [LogDataLine] = []
+        var current = Data()
+
+        func appendIncludedLine(_ line: LogDataLine) throws {
+            guard try shouldIncludeLogLine(line, options: options, timestampParser: timestampParser) else {
+                return
+            }
+            if let tail = options.tail, tail > 0 {
+                retainedTail.append(line)
+                if retainedTail.count > tail {
+                    retainedTail.removeFirst(retainedTail.count - tail)
+                }
+            } else {
+                appendLogLine(line, to: &result)
+            }
+        }
+
+        while true {
+            let chunk = handle.readData(ofLength: Int(logTailReadChunkSize))
+            if chunk.isEmpty {
+                break
+            }
+            for byte in chunk {
+                if byte == LogByte.lineFeed {
+                    try appendIncludedLine(LogDataLine(data: current, terminated: true))
+                    current.removeAll(keepingCapacity: true)
+                } else {
+                    current.append(byte)
+                }
+            }
+        }
+        if !current.isEmpty {
+            try appendIncludedLine(LogDataLine(data: current, terminated: false))
+        }
+
+        if let tail = options.tail, tail > 0 {
+            return joinedLogData(retainedTail)
+        }
+        return result
+    }
+
+    private static func shouldIncludeLogLine(
+        _ line: LogDataLine,
+        options: ContainerLogOptions,
+        timestampParser: LogTimestampParser
+    ) throws -> Bool {
+        guard let timestamp = timestampParser.timestampPrefix(from: line.data) else {
+            guard (options.since == nil && options.until == nil) || line.data.isEmpty else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "cannot apply timestamp filters to container logs without timestamp prefixes"
+                )
+            }
+            return true
+        }
+        if let since = options.since, timestamp < since {
+            return false
+        }
+        if let until = options.until, timestamp > until {
+            return false
+        }
+        return true
     }
 
     private static func temporaryFileHandle(
@@ -969,6 +1029,13 @@ public actor ContainersService {
             }
         }
         return result
+    }
+
+    private static func appendLogLine(_ line: LogDataLine, to data: inout Data) {
+        data.append(line.data)
+        if line.terminated {
+            data.append(LogByte.lineFeed)
+        }
     }
 
     private struct LogDataLine {

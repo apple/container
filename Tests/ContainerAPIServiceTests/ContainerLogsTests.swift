@@ -37,12 +37,12 @@ struct ContainerLogsTests {
             until: date("2026-01-03T00:00:00Z")
         )
 
-        let data = ContainersService.filteredLogData(Data(content.utf8), options: options)
+        let data = try ContainersService.filteredLogData(Data(content.utf8), options: options)
 
         #expect(String(data: data, encoding: .utf8) == "2026-01-03T00:00:00Z second\n")
     }
 
-    @Test func preservesUnparseableLinesEmptyLinesAndTrailingNewline() throws {
+    @Test func timeFiltersRejectUnparseableLines() throws {
         let content = """
             2026-01-01T00:00:00Z old
             unparseable
@@ -54,9 +54,17 @@ struct ContainerLogsTests {
             since: date("2026-01-02T00:00:00Z")
         )
 
-        let data = ContainersService.filteredLogData(Data(content.utf8), options: options)
+        #expect(throws: Error.self) {
+            _ = try ContainersService.filteredLogData(Data(content.utf8), options: options)
+        }
+    }
 
-        #expect(String(data: data, encoding: .utf8) == "unparseable\n\n2026-01-03T00:00:00Z retained\n")
+    @Test func tailOnlyPreservesUnparseableLinesEmptyLinesAndTrailingNewline() throws {
+        let content = "unparseable\n\nretained\n"
+
+        let data = try ContainersService.filteredLogData(Data(content.utf8), options: ContainerLogOptions(tail: -1))
+
+        #expect(String(data: data, encoding: .utf8) == content)
     }
 
     @Test func tailZeroReturnsEmptyLogData() throws {
@@ -66,7 +74,7 @@ struct ContainerLogsTests {
 
             """
 
-        let data = ContainersService.filteredLogData(Data(content.utf8), options: ContainerLogOptions(tail: 0))
+        let data = try ContainersService.filteredLogData(Data(content.utf8), options: ContainerLogOptions(tail: 0))
 
         #expect(data.isEmpty)
     }
@@ -78,14 +86,14 @@ struct ContainerLogsTests {
 
             """
 
-        let data = ContainersService.filteredLogData(Data(content.utf8), options: ContainerLogOptions(tail: -1))
+        let data = try ContainersService.filteredLogData(Data(content.utf8), options: ContainerLogOptions(tail: -1))
 
         #expect(String(data: data, encoding: .utf8) == content)
     }
 
     @Test func nonUTF8LogsCanBeTailedWithoutDecoding() throws {
         let bytes = Data([0xff, 0xfe, 0x0a, 0x41, 0x0a])
-        let data = ContainersService.filteredLogData(bytes, options: ContainerLogOptions(tail: 1))
+        let data = try ContainersService.filteredLogData(bytes, options: ContainerLogOptions(tail: 1))
 
         #expect(data == Data([0x41, 0x0a]))
     }
@@ -99,6 +107,14 @@ struct ContainerLogsTests {
         let data = try #require(try filtered.readToEnd())
 
         #expect(data == Data([0x41, 0x0a]))
+    }
+
+    @Test func nonUTF8LogsRejectTimeFilters() throws {
+        let bytes = Data([0xff, 0xfe, 0x0a, 0x41, 0x0a])
+
+        #expect(throws: Error.self) {
+            _ = try ContainersService.filteredLogData(bytes, options: ContainerLogOptions(since: date("2026-01-01T00:00:00Z")))
+        }
     }
 
     @Test func filteredHandleCreationFailureThrows() throws {

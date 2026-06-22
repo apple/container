@@ -25,11 +25,13 @@ public struct ContainerLogOptions: Codable, Equatable, Sendable {
     public let tail: Int?
 
     /// If non-nil, return log lines whose timestamp prefix is not older than
-    /// this date. Lines without a parseable timestamp prefix are preserved.
+    /// this date. Logs without parseable timestamp prefixes cannot be filtered
+    /// safely and cause the request to fail.
     public let since: Date?
 
     /// If non-nil, return log lines whose timestamp prefix is not newer than
-    /// this date. Lines without a parseable timestamp prefix are preserved.
+    /// this date. Logs without parseable timestamp prefixes cannot be filtered
+    /// safely and cause the request to fail.
     public let until: Date?
 
     /// If true, callers want timestamps preserved on returned log lines.
