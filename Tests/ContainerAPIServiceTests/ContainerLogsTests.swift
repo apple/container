@@ -78,6 +78,22 @@ struct ContainerLogsTests {
         }
     }
 
+    @Test func timeFiltersRejectDateLikeApplicationLines() throws {
+        let content = "2026-06-18 application log without runtime timestamp\n"
+
+        #expect {
+            _ = try ContainersService.filteredLogData(
+                Data(content.utf8),
+                options: ContainerLogOptions(since: date("2026-01-01T00:00:00Z"))
+            )
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.code == .invalidArgument
+        }
+    }
+
     @Test func tailOnlyPreservesUnparseableLinesEmptyLinesAndTrailingNewline() throws {
         let content = "unparseable\n\nretained\n"
 
