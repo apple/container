@@ -1113,7 +1113,7 @@ public actor ContainersService {
         }
 
         private func timestampPrefix(fromTimestampToken timestamp: String) -> Date? {
-            ContainerLogTimestampParser.parseAbsoluteTimestamp(timestamp)
+            ContainerLogTimestampParser.parseRecordTimestampPrefix(timestamp)
         }
     }
 

@@ -30,6 +30,16 @@ public struct ContainerLogTimestampParser: Sendable {
         absoluteTimestampParser.parse(value)
     }
 
+    /// Parses a timestamp token that was read from a stored log record prefix.
+    ///
+    /// CLI filter arguments intentionally accept Docker-compatible local dates,
+    /// Unix timestamps, and relative durations. Runtime-authored log prefixes
+    /// need a stricter boundary: only RFC 3339-style timestamps with explicit
+    /// timezone information are treated as record timestamps.
+    public static func parseRecordTimestampPrefix(_ value: String) -> Date? {
+        recordTimestampPrefixParser.parse(value)
+    }
+
     /// Parses a Unix timestamp with optional fractional seconds.
     public static func parseUnixTimestamp(_ value: String) -> Date? {
         let parts = value.split(separator: ".", omittingEmptySubsequences: false)
@@ -126,6 +136,7 @@ public struct ContainerLogTimestampParser: Sendable {
     }
 
     private static let absoluteTimestampParser = AbsoluteTimestampParser()
+    private static let recordTimestampPrefixParser = RecordTimestampPrefixParser()
 
     private static let timestampLayouts = [
         "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSSXXXXX",
@@ -153,6 +164,65 @@ public struct ContainerLogTimestampParser: Sendable {
             return 60 * 60
         default:
             return nil
+        }
+    }
+
+    private final class RecordTimestampPrefixParser: @unchecked Sendable {
+        private let lock = NSLock()
+        private let fractionalFormatter: ISO8601DateFormatter
+        private let internetFormatter: ISO8601DateFormatter
+
+        init() {
+            let fractionalFormatter = ISO8601DateFormatter()
+            fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            self.fractionalFormatter = fractionalFormatter
+
+            let internetFormatter = ISO8601DateFormatter()
+            internetFormatter.formatOptions = [.withInternetDateTime]
+            self.internetFormatter = internetFormatter
+        }
+
+        func parse(_ value: String) -> Date? {
+            guard Self.hasExplicitTimeZone(in: value) else {
+                return nil
+            }
+
+            lock.lock()
+            defer {
+                lock.unlock()
+            }
+
+            return fractionalFormatter.date(from: value)
+                ?? internetFormatter.date(from: value)
+        }
+
+        private static func hasExplicitTimeZone(in value: String) -> Bool {
+            guard let timeSeparator = value.firstIndex(of: "T") else {
+                return false
+            }
+
+            let timeStart = value.index(after: timeSeparator)
+            let timePart = value[timeStart..<value.endIndex]
+            if timePart.hasSuffix("Z") {
+                return true
+            }
+
+            guard let offsetStart = timePart.lastIndex(where: { $0 == "+" || $0 == "-" }) else {
+                return false
+            }
+
+            let offset = timePart[offsetStart..<timePart.endIndex]
+            guard offset.count == 6 else {
+                return false
+            }
+
+            let hourStart = offset.index(after: offsetStart)
+            let colonIndex = offset.index(hourStart, offsetBy: 2)
+            let minuteStart = offset.index(after: colonIndex)
+
+            return offset[colonIndex] == ":"
+                && offset[hourStart..<colonIndex].allSatisfy(\.isNumber)
+                && offset[minuteStart..<offset.endIndex].allSatisfy(\.isNumber)
         }
     }
 

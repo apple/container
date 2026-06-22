@@ -69,6 +69,19 @@ struct ContainerLogOptionsTests {
         }
     }
 
+    @Test func parsesOnlyExplicitZoneTimestampsAsRecordPrefixes() {
+        #expect(
+            ContainerLogTimestampParser.parseRecordTimestampPrefix("2026-06-18T10:00:00Z")
+                == date("2026-06-18T10:00:00Z")
+        )
+        #expect(ContainerLogTimestampParser.parseRecordTimestampPrefix("2026-06-18T10:00:00.123456789Z") != nil)
+        #expect(ContainerLogTimestampParser.parseRecordTimestampPrefix("2026-06-18T10:00:00+01:00") != nil)
+        #expect(ContainerLogTimestampParser.parseRecordTimestampPrefix("2026-06-18") == nil)
+        #expect(ContainerLogTimestampParser.parseRecordTimestampPrefix("2026-06-18T10:00:00") == nil)
+        #expect(ContainerLogTimestampParser.parseRecordTimestampPrefix("1781776800") == nil)
+        #expect(ContainerLogTimestampParser.parseRecordTimestampPrefix("1m30s") == nil)
+    }
+
     @Test func parsesDateOnlyLogTimestampInLocalTime() throws {
         let previousTimeZone = NSTimeZone.default
         NSTimeZone.default = TimeZone(secondsFromGMT: 3_600)!
