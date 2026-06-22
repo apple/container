@@ -98,6 +98,18 @@ struct ContainerLogsTests {
         #expect(data.isEmpty)
     }
 
+    @Test func tailZeroDoesNotParseTimestampFilters() throws {
+        let data = try ContainersService.filteredLogData(
+            Data("application log without timestamp\n".utf8),
+            options: ContainerLogOptions(
+                tail: 0,
+                since: date("2026-01-01T00:00:00Z")
+            )
+        )
+
+        #expect(data.isEmpty)
+    }
+
     @Test func negativeTailDoesNotDropLogs() throws {
         let content = """
             2026-01-01T00:00:00Z old

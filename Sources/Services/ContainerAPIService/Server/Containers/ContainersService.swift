@@ -864,6 +864,10 @@ public actor ContainersService {
     }
 
     static func filteredLogData(_ data: Data, options: ContainerLogOptions) throws -> Data {
+        if options.tail == 0 {
+            return Data()
+        }
+
         guard !data.isEmpty else {
             return Data()
         }
@@ -875,9 +879,6 @@ public actor ContainersService {
         }
 
         if let tail = options.tail, tail >= 0 {
-            if tail == 0 {
-                return Data()
-            }
             lines = Array(lines.suffix(tail))
         }
 
