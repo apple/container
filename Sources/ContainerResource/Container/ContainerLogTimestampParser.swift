@@ -27,15 +27,7 @@ public struct ContainerLogTimestampParser: Sendable {
 
     /// Parses an absolute timestamp without interpreting relative durations.
     public static func parseAbsoluteTimestamp(_ value: String) -> Date? {
-        let fractionalFormatter = ISO8601DateFormatter()
-        fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-
-        let internetFormatter = ISO8601DateFormatter()
-        internetFormatter.formatOptions = [.withInternetDateTime]
-
-        return fractionalFormatter.date(from: value)
-            ?? internetFormatter.date(from: value)
-            ?? parseLayoutTimestamp(value)
+        absoluteTimestampParser.parse(value)
     }
 
     /// Parses a Unix timestamp with optional fractional seconds.
@@ -133,19 +125,7 @@ public struct ContainerLogTimestampParser: Sendable {
         return parsedComponent ? total * sign : nil
     }
 
-    private static func parseLayoutTimestamp(_ value: String) -> Date? {
-        for format in timestampLayouts {
-            let formatter = DateFormatter()
-            formatter.calendar = Calendar(identifier: .gregorian)
-            formatter.locale = Locale(identifier: "en_US_POSIX")
-            formatter.timeZone = TimeZone.current
-            formatter.dateFormat = format
-            if let date = formatter.date(from: value) {
-                return date
-            }
-        }
-        return nil
-    }
+    private static let absoluteTimestampParser = AbsoluteTimestampParser()
 
     private static let timestampLayouts = [
         "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSSXXXXX",
@@ -172,6 +152,52 @@ public struct ContainerLogTimestampParser: Sendable {
         case "h":
             return 60 * 60
         default:
+            return nil
+        }
+    }
+
+    private final class AbsoluteTimestampParser: @unchecked Sendable {
+        private let lock = NSLock()
+        private let fractionalFormatter: ISO8601DateFormatter
+        private let internetFormatter: ISO8601DateFormatter
+        private let layoutFormatters: [DateFormatter]
+
+        init() {
+            let fractionalFormatter = ISO8601DateFormatter()
+            fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            self.fractionalFormatter = fractionalFormatter
+
+            let internetFormatter = ISO8601DateFormatter()
+            internetFormatter.formatOptions = [.withInternetDateTime]
+            self.internetFormatter = internetFormatter
+
+            self.layoutFormatters = timestampLayouts.map { format in
+                let formatter = DateFormatter()
+                formatter.calendar = Calendar(identifier: .gregorian)
+                formatter.locale = Locale(identifier: "en_US_POSIX")
+                formatter.dateFormat = format
+                return formatter
+            }
+        }
+
+        func parse(_ value: String) -> Date? {
+            lock.lock()
+            defer {
+                lock.unlock()
+            }
+
+            return fractionalFormatter.date(from: value)
+                ?? internetFormatter.date(from: value)
+                ?? parseLayoutTimestamp(value)
+        }
+
+        private func parseLayoutTimestamp(_ value: String) -> Date? {
+            for formatter in layoutFormatters {
+                formatter.timeZone = TimeZone.current
+                if let date = formatter.date(from: value) {
+                    return date
+                }
+            }
             return nil
         }
     }

@@ -62,6 +62,13 @@ struct ContainerLogOptionsTests {
         #expect(ContainerLogTimestampParser.parse("-.5h", relativeTo: reference) == reference.addingTimeInterval(1_800))
     }
 
+    @Test func parsesRepeatedAbsoluteLogTimestamps() {
+        for _ in 0..<1_000 {
+            #expect(ContainerLogTimestampParser.parseAbsoluteTimestamp("2026-06-18T10:00:00Z") == date("2026-06-18T10:00:00Z"))
+            #expect(ContainerLogTimestampParser.parseAbsoluteTimestamp("2026-06-18T10:00:00.123456789Z") != nil)
+        }
+    }
+
     @Test func parsesDateOnlyLogTimestampInLocalTime() throws {
         let previousTimeZone = NSTimeZone.default
         NSTimeZone.default = TimeZone(secondsFromGMT: 3_600)!
