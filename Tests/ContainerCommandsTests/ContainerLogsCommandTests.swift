@@ -49,6 +49,17 @@ struct ContainerLogsCommandTests {
     }
 
     @Test
+    func parsesLocalDateTimeTimestamp() throws {
+        let previousTimeZone = NSTimeZone.default
+        NSTimeZone.default = TimeZone(secondsFromGMT: 3_600)!
+        defer { NSTimeZone.default = previousTimeZone }
+
+        let timestamp = try #require(ContainerLogTimestamp(argument: "2026-06-18T10:30:45"))
+
+        #expect(timestamp.date == localDate("2026-06-18T10:30:45"))
+    }
+
+    @Test
     func parsesRelativeDurationTimestamp() throws {
         let before = Date()
         let timestamp = try #require(ContainerLogTimestamp(argument: "1m30s"))
@@ -204,6 +215,15 @@ struct ContainerLogsCommandTests {
             value.contains(".")
             ? [.withInternetDateTime, .withFractionalSeconds]
             : [.withInternetDateTime]
+        return formatter.date(from: value)!
+    }
+
+    private func localDate(_ value: String) -> Date {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone.current
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
         return formatter.date(from: value)!
     }
 }

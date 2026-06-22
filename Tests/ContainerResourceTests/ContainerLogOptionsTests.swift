@@ -92,6 +92,15 @@ struct ContainerLogOptionsTests {
         #expect(timestamp == localDate("2026-06-18"))
     }
 
+    @Test func parsesLocalDateTimeLogTimestampInLocalTime() throws {
+        let previousTimeZone = NSTimeZone.default
+        NSTimeZone.default = TimeZone(secondsFromGMT: 3_600)!
+        defer { NSTimeZone.default = previousTimeZone }
+
+        #expect(ContainerLogTimestampParser.parse("2026-06-18T10:30") == localDate("2026-06-18T10:30", format: "yyyy-MM-dd'T'HH:mm"))
+        #expect(ContainerLogTimestampParser.parse("2026-06-18T10:30:45") == localDate("2026-06-18T10:30:45", format: "yyyy-MM-dd'T'HH:mm:ss"))
+    }
+
     @Test func rejectsInvalidLogTimestamps() {
         #expect(ContainerLogTimestampParser.parse("not-a-date") == nil)
         #expect(ContainerLogTimestampParser.parse("-s") == nil)
@@ -108,12 +117,12 @@ struct ContainerLogOptionsTests {
         return formatter.date(from: value)!
     }
 
-    private func localDate(_ value: String) -> Date {
+    private func localDate(_ value: String, format: String = "yyyy-MM-dd") -> Date {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone.current
-        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.dateFormat = format
         return formatter.date(from: value)!
     }
 }
