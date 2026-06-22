@@ -1055,7 +1055,6 @@ public actor ContainersService {
 
         init(capacity: Int) {
             self.capacity = max(capacity, 0)
-            self.storage.reserveCapacity(self.capacity)
         }
 
         mutating func append(_ line: LogDataLine) {
