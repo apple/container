@@ -71,6 +71,9 @@ extension Application {
 
             let server = Reference.resolveDomain(domain: server)
             let scheme = try RequestScheme(registry.scheme).schemeFor(host: server, internalDnsDomain: containerSystemConfig.dns.domain)
+            guard scheme == .https else {
+                throw ContainerizationError(.invalidArgument, message: "registry login requires HTTPS; refusing to transmit credentials over HTTP")
+            }
             let _url = "\(scheme)://\(server)"
             guard let url = URL(string: _url) else {
                 throw ContainerizationError(.invalidArgument, message: "cannot convert \(_url) to URL")
