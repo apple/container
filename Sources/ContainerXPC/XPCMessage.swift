@@ -25,16 +25,12 @@ public struct XPCMessage: Sendable {
     /// Defined message key storing the error value.
     public static let errorKey = "com.apple.container.xpc.error"
 
-    // Access to `object` is protected by a lock
     private nonisolated(unsafe) let object: xpc_object_t
-    private let lock = NSLock()
     private let isErr: Bool
 
     /// The underlying xpc object that the message wraps.
     public var underlying: xpc_object_t {
-        lock.withLock {
-            object
-        }
+        object
     }
     public var isErrorType: Bool { isErr }
 
@@ -56,19 +52,15 @@ extension XPCMessage {
     }
 
     public func reply() -> XPCMessage {
-        lock.withLock {
-            XPCMessage(object: xpc_dictionary_create_reply(object)!)
-        }
+        XPCMessage(object: xpc_dictionary_create_reply(object)!)
     }
 
     public func errorKeyDescription() -> String? {
         guard self.isErr,
-            let xpcErr = lock.withLock({
-                xpc_dictionary_get_string(
+            let xpcErr = xpc_dictionary_get_string(
                     self.object,
                     XPC_ERROR_KEY_DESCRIPTION
                 )
-            })
         else {
             return nil
         }
@@ -106,9 +98,7 @@ struct ContainerXPCError: Codable {
 extension XPCMessage {
     public func data(key: String) -> Data? {
         var length: Int = 0
-        let bytes = lock.withLock {
-            xpc_dictionary_get_data(self.object, key, &length)
-        }
+        let bytes = xpc_dictionary_get_data(self.object, key, &length)
 
         guard let bytes else {
             return nil
@@ -124,9 +114,7 @@ extension XPCMessage {
     /// data will be used before the object has no more references.
     public func dataNoCopy(key: String) -> Data? {
         var length: Int = 0
-        let bytes = lock.withLock {
-            xpc_dictionary_get_data(self.object, key, &length)
-        }
+        let bytes = xpc_dictionary_get_data(self.object, key, &length)
 
         guard let bytes else {
             return nil
@@ -142,17 +130,13 @@ extension XPCMessage {
     public func set(key: String, value: Data) {
         value.withUnsafeBytes { ptr in
             if let addr = ptr.baseAddress {
-                lock.withLock {
-                    xpc_dictionary_set_data(self.object, key, addr, value.count)
-                }
+                xpc_dictionary_set_data(self.object, key, addr, value.count)
             }
         }
     }
 
     public func string(key: String) -> String? {
-        let _id = lock.withLock {
-            xpc_dictionary_get_string(self.object, key)
-        }
+        let _id = xpc_dictionary_get_string(self.object, key)
         if let _id {
             return String(cString: _id)
         }
@@ -160,65 +144,45 @@ extension XPCMessage {
     }
 
     public func set(key: String, value: String) {
-        lock.withLock {
-            xpc_dictionary_set_string(self.object, key, value)
-        }
+        xpc_dictionary_set_string(self.object, key, value)
     }
 
     public func bool(key: String) -> Bool {
-        lock.withLock {
-            xpc_dictionary_get_bool(self.object, key)
-        }
+        xpc_dictionary_get_bool(self.object, key)
     }
 
     public func set(key: String, value: Bool) {
-        lock.withLock {
-            xpc_dictionary_set_bool(self.object, key, value)
-        }
+        xpc_dictionary_set_bool(self.object, key, value)
     }
 
     public func uint64(key: String) -> UInt64 {
-        lock.withLock {
-            xpc_dictionary_get_uint64(self.object, key)
-        }
+        xpc_dictionary_get_uint64(self.object, key)
     }
 
     public func set(key: String, value: UInt64) {
-        lock.withLock {
-            xpc_dictionary_set_uint64(self.object, key, value)
-        }
+        xpc_dictionary_set_uint64(self.object, key, value)
     }
 
     public func int64(key: String) -> Int64 {
-        lock.withLock {
-            xpc_dictionary_get_int64(self.object, key)
-        }
+        xpc_dictionary_get_int64(self.object, key)
     }
 
     public func set(key: String, value: Int64) {
-        lock.withLock {
-            xpc_dictionary_set_int64(self.object, key, value)
-        }
+        xpc_dictionary_set_int64(self.object, key, value)
     }
 
     public func date(key: String) -> Date {
-        lock.withLock {
-            let nsSinceEpoch = xpc_dictionary_get_date(self.object, key)
-            return Date(timeIntervalSince1970: TimeInterval(nsSinceEpoch) / 1_000_000_000)
-        }
+        let nsSinceEpoch = xpc_dictionary_get_date(self.object, key)
+        return Date(timeIntervalSince1970: TimeInterval(nsSinceEpoch) / 1_000_000_000)
     }
 
     public func set(key: String, value: Date) {
-        lock.withLock {
-            let nsSinceEpoch = Int64(value.timeIntervalSince1970 * 1_000_000_000)
-            xpc_dictionary_set_date(self.object, key, nsSinceEpoch)
-        }
+        let nsSinceEpoch = Int64(value.timeIntervalSince1970 * 1_000_000_000)
+        xpc_dictionary_set_date(self.object, key, nsSinceEpoch)
     }
 
     public func fileHandle(key: String) -> FileHandle? {
-        let fd = lock.withLock {
-            xpc_dictionary_get_value(self.object, key)
-        }
+        let fd = xpc_dictionary_get_value(self.object, key)
         if let fd {
             let fd2 = xpc_fd_dup(fd)
             return FileHandle(fileDescriptor: fd2, closeOnDealloc: false)
@@ -229,15 +193,11 @@ extension XPCMessage {
     public func set(key: String, value: FileHandle) {
         let fd = xpc_fd_create(value.fileDescriptor)
         close(value.fileDescriptor)
-        lock.withLock {
-            xpc_dictionary_set_value(self.object, key, fd)
-        }
+        xpc_dictionary_set_value(self.object, key, fd)
     }
 
     public func fileHandles(key: String) -> [FileHandle]? {
-        let fds = lock.withLock {
-            xpc_dictionary_get_value(self.object, key)
-        }
+        let fds = xpc_dictionary_get_value(self.object, key)
         if let fds {
             let fd1 = xpc_array_dup_fd(fds, 0)
             let fd2 = xpc_array_dup_fd(fds, 1)
@@ -264,27 +224,19 @@ extension XPCMessage {
             xpc_array_append_value(fdArray, xpcFd)
             close(fh.fileDescriptor)
         }
-        lock.withLock {
-            xpc_dictionary_set_value(self.object, key, fdArray)
-        }
+        xpc_dictionary_set_value(self.object, key, fdArray)
     }
 
     public func set(key: String, xpcDictionary: xpc_object_t) {
-        lock.withLock {
-            xpc_dictionary_set_value(self.object, key, xpcDictionary)
-        }
+        xpc_dictionary_set_value(self.object, key, xpcDictionary)
     }
 
     public func endpoint(key: String) -> xpc_endpoint_t? {
-        lock.withLock {
-            xpc_dictionary_get_value(self.object, key)
-        }
+        xpc_dictionary_get_value(self.object, key)
     }
 
     public func set(key: String, value: xpc_endpoint_t) {
-        lock.withLock {
-            xpc_dictionary_set_value(self.object, key, value)
-        }
+        xpc_dictionary_set_value(self.object, key, value)
     }
 }
 

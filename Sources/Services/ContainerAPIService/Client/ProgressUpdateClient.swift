@@ -37,26 +37,23 @@ public actor ProgressUpdateClient {
     /// - Parameter progressUpdate: The handler to invoke when progress updates are received.
     private func createEndpoint(for progressUpdate: @escaping ProgressUpdateHandler) {
         let endpointConnection = xpc_connection_create(nil, nil)
-        // Access to `reversedConnection` is protected by a lock
+        // XPC serializes event handler delivery on a single connection, so access to 'reversedConnection' is safe without a lock.
         nonisolated(unsafe) var reversedConnection: xpc_connection_t?
-        let reversedConnectionLock = NSLock()
         xpc_connection_set_event_handler(endpointConnection) { connectionMessage in
-            reversedConnectionLock.withLock {
-                switch xpc_get_type(connectionMessage) {
-                case XPC_TYPE_CONNECTION:
-                    reversedConnection = connectionMessage
-                    xpc_connection_set_event_handler(connectionMessage) { updateMessage in
-                        Self.handleProgressUpdate(updateMessage, progressUpdate: progressUpdate)
-                    }
-                    xpc_connection_activate(connectionMessage)
-                case XPC_TYPE_ERROR:
-                    if let reversedConnectionUnwrapped = reversedConnection {
-                        xpc_connection_cancel(reversedConnectionUnwrapped)
-                        reversedConnection = nil
-                    }
-                default:
-                    fatalError("unhandled xpc object type: \(xpc_get_type(connectionMessage))")
+            switch xpc_get_type(connectionMessage) {
+            case XPC_TYPE_CONNECTION:
+                reversedConnection = connectionMessage
+                xpc_connection_set_event_handler(connectionMessage) { updateMessage in
+                    Self.handleProgressUpdate(updateMessage, progressUpdate: progressUpdate)
                 }
+                xpc_connection_activate(connectionMessage)
+            case XPC_TYPE_ERROR:
+                if let reversedConnectionUnwrapped = reversedConnection {
+                    xpc_connection_cancel(reversedConnectionUnwrapped)
+                    reversedConnection = nil
+                }
+            default:
+                fatalError("unhandled xpc object type: \(xpc_get_type(connectionMessage))")
             }
         }
         xpc_connection_activate(endpointConnection)

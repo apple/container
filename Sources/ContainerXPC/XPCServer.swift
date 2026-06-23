@@ -33,9 +33,7 @@ public struct XPCServer: Sendable {
     }
 
     private let routes: [String: RouteHandler]
-    // Access to `connection` is protected by a lock.
     private nonisolated(unsafe) let connection: xpc_connection_t
-    private let lock = NSLock()
 
     let log: Logging.Logger
 
@@ -59,33 +57,27 @@ public struct XPCServer: Sendable {
 
     public func listen() async throws {
         let connections = AsyncStream<xpc_connection_t> { cont in
-            lock.withLock {
-                xpc_connection_set_event_handler(self.connection) { object in
-                    switch xpc_get_type(object) {
-                    case XPC_TYPE_CONNECTION:
-                        // `object` isn't used concurrently.
-                        nonisolated(unsafe) let object = object
-                        cont.yield(object)
-                    case XPC_TYPE_ERROR:
-                        if object.connectionError {
-                            cont.finish()
-                        }
-                    default:
-                        fatalError("unhandled xpc object type: \(xpc_get_type(object))")
+            xpc_connection_set_event_handler(self.connection) { object in
+                switch xpc_get_type(object) {
+                case XPC_TYPE_CONNECTION:
+                    // `object` isn't used concurrently.
+                    nonisolated(unsafe) let object = object
+                    cont.yield(object)
+                case XPC_TYPE_ERROR:
+                    if object.connectionError {
+                        cont.finish()
                     }
+                default:
+                    fatalError("unhandled xpc object type: \(xpc_get_type(object))")
                 }
             }
         }
 
         defer {
-            lock.withLock {
-                xpc_connection_cancel(self.connection)
-            }
+            xpc_connection_cancel(self.connection)
         }
 
-        lock.withLock {
-            xpc_connection_activate(self.connection)
-        }
+        xpc_connection_activate(self.connection)
 
         try await withThrowingDiscardingTaskGroup { group in
             for await conn in connections {
