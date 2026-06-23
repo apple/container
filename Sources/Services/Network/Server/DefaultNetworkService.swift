@@ -95,13 +95,13 @@ public actor DefaultNetworkService: NetworkService {
         }
         macAddresses[index] = macAddress
 
-        if allocationsBySession[session] == nil {
-            allocationsBySession[session] = []
+        let isNewSession = allocationsBySession[session] == nil
+        allocationsBySession[session, default: []].append((hostname: hostname, index: index))
+        if isNewSession {
             await session.onDisconnect { [weak self] in
                 await self?.releaseSession(session)
             }
         }
-        allocationsBySession[session]!.append((hostname: hostname, index: index))
 
         return (attachment: attachment, additionalData: additionalData)
     }
