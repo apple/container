@@ -1242,7 +1242,12 @@ public actor RuntimeService {
 
                 return code
             }
-        } catch {}
+        } catch {
+            // The graceful stop (signal + timeout + kill) failed; we still
+            // power off the vm below, but log the error instead of silently
+            // swallowing it so failures are observable.
+            self.log.error("failed to gracefully stop container", metadata: ["error": "\(error)"])
+        }
 
         // Now actually bring down the vm.
         try await lc.stop()
