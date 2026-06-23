@@ -193,38 +193,6 @@ public struct ContainerClient: Sendable {
         }
     }
 
-    /// Freeze writes on the container root filesystem.
-    public func freeze(id: String) async throws {
-        do {
-            let request = XPCMessage(route: .containerFreeze)
-            request.set(key: .id, value: id)
-
-            try await xpcClient.send(request)
-        } catch {
-            throw ContainerizationError(
-                .internalError,
-                message: "failed to freeze container",
-                cause: error
-            )
-        }
-    }
-
-    /// Thaw writes on the container root filesystem.
-    public func thaw(id: String) async throws {
-        do {
-            let request = XPCMessage(route: .containerThaw)
-            request.set(key: .id, value: id)
-
-            try await xpcClient.send(request)
-        } catch {
-            throw ContainerizationError(
-                .internalError,
-                message: "failed to thaw container",
-                cause: error
-            )
-        }
-    }
-
     /// Delete the container along with any resources.
     public func delete(id: String, force: Bool = false) async throws {
         do {

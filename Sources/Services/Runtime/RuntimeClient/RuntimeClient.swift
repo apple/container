@@ -319,25 +319,17 @@ extension RuntimeClient {
         }
     }
 
-    public func filesystemOperation(operation: FilesystemOperation, path: String) async throws {
-        let request = XPCMessage(route: RuntimeRoutes.filesystemOperation.rawValue)
-        request.set(
-            key: RuntimeKeys.filesystemOperation.rawValue,
-            value: {
-                switch operation {
-                case .freeze: "freeze"
-                case .thaw: "thaw"
-                case .trim: "trim"
-                }
-            }())
-        request.set(key: RuntimeKeys.filesystemPath.rawValue, value: path)
+    public func snapshotDisk(imagePath: String, destinationPath: String) async throws {
+        let request = XPCMessage(route: RuntimeRoutes.snapshotDisk.rawValue)
+        request.set(key: RuntimeKeys.imagePath.rawValue, value: imagePath)
+        request.set(key: RuntimeKeys.destinationPath.rawValue, value: destinationPath)
 
         do {
             try await self.client.send(request, responseTimeout: .seconds(300))
         } catch {
             throw ContainerizationError(
                 .internalError,
-                message: "failed to perform filesystem operation in container \(self.id)",
+                message: "failed to snapshot disk in container \(self.id)",
                 cause: error
             )
         }

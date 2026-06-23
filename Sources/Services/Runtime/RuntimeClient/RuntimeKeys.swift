@@ -48,14 +48,11 @@ public enum RuntimeKeys: String {
     case destinationPath
     case fileMode
     case createParents
+    /// Image path for snapshot operations
+    case imagePath
 
     /// Special-case environment variables recomputed on each container start
     case dynamicEnv
-
-    /// Filesystem operation to perform inside the guest.
-    case filesystemOperation
-    /// Target path for a guest filesystem operation.
-    case filesystemPath
 
     /// Per-network connection info passed to the runtime so it can allocate directly.
     case networkBootstrapInfos

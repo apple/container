@@ -772,35 +772,63 @@ public actor RuntimeService {
         }
     }
 
-    /// Perform a filesystem operation inside the container.
+    /// Snapshot the container's root filesystem by freezing it, cloning it to a destination image,
+    /// and then thawing it. This ensures the filesystem is frozen for the minimal duration.
     ///
     /// - Parameters:
     ///   - message: An XPC message with the following parameters:
-    ///     - filesystemOperation: The operation to perform.
-    ///     - filesystemPath: The target path inside the container.
+    ///     - imagePath: The path to the source filesystem image.
+    ///     - destinationPath: The path where the snapshot will be written.
     ///
     /// - Returns: An XPC message with no parameters.
     @Sendable
-    public func filesystemOperation(_ message: XPCMessage) async throws -> XPCMessage {
-        self.log.info("`filesystemOperation` xpc handler")
+    public func snapshotDisk(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`snapshotDisk` xpc handler")
         switch self.state {
         case .running, .booted:
-            let operation = try message.filesystemOperation()
-            guard let path = message.string(key: RuntimeKeys.filesystemPath.rawValue) else {
+            guard let imagePath = message.string(key: RuntimeKeys.imagePath.rawValue) else {
                 throw ContainerizationError(
                     .invalidArgument,
-                    message: "no filesystem path supplied for filesystemOperation"
+                    message: "no image path supplied for snapshotDisk"
+                )
+            }
+            guard let destinationPath = message.string(key: RuntimeKeys.destinationPath.rawValue) else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no destination path supplied for snapshotDisk"
                 )
             }
 
             let ctr = try getContainer()
-            try await ctr.container.filesystemOperation(operation: operation, path: path)
+
+            // Freeze the filesystem
+            try await ctr.container.filesystemOperation(operation: .freeze, path: "/")
+
+            do {
+                // Clone the filesystem image atomically while frozen
+                try FileManager.default.copyItem(atPath: imagePath, toPath: destinationPath)
+            } catch {
+                // Ensure we thaw even on error
+                do {
+                    try await ctr.container.filesystemOperation(operation: .thaw, path: "/")
+                } catch {
+                    self.log.error(
+                        "failed to thaw filesystem after snapshotDisk error",
+                        metadata: [
+                            "error": "\(error)"
+                        ])
+                }
+                throw error
+            }
+
+            // Thaw the filesystem
+            try await ctr.container.filesystemOperation(operation: .thaw, path: "/")
 
             return message.reply()
         default:
             throw ContainerizationError(
                 .invalidState,
-                message: "cannot perform filesystem operation: container is not running"
+                message: "cannot snapshot disk: container is not running"
             )
         }
     }
@@ -1355,20 +1383,6 @@ extension XPCMessage {
         let data = self.dataNoCopy(key: RuntimeKeys.dynamicEnv.rawValue)
         let dynamicEnv = try data.map { try JSONDecoder().decode([String: String].self, from: $0) } ?? [:]
         return dynamicEnv
-    }
-
-    fileprivate func filesystemOperation() throws -> FilesystemOperation {
-        guard let operation = self.string(key: RuntimeKeys.filesystemOperation.rawValue) else {
-            throw ContainerizationError(.invalidArgument, message: "empty filesystem operation")
-        }
-        switch operation {
-        case "freeze":
-            return .freeze
-        case "thaw":
-            return .thaw
-        default:
-            throw ContainerizationError(.invalidArgument, message: "invalid filesystem operation \(operation)")
-        }
     }
 
 }
