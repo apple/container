@@ -25,6 +25,9 @@ public struct XPCMessage: Sendable {
     /// Defined message key storing the error value.
     public static let errorKey = "com.apple.container.xpc.error"
 
+    // NOTE: xpc_object_t is not Sendable (opaque C pointer). nonisolated(unsafe) is
+    // the correct escape hatch. libxpc dictionary operations are internally thread-safe
+    // per Apple docs, making the previous NSLock redundant for single-call accessors.
     private nonisolated(unsafe) let object: xpc_object_t
     private let isErr: Bool
 

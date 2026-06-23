@@ -33,6 +33,9 @@ public struct XPCServer: Sendable {
     }
 
     private let routes: [String: RouteHandler]
+    // NOTE: xpc_connection_t is not Sendable. nonisolated(unsafe) is needed for
+    // Sendable conformance. xpc_connection_set_event_handler/activate/cancel are
+    // thread-safe per Apple docs, so no lock needed.
     private nonisolated(unsafe) let connection: xpc_connection_t
 
     let log: Logging.Logger
