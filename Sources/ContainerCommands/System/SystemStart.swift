@@ -137,7 +137,16 @@ extension Application {
                 // daemon already running for a different app-root can answer the
                 // ping. Detect the mismatch and fail loudly instead of silently
                 // reporting success for an app-root we did not actually start.
-                guard systemHealth.appRoot.resolvingSymlinksInPath().path == appRoot.resolvingSymlinks().string else {
+                // Both sides are run through realpath(3) (via FilePath) so the
+                // comparison is canonical: /var -> /private/var, trailing slash
+                // and "."/".." segments are normalized, and symlinks resolved.
+                // URL.resolvingSymlinksInPath() is intentionally NOT used on
+                // its own because it does not always resolve the same set of
+                // symlinks as realpath(3) (e.g. /var on macOS), which would
+                // produce false-positive mismatches.
+                let resolvedRequestedAppRoot = try appRoot.resolvingSymlinks()
+                let resolvedDaemonAppRoot = try FilePath(systemHealth.appRoot.path).resolvingSymlinks()
+                guard resolvedDaemonAppRoot == resolvedRequestedAppRoot else {
                     throw ContainerizationError(
                         .internalError,
                         message: """
