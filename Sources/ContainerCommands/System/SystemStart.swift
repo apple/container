@@ -132,7 +132,21 @@ extension Application {
             // Now ping our friendly daemon. Fail if we don't get a response.
             do {
                 log.info("Testing access to container-apiserver...")
-                _ = try await ClientHealthCheck.ping(timeout: timeout)
+                let systemHealth = try await ClientHealthCheck.ping(timeout: timeout)
+                // The launchd label and mach service are fixed constants, so a
+                // daemon already running for a different app-root can answer the
+                // ping. Detect the mismatch and fail loudly instead of silently
+                // reporting success for an app-root we did not actually start.
+                guard systemHealth.appRoot.resolvingSymlinksInPath().path == appRoot.resolvingSymlinks().string else {
+                    throw ContainerizationError(
+                        .internalError,
+                        message: """
+                        apiserver is already running with a different app-root: \
+                        requested \(appRoot.string), got \(systemHealth.appRoot.path). \
+                        Run `container system stop` first to stop the existing daemon.
+                        """
+                    )
+                }
             } catch {
                 throw ContainerizationError(
                     .internalError,
