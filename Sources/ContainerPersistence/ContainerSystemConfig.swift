@@ -133,14 +133,35 @@ final public class ContainerConfig: Codable, Sendable {
 
 final public class DNSConfig: Codable, Sendable {
     public let domain: String?
+    public let nameservers: [String]
+    public let searchDomains: [String]
+    public let options: [String]
 
-    public init(domain: String? = nil) {
+    public init(
+        domain: String? = nil,
+        nameservers: [String] = [],
+        searchDomains: [String] = [],
+        options: [String] = []
+    ) {
         self.domain = domain
+        self.nameservers = nameservers
+        self.searchDomains = searchDomains
+        self.options = options
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case domain
+        case nameservers
+        case searchDomains
+        case options
     }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.domain = try container.decodeIfPresent(String.self, forKey: .domain)
+        self.nameservers = try container.decodeIfPresent([String].self, forKey: .nameservers) ?? []
+        self.searchDomains = try container.decodeIfPresent([String].self, forKey: .searchDomains) ?? []
+        self.options = try container.decodeIfPresent([String].self, forKey: .options) ?? []
     }
 }
 

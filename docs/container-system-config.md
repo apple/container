@@ -46,9 +46,12 @@ Defaults applied when `container run` / `container create` is invoked without `-
 
 ## `[dns]`
 
-| Key      | Type      | Default | Description                                                                |
-|----------|-----------|---------|----------------------------------------------------------------------------|
-| `domain` | `String?` | unset   | Local DNS domain appended to container hostnames (e.g. `"test"` makes `my-web-server` resolvable as `my-web-server.test`). When unset, no domain is appended. |
+| Key           | Type         | Default | Description                                                                 |
+|---------------|--------------|---------|-----------------------------------------------------------------------------|
+| `domain`      | `String?`    | unset   | Local DNS domain appended to container hostnames (e.g. `"test"` makes `my-web-server` resolvable as `my-web-server.test`). When unset, no domain is appended. |
+| `nameservers` | `[String]`   | `[]`    | Default DNS nameservers to configure inside containers when no `--dns` flag is passed. |
+| `searchDomains` | `[String]` | `[]`    | Default DNS search domains to configure when no `--dns-search` flag is passed. |
+| `options`     | `[String]`   | `[]`    | Default DNS resolver options to configure when no `--dns-option` flag is passed. |
 
 ## `[kernel]`
 
