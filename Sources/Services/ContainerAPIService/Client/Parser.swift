@@ -338,9 +338,9 @@ public struct Parser {
     public static let defaultDirectives = ["type": "virtiofs"]
 
     public static func tmpfsMounts(_ mounts: [String]) throws -> [Filesystem] {
+        let mounts = mounts.dedupe()
         var result: [Filesystem] = []
         result.reserveCapacity(mounts.count)
-        let mounts = mounts.dedupe()
         for tmpfs in mounts {
             let fs = Filesystem.tmpfs(destination: tmpfs, options: [])
             try validateMount(.filesystem(fs))
@@ -350,9 +350,9 @@ public struct Parser {
     }
 
     public static func mounts(_ rawMounts: [String], relativeTo basePath: URL? = nil) throws -> [VolumeOrFilesystem] {
+        let rawMounts = rawMounts.dedupe()
         var mounts: [VolumeOrFilesystem] = []
         mounts.reserveCapacity(rawMounts.count)
-        let rawMounts = rawMounts.dedupe()
         for mount in rawMounts {
             let m = try Parser.mount(mount, relativeTo: basePath)
             try validateMount(m)
