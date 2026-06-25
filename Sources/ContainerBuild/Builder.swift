@@ -431,4 +431,3 @@ extension FileHandle {
         }
     }
 }
-
