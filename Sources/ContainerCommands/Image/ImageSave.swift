@@ -140,7 +140,7 @@ extension Application {
 
             progress.finish()
             for reference in references {
-                print(reference)
+                log.info("saved image \(reference)")
             }
         }
     }

@@ -492,6 +492,11 @@ class TestCLIImagesCommand: CLITest {
                 throw CLIError.executionFailed("command failed: \(error)")
             }
 
+            // Tar archives must end with two 512-byte zero blocks.
+            #expect(stdoutData.count >= 1024, "expected save output to contain tar EOF blocks")
+            let trailingBlocks = stdoutData.suffix(1024)
+            #expect(trailingBlocks.allSatisfy({ $0 == 0 }), "expected save output to end with tar EOF markers and no extra stdout")
+
             // 4. remove the image through container
             try doRemoveImages(images: [alpineTagged, busyboxTagged])
 
