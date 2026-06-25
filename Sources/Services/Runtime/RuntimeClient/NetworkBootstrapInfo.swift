@@ -17,16 +17,12 @@
 import ContainerResource
 
 /// Plugin info passed from the API server in the sandbox bootstrap message so the
-/// runtime can connect to the correct network helper and configure the interface.
+/// runtime can connect to the correct network helper.
 public struct NetworkBootstrapInfo: Codable, Sendable {
     /// The network plugin name identifying which network helper to contact.
     public let plugin: String
 
-    /// Plugin-specific options, including `variant` which selects the interface strategy.
-    public let options: [String: String]
-
-    public init(plugin: String, options: [String: String] = [:]) {
+    public init(plugin: String) {
         self.plugin = plugin
-        self.options = options
     }
 }
