@@ -84,7 +84,7 @@ public enum ConfigurationLoader {
     ///
     /// Providers are consulted in the order given — values from earlier files override
     /// later ones. The default order is user config (`<appRoot>/config/config.toml`)
-    /// > system config (`<installRoot>/etc/container/config/config.toml`).
+    /// > system config (`<installRoot>/etc/container/config.toml`).
     ///
     /// An empty `configurationFiles` array falls back to `defaultConfigFiles()`.
     ///
@@ -186,9 +186,11 @@ public enum ConfigurationLoader {
     /// is deleted and replaced with a fresh copy, which is then marked read-only.
     ///
     /// - Parameters:
-    ///   - source: File to copy from. Defaults to `<home>/container/config.toml`.
-    ///   - destination: Directory to copy into — the filename is appended automatically.
-    ///     Defaults to `<appRoot>/config/config.toml`.
+    ///   - source: File to copy from. Defaults to `<home>/config.toml`, where `<home>`
+    ///     is `PathUtils.BaseConfigPath.home.basePath()`.
+    ///   - destination: App-root base directory to copy into. The destination path is
+    ///     `<destination>/config/config.toml`. Defaults to
+    ///     `PathUtils.BaseConfigPath.appRoot.basePath()`.
     public static func copyConfigurationToReadOnly(
         from source: FilePath? = nil,
         to destination: FilePath? = nil
