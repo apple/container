@@ -19,6 +19,7 @@ import ContainerResource
 import Containerization
 import ContainerizationError
 import ContainerizationExtras
+import ContainerizationEXT4
 import ContainerizationOCI
 import ContainerizationOS
 import Foundation
@@ -43,7 +44,8 @@ public actor SnapshotStore {
             if image.reference == initImage {
                 minBlockSize = 512.mib()
             }
-            return EXT4Unpacker(blockSizeInBytes: minBlockSize)
+            let journal = EXT4.JournalConfig(defaultMode: .ordered)
+            return EXT4Unpacker(blockSizeInBytes: minBlockSize, journal: journal)
         }
     }
 
