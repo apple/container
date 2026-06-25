@@ -44,11 +44,6 @@ public struct Builder: Sendable {
         try socket.setRecvBufSize(2 << 20)
 
         let channel = try ClientBootstrap(group: group)
-            .channelInitializer { channel in
-                channel.eventLoop.makeCompletedFuture(withResultOf: {
-                    try channel.pipeline.syncOperations.addHandler(HTTP2ConnectBufferingHandler())
-                })
-            }
             .withConnectedSocket(socket.fileDescriptor)
             .wait()
 
@@ -430,48 +425,3 @@ extension FileHandle {
     }
 }
 
-/// Buffers incoming bytes until the full gRPC HTTP/2 pipeline is configured, then replays them.
-///
-/// See the equivalent in Containerization/Vminitd.swift for a full explanation.
-private final class HTTP2ConnectBufferingHandler: ChannelDuplexHandler, RemovableChannelHandler {
-    typealias InboundIn = ByteBuffer
-    typealias InboundOut = ByteBuffer
-    typealias OutboundIn = ByteBuffer
-    typealias OutboundOut = ByteBuffer
-
-    private var removalScheduled = false
-    private var bufferedReads: [NIOAny] = []
-
-    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        bufferedReads.append(data)
-    }
-
-    func channelReadComplete(context: ChannelHandlerContext) {}
-
-    func flush(context: ChannelHandlerContext) {
-        if !removalScheduled {
-            removalScheduled = true
-            context.eventLoop.assumeIsolatedUnsafeUnchecked().execute {
-                context.pipeline.syncOperations.removeHandler(self, promise: nil)
-            }
-        }
-        context.flush()
-    }
-
-    func removeHandler(context: ChannelHandlerContext, removalToken: ChannelHandlerContext.RemovalToken) {
-        var didRead = false
-        while !bufferedReads.isEmpty {
-            context.fireChannelRead(bufferedReads.removeFirst())
-            didRead = true
-        }
-        if didRead {
-            context.fireChannelReadComplete()
-        }
-        context.leavePipeline(removalToken: removalToken)
-    }
-
-    func channelInactive(context: ChannelHandlerContext) {
-        bufferedReads.removeAll()
-        context.fireChannelInactive()
-    }
-}

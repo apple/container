@@ -62,7 +62,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.36.0"),
         .package(url: "https://github.com/apple/swift-system.git", from: "1.6.4"),
         .package(url: "https://github.com/grpc/grpc-swift-2.git", from: "2.3.0"),
-        .package(url: "https://github.com/grpc/grpc-swift-nio-transport.git", from: "2.4.4"),
+        .package(url: "https://github.com/grpc/grpc-swift-nio-transport.git", from: "2.9.0"),
         .package(url: "https://github.com/grpc/grpc-swift-protobuf.git", from: "2.2.0"),
         .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.20.1"),
         .package(url: "https://github.com/swiftlang/swift-docc-plugin.git", from: "1.1.0"),
