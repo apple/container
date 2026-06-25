@@ -63,9 +63,7 @@ extension Application {
         var arguments: [String] = []
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(
-                configFile: SystemRuntimeOptions.configFileFromAppRoot(ApplicationRoot.url)
-            )
+            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
             var exitCode: Int32 = 127
             let id = Utility.createContainerID(name: self.managementFlags.name)
 
@@ -162,8 +160,9 @@ extension Application {
 
                 if !self.processFlags.tty {
                     var handler = SignalThreshold(threshold: 3, signals: [SIGINT, SIGTERM])
+                    let log = self.log
                     handler.start {
-                        print("Received 3 SIGINT/SIGTERM's, forcefully exiting.")
+                        log.warning("Received 3 SIGINT/SIGTERM's, forcefully exiting.")
                         Darwin.exit(1)
                     }
                 }

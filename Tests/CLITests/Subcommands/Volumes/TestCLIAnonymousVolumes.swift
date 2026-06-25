@@ -317,9 +317,14 @@ class TestCLIAnonymousVolumes: CLITest {
         let (_, output, error, status) = try run(arguments: ["volume", "list", "--format", "json"])
         #expect(status == 0, "volume list should succeed: \(error)")
 
+        #expect(output.contains("\"creationDate\""), "JSON output should use creationDate key")
+        #expect(!output.contains("\"createdAt\""), "JSON output must not use deprecated createdAt key")
+
         // Parse JSON to verify metadata
         let data = output.data(using: .utf8)!
-        let volumes = try JSONDecoder().decode([Volume].self, from: data)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let volumes = try decoder.decode([VolumeResource].self, from: data)
 
         let anonVolume = volumes.first { $0.name == volumeName }
         #expect(anonVolume != nil, "should find anonymous volume in list")

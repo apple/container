@@ -15,11 +15,10 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
-import ContainerNetworkServiceClient
+import ContainerNetworkClient
 import ContainerPersistence
 import ContainerPlugin
 import ContainerResource
-import ContainerXPC
 import Containerization
 import ContainerizationError
 import ContainerizationExtras
@@ -29,9 +28,10 @@ import Logging
 import SystemPackage
 
 public actor NetworksService {
-    struct NetworkServiceState {
-        var networkState: NetworkState
-        var client: ContainerNetworkServiceClient.NetworkClient
+    struct NetworkEntry {
+        var configuration: NetworkConfiguration
+        var status: NetworkStatus
+        var client: ContainerNetworkClient.NetworkClient
     }
 
     private let pluginLoader: PluginLoader
@@ -45,12 +45,13 @@ public actor NetworksService {
     private var busyNetworks = Set<String>()
 
     private let stateLock = AsyncLock()
-    private var serviceStates = [String: NetworkServiceState]()
+    private var serviceStates = [String: NetworkEntry]()
 
     public init(
         pluginLoader: PluginLoader,
         resourceRoot: FilePath,
         containersService: ContainersService,
+        defaultNetworkConfiguration: NetworkConfiguration,
         log: Logger,
         debugHelpers: Bool = false,
     ) async throws {
@@ -78,113 +79,53 @@ public actor NetworksService {
 
         let configurations = try await store.list()
         for configuration in configurations {
-            // Ensure the network with id "default" is marked as builtin.
-            var updatedLabels: [String: String]?
-            if configuration.id == NetworkClient.defaultNetworkName {
-                let role = configuration.labels[ResourceLabelKeys.role]
-                if role == nil || role != ResourceRoleValues.builtin {
-                    var labels = configuration.labels.dictionary
-                    labels[ResourceLabelKeys.role] = ResourceRoleValues.builtin
-                    updatedLabels = labels
-                }
-            }
+            var effectiveConfiguration = configuration
 
-            // Ensure that the network always has plugin information.
-            // Before this field was added, the code always assumed we were using the
-            // container-network-vmnet network plugin, so it should be safe to fallback to that
-            // if no info was found in an on disk configuration.
-            if updatedLabels != nil || configuration.pluginInfo == nil {
-                let updatedConfiguration = try NetworkConfiguration(
-                    id: configuration.id,
-                    mode: configuration.mode,
-                    ipv4Subnet: configuration.ipv4Subnet,
-                    ipv6Subnet: configuration.ipv6Subnet,
-                    labels: updatedLabels.map { try .init($0) } ?? configuration.labels,
-                    pluginInfo: configuration.pluginInfo ?? NetworkPluginInfo(plugin: "container-network-vmnet")
-                )
-                try await store.update(updatedConfiguration)
-
+            // If there's a default network in the store, always update it with the
+            // computed default network configuration from the apiserver to ensure we
+            // have the correct default values configured.
+            if effectiveConfiguration.id == NetworkClient.defaultNetworkName {
+                effectiveConfiguration = defaultNetworkConfiguration
+                try await store.update(effectiveConfiguration)
             }
 
             // Start up the network.
-            do {
-                try await registerService(configuration: configuration)
-            } catch {
-                log.error(
-                    "failed to start network",
-                    metadata: [
-                        "id": "\(configuration.id)",
-                        "error": "\(error)",
-                    ])
-            }
-
             // This call will normally take ~20-100ms to complete after service
             // registration, but on a fresh system (e.g. CI runner), it may take
             // 5 seconds or considerably more from the registration of this first
             // network service to its execution.
-            let client = try Self.getClient(configuration: configuration)
-            var networkState = try await client.state()
-
-            // FIXME: Temporary workaround for persisted configuration being overwritten
-            // by what comes back from the network helper, which messes up creationDate.
-            // FIXME: Temporarily need to override the plugin information with the info from
-            // the helper, so we can ensure that older networks get a variant value.
-            let finalConfiguration: NetworkConfiguration
-            switch networkState {
-            case .created(let helperConfig):
-                finalConfiguration = try NetworkConfiguration(
-                    id: configuration.id,
-                    mode: configuration.mode,
-                    ipv4Subnet: configuration.ipv4Subnet,
-                    ipv6Subnet: configuration.ipv6Subnet,
-                    labels: updatedLabels.map { try .init($0) } ?? configuration.labels,
-                    pluginInfo: helperConfig.pluginInfo
+            do {
+                try await registerService(configuration: effectiveConfiguration)
+                let client = try Self.getClient(configuration: effectiveConfiguration)
+                let networkStatus = try await client.status()
+                serviceStates[effectiveConfiguration.id] = NetworkEntry(
+                    configuration: effectiveConfiguration,
+                    status: networkStatus,
+                    client: client
                 )
-                networkState = NetworkState.created(finalConfiguration)
-            case .running(let helperConfig, let status):
-                finalConfiguration = try NetworkConfiguration(
-                    id: configuration.id,
-                    mode: configuration.mode,
-                    ipv4Subnet: configuration.ipv4Subnet,
-                    ipv6Subnet: configuration.ipv6Subnet,
-                    labels: updatedLabels.map { try .init($0) } ?? configuration.labels,
-                    pluginInfo: helperConfig.pluginInfo
-                )
-                networkState = NetworkState.running(finalConfiguration, status)
-            }
-
-            let state = NetworkServiceState(
-                networkState: networkState,
-                client: client
-            )
-
-            serviceStates[finalConfiguration.id] = state
-
-            guard case .running = networkState else {
+            } catch {
                 log.error(
-                    "network failed to start",
+                    "failed to start network",
                     metadata: [
-                        "id": "\(finalConfiguration.id)",
-                        "state": "\(networkState.state)",
+                        "id": "\(effectiveConfiguration.id)",
+                        "error": "\(error)",
                     ])
-                return
             }
         }
     }
 
     /// List all networks registered with the service.
-    public func list() async throws -> [NetworkState] {
+    public func list() async throws -> [NetworkResource] {
         log.debug("NetworksService: enter", metadata: ["func": "\(#function)"])
         defer { log.debug("NetworksService: exit", metadata: ["func": "\(#function)"]) }
 
-        return serviceStates.reduce(into: [NetworkState]()) {
-            $0.append($1.value.networkState)
-        }
-        .sorted { $0.id < $1.id }
+        return serviceStates.values
+            .map { NetworkResource(configuration: $0.configuration, status: $0.status) }
+            .sorted { $0.id < $1.id }
     }
 
     /// Create a new network from the provided configuration.
-    public func create(configuration: NetworkConfiguration) async throws -> NetworkState {
+    public func create(configuration: NetworkConfiguration) async throws -> NetworkResource {
         log.debug(
             "NetworksService: enter",
             metadata: [
@@ -225,29 +166,26 @@ public actor NetworksService {
             try await self.registerService(configuration: configuration)
             let client = try Self.getClient(configuration: configuration)
 
-            // Ensure the network is running, and set up the persistent network state
-            // using our configuration data
-            guard case .running(let helperConfig, let status) = try await client.state() else {
-                throw ContainerizationError(.invalidState, message: "network \(configuration.id) failed to start")
-            }
+            // Ensure the network is running
+            let networkStatus = try await client.status()
 
             let finalConfiguration = try NetworkConfiguration(
-                id: configuration.id,
+                name: configuration.name,
                 mode: configuration.mode,
                 ipv4Subnet: configuration.ipv4Subnet,
                 ipv6Subnet: configuration.ipv6Subnet,
                 labels: configuration.labels,
-                pluginInfo: helperConfig.pluginInfo
+                plugin: configuration.plugin,
+                options: configuration.options
             )
 
-            let networkState: NetworkState = .running(finalConfiguration, status)
-            let serviceState = NetworkServiceState(networkState: networkState, client: client)
-            await self.setServiceState(key: finalConfiguration.id, value: serviceState)
+            let entry = NetworkEntry(configuration: finalConfiguration, status: networkStatus, client: client)
+            await self.setServiceState(key: finalConfiguration.id, value: entry)
 
             // Persist the configuration data.
             do {
                 try await self.store.create(finalConfiguration)
-                return networkState
+                return NetworkResource(configuration: finalConfiguration, status: networkStatus)
             } catch {
                 await self.removeServiceState(key: finalConfiguration.id)
                 do {
@@ -305,12 +243,8 @@ public actor NetworksService {
                 throw ContainerizationError(.notFound, message: "no network for id \(id)")
             }
 
-            guard case .running(let netConfig, _) = serviceState.networkState else {
-                throw ContainerizationError(.invalidState, message: "cannot delete network \(id) in state \(serviceState.networkState.state)")
-            }
-
             // basic sanity checks on network itself
-            if serviceState.networkState.isBuiltin {
+            if serviceState.configuration.labels.isBuiltin {
                 throw ContainerizationError(.invalidArgument, message: "cannot delete builtin network: \(id)")
             }
 
@@ -337,7 +271,7 @@ public actor NetworksService {
 
                 // start network deletion, this is the last place we'll want to throw
                 do {
-                    try await self.deregisterService(configuration: netConfig)
+                    try await self.deregisterService(configuration: serviceState.configuration)
                 } catch {
                     self.log.error(
                         "failed to deregister network service",
@@ -380,33 +314,23 @@ public actor NetworksService {
         }
     }
 
-    public func allocate(id: String, hostname: String, macAddress: MACAddress?) async throws -> AllocatedAttachment {
+    public func pluginConfiguration(id: String) throws -> (plugin: String, options: [String: String]) {
         guard let serviceState = serviceStates[id] else {
             throw ContainerizationError(.notFound, message: "no network for id \(id)")
         }
-        guard let pluginInfo = serviceState.networkState.pluginInfo else {
-            throw ContainerizationError(.internalError, message: "network \(id) missing plugin information")
+        var options = serviceState.configuration.options
+        if options["variant"] == nil {
+            if #available(macOS 26, *) {
+                options["variant"] = "reserved"
+            } else {
+                options["variant"] = "allocationOnly"
+            }
         }
-        let (attach, additionalData) = try await serviceState.client.allocate(hostname: hostname, macAddress: macAddress)
-        return AllocatedAttachment(
-            attachment: attach,
-            additionalData: additionalData,
-            pluginInfo: pluginInfo
-        )
+        return (plugin: serviceState.configuration.plugin, options: options)
     }
 
-    public func deallocate(attachment: Attachment) async throws {
-        guard let serviceState = serviceStates[attachment.network] else {
-            throw ContainerizationError(.notFound, message: "no network for id \(attachment.network)")
-        }
-        return try await serviceState.client.deallocate(hostname: attachment.hostname)
-    }
-
-    private static func getClient(configuration: NetworkConfiguration) throws -> ContainerNetworkServiceClient.NetworkClient {
-        guard let pluginInfo = configuration.pluginInfo else {
-            throw ContainerizationError(.internalError, message: "network \(configuration.id) missing plugin information")
-        }
-        return NetworkClient(id: configuration.id, plugin: pluginInfo.plugin)
+    private static func getClient(configuration: NetworkConfiguration) throws -> ContainerNetworkClient.NetworkClient {
+        NetworkClient(id: configuration.id, plugin: configuration.plugin)
     }
 
     private func registerService(configuration: NetworkConfiguration) async throws {
@@ -414,14 +338,10 @@ public actor NetworksService {
             throw ContainerizationError(.invalidArgument, message: "unsupported network mode \(configuration.mode.rawValue)")
         }
 
-        guard let pluginInfo = configuration.pluginInfo else {
-            throw ContainerizationError(.internalError, message: "network \(configuration.id) missing plugin information")
-        }
-
-        guard let networkPlugin = self.networkPlugins.first(where: { $0.name == pluginInfo.plugin }) else {
+        guard let networkPlugin = self.networkPlugins.first(where: { $0.name == configuration.plugin }) else {
             throw ContainerizationError(
                 .notFound,
-                message: "unable to locate network plugin \(pluginInfo.plugin)"
+                message: "unable to locate network plugin \(configuration.plugin)"
             )
         }
 
@@ -444,9 +364,7 @@ public actor NetworksService {
         if let ipv4Subnet = configuration.ipv4Subnet {
             var existingCidrs: [CIDRv4] = []
             for serviceState in serviceStates.values {
-                if case .running(_, let status) = serviceState.networkState {
-                    existingCidrs.append(status.ipv4Subnet)
-                }
+                existingCidrs.append(serviceState.status.ipv4Subnet)
             }
             let overlap = existingCidrs.first {
                 $0.contains(ipv4Subnet.lower)
@@ -464,7 +382,7 @@ public actor NetworksService {
         if let ipv6Subnet = configuration.ipv6Subnet {
             var existingCidrs: [CIDRv6] = []
             for serviceState in serviceStates.values {
-                if case .running(_, let status) = serviceState.networkState, let otherIPv6Subnet = status.ipv6Subnet {
+                if let otherIPv6Subnet = serviceState.status.ipv6Subnet {
                     existingCidrs.append(otherIPv6Subnet)
                 }
             }
@@ -481,7 +399,7 @@ public actor NetworksService {
             args += ["--subnet-v6", ipv6Subnet.description]
         }
 
-        if let variant = configuration.pluginInfo?.variant {
+        if let variant = configuration.options["variant"] {
             args += ["--variant", variant]
         }
 
@@ -495,13 +413,10 @@ public actor NetworksService {
     }
 
     private func deregisterService(configuration: NetworkConfiguration) async throws {
-        guard let pluginInfo = configuration.pluginInfo else {
-            throw ContainerizationError(.internalError, message: "network \(configuration.id) missing plugin information")
-        }
-        guard let networkPlugin = self.networkPlugins.first(where: { $0.name == pluginInfo.plugin }) else {
+        guard let networkPlugin = self.networkPlugins.first(where: { $0.name == configuration.plugin }) else {
             throw ContainerizationError(
                 .notFound,
-                message: "unable to locate network plugin \(pluginInfo.plugin)"
+                message: "unable to locate network plugin \(configuration.plugin)"
             )
         }
         try self.pluginLoader.deregisterWithLaunchd(plugin: networkPlugin, instanceId: configuration.id)
@@ -513,7 +428,7 @@ extension NetworksService {
         self.serviceStates.removeValue(forKey: key)
     }
 
-    private func setServiceState(key: String, value: NetworkServiceState) {
+    private func setServiceState(key: String, value: NetworkEntry) {
         self.serviceStates[key] = value
     }
 }

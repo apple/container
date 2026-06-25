@@ -189,6 +189,7 @@ public struct Flags {
             rosetta: Bool,
             runtime: String?,
             ssh: Bool,
+            shmSize: String?,
             tmpFs: [String],
             useInit: Bool,
             virtualization: Bool,
@@ -217,6 +218,7 @@ public struct Flags {
             self.rosetta = rosetta
             self.runtime = runtime
             self.ssh = ssh
+            self.shmSize = shmSize
             self.tmpFs = tmpFs
             self.useInit = useInit
             self.virtualization = virtualization
@@ -344,6 +346,21 @@ public struct Flags {
 
         @Option(name: [.customLong("volume"), .short], help: "Bind mount a volume into the container")
         public var volumes: [String] = []
+
+        public func validate() throws {
+            if dnsDisabled {
+                let hasDNSConfig =
+                    !dns.nameservers.isEmpty
+                    || dns.domain != nil
+                    || !dns.options.isEmpty
+                    || !dns.searchDomains.isEmpty
+                if hasDNSConfig {
+                    throw ValidationError(
+                        "`--no-dns` cannot be used with DNS configuration flags (`--dns`, `--dns-domain`, `--dns-option`, `--dns-search`)"
+                    )
+                }
+            }
+        }
     }
 
     public struct Progress: ParsableArguments {
@@ -372,7 +389,7 @@ public struct Flags {
             self.maxConcurrentDownloads = maxConcurrentDownloads
         }
 
-        @Option(name: .long, help: "Maximum number of concurrent downloads (default: 3)")
+        @Option(name: .long, help: "Maximum number of concurrent downloads")
         public var maxConcurrentDownloads: Int = 3
     }
 }

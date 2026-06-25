@@ -53,13 +53,11 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(
-                configFile: SystemRuntimeOptions.configFileFromAppRoot(ApplicationRoot.url)
-            )
+            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
             if recommended {
                 let url = containerSystemConfig.kernel.url
                 let path: String = containerSystemConfig.kernel.binaryPath
-                print("Installing the recommended kernel from \(url)...")
+                log.info("Installing the recommended kernel from \(url)...")
                 try await Self.downloadAndInstallWithProgressBar(tarRemoteURL: url, kernelFilePath: path, force: force)
                 return
             }

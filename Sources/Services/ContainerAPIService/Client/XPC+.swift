@@ -32,6 +32,8 @@ public enum XPCKeys: String {
     case containerConfig
     /// Container options key.
     case containerOptions
+    /// Opaque runtime-specific data.
+    case runtimeData
     /// Vsock port number key.
     case port
     /// Exit code for a process
@@ -101,11 +103,6 @@ public enum XPCKeys: String {
     /// Network
     case networkId
     case networkConfig
-    case networkState
-    case networkStates
-    // Added in 0.12.0: NetworkResource encoding (status.phase shape).
-    // DEPRECATED 0.12.0: networkState/networkStates retained for down-revision
-    // client compatibility; remove at next major version boundary.
     case networkResource
     case networkResources
 
@@ -139,6 +136,12 @@ public enum XPCKeys: String {
 
     /// Disk usage
     case diskUsageStats
+
+    /// Copy parameters
+    case sourcePath
+    case destinationPath
+    case fileMode
+    case createParents
 }
 
 public enum XPCRoute: String {
@@ -158,6 +161,8 @@ public enum XPCRoute: String {
     case containerEvent
     case containerStats
     case containerDiskUsage
+    case containerCopyIn
+    case containerCopyOut
     case containerExport
 
     case pluginLoad

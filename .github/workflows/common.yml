@@ -23,18 +23,22 @@ jobs:
   buildAndTest:
     name: Build and test the project
     if: github.repository == 'apple/container'
-    timeout-minutes: 60
+    timeout-minutes: 75
     runs-on: [self-hosted, macos, tahoe, ARM64]
     permissions:
       contents: read
       packages: read
+    env:
+      DEVELOPER_DIR: "/Applications/Xcode_swift_6.3.app/Contents/Developer"
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
 
       - name: Check formatting
+        env:
+          HAWKEYE_AUTO_INSTALL: "1"
         run: |
           ./scripts/install-hawkeye.sh
           make fmt
@@ -53,8 +57,6 @@ jobs:
             git diff --name-only -- .
             false
           fi
-        env:
-          DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
 
       - name: Set build configuration
         env:
@@ -69,8 +71,6 @@ jobs:
         run: |
           make container dsym docs
           tar cfz _site.tgz _site
-        env:
-          DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
 
       - name: Validate coverage inputs
         if: ${{ inputs.coverage }}
@@ -104,14 +104,10 @@ jobs:
       - name: Test the container project
         if: ${{ !inputs.coverage }}
         run: make APP_ROOT="${APP_ROOT}" LOG_ROOT="${LOG_ROOT}" test install-kernel integration
-        env:
-          DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
 
       - name: Test the container project with coverage
         if: ${{ inputs.coverage }}
         run: make APP_ROOT="${APP_ROOT}" LOG_ROOT="${LOG_ROOT}" install-kernel coverage
-        env:
-          DEVELOPER_DIR: "/Applications/Xcode-latest.app/Contents/Developer"
 
       - name: Extract coverage percentages
         if: ${{ inputs.coverage }}
@@ -197,7 +193,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Setup Pages
-        uses: actions/configure-pages@v6
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
 
       - name: Download a single artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -209,6 +205,6 @@ jobs:
           tar xfz _site.tgz
 
       - name: Upload Artifact
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         with:
           path: "./_site"

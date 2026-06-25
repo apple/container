@@ -155,9 +155,7 @@ extension Application {
         var pull: Bool = false
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(
-                configFile: SystemRuntimeOptions.configFileFromAppRoot(ApplicationRoot.url)
-            )
+            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
             do {
                 let timeout: Duration = .seconds(300)
                 let progressConfig = try ProgressConfig(
@@ -272,6 +270,20 @@ extension Application {
                     let ignoreFileURL = URL(filePath: dockerfile + ".dockerignore")
                     buildFileData = try Data(contentsOf: URL(filePath: dockerfile))
                     ignoreFileData = try? Data(contentsOf: ignoreFileURL)
+                }
+
+                // BUG: See https://github.com/apple/container/issues/735.
+                // Reject dockerfiles larger than 16kb before attempting to build.
+                // TODO: Remove when #735 was been resolved.
+                let maxDockerfileSize = 16 * 1024  // 16 KiB
+                guard buildFileData.count < maxDockerfileSize else {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: """
+                            Dockerfile size (\(buildFileData.count) bytes) exceeds the maximum allowed size of \(maxDockerfileSize) bytes. \
+                            See https://github.com/apple/container/issues/735.
+                            """
+                    )
                 }
 
                 let secretsData: [String: Data] = try self.secrets.mapValues { secret in

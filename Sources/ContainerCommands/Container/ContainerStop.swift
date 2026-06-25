@@ -19,7 +19,6 @@ import ContainerAPIClient
 import ContainerResource
 import Containerization
 import ContainerizationError
-import ContainerizationOS
 import Foundation
 import Logging
 
@@ -35,7 +34,7 @@ extension Application {
         var all = false
 
         @Option(name: .shortAndLong, help: "Signal to send to the containers")
-        var signal: String = "SIGTERM"
+        var signal: String?
 
         @Option(name: .shortAndLong, help: "Seconds to wait before killing the containers")
         var time: Int32 = 5
@@ -61,14 +60,15 @@ extension Application {
 
             let containers: [String]
             if self.all {
-                containers = try await client.list().map { $0.id }
+                let filters = ContainerListFilters().withoutMachines()
+                containers = try await client.list(filters: filters).map { $0.id }
             } else {
                 containers = containerIds
             }
 
             let opts = ContainerStopOptions(
                 timeoutInSeconds: self.time,
-                signal: try Signal(self.signal).rawValue
+                signal: self.signal
             )
             try await Self.stopContainers(
                 client: client,

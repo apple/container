@@ -55,9 +55,7 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(
-                configFile: SystemRuntimeOptions.configFileFromAppRoot(ApplicationRoot.url)
-            )
+            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
             let progressConfig = try ProgressConfig(
                 showTasks: true,
                 showItems: true,
@@ -272,9 +270,6 @@ extension Application {
             let networkClient = NetworkClient()
             guard let defaultNetwork = try await networkClient.builtin else {
                 throw ContainerizationError(.invalidState, message: "default network is not present")
-            }
-            guard defaultNetwork.status.phase == "running" else {
-                throw ContainerizationError(.invalidState, message: "default network is not running")
             }
             config.networks = [
                 AttachmentConfiguration(network: defaultNetwork.id, options: AttachmentOptions(hostname: Builder.builderContainerId))

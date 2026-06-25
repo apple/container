@@ -19,6 +19,7 @@ import ContainerAPIClient
 import ContainerPlugin
 import Darwin
 import Foundation
+import SystemPackage
 
 struct DefaultCommand: AsyncLoggableCommand {
     public static let configuration = CommandConfiguration(
@@ -48,17 +49,19 @@ struct DefaultCommand: AsyncLoggableCommand {
         }
 
         // Compute canonical plugin directories to show in helpful errors (avoid hard-coded paths)
-        let installRoot = CommandLine.executablePathUrl
-            .deletingLastPathComponent()
-            .appendingPathComponent("..")
-            .standardized
-        let userPluginsURL = PluginLoader.userPluginsDir(installRoot: installRoot)
-        let installRootPluginsURL =
+        let installRoot = CommandLine.executablePath
+            .removingLastComponent()
+            .removingLastComponent()
+
+        // TODO: Remove when we convert PluginLoader to FilePath
+        let installRootURL = URL(fileURLWithPath: installRoot.string)
+        let userPluginsURL = PluginLoader.userPluginsDir(installRoot: installRootURL)
+        let installRootPluginsPath =
             installRoot
-            .appendingPathComponent("libexec")
-            .appendingPathComponent("container")
-            .appendingPathComponent("plugins")
-            .standardized
+            .appending(FilePath.Component("libexec"))
+            .appending(FilePath.Component("container"))
+            .appending(FilePath.Component("plugins"))
+        let installRootPluginsURL = URL(fileURLWithPath: installRootPluginsPath.string)
         let hintPaths = [userPluginsURL, installRootPluginsURL]
             .map { $0.appendingPathComponent(command).path(percentEncoded: false) }
             .joined(separator: "\n  - ")

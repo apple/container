@@ -1,0 +1,75 @@
+#!/bin/sh
+#
+# Container machine init script — replaces /sbin/init as the first process (PID 1)
+# executed when a container machine boots. Performs container machine-specific setup
+# before handing off to the real system init:
+#
+#   1. Resolve the system default shell.
+#      Debian/Ubuntu systems use DSHELL from /etc/adduser.conf; other images
+#      use SHELL from /etc/default/useradd. Falls back to /bin/bash or /bin/sh.
+#
+#   2. Open a user shell when invoked with the "-s" flag.
+#      Looks up the current user's shell from /etc/passwd and execs into it,
+#      falling back to the system default shell. If additional arguments follow
+#      "-s", runs them as a command via "<shell> -c <args>" instead of dropping
+#      into an interactive session.
+#
+#   3. Run first-time user setup when invoked with the "-u" flag (only once).
+#      If /etc/.machine.initialized does not exist, runs the create-user script
+#      to create the container user and apply one-time configuration. A custom
+#      script at /etc/machine/create-user.sh takes precedence over the built-in
+#      one at /sbin.machine/create-user.sh. Marks initialization complete by
+#      touching /etc/.machine.initialized.
+#
+#   4. Boot the system when invoked with no flags.
+#      Sets the hostname to CONTAINER_MACHINE_ID and execs /sbin/init to hand
+#      off to the real system init.
+#
+
+set -e
+
+MACHINE_INITIALIZED=/etc/.machine.initialized
+CUSTOM_SETUP=/etc/machine/create-user.sh
+DEFAULT_SETUP=/sbin.machine/create-user.sh
+
+. /etc/os-release 2>/dev/null
+case "${ID:-}" in
+    ubuntu|debian)
+        SHELL=$(unset DSHELL; . /etc/adduser.conf 2>/dev/null \
+            && [ -n "${DSHELL:-}" ] \
+            && echo "${DSHELL}") || SHELL=/bin/bash ;;
+    *)
+        SHELL=$(unset SHELL; . /etc/default/useradd 2>/dev/null \
+            && [ -n "${SHELL:-}" ] \
+            && echo "${SHELL}") || SHELL=/bin/sh ;;
+esac
+export CONTAINER_SHELL=${SHELL}
+
+if [ "$1" = "-s" ]; then
+    shift
+    USER_SHELL=$(grep "^$(id -un):" /etc/passwd 2>/dev/null | cut -d: -f7)
+    if [ $# -gt 0 ]; then
+        exec "${USER_SHELL:-${SHELL}}" -c "$*"
+    else
+        exec "${USER_SHELL:-${SHELL}}"
+    fi
+elif [ "$1" = "-u" ]; then
+    # DEPRECATED 0.11.0.0 - use `id` instead of checking `${MACHINE_INITIALIZED}` for backward compatibility, remove in 0.13.0.0
+    if ! id "${CONTAINER_USER}" >/dev/null 2>&1; then
+        if [ -f ${CUSTOM_SETUP} ]; then
+            ${CUSTOM_SETUP}
+        else
+            ${DEFAULT_SETUP}
+        fi
+    fi
+
+    echo 1 > ${MACHINE_INITIALIZED}
+else
+    echo "${CONTAINER_MACHINE_ID}" > /etc/hostname
+
+    if [ -S ${SSH_AUTH_SOCK} ]; then
+        chown ${CONTAINER_UID}:${CONTAINER_GID} ${SSH_AUTH_SOCK}
+    fi
+
+    exec /sbin/init
+fi

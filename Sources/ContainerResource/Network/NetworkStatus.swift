@@ -15,55 +15,26 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerizationExtras
-import Foundation
 
-/// The runtime status of a network resource.
-///
-/// `phase` names the current lifecycle stage; the address fields are present
-/// only when `phase` is `"running"` and are `nil` otherwise. Clients should
-/// treat unrecognised `phase` values as unknown forward-compatible stages rather
-/// than treating them as errors.
+/// The runtime status of a network — the addresses assigned once the network
+/// plugin is active. Only present after the network has started.
 public struct NetworkStatus: Codable, Sendable {
-    /// The current lifecycle phase of the network.
-    ///
-    /// Defined values: `"created"` (configured, plugin not yet active) and
-    /// `"running"` (plugin active, subnet and gateway assigned).
-    public let phase: String
+    /// The IPv4 subnet assigned to the network.
+    public let ipv4Subnet: CIDRv4
 
-    /// The allocated IPv4 subnet. Present only when `phase` is `"running"`.
-    public let ipv4Subnet: CIDRv4?
+    /// The IPv4 gateway address.
+    public let ipv4Gateway: IPv4Address
 
-    /// The IPv4 gateway address. Present only when `phase` is `"running"`.
-    public let ipv4Gateway: IPv4Address?
-
-    /// The allocated IPv6 subnet. Present only when `phase` is `"running"` and
-    /// the network has IPv6 enabled.
+    /// The IPv6 subnet assigned to the network, if IPv6 is enabled.
     public let ipv6Subnet: CIDRv6?
 
     public init(
-        phase: String,
-        ipv4Subnet: CIDRv4? = nil,
-        ipv4Gateway: IPv4Address? = nil,
-        ipv6Subnet: CIDRv6? = nil
+        ipv4Subnet: CIDRv4,
+        ipv4Gateway: IPv4Address,
+        ipv6Subnet: CIDRv6?
     ) {
-        self.phase = phase
         self.ipv4Subnet = ipv4Subnet
         self.ipv4Gateway = ipv4Gateway
         self.ipv6Subnet = ipv6Subnet
-    }
-}
-
-extension NetworkStatus {
-    /// The status value for a network that is configured but not yet running.
-    public static let created = NetworkStatus(phase: "created")
-
-    /// Creates a running-phase status from a ``NetworkPluginStatus``.
-    init(running networkStatus: NetworkPluginStatus) {
-        self.init(
-            phase: "running",
-            ipv4Subnet: networkStatus.ipv4Subnet,
-            ipv4Gateway: networkStatus.ipv4Gateway,
-            ipv6Subnet: networkStatus.ipv6Subnet
-        )
     }
 }

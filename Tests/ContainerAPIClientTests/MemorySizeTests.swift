@@ -72,4 +72,22 @@ struct MemorySizeTests {
             _ = try MemorySize("notasize")
         }
     }
+
+    @Test(
+        arguments: [
+            ("1gb", UInt64(1 * 1024 * 1024 * 1024)),
+            ("2048mb", UInt64(2048 * 1024 * 1024)),
+            ("512kb", UInt64(512 * 1024)),
+            ("1024b", UInt64(1024)),
+            ("4tb", UInt64(4) * 1024 * 1024 * 1024 * 1024),
+        ] as [(String, UInt64)])
+    func testToUInt64Bytes(input: String, expected: UInt64) throws {
+        let size = try MemorySize(input)
+        #expect(size.toUInt64(unit: .bytes) == expected)
+    }
+
+    @Test func testToUInt64SameUnit() throws {
+        let size = try MemorySize("2048mb")
+        #expect(size.toUInt64(unit: .mebibytes) == 2048)
+    }
 }

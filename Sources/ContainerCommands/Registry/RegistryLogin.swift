@@ -47,9 +47,7 @@ extension Application {
         var server: String
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(
-                configFile: SystemRuntimeOptions.configFileFromAppRoot(ApplicationRoot.url)
-            )
+            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
             var username = self.username
             var password = ""
             if passwordStdin {
@@ -96,7 +94,7 @@ extension Application {
             )
             try await client.ping()
             try keychain.save(hostname: server, username: username, password: password)
-            print("Login succeeded")
+            log.info("Login succeeded")
         }
     }
 }

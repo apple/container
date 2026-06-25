@@ -18,20 +18,13 @@ import ContainerizationError
 import ContainerizationExtras
 import Foundation
 
-public struct NetworkPluginInfo: Codable, Sendable, Hashable {
-    public let plugin: String
-    public let variant: String?
-
-    public init(plugin: String, variant: String? = nil) {
-        self.plugin = plugin
-        self.variant = variant
-    }
-}
-
 /// Configuration parameters for network creation.
 public struct NetworkConfiguration: Codable, Sendable, Identifiable {
-    /// A unique identifier for the network
-    public let id: String
+    /// The name of the network.
+    public let name: String
+
+    /// The unique identifier for the network. Identical to ``name``.
+    public var id: String { name }
 
     /// The network type
     public let mode: NetworkMode
@@ -49,39 +42,47 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     /// Resource labels should not be mutated, except while building a network configurations.
     public let labels: ResourceLabels
 
-    /// Details about the network plugin that manages this network.
-    /// FIXME: This field only needs to be optional while we wait for the field
-    /// to be proliferated to most users when they update container.
-    public let pluginInfo: NetworkPluginInfo?
+    /// The network plugin that manages this network.
+    public let plugin: String
+
+    /// Plugin-specific options for this network.
+    public let options: [String: String]
 
     /// Creates a network configuration
     public init(
-        id: String,
+        name: String,
         mode: NetworkMode,
         ipv4Subnet: CIDRv4? = nil,
         ipv6Subnet: CIDRv6? = nil,
         labels: ResourceLabels = .init(),
-        pluginInfo: NetworkPluginInfo?
+        plugin: String,
+        options: [String: String] = [:]
     ) throws {
-        self.id = id
+        self.name = name
         self.creationDate = Date()
         self.mode = mode
         self.ipv4Subnet = ipv4Subnet
         self.ipv6Subnet = ipv6Subnet
         self.labels = labels
-        self.pluginInfo = pluginInfo
+        self.plugin = plugin
+        self.options = options
         try validate()
     }
 
     enum CodingKeys: String, CodingKey {
+        case name
+        // Deprecated: As of 1.0.0. Use ``name`` instead of ``id``.
+        // Note: Will be removed in a later release.
         case id
         case creationDate
         case mode
         case ipv4Subnet
         case ipv6Subnet
         case labels
+        case plugin
+        case options
+        // TODO: retain for deserialization compatibility, remove in next major version
         case pluginInfo
-        // TODO: retain for deserialization compatibility for now, remove later
         case subnet
     }
 
@@ -90,7 +91,9 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
-        id = try container.decode(String.self, forKey: .id)
+        name =
+            try container.decodeIfPresent(String.self, forKey: .name)
+            ?? container.decode(String.self, forKey: .id)
         creationDate = try container.decodeIfPresent(Date.self, forKey: .creationDate) ?? Date(timeIntervalSince1970: 0)
         mode = try container.decode(NetworkMode.self, forKey: .mode)
         let subnetText =
@@ -101,7 +104,22 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
             .map { try CIDRv6($0) }
         let decodedLabels = try container.decodeIfPresent([String: String].self, forKey: .labels) ?? [:]
         labels = try .init(decodedLabels)
-        pluginInfo = try container.decodeIfPresent(NetworkPluginInfo.self, forKey: .pluginInfo)
+
+        if let plugin = try container.decodeIfPresent(String.self, forKey: .plugin) {
+            self.plugin = plugin
+            self.options = try container.decodeIfPresent([String: String].self, forKey: .options) ?? [:]
+        } else if let legacy = try container.decodeIfPresent(_LegacyPluginInfo.self, forKey: .pluginInfo) {
+            // Deprecated: As of 1.0.0. Use ``plugin`` and ``options`` instead.
+            // Note: Will be removed in a later release.
+            self.plugin = legacy.plugin
+            var opts: [String: String] = [:]
+            if let variant = legacy.variant { opts["variant"] = variant }
+            self.options = opts
+        } else {
+            self.plugin = "container-network-vmnet"
+            self.options = [:]
+        }
+
         try validate()
     }
 
@@ -109,18 +127,25 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
 
-        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
         try container.encode(creationDate, forKey: .creationDate)
         try container.encode(mode, forKey: .mode)
         try container.encodeIfPresent(ipv4Subnet, forKey: .ipv4Subnet)
         try container.encodeIfPresent(ipv6Subnet, forKey: .ipv6Subnet)
         try container.encode(labels, forKey: .labels)
-        try container.encodeIfPresent(pluginInfo, forKey: .pluginInfo)
+        try container.encode(plugin, forKey: .plugin)
+        try container.encode(options, forKey: .options)
     }
 
     private func validate() throws {
-        guard NetworkResource.nameValid(id) else {
-            throw ContainerizationError(.invalidArgument, message: "invalid network ID: \(id)")
+        guard NetworkResource.nameValid(name) else {
+            throw ContainerizationError(.invalidArgument, message: "invalid network name: \(name)")
         }
     }
+}
+
+/// Decode helper for stored configurations that used the old `pluginInfo` key.
+private struct _LegacyPluginInfo: Codable {
+    let plugin: String
+    let variant: String?
 }

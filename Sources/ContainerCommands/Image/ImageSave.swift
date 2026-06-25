@@ -22,7 +22,9 @@ import ContainerResource
 import Containerization
 import ContainerizationError
 import ContainerizationOCI
+import ContainerizationOS
 import Foundation
+import SystemPackage
 import TerminalProgress
 
 extension Application {
@@ -47,9 +49,9 @@ extension Application {
         @Option(
             name: .shortAndLong, help: "Pathname for the saved image", completion: .file(),
             transform: { str in
-                URL(fileURLWithPath: str, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false)
+                FilePathOps.absolutePath(FilePath(str))
             })
-        var output: String?
+        var output: FilePath?
 
         @Option(
             help: "Platform for the saved image (format: os/arch[/variant], takes precedence over --os and --arch) [environment: CONTAINER_DEFAULT_PLATFORM]"
@@ -62,9 +64,7 @@ extension Application {
         @Argument var references: [String]
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(
-                configFile: SystemRuntimeOptions.configFileFromAppRoot(ApplicationRoot.url)
-            )
+            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
             let p = try DefaultPlatform.resolve(platform: platform, os: os, arch: arch, log: log)
 
             let progressConfig = try ProgressConfig(
@@ -81,7 +81,7 @@ extension Application {
                 do {
                     images.append(try await ClientImage.get(reference: reference, containerSystemConfig: containerSystemConfig).description)
                 } catch {
-                    print("failed to get image for reference \(reference): \(error)")
+                    log.error("failed to get image for reference \(reference): \(error)")
                 }
             }
 
@@ -111,7 +111,9 @@ extension Application {
             }
 
             // Write to stdout; otherwise write to the output file
-            if output == nil {
+            if let output {
+                try await ClientImage.save(references: references, out: output.string, platform: p, containerSystemConfig: containerSystemConfig)
+            } else {
                 let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).tar")
                 defer {
                     try? FileManager.default.removeItem(at: tempFile)
@@ -134,8 +136,6 @@ extension Application {
                     FileHandle.standardOutput.write(chunk)
                 }
                 try fileHandle.close()
-            } else {
-                try await ClientImage.save(references: references, out: output!, platform: p, containerSystemConfig: containerSystemConfig)
             }
 
             progress.finish()

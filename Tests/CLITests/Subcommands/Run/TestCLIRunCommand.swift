@@ -339,8 +339,9 @@ class TestCLIRunCommand2: CLITest {
         do {
             let name = getTestName()
             let socketPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            let guestSocketPath = "/run/ssh-auth.sock"
 
-            let socketType = try UnixType(path: socketPath.path, unlinkExisting: true)
+            let socketType = try UnixType(path: socketPath.path, perms: 0o766, unlinkExisting: true)
             let socket = try Socket(type: socketType, closeOnDeinit: true)
             try socket.listen()
             defer {
@@ -350,18 +351,26 @@ class TestCLIRunCommand2: CLITest {
 
             try doLongRun(
                 name: name,
-                args: ["-v", "\(socketPath.path):/woo"]
+                args: [
+                    "-v", "\(socketPath.path):\(guestSocketPath)",
+                    "-e", "SSH_AUTH_SOCK=\(guestSocketPath)",
+                ]
             )
             defer {
                 try? doStop(name: name)
             }
-            let output = try doExec(name: name, cmd: ["ls", "-alh", "woo"])
-            let splitOutput = output.components(separatedBy: .whitespaces)
-            #expect(splitOutput.count > 0, "expected split output of 'ls -alh' to be at least 1, instead got \(splitOutput.count)")
 
-            let perms = splitOutput[0]
-            let firstChar = perms[perms.startIndex]
-            #expect(firstChar == "s", "expected file in guest to be of type socket, instead got '\(firstChar)'")
+            _ = try doExec(name: name, cmd: ["apk", "add", "netcat-openbsd"])
+
+            let permsOutput = try doExec(
+                name: name,
+                cmd: ["sh", "-c", "stat -c \"%a\" \"${SSH_AUTH_SOCK}\""],
+                user: "guest"
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(permsOutput == "766", "expected socket permissions 766, got \(permsOutput)")
+
+            _ = try doExec(name: name, cmd: ["sh", "-c", "nc -zU \"${SSH_AUTH_SOCK}\""], user: "guest")
+
             try doStop(name: name)
         } catch {
             Issue.record("failed to run container \(error)")

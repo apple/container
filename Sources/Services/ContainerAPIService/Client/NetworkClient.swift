@@ -82,18 +82,10 @@ public struct NetworkClient: Sendable {
 
         let response = try await xpcSend(message: request)
 
-        // Prefer current encoding (≥ 0.12.0 server).
-        if let resourceData = response.dataNoCopy(key: .networkResource) {
-            return try JSONDecoder().decode(NetworkResource.self, from: resourceData)
+        guard let resourceData = response.dataNoCopy(key: .networkResource) else {
+            throw ContainerizationError(.invalidArgument, message: "network configuration not received")
         }
-
-        // Fall back to pre-0.12.0 server: decode NetworkState and convert.
-        if let stateData = response.dataNoCopy(key: .networkState) {
-            let state = try JSONDecoder().decode(NetworkState.self, from: stateData)
-            return NetworkResource(state)
-        }
-
-        throw ContainerizationError(.invalidArgument, message: "network configuration not received")
+        return try JSONDecoder().decode(NetworkResource.self, from: resourceData)
     }
 
     /// Returns the current state of all networks known to the API server.
@@ -106,17 +98,10 @@ public struct NetworkClient: Sendable {
 
         let response = try await xpcSend(message: request, timeout: .seconds(1))
 
-        // Prefer current encoding (≥ 0.12.0 server).
-        if let resourceData = response.dataNoCopy(key: .networkResources) {
-            return try JSONDecoder().decode([NetworkResource].self, from: resourceData)
+        guard let resourceData = response.dataNoCopy(key: .networkResources) else {
+            return []
         }
-
-        // Fall back to pre-0.12.0 server: decode NetworkState and convert.
-        if let stateData = response.dataNoCopy(key: .networkStates) {
-            return try JSONDecoder().decode([NetworkState].self, from: stateData).map(NetworkResource.init)
-        }
-
-        return []
+        return try JSONDecoder().decode([NetworkResource].self, from: resourceData)
     }
 
     /// Returns the network with the given identifier.

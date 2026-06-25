@@ -58,24 +58,15 @@ extension Application {
 
             let versions = [cliInfo, serverInfo].compactMap { $0 }
 
-            switch format {
-            case .table:
-                printVersionTable(versions: versions)
-            case .json:
-                try Output.emit(Output.renderJSON(versions))
-            case .yaml:
-                try Output.emit(Output.renderYAML(versions))
-            case .toml:
-                try Output.emit(Output.renderTOML(versions))
+            try Output.render(payload: versions, format: format) {
+                Self.versionTable(versions)
             }
         }
 
-        private func printVersionTable(versions: [VersionInfo]) {
+        private static func versionTable(_ versions: [VersionInfo]) -> String {
             let header = ["COMPONENT", "VERSION", "BUILD", "COMMIT"]
             let rows = [header] + versions.map { [$0.appName, $0.version, $0.buildType, $0.commit] }
-
-            let table = TableOutput(rows: rows)
-            print(table.format())
+            return TableOutput(rows: rows).format()
         }
     }
 

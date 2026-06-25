@@ -164,15 +164,15 @@ struct RenderJSONTests {
     }
 
     @Test
-    func prettySortedIsMultiLine() throws {
+    func prettyIsMultiLine() throws {
         let items = [TestItem(id: "a", name: "b")]
-        let json = try Output.renderJSON(items, options: .prettySorted)
+        let json = try Output.renderJSON(items, options: .pretty)
         #expect(json.contains("\n"))
     }
 
     @Test
-    func prettySortedHasSortedKeys() throws {
-        let json = try Output.renderJSON(["z": 1, "a": 2], options: .prettySorted)
+    func prettyHasSortedKeys() throws {
+        let json = try Output.renderJSON(["z": 1, "a": 2], options: .pretty)
         let aIndex = json.range(of: "\"a\"")!.lowerBound
         let zIndex = json.range(of: "\"z\"")!.lowerBound
         #expect(aIndex < zIndex)
@@ -207,32 +207,59 @@ struct RenderJSONTests {
     }
 }
 
+// MARK: - renderTOML tests
+
+struct RenderTOMLTests {
+    @Test
+    func topLevelArrayProducesNonEmptyTOML() throws {
+        let items = [TestItem(id: "a", name: "first"), TestItem(id: "c", name: "second")]
+        let toml = try Output.renderTOML(items)
+        #expect(!toml.isEmpty)
+        #expect(toml.contains("first"))
+        #expect(toml.contains("second"))
+    }
+
+    @Test
+    func emptyArrayProducesNonEmptyTOML() throws {
+        let toml = try Output.renderTOML([TestItem]())
+        #expect(!toml.isEmpty)
+    }
+
+    @Test
+    func singleValueEncodesAsTopLevelTable() throws {
+        let toml = try Output.renderTOML(TestItem(id: "x", name: "y"))
+        #expect(toml.contains("id"))
+        #expect(toml.contains("x"))
+    }
+}
+
 // MARK: - JSONOptions tests
 
 struct JSONOptionsTests {
     @Test
-    func compactPresetHasNoFormatting() {
+    func compactPresetHasSortedKeys() {
         let opts = JSONOptions.compact
-        #expect(opts.outputFormatting == [])
+        #expect(opts.outputFormatting == [.sortedKeys])
+        #expect(!opts.outputFormatting.contains(.prettyPrinted))
     }
 
     @Test
-    func prettySortedPresetHasBothFlags() {
-        let opts = JSONOptions.prettySorted
+    func prettyPresetHasBothFlags() {
+        let opts = JSONOptions.pretty
         #expect(opts.outputFormatting.contains(.prettyPrinted))
         #expect(opts.outputFormatting.contains(.sortedKeys))
     }
 }
 
-// MARK: - PrintableContainer conformance tests
+// MARK: - ManagedContainer conformance tests
 
-struct PrintableContainerDisplayTests {
+struct ManagedContainerDisplayTests {
     @Test
     func tableHeaderHasNineColumns() {
-        #expect(PrintableContainer.tableHeader.count == 9)
-        #expect(PrintableContainer.tableHeader[0] == "ID")
-        #expect(PrintableContainer.tableHeader[4] == "STATE")
-        #expect(PrintableContainer.tableHeader[8] == "STARTED")
+        #expect(ManagedContainer.tableHeader.count == 9)
+        #expect(ManagedContainer.tableHeader[0] == "ID")
+        #expect(ManagedContainer.tableHeader[4] == "STATE")
+        #expect(ManagedContainer.tableHeader[8] == "STARTED")
     }
 }
 
@@ -240,9 +267,9 @@ struct PrintableContainerDisplayTests {
 
 struct NetworkResourceDisplayTests {
     @Test
-    func tableHeaderHasThreeColumns() {
-        #expect(NetworkResource.tableHeader.count == 3)
-        #expect(NetworkResource.tableHeader == ["NETWORK", "STATE", "SUBNET"])
+    func tableHeaderHasTwoColumns() {
+        #expect(NetworkResource.tableHeader.count == 2)
+        #expect(NetworkResource.tableHeader == ["NETWORK", "SUBNET"])
     }
 }
 

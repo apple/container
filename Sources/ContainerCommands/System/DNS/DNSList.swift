@@ -43,7 +43,7 @@ extension Application {
             let domains = resolver.listDomains()
 
             try Output.render(
-                json: domains.map { $0.pqdn },
+                payload: domains.map { $0.pqdn },
                 display: domains.map { PrintableDomain($0) },
                 format: format, quiet: quiet
             )

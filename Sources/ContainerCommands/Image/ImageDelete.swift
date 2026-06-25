@@ -82,7 +82,7 @@ extension Application {
             let freed = formatter.string(fromByteCount: Int64(size))
 
             if didDeleteAnyImage {
-                print("Reclaimed \(freed) in disk space")
+                log.info("Reclaimed \(freed) in disk space")
             }
             if failures.count > 0 {
                 throw ContainerizationError(.internalError, message: "failed to delete one or more images: \(failures)")
@@ -109,9 +109,7 @@ extension Application {
         }
 
         public mutating func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(
-                configFile: SystemRuntimeOptions.configFileFromAppRoot(ApplicationRoot.url)
-            )
+            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
             try await DeleteImageImplementation.removeImage(options: options, containerSystemConfig: containerSystemConfig, log: log)
         }
     }

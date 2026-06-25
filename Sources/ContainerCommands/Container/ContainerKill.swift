@@ -56,17 +56,16 @@ extension Application {
 
             let containers: [String]
             if self.all {
-                containers = try await client.list(filters: ContainerListFilters(status: .running)).map { $0.id }
+                let filters = ContainerListFilters(status: .running).withoutMachines()
+                containers = try await client.list(filters: filters).map { $0.id }
             } else {
                 containers = containerIds
             }
 
-            let signalNumber = try Signal(signal).rawValue
-
             var errors: [any Error] = []
             for container in containers {
                 do {
-                    try await client.kill(id: container, signal: signalNumber)
+                    try await client.kill(id: container, signal: signal)
                     print(container)
                 } catch {
                     errors.append(error)

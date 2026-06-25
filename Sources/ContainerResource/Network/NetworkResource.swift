@@ -20,34 +20,32 @@ import Foundation
 /// A network resource, representing a configured virtual network and its runtime status.
 ///
 /// `NetworkResource` conforms to `ManagedResource` and separates the network's
-/// intrinsic configuration from its ephemeral runtime status — following the same
-/// config/status split used by Kubernetes and Docker. `config` is persisted;
-/// `status` reflects what the network plugin reports at runtime.
+/// intrinsic configuration from its runtime status — following the same config/status
+/// split used by Kubernetes and Docker. `configuration` is persisted; `status` reflects
+/// what the network plugin reports at runtime.
 ///
-/// The JSON encoding uses a single `status` object containing a `phase` field
-/// alongside any runtime-allocated address properties, replacing the prior flat
-/// `state`/`status` pair in the CLI output.
+/// JSON encoding produces three top-level keys: `id`, `configuration` (the persistent
+/// config), and `status` (runtime address properties assigned by the network plugin).
 public struct NetworkResource: ManagedResource {
     /// The network's configuration — its persistent, intrinsic properties.
-    public let config: NetworkConfiguration
+    public let configuration: NetworkConfiguration
 
-    /// The network's current status, including lifecycle phase and any
-    /// runtime-allocated address properties.
+    /// The network's runtime status — the addresses assigned by the network plugin.
     public let status: NetworkStatus
 
     // MARK: ManagedResource
 
-    /// The unique identifier for this network. Identical to ``config/id``.
-    public var id: String { config.id }
+    /// The unique identifier for this network. Identical to ``configuration/name``.
+    public var id: String { configuration.name }
 
     /// The user-assigned name for this network. For networks, name and ID are the same.
-    public var name: String { config.id }
+    public var name: String { configuration.name }
 
     /// The time at which this network was created.
-    public var creationDate: Date { config.creationDate }
+    public var creationDate: Date { configuration.creationDate }
 
     /// Key-value labels for this network.
-    public var labels: ResourceLabels { config.labels }
+    public var labels: ResourceLabels { configuration.labels }
 
     /// Returns `true` for a system-managed network that cannot be deleted by the user.
     public var isBuiltin: Bool { labels.isBuiltin }
@@ -66,29 +64,11 @@ public struct NetworkResource: ManagedResource {
     /// Creates a network resource.
     ///
     /// - Parameters:
-    ///   - config: The network's intrinsic configuration.
-    ///   - networkStatus: The plugin-reported runtime status, or `nil` if the
-    ///     network is not yet running.
-    public init(config: NetworkConfiguration, networkStatus: NetworkPluginStatus? = nil) {
-        self.config = config
-        self.status = networkStatus.map { NetworkStatus(running: $0) } ?? .created
-    }
-}
-
-// MARK: - Conversion from NetworkState
-
-extension NetworkResource {
-    /// Creates a network resource from a ``NetworkState``.
-    ///
-    /// Used when translating from the internal plugin-protocol type to the
-    /// public API surface type.
-    public init(_ networkState: NetworkState) {
-        switch networkState {
-        case .created(let config):
-            self.init(config: config)
-        case .running(let config, let status):
-            self.init(config: config, networkStatus: status)
-        }
+    ///   - configuration: The network's intrinsic configuration.
+    ///   - status: The runtime status reported by the network plugin.
+    public init(configuration: NetworkConfiguration, status: NetworkStatus) {
+        self.configuration = configuration
+        self.status = status
     }
 }
 
@@ -97,20 +77,20 @@ extension NetworkResource {
 extension NetworkResource {
     enum CodingKeys: String, CodingKey {
         case id
-        case config
+        case configuration
         case status
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
-        try container.encode(config, forKey: .config)
+        try container.encode(configuration, forKey: .configuration)
         try container.encode(status, forKey: .status)
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.config = try container.decode(NetworkConfiguration.self, forKey: .config)
-        self.status = try container.decode(NetworkStatus.self, forKey: .status)
+        configuration = try container.decode(NetworkConfiguration.self, forKey: .configuration)
+        status = try container.decode(NetworkStatus.self, forKey: .status)
     }
 }

@@ -100,6 +100,8 @@ $(STAGING_DIR):
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/bin)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin)"
+	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/bin)"
+	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/resources)"
 
 	@install "$(BUILD_BIN_DIR)/container" "$(join $(STAGING_DIR), bin/container)"
 	@install "$(BUILD_BIN_DIR)/container-apiserver" "$(join $(STAGING_DIR), bin/container-apiserver)"
@@ -109,6 +111,10 @@ $(STAGING_DIR):
 	@install Sources/Plugins/NetworkVmnet/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/config.toml)"
 	@install "$(BUILD_BIN_DIR)/container-core-images" "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin/container-core-images)"
 	@install Sources/Plugins/CoreImages/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/config.toml)"
+	@install "$(BUILD_BIN_DIR)/machine-apiserver" "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/bin/machine-apiserver)"
+	@install Sources/Plugins/MachineAPIServer/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/config.toml)"
+	@install Sources/Plugins/MachineAPIServer/Resources/init "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/resources/init)"
+	@install Sources/Plugins/MachineAPIServer/Resources/create-user.sh "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/resources/create-user.sh)"
 
 	@echo Install update script
 	@install scripts/update-container.sh "$(join $(STAGING_DIR), bin/update-container.sh)"
@@ -123,6 +129,7 @@ installer-pkg: $(STAGING_DIR)
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin/container-core-images)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. --entitlements=signing/container-runtime-linux.entitlements "$(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/bin/container-runtime-linux)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. --entitlements=signing/container-network-vmnet.entitlements "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin/container-network-vmnet)"
+	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/bin/machine-apiserver)"
 
 	@echo Creating application installer
 	@pkgbuild --root "$(STAGING_DIR)" --identifier com.apple.container-installer --install-location /usr/local --version ${RELEASE_VERSION} $(PKG_PATH)
@@ -187,7 +194,7 @@ define GENERATE_COV_REPORTS
 	@cat $(COVERAGE_OUTPUT_DIR)/$(2)/coverage-percent.txt
 endef
 
-INTEGRATION_TEST_SUITES := \
+INTEGRATION_TEST_SUITES ?= \
 	TestCLIHelp \
 	TestCLIStatus \
 	TestCLIVersion \
@@ -211,15 +218,24 @@ INTEGRATION_TEST_SUITES := \
 	TestCLIKernelSet \
 	TestCLIAnonymousVolumes \
 	TestCLINotFound \
-	TestCLINoParallelCases
+	TestCLISystemDF \
+	TestCLIMachineCommand \
+	TestCLIMachineRuntime \
+	TestCLINoParallelCases \
+	TestCLICopyCommand
 
 empty :=
 space := $(empty) $(empty)
 INTEGRATION_FILTER := $(subst $(space),|,$(strip $(INTEGRATION_TEST_SUITES)))
 
+.PHONY: coverage-build
+coverage-build:
+	@echo Building tests with coverage instrumentation...
+	@$(SWIFT) build --build-tests --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION)
+
 .PHONY: coverage
 # Merge the raw coverage data generated from coverage-unit and coverage-integration into one unified report
-coverage: coverage-unit coverage-integration
+coverage: coverage-build coverage-unit coverage-integration
 	@echo Merging combined coverage profdata...
 	@mkdir -p $(COVERAGE_OUTPUT_DIR)/combined
 	@xcrun llvm-profdata merge -sparse \
@@ -233,12 +249,9 @@ coverage-unit:
 	@echo Running unit test coverage...
 	@rm -f $(COV_DATA_DIR)/*.profraw
 	@mkdir -p $(COVERAGE_OUTPUT_DIR)/unit
-# Run the test suite with profiler (exclude integration tests)
-	@$(SWIFT) test --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI
-# Move the profiling data to a staging area for later consumption in full coverage aggregation
+	@$(SWIFT) test --skip-build --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI
 	@echo Merging unit coverage profdata...
 	@xcrun llvm-profdata merge -sparse $(COV_DATA_DIR)/*.profraw -o $(COVERAGE_OUTPUT_DIR)/unit/default.profdata
-# Generate both JSON (for machines) and html (for humans)
 	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/unit/default.profdata,unit)
 
 .PHONY: coverage-integration
@@ -252,7 +265,8 @@ coverage-integration: all
 	echo "Starting CLI integration tests with coverage" && \
 	{ \
 		export CLITEST_LOG_ROOT=$(LOG_ROOT) ; \
-		$(SWIFT) test --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(INTEGRATION_FILTER)" ; \
+		export CONTAINER_CLI_PATH=$(ROOT_DIR)/bin/container ; \
+		$(SWIFT) test --skip-build --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(INTEGRATION_FILTER)" ; \
 		exit_code=$$? ; \
 		cp $(COV_DATA_DIR)/*.profraw $(COVERAGE_OUTPUT_DIR)/integration/ ; \
 		echo Ensuring apiserver stopped after the coverage integration tests ; \
@@ -277,6 +291,7 @@ integration: init-block
 	echo "Starting CLI integration tests" && \
 	{ \
 		CLITEST_LOG_ROOT=$(LOG_ROOT) && export CLITEST_LOG_ROOT ; \
+		CONTAINER_CLI_PATH=$(ROOT_DIR)/bin/container && export CONTAINER_CLI_PATH ; \
 		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(INTEGRATION_FILTER)" ; \
 		exit_code=$$? ; \
 		echo Ensuring apiserver stopped after the CLI integration tests ; \
@@ -314,12 +329,14 @@ check-licenses:
 
 .PHONY: pre-commit
 pre-commit:
-	cp Scripts/pre-commit.fmt .git/hooks
-	touch .git/hooks/pre-commit
-	cat .git/hooks/pre-commit | grep -v 'hooks/pre-commit\.fmt' > /tmp/pre-commit.new || true
-	echo 'PRECOMMIT_NOFMT=$${PRECOMMIT_NOFMT} $$(git rev-parse --show-toplevel)/.git/hooks/pre-commit.fmt' >> /tmp/pre-commit.new
-	mv /tmp/pre-commit.new .git/hooks/pre-commit
-	chmod +x .git/hooks/pre-commit
+	$(eval HOOKS_DIR := $(shell git rev-parse --git-path hooks))
+	cp scripts/pre-commit.fmt $(HOOKS_DIR)/
+	touch $(HOOKS_DIR)/pre-commit
+	cat $(HOOKS_DIR)/pre-commit | grep -v 'hooks/pre-commit\.fmt' > /tmp/pre-commit.new || true
+	echo 'PRECOMMIT_NOFMT=$${PRECOMMIT_NOFMT} $$(git rev-parse --git-path hooks/pre-commit.fmt)' >> /tmp/pre-commit.new
+	mv /tmp/pre-commit.new $(HOOKS_DIR)/pre-commit
+	chmod +x $(HOOKS_DIR)/pre-commit
+	@./scripts/ensure-hawkeye-exists.sh
 
 .PHONY: serve-docs
 serve-docs:

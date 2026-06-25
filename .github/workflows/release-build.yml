@@ -44,7 +44,7 @@ jobs:
           test -e outputs/container-package/*.pkg || (echo "Missing .pkg file!" && exit 1)
 
       - name: Create release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
         with:
           token: ${{ github.token }}
           name: ${{ github.ref_name }}-prerelease

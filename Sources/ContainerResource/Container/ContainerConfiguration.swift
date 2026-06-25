@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerizationOCI
+import Foundation
 
 public struct ContainerConfiguration: Sendable, Codable {
     /// Identifier for the container.
@@ -59,6 +60,10 @@ public struct ContainerConfiguration: Sendable, Codable {
     public var capDrop: [String] = []
     /// Size of /dev/shm in bytes. When nil, the default size is used.
     public var shmSize: UInt64?
+    /// Signal to send to the container process on stop (from image config).
+    public var stopSignal: String?
+    /// The time at which the container was created.
+    public var creationDate: Date = Date()
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -82,6 +87,8 @@ public struct ContainerConfiguration: Sendable, Codable {
         case capAdd
         case capDrop
         case shmSize
+        case stopSignal
+        case creationDate
     }
 
     /// Create a configuration from the supplied Decoder, initializing missing
@@ -116,6 +123,8 @@ public struct ContainerConfiguration: Sendable, Codable {
         capAdd = try container.decodeIfPresent([String].self, forKey: .capAdd) ?? []
         capDrop = try container.decodeIfPresent([String].self, forKey: .capDrop) ?? []
         shmSize = try container.decodeIfPresent(UInt64.self, forKey: .shmSize)
+        stopSignal = try container.decodeIfPresent(String.self, forKey: .stopSignal)
+        creationDate = try container.decodeIfPresent(Date.self, forKey: .creationDate) ?? Date(timeIntervalSince1970: 0)
     }
 
     public struct DNSConfiguration: Sendable, Codable {
@@ -147,8 +156,18 @@ public struct ContainerConfiguration: Sendable, Codable {
         public var memoryInBytes: UInt64 = 1024.mib()
         /// Storage quota/size in bytes.
         public var storage: UInt64?
+        /// Additional CPU cores allocated for VM overhead (guest agent, etc).
+        public var cpuOverhead: Int = 1
 
         public init() {}
+
+        public init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            self.cpus = try c.decodeIfPresent(Int.self, forKey: .cpus) ?? 4
+            self.memoryInBytes = try c.decodeIfPresent(UInt64.self, forKey: .memoryInBytes) ?? 1024.mib()
+            self.storage = try c.decodeIfPresent(UInt64.self, forKey: .storage)
+            self.cpuOverhead = try c.decodeIfPresent(Int.self, forKey: .cpuOverhead) ?? 1
+        }
     }
 
     public init(

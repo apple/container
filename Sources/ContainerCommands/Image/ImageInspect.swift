@@ -16,14 +16,10 @@
 
 import ArgumentParser
 import ContainerAPIClient
-import ContainerLog
 import ContainerPersistence
-import ContainerPlugin
 import ContainerResource
 import ContainerizationError
 import Foundation
-import Logging
-import SwiftProtobuf
 
 extension Application {
     public struct ImageInspect: AsyncLoggableCommand {
@@ -39,21 +35,22 @@ extension Application {
 
         public init() {}
 
-        struct InspectError: Error {
-            let succeeded: [String]
-            let failed: [(String, Error)]
-        }
-
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try SystemRuntimeOptions.loadConfig(
-                configFile: SystemRuntimeOptions.configFileFromAppRoot(ApplicationRoot.url)
+            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
+            let uniqueNames = Set(images)
+            let result = try await ClientImage.get(
+                names: Array(uniqueNames), containerSystemConfig: containerSystemConfig
             )
-            var printable: [ImageDetail] = []
-            var succeededImages: [String] = []
-            var allErrors: [(String, Error)] = []
 
-            let result = try await ClientImage.get(names: images, containerSystemConfig: containerSystemConfig)
+            if !result.error.isEmpty {
+                let missing = result.error.sorted()
+                throw ContainerizationError(
+                    .notFound,
+                    message: "image not found: \(missing.joined(separator: ", "))"
+                )
+            }
 
+            var printable: [ImageResource] = []
             for image in result.images {
                 guard
                     !Utility.isInfraImage(
@@ -62,30 +59,12 @@ extension Application {
                         initImage: containerSystemConfig.vminit.image
                     )
                 else { continue }
-                printable.append(try await image.details())
-                succeededImages.append(image.reference)
+                printable.append(
+                    try await image.toImageResource(containerSystemConfig: containerSystemConfig)
+                )
             }
 
-            for missing in result.error {
-                allErrors.append((missing, ContainerizationError(.notFound, message: "Image not found")))
-            }
-
-            if !printable.isEmpty {
-                try Output.emit(Output.renderJSON(printable))
-            }
-
-            if !allErrors.isEmpty {
-                for (name, error) in allErrors {
-                    log.error(
-                        "image inspect failed",
-                        metadata: [
-                            "name": "\(name)",
-                            "error": "\(error.localizedDescription)",
-                        ])
-                }
-
-                throw InspectError(succeeded: succeededImages, failed: allErrors)
-            }
+            try Output.emit(Output.renderJSON(printable, options: .pretty))
         }
     }
 }

@@ -61,16 +61,18 @@ class TestCLINoParallelCases: CLITest {
     @Test func testImagePruneNoImages() throws {
         // Prune with no images should succeed
         _ = try? run(arguments: ["image", "rm", "--all"])
-        let (_, output, error, status) = try run(arguments: ["image", "prune"])
+        let (_, _, error, status) = try run(arguments: ["image", "prune"])
         if status != 0 {
             throw CLIError.executionFailed("image prune failed: \(error)")
         }
 
-        #expect(output.contains("Zero KB"), "should show no space reclaimed")
+        #expect(error.contains("Zero KB"), "should show no space reclaimed")
     }
 
     @Test func testImagePruneUnusedImages() throws {
         // 1. Pull the images
+        _ = try? run(arguments: ["rm", "--all", "--force"])
+        defer { _ = try? run(arguments: ["rm", "--all", "--force"]) }
         _ = try? run(arguments: ["image", "rm", "--all"])
         defer { _ = try? run(arguments: ["image", "rm", "--all"]) }
         try doPull(imageName: alpine)
