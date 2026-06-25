@@ -19,6 +19,7 @@ import Containerization
 import ContainerizationError
 import ContainerizationOCI
 import ContainerizationOS
+import Darwin
 import Foundation
 import NIOCore
 import NIOPosix
@@ -80,9 +81,26 @@ struct ClientProcessImpl: ClientProcess, Sendable {
         let request = XPCMessage(route: .containerKill)
         request.set(key: .id, value: containerId)
         request.set(key: .processIdentifier, value: id)
-        request.set(key: .signal, value: Int64(signal))
+        request.set(key: .signal, value: Self.signalName(for: signal))
 
         try await xpcClient.send(request)
+    }
+
+    static func signalName(for signal: Int32) -> String {
+        switch signal {
+        case SIGTERM:
+            return "SIGTERM"
+        case SIGINT:
+            return "SIGINT"
+        case SIGUSR1:
+            return "SIGUSR1"
+        case SIGUSR2:
+            return "SIGUSR2"
+        case SIGWINCH:
+            return "SIGWINCH"
+        default:
+            return "\(signal)"
+        }
     }
 
     /// Resize the processes PTY if it has one.
