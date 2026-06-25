@@ -92,3 +92,23 @@ struct ContainerConfigurationCreationDateTests {
         #expect(decoded.creationDate == Date(timeIntervalSince1970: 0))
     }
 }
+
+struct ContainerConfigurationHostConfigTests {
+    @Test func roundTripsHostsConfigured() throws {
+        var config = makeTestConfiguration()
+        config.hostsConfigured = false
+        let data = try JSONEncoder().encode(config)
+        let decoded = try JSONDecoder().decode(ContainerConfiguration.self, from: data)
+        #expect(decoded.hostsConfigured == false)
+    }
+
+    @Test func decodesMissingHostsConfiguredAsEnabled() throws {
+        let config = makeTestConfiguration()
+        let data = try JSONEncoder().encode(config)
+        var obj = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        obj.removeValue(forKey: "hostsConfigured")
+        let stripped = try JSONSerialization.data(withJSONObject: obj)
+        let decoded = try JSONDecoder().decode(ContainerConfiguration.self, from: stripped)
+        #expect(decoded.hostsConfigured == true)
+    }
+}

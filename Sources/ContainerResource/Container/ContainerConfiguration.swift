@@ -36,6 +36,8 @@ public struct ContainerConfiguration: Sendable, Codable {
     public var networks: [AttachmentConfiguration] = []
     /// The DNS configuration for the container.
     public var dns: DNSConfiguration? = nil
+    /// Whether to configure /etc/hosts during bootstrap.
+    public var hostsConfigured: Bool = true
     /// Whether to enable rosetta x86-64 translation for the container.
     public var rosetta: Bool = false
     /// Initial or main process of the container.
@@ -75,6 +77,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         case sysctls
         case networks
         case dns
+        case hostsConfigured
         case rosetta
         case initProcess
         case platform
@@ -111,6 +114,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         }
 
         dns = try container.decodeIfPresent(DNSConfiguration.self, forKey: .dns)
+        hostsConfigured = try container.decodeIfPresent(Bool.self, forKey: .hostsConfigured) ?? true
         rosetta = try container.decodeIfPresent(Bool.self, forKey: .rosetta) ?? false
         initProcess = try container.decode(ProcessConfiguration.self, forKey: .initProcess)
         platform = try container.decodeIfPresent(ContainerizationOCI.Platform.self, forKey: .platform) ?? .current

@@ -1336,4 +1336,27 @@ struct ParserTest {
     func testManagementFlagsAcceptsNoDNSAlone() throws {
         _ = try Flags.Management.parse(["--no-dns"])
     }
+
+    @Test
+    func testManagementFlagsAcceptsNoHostsAlone() throws {
+        let flags = try Flags.Management.parse(["--no-hosts"])
+        #expect(flags.hostsDisabled == true)
+        #expect(flags.hostConfigDisabled == false)
+        #expect(flags.dnsDisabled == false)
+    }
+
+    @Test
+    func testManagementFlagsAcceptsNoHostConfigAlone() throws {
+        let flags = try Flags.Management.parse(["--no-host-config"])
+        #expect(flags.hostConfigDisabled == true)
+        #expect(flags.hostsDisabled == false)
+        #expect(flags.dnsDisabled == false)
+    }
+
+    @Test
+    func testManagementFlagsRejectsNoHostConfigWithDNS() throws {
+        #expect(throws: (any Error).self) {
+            _ = try Flags.Management.parse(["--dns", "1.1.1.1", "--no-host-config"])
+        }
+    }
 }

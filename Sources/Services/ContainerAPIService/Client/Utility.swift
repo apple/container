@@ -219,7 +219,7 @@ public struct Utility {
             }
         }
 
-        if management.dnsDisabled {
+        if management.dnsDisabled || management.hostConfigDisabled {
             config.dns = nil
         } else {
             let domain = management.dns.domain ?? containerSystemConfig.dns.domain
@@ -230,6 +230,7 @@ public struct Utility {
                 options: management.dns.options
             )
         }
+        config.hostsConfigured = !management.hostConfigDisabled && !management.hostsDisabled
 
         config.rosetta = management.rosetta || (Platform.current.architecture == "arm64" && requestedPlatform.architecture == "amd64")
 

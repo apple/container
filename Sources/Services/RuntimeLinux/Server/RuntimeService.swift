@@ -258,18 +258,20 @@ public actor RuntimeService {
                 czConfig.process.stdout = stdout
                 czConfig.process.stderr = stderr
                 czConfig.process.stdin = stdin
-                // NOTE: We can support a user providing new entries eventually, but for now craft
-                // a default /etc/hosts.
-                var hostsEntries = [Hosts.Entry.localHostIPV4()]
-                if !interfaces.isEmpty {
-                    let primaryIfaceAddr = interfaces[0].ipv4Address
-                    hostsEntries.append(
-                        Hosts.Entry(
-                            ipAddress: primaryIfaceAddr.address.description,
-                            hostnames: [czConfig.hostname ?? id],
-                        ))
+                if config.hostsConfigured {
+                    // NOTE: We can support a user providing new entries eventually, but for now craft
+                    // a default /etc/hosts.
+                    var hostsEntries = [Hosts.Entry.localHostIPV4()]
+                    if !interfaces.isEmpty {
+                        let primaryIfaceAddr = interfaces[0].ipv4Address
+                        hostsEntries.append(
+                            Hosts.Entry(
+                                ipAddress: primaryIfaceAddr.address.description,
+                                hostnames: [czConfig.hostname ?? id],
+                            ))
+                    }
+                    czConfig.hosts = Hosts(entries: hostsEntries)
                 }
-                czConfig.hosts = Hosts(entries: hostsEntries)
                 czConfig.bootLog = BootLog.file(path: bundle.bootlog, append: true)
             }
 

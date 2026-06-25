@@ -174,6 +174,8 @@ public struct Flags {
             dns: Flags.DNS,
             dnsDisabled: Bool,
             entrypoint: String?,
+            hostConfigDisabled: Bool,
+            hostsDisabled: Bool,
             initImage: String?,
             kernel: String?,
             labels: [String],
@@ -203,6 +205,8 @@ public struct Flags {
             self.dns = dns
             self.dnsDisabled = dnsDisabled
             self.entrypoint = entrypoint
+            self.hostConfigDisabled = hostConfigDisabled
+            self.hostsDisabled = hostsDisabled
             self.initImage = initImage
             self.kernel = kernel
             self.labels = labels
@@ -292,6 +296,12 @@ public struct Flags {
         @Flag(name: [.customLong("no-dns")], help: "Do not configure DNS in the container")
         public var dnsDisabled = false
 
+        @Flag(name: [.customLong("no-host-config")], help: "Do not configure host files such as /etc/resolv.conf or /etc/hosts in the container")
+        public var hostConfigDisabled = false
+
+        @Flag(name: [.customLong("no-hosts")], help: "Do not configure /etc/hosts in the container")
+        public var hostsDisabled = false
+
         @Option(name: .long, help: "Set OS if image can target multiple operating systems")
         public var os = "linux"
 
@@ -348,7 +358,7 @@ public struct Flags {
         public var volumes: [String] = []
 
         public func validate() throws {
-            if dnsDisabled {
+            if dnsDisabled || hostConfigDisabled {
                 let hasDNSConfig =
                     !dns.nameservers.isEmpty
                     || dns.domain != nil
@@ -356,7 +366,7 @@ public struct Flags {
                     || !dns.searchDomains.isEmpty
                 if hasDNSConfig {
                     throw ValidationError(
-                        "`--no-dns` cannot be used with DNS configuration flags (`--dns`, `--dns-domain`, `--dns-option`, `--dns-search`)"
+                        "`--no-dns` and `--no-host-config` cannot be used with DNS configuration flags (`--dns`, `--dns-domain`, `--dns-option`, `--dns-search`)"
                     )
                 }
             }
