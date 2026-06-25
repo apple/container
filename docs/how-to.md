@@ -671,16 +671,16 @@ domain = "docker.io"
 image = "ghcr.io/apple/containerization/vminit:0.34.0"
 ```
 
-### Example: Disable Rosetta for builds
+### Rosetta and cross-platform builds
 
-If you want to prevent the use of Rosetta translation during container builds on Apple Silicon Macs, set the following in `~/.config/container/config.toml`:
+Rosetta translation is enabled by default when Rosetta 2 is installed. When building `amd64` images on an `arm64` Mac, the builder VM uses Rosetta 2 for x86-64 emulation if available. If Rosetta 2 is not installed, the builder falls back to QEMU automatically — no configuration needed.
+
+To always use QEMU instead of Rosetta, set the following in `~/.config/container/config.toml`:
 
 ```toml
 [build]
 rosetta = false
 ```
-
-This is useful when you want to ensure builds only produce native arm64 images and avoid any x86_64 emulation.
 
 ## View system logs
 
