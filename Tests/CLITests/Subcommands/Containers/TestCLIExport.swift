@@ -65,4 +65,34 @@ class TestCLIExportCommand: CLITest {
         #expect(foo.fileType == .regular)
         #expect(String(data: fooData, encoding: .utf8)?.starts(with: mustBeInImage) ?? false)
     }
+
+    @Test func testExportCommandLive() throws {
+        let name = getTestName()
+        try doLongRun(name: name, autoRemove: false)
+        defer {
+            try? doStop(name: name)
+            try? doRemove(name: name)
+        }
+
+        let mustBeInImage = "must-be-in-image-live"
+        _ = try doExec(name: name, cmd: ["sh", "-c", "echo \(mustBeInImage) > /foo-live"])
+
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+        let tempFile = tempDir.appendingPathComponent(UUID().uuidString)
+
+        try doExport(name: name, filepath: tempFile.path(), live: true)
+
+        let attrs = try FileManager.default.attributesOfItem(atPath: tempFile.path())
+        let fileSize = attrs[.size] as! UInt64
+        #expect(fileSize > 0)
+
+        let reader = try ArchiveReader(file: tempFile)
+        let (fooLive, fooLiveData) = try reader.extractFile(path: "/foo-live")
+        #expect(fooLive.fileType == .regular)
+        #expect(String(data: fooLiveData, encoding: .utf8)?.starts(with: mustBeInImage) ?? false)
+    }
 }

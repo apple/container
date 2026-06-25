@@ -897,17 +897,40 @@ public actor ContainersService {
         return FileManager.default.allocatedSize(of: URL(fileURLWithPath: containerPath))
     }
 
-    public func exportRootfs(id: String, archive: URL) async throws {
+    public func exportRootfs(id: String, archive: URL, live: Bool = false) async throws {
         self.log.debug("\(#function)")
 
         let state = try self._getContainerState(id: id)
-        guard state.snapshot.status == .stopped else {
+        guard state.snapshot.status == .stopped || (live && state.snapshot.status == .running) else {
             throw ContainerizationError(.invalidState, message: "container is not stopped")
         }
 
         let path = self.containerRoot.appendingPathComponent(id)
         let bundle = ContainerResource.Bundle(path: path)
         let rootfs = bundle.containerRootfsBlock
+
+        if live {
+            let client = try state.getClient()
+            try await client.filesystemOperation(operation: .freeze, path: "/")
+            do {
+                try EXT4.EXT4Reader(blockDevice: FilePath(rootfs)).export(archive: FilePath(archive))
+            } catch {
+                do {
+                    try await client.filesystemOperation(operation: .thaw, path: "/")
+                } catch {
+                    self.log.error(
+                        "failed to thaw filesystem after live export error",
+                        metadata: [
+                            "id": "\(id)",
+                            "error": "\(error)",
+                        ])
+                }
+                throw error
+            }
+            try await client.filesystemOperation(operation: .thaw, path: "/")
+            return
+        }
+
         try EXT4.EXT4Reader(blockDevice: FilePath(rootfs)).export(archive: FilePath(archive))
     }
 

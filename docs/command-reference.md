@@ -379,14 +379,44 @@ container exec [--detach] [--env <env> ...] [--env-file <env-file> ...] [--gid <
 *   `--uid <uid>`: Set the user ID for the process
 *   `-w, --workdir, --cwd <dir>`: Set the initial working directory inside the container
 
-### `container export`
+### `container commit`
 
-Exports a stopped container's filesystem as a tar archive. The container must be stopped before exporting. If no output file is specified, the tar stream is written to stdout.
+Creates a new image from a container's filesystem. By default, the container must be stopped before committing. Use `--live` to commit while the container is running.
 
 **Usage**
 
 ```bash
-container export [-o <output>] [--debug] <container-id>
+container commit [--live] [--debug] <container-id> <reference>
+```
+
+**Arguments**
+
+*   `<container-id>`: Container ID
+*   `<reference>`: Image reference for the committed image
+
+**Options**
+
+*   `--live`: Commit a container while it is running
+
+**Examples**
+
+```bash
+# commit a stopped container to a new image
+container stop mycontainer
+container commit mycontainer myimage:latest
+
+# commit a running container
+container commit --live mycontainer myimage:latest
+```
+
+### `container export`
+
+Exports a container's filesystem as a tar archive. By default, the container must be stopped before exporting. Use `--live` to export while the container is running. If no output file is specified, the tar stream is written to stdout.
+
+**Usage**
+
+```bash
+container export [-o <output>] [--live] [--debug] <container-id>
 ```
 
 **Arguments**
@@ -396,6 +426,7 @@ container export [-o <output>] [--debug] <container-id>
 **Options**
 
 *   `-o, --output <output>`: Pathname for the saved container filesystem (defaults to stdout)
+*   `--live`: Export a container while it is running
 
 **Examples**
 

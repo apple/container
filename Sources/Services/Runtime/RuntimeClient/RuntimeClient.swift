@@ -319,6 +319,29 @@ extension RuntimeClient {
         }
     }
 
+    public func filesystemOperation(operation: FilesystemOperation, path: String) async throws {
+        let request = XPCMessage(route: RuntimeRoutes.filesystemOperation.rawValue)
+        request.set(
+            key: RuntimeKeys.filesystemOperation.rawValue,
+            value: {
+                switch operation {
+                case .freeze: "freeze"
+                case .thaw: "thaw"
+                }
+            }())
+        request.set(key: RuntimeKeys.filesystemPath.rawValue, value: path)
+
+        do {
+            try await self.client.send(request, responseTimeout: .seconds(300))
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to perform filesystem operation in container \(self.id)",
+                cause: error
+            )
+        }
+    }
+
     public func statistics() async throws -> ContainerStats {
         let request = XPCMessage(route: RuntimeRoutes.statistics.rawValue)
 

@@ -771,6 +771,39 @@ public actor RuntimeService {
         }
     }
 
+    /// Perform a filesystem operation inside the container.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with the following parameters:
+    ///     - filesystemOperation: The operation to perform.
+    ///     - filesystemPath: The target path inside the container.
+    ///
+    /// - Returns: An XPC message with no parameters.
+    @Sendable
+    public func filesystemOperation(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`filesystemOperation` xpc handler")
+        switch self.state {
+        case .running, .booted:
+            let operation = try message.filesystemOperation()
+            guard let path = message.string(key: RuntimeKeys.filesystemPath.rawValue) else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no filesystem path supplied for filesystemOperation"
+                )
+            }
+
+            let ctr = try getContainer()
+            try await ctr.container.filesystemOperation(operation: operation, path: path)
+
+            return message.reply()
+        default:
+            throw ContainerizationError(
+                .invalidState,
+                message: "cannot perform filesystem operation: container is not running"
+            )
+        }
+    }
+
     /// Dial a vsock port on the virtual machine.
     ///
     /// - Parameters:
@@ -1321,6 +1354,20 @@ extension XPCMessage {
         let data = self.dataNoCopy(key: RuntimeKeys.dynamicEnv.rawValue)
         let dynamicEnv = try data.map { try JSONDecoder().decode([String: String].self, from: $0) } ?? [:]
         return dynamicEnv
+    }
+
+    fileprivate func filesystemOperation() throws -> FilesystemOperation {
+        guard let operation = self.string(key: RuntimeKeys.filesystemOperation.rawValue) else {
+            throw ContainerizationError(.invalidArgument, message: "empty filesystem operation")
+        }
+        switch operation {
+        case "freeze":
+            return .freeze
+        case "thaw":
+            return .thaw
+        default:
+            throw ContainerizationError(.invalidArgument, message: "invalid filesystem operation \(operation)")
+        }
     }
 
 }

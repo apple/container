@@ -373,10 +373,11 @@ public struct ContainerClient: Sendable {
         }
     }
 
-    public func export(id: String, archive: URL) async throws {
+    public func export(id: String, archive: URL, live: Bool = false) async throws {
         let request = XPCMessage(route: .containerExport)
         request.set(key: .id, value: id)
         request.set(key: .archive, value: archive.absolutePath())
+        request.set(key: .live, value: live)
 
         do {
             try await xpcClient.send(request)
