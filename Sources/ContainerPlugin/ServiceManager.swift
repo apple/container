@@ -36,7 +36,13 @@ public struct ServiceManager {
     /// Register a service by providing the path to a plist.
     public static func register(plistPath: String) throws {
         let domain = try Self.getDomainString()
-        _ = try runLaunchctlCommand(args: ["bootstrap", domain, plistPath])
+        let status = try runLaunchctlCommand(args: ["bootstrap", domain, plistPath])
+        guard status == 0 else {
+            throw ContainerizationError(
+                .internalError,
+                message: "command `launchctl bootstrap \(domain) \(plistPath)` failed with status \(status)"
+            )
+        }
     }
 
     /// Deregister a service by a launchd label.

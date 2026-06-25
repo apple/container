@@ -27,6 +27,8 @@ import TerminalProgress
 
 extension Application {
     public struct SystemStart: AsyncLoggableCommand {
+        private static let apiServerLabel = "com.apple.container.apiserver"
+
         public static let configuration = CommandConfiguration(
             commandName: "start",
             abstract: "Start `container` services"
@@ -113,12 +115,12 @@ extension Application {
                 env[LogRoot.environmentName] = logRoot.string
             }
             let plist = LaunchPlist(
-                label: "com.apple.container.apiserver",
+                label: Self.apiServerLabel,
                 arguments: args,
                 environment: env,
                 limitLoadToSessionType: [.Aqua, .Background, .System],
                 runAtLoad: true,
-                machServices: ["com.apple.container.apiserver"]
+                machServices: [Self.apiServerLabel]
             )
 
             let plistPath = apiServerDataPath.appending(FilePath.Component("apiserver.plist"))
@@ -126,13 +128,27 @@ extension Application {
             let data = try plist.encode()
             try data.write(to: plistURL)
 
-            log.info("Launching container-apiserver...")
-            try ServiceManager.register(plistPath: plistURL.path)
+            if try ServiceManager.isRegistered(fullServiceLabel: Self.apiServerLabel) {
+                log.info("container-apiserver is already registered; checking live service identity...")
+                let systemHealth = try await Self.checkedAPIServerHealth(
+                    appRoot: appRoot,
+                    installRoot: installRoot,
+                    timeout: timeout
+                )
+                log.info("container-apiserver is already running", metadata: ["appRoot": "\(systemHealth.appRoot.path(percentEncoded: false))"])
+            } else {
+                log.info("Launching container-apiserver...")
+                try ServiceManager.register(plistPath: plistURL.path)
+            }
 
             // Now ping our friendly daemon. Fail if we don't get a response.
             do {
                 log.info("Testing access to container-apiserver...")
-                _ = try await ClientHealthCheck.ping(timeout: timeout)
+                _ = try await Self.checkedAPIServerHealth(
+                    appRoot: appRoot,
+                    installRoot: installRoot,
+                    timeout: timeout
+                )
             } catch {
                 throw ContainerizationError(
                     .internalError,
@@ -158,6 +174,40 @@ extension Application {
                 return
             }
             try await installDefaultKernel(kernelURL: containerSystemConfig.kernel.url, kernelBinaryPath: containerSystemConfig.kernel.binaryPath)
+        }
+
+        private static func checkedAPIServerHealth(
+            appRoot: FilePath,
+            installRoot: FilePath,
+            timeout: Duration
+        ) async throws -> SystemHealth {
+            let systemHealth = try await ClientHealthCheck.ping(timeout: timeout)
+            try assertMatchingRoot(
+                name: "app-root",
+                requested: appRoot,
+                actual: systemHealth.appRoot
+            )
+            try assertMatchingRoot(
+                name: "install-root",
+                requested: installRoot,
+                actual: systemHealth.installRoot
+            )
+            return systemHealth
+        }
+
+        private static func assertMatchingRoot(
+            name: String,
+            requested: FilePath,
+            actual: URL
+        ) throws {
+            let actualPath = actual.path(percentEncoded: false)
+            guard requested.string == actualPath else {
+                throw ContainerizationError(
+                    .invalidState,
+                    message:
+                        "container-apiserver is already running with \(name) '\(actualPath)', but start requested '\(requested.string)'. Run `container system stop` before starting with a different \(name)."
+                )
+            }
         }
 
         private func installInitialFilesystem(initImage: String) async throws {
