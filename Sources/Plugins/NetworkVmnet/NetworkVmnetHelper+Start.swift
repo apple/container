@@ -27,12 +27,8 @@ import ContainerizationExtras
 import Foundation
 import Logging
 
-enum Variant: String, ExpressibleByArgument {
-    case reserved
-    case allocationOnly
-}
-
 extension NetworkMode: ExpressibleByArgument {}
+extension NetworkVariant: ExpressibleByArgument {}
 
 extension NetworkVmnetHelper {
     struct Start: AsyncParsableCommand {
@@ -60,17 +56,26 @@ extension NetworkVmnetHelper {
         var ipv6Subnet: String?
 
         @Option(name: .long, help: "Variant of the network helper to use.")
-        var variant: Variant = {
+        var variant: NetworkVariant = {
             guard #available(macOS 26, *) else {
                 return .allocationOnly
             }
             return .reserved
         }()
 
+        @Option(name: .customLong("option-json"), help: "UTF8-encoded JSON string that contains the configuration options for this network")
+        var stringifiedOptions: String = "{}"
+
         var logRoot = LogRoot.path
 
         func run() async throws {
             let commandName = NetworkVmnetHelper._commandName
+            guard let encodedOptions = stringifiedOptions.data(using: .utf8),
+                let options = try? JSONSerialization.jsonObject(with: encodedOptions) as? [String: String]
+            else {
+                throw ContainerizationError(.invalidArgument, message: "failed to decode network configuration options from JSON string")
+            }
+
             let logPath = logRoot.map { $0.appending("\(commandName)-\(id).log") }
             let log = ServiceLogger.bootstrap(category: "NetworkVmnetHelper", metadata: ["id": "\(id)"], debug: debug, logPath: logPath)
             log.info("starting helper", metadata: ["name": "\(commandName)"])
@@ -89,7 +94,9 @@ extension NetworkVmnetHelper {
                     ipv4Subnet: ipv4Subnet,
                     ipv6Subnet: ipv6Subnet,
                     plugin: NetworkVmnetHelper._commandName,
-                    options: ["variant": self.variant.rawValue]
+                    options: options.merging(
+                        ["variant": self.variant.rawValue],
+                        uniquingKeysWith: { _, new in new })
                 )
                 let network = try Self.createNetwork(
                     configuration: configuration,
@@ -97,7 +104,7 @@ extension NetworkVmnetHelper {
                     log: log
                 )
                 try await network.start()
-                let service = try await DefaultNetworkService(network: network, log: log)
+                let service: NetworkService = try await Self.createNetworkService(network: network, variant: variant, log: log)
                 let harness = NetworkHarness(service: service)
                 let xpc = XPCServer(
                     identifier: serviceIdentifier,
@@ -122,7 +129,16 @@ extension NetworkVmnetHelper {
             }
         }
 
-        private static func createNetwork(configuration: NetworkConfiguration, variant: Variant, log: Logger) throws -> Network {
+        private static func createNetworkService(network: Network, variant: NetworkVariant, log: Logger) async throws -> NetworkService {
+            switch variant {
+            case .bridged, .bridgedViaHelper:
+                return try await BridgeNetworkService(network: network, variant: variant, log: log)
+            default:
+                return try await DefaultNetworkService(network: network, log: log)
+            }
+        }
+
+        private static func createNetwork(configuration: NetworkConfiguration, variant: NetworkVariant, log: Logger) throws -> Network {
             switch variant {
             case .allocationOnly:
                 return try AllocationOnlyVmnetNetwork(configuration: configuration, log: log)
@@ -134,6 +150,8 @@ extension NetworkVmnetHelper {
                     )
                 }
                 return try ReservedVmnetNetwork(configuration: configuration, log: log)
+            case .bridged, .bridgedViaHelper:
+                return try BridgedVmnetNetwork(configuration: configuration, log: log)
             }
         }
     }

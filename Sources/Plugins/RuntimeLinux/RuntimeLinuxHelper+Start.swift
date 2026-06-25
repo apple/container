@@ -68,6 +68,8 @@ extension RuntimeLinuxHelper {
                     NetworkInterfaceKey(plugin: "container-network-vmnet", variant: "allocationOnly"): IsolatedInterfaceStrategy()
                 ]
                 if #available(macOS 26, *) {
+                    interfaceStrategies[NetworkInterfaceKey(plugin: "container-network-vmnet", variant: "bridged")] = BridgedInterfaceStrategy(log: log)
+                    interfaceStrategies[NetworkInterfaceKey(plugin: "container-network-vmnet", variant: "bridgedViaHelper")] = BridgedInterfaceStrategy(log: log)
                     interfaceStrategies[NetworkInterfaceKey(plugin: "container-network-vmnet", variant: "reserved")] = NonisolatedInterfaceStrategy(log: log)
                 }
 
