@@ -31,7 +31,7 @@ struct HelpCommand: AsyncLoggableCommand {
 
     func run() async throws {
         if subcommandPath.isEmpty {
-            let pluginLoader = try? await Application.createPluginLoader()
+            let pluginLoader = await Application.pluginLoaderForHelp()
             await Application.printModifiedHelpText(pluginLoader: pluginLoader)
             return
         }

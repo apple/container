@@ -36,6 +36,8 @@ private nonisolated(unsafe) var bootstrapLogger = {
     return log
 }()
 
+typealias APIServerHealthCheck = @Sendable (Duration) async throws -> SystemHealth
+
 public struct Application: AsyncLoggableCommand {
     @OptionGroup
     public var logOptions: Flags.Logging
@@ -127,9 +129,8 @@ public struct Application: AsyncLoggableCommand {
         } catch {
             // --help/-h on the root command (e.g. `container --help`) is intercepted
             // by ArgumentParser and lands here.
-            let containsHelp = fullArgs.contains("-h") || fullArgs.contains("--help")
-            if fullArgs.count <= 2 && containsHelp {
-                let pluginLoader = try? await createPluginLoader()
+            if isRootHelpRequest(fullArgs) {
+                let pluginLoader = await pluginLoaderForHelp()
                 await Self.printModifiedHelpText(pluginLoader: pluginLoader)
                 return
             }
@@ -144,6 +145,18 @@ public struct Application: AsyncLoggableCommand {
     }
 
     public static func createPluginLoader() async throws -> PluginLoader {
+        try await createPluginLoader(healthTimeout: .seconds(10), wallTimeout: .seconds(10), healthCheck: defaultAPIServerHealthCheck(timeout:))
+    }
+
+    static func pluginLoaderForHelp(healthCheck: @escaping APIServerHealthCheck = defaultAPIServerHealthCheck(timeout:)) async -> PluginLoader? {
+        try? await createPluginLoader(healthTimeout: .seconds(1), wallTimeout: .seconds(1), healthCheck: healthCheck)
+    }
+
+    static func isRootHelpRequest(_ arguments: [String]) -> Bool {
+        arguments.count <= 2 && (arguments.contains("-h") || arguments.contains("--help"))
+    }
+
+    private static func createPluginLoader(healthTimeout: Duration, wallTimeout: Duration, healthCheck: @escaping APIServerHealthCheck) async throws -> PluginLoader {
         let installRootPath = CommandLine.executablePath
             .removingLastComponent()
             .removingLastComponent()
@@ -175,9 +188,7 @@ public struct Application: AsyncLoggableCommand {
             AppBundlePluginFactory(logger: bootstrapLogger),
         ]
 
-        guard let systemHealth = try? await ClientHealthCheck.ping(timeout: .seconds(10)) else {
-            throw ContainerizationError(.timeout, message: "unable to retrieve application data root from API server")
-        }
+        let systemHealth = try await apiServerHealth(healthTimeout: healthTimeout, wallTimeout: wallTimeout, healthCheck: healthCheck)
         return try PluginLoader(
             appRoot: systemHealth.appRoot,
             installRoot: systemHealth.installRoot,
@@ -186,6 +197,43 @@ public struct Application: AsyncLoggableCommand {
             pluginFactories: pluginFactories,
             log: bootstrapLogger
         )
+    }
+
+    private static func defaultAPIServerHealthCheck(timeout: Duration) async throws -> SystemHealth {
+        try await ClientHealthCheck.ping(timeout: timeout)
+    }
+
+    static func apiServerHealth(
+        healthTimeout: Duration,
+        wallTimeout: Duration,
+        healthCheck: @escaping APIServerHealthCheck = defaultAPIServerHealthCheck(timeout:)
+    ) async throws -> SystemHealth {
+        try await withCheckedThrowingContinuation { continuation in
+            let result = HealthCheckResult(continuation)
+
+            let healthTask = Task.detached {
+                do {
+                    let health = try await healthCheck(healthTimeout)
+                    await result.resume(.success(health))
+                } catch {
+                    await result.resume(.failure(error))
+                }
+            }
+
+            let timeoutTask = Task.detached {
+                try? await Task.sleep(for: wallTimeout)
+                await result.resume(
+                    .failure(
+                        ContainerizationError(
+                            .timeout,
+                            message: "unable to retrieve application data root from API server"
+                        )))
+            }
+
+            Task {
+                await result.setTasks(healthTask: healthTask, timeoutTask: timeoutTask)
+            }
+        }
     }
 
     /// Load the system configuration using `appRoot` / `installRoot` reported by the
@@ -251,6 +299,41 @@ public struct Application: AsyncLoggableCommand {
                 progressBar.resetCursor()
             }
         }
+    }
+}
+
+private actor HealthCheckResult {
+    private let continuation: CheckedContinuation<SystemHealth, any Error>
+    private var healthTask: Task<Void, Never>?
+    private var timeoutTask: Task<Void, Never>?
+    private var resumed = false
+
+    init(_ continuation: CheckedContinuation<SystemHealth, any Error>) {
+        self.continuation = continuation
+    }
+
+    func setTasks(healthTask: Task<Void, Never>, timeoutTask: Task<Void, Never>) {
+        if resumed {
+            healthTask.cancel()
+            timeoutTask.cancel()
+            return
+        }
+        self.healthTask = healthTask
+        self.timeoutTask = timeoutTask
+    }
+
+    func resume(_ result: Result<SystemHealth, any Error>) {
+        guard !resumed else {
+            return
+        }
+        resumed = true
+        let healthTask = healthTask
+        let timeoutTask = timeoutTask
+        self.healthTask = nil
+        self.timeoutTask = nil
+        healthTask?.cancel()
+        timeoutTask?.cancel()
+        continuation.resume(with: result)
     }
 }
 

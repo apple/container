@@ -34,9 +34,8 @@ struct DefaultCommand: AsyncLoggableCommand {
     var remaining: [String] = []
 
     func run() async throws {
-        // See if we have a possible plugin command.
-        let pluginLoader = try? await Application.createPluginLoader()
         guard let command = remaining.first else {
+            let pluginLoader = await Application.pluginLoaderForHelp()
             await Application.printModifiedHelpText(pluginLoader: pluginLoader)
             return
         }
@@ -65,6 +64,9 @@ struct DefaultCommand: AsyncLoggableCommand {
         let hintPaths = [userPluginsURL, installRootPluginsURL]
             .map { $0.appendingPathComponent(command).path(percentEncoded: false) }
             .joined(separator: "\n  - ")
+
+        // See if we have a possible plugin command.
+        let pluginLoader = try? await Application.createPluginLoader()
 
         // If plugin loader couldn't be created, the system/APIServer likely isn't running.
         if pluginLoader == nil {
