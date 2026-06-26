@@ -203,9 +203,12 @@ WARMUP_FILTER = ImageWarmup
 
 CONCURRENT_TEST_SUITES ?= \
 	TestCLIExportCommand/ \
+	TestCLIHelp \
 	TestCLIMachineCommand/ \
 	TestCLIRmRaceCondition/ \
-	TestCLIStop/
+	TestCLIStatus \
+	TestCLIStop/ \
+	TestCLIVersion/
 CONCURRENT_FILTER = $(subst $(space),|,$(strip $(CONCURRENT_TEST_SUITES)))
 
 GLOBAL_TEST_SUITES ?= \
@@ -271,9 +274,6 @@ coverage-integration-new: all
 	$(RUN_INTEGRATION)
 
 INTEGRATION_TEST_SUITES ?= \
-	TestCLIHelp \
-	TestCLIStatus \
-	TestCLIVersion \
 	TestCLINetwork \
 	TestCLIRunLifecycle \
 	TestCLIRunCapabilities \
