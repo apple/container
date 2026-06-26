@@ -86,6 +86,7 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "SystemPackage", package: "swift-system"),
                 "ContainerLog",
+                "Yams",
             ],
             path: "Tests/IntegrationTests"
         ),
