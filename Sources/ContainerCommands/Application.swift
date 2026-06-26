@@ -224,7 +224,6 @@ public struct Application: AsyncLoggableCommand {
         guard #available(macOS 26, *) else {
             return [
                 BuilderCommand.self,
-                SystemInfo.self,
                 SystemCommand.self,
             ]
         }
@@ -232,7 +231,6 @@ public struct Application: AsyncLoggableCommand {
         return [
             BuilderCommand.self,
             NetworkCommand.self,
-            SystemInfo.self,
             SystemCommand.self,
         ]
     }

@@ -19,16 +19,16 @@ import Testing
 
 @testable import ContainerCommands
 
-struct SystemInfoTests {
-    private func makePayload(
-        server: Application.ServerInfo? = nil,
+struct SystemStatusTests {
+    private func makeRunningPayload(
         paths: Application.PathInfo? = nil,
         resources: Application.ResourceCounts? = nil,
         defaults: Application.DefaultsInfo? = nil
-    ) -> Application.InfoPayload {
-        Application.InfoPayload(
+    ) -> Application.StatusPayload {
+        Application.StatusPayload(
+            status: "running",
             client: Application.ClientInfo(version: "1.2.3", build: "release", commit: "abcdef", appName: "container"),
-            server: server,
+            server: Application.ServerInfo(version: "9.9.9", build: "release", commit: "deadbeef", appName: "container-apiserver"),
             host: Application.HostInfo(architecture: "arm64", operatingSystem: "macOS 26.0", cpus: 8),
             paths: paths,
             resources: resources,
@@ -37,9 +37,11 @@ struct SystemInfoTests {
     }
 
     @Test
-    func tableAlwaysIncludesClientAndHost() {
-        let table = Application.SystemInfo.infoTable(makePayload())
+    func tableIncludesStatusClientAndHostWhenRunning() {
+        let table = Application.SystemStatus.statusTable(makeRunningPayload())
         #expect(table.contains("FIELD"))
+        #expect(table.contains("status"))
+        #expect(table.contains("running"))
         #expect(table.contains("client.version"))
         #expect(table.contains("1.2.3"))
         #expect(table.contains("host.architecture"))
@@ -48,17 +50,17 @@ struct SystemInfoTests {
     }
 
     @Test
-    func tableShowsServerNotRunningWhenAbsent() {
-        let table = Application.SystemInfo.infoTable(makePayload())
-        #expect(table.contains("server.status"))
+    func tableShowsOnlyStatusWhenNotRunning() {
+        let table = Application.SystemStatus.statusTable(Application.StatusPayload(status: "not running"))
+        #expect(table.contains("status"))
         #expect(table.contains("not running"))
+        #expect(!table.contains("client.version"))
         #expect(!table.contains("server.version"))
     }
 
     @Test
     func tableShowsServerAndDaemonFieldsWhenRunning() {
-        let payload = makePayload(
-            server: Application.ServerInfo(version: "9.9.9", build: "release", commit: "deadbeef", appName: "container-apiserver"),
+        let payload = makeRunningPayload(
             paths: Application.PathInfo(appRoot: "/app/root", installRoot: "/install/root", logRoot: "/log/root"),
             resources: {
                 var r = Application.ResourceCounts(containersTotal: 5, containersRunning: 2)
@@ -75,8 +77,7 @@ struct SystemInfoTests {
                 dnsDomain: "test.local"
             )
         )
-        let table = Application.SystemInfo.infoTable(payload)
-        #expect(table.contains("running"))
+        let table = Application.SystemStatus.statusTable(payload)
         #expect(table.contains("server.version"))
         #expect(table.contains("9.9.9"))
         #expect(table.contains("paths.appRoot"))
@@ -92,20 +93,19 @@ struct SystemInfoTests {
 
     @Test
     func payloadRoundTripsThroughJSON() throws {
-        let payload = makePayload(
-            server: Application.ServerInfo(version: "9.9.9", build: "release", commit: "deadbeef", appName: "container-apiserver")
-        )
+        let payload = makeRunningPayload()
         let json = try Output.renderJSON(payload)
-        let decoded = try JSONDecoder().decode(Application.InfoPayload.self, from: Data(json.utf8))
-        #expect(decoded.client.version == "1.2.3")
+        let decoded = try JSONDecoder().decode(Application.StatusPayload.self, from: Data(json.utf8))
+        #expect(decoded.status == "running")
+        #expect(decoded.client?.version == "1.2.3")
         #expect(decoded.server?.commit == "deadbeef")
-        #expect(decoded.host.cpus == 8)
+        #expect(decoded.host?.cpus == 8)
         #expect(decoded.paths == nil)
     }
 
     @Test
     func optionalDNSDomainOmittedWhenNil() {
-        let payload = makePayload(
+        let payload = makeRunningPayload(
             defaults: Application.DefaultsInfo(
                 registryDomain: "docker.io",
                 kernelBinaryPath: "opt/kata/vmlinux",
@@ -116,7 +116,7 @@ struct SystemInfoTests {
                 dnsDomain: nil
             )
         )
-        let table = Application.SystemInfo.infoTable(payload)
+        let table = Application.SystemStatus.statusTable(payload)
         #expect(table.contains("defaults.registryDomain"))
         #expect(!table.contains("defaults.dnsDomain"))
     }
@@ -124,23 +124,23 @@ struct SystemInfoTests {
     @Test
     func imageCountIsRecordedOnResourceCounts() {
         let resources = Application.ResourceCounts(containersTotal: 3, containersRunning: 1)
-        let updated = Application.SystemInfo.withImageCount(resources, imageCount: 7)
+        let updated = Application.SystemStatus.withImageCount(resources, imageCount: 7)
         #expect(updated?.images == 7)
         // And it surfaces in the rendered table.
-        let table = Application.SystemInfo.infoTable(makePayload(resources: updated))
+        let table = Application.SystemStatus.statusTable(makeRunningPayload(resources: updated))
         #expect(table.contains("images.total"))
         #expect(table.contains("7"))
     }
 
     @Test
     func imageCountWithoutResourceCountsStaysNil() {
-        #expect(Application.SystemInfo.withImageCount(nil, imageCount: 7) == nil)
+        #expect(Application.SystemStatus.withImageCount(nil, imageCount: 7) == nil)
     }
 
     @Test
     func imageCountOmittedWhenUnavailable() {
         let resources = Application.ResourceCounts(containersTotal: 2, containersRunning: 0)
-        let updated = Application.SystemInfo.withImageCount(resources, imageCount: nil)
+        let updated = Application.SystemStatus.withImageCount(resources, imageCount: nil)
         #expect(updated?.images == nil)
     }
 }
