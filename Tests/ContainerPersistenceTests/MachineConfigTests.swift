@@ -96,11 +96,11 @@ struct MachineConfigTests {
     // MARK: - Mounts
 
     /// Creates a temporary directory and removes it once `body` completes.
-    private func withTemporaryDirectory<T>(_ body: (String) throws -> T) throws -> T {
+    private func withTemporaryDirectory(_ body: (String) throws -> Void) throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: url) }
-        return try body(url.path)
+        try body(url.path)
     }
 
     @Test func mountsDefaultToEmpty() {
