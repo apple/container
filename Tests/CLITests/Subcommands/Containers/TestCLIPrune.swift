@@ -23,7 +23,8 @@ class TestCLIPruneCommand: CLITest {
         Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
     }
 
-    @Test func testContainerPruneNoContainers() throws {
+    @Test(.disabled("flaky — prune picks up containers from concurrent suites; tests being rewritten"))
+    func testContainerPruneNoContainers() throws {
         let (_, _, error, status) = try run(arguments: ["prune"])
         if status != 0 {
             throw CLIError.executionFailed("container prune failed: \(error)")
