@@ -27,7 +27,9 @@ extension TestCLIBuildBase {
             try? builderDelete(force: true)
         }
 
-        @Test func testBuildLocalOutputHappyPath() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildLocalOutputHappyPath(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
 
             // Test comprehensive multi-stage build with context and build arguments
@@ -115,7 +117,9 @@ extension TestCLIBuildBase {
             #expect(FileManager.default.fileExists(atPath: contextOutputDir.path), "Expected context local output directory to exist")
         }
 
-        @Test func testBuildLocalOutputEdgeCases() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildLocalOutputEdgeCases(transferMode: String) throws {
+
+            self.transferMode = transferMode
             // Test building with different context paths
             let dockerfileCtxDir: URL = try createTempDir()
             let dockerfile: String =
@@ -189,7 +193,9 @@ extension TestCLIBuildBase {
             // This test verifies that the operation completes successfully with an existing directory
         }
 
-        @Test func testBuildLocalOutputFailure() throws {
+        @Test(arguments: ["tar", "json"]) func testBuildLocalOutputFailure(transferMode: String) throws {
+
+            self.transferMode = transferMode
             let tempDir: URL = try createTempDir()
             let dockerfile: String =
                 """
@@ -238,6 +244,7 @@ extension TestCLIBuildBase {
                 "build",
                 "-f",
                 tempDockerfileContext.appendingPathComponent("Dockerfile").path,
+                "--transfer-mode", transferMode,
                 "-t",
                 tag,
                 "--output",
