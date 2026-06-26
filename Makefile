@@ -200,7 +200,13 @@ endef
 # the three phases. Expand the filter lists as suites are migrated from CLITests.
 PARALLEL_WIDTH ?= 2
 WARMUP_FILTER = ImageWarmup
-CONCURRENT_FILTER = DemoConcurrentTests
+
+CONCURRENT_TEST_SUITES ?= \
+	TestCLIStop \
+	TestCLIRmRaceCondition \
+	TestCLIExportCommand
+CONCURRENT_FILTER = $(subst $(space),|,$(strip $(CONCURRENT_TEST_SUITES)))
+
 GLOBAL_FILTER = DemoGlobalTests
 
 INTEGRATION_SWIFT_EXTRA ?=
@@ -263,7 +269,6 @@ INTEGRATION_TEST_SUITES ?= \
 	TestCLIRunBase \
 	TestCLIRunInitImage \
 	TestCLIBuildBase \
-	TestCLIExportCommand \
 	TestCLIVolumes \
 	TestCLIKernelSet \
 	TestCLIAnonymousVolumes \

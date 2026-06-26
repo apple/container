@@ -261,18 +261,27 @@ final class ContainerFixture: Sendable {
     ///
     /// The container name is `{testID}-{tag}`. Supply a `tag` when a test
     /// needs more than one container to avoid name collisions.
+    ///
+    /// When `autoRemove` is `true` (default), `--rm` is passed so the runtime
+    /// removes the container on exit and only a stop is needed on cleanup.
+    /// Set `autoRemove: false` when the test needs to inspect the stopped
+    /// container — the cleanup will then stop *and* delete it.
     func withContainer(
         image: String,
         tag: String = "c",
         runArgs: [String] = [],
         containerArgs: [String] = ["sleep", "infinity"],
+        autoRemove: Bool = true,
         _ body: (String) async throws -> Void
     ) async throws {
         let name = "\(testID)-\(tag)"
-        let args = ["run", "--rm", "--name", name, "-d"] + runArgs + [image] + containerArgs
+        var args = ["run", "--name", name, "-d"]
+        if autoRemove { args.append("--rm") }
+        args += runArgs + [image] + containerArgs
         try run(args).check()
         defer {
             _ = try? run(["stop", "-s", "SIGKILL", name])
+            if !autoRemove { _ = try? run(["delete", name]) }
         }
         try await body(name)
     }
