@@ -84,7 +84,7 @@ url = "https://github.com/kata-containers/kata-containers/releases/download/3.28
 domain = "docker.io"
 
 [vminit]
-image = "ghcr.io/apple/containerization/vminit:0.32.2"
+image = "ghcr.io/apple/containerization/vminit:0.34.0"
 ```
 
 For machine-readable output, pass `--format json`:

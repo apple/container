@@ -300,13 +300,16 @@ class CLITest {
         }
     }
 
-    func doExec(name: String, cmd: [String], detach: Bool = false) throws -> String {
+    func doExec(name: String, cmd: [String], detach: Bool = false, user: String? = nil) throws -> String {
         var execArgs = [
             "exec"
         ]
         execArgs.append(contentsOf: getProxyEnvironment())
         if detach {
             execArgs.append("-d")
+        }
+        if let user {
+            execArgs.append(contentsOf: ["-u", user])
         }
         execArgs.append(name)
         execArgs.append(contentsOf: cmd)

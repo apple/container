@@ -86,7 +86,8 @@ public actor DefaultNetworkService: NetworkService {
             ipv4Address: try CIDRv4(ip, prefix: status.ipv4Subnet.prefix),
             ipv4Gateway: status.ipv4Gateway,
             ipv6Address: ipv6Address,
-            macAddress: macAddress
+            macAddress: macAddress,
+            variant: network.variant
         )
         log.info(
             "allocated attachment",
@@ -104,13 +105,13 @@ public actor DefaultNetworkService: NetworkService {
         }
         macAddresses[index] = macAddress
 
-        if allocationsBySession[session] == nil {
-            allocationsBySession[session] = []
+        let isNewSession = allocationsBySession[session] == nil
+        allocationsBySession[session, default: []].append((hostname: hostname, index: index))
+        if isNewSession {
             await session.onDisconnect { [weak self] in
                 await self?.releaseSession(session)
             }
         }
-        allocationsBySession[session]!.append((hostname: hostname, index: index))
 
         return (attachment: attachment, additionalData: additionalData)
     }
@@ -155,7 +156,8 @@ public actor DefaultNetworkService: NetworkService {
             ipv4Address: ipv4Address,
             ipv4Gateway: status.ipv4Gateway,
             ipv6Address: ipv6Address,
-            macAddress: macAddress
+            macAddress: macAddress,
+            variant: network.variant
         )
         log.debug(
             "lookup attachment",

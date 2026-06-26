@@ -14,15 +14,19 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerResource
+import ContainerizationError
+import Virtualization
 
-/// Plugin info passed from the API server in the sandbox bootstrap message so the
-/// runtime can connect to the correct network helper.
-public struct NetworkBootstrapInfo: Codable, Sendable {
-    /// The network plugin name identifying which network helper to contact.
-    public let plugin: String
-
-    public init(plugin: String) {
-        self.plugin = plugin
+/// Pre-flight checks for container machine settings that depend on host capabilities.
+enum MachineCapabilities {
+    /// Throws when the host can't run a VM with `isNestedVirtualizationEnabled = true`.
+    /// Apple Silicon M3+ with macOS 15+ is required.
+    static func requireNestedVirtualizationSupported() throws {
+        guard VZGenericPlatformConfiguration.isNestedVirtualizationSupported else {
+            throw ContainerizationError(
+                .unsupported,
+                message: "nested virtualization is not supported on this host (requires Apple Silicon M3+ and macOS 15+)"
+            )
+        }
     }
 }

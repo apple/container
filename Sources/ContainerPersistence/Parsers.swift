@@ -14,15 +14,19 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerResource
+import Foundation
 
-/// Plugin info passed from the API server in the sandbox bootstrap message so the
-/// runtime can connect to the correct network helper.
-public struct NetworkBootstrapInfo: Codable, Sendable {
-    /// The network plugin name identifying which network helper to contact.
-    public let plugin: String
-
-    public init(plugin: String) {
-        self.plugin = plugin
+/// Generic value parsers shared across the project. Lives in `ContainerPersistence`
+/// so both higher-level CLI parsers and the persistence layer can reuse the same
+/// canonical implementations.
+public enum Parsers {
+    /// Parse a boolean string accepting "true"/"t"/"false"/"f" (case-insensitive).
+    /// Returns nil if the input matches none.
+    public static func parseBool(string: String) -> Bool? {
+        switch string.lowercased() {
+        case "true", "t": return true
+        case "false", "f": return false
+        default: return nil
+        }
     }
 }
