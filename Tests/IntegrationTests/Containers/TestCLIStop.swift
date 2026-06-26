@@ -22,7 +22,6 @@ struct TestCLIStop {
         try await ContainerFixture.with { f in
             let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
             try await f.withContainer(image: image, autoRemove: false) { name in
-                try f.waitForContainerRunning(name)
                 try f.doStop(name, signal: "SIGTERM")
                 #expect(try f.getContainerStatus(name) == "stopped")
             }
@@ -33,7 +32,6 @@ struct TestCLIStop {
         try await ContainerFixture.with { f in
             let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
             try await f.withContainer(image: image, autoRemove: false) { name in
-                try f.waitForContainerRunning(name)
                 try f.doStop(name, signal: nil)
                 #expect(try f.getContainerStatus(name) == "stopped")
             }
@@ -44,7 +42,6 @@ struct TestCLIStop {
         try await ContainerFixture.with { f in
             let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
             try await f.withContainer(image: image, autoRemove: false) { name in
-                try f.waitForContainerRunning(name)
                 let inspect = try f.inspectContainer(name)
                 // Alpine doesn't set a STOPSIGNAL, so this should be nil.
                 #expect(inspect.configuration.stopSignal == nil)
@@ -56,7 +53,6 @@ struct TestCLIStop {
         try await ContainerFixture.with { f in
             let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
             try await f.withContainer(image: image, autoRemove: false) { name in
-                try f.waitForContainerRunning(name)
                 try f.doStop(name, signal: "SIGKILL")
                 #expect(try f.getContainerStatus(name) == "stopped")
                 // Stopping an already-stopped container should not fail.

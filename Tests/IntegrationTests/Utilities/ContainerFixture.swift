@@ -21,23 +21,46 @@ import Synchronization
 import SystemPackage
 import Testing
 
-/// Per-test fixture providing CLI execution, resource lifecycle, and cleanup.
+/// Per-test fixture for CLI integration tests.
 ///
-/// Each test gets an isolated instance via ``ContainerFixture/with(_:)``. All
-/// resources (containers, networks, volumes, images, scratch files) created
-/// through the fixture are tracked and torn down automatically when the scope
-/// exits — whether the test passes, fails, or throws.
+/// Open a fixture scope with ``ContainerFixture/with(_:)``. Every resource
+/// created during the scope is tracked and torn down on exit — whether the
+/// test passes, fails, or throws.
 ///
-/// Tier 1 — unstructured: call ``addCleanup(_:)`` to register any async
-/// closure. Closures run LIFO on scope exit.
+/// ## Unstructured API (Tier 1)
 ///
-/// Tier 2 — structured: helpers like ``withContainer(image:tag:runArgs:containerArgs:_:)``
-/// register cleanup on your behalf and express resource lifetime as a scope.
+/// Primitives that execute commands or register cleanup without enforcing
+/// a scope boundary. The caller owns the resource lifetime.
+///
+/// - ``run(_:stdin:currentDirectory:env:)`` runs the CLI and returns a
+///   ``CommandResult``; call ``CommandResult/check(_:)`` to assert success.
+/// - ``addCleanup(_:)`` registers an async closure that runs LIFO on scope exit.
+/// - ``copyWarmupImage(_:)`` tags a pre-warmed image to a test-local name and
+///   auto-registers its removal.
+/// - ``waitForContainerRunning(_:attempts:)`` polls until a container is
+///   `running`; required when using lower-level create/start helpers directly.
+///
+/// ## Structured API (Tier 2)
+///
+/// Scoped helpers that manage resource lifetime via a closure boundary.
+/// Resources are torn down when the closure exits regardless of whether it
+/// throws.
+///
+/// - ``withContainer(image:tag:runArgs:containerArgs:autoRemove:_:)`` starts a
+///   detached container, waits for `running`, calls the body, then stops (and
+///   optionally deletes) it on exit.
+///
+/// ## Choosing a tier
+///
+/// Prefer Tier 2 for common patterns — it eliminates cleanup boilerplate and
+/// prevents leaks. Drop to Tier 1 when a test exercises a specific
+/// create/start/stop sequence, needs low-level control, or uses a resource
+/// pattern the structured helpers don't cover.
 final class ContainerFixture: Sendable {
 
-    // MARK: - Well-known images
+    // MARK: - Configuration
 
-    /// Images preloaded by the ImageWarmup suite before concurrent tests run.
+    /// Images preloaded by the ``ImageWarmup`` suite before concurrent tests run.
     /// Add new commonly-used images here; the warmup pass pulls them in parallel.
     static let warmupImages: [String] = [
         "ghcr.io/linuxcontainers/alpine:3.20",
@@ -45,27 +68,17 @@ final class ContainerFixture: Sendable {
         "ghcr.io/containerd/busybox:1.36",
     ]
 
-    // MARK: - Per-instance state
+    // MARK: - State
 
     /// Short random identifier prefixed to every resource this test creates.
     let testID: String
 
     /// Scratch directory for build inputs, test data, and command output.
-    /// Created at fixture init; removed on cleanup unless ``CLITEST_PRESERVE_SCRATCH``
+    /// Created at fixture init; removed on cleanup unless `CLITEST_PRESERVE_SCRATCH`
     /// is set in the environment.
     let testDir: FilePath
 
-    private let log: Logger
-    private let cleanupTasks: Mutex<[@Sendable () async throws -> Void]> = .init([])
-    private static let commandSeq: Mutex<Int> = .init(0)
-
-    // MARK: - Lifecycle
-
-    private init(testID: String, testDir: FilePath, log: Logger) {
-        self.testID = testID
-        self.testDir = testDir
-        self.log = log
-    }
+    // MARK: - Unstructured API
 
     /// Runs `body` with a fresh fixture, then tears down all registered resources.
     ///
@@ -124,36 +137,6 @@ final class ContainerFixture: Sendable {
     /// Closures execute in LIFO order.
     func addCleanup(_ task: @escaping @Sendable () async throws -> Void) {
         cleanupTasks.withLock { $0.append(task) }
-    }
-
-    private func runCleanup() async {
-        let tasks = cleanupTasks.withLock { tasks -> [@Sendable () async throws -> Void] in
-            let reversed = Array(tasks.reversed())
-            tasks.removeAll()
-            return reversed
-        }
-        for task in tasks {
-            try? await task()
-        }
-    }
-
-    // MARK: - CLI execution
-
-    private var executableURL: URL {
-        get throws {
-            let path: FilePath
-            if let env = ProcessInfo.processInfo.environment["CONTAINER_CLI_PATH"] {
-                path = FilePath(env)
-            } else {
-                let candidate = FilePath(FileManager.default.currentDirectoryPath)
-                    .appending("bin").appending("container")
-                guard FileManager.default.fileExists(atPath: candidate.string) else {
-                    throw CommandError.binaryNotFound
-                }
-                path = candidate
-            }
-            return URL(filePath: path.string)
-        }
     }
 
     /// Runs the container CLI with the given arguments and returns the result.
@@ -223,18 +206,13 @@ final class ContainerFixture: Sendable {
 
         log.info(
             "command end",
-            metadata: [
-                "seq": "\(seq)",
-                "status": "\(process.terminationStatus)",
-            ])
+            metadata: ["seq": "\(seq)", "status": "\(process.terminationStatus)"])
 
         return CommandResult(
             outputData: outputData,
             errorData: errorData,
             status: process.terminationStatus)
     }
-
-    // MARK: - Image helpers
 
     /// Tags a warmup image to a test-local reference and registers its removal.
     ///
@@ -255,17 +233,36 @@ final class ContainerFixture: Sendable {
         return localRef
     }
 
-    // MARK: - Container helpers
-
-    /// Runs a container, calls `body`, then stops and removes the container.
+    /// Polls until the named container reaches the `running` state.
     ///
-    /// The container name is `{testID}-{tag}`. Supply a `tag` when a test
-    /// needs more than one container to avoid name collisions.
+    /// Call this directly only when using ``doCreate(_:image:args:volumes:networks:ports:)``
+    /// and ``doStart(_:)`` — ``withContainer(image:tag:runArgs:containerArgs:autoRemove:_:)``
+    /// waits automatically.
+    func waitForContainerRunning(_ name: String, attempts: Int = 30) throws {
+        for _ in 0..<attempts {
+            if let result = try? run(["inspect", name]),
+                result.status == 0,
+                result.output.contains("\"running\"")
+            {
+                return
+            }
+            sleep(1)
+        }
+        throw CommandError.executionFailed("container '\(name)' did not reach running state")
+    }
+
+    // MARK: - Structured API
+
+    /// Starts a detached container, waits for `running`, calls `body`, then
+    /// stops and removes the container.
+    ///
+    /// The container name is `{testID}-{tag}`. Supply a distinct `tag` when a
+    /// test needs more than one container simultaneously.
     ///
     /// When `autoRemove` is `true` (default), `--rm` is passed so the runtime
-    /// removes the container on exit and only a stop is needed on cleanup.
-    /// Set `autoRemove: false` when the test needs to inspect the stopped
-    /// container — the cleanup will then stop *and* delete it.
+    /// removes the container on stop. Set `autoRemove: false` when the test
+    /// needs to inspect the container's stopped state — cleanup will then stop
+    /// *and* delete it.
     func withContainer(
         image: String,
         tag: String = "c",
@@ -283,20 +280,47 @@ final class ContainerFixture: Sendable {
             _ = try? run(["stop", "-s", "SIGKILL", name])
             if !autoRemove { _ = try? run(["delete", name]) }
         }
+        try waitForContainerRunning(name)
         try await body(name)
     }
 
-    /// Polls until the named container reaches the `running` state.
-    func waitForContainerRunning(_ name: String, attempts: Int = 30) throws {
-        for _ in 0..<attempts {
-            if let result = try? run(["inspect", name]),
-                result.status == 0,
-                result.output.contains("\"running\"")
-            {
-                return
-            }
-            sleep(1)
+    // MARK: - Private
+
+    private let log: Logger
+    private let cleanupTasks: Mutex<[@Sendable () async throws -> Void]> = .init([])
+    private static let commandSeq: Mutex<Int> = .init(0)
+
+    private init(testID: String, testDir: FilePath, log: Logger) {
+        self.testID = testID
+        self.testDir = testDir
+        self.log = log
+    }
+
+    private func runCleanup() async {
+        let tasks = cleanupTasks.withLock { tasks -> [@Sendable () async throws -> Void] in
+            let reversed = Array(tasks.reversed())
+            tasks.removeAll()
+            return reversed
         }
-        throw CommandError.executionFailed("container '\(name)' did not reach running state")
+        for task in tasks {
+            try? await task()
+        }
+    }
+
+    private var executableURL: URL {
+        get throws {
+            let path: FilePath
+            if let env = ProcessInfo.processInfo.environment["CONTAINER_CLI_PATH"] {
+                path = FilePath(env)
+            } else {
+                let candidate = FilePath(FileManager.default.currentDirectoryPath)
+                    .appending("bin").appending("container")
+                guard FileManager.default.fileExists(atPath: candidate.string) else {
+                    throw CommandError.binaryNotFound
+                }
+                path = candidate
+            }
+            return URL(filePath: path.string)
+        }
     }
 }

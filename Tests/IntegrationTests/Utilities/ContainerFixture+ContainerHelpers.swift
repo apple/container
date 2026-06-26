@@ -107,9 +107,18 @@ extension ContainerFixture {
         try run(args).check()
     }
 
-    /// Deletes a container, silencing errors if it does not exist.
-    func doRemoveIfExists(_ name: String, force: Bool = false) {
-        _ = try? doRemove(name, force: force)
+    /// Deletes a container.
+    ///
+    /// When `ignoreFailure` is `false` (default) any error is rethrown — use
+    /// this when the container is expected to exist and removal must succeed.
+    /// Set `ignoreFailure: true` in cleanup contexts where best-effort removal
+    /// is acceptable (e.g. the container may have already been removed).
+    func doRemoveIfExists(_ name: String, force: Bool = false, ignoreFailure: Bool = false) throws {
+        do {
+            try doRemove(name, force: force)
+        } catch {
+            if !ignoreFailure { throw error }
+        }
     }
 
     /// Runs a command inside a container, returns stdout. Throws on non-zero exit.

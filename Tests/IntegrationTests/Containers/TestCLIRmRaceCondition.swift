@@ -21,7 +21,7 @@ struct TestCLIRmRaceCondition {
     @Test func testStopRmRace() async throws {
         try await ContainerFixture.with { f in
             let name = "\(f.testID)-c"
-            f.addCleanup { f.doRemoveIfExists(name, force: true) }
+            f.addCleanup { try f.doRemoveIfExists(name, force: true, ignoreFailure: true) }
 
             try f.doCreate(name: name)
             try f.doStart(name)
