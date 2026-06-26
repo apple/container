@@ -14,21 +14,34 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerizationExtras
+//
+//  HelperMacrosMacros.swift
+//  container
+//
+//  Created by Morris Richman on 10/3/25.
+//
 
-/// Protocol for IP address types that can be used in DNS records.
-public protocol IPAddressProtocol: Sendable, Hashable {
-    static var size: Int { get }
-    static var recordType: ResourceRecordType { get }
-    var bytes: [UInt8] { get }
+import SwiftCompilerPlugin
+import SwiftDiagnostics
+import SwiftSyntaxMacros
+
+@main
+struct HelperMacrosMacros: CompilerPlugin {
+    let providingMacros: [Macro.Type] = [
+        OptionGroupPassthrough.self
+    ]
 }
 
-extension IPv4Address: IPAddressProtocol {
-    public static let size = 4
-    public static let recordType: ResourceRecordType = .host
+extension String: @retroactive Error {
 }
 
-extension IPv6Address: IPAddressProtocol {
-    public static let size = 16
-    public static let recordType: ResourceRecordType = .host6
+enum MacroExpansionError: Error {
+    case unsupportedDeclaration
+
+    var localizedDescription: String {
+        switch self {
+        case .unsupportedDeclaration:
+            return "Unsupported declaration for macro expansion."
+        }
+    }
 }

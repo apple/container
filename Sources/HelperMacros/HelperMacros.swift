@@ -14,21 +14,15 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerizationExtras
+//
+//  HelperMacros.swift
+//  container
+//
+//  Created by Morris Richman on 10/3/25.
+//
 
-/// Protocol for IP address types that can be used in DNS records.
-public protocol IPAddressProtocol: Sendable, Hashable {
-    static var size: Int { get }
-    static var recordType: ResourceRecordType { get }
-    var bytes: [UInt8] { get }
-}
+import Foundation
 
-extension IPv4Address: IPAddressProtocol {
-    public static let size = 4
-    public static let recordType: ResourceRecordType = .host
-}
-
-extension IPv6Address: IPAddressProtocol {
-    public static let size = 16
-    public static let recordType: ResourceRecordType = .host6
-}
+/// Creates a function in OptionGroups called `passThroughCommands` to return an array of strings to be appended and passed down for Plugin support.
+@attached(member, names: named(passThroughCommands))
+public macro OptionGroupPassthrough() = #externalMacro(module: "HelperMacrosMacros", type: "OptionGroupPassthrough")
