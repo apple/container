@@ -81,6 +81,15 @@ let package = Package(
             path: "Sources/CLI"
         ),
         .testTarget(
+            name: "IntegrationTests",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                "ContainerLog",
+            ],
+            path: "Tests/IntegrationTests"
+        ),
+        .testTarget(
             name: "CLITests",
             dependencies: [
                 .product(name: "AsyncHTTPClient", package: "async-http-client"),
