@@ -317,12 +317,22 @@ public struct Utility {
                 guard item.offset == 0 else {
                     return AttachmentConfiguration(
                         network: item.element.name,
-                        options: AttachmentOptions(hostname: containerId, macAddress: macAddress, mtu: mtu)
+                        options: AttachmentOptions(
+                            hostname: containerId,
+                            aliases: item.element.aliases,
+                            macAddress: macAddress,
+                            mtu: mtu
+                        )
                     )
                 }
                 return AttachmentConfiguration(
                     network: item.element.name,
-                    options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: macAddress, mtu: mtu)
+                    options: AttachmentOptions(
+                        hostname: fqdn ?? containerId,
+                        aliases: item.element.aliases,
+                        macAddress: macAddress,
+                        mtu: mtu
+                    )
                 )
             }
         }

@@ -16,6 +16,7 @@
 
 import ContainerizationError
 import ContainerizationExtras
+import Foundation
 import Testing
 
 @testable import ContainerResource
@@ -82,4 +83,42 @@ struct NetworkConfigurationTest {
         }
     }
 
+}
+
+struct AttachmentTest {
+    @Test func roundTripsAliases() throws {
+        let attachment = try makeAttachment(aliases: ["db", "database"])
+        let data = try JSONEncoder().encode(attachment)
+        let obj = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        #expect(obj["aliases"] as? [String] == ["db", "database"])
+
+        let decoded = try JSONDecoder().decode(ContainerResource.Attachment.self, from: data)
+        #expect(decoded.aliases == ["db", "database"])
+    }
+
+    @Test func decodesMissingAliasesAsEmpty() throws {
+        let attachment = try makeAttachment(aliases: ["db"])
+        let data = try JSONEncoder().encode(attachment)
+        var obj = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        obj.removeValue(forKey: "aliases")
+
+        let legacyData = try JSONSerialization.data(withJSONObject: obj)
+        let decoded = try JSONDecoder().decode(ContainerResource.Attachment.self, from: legacyData)
+
+        #expect(decoded.aliases.isEmpty)
+    }
+
+    private func makeAttachment(aliases: [String]) throws -> ContainerResource.Attachment {
+        ContainerResource.Attachment(
+            network: "default",
+            hostname: "web.test.",
+            aliases: aliases,
+            ipv4Address: try CIDRv4("192.0.2.2/24"),
+            ipv4Gateway: try IPv4Address("192.0.2.1"),
+            ipv6Address: nil,
+            macAddress: nil,
+            mtu: 1500
+        )
+    }
 }
