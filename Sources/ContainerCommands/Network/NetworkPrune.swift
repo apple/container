@@ -29,7 +29,15 @@ extension Application.NetworkCommand {
         @OptionGroup
         public var logOptions: Flags.Logging
 
+        @Flag(name: .shortAndLong, help: "Accepted for Docker compatibility; has no effect.")
+        var force: Bool = false
+
         public func run() async throws {
+            if force {
+                let warning = "Warning: '-f' has no effect; prune does not prompt for confirmation.\n"
+                FileHandle.standardError.write(Data(warning.utf8))
+            }
+
             let networkClient = NetworkClient()
             let client = ContainerClient()
             let allContainers = try await client.list()
