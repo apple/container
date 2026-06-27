@@ -30,7 +30,6 @@ public struct ProcessIO: Sendable {
         SIGINT,
         SIGUSR1,
         SIGUSR2,
-        SIGWINCH,
     ]
 
     public struct IoTracker: Sendable {
