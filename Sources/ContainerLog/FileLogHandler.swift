@@ -23,6 +23,7 @@ import SystemPackage
 public struct FileLogHandler: LogHandler {
     public var logLevel: Logger.Level = .info
     public var metadata: Logger.Metadata = [:]
+    public var metadataProvider: Logger.MetadataProvider?
 
     private let label: String
     private let category: String
@@ -76,8 +77,10 @@ public struct FileLogHandler: LogHandler {
         }()
         let timestamp = timestampFormatter.string(from: Date())
 
-        // Merge logger-level metadata with per-message metadata
         var effectiveMetadata = self.metadata
+        if let provided = self.metadataProvider?.get(), !provided.isEmpty {
+            effectiveMetadata.merge(provided) { _, new in new }
+        }
         if let metadata {
             effectiveMetadata.merge(metadata) { _, new in new }
         }
