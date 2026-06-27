@@ -38,11 +38,15 @@ public enum PathUtils {
                 if let envPath = env["CONTAINER_APP_ROOT"], !envPath.isEmpty {
                     return FilePath(envPath)
                 }
-                let appSupportURL = FileManager.default.urls(
-                    for: .applicationSupportDirectory,
-                    in: .userDomainMask
-                ).first!.appendingPathComponent("com.apple.container")
-                return FilePath(appSupportURL.path(percentEncoded: false))
+                guard
+                    let appSupportURL = FileManager.default.urls(
+                        for: .applicationSupportDirectory,
+                        in: .userDomainMask
+                    ).first
+                else {
+                    fatalError("applicationSupportDirectory unavailable in userDomainMask")
+                }
+                return FilePath(appSupportURL.appendingPathComponent("com.apple.container").path(percentEncoded: false))
             case .installRoot:
                 if let envPath = env["CONTAINER_INSTALL_ROOT"], !envPath.isEmpty {
                     return FilePath(envPath)
