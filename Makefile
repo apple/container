@@ -202,12 +202,15 @@ PARALLEL_WIDTH ?= 2
 WARMUP_FILTER = ImageWarmup
 
 CONCURRENT_TEST_SUITES ?= \
-	TestCLIStop \
-	TestCLIRmRaceCondition \
-	TestCLIExportCommand
+	TestCLIExportCommand/ \
+	TestCLIMachineCommand/ \
+	TestCLIRmRaceCondition/ \
+	TestCLIStop/
 CONCURRENT_FILTER = $(subst $(space),|,$(strip $(CONCURRENT_TEST_SUITES)))
 
-GLOBAL_FILTER = DemoGlobalTests
+GLOBAL_TEST_SUITES ?= \
+	TestCLIMachineRuntimeSerial/
+GLOBAL_FILTER = $(subst $(space),|,$(strip $(GLOBAL_TEST_SUITES)))
 
 INTEGRATION_SWIFT_EXTRA ?=
 INTEGRATION_POST_TEST ?=
