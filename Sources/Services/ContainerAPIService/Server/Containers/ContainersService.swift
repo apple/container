@@ -334,7 +334,6 @@ public actor ContainersService {
             }
 
             let path = self.containerRoot.appendingPathComponent(configuration.id)
-            let systemPlatform = kernel.platform
 
             // Fetch init image (custom or default)
             self.log.debug(
