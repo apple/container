@@ -241,6 +241,16 @@ public struct XPCServer: Sendable {
                 }
                 xpc_connection_send_message(connection, reply.underlying)
             }
+        } else {
+            // No handler for this route: reply with an error instead of dropping
+            // the message, otherwise the client blocks until its timeout (or
+            // forever, if it sent none).
+            log.error("no handler registered for route", metadata: ["route": "\(route)"])
+            Self.replyWithError(
+                connection: connection,
+                object: object,
+                err: ContainerizationError(.invalidArgument, message: "unknown route: \(route)")
+            )
         }
     }
 
