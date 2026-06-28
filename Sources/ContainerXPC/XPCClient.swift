@@ -111,15 +111,19 @@ extension XPCClient {
             }
 
             group.addTask {
-                try await withCheckedThrowingContinuation { cont in
-                    xpc_connection_send_message_with_reply(self.connection, message.underlying, nil) { reply in
-                        do {
-                            let message = try self.parseReply(reply)
-                            cont.resume(returning: message)
-                        } catch {
-                            cont.resume(throwing: error)
+                let box = XPCReplyBox()
+                return try await withTaskCancellationHandler {
+                    try await withCheckedThrowingContinuation { cont in
+                        box.store(cont)
+                        xpc_connection_send_message_with_reply(self.connection, message.underlying, nil) { reply in
+                            box.resume { try self.parseReply(reply) }
                         }
                     }
+                } onCancel: {
+                    // On timeout the group cancels this task. The XPC reply
+                    // handler is not cancellation-aware, so resume the
+                    // continuation here; a late reply becomes a no-op.
+                    box.resume { throw CancellationError() }
                 }
             }
 
