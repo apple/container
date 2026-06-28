@@ -37,7 +37,16 @@ public actor DefaultNetworkService: NetworkService {
         }
 
         let subnet = status.ipv4Subnet
-        let size = Int(subnet.upper.value - subnet.lower.value - 3)
+        // Widen to Int before subtracting: doing the arithmetic in UInt32 traps
+        // on underflow when the subnet is too small (e.g. a /31 where
+        // upper - lower < 3).
+        let size = Int(subnet.upper.value) - Int(subnet.lower.value) - 3
+        guard size > 0 else {
+            throw ContainerizationError(
+                .invalidState,
+                message: "network \(network.id) subnet is too small to allocate addresses"
+            )
+        }
         self.network = network
         self.log = log
         self.allocator = try AttachmentAllocator(lower: subnet.lower.value + 2, size: size)
