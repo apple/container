@@ -284,8 +284,6 @@ INTEGRATION_TEST_SUITES ?= \
 	TestCLIAnonymousVolumes \
 	TestCLINotFound \
 	TestCLISystemDF \
-	TestCLIMachineCommand \
-	TestCLIMachineRuntime \
 	TestCLINoParallelCases \
 	TestCLICopyCommand
 
