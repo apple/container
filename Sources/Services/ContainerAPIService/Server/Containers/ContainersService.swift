@@ -148,9 +148,11 @@ public actor ContainersService {
                     )
                 }
             } catch {
-                try? FileManager.default.removeItem(at: dir)
+                // Do not delete the bundle here: load failures can be transient
+                // (e.g. a runtime plugin that is not yet registered), and the
+                // on-disk bundle is the user's data. Leave it for the next boot.
                 log.warning(
-                    "failed to load container",
+                    "failed to load container; leaving bundle on disk",
                     metadata: [
                         "path": "\(dir.path)",
                         "error": "\(error)",
