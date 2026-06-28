@@ -266,6 +266,7 @@ public struct Builder: Sendable {
         public let contentStore: ContentStore
         public let buildArgs: [String]
         public let secrets: [String: Data]
+        public let ssh: String
         public let contextDir: String
         public let dockerfile: Data
         public let dockerignore: Data?
@@ -287,6 +288,7 @@ public struct Builder: Sendable {
             contentStore: ContentStore,
             buildArgs: [String],
             secrets: [String: Data],
+            ssh: String,
             contextDir: String,
             dockerfile: Data,
             dockerignore: Data?,
@@ -307,6 +309,7 @@ public struct Builder: Sendable {
             self.contentStore = contentStore
             self.buildArgs = buildArgs
             self.secrets = secrets
+            self.ssh = ssh
             self.contextDir = contextDir
             self.dockerfile = dockerfile
             self.dockerignore = dockerignore
@@ -353,6 +356,9 @@ public struct Builder: Sendable {
         }
         for (id, data) in config.secrets {
             metadata.addString(id + "=" + data.base64EncodedString(), forKey: "secrets")
+        }
+        if config.ssh == "default" {
+            metadata.addString("default", forKey: "ssh")
         }
         for output in config.exports {
             metadata.addString(try output.stringValue, forKey: "outputs")
