@@ -879,10 +879,13 @@ struct TestCLIMachineRuntimeSerial {
             let name = "\(f.testID)-machine"
             f.addCleanup { f.cleanupMachine(name) }
 
-            let socketDir = f.testDir.appending("ssh-\(f.testID)")
+            // sockaddr_un.sun_path is 104 bytes on macOS — use /tmp to keep
+            // the path short enough to fit regardless of the project directory depth.
+            let socketDir = "/tmp/\(f.testID)-ssh"
             try FileManager.default.createDirectory(
-                atPath: socketDir.string, withIntermediateDirectories: true)
-            let socketPath = socketDir.appending("ssh-auth.sock").string
+                atPath: socketDir, withIntermediateDirectories: true)
+            f.addCleanup { try? FileManager.default.removeItem(atPath: socketDir) }
+            let socketPath = socketDir + "/ssh-auth.sock"
 
             let serverFd = socket(AF_UNIX, SOCK_STREAM, 0)
             guard serverFd >= 0 else {
