@@ -381,10 +381,11 @@ class TestCLIMachineRuntime: CLITest {
         try waitForMachineStatus(name, status: "running")
 
         let username = NSUserName()
+        let sanitizedUsername = username.replacingOccurrences(of: ".", with: "_")
         let output = try doMachineRun(
             name: name,
             root: true,
-            command: ["cat", "/etc/sudoers.d/\(username)"]
+            command: ["cat", "/etc/sudoers.d/\(sanitizedUsername)"]
         )
         let content = output.trimmingCharacters(in: .whitespacesAndNewlines)
         #expect(

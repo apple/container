@@ -42,5 +42,6 @@ fi
 chown -R "${CONTAINER_UID}:${CONTAINER_GID}" "${CONTAINER_HOME}"
 
 mkdir -p /etc/sudoers.d
-echo "${CONTAINER_USER} ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/${CONTAINER_USER}"
-chmod 440 "/etc/sudoers.d/${CONTAINER_USER}"
+SUODOERS_FILE="${CONTAINER_USER//./_}"
+echo "${CONTAINER_USER} ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/${SUODOERS_FILE}"
+chmod 440 "/etc/sudoers.d/${SUDOERS_FILE}"
