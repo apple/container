@@ -23,7 +23,7 @@ import PackageDescription
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
 let builderShimVersion = "0.12.0"
-let scVersion = "0.34.0"
+let scVersion = "0.35.0"
 
 let package = Package(
     name: "container",
@@ -79,6 +79,19 @@ let package = Package(
                 "ContainerCommands",
             ],
             path: "Sources/CLI"
+        ),
+        .testTarget(
+            name: "IntegrationTests",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                .product(name: "ContainerizationArchive", package: "containerization"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                "ContainerLog",
+                "ContainerResource",
+                "Yams",
+            ],
+            path: "Tests/IntegrationTests"
         ),
         .testTarget(
             name: "CLITests",

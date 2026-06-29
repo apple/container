@@ -151,7 +151,7 @@ dsym:
 
 .PHONY: test
 test:
-	@$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI
+	@$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI --skip IntegrationTests
 
 .PHONY: install-kernel
 install-kernel:
@@ -194,6 +194,69 @@ define GENERATE_COV_REPORTS
 	@cat $(COVERAGE_OUTPUT_DIR)/$(2)/coverage-percent.txt
 endef
 
+# New integration test infrastructure.
+# PARALLEL_WIDTH controls --experimental-maximum-parallelization-width for the
+# concurrent pass. WARMUP_FILTER, CONCURRENT_FILTER, and GLOBAL_FILTER select
+# the three phases. Expand the filter lists as suites are migrated from CLITests.
+PARALLEL_WIDTH ?= 2
+WARMUP_FILTER = ImageWarmup
+
+CONCURRENT_TEST_SUITES ?= \
+	TestCLIStop \
+	TestCLIRmRaceCondition \
+	TestCLIExportCommand
+CONCURRENT_FILTER = $(subst $(space),|,$(strip $(CONCURRENT_TEST_SUITES)))
+
+GLOBAL_FILTER = DemoGlobalTests
+
+INTEGRATION_SWIFT_EXTRA ?=
+INTEGRATION_POST_TEST ?=
+
+PRESERVE_KERNELS ?= false
+
+define RUN_INTEGRATION
+	@echo Ensuring apiserver stopped before the CLI integration tests...
+	@bin/container system stop && sleep 3 && scripts/ensure-container-stopped.sh
+	@if [ -n "$(APP_ROOT)" ]; then \
+		mkdir -p $(APP_ROOT) ; \
+		if [ "$(PRESERVE_KERNELS)" = "true" ]; then \
+			echo "Clearing application data under $(APP_ROOT) (preserving kernels)..." ; \
+			find "$(APP_ROOT)" -mindepth 1 -maxdepth 1 ! -name kernels -exec rm -rf {} + ; \
+		else \
+			echo "Clearing application data under $(APP_ROOT)..." ; \
+			find "$(APP_ROOT)" -mindepth 1 -maxdepth 1 -exec rm -rf {} + ; \
+		fi ; \
+	fi
+	@echo Running the integration tests...
+	@bin/container --debug system start --timeout 60 --enable-kernel-install $(SYSTEM_START_OPTS) && \
+	{ \
+		CLITEST_LOG_ROOT=$(LOG_ROOT) && export CLITEST_LOG_ROOT ; \
+		CONTAINER_CLI_PATH=$(ROOT_DIR)/bin/container && export CONTAINER_CLI_PATH ; \
+		echo "==> Warmup pass" && \
+		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(WARMUP_FILTER)" && \
+		echo "==> Concurrent pass (width=$(PARALLEL_WIDTH))" && \
+		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --experimental-maximum-parallelization-width $(PARALLEL_WIDTH) --filter "$(CONCURRENT_FILTER)" && \
+		echo "==> Global pass (serial)" && \
+		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(GLOBAL_FILTER)" ; \
+		exit_code=$$? ; \
+		$(INTEGRATION_POST_TEST) \
+		echo Ensuring apiserver stopped after the CLI integration tests ; \
+		scripts/ensure-container-stopped.sh ; \
+		exit $${exit_code} ; \
+	}
+endef
+
+.PHONY: integration-new
+integration-new: init-block
+	$(RUN_INTEGRATION)
+
+.PHONY: coverage-integration-new
+coverage-integration-new: INTEGRATION_SWIFT_EXTRA = --skip-build --enable-code-coverage
+coverage-integration-new: INTEGRATION_POST_TEST = cp $(COV_DATA_DIR)/*.profraw $(COVERAGE_OUTPUT_DIR)/integration/ ;
+coverage-integration-new: all
+	@mkdir -p $(COVERAGE_OUTPUT_DIR)/integration
+	$(RUN_INTEGRATION)
+
 INTEGRATION_TEST_SUITES ?= \
 	TestCLIHelp \
 	TestCLIStatus \
@@ -213,7 +276,6 @@ INTEGRATION_TEST_SUITES ?= \
 	TestCLIRunBase \
 	TestCLIRunInitImage \
 	TestCLIBuildBase \
-	TestCLIExportCommand \
 	TestCLIVolumes \
 	TestCLIKernelSet \
 	TestCLIAnonymousVolumes \
@@ -227,6 +289,21 @@ INTEGRATION_TEST_SUITES ?= \
 empty :=
 space := $(empty) $(empty)
 INTEGRATION_FILTER := $(subst $(space),|,$(strip $(INTEGRATION_TEST_SUITES)))
+
+.PHONY: coverage-new
+# Merges unit coverage with integration-new coverage. Use this during migration;
+# replace coverage with coverage-new in CI until all legacy tests are removed.
+coverage-new: coverage-build coverage-unit coverage-integration-new
+	@echo Merging integration coverage profdata...
+	@xcrun llvm-profdata merge -sparse $(COVERAGE_OUTPUT_DIR)/integration/*.profraw -o $(COVERAGE_OUTPUT_DIR)/integration/default.profdata
+	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/integration/default.profdata,integration)
+	@echo Merging combined coverage profdata...
+	@mkdir -p $(COVERAGE_OUTPUT_DIR)/combined
+	@xcrun llvm-profdata merge -sparse \
+		$(COVERAGE_OUTPUT_DIR)/unit/default.profdata \
+		$(COVERAGE_OUTPUT_DIR)/integration/default.profdata \
+		-o $(COVERAGE_OUTPUT_DIR)/combined/default.profdata
+	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/combined/default.profdata,combined)
 
 .PHONY: coverage-build
 coverage-build:
@@ -249,7 +326,7 @@ coverage-unit:
 	@echo Running unit test coverage...
 	@rm -f $(COV_DATA_DIR)/*.profraw
 	@mkdir -p $(COVERAGE_OUTPUT_DIR)/unit
-	@$(SWIFT) test --skip-build --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI
+	@$(SWIFT) test --skip-build --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI --skip IntegrationTests
 	@echo Merging unit coverage profdata...
 	@xcrun llvm-profdata merge -sparse $(COV_DATA_DIR)/*.profraw -o $(COVERAGE_OUTPUT_DIR)/unit/default.profdata
 	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/unit/default.profdata,unit)

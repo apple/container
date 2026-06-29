@@ -266,6 +266,44 @@ class TestCLIImagesCommand: CLITest {
         }
     }
 
+    @Test func testImageSaveToStdoutProducesCleanArchive() throws {
+        do {
+            // 1. pull and tag an image to save
+            try doPull(imageName: alpine)
+            let alpineRef: Reference = try Reference.parse(alpine)
+            let alpineTagged = "\(alpineRef.name):testImageSaveToStdout"
+            try doImageTag(image: alpine, newName: alpineTagged)
+            defer {
+                try? doRemoveImages(images: [alpineTagged])
+            }
+
+            // 2. save to stdout (no --output): stdout is the archive stream
+            let saveArgs = [
+                "image",
+                "save",
+                alpineTagged,
+            ]
+            let (outputData, _, error, status) = try run(arguments: saveArgs)
+            if status != 0 {
+                throw CLIError.executionFailed("save to stdout failed: \(error)")
+            }
+
+            // 3. The archive on stdout must end at the tar EOF marker (two
+            //    512-byte zero blocks). With the bug, the saved-reference list
+            //    is printed to stdout after the archive, so the trailing bytes
+            //    are reference text rather than the tar EOF zeros (#1801).
+            #expect(outputData.count >= 1024, "stdout archive is too small to contain a tar EOF marker")
+            let trailer = outputData.suffix(1024)
+            #expect(trailer.allSatisfy { $0 == 0 }, "stdout archive has trailing non-archive bytes after the tar EOF marker")
+
+            // 4. The saved-reference list is still surfaced, on stderr.
+            #expect(error.contains(alpineTagged), "expected the saved image reference on stderr")
+        } catch {
+            Issue.record("failed to save image to stdout \(error)")
+            return
+        }
+    }
+
     @Test func testImageSaveMissingPlatform() throws {
         do {
             // 1. pull image
