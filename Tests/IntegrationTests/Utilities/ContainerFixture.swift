@@ -75,8 +75,7 @@ final class ContainerFixture: Sendable {
     let testID: String
 
     /// Scratch directory for build inputs, test data, and command output.
-    /// Created at fixture init; removed on cleanup unless `CLITEST_PRESERVE_SCRATCH`
-    /// is set in the environment.
+    /// Created at fixture init; removed on cleanup unless `CLITEST_PRESERVE_SCRATCH=true`.
     let testDir: FilePath
 
     // MARK: - Unstructured API
@@ -92,14 +91,19 @@ final class ContainerFixture: Sendable {
             ProcessInfo.processInfo.environment["CLITEST_SCRATCH_ROOT"]
             .map { FilePath($0) }
             ?? FilePath(FileManager.default.temporaryDirectory.path)
-        let testDir = scratchRoot.appending(testID)
-        try FileManager.default.createDirectory(
-            atPath: testDir.string, withIntermediateDirectories: true, attributes: nil)
 
         let testName =
             Test.current.map { $0.name.hasSuffix("()") ? String($0.name.dropLast(2)) : $0.name }
             ?? testID
         let suiteName = Test.current.map { "\(type(of: $0))" } ?? "unknown"
+
+        // Name the scratch directory so it's immediately identifiable when browsing:
+        // {sanitizedTestName}-{testID}
+        let safeName = testName.replacingOccurrences(
+            of: "[^a-zA-Z0-9]", with: "-", options: .regularExpression)
+        let testDir = scratchRoot.appending("\(safeName)-\(testID)")
+        try FileManager.default.createDirectory(
+            atPath: testDir.string, withIntermediateDirectories: true, attributes: nil)
 
         var logger = Logger(label: "com.apple.container.test") { label in
             if let root = ProcessInfo.processInfo.environment["CLITEST_LOG_ROOT"], !root.isEmpty {
@@ -118,7 +122,7 @@ final class ContainerFixture: Sendable {
 
         let fixture = ContainerFixture(testID: testID, testDir: testDir, log: logger)
 
-        if ProcessInfo.processInfo.environment["CLITEST_PRESERVE_SCRATCH"] == nil {
+        if ProcessInfo.processInfo.environment["CLITEST_PRESERVE_SCRATCH"] != "true" {
             fixture.addCleanup {
                 try? FileManager.default.removeItem(atPath: testDir.string)
             }

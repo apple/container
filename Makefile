@@ -209,6 +209,11 @@ CONCURRENT_TEST_SUITES ?= \
 CONCURRENT_FILTER = $(subst $(space),|,$(strip $(CONCURRENT_TEST_SUITES)))
 
 GLOBAL_TEST_SUITES ?= \
+	TestCLIBuilderLifecycleSerial/ \
+	TestCLIBuilderSerial/ \
+	TestCLIBuilderEnvOnlySerial/ \
+	TestCLIBuilderLocalOutputSerial/ \
+	TestCLIBuilderTarExportSerial/ \
 	TestCLIMachineRuntimeSerial/
 GLOBAL_FILTER = $(subst $(space),|,$(strip $(GLOBAL_TEST_SUITES)))
 
@@ -216,6 +221,10 @@ INTEGRATION_SWIFT_EXTRA ?=
 INTEGRATION_POST_TEST ?=
 
 PRESERVE_KERNELS ?= false
+# Default scratch root under the project directory so container build can access context
+# subdirectories (macOS restricts access to /var/folders from the container binary).
+# Override with SCRATCH_ROOT=/your/path on the command line.
+SCRATCH_ROOT ?= $(ROOT_DIR)/.test-scratch
 
 define RUN_INTEGRATION
 	@echo Ensuring apiserver stopped before the CLI integration tests...
@@ -234,13 +243,14 @@ define RUN_INTEGRATION
 	@bin/container --debug system start --timeout 60 --enable-kernel-install $(SYSTEM_START_OPTS) && \
 	{ \
 		CLITEST_LOG_ROOT=$(LOG_ROOT) && export CLITEST_LOG_ROOT ; \
+		CLITEST_SCRATCH_ROOT=$(SCRATCH_ROOT) && export CLITEST_SCRATCH_ROOT ; \
 		CONTAINER_CLI_PATH=$(ROOT_DIR)/bin/container && export CONTAINER_CLI_PATH ; \
 		echo "==> Warmup pass" && \
 		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(WARMUP_FILTER)" && \
 		echo "==> Concurrent pass (width=$(PARALLEL_WIDTH))" && \
 		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --experimental-maximum-parallelization-width $(PARALLEL_WIDTH) --filter "$(CONCURRENT_FILTER)" && \
 		echo "==> Global pass (serial)" && \
-		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(GLOBAL_FILTER)" ; \
+		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --experimental-maximum-parallelization-width 1 --filter "$(GLOBAL_FILTER)" ; \
 		exit_code=$$? ; \
 		$(INTEGRATION_POST_TEST) \
 		echo Ensuring apiserver stopped after the CLI integration tests ; \
