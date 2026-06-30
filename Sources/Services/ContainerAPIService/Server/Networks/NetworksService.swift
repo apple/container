@@ -314,19 +314,11 @@ public actor NetworksService {
         }
     }
 
-    public func pluginConfiguration(id: String) throws -> (plugin: String, options: [String: String]) {
+    public func plugin(for id: String) throws -> String {
         guard let serviceState = serviceStates[id] else {
             throw ContainerizationError(.notFound, message: "no network for id \(id)")
         }
-        var options = serviceState.configuration.options
-        if options["variant"] == nil {
-            if #available(macOS 26, *) {
-                options["variant"] = "reserved"
-            } else {
-                options["variant"] = "allocationOnly"
-            }
-        }
-        return (plugin: serviceState.configuration.plugin, options: options)
+        return serviceState.configuration.plugin
     }
 
     private static func getClient(configuration: NetworkConfiguration) throws -> ContainerNetworkClient.NetworkClient {

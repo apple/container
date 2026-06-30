@@ -14,15 +14,18 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerResource
+import Testing
 
-/// Plugin info passed from the API server in the sandbox bootstrap message so the
-/// runtime can connect to the correct network helper.
-public struct NetworkBootstrapInfo: Codable, Sendable {
-    /// The network plugin name identifying which network helper to contact.
-    public let plugin: String
-
-    public init(plugin: String) {
-        self.plugin = plugin
+/// Pulls each image in ``ContainerFixture/warmupImages`` in parallel before
+/// concurrent integration tests run. The Makefile's warmup pass runs this
+/// suite first so that ``ContainerFixture/copyWarmupImage(_:)`` can tag
+/// from a pre-populated store rather than pulling on demand.
+@Suite
+struct ImageWarmup {
+    @Test(arguments: ContainerFixture.warmupImages)
+    func pull(image: String) async throws {
+        try await ContainerFixture.with { f in
+            try f.run(["image", "pull", image]).check("failed to pull \(image)")
+        }
     }
 }

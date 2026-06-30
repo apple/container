@@ -23,7 +23,7 @@ import PackageDescription
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
 let builderShimVersion = "0.12.0"
-let scVersion = "0.33.4"
+let scVersion = "0.35.0"
 
 let package = Package(
     name: "container",
@@ -81,6 +81,22 @@ let package = Package(
             path: "Sources/CLI"
         ),
         .testTarget(
+            name: "IntegrationTests",
+            dependencies: [
+                .product(name: "AsyncHTTPClient", package: "async-http-client"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationArchive", package: "containerization"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                "ContainerLog",
+                "ContainerResource",
+                "MachineAPIClient",
+                "Yams",
+            ],
+            path: "Tests/IntegrationTests"
+        ),
+        .testTarget(
             name: "CLITests",
             dependencies: [
                 .product(name: "AsyncHTTPClient", package: "async-http-client"),
@@ -93,6 +109,7 @@ let package = Package(
                 "ContainerLog",
                 "ContainerPersistence",
                 "ContainerResource",
+                "MachineAPIClient",
                 "Yams",
             ],
             path: "Tests/CLITests"
