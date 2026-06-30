@@ -83,7 +83,7 @@ extension ContainerFixture {
 
     /// Polls until the buildkit container is running and the builder shim is ready.
     func waitForBuilderRunning() async throws {
-        try waitForContainerRunning("buildkit", attempts: 10)
+        try await waitForContainerRunning("buildkit", attempts: 10)
         for _ in 0..<3 {
             let response = try? doExec("buildkit", cmd: ["pidof", "-s", "container-builder-shim"])
             if let r = response, !r.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {

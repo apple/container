@@ -262,7 +262,7 @@ final class ContainerFixture: Sendable {
     /// Call this directly only when using ``doCreate(_:image:args:volumes:networks:ports:)``
     /// and ``doStart(_:)`` — ``withContainer(image:tag:runArgs:containerArgs:autoRemove:_:)``
     /// waits automatically.
-    func waitForContainerRunning(_ name: String, attempts: Int = 30) throws {
+    func waitForContainerRunning(_ name: String, attempts: Int = 30) async throws {
         for _ in 0..<attempts {
             if let result = try? run(["inspect", name]),
                 result.status == 0,
@@ -270,7 +270,7 @@ final class ContainerFixture: Sendable {
             {
                 return
             }
-            sleep(1)
+            try await Task.sleep(for: .seconds(1))
         }
         throw CommandError.executionFailed("container '\(name)' did not reach running state")
     }
@@ -304,7 +304,7 @@ final class ContainerFixture: Sendable {
             _ = try? run(["stop", "-s", "SIGKILL", name])
             if !autoRemove { _ = try? run(["delete", name]) }
         }
-        try waitForContainerRunning(name)
+        try await waitForContainerRunning(name)
         try await body(name)
     }
 
