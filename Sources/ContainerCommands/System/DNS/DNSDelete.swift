@@ -62,7 +62,7 @@ extension Application {
             }
 
             let pf = PacketFilter()
-            try pf.removeRedirectRule(from: localhostIP, to: try! IPAddress("127.0.0.1"), domain: domainName)
+            try pf.removeRedirectRule(from: localhostIP, to: try IPAddress("127.0.0.1"), domain: domainName)
 
             do {
                 try pf.reinitialize()
