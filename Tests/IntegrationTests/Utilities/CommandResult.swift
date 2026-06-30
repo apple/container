@@ -15,26 +15,32 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import Testing
 
-@Suite(.serialSuites)
-class TestCLIHelp: CLITest {
-    @Test func testHelp() throws {
-        let (_, output, error, status) = try run(arguments: ["help"])
-        #expect(status == 0, "help should succeed, stderr: \(error)")
+struct CommandResult: Sendable {
+    let outputData: Data
+    let errorData: Data
+    let status: Int32
 
-        #expect(
-            output.contains("OVERVIEW: A container platform for macOS"),
-            "output should contain overview section"
-        )
+    var output: String {
+        String(data: outputData, encoding: .utf8) ?? ""
     }
-    @Test func testDebugHelp() throws {
-        let (_, output, error, status) = try run(arguments: ["--debug", "help"])
-        #expect(status == 0, "help should succeed, stderr: \(error)")
 
-        #expect(
-            output.contains("OVERVIEW: A container platform for macOS"),
-            "output should contain overview section"
-        )
+    var error: String {
+        String(data: errorData, encoding: .utf8) ?? ""
     }
+
+    @discardableResult
+    func check(_ message: String? = nil) throws -> CommandResult {
+        guard status == 0 else {
+            let detail = message ?? error.trimmingCharacters(in: .whitespacesAndNewlines)
+            throw CommandError.nonZeroExit(status, detail)
+        }
+        return self
+    }
+}
+
+enum CommandError: Error {
+    case binaryNotFound
+    case executionFailed(String)
+    case nonZeroExit(Int32, String)
 }

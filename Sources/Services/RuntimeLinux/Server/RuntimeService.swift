@@ -193,13 +193,14 @@ public actor RuntimeService {
                             ipv4Gateway: attachment.ipv4Gateway,
                             ipv6Address: attachment.ipv6Address,
                             macAddress: attachment.macAddress,
-                            mtu: mtu
+                            mtu: mtu,
+                            variant: attachment.variant
                         )
                     }
-                    guard let iStrategy = self.interfaceStrategies[NetworkInterfaceKey(plugin: info.plugin, variant: info.options["variant"])] else {
+                    guard let iStrategy = self.interfaceStrategies[NetworkInterfaceKey(plugin: info.plugin, variant: attachment.variant)] else {
                         throw ContainerizationError(
                             .internalError,
-                            message: "no available interface strategy for network \(attachment.network), plugin=\(info.plugin) variant=\(info.options["variant"] ?? "nil")")
+                            message: "no available interface strategy for network \(attachment.network), plugin=\(info.plugin) variant=\(attachment.variant ?? "nil")")
                     }
                     let interface = try iStrategy.toInterface(
                         attachment: attachment,
@@ -1242,7 +1243,9 @@ public actor RuntimeService {
 
                 return code
             }
-        } catch {}
+        } catch {
+            self.log.error("graceful stop failed; forcing vm shutdown", metadata: ["error": "\(error)"])
+        }
 
         // Now actually bring down the vm.
         try await lc.stop()

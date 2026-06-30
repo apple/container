@@ -140,7 +140,15 @@ extension Application {
 
             progress.finish()
             for reference in references {
-                print(reference)
+                if output == nil {
+                    // stdout is carrying the OCI archive in this branch, so the
+                    // saved-reference list goes to stderr via the logger. Printing
+                    // it to stdout appends non-archive bytes after the tar EOF and
+                    // corrupts the stream for redirection and pipelines (#1801).
+                    log.info("\(reference)")
+                } else {
+                    print(reference)
+                }
             }
         }
     }

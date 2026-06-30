@@ -1336,4 +1336,61 @@ struct ParserTest {
     func testManagementFlagsAcceptsNoDNSAlone() throws {
         _ = try Flags.Management.parse(["--no-dns"])
     }
+
+    // MARK: - Collection capacity hints
+
+    @Test("labels with large input preserves all entries")
+    func testLabelsLargeInput() throws {
+        let labels = (0..<100).map { "key\($0)=value\($0)" }
+        let result = try Parser.labels(labels)
+        #expect(result.count == 100)
+        #expect(result["key42"] == "value42")
+        #expect(result["key99"] == "value99")
+    }
+
+    @Test("resolve with large input preserves all entries")
+    func testParseKeyValuePairsLargeInput() {
+        let pairs = (0..<100).map { "key\($0)=value\($0)" }
+        let result = Utility.parseKeyValuePairs(pairs)
+        #expect(result.count == 100)
+        #expect(result["key0"] == "value0")
+        #expect(result["key99"] == "value99")
+    }
+
+    @Test("tmpfsMounts with large input")
+    func testTmpfsMountsLargeInput() throws {
+        let mounts = (0..<20).map { "/mnt/tmpfs\($0)" }
+        let result = try Parser.tmpfsMounts(mounts)
+        #expect(result.count == 20)
+    }
+
+    @Test("volumes with large input")
+    func testVolumesLargeInput() throws {
+        let volumes = (0..<20).map { "vol\($0):/mnt/vol\($0)" }
+        let result = try Parser.volumes(volumes)
+        #expect(result.count == 20)
+    }
+
+    @Test("capabilities with large input")
+    func testCapabilitiesLargeInput() throws {
+        let result = try Parser.capabilities(capAdd: ["ALL", "SYS_ADMIN", "NET_RAW", "CHOWN"], capDrop: ["SETUID", "KILL"])
+        #expect(result.capAdd.count == 4)
+        #expect(result.capDrop.count == 2)
+        #expect(result.capAdd.first == "ALL")
+    }
+
+    @Test("rlimits with large input")
+    func testRlimitsLargeInput() throws {
+        let result = try Parser.rlimits(["nofile=1024:2048", "nproc=100:200", "memlock=65536:65536"])
+        #expect(result.count == 3)
+        #expect(result[0].limit == "RLIMIT_NOFILE")
+    }
+
+    @Test("allEnv with large env lists")
+    func testAllEnvLargeInput() throws {
+        let imageEnvs = (0..<50).map { "IMAGE_VAR\($0)=value\($0)" }
+        let envs = (0..<50).map { "USER_VAR\($0)=value\($0)" }
+        let result = try Parser.allEnv(imageEnvs: imageEnvs, envFiles: [], envs: envs)
+        #expect(result.count == 100)
+    }
 }
