@@ -224,17 +224,10 @@ public struct Utility {
             }
         }
 
-        if management.dnsDisabled {
-            config.dns = nil
-        } else {
-            let domain = management.dns.domain ?? containerSystemConfig.dns.domain
-            config.dns = .init(
-                nameservers: management.dns.nameservers,
-                domain: domain,
-                searchDomains: management.dns.searchDomains,
-                options: management.dns.options
-            )
-        }
+        config.dns = dnsConfigurationFromFlags(
+            management: management,
+            containerSystemConfig: containerSystemConfig
+        )
 
         config.rosetta = management.rosetta || (Platform.current.architecture == "arm64" && requestedPlatform.architecture == "amd64")
 
@@ -270,6 +263,33 @@ public struct Utility {
         }
 
         return (config, kernel, management.initImage)
+    }
+
+    static func dnsConfigurationFromFlags(
+        management: Flags.Management,
+        containerSystemConfig: ContainerSystemConfig
+    ) -> ContainerConfiguration.DNSConfiguration? {
+        if management.dnsDisabled {
+            return nil
+        }
+
+        let nameservers = !management.dns.nameservers.isEmpty
+            ? management.dns.nameservers
+            : containerSystemConfig.dns.nameservers
+        let domain = management.dns.domain ?? containerSystemConfig.dns.domain
+        let searchDomains = !management.dns.searchDomains.isEmpty
+            ? management.dns.searchDomains
+            : containerSystemConfig.dns.searchDomains
+        let options = !management.dns.options.isEmpty
+            ? management.dns.options
+            : containerSystemConfig.dns.options
+
+        return .init(
+            nameservers: nameservers,
+            domain: domain,
+            searchDomains: searchDomains,
+            options: options
+        )
     }
 
     static func getAttachmentConfigurations(

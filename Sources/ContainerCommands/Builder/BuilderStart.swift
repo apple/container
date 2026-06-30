@@ -114,6 +114,17 @@ extension Application {
 
             let builderPlatform = ContainerizationOCI.Platform(arch: "arm64", os: "linux", variant: "v8")
 
+            let resolvedDnsNameservers = !dnsNameservers.isEmpty
+                ? dnsNameservers
+                : containerSystemConfig.dns.nameservers
+            let resolvedDnsDomain = dnsDomain ?? containerSystemConfig.dns.domain
+            let resolvedDnsSearchDomains = !dnsSearchDomains.isEmpty
+                ? dnsSearchDomains
+                : containerSystemConfig.dns.searchDomains
+            let resolvedDnsOptions = !dnsOptions.isEmpty
+                ? dnsOptions
+                : containerSystemConfig.dns.options
+
             var targetEnvVars: [String] = []
             if let buildkitColors = ProcessInfo.processInfo.environment["BUILDKIT_COLORS"] {
                 targetEnvVars.append("BUILDKIT_COLORS=\(buildkitColors)")
@@ -146,25 +157,15 @@ extension Application {
 
                 let envChanged = existingManagedEnv != targetEnvVars
 
-                // Check if we need to recreate the builder due to different image
+                // Check if we need to recreate the builder due to different image or DNS defaults
                 let imageChanged = existingImage != builderImage
                 let cpuChanged = existingResources.cpus != resources.cpus
                 let memChanged = existingResources.memoryInBytes != resources.memoryInBytes
-                let dnsChanged = {
-                    if !dnsNameservers.isEmpty {
-                        return existingDNS?.nameservers != dnsNameservers
-                    }
-                    if dnsDomain != nil {
-                        return existingDNS?.domain != dnsDomain
-                    }
-                    if !dnsSearchDomains.isEmpty {
-                        return existingDNS?.searchDomains != dnsSearchDomains
-                    }
-                    if !dnsOptions.isEmpty {
-                        return existingDNS?.options != dnsOptions
-                    }
-                    return false
-                }()
+                let dnsChanged =
+                    existingDNS?.nameservers != resolvedDnsNameservers
+                    || existingDNS?.domain != resolvedDnsDomain
+                    || existingDNS?.searchDomains != resolvedDnsSearchDomains
+                    || existingDNS?.options != resolvedDnsOptions
 
                 switch existingContainer.status {
                 case .running:
@@ -270,10 +271,10 @@ extension Application {
                 AttachmentConfiguration(network: defaultNetwork.id, options: AttachmentOptions(hostname: Builder.builderContainerId))
             ]
             config.dns = ContainerConfiguration.DNSConfiguration(
-                nameservers: dnsNameservers,
-                domain: dnsDomain,
-                searchDomains: dnsSearchDomains,
-                options: dnsOptions
+                nameservers: resolvedDnsNameservers,
+                domain: resolvedDnsDomain,
+                searchDomains: resolvedDnsSearchDomains,
+                options: resolvedDnsOptions
             )
 
             let kernel = try await {
