@@ -43,8 +43,8 @@ struct TestCLIVolumesSerial {
             #expect(list.contains(v1) && list.contains(v2))
 
             let result = try f.run(["volume", "prune"]).check()
-            #expect(result.output.contains(v1) || !result.output.contains("No volumes to prune"))
-            #expect(result.output.contains(v2) || !result.output.contains("No volumes to prune"))
+            #expect(result.output.contains(v1))
+            #expect(result.output.contains(v2))
             #expect(result.error.contains("Reclaimed"))
 
             let listAfter = try f.run(["volume", "list", "--quiet"]).check().output
@@ -58,7 +58,7 @@ struct TestCLIVolumesSerial {
             let vUnused = "\(f.testID)-unused"
             let c = "\(f.testID)-c1"
             try f.doPull(alpine)
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemoveIfExists(c, force: true, ignoreFailure: true)
@@ -88,7 +88,7 @@ struct TestCLIVolumesSerial {
             let vol = "\(f.testID)-vol"
             let c = "\(f.testID)-c1"
             try f.doPull(alpine)
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine
             f.addCleanup {
                 try? f.doRemoveIfExists(c, force: true, ignoreFailure: true)
                 f.doVolumeDeleteIfExists(vol)

@@ -26,8 +26,7 @@ struct TestCLIVolumes {
             let vol = "\(f.testID)-vol"
             let c1 = "\(f.testID)-c1"
             let c2 = "\(f.testID)-c2"
-            try f.doPull(alpine)
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine
             f.addCleanup {
                 f.doVolumeDeleteIfExists(vol)
                 try? f.doRemoveIfExists(c1, force: true, ignoreFailure: true)
@@ -56,8 +55,7 @@ struct TestCLIVolumes {
             let vol = "\(f.testID)-vol"
             let c1 = "\(f.testID)-c1"
             let c2 = "\(f.testID)-c2"
-            try f.doPull(alpine)
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine
             f.addCleanup {
                 try? f.doStop(c1)
                 try? f.doRemoveIfExists(c1, force: true, ignoreFailure: true)
@@ -82,8 +80,7 @@ struct TestCLIVolumes {
         try await ContainerFixture.with { f in
             let vol = "\(f.testID)-vol"
             let c = "\(f.testID)-c1"
-            try f.doPull(alpine)
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemoveIfExists(c, force: true, ignoreFailure: true)
@@ -106,8 +103,7 @@ struct TestCLIVolumes {
         try await ContainerFixture.with { f in
             let vol = "\(f.testID)-vol"
             let c = "\(f.testID)-c1"
-            try f.doPull(alpine)
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine
             f.addCleanup {
                 try? f.doRemoveIfExists(c, force: true, ignoreFailure: true)
                 f.doVolumeDeleteIfExists(vol)
@@ -150,8 +146,7 @@ struct TestCLIVolumes {
         try await ContainerFixture.with { f in
             let c = "\(f.testID)-c1"
             let vol = "\(f.testID)-autovolume"
-            try f.doPull(alpine)
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine
             f.addCleanup {
                 try? f.doRemoveIfExists(c, force: true, ignoreFailure: true)
                 f.doVolumeDeleteIfExists(vol)
@@ -171,8 +166,7 @@ struct TestCLIVolumes {
             let c1 = "\(f.testID)-c1"
             let c2 = "\(f.testID)-c2"
             let vol = "\(f.testID)-sharedvolume"
-            try f.doPull(alpine)
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine
             f.addCleanup {
                 try? f.doRemoveIfExists(c1, force: true, ignoreFailure: true)
                 try? f.doRemoveIfExists(c2, force: true, ignoreFailure: true)
@@ -240,8 +234,7 @@ struct TestCLIVolumes {
             let vol = "\(f.testID)-vol"
             let c1 = "\(f.testID)-c1"
             let c2 = "\(f.testID)-c2"
-            try f.doPull(alpine)
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine
             f.addCleanup {
                 try? f.doStop(c1)
                 try? f.doRemoveIfExists(c1, force: true, ignoreFailure: true)

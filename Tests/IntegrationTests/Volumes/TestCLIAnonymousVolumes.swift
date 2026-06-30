@@ -235,16 +235,17 @@ struct TestCLIAnonymousVolumes {
         try await ContainerFixture.with { f in
             let image = try f.copyWarmupImage(alpine)
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["-v", "/data"], autoRemove: false)
+            try f.doLongRun(name: c, image: image, args: ["-v", "/data"], autoRemove: true)
             try f.waitForContainerRunning(c)
 
+            // Capture volume IDs while the container is still running; --rm means
+            // doStop will also remove it.
             let volumeIDs = try f.getContainerMountedVolumeNames(c)
             try #require(volumeIDs.count == 1)
             let volumeID = volumeIDs[0]
             f.addCleanup { f.doVolumeDeleteIfExists(volumeID) }
 
             try f.doStop(c)
-            try f.doRemove(c)
             #expect(try f.volumeExists(volumeID), "anonymous volume should persist after container removal")
         }
     }
