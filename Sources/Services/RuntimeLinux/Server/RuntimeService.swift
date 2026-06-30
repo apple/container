@@ -54,6 +54,9 @@ public actor RuntimeService {
 
     private static let sshAuthSocketGuestPath = "/var/host-services/ssh-auth.sock"
     private static let sshAuthSocketEnvVar = "SSH_AUTH_SOCK"
+    private static let containerEnvironmentFileGuestPath = "/run/.containerenv"
+    private static let containerEnvironmentFileName = ".containerenv"
+    private static let containerEnvironmentFileContents = "container=apple\n"
 
     class ExitWaiter {
         public var exitStatus: ExitStatus? = nil
@@ -156,6 +159,7 @@ public actor RuntimeService {
 
             let bundle = ContainerResource.Bundle(path: self.root)
             try bundle.createLogFile()
+            let containerEnvironmentFile = try Self.createContainerEnvironmentFile(in: self.root)
 
             var config = try bundle.configuration
 
@@ -254,7 +258,12 @@ public actor RuntimeService {
             let id = config.id
             let rootfs = try bundle.containerRootfs.asMount
             let container = try LinuxContainer(id, rootfs: rootfs, vmm: vmm, logger: self.log) { czConfig in
-                try Self.configureContainer(czConfig: &czConfig, config: config, dynamicEnv: dynamicEnv, log: self.log)
+                try Self.configureContainer(
+                    czConfig: &czConfig,
+                    config: config,
+                    dynamicEnv: dynamicEnv,
+                    containerEnvironmentFile: containerEnvironmentFile,
+                    log: self.log)
                 czConfig.interfaces = interfaces
                 czConfig.process.stdout = stdout
                 czConfig.process.stderr = stderr
@@ -982,6 +991,7 @@ public actor RuntimeService {
         czConfig: inout LinuxContainer.Configuration,
         config: ContainerConfiguration,
         dynamicEnv: [String: String] = [:],
+        containerEnvironmentFile: URL,
         log: Logger? = nil,
     ) throws {
         czConfig.cpus = config.resources.cpus
@@ -1019,6 +1029,11 @@ public actor RuntimeService {
                 czConfig.mounts.append(mount.asMount)
             }
         }
+        czConfig.mounts.append(
+            .share(
+                source: containerEnvironmentFile.path(percentEncoded: false),
+                destination: Self.containerEnvironmentFileGuestPath,
+                options: ["ro"]))
 
         for publishedSocket in config.publishedSockets {
             // UnixSocketConfiguration (Containerization) takes URL; convert from FilePath at the boundary.
@@ -1541,6 +1556,15 @@ extension RuntimeService {
 
     func setState(_ new: State) {
         self.state = new
+    }
+
+    private static func createContainerEnvironmentFile(in root: URL) throws -> URL {
+        let url = root.appendingPathComponent(Self.containerEnvironmentFileName)
+        try Self.containerEnvironmentFileContents.write(
+            to: url,
+            atomically: true,
+            encoding: .utf8)
+        return url
     }
 
     /// Check if a bundle exists at the given path
