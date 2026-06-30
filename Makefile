@@ -202,9 +202,13 @@ PARALLEL_WIDTH ?= 2
 WARMUP_FILTER = ImageWarmup
 
 CONCURRENT_TEST_SUITES ?= \
-	TestCLIStop/ \
+	TestCLIExportCommand/ \
+	TestCLIHelp \
+	TestCLIMachineCommand/ \
 	TestCLIRmRaceCondition/ \
-	TestCLIExportCommand/
+	TestCLIStatus \
+	TestCLIStop/ \
+	TestCLIVersion/
 CONCURRENT_FILTER = $(subst $(space),|,$(strip $(CONCURRENT_TEST_SUITES)))
 
 GLOBAL_TEST_SUITES ?= \
@@ -212,7 +216,8 @@ GLOBAL_TEST_SUITES ?= \
 	TestCLIBuilderSerial/ \
 	TestCLIBuilderEnvOnlySerial/ \
 	TestCLIBuilderLocalOutputSerial/ \
-	TestCLIBuilderTarExportSerial/
+	TestCLIBuilderTarExportSerial/ \
+	TestCLIMachineRuntimeSerial/
 GLOBAL_FILTER = $(subst $(space),|,$(strip $(GLOBAL_TEST_SUITES)))
 
 INTEGRATION_SWIFT_EXTRA ?=
@@ -269,9 +274,6 @@ coverage-integration-new: all
 	$(RUN_INTEGRATION)
 
 INTEGRATION_TEST_SUITES ?= \
-	TestCLIHelp \
-	TestCLIStatus \
-	TestCLIVersion \
 	TestCLINetwork \
 	TestCLIRunLifecycle \
 	TestCLIRunCapabilities \
@@ -292,8 +294,6 @@ INTEGRATION_TEST_SUITES ?= \
 	TestCLIAnonymousVolumes \
 	TestCLINotFound \
 	TestCLISystemDF \
-	TestCLIMachineCommand \
-	TestCLIMachineRuntime \
 	TestCLINoParallelCases \
 	TestCLICopyCommand
 

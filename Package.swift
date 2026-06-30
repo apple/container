@@ -85,10 +85,12 @@ let package = Package(
             dependencies: [
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "SystemPackage", package: "swift-system"),
+                .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationArchive", package: "containerization"),
                 .product(name: "ContainerizationExtras", package: "containerization"),
                 "ContainerLog",
                 "ContainerResource",
+                "MachineAPIClient",
                 "Yams",
             ],
             path: "Tests/IntegrationTests"
