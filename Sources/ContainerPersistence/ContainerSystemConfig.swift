@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import CVersion
+import ContainerResource
 import ContainerVersion
 import ContainerizationExtras
 import Foundation
@@ -132,15 +133,31 @@ final public class ContainerConfig: Codable, Sendable {
 }
 
 final public class DNSConfig: Codable, Sendable {
+    public let nameservers: [String]
     public let domain: String?
+    public let searchDomains: [String]
+    public let options: [String]
 
-    public init(domain: String? = nil) {
+    public init(
+        nameservers: [String] = ContainerConfiguration.DNSConfiguration.defaultNameservers,
+        domain: String? = nil,
+        searchDomains: [String] = [],
+        options: [String] = []
+    ) {
+        self.nameservers = nameservers
         self.domain = domain
+        self.searchDomains = searchDomains
+        self.options = options
     }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.nameservers =
+            try container.decodeIfPresent([String].self, forKey: .nameservers)
+            ?? ContainerConfiguration.DNSConfiguration.defaultNameservers
         self.domain = try container.decodeIfPresent(String.self, forKey: .domain)
+        self.searchDomains = try container.decodeIfPresent([String].self, forKey: .searchDomains) ?? []
+        self.options = try container.decodeIfPresent([String].self, forKey: .options) ?? []
     }
 }
 

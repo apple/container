@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerPersistence
 import ContainerResource
 import ContainerizationError
 import Foundation
@@ -29,6 +30,53 @@ struct UtilityTests {
 
         #expect(result["key1"] == "value1")
         #expect(result["key2"] == "value2")
+    }
+
+    @Test("DNS config uses system defaults when CLI flags are absent")
+    func testDNSConfigurationUsesSystemDefaults() throws {
+        let defaults = DNSConfig(
+            nameservers: ["9.9.9.9", "149.112.112.112"],
+            domain: "containers.example",
+            searchDomains: ["svc.example"],
+            options: ["ndots:1"]
+        )
+
+        let dns = try #require(Utility.dnsConfiguration(dns: try Flags.DNS.parse([]), dnsDisabled: false, defaults: defaults))
+
+        #expect(dns.nameservers == ["9.9.9.9", "149.112.112.112"])
+        #expect(dns.domain == "containers.example")
+        #expect(dns.searchDomains == ["svc.example"])
+        #expect(dns.options == ["ndots:1"])
+    }
+
+    @Test("DNS CLI flags override system defaults")
+    func testDNSConfigurationCLIOverridesSystemDefaults() throws {
+        let defaults = DNSConfig(
+            nameservers: ["9.9.9.9"],
+            domain: "containers.example",
+            searchDomains: ["svc.example"],
+            options: ["ndots:1"]
+        )
+        let flags = Flags.DNS(
+            domain: "override.example",
+            nameservers: ["8.8.8.8"],
+            options: ["debug"],
+            searchDomains: ["override.search"]
+        )
+
+        let dns = try #require(Utility.dnsConfiguration(dns: flags, dnsDisabled: false, defaults: defaults))
+
+        #expect(dns.nameservers == ["8.8.8.8"])
+        #expect(dns.domain == "override.example")
+        #expect(dns.searchDomains == ["override.search"])
+        #expect(dns.options == ["debug"])
+    }
+
+    @Test("DNS config is disabled by no-dns")
+    func testDNSConfigurationDisabled() throws {
+        let dns = Utility.dnsConfiguration(dns: try Flags.DNS.parse([]), dnsDisabled: true, defaults: .init(nameservers: ["9.9.9.9"]))
+
+        #expect(dns == nil)
     }
 
     @Test("Parse standalone keys")

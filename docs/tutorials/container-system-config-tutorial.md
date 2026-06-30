@@ -41,7 +41,10 @@ cpus = 8
 memory = "4g"
 
 [dns]
+nameservers = ["9.9.9.9", "149.112.112.112"]
 domain = "test"
+searchDomains = ["corp.example"]
+options = ["ndots:1"]
 ```
 
 Each top-level table maps directly to a section of [ContainerSystemConfig](../container-system-config.md). 

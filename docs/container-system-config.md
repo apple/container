@@ -14,7 +14,7 @@ Source of truth: [`Sources/ContainerPersistence/ContainerSystemConfig.swift`](..
 ```toml
 [build]      # builder VM resources and image
 [container]  # default per-container resources
-[dns]        # default DNS domain for DNS resolution on host
+[dns]        # default DNS settings for containers and host resolution
 [kernel]     # guest kernel binary path and download URL
 [network]    # default subnets for new networks
 [registry]   # default registry domain
@@ -46,9 +46,12 @@ Defaults applied when `container run` / `container create` is invoked without `-
 
 ## `[dns]`
 
-| Key      | Type      | Default | Description                                                                |
-|----------|-----------|---------|----------------------------------------------------------------------------|
-| `domain` | `String?` | unset   | Local DNS domain appended to container hostnames (e.g. `"test"` makes `my-web-server` resolvable as `my-web-server.test`). When unset, no domain is appended. |
+| Key             | Type       | Default       | Description                                                                |
+|-----------------|------------|---------------|----------------------------------------------------------------------------|
+| `nameservers`   | `[String]` | `["1.1.1.1"]` | DNS nameserver IP addresses configured in containers when `--dns` is not supplied. |
+| `domain`        | `String?`  | unset         | Local DNS domain appended to container hostnames (e.g. `"test"` makes `my-web-server` resolvable as `my-web-server.test`). When unset, no domain is appended. |
+| `searchDomains` | `[String]` | `[]`          | DNS search domains configured in containers when `--dns-search` is not supplied. |
+| `options`       | `[String]` | `[]`          | DNS resolver options configured in containers when `--dns-option` is not supplied. |
 
 ## `[kernel]`
 
