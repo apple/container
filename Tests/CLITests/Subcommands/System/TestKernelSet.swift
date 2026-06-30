@@ -25,6 +25,7 @@ import Testing
 class TestCLIKernelSet: CLITest {
     let remoteTar = ContainerSystemConfig().kernel.url
     let defaultBinaryPath = ContainerSystemConfig().kernel.binaryPath
+    let defaultIntegrity = KernelConfig.defaultIntegrity
 
     deinit {
         try? resetDefaultBinary()
@@ -85,6 +86,8 @@ class TestCLIKernelSet: CLITest {
                 localTarPath.path,
                 "--binary",
                 symlinkBinaryPath,
+                "--integrity",
+                defaultIntegrity,
             ]
 
             try doKernelSet(extraArgs: extraArgs)
@@ -100,6 +103,8 @@ class TestCLIKernelSet: CLITest {
             remoteTar.absoluteString,
             "--binary",
             symlinkBinaryPath,
+            "--integrity",
+            defaultIntegrity,
         ]
 
         try doKernelSet(extraArgs: extraArgs)

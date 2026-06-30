@@ -47,18 +47,25 @@ extension Application {
         @Option(name: .customLong("tar"), help: "Filesystem path or remote URL to a tar archive containing a kernel file")
         var tarPath: String? = nil
 
+        @Option(name: .long, help: "Expected integrity metadata for the tar archive, for example sha256-<hex>")
+        var integrity: String? = nil
+
         @OptionGroup
         public var logOptions: Flags.Logging
 
         public init() {}
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
             if recommended {
+                let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
                 let url = containerSystemConfig.kernel.url
                 let path: String = containerSystemConfig.kernel.binaryPath
                 log.info("Installing the recommended kernel from \(url)...")
-                try await Self.downloadAndInstallWithProgressBar(tarRemoteURL: url, kernelFilePath: path, force: force)
+                try await Self.downloadAndInstallWithProgressBar(
+                    tarRemoteURL: url,
+                    kernelFilePath: path,
+                    expectedIntegrity: containerSystemConfig.kernel.integrity,
+                    force: force)
                 return
             }
             guard tarPath != nil else {
@@ -68,6 +75,9 @@ extension Application {
         }
 
         private func setKernelFromBinary() async throws {
+            guard integrity == nil else {
+                throw ArgumentParser.ValidationError("'--integrity' can only be used with '--tar'")
+            }
             guard let binaryPath else {
                 throw ArgumentParser.ValidationError("missing argument '--binary'")
             }
@@ -87,13 +97,23 @@ extension Application {
             let localTarPath = URL(fileURLWithPath: tarPath, relativeTo: .currentDirectory()).path
             let fm = FileManager.default
             if fm.fileExists(atPath: localTarPath) {
-                try await ClientKernel.installKernelFromTar(tarFile: localTarPath, kernelFilePath: binaryPath, platform: platform, force: force)
+                try await ClientKernel.installKernelFromTar(
+                    tarFile: localTarPath,
+                    kernelFilePath: binaryPath,
+                    platform: platform,
+                    expectedIntegrity: integrity,
+                    force: force)
                 return
             }
             guard let remoteURL = URL(string: tarPath) else {
                 throw ContainerizationError(.invalidArgument, message: "invalid remote URL '\(tarPath)' for argument '--tar'. Missing protocol?")
             }
-            try await Self.downloadAndInstallWithProgressBar(tarRemoteURL: remoteURL, kernelFilePath: binaryPath, platform: platform, force: force)
+            try await Self.downloadAndInstallWithProgressBar(
+                tarRemoteURL: remoteURL,
+                kernelFilePath: binaryPath,
+                platform: platform,
+                expectedIntegrity: integrity,
+                force: force)
         }
 
         private func getSystemPlatform() throws -> SystemPlatform {
@@ -107,7 +127,13 @@ extension Application {
             }
         }
 
-        static func downloadAndInstallWithProgressBar(tarRemoteURL: URL, kernelFilePath: String, platform: SystemPlatform = .current, force: Bool) async throws {
+        static func downloadAndInstallWithProgressBar(
+            tarRemoteURL: URL,
+            kernelFilePath: String,
+            platform: SystemPlatform = .current,
+            expectedIntegrity: String? = nil,
+            force: Bool
+        ) async throws {
             let progressConfig = try ProgressConfig(
                 showTasks: true,
                 totalTasks: 2
@@ -118,7 +144,12 @@ extension Application {
             }
             progress.start()
             try await ClientKernel.installKernelFromTar(
-                tarFile: tarRemoteURL.absoluteString, kernelFilePath: kernelFilePath, platform: platform, progressUpdate: progress.handler, force: force)
+                tarFile: tarRemoteURL.absoluteString,
+                kernelFilePath: kernelFilePath,
+                platform: platform,
+                progressUpdate: progress.handler,
+                expectedIntegrity: expectedIntegrity,
+                force: force)
             progress.finish()
         }
 

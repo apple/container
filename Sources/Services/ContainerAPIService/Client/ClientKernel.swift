@@ -42,15 +42,23 @@ extension ClientKernel {
         try await client.send(message)
     }
 
-    public static func installKernelFromTar(tarFile: String, kernelFilePath: String, platform: SystemPlatform, progressUpdate: ProgressUpdateHandler? = nil, force: Bool)
-        async throws
-    {
+    public static func installKernelFromTar(
+        tarFile: String,
+        kernelFilePath: String,
+        platform: SystemPlatform,
+        progressUpdate: ProgressUpdateHandler? = nil,
+        expectedIntegrity: String? = nil,
+        force: Bool
+    ) async throws {
         let client = newClient()
         let message = XPCMessage(route: .installKernel)
 
         message.set(key: .kernelTarURL, value: tarFile)
         message.set(key: .kernelFilePath, value: kernelFilePath)
         message.set(key: .kernelForce, value: force)
+        if let expectedIntegrity {
+            message.set(key: .kernelIntegrity, value: expectedIntegrity)
+        }
 
         let platformData = try JSONEncoder().encode(platform)
         message.set(key: .systemPlatform, value: platformData)

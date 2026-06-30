@@ -157,7 +157,10 @@ extension Application {
             guard await !kernelExists() else {
                 return
             }
-            try await installDefaultKernel(kernelURL: containerSystemConfig.kernel.url, kernelBinaryPath: containerSystemConfig.kernel.binaryPath)
+            try await installDefaultKernel(
+                kernelURL: containerSystemConfig.kernel.url,
+                kernelBinaryPath: containerSystemConfig.kernel.binaryPath,
+                kernelIntegrity: containerSystemConfig.kernel.integrity)
         }
 
         private func installInitialFilesystem(initImage: String) async throws {
@@ -171,7 +174,7 @@ extension Application {
             }
         }
 
-        private func installDefaultKernel(kernelURL: URL, kernelBinaryPath: String) async throws {
+        private func installDefaultKernel(kernelURL: URL, kernelBinaryPath: String, kernelIntegrity: String?) async throws {
             var shouldInstallKernel = false
             if kernelInstall == nil {
                 print("No default kernel configured.")
@@ -191,7 +194,11 @@ extension Application {
                 return
             }
             log.info("Installing kernel...")
-            try await KernelSet.downloadAndInstallWithProgressBar(tarRemoteURL: kernelURL, kernelFilePath: kernelBinaryPath, force: true)
+            try await KernelSet.downloadAndInstallWithProgressBar(
+                tarRemoteURL: kernelURL,
+                kernelFilePath: kernelBinaryPath,
+                expectedIntegrity: kernelIntegrity,
+                force: true)
         }
 
         private func initImageExists(containerSystemConfig: ContainerSystemConfig) async -> Bool {

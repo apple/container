@@ -19,6 +19,7 @@ import Containerization
 import ContainerizationArchive
 import ContainerizationError
 import ContainerizationExtras
+import CryptoKit
 import Foundation
 import Logging
 import TerminalProgress
@@ -81,7 +82,14 @@ public actor KernelService {
     /// Copies a kernel binary from inside of tar file into the managed kernels directory
     /// as the default kernel for the provided platform.
     /// The parameter `tar` maybe a location to a local file on disk, or a remote URL.
-    public func installKernelFrom(tar: URL, kernelFilePath: String, platform: SystemPlatform, progressUpdate: ProgressUpdateHandler?, force: Bool) async throws {
+    public func installKernelFrom(
+        tar: URL,
+        kernelFilePath: String,
+        platform: SystemPlatform,
+        progressUpdate: ProgressUpdateHandler?,
+        expectedIntegrity: String? = nil,
+        force: Bool
+    ) async throws {
         log.debug(
             "KernelService: enter",
             metadata: [
@@ -114,7 +122,12 @@ public actor KernelService {
         let taskManager = ProgressTaskCoordinator()
         let downloadTask = await taskManager.startTask()
         var tarFile = tar
-        if !FileManager.default.fileExists(atPath: tar.absoluteString) {
+        let localTarPath = tar.scheme == nil || tar.isFileURL ? tar.path : nil
+        let isLocalTar = localTarPath.map { FileManager.default.fileExists(atPath: $0) } ?? false
+        if isLocalTar, let localTarPath {
+            tarFile = URL(fileURLWithPath: localTarPath)
+        }
+        if !isLocalTar {
             self.log.debug("KernelService: start download", metadata: ["tar": "\(tar)"])
             tarFile = tempDir.appendingPathComponent(tar.lastPathComponent)
             var downloadProgressUpdate: ProgressUpdateHandler?
@@ -125,15 +138,58 @@ public actor KernelService {
         }
         await taskManager.finish()
 
+        if let expectedIntegrity {
+            await progressUpdate?([
+                .setDescription("Verifying kernel archive")
+            ])
+            try Self.verifyIntegrity(of: tarFile, expected: expectedIntegrity)
+        }
+
         await progressUpdate?([
             .setDescription("Unpacking kernel")
         ])
         let kernelFile = try self.extractFile(tarFile: tarFile, at: kernelFilePath, to: tempDir)
         try self.installKernel(kernelFile: kernelFile, platform: platform, force: force)
 
-        if !FileManager.default.fileExists(atPath: tar.absoluteString) {
+        if !isLocalTar {
             try FileManager.default.removeItem(at: tarFile)
         }
+    }
+
+    static func verifyIntegrity(of file: URL, expected: String) throws {
+        let integrity = try parseIntegrity(expected)
+        guard integrity.algorithm == "sha256" else {
+            throw ContainerizationError(.unsupported, message: "unsupported integrity algorithm '\(integrity.algorithm)'")
+        }
+        guard integrity.digest.count == 64, integrity.digest.utf8.allSatisfy({ ($0 >= 48 && $0 <= 57) || ($0 >= 97 && $0 <= 102) }) else {
+            throw ContainerizationError(.invalidArgument, message: "invalid sha256 integrity value '\(expected)'")
+        }
+
+        let actualDigest = try sha256Hex(of: file)
+        guard actualDigest == integrity.digest else {
+            throw ContainerizationError(
+                .invalidState,
+                message: "kernel archive integrity mismatch: expected sha256-\(integrity.digest), got sha256-\(actualDigest)"
+            )
+        }
+    }
+
+    private static func parseIntegrity(_ expected: String) throws -> (algorithm: String, digest: String) {
+        let parts = expected.lowercased().split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else {
+            throw ContainerizationError(.invalidArgument, message: "invalid integrity value '\(expected)': expected '<algorithm>-<digest>'")
+        }
+        return (String(parts[0]), String(parts[1]))
+    }
+
+    static func sha256Hex(of file: URL) throws -> String {
+        var hasher = SHA256()
+        let handle = try FileHandle(forReadingFrom: file)
+        defer { try? handle.close() }
+        while let data = try handle.read(upToCount: Int(1.mib())), !data.isEmpty {
+            hasher.update(data: data)
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     private func setDefaultKernel(name: String, platform: SystemPlatform) throws {
