@@ -49,10 +49,11 @@ public struct ImagesServiceHarness: Sendable {
         }
         let insecure = message.bool(key: .insecureFlag)
         let maxConcurrentDownloads = message.int64(key: .maxConcurrentDownloads)
+        let auth = message.string(key: .registryAuthorization).map { ResolvedAuthentication(authorization: $0) }
 
         let progressUpdateService = ProgressUpdateService(message: message)
         let imageDescription = try await service.pull(
-            reference: ref, platform: platform, insecure: insecure, progressUpdate: progressUpdateService?.handler, maxConcurrentDownloads: Int(maxConcurrentDownloads))
+            reference: ref, platform: platform, insecure: insecure, auth: auth, progressUpdate: progressUpdateService?.handler, maxConcurrentDownloads: Int(maxConcurrentDownloads))
 
         let imageData = try JSONEncoder().encode(imageDescription)
         let reply = message.reply()
@@ -75,9 +76,10 @@ public struct ImagesServiceHarness: Sendable {
             platform = try JSONDecoder().decode(ContainerizationOCI.Platform.self, from: platformData)
         }
         let insecure = message.bool(key: .insecureFlag)
+        let auth = message.string(key: .registryAuthorization).map { ResolvedAuthentication(authorization: $0) }
 
         let progressUpdateService = ProgressUpdateService(message: message)
-        try await service.push(reference: ref, platform: platform, insecure: insecure, progressUpdate: progressUpdateService?.handler)
+        try await service.push(reference: ref, platform: platform, insecure: insecure, auth: auth, progressUpdate: progressUpdateService?.handler)
 
         let reply = message.reply()
         return reply
