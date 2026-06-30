@@ -35,12 +35,12 @@ struct TestCLIVolumes {
 
             try f.doVolumeCreate(vol)
             try f.doLongRun(name: c1, image: image, args: ["-v", "\(vol):/data"], autoRemove: false)
-            try f.waitForContainerRunning(c1)
+            try await f.waitForContainerRunning(c1)
             _ = try f.doExec(c1, cmd: ["sh", "-c", "echo 'persistent-data-test' > /data/test.txt"])
             try f.doStop(c1)
             try f.doRemove(c1)
             try f.doLongRun(name: c2, image: image, args: ["-v", "\(vol):/data"], autoRemove: false)
-            try f.waitForContainerRunning(c2)
+            try await f.waitForContainerRunning(c2)
             let output = try f.doExec(c2, cmd: ["cat", "/data/test.txt"])
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             #expect(output == "persistent-data-test")
@@ -65,7 +65,7 @@ struct TestCLIVolumes {
 
             try f.doVolumeCreate(vol)
             try f.doLongRun(name: c1, image: image, args: ["-v", "\(vol):/data"], autoRemove: false)
-            try f.waitForContainerRunning(c1)
+            try await f.waitForContainerRunning(c1)
 
             let result = try f.run(["run", "--name", c2, "-v", "\(vol):/data", image, "sleep", "infinity"])
             #expect(result.status != 0, "second container should fail when volume is already in use")
@@ -89,7 +89,7 @@ struct TestCLIVolumes {
 
             try f.doVolumeCreate(vol)
             try f.doLongRun(name: c, image: image, args: ["-v", "\(vol):/data"], autoRemove: false)
-            try f.waitForContainerRunning(c)
+            try await f.waitForContainerRunning(c)
 
             #expect(try f.doesVolumeDeleteFail(vol), "volume delete should fail while in use")
 
@@ -245,12 +245,12 @@ struct TestCLIVolumes {
 
             try f.doVolumeCreate(vol, opts: ["journal=ordered"])
             try f.doLongRun(name: c1, image: image, args: ["-v", "\(vol):/data"], autoRemove: false)
-            try f.waitForContainerRunning(c1)
+            try await f.waitForContainerRunning(c1)
             _ = try f.doExec(c1, cmd: ["sh", "-c", "echo 'journaled-data' > /data/test.txt"])
             try f.doStop(c1)
             try f.doRemove(c1)
             try f.doLongRun(name: c2, image: image, args: ["-v", "\(vol):/data"], autoRemove: false)
-            try f.waitForContainerRunning(c2)
+            try await f.waitForContainerRunning(c2)
             let output = try f.doExec(c2, cmd: ["cat", "/data/test.txt"])
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             #expect(output == "journaled-data")

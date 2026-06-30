@@ -31,7 +31,7 @@ struct TestCLIAnonymousVolumes {
             let image = try f.copyWarmupImage(alpine)
             let c = "\(f.testID)-c"
             try f.doLongRun(name: c, image: image, args: ["-v", "/data"], autoRemove: false)
-            try f.waitForContainerRunning(c)
+            try await f.waitForContainerRunning(c)
 
             let volumeIDs = try f.getContainerMountedVolumeNames(c)
             try #require(volumeIDs.count == 1, "should have exactly one anonymous volume")
@@ -49,7 +49,7 @@ struct TestCLIAnonymousVolumes {
             let image = try f.copyWarmupImage(alpine)
             let c = "\(f.testID)-c1"
             try f.doLongRun(name: c, image: image, args: ["-v", "/data"], autoRemove: false)
-            try f.waitForContainerRunning(c)
+            try await f.waitForContainerRunning(c)
             _ = try f.doExec(c, cmd: ["sh", "-c", "echo 'persistent-data' > /data/test.txt"])
 
             let volumeIDs = try f.getContainerMountedVolumeNames(c)
@@ -63,7 +63,7 @@ struct TestCLIAnonymousVolumes {
 
             let c2 = "\(f.testID)-c2"
             try f.doLongRun(name: c2, image: image, args: ["-v", "\(volumeID):/data"], autoRemove: false)
-            try f.waitForContainerRunning(c2)
+            try await f.waitForContainerRunning(c2)
             let output = try f.doExec(c2, cmd: ["cat", "/data/test.txt"])
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             #expect(output == "persistent-data")
@@ -79,7 +79,7 @@ struct TestCLIAnonymousVolumes {
             try f.doLongRun(
                 name: c, image: image,
                 args: ["-v", "/data1", "-v", "/data2", "-v", "/data3"], autoRemove: false)
-            try f.waitForContainerRunning(c)
+            try await f.waitForContainerRunning(c)
 
             let volumeIDs = try f.getContainerMountedVolumeNames(c)
             #expect(volumeIDs.count == 3, "should have 3 anonymous volumes")
@@ -98,7 +98,7 @@ struct TestCLIAnonymousVolumes {
             try f.doLongRun(
                 name: c, image: image,
                 args: ["--mount", "type=volume,dst=/mydata"], autoRemove: false)
-            try f.waitForContainerRunning(c)
+            try await f.waitForContainerRunning(c)
 
             let volumeIDs = try f.getContainerMountedVolumeNames(c)
             #expect(volumeIDs.count == 1, "should have one anonymous volume from --mount syntax")
@@ -114,7 +114,7 @@ struct TestCLIAnonymousVolumes {
             let image = try f.copyWarmupImage(alpine)
             let c = "\(f.testID)-c"
             try f.doLongRun(name: c, image: image, args: ["-v", "/data"], autoRemove: false)
-            try f.waitForContainerRunning(c)
+            try await f.waitForContainerRunning(c)
 
             // Capture volume IDs before any stop/remove so cleanup and assert can use them.
             let volumeIDs = try f.getContainerMountedVolumeNames(c)
@@ -135,7 +135,7 @@ struct TestCLIAnonymousVolumes {
             let image = try f.copyWarmupImage(alpine)
             let c = "\(f.testID)-c"
             try f.doLongRun(name: c, image: image, args: ["-v", "/data"], autoRemove: false)
-            try f.waitForContainerRunning(c)
+            try await f.waitForContainerRunning(c)
 
             // Capture volume ID before stop/remove.
             let volumeIDs = try f.getContainerMountedVolumeNames(c)
@@ -169,7 +169,7 @@ struct TestCLIAnonymousVolumes {
             f.addCleanup { f.doVolumeDeleteIfExists(namedVol) }
 
             try f.doLongRun(name: c, image: image, args: ["-v", "/data"], autoRemove: false)
-            try f.waitForContainerRunning(c)
+            try await f.waitForContainerRunning(c)
 
             // Capture volume IDs while container is running.
             let volumeIDs = try f.getContainerMountedVolumeNames(c)
@@ -198,7 +198,7 @@ struct TestCLIAnonymousVolumes {
             try f.doLongRun(
                 name: c, image: image,
                 args: ["-v", "\(namedVol):/named", "-v", "/anon"], autoRemove: false)
-            try f.waitForContainerRunning(c)
+            try await f.waitForContainerRunning(c)
 
             let allVolumeIDs = try f.getContainerMountedVolumeNames(c)
             let anonVols = allVolumeIDs.filter { $0 != namedVol }
@@ -217,7 +217,7 @@ struct TestCLIAnonymousVolumes {
             let image = try f.copyWarmupImage(alpine)
             let c = "\(f.testID)-c"
             try f.doLongRun(name: c, image: image, args: ["-v", "/data"], autoRemove: false)
-            try f.waitForContainerRunning(c)
+            try await f.waitForContainerRunning(c)
 
             let volumeIDs = try f.getContainerMountedVolumeNames(c)
             try #require(volumeIDs.count == 1)
@@ -236,7 +236,7 @@ struct TestCLIAnonymousVolumes {
             let image = try f.copyWarmupImage(alpine)
             let c = "\(f.testID)-c"
             try f.doLongRun(name: c, image: image, args: ["-v", "/data"], autoRemove: true)
-            try f.waitForContainerRunning(c)
+            try await f.waitForContainerRunning(c)
 
             // Capture volume IDs while the container is still running; --rm means
             // doStop will also remove it.

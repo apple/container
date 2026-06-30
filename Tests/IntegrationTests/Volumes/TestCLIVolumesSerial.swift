@@ -69,7 +69,7 @@ struct TestCLIVolumesSerial {
             try f.doVolumeCreate(vInUse)
             try f.doVolumeCreate(vUnused)
             try f.doLongRun(name: c, image: image, args: ["-v", "\(vInUse):/data"], autoRemove: false)
-            try f.waitForContainerRunning(c)
+            try await f.waitForContainerRunning(c)
 
             try f.run(["volume", "prune"]).check()
 
