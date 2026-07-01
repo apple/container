@@ -30,7 +30,8 @@ import Foundation
 /// tar with the same internal layout (a real binary plus the `vmlinux.container`
 /// symlink member kata's release tarballs ship) so the real install/extract/
 /// digest-verify code paths still get exercised, without any network access.
-struct KernelFixture {
+public struct KernelFixture {
+    public init() {}
     private let kernelsDirectory = URL(fileURLWithPath: ApplicationRoot.pathname).appendingPathComponent("kernels")
 
     private var defaultKernelSymlink: URL {
@@ -38,7 +39,7 @@ struct KernelFixture {
     }
 
     /// Copies the bytes of the currently-installed default kernel to `destination`.
-    func captureInstalledBinary(to destination: URL) throws {
+    public func captureInstalledBinary(to destination: URL) throws {
         let resolved = defaultKernelSymlink.resolvingSymlinksInPath()
         guard FileManager.default.fileExists(atPath: resolved.path) else {
             throw CommandError.executionFailed("no default kernel installed at \(resolved.path)")
@@ -55,7 +56,7 @@ struct KernelFixture {
     /// kernel set --digest` verifies the archive's digest, not the extracted
     /// binary's.
     @discardableResult
-    func writeTar(binary: URL, binaryArchivePath: String, to tarPath: URL) throws -> String {
+    public func writeTar(binary: URL, binaryArchivePath: String, to tarPath: URL) throws -> String {
         let binaryData = try Data(contentsOf: binary)
 
         let writer = try ArchiveWriter(format: .ustar, filter: .none, file: tarPath)

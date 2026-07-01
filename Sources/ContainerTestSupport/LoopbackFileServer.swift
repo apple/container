@@ -23,14 +23,14 @@ import NIOPosix
 /// payload for any GET request. Used by integration tests that need to
 /// exercise a "fetch this over a URL" code path without depending on a real
 /// network peer.
-final class LoopbackFileServer: Sendable {
+public final class LoopbackFileServer: Sendable {
     /// URL clients should fetch to receive the served payload.
-    let url: URL
+    public let url: URL
 
     private let group: MultiThreadedEventLoopGroup
     private let channel: any Channel
 
-    init(serving data: Data) throws {
+    public init(serving data: Data) throws {
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         let bootstrap = ServerBootstrap(group: group)
             .childChannelInitializer { channel in
@@ -58,7 +58,7 @@ final class LoopbackFileServer: Sendable {
     }
 
     /// Stops accepting connections and shuts down the server's event loop.
-    func shutdown() {
+    public func shutdown() {
         try? channel.close().wait()
         try? group.syncShutdownGracefully()
     }

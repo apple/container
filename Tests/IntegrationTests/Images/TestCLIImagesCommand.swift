@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerTestSupport
 import ContainerizationArchive
 import ContainerizationOCI
 import Foundation

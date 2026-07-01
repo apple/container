@@ -15,6 +15,8 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerPersistence
+import ContainerTestSupport
+import ContainerizationArchive
 import Foundation
 import Testing
 
@@ -141,7 +143,7 @@ struct TestCLIKernelSetSerial {
     private func prepareFixture(_ f: ContainerFixture) throws -> URL {
         let capturedBinary = URL(filePath: f.testDir.string).appending(path: "captured-kernel")
         try fixture.captureInstalledBinary(to: capturedBinary)
-        f.addCleanup { restoreCapturedKernel(f, from: capturedBinary) }
+        f.addCleanup { Self.restoreCapturedKernel(f, from: capturedBinary) }
         return capturedBinary
     }
 
@@ -150,7 +152,7 @@ struct TestCLIKernelSetSerial {
     /// the suite is serialised and the kernel is global state. The fixture's
     /// cleanup runner swallows throws with `try?`, so we record an issue against
     /// the current test rather than rely on error propagation.
-    private func restoreCapturedKernel(_ f: ContainerFixture, from capturedBinary: URL) {
+    private static func restoreCapturedKernel(_ f: ContainerFixture, from capturedBinary: URL) {
         do {
             let result = try f.run(["system", "kernel", "set", "--force", "--binary", capturedBinary.path])
             if result.status != 0 {

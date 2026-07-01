@@ -38,6 +38,7 @@ let package = Package(
         .library(name: "ContainerNetworkServer", targets: ["ContainerNetworkServer"]),
         .library(name: "ContainerNetworkVmnetServer", targets: ["ContainerNetworkVmnetServer"]),
         .library(name: "ContainerResource", targets: ["ContainerResource"]),
+        .library(name: "ContainerTestSupport", targets: ["ContainerTestSupport"]),
         .library(name: "ContainerLog", targets: ["ContainerLog"]),
         .library(name: "ContainerPersistence", targets: ["ContainerPersistence"]),
         .library(name: "ContainerPlugin", targets: ["ContainerPlugin"]),
@@ -100,6 +101,7 @@ let package = Package(
                 "ContainerPersistence",
                 "ContainerPlugin",
                 "ContainerResource",
+                "ContainerTestSupport",
                 "MachineAPIClient",
                 "Yams",
             ],
@@ -571,7 +573,14 @@ let package = Package(
         .target(
             name: "ContainerTestSupport",
             dependencies: [
-                .product(name: "SystemPackage", package: "swift-system")
+                .product(name: "AsyncHTTPClient", package: "async-http-client"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                .product(name: "TOML", package: "swift-toml"),
+                "ContainerLog",
+                "ContainerPersistence",
+                "ContainerResource",
             ]
         ),
         .target(
