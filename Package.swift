@@ -83,12 +83,20 @@ let package = Package(
         .testTarget(
             name: "IntegrationTests",
             dependencies: [
+                .product(name: "AsyncHTTPClient", package: "async-http-client"),
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "SystemPackage", package: "swift-system"),
+                .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationArchive", package: "containerization"),
                 .product(name: "ContainerizationExtras", package: "containerization"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                .product(name: "ContainerizationOS", package: "containerization"),
+                .product(name: "TOML", package: "swift-toml"),
+                "ContainerAPIClient",
                 "ContainerLog",
+                "ContainerPersistence",
                 "ContainerResource",
+                "MachineAPIClient",
                 "Yams",
             ],
             path: "Tests/IntegrationTests"

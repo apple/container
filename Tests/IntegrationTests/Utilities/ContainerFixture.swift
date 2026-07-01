@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerLog
+import Darwin
 import Foundation
 import Logging
 import Synchronization
@@ -74,9 +75,11 @@ final class ContainerFixture: Sendable {
     let testID: String
 
     /// Scratch directory for build inputs, test data, and command output.
-    /// Created at fixture init; removed on cleanup unless `CLITEST_PRESERVE_SCRATCH`
-    /// is set in the environment.
+    /// Created at fixture init; removed on cleanup unless `CLITEST_PRESERVE_SCRATCH=true`.
     let testDir: FilePath
+
+    /// Logger for this fixture scope. Tests may emit diagnostic messages via this logger.
+    let log: Logger
 
     // MARK: - Unstructured API
 
@@ -91,14 +94,19 @@ final class ContainerFixture: Sendable {
             ProcessInfo.processInfo.environment["CLITEST_SCRATCH_ROOT"]
             .map { FilePath($0) }
             ?? FilePath(FileManager.default.temporaryDirectory.path)
-        let testDir = scratchRoot.appending(testID)
-        try FileManager.default.createDirectory(
-            atPath: testDir.string, withIntermediateDirectories: true, attributes: nil)
 
         let testName =
             Test.current.map { $0.name.hasSuffix("()") ? String($0.name.dropLast(2)) : $0.name }
             ?? testID
         let suiteName = Test.current.map { "\(type(of: $0))" } ?? "unknown"
+
+        // Name the scratch directory so it's immediately identifiable when browsing:
+        // {sanitizedTestName}-{testID}
+        let safeName = testName.replacingOccurrences(
+            of: "[^a-zA-Z0-9]", with: "-", options: .regularExpression)
+        let testDir = scratchRoot.appending("\(safeName)-\(testID)")
+        try FileManager.default.createDirectory(
+            atPath: testDir.string, withIntermediateDirectories: true, attributes: nil)
 
         var logger = Logger(label: "com.apple.container.test") { label in
             if let root = ProcessInfo.processInfo.environment["CLITEST_LOG_ROOT"], !root.isEmpty {
@@ -111,13 +119,13 @@ final class ContainerFixture: Sendable {
                     return handler
                 }
             }
-            return StderrLogHandler()
+            return StreamLogHandler.standardOutput(label: label)
         }
         logger[metadataKey: "testID"] = "\(testID)"
 
         let fixture = ContainerFixture(testID: testID, testDir: testDir, log: logger)
 
-        if ProcessInfo.processInfo.environment["CLITEST_PRESERVE_SCRATCH"] == nil {
+        if ProcessInfo.processInfo.environment["CLITEST_PRESERVE_SCRATCH"] != "true" {
             fixture.addCleanup {
                 try? FileManager.default.removeItem(atPath: testDir.string)
             }
@@ -149,7 +157,8 @@ final class ContainerFixture: Sendable {
         _ arguments: [String],
         stdin: Data? = nil,
         currentDirectory: FilePath? = nil,
-        env: [String: String] = [:]
+        env: [String: String] = [:],
+        pty: Bool = false
     ) throws -> CommandResult {
         let seq = Self.commandSeq.withLock { n in
             defer { n += 1 }
@@ -169,8 +178,20 @@ final class ContainerFixture: Sendable {
             process.environment = e
         }
 
+        // When pty is true, allocate a PTY slave for stdin so the child process
+        // sees a real terminal (satisfying isatty checks and tcgetattr calls).
+        // stdout/stderr still go to temp files so output is captured separately.
+        var masterFd: Int32 = -1
         let inputPipe = Pipe()
-        process.standardInput = inputPipe
+        if pty {
+            var slaveFd: Int32 = -1
+            guard openpty(&masterFd, &slaveFd, nil, nil, nil) == 0 else {
+                throw CommandError.executionFailed("openpty failed: errno \(errno)")
+            }
+            process.standardInput = FileHandle(fileDescriptor: slaveFd, closeOnDealloc: true)
+        } else {
+            process.standardInput = inputPipe
+        }
 
         // Write stdout/stderr to temp files to avoid blocking on full pipe buffers.
         let tmpDir = FilePath(FileManager.default.temporaryDirectory.path)
@@ -197,9 +218,15 @@ final class ContainerFixture: Sendable {
         } catch {
             throw CommandError.executionFailed("process launch failed: \(error)")
         }
-        if let data = stdin { inputPipe.fileHandleForWriting.write(data) }
-        inputPipe.fileHandleForWriting.closeFile()
+        if pty {
+            // Master stays open so the slave doesn't receive SIGHUP prematurely.
+            // Close it after the process exits.
+        } else {
+            if let data = stdin { inputPipe.fileHandleForWriting.write(data) }
+            inputPipe.fileHandleForWriting.closeFile()
+        }
         process.waitUntilExit()
+        if masterFd >= 0 { Darwin.close(masterFd) }
 
         let outputData = (try? Data(contentsOf: URL(filePath: stdoutPath.string))) ?? Data()
         let errorData = (try? Data(contentsOf: URL(filePath: stderrPath.string))) ?? Data()
@@ -238,7 +265,7 @@ final class ContainerFixture: Sendable {
     /// Call this directly only when using ``doCreate(_:image:args:volumes:networks:ports:)``
     /// and ``doStart(_:)`` — ``withContainer(image:tag:runArgs:containerArgs:autoRemove:_:)``
     /// waits automatically.
-    func waitForContainerRunning(_ name: String, attempts: Int = 30) throws {
+    func waitForContainerRunning(_ name: String, attempts: Int = 30) async throws {
         for _ in 0..<attempts {
             if let result = try? run(["inspect", name]),
                 result.status == 0,
@@ -246,7 +273,7 @@ final class ContainerFixture: Sendable {
             {
                 return
             }
-            sleep(1)
+            try await Task.sleep(for: .seconds(1))
         }
         throw CommandError.executionFailed("container '\(name)' did not reach running state")
     }
@@ -280,13 +307,12 @@ final class ContainerFixture: Sendable {
             _ = try? run(["stop", "-s", "SIGKILL", name])
             if !autoRemove { _ = try? run(["delete", name]) }
         }
-        try waitForContainerRunning(name)
+        try await waitForContainerRunning(name)
         try await body(name)
     }
 
     // MARK: - Private
 
-    private let log: Logger
     private let cleanupTasks: Mutex<[@Sendable () async throws -> Void]> = .init([])
     private static let commandSeq: Mutex<Int> = .init(0)
 

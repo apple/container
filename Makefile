@@ -198,21 +198,38 @@ endef
 # PARALLEL_WIDTH controls --experimental-maximum-parallelization-width for the
 # concurrent pass. WARMUP_FILTER, CONCURRENT_FILTER, and GLOBAL_FILTER select
 # the three phases. Expand the filter lists as suites are migrated from CLITests.
+#PARALLEL_WIDTH ?= $(shell sysctl -n hw.physicalcpu)
 PARALLEL_WIDTH ?= 2
-WARMUP_FILTER = ImageWarmup
+WARMUP_FILTER = ImageWarmup/
 
-CONCURRENT_TEST_SUITES ?= \
-	TestCLIStop \
-	TestCLIRmRaceCondition \
-	TestCLIExportCommand
+CONCURRENT_TEST_SUITES ?= $(sort $(addsuffix /,$(basename $(notdir \
+    $(shell find Tests/IntegrationTests -name 'TestCLI*.swift' \
+            ! -name '*Serial.swift' 2>/dev/null)))))
 CONCURRENT_FILTER = $(subst $(space),|,$(strip $(CONCURRENT_TEST_SUITES)))
 
-GLOBAL_FILTER = DemoGlobalTests
+GLOBAL_TEST_SUITES ?= \
+	TestCLIBuilderEnvOnlySerial/ \
+	TestCLIBuilderLifecycleSerial/ \
+	TestCLIBuilderLocalOutputSerial/ \
+	TestCLIBuilderSerial/ \
+	TestCLIBuilderTarExportSerial/ \
+	TestCLIKernelSetSerial/ \
+	TestCLIMachineRuntimeSerial/ \
+	TestCLIPruneCommandSerial/ \
+	TestCLIRemoveSerial/ \
+	TestCLIRunLifecycleSerial/ \
+	TestCLISystemDFSerial/ \
+	TestCLIVolumesSerial/
+GLOBAL_FILTER = $(subst $(space),|,$(strip $(GLOBAL_TEST_SUITES)))
 
 INTEGRATION_SWIFT_EXTRA ?=
 INTEGRATION_POST_TEST ?=
 
 PRESERVE_KERNELS ?= false
+# Default scratch root under the project directory so container build can access context
+# subdirectories (macOS restricts access to /var/folders from the container binary).
+# Override with SCRATCH_ROOT=/your/path on the command line.
+SCRATCH_ROOT ?= $(ROOT_DIR)/.test-scratch
 
 define RUN_INTEGRATION
 	@echo Ensuring apiserver stopped before the CLI integration tests...
@@ -231,13 +248,14 @@ define RUN_INTEGRATION
 	@bin/container --debug system start --timeout 60 --enable-kernel-install $(SYSTEM_START_OPTS) && \
 	{ \
 		CLITEST_LOG_ROOT=$(LOG_ROOT) && export CLITEST_LOG_ROOT ; \
+		CLITEST_SCRATCH_ROOT=$(SCRATCH_ROOT) && export CLITEST_SCRATCH_ROOT ; \
 		CONTAINER_CLI_PATH=$(ROOT_DIR)/bin/container && export CONTAINER_CLI_PATH ; \
 		echo "==> Warmup pass" && \
 		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(WARMUP_FILTER)" && \
 		echo "==> Concurrent pass (width=$(PARALLEL_WIDTH))" && \
 		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --experimental-maximum-parallelization-width $(PARALLEL_WIDTH) --filter "$(CONCURRENT_FILTER)" && \
 		echo "==> Global pass (serial)" && \
-		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(GLOBAL_FILTER)" ; \
+		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --experimental-maximum-parallelization-width 1 --filter "$(GLOBAL_FILTER)" ; \
 		exit_code=$$? ; \
 		$(INTEGRATION_POST_TEST) \
 		echo Ensuring apiserver stopped after the CLI integration tests ; \
@@ -257,34 +275,7 @@ coverage-integration-new: all
 	@mkdir -p $(COVERAGE_OUTPUT_DIR)/integration
 	$(RUN_INTEGRATION)
 
-INTEGRATION_TEST_SUITES ?= \
-	TestCLIHelp \
-	TestCLIStatus \
-	TestCLIVersion \
-	TestCLINetwork \
-	TestCLIRunLifecycle \
-	TestCLIRunCapabilities \
-	TestCLIExecCommand \
-	TestCLICreateCommand \
-	TestCLIRunCommand1 \
-	TestCLIRunCommand2 \
-	TestCLIRunCommand3 \
-	TestCLIPruneCommand \
-	TestCLIRegistry \
-	TestCLIStatsCommand \
-	TestCLIImagesCommand \
-	TestCLIRunBase \
-	TestCLIRunInitImage \
-	TestCLIBuildBase \
-	TestCLIVolumes \
-	TestCLIKernelSet \
-	TestCLIAnonymousVolumes \
-	TestCLINotFound \
-	TestCLISystemDF \
-	TestCLIMachineCommand \
-	TestCLIMachineRuntime \
-	TestCLINoParallelCases \
-	TestCLICopyCommand
+INTEGRATION_TEST_SUITES ?= NoTests/
 
 empty :=
 space := $(empty) $(empty)
