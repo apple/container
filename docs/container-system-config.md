@@ -58,7 +58,7 @@ Guest kernel used when launching container VMs. Defaults change per release as k
 |--------------|-----------|--------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
 | `binaryPath` | `String`  | `"opt/kata/share/kata-containers/vmlinux-6.18.15-186"`                                                 | Path **inside** the downloaded kernel archive that points to the kernel binary. |
 | `url`        | `URL`     | `"https://github.com/kata-containers/kata-containers/releases/download/3.28.0/kata-static-3.28.0-arm64.tar.zst"` | Archive to download when no kernel is installed. Encoded and decoded as a plain string in TOML. |
-| `integrity`  | `String?` | `"sha256-f63d54507d1f18635d94475077e4c2330de4d8e05cedf25f7c38f063b0e66a91"`                             | Expected integrity metadata for the archive, for example `sha256-<hex>`. When unset for a custom URL, remote kernel downloads are not verified. |
+| `digest`     | `String?` | `"sha256:f63d54507d1f18635d94475077e4c2330de4d8e05cedf25f7c38f063b0e66a91"`                             | Expected digest for the archive, for example `sha256:<hex>`. When unset for a custom URL, remote kernel downloads are not verified. |
 
 ## `[network]`
 

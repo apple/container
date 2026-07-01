@@ -1530,7 +1530,7 @@ Installs or updates the Linux kernel used by the container runtime on macOS host
 **Usage**
 
 ```bash
-container system kernel set [--arch <arch>] [--binary <binary>] [--force] [--recommended] [--tar <tar>] [--integrity <integrity>] [--debug]
+container system kernel set [--arch <arch>] [--binary <binary>] [--force] [--recommended] [--tar <tar>] [--digest <digest>] [--debug]
 ```
 
 **Options**
@@ -1540,7 +1540,7 @@ container system kernel set [--arch <arch>] [--binary <binary>] [--force] [--rec
 *   `--force`: Overwrites an existing kernel with the same name
 *   `--recommended`: Download and install the recommended kernel as the default (takes precedence over all other flags)
 *   `--tar <tar>`: Filesystem path or remote URL to a tar archive containing a kernel file
-*   `--integrity <integrity>`: Expected integrity metadata for the tar archive, for example `sha256-<hex>`
+*   `--digest <digest>`: Expected digest for the tar archive, for example `sha256:<hex>`
 
 ### `container system property list (ls)`
 

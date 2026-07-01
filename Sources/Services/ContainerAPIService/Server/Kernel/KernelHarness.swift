@@ -35,7 +35,7 @@ public struct KernelHarness: Sendable {
         let kernelFilePath = try message.kernelFilePath()
         let platform = try message.platform()
         let force = try message.kernelForce()
-        let expectedIntegrity = message.kernelIntegrity()
+        let expectedDigest = message.kernelDigest()
 
         guard let kernelTarUrl = try message.kernelTarURL() else {
             // We have been given a path to a kernel binary on disk
@@ -52,7 +52,7 @@ public struct KernelHarness: Sendable {
             kernelFilePath: kernelFilePath,
             platform: platform,
             progressUpdate: progressUpdateService?.handler,
-            expectedIntegrity: expectedIntegrity,
+            expectedDigest: expectedDigest,
             force: force)
         return message.reply()
     }
@@ -101,7 +101,7 @@ extension XPCMessage {
         self.bool(key: .kernelForce)
     }
 
-    fileprivate func kernelIntegrity() -> String? {
-        self.string(key: .kernelIntegrity)
+    fileprivate func kernelDigest() -> String? {
+        self.string(key: .kernelDigest)
     }
 }

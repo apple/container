@@ -112,7 +112,7 @@ public enum XPCKeys: String {
     case kernelFilePath
     case systemPlatform
     case kernelForce
-    case kernelIntegrity
+    case kernelDigest
 
     /// Init image reference
     case initImage

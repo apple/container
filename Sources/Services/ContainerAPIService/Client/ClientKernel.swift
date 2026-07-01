@@ -47,7 +47,7 @@ extension ClientKernel {
         kernelFilePath: String,
         platform: SystemPlatform,
         progressUpdate: ProgressUpdateHandler? = nil,
-        expectedIntegrity: String? = nil,
+        expectedDigest: String? = nil,
         force: Bool
     ) async throws {
         let client = newClient()
@@ -56,8 +56,8 @@ extension ClientKernel {
         message.set(key: .kernelTarURL, value: tarFile)
         message.set(key: .kernelFilePath, value: kernelFilePath)
         message.set(key: .kernelForce, value: force)
-        if let expectedIntegrity {
-            message.set(key: .kernelIntegrity, value: expectedIntegrity)
+        if let expectedDigest {
+            message.set(key: .kernelDigest, value: expectedDigest)
         }
 
         let platformData = try JSONEncoder().encode(platform)

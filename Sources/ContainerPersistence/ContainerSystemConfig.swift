@@ -168,26 +168,26 @@ final public class KernelConfig: Codable, Sendable {
     public static let defaultBinaryPath = "opt/kata/share/kata-containers/vmlinux-6.18.15-186"
     public static let defaultURL: URL =
         URL(string: "https://github.com/kata-containers/kata-containers/releases/download/3.28.0/kata-static-3.28.0-arm64.tar.zst")!
-    public static let defaultIntegrity = "sha256-f63d54507d1f18635d94475077e4c2330de4d8e05cedf25f7c38f063b0e66a91"
+    public static let defaultDigest = "sha256:f63d54507d1f18635d94475077e4c2330de4d8e05cedf25f7c38f063b0e66a91"
 
     private enum CodingKeys: String, CodingKey {
         case binaryPath
         case url
-        case integrity
+        case digest
     }
 
     public let binaryPath: String
     public let url: URL
-    public let integrity: String?
+    public let digest: String?
 
     public init(
         binaryPath: String = defaultBinaryPath,
         url: URL = defaultURL,
-        integrity: String? = nil
+        digest: String? = nil
     ) {
         self.binaryPath = binaryPath
         self.url = url
-        self.integrity = integrity ?? (url.absoluteString == Self.defaultURL.absoluteString ? Self.defaultIntegrity : nil)
+        self.digest = digest ?? (url.absoluteString == Self.defaultURL.absoluteString ? Self.defaultDigest : nil)
     }
 
     public init(from decoder: any Decoder) throws {
@@ -202,9 +202,9 @@ final public class KernelConfig: Codable, Sendable {
         } else {
             self.url = Self.defaultURL
         }
-        self.integrity =
-            try container.decodeIfPresent(String.self, forKey: .integrity)
-            ?? (self.url.absoluteString == Self.defaultURL.absoluteString ? Self.defaultIntegrity : nil)
+        self.digest =
+            try container.decodeIfPresent(String.self, forKey: .digest)
+            ?? (self.url.absoluteString == Self.defaultURL.absoluteString ? Self.defaultDigest : nil)
     }
 
     // JSONEncoder special-cases URL to encode as absoluteString, but third-party
@@ -217,7 +217,7 @@ final public class KernelConfig: Codable, Sendable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(binaryPath, forKey: .binaryPath)
         try container.encode(url.absoluteString, forKey: .url)
-        try container.encodeIfPresent(integrity, forKey: .integrity)
+        try container.encodeIfPresent(digest, forKey: .digest)
     }
 }
 

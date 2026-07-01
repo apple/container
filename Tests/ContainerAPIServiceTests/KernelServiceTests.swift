@@ -24,17 +24,20 @@ import Testing
 @testable import ContainerAPIService
 
 struct KernelServiceTests {
-    @Test func verifyIntegrity() throws {
+    @Test func verifyDigest() throws {
         try withTempFile(contents: "kernel archive") { file in
-            try KernelService.verifyIntegrity(of: file, expected: "sha256-\(KernelService.sha256Hex(of: file))")
+            try KernelService.verifyDigest(of: file, expected: "sha256:\(KernelService.sha256Hex(of: file))")
             #expect(throws: ContainerizationError.self) {
-                try KernelService.verifyIntegrity(of: file, expected: "sha256-not-a-digest")
+                try KernelService.verifyDigest(of: file, expected: "sha256-not-a-digest")
             }
             #expect(throws: ContainerizationError.self) {
-                try KernelService.verifyIntegrity(of: file, expected: "sha256:\(String(repeating: "0", count: 64))")
+                try KernelService.verifyDigest(of: file, expected: "sha256:not-a-digest")
             }
             #expect(throws: ContainerizationError.self) {
-                try KernelService.verifyIntegrity(of: file, expected: String(repeating: "0", count: 64))
+                try KernelService.verifyDigest(of: file, expected: String(repeating: "0", count: 64))
+            }
+            #expect(throws: ContainerizationError.self) {
+                try KernelService.verifyDigest(of: file, expected: "sha256:\(String(repeating: "0", count: 64))")
             }
         }
     }
@@ -57,11 +60,39 @@ struct KernelServiceTests {
                 kernelFilePath: kernelPath,
                 platform: .linuxArm,
                 progressUpdate: nil,
-                expectedIntegrity: "sha256-\(digest)",
+                expectedDigest: "sha256:\(digest)",
                 force: false)
 
             let kernel = try await service.getDefaultKernel(platform: .linuxArm)
             #expect(try Data(contentsOf: kernel.path) == kernelData)
+        }
+    }
+
+    @Test func installKernelFromLocalTarRejectsDigestMismatchWithoutInstalling() async throws {
+        try await withTempDir { tempDir in
+            let kernelPath = "boot/vmlinux"
+            let kernelData = Data("kernel binary".utf8)
+            let tarFile = try Self.writeTar(
+                at: tempDir.appendingPathComponent("kernel.tar"),
+                path: kernelPath,
+                data: kernelData)
+            let service = try KernelService(
+                log: Logger(label: "com.apple.container.test.kernel-service"),
+                appRoot: tempDir.appendingPathComponent("app"))
+            let wrongDigest = String(repeating: "0", count: 64)
+
+            await #expect(throws: ContainerizationError.self) {
+                try await service.installKernelFrom(
+                    tar: URL(fileURLWithPath: tarFile.path),
+                    kernelFilePath: kernelPath,
+                    platform: .linuxArm,
+                    progressUpdate: nil,
+                    expectedDigest: "sha256:\(wrongDigest)",
+                    force: false)
+            }
+            await #expect(throws: ContainerizationError.self) {
+                _ = try await service.getDefaultKernel(platform: .linuxArm)
+            }
         }
     }
 

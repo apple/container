@@ -47,8 +47,8 @@ extension Application {
         @Option(name: .customLong("tar"), help: "Filesystem path or remote URL to a tar archive containing a kernel file")
         var tarPath: String? = nil
 
-        @Option(name: .long, help: "Expected integrity metadata for the tar archive, for example sha256-<hex>")
-        var integrity: String? = nil
+        @Option(name: .long, help: "Expected digest for the tar archive, for example sha256:<hex>")
+        var digest: String? = nil
 
         @OptionGroup
         public var logOptions: Flags.Logging
@@ -64,7 +64,7 @@ extension Application {
                 try await Self.downloadAndInstallWithProgressBar(
                     tarRemoteURL: url,
                     kernelFilePath: path,
-                    expectedIntegrity: containerSystemConfig.kernel.integrity,
+                    expectedDigest: containerSystemConfig.kernel.digest,
                     force: force)
                 return
             }
@@ -75,8 +75,8 @@ extension Application {
         }
 
         private func setKernelFromBinary() async throws {
-            guard integrity == nil else {
-                throw ArgumentParser.ValidationError("'--integrity' can only be used with '--tar'")
+            guard digest == nil else {
+                throw ArgumentParser.ValidationError("'--digest' can only be used with '--tar'")
             }
             guard let binaryPath else {
                 throw ArgumentParser.ValidationError("missing argument '--binary'")
@@ -101,7 +101,7 @@ extension Application {
                     tarFile: localTarPath,
                     kernelFilePath: binaryPath,
                     platform: platform,
-                    expectedIntegrity: integrity,
+                    expectedDigest: digest,
                     force: force)
                 return
             }
@@ -112,7 +112,7 @@ extension Application {
                 tarRemoteURL: remoteURL,
                 kernelFilePath: binaryPath,
                 platform: platform,
-                expectedIntegrity: integrity,
+                expectedDigest: digest,
                 force: force)
         }
 
@@ -131,12 +131,12 @@ extension Application {
             tarRemoteURL: URL,
             kernelFilePath: String,
             platform: SystemPlatform = .current,
-            expectedIntegrity: String? = nil,
+            expectedDigest: String? = nil,
             force: Bool
         ) async throws {
             let progressConfig = try ProgressConfig(
                 showTasks: true,
-                totalTasks: 2
+                totalTasks: expectedDigest == nil ? 2 : 3
             )
             let progress = ProgressBar(config: progressConfig)
             defer {
@@ -148,7 +148,7 @@ extension Application {
                 kernelFilePath: kernelFilePath,
                 platform: platform,
                 progressUpdate: progress.handler,
-                expectedIntegrity: expectedIntegrity,
+                expectedDigest: expectedDigest,
                 force: force)
             progress.finish()
         }

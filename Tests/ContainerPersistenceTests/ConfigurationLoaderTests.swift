@@ -95,7 +95,7 @@ struct ConfigurationLoaderTests {
             #expect(!config.vminit.image.isEmpty)
             #expect(!config.kernel.binaryPath.isEmpty)
             #expect(!config.kernel.url.absoluteString.isEmpty)
-            #expect(config.kernel.integrity == KernelConfig.defaultIntegrity)
+            #expect(config.kernel.digest == KernelConfig.defaultDigest)
             #expect(config.network.subnet == nil)
             #expect(config.network.subnetv6 == nil)
             #expect(config.registry.domain == "docker.io")
@@ -121,7 +121,7 @@ struct ConfigurationLoaderTests {
                 [kernel]
                 binaryPath = "custom/path"
                 url = "https://example.com/kernel.tar"
-                integrity = "sha256-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+                digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
                 [network]
                 subnet = "10.0.0.1/16"
@@ -149,7 +149,7 @@ struct ConfigurationLoaderTests {
             #expect(config.vminit.image == "custom-init:latest")
             #expect(config.kernel.binaryPath == "custom/path")
             #expect(config.kernel.url.absoluteString == "https://example.com/kernel.tar")
-            #expect(config.kernel.integrity == "sha256-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+            #expect(config.kernel.digest == "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
             let expectedSubnet = try CIDRv4("10.0.0.1/16")
             let expectedSubnetV6 = try CIDRv6("fd01::/48")
             #expect(config.network.subnet == expectedSubnet)
@@ -176,7 +176,7 @@ struct ConfigurationLoaderTests {
         }
     }
 
-    @Test func customKernelURLWithoutIntegrityLeavesIntegrityUnset() async throws {
+    @Test func customKernelURLWithoutDigestLeavesDigestUnset() async throws {
         try await TemporaryStorage.withTempDir { tempDir in
             let toml = """
                 [kernel]
@@ -187,11 +187,11 @@ struct ConfigurationLoaderTests {
 
             let config: ContainerSystemConfig = try await ConfigurationLoader.load(configurationFiles: [tmpFile])
             #expect(config.kernel.url.absoluteString == "https://example.com/custom-kernel.tar")
-            #expect(config.kernel.integrity == nil)
+            #expect(config.kernel.digest == nil)
         }
 
         let programmaticConfig = KernelConfig(url: URL(string: "https://example.com/custom-kernel.tar")!)
-        #expect(programmaticConfig.integrity == nil)
+        #expect(programmaticConfig.digest == nil)
     }
 
     @Test func unknownKeysIgnored() async throws {
