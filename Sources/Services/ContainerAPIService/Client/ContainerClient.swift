@@ -107,14 +107,56 @@ public struct ContainerClient: Sendable {
 
     /// Get the container for the provided id.
     public func get(id: String) async throws -> ContainerSnapshot {
-        let containers = try await list(filters: ContainerListFilters(ids: [id]))
-        guard let container = containers.first else {
+        let containers = try await list()
+        let resolvedID = try Self.resolve(id: id, in: containers.map { $0.id })
+        guard let container = containers.first(where: { $0.id == resolvedID }) else {
             throw ContainerizationError(
                 .notFound,
-                message: "get failed: container \(id) not found"
+                message: "container with ID \(id) not found"
             )
         }
         return container
+    }
+
+    /// Resolve a container ID or unique ID prefix to its full ID.
+    public func resolve(id: String, filters: ContainerListFilters = .all) async throws -> String {
+        let containers = try await list(filters: filters)
+        let ids = containers.map { $0.id }
+        return try Self.resolve(id: id, in: ids)
+    }
+
+    /// Resolve container IDs or unique ID prefixes to their full IDs.
+    public func resolve(ids: [String], filters: ContainerListFilters = .all) async throws -> [String] {
+        let containers = try await list(filters: filters)
+        let containerIDs = containers.map { $0.id }
+        var seen = Set<String>()
+        var resolved = [String]()
+        for id in ids where seen.insert(id).inserted {
+            resolved.append(try Self.resolve(id: id, in: containerIDs))
+        }
+        return resolved
+    }
+
+    private static func resolve(id: String, in ids: [String]) throws -> String {
+        if ids.contains(id) {
+            return id
+        }
+
+        let matches = ids.filter { $0.hasPrefix(id) }
+        if matches.count == 1, let match = matches.first {
+            return match
+        }
+        if matches.count > 1 {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "container ID prefix \(id) is ambiguous"
+            )
+        }
+
+        throw ContainerizationError(
+            .notFound,
+            message: "container with ID \(id) not found"
+        )
     }
 
     /// Bootstrap the container's init process.
