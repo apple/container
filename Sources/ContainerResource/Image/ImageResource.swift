@@ -24,6 +24,10 @@ import Foundation
 /// resolved index descriptor and the per-platform variants that make up the
 /// image.
 public struct ImageResource: ManagedResource {
+    public enum ErrorCode: String, ManagedResourceErrorCode {
+        case unknown
+    }
+
     /// A single platform-specific variant of an image.
     public struct Variant: Sendable, Codable {
         /// The platform this variant targets.

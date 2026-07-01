@@ -27,6 +27,10 @@ import Foundation
 /// JSON encoding produces three top-level keys: `id`, `configuration` (the persistent
 /// config), and `status` (runtime address properties assigned by the network plugin).
 public struct NetworkResource: ManagedResource {
+    public enum ErrorCode: String, ManagedResourceErrorCode {
+        case unknown
+    }
+
     /// The network's configuration — its persistent, intrinsic properties.
     public let configuration: NetworkConfiguration
 
