@@ -163,6 +163,8 @@ struct TestCLINetwork {
             // Internal connection should succeed. `waitForContainerRunning` only
             // proves the container's init is up; the python http.server inside
             // may still be starting, so let curl retry on connection refused.
+            // FIXME: Task.sleep here is a kludge, figure out why curl fails with error 7 without it.
+            try await Task.sleep(for: .seconds(1))
             let internalResult = try f.run([
                 "run", "--rm", "--network", net, curlImage,
                 "curl", "--retry", "10", "--retry-connrefused", "--retry-delay", "1", serverURL,
