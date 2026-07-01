@@ -70,7 +70,7 @@ public final class ContainerSystemConfig: Codable, Sendable, Initable {
         self.container = try container.decodeIfPresent(ContainerConfig.self, forKey: .container) ?? .init()
         self.dns = try container.decodeIfPresent(DNSConfig.self, forKey: .dns) ?? .init()
         self.kernel = try container.decodeIfPresent(KernelConfig.self, forKey: .kernel) ?? .init()
-        self.machine = try container.decodeIfPresent(MachineConfig.self, forKey: .machine) ?? .init(cpus: nil, memory: nil, homeMount: nil)
+        self.machine = try container.decodeIfPresent(MachineConfig.self, forKey: .machine) ?? MachineConfig.default
         self.network = try container.decodeIfPresent(NetworkConfig.self, forKey: .network) ?? .init()
         self.registry = try container.decodeIfPresent(RegistryConfig.self, forKey: .registry) ?? .init()
         self.vminit = try container.decodeIfPresent(VminitConfig.self, forKey: .vminit) ?? .init()

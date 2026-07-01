@@ -104,7 +104,7 @@ extension Application {
 
             let apiServerDataPath = appRoot.appending(FilePath.Component("apiserver"))
             let apiServerDataURL = URL(fileURLWithPath: apiServerDataPath.string)
-            try! FileManager.default.createDirectory(at: apiServerDataURL, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: apiServerDataURL, withIntermediateDirectories: true)
 
             var env = PluginLoader.filterEnvironment()
             env[ApplicationRoot.environmentName] = appRoot.string

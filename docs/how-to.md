@@ -605,9 +605,9 @@ Use the `vminit` image tag corresponding to the `scVersion` value in the project
 Or, use `vminit:latest` if you have a local `containerization` project in [edit mode](../BUILDING.md#develop-using-a-local-copy-of-containerization).
 
 ```dockerfile
-FROM ghcr.io/apple/containerization/vminit:0.33.3 AS base
+FROM ghcr.io/apple/containerization/vminit:0.34.0 AS base
 
-FROM ghcr.io/apple/containerization/vminit:0.33.3
+FROM ghcr.io/apple/containerization/vminit:0.34.0
 COPY --from=base /sbin/vminitd /sbin/vminitd.real
 COPY wrapper /sbin/vminitd
 ```
@@ -668,7 +668,7 @@ url = "https://github.com/kata-containers/kata-containers/releases/download/3.26
 domain = "docker.io"
 
 [vminit]
-image = "ghcr.io/apple/containerization/vminit:0.33.3"
+image = "ghcr.io/apple/containerization/vminit:0.34.0"
 ```
 
 ### Example: Disable Rosetta for builds

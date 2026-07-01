@@ -85,7 +85,7 @@ digest = "sha256:f63d54507d1f18635d94475077e4c2330de4d8e05cedf25f7c38f063b0e66a9
 domain = "docker.io"
 
 [vminit]
-image = "ghcr.io/apple/containerization/vminit:0.32.2"
+image = "ghcr.io/apple/containerization/vminit:0.34.0"
 ```
 
 For machine-readable output, pass `--format json`:
