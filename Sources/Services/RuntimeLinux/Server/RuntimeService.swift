@@ -174,6 +174,8 @@ public actor RuntimeService {
             var sessions: [XPCClientSession] = []
             var attachments: [Attachment] = []
             var interfaces: [Interface] = []
+            // Set when an allocation differs from config.json, triggering a rewrite below.
+            var networksChanged = false
             do {
                 for (index, info) in networkBootstrapInfos.enumerated() {
                     let attachmentConfig = config.networks[index]
@@ -183,8 +185,29 @@ public actor RuntimeService {
                     var (attachment, additionalData) = try await client.allocate(
                         hostname: attachmentConfig.options.hostname,
                         macAddress: attachmentConfig.options.macAddress,
+                        requestedAddress: attachmentConfig.options.ipv4Address,
                         on: session
                     )
+                    // Record the granted address so the container reclaims it next start.
+                    let grantedAddress = attachment.ipv4Address.address
+                    if attachmentConfig.options.ipv4Address != grantedAddress {
+                        if let previous = attachmentConfig.options.ipv4Address {
+                            self.log.debug(
+                                "sticky IP \(previous) unavailable, reassigned to \(grantedAddress)",
+                                metadata: ["container": "\(config.id)"]
+                            )
+                        }
+                        config.networks[index] = AttachmentConfiguration(
+                            network: attachmentConfig.network,
+                            options: AttachmentOptions(
+                                hostname: attachmentConfig.options.hostname,
+                                macAddress: attachmentConfig.options.macAddress,
+                                mtu: attachmentConfig.options.mtu,
+                                ipv4Address: grantedAddress
+                            )
+                        )
+                        networksChanged = true
+                    }
                     if let mtu = attachmentConfig.options.mtu {
                         attachment = Attachment(
                             network: attachment.network,
@@ -209,6 +232,10 @@ public actor RuntimeService {
                     )
                     attachments.append(attachment)
                     interfaces.append(interface)
+                }
+
+                if networksChanged {
+                    try bundle.set(configuration: config)
                 }
             } catch {
                 for session in sessions { session.close() }
