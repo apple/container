@@ -923,7 +923,7 @@ class TestCLIRunCommand3: CLITest {
 
     func getDefaultDomain() throws -> String? {
         let config = try getSystemConfig()
-        return config.dns.domain
+        return config.container.dns.domain
     }
 
     @Test func testPrivilegedPortError() throws {

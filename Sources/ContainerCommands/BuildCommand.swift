@@ -163,14 +163,17 @@ extension Application {
                 progress.start()
 
                 progress.set(description: "Dialing builder")
-
                 let dnsNameservers = self.dns.nameservers
-                let builder: Builder? = try await withThrowingTaskGroup(of: Builder.self) { [vsockPort, cpus, memory, dnsNameservers] group in
+                let dnsDomain = self.dns.domain
+                let dnsSearchDomains = self.dns.searchDomains
+                let dnsOptions = self.dns.options
+                let builder: Builder? = try await withThrowingTaskGroup(of: Builder.self) {
+                    [vsockPort, cpus, memory, dnsNameservers, dnsDomain, dnsSearchDomains, dnsOptions] group in
                     defer {
                         group.cancelAll()
                     }
 
-                    group.addTask { [vsockPort, cpus, memory, log, dnsNameservers] in
+                    group.addTask { [vsockPort, cpus, memory, log, dnsNameservers, dnsDomain, dnsSearchDomains, dnsOptions] in
                         let client = ContainerClient()
                         while true {
                             do {
@@ -193,6 +196,9 @@ extension Application {
                                     memory: memory,
                                     log: log,
                                     dnsNameservers: dnsNameservers,
+                                    dnsDomain: dnsDomain,
+                                    dnsSearchDomains: dnsSearchDomains,
+                                    dnsOptions: dnsOptions,
                                     progressUpdate: progress.handler,
                                     containerSystemConfig: containerSystemConfig,
                                 )

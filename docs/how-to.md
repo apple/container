@@ -655,6 +655,12 @@ image = "ghcr.io/apple/container-builder-shim/builder:0.12.0"
 cpus = 4
 memory = "1gb"
 
+[container.dns]
+domain = "corp.local"
+nameservers = ["1.1.1.1", "8.8.8.8"]
+searchDomains = ["corp.local", "lab.corp.local"]
+options = ["ndots:2", "timeout:1"]
+
 [dns]
 domain = "test"
 
@@ -681,6 +687,20 @@ rosetta = false
 ```
 
 This is useful when you want to ensure builds only produce native arm64 images and avoid any x86_64 emulation.
+
+### Example: Set default container DNS settings
+
+To avoid passing `--dns`, `--dns-search`, and `--dns-option` on every `container run`, `container build`, or `container builder start` invocation, set defaults in `~/.config/container/config.toml`:
+
+```toml
+[container.dns]
+domain = "corp.local"
+nameservers = ["1.1.1.1", "8.8.8.8"]
+searchDomains = ["corp.local", "lab.corp.local"]
+options = ["ndots:2", "timeout:1"]
+```
+
+CLI flags override these defaults when provided. Use `container run --no-dns` to skip DNS configuration entirely. The top-level `[dns]` section configures the internal DNS domain used by the host and API server. Restart the daemon (`container system stop && container system start`) for changes to take effect.
 
 ## View system logs
 
