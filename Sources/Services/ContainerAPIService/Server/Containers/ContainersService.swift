@@ -897,17 +897,27 @@ public actor ContainersService {
         return FileManager.default.allocatedSize(of: URL(fileURLWithPath: containerPath))
     }
 
-    public func exportRootfs(id: String, archive: URL) async throws {
+    public func exportRootfs(id: String, archive: URL, live: Bool = false) async throws {
         self.log.debug("\(#function)")
 
         let state = try self._getContainerState(id: id)
-        guard state.snapshot.status == .stopped else {
+        guard state.snapshot.status == .stopped || (live && state.snapshot.status == .running) else {
             throw ContainerizationError(.invalidState, message: "container is not stopped")
         }
 
         let path = self.containerRoot.appendingPathComponent(id)
         let bundle = ContainerResource.Bundle(path: path)
         let rootfs = bundle.containerRootfsBlock
+
+        if live {
+            let client = try state.getClient()
+            let snapshot = rootfs.appendingPathExtension("snapshot")
+            defer { try? FileManager.default.removeItem(at: snapshot) }
+            try await client.snapshotDisk(imagePath: rootfs.path, destinationPath: snapshot.path)
+            try EXT4.EXT4Reader(blockDevice: FilePath(snapshot)).export(archive: FilePath(archive))
+            return
+        }
+
         try EXT4.EXT4Reader(blockDevice: FilePath(rootfs)).export(archive: FilePath(archive))
     }
 
