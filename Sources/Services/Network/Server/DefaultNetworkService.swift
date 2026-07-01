@@ -128,7 +128,7 @@ public actor DefaultNetworkService: NetworkService {
         }
 
         // Invariant: hostname -> index if and only if index -> MAC address
-        let index = try await allocator.lookup(hostname: hostname)
+        let index = try allocator.lookup(hostname: hostname)
         guard let index else {
             return nil
         }
