@@ -24,9 +24,14 @@ public protocol NetworkService: Sendable {
     func status() async throws -> NetworkStatus
 
     /// Register a hostname and allocate associated addresses.
+    ///
+    /// The optional `ip` parameter requests a specific IPv4 address.
+    /// Plugins that do not support static assignment must throw when it
+    /// is present.
     func allocate(
         hostname: String,
         macAddress: MACAddress?,
+        ip: IPv4Address?,
         session: XPCServerSession
     ) async throws -> (attachment: Attachment, additionalData: XPCMessage?)
 

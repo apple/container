@@ -420,10 +420,20 @@ public actor ContainersService {
             let path = self.containerRoot.appendingPathComponent(id)
             let (config, _) = try Self.getContainerConfiguration(at: path)
 
+            // The machine API server tags its VMs with this plugin label.
+            let isMachine = config.labels[ResourceLabelKeys.plugin] == ResourcePluginValues.machine
             var networkBootstrapInfos = [NetworkBootstrapInfo]()
             for n in config.networks {
                 guard let plugin = try await self.networksService?.plugin(for: n.network) else {
                     throw ContainerizationError(.internalError, message: "failed to get plugin for network \(n.network)")
+                }
+                // Bridged vmnet-helper networks are only supported for
+                // container machines, not regular containers.
+                guard plugin != VmnetHelperNetwork.pluginName || isMachine else {
+                    throw ContainerizationError(
+                        .unsupported,
+                        message: "network \(n.network) uses the \(VmnetHelperNetwork.pluginName) plugin, which is only supported for container machines"
+                    )
                 }
                 networkBootstrapInfos.append(NetworkBootstrapInfo(plugin: plugin))
             }

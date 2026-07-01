@@ -65,7 +65,9 @@ extension RuntimeLinuxHelper {
 
                 // FIXME: The network plugins that the runtime supports should be configurable elsewhere
                 var interfaceStrategies: [NetworkInterfaceKey: InterfaceStrategy] = [
-                    NetworkInterfaceKey(plugin: "container-network-vmnet", variant: "allocationOnly"): IsolatedInterfaceStrategy()
+                    NetworkInterfaceKey(plugin: "container-network-vmnet", variant: nil): IsolatedInterfaceStrategy(),
+                    NetworkInterfaceKey(plugin: "container-network-vmnet", variant: "allocationOnly"): IsolatedInterfaceStrategy(),
+                    NetworkInterfaceKey(plugin: VmnetHelperNetwork.pluginName, variant: nil): VmnetHelperInterfaceStrategy(log: log),
                 ]
                 if #available(macOS 26, *) {
                     interfaceStrategies[NetworkInterfaceKey(plugin: "container-network-vmnet", variant: "reserved")] = NonisolatedInterfaceStrategy(log: log)

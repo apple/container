@@ -25,7 +25,7 @@ import SystemPackage
 /// "use the container runtime default."
 public struct MachineConfig: Codable, Sendable {
     public static let `default`: MachineConfig = try! .init(
-        cpus: nil, memory: nil, homeMount: nil, virtualization: nil, kernelPath: nil)
+        cpus: nil, memory: nil, homeMount: nil, virtualization: nil, kernelPath: nil, networks: nil, kernelArgs: nil)
 
     public static var defaultCPUs: Int {
         max(ProcessInfo.processInfo.processorCount / 2, 4)
@@ -56,6 +56,15 @@ public struct MachineConfig: Codable, Sendable {
     public let virtualization: Bool
     /// Optional path to a custom kernel binary. nil falls back to the system default.
     public let kernelPath: FilePath?
+    /// Networks the container machine attaches to, each a `container run` style
+    /// attachment spec (`name[,ip=addr][,mac=..][,mtu=..]`). Empty means the
+    /// builtin NAT network. Order matters. Only the first entry gets a gateway,
+    /// so it owns the DNS hostname, default route, and resolver. List the egress
+    /// network such as NAT first. Later entries reach only their own subnet.
+    public let networks: [String]
+    /// Extra kernel command-line arguments appended at boot (e.g. `quiet`,
+    /// `console=ttyS0`). Empty means no additions to the kernel defaults.
+    public let kernelArgs: [String]
 
     private enum CodingKeys: String, CodingKey {
         case cpus
@@ -63,6 +72,8 @@ public struct MachineConfig: Codable, Sendable {
         case homeMount
         case virtualization
         case kernelPath
+        case networks
+        case kernelArgs
     }
 
     /// Settable keys and their descriptions, for CLI help text generation.
@@ -72,6 +83,8 @@ public struct MachineConfig: Codable, Sendable {
         ("home-mount", "<string>", "User home directory mount option (ro, rw, none). Default: rw"),
         ("virtualization", "<bool>", "Enable nested virtualization (true|false). Requires Apple Silicon M3+ and macOS 15+ and kernel with CONFIG_KVM=y."),
         ("kernel", "<path>", "Path to a custom kernel binary. Empty value resets to the system default."),
+        ("network", "<spec>", "Attach to a network: name[,ip=addr][,mac=..][,mtu=..]. Repeatable. First entry owns the default route, so list egress first. Empty resets to NAT."),
+        ("kernel-arg", "<arg>", "Extra kernel command-line argument (e.g. quiet, console=ttyS0). Repeatable; an empty value clears all extra arguments."),
     ]
 
     public init(
@@ -79,13 +92,17 @@ public struct MachineConfig: Codable, Sendable {
         memory: MemorySize?,
         homeMount: HomeMountOption?,
         virtualization: Bool?,
-        kernelPath: FilePath?
+        kernelPath: FilePath?,
+        networks: [String]?,
+        kernelArgs: [String]?
     ) throws {
         self.cpus = cpus ?? Self.defaultCPUs
         self.memory = memory ?? Self.defaultMemory
         self.homeMount = homeMount ?? Self.defaultHomeMount
         self.virtualization = virtualization ?? false
         self.kernelPath = kernelPath
+        self.networks = networks ?? []
+        self.kernelArgs = kernelArgs ?? []
 
         try self.validate()
     }
@@ -101,13 +118,17 @@ public struct MachineConfig: Codable, Sendable {
         // which the project's ConfigSnapshotDecoder can't handle. Persist as a plain String
         // and lift to FilePath in memory.
         let kernelPath = try container.decodeIfPresent(String.self, forKey: .kernelPath).map { FilePath($0) }
+        let networks = try container.decodeIfPresent([String].self, forKey: .networks)
+        let kernelArgs = try container.decodeIfPresent([String].self, forKey: .kernelArgs)
 
         try self.init(
             cpus: cpus,
             memory: memory,
             homeMount: homeMount,
             virtualization: virtualization,
-            kernelPath: kernelPath)
+            kernelPath: kernelPath,
+            networks: networks,
+            kernelArgs: kernelArgs)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -117,6 +138,8 @@ public struct MachineConfig: Codable, Sendable {
         try container.encode(homeMount, forKey: .homeMount)
         try container.encode(virtualization, forKey: .virtualization)
         try container.encodeIfPresent(kernelPath?.string, forKey: .kernelPath)
+        try container.encode(networks, forKey: .networks)
+        try container.encode(kernelArgs, forKey: .kernelArgs)
     }
 
     private func validate() throws {
@@ -148,7 +171,12 @@ extension MachineConfig {
 
     /// Create a new MachineConfig from `self`, applying fields defined in `kwargs`
     /// This function is used in both `machine create` and `machine set`
-    public func with(_ kwargs: [String: String]) throws -> MachineConfig {
+    ///
+    /// `networks` and `kernelArgs` are threaded separately from `kwargs`
+    /// because each is a list, which a flat key/value map cannot express.
+    /// `nil` leaves the existing value unchanged; a non-nil value (including
+    /// an empty array) replaces it.
+    public func with(_ kwargs: [String: String], networks: [String]? = nil, kernelArgs: [String]? = nil) throws -> MachineConfig {
         let validKeys = Set(Self.settableKeys.map(\.key))
         let unknownKeys = Set(kwargs.keys).subtracting(validKeys)
         guard unknownKeys.isEmpty else {
@@ -174,7 +202,9 @@ extension MachineConfig {
             memory: memory ?? self.memory,
             homeMount: homeMount ?? self.homeMount,
             virtualization: virtualization ?? self.virtualization,
-            kernelPath: kernelPath
+            kernelPath: kernelPath,
+            networks: networks ?? self.networks,
+            kernelArgs: kernelArgs ?? self.kernelArgs
         )
     }
 

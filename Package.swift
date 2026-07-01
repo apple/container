@@ -36,6 +36,7 @@ let package = Package(
         .library(name: "ContainerImagesService", targets: ["ContainerImagesService", "ContainerImagesServiceClient"]),
         .library(name: "ContainerNetworkClient", targets: ["ContainerNetworkClient"]),
         .library(name: "ContainerNetworkServer", targets: ["ContainerNetworkServer"]),
+        .library(name: "ContainerNetworkVmnetHelperServer", targets: ["ContainerNetworkVmnetHelperServer"]),
         .library(name: "ContainerNetworkVmnetServer", targets: ["ContainerNetworkVmnetServer"]),
         .library(name: "ContainerResource", targets: ["ContainerResource"]),
         .library(name: "ContainerLog", targets: ["ContainerLog"]),
@@ -330,6 +331,24 @@ let package = Package(
             path: "Sources/Plugins/NetworkVmnet",
             exclude: ["config.toml"]
         ),
+        .executableTarget(
+            name: "container-network-vmnet-helper",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                "ContainerLog",
+                "ContainerNetworkVmnetHelperServer",
+                "ContainerNetworkClient",
+                "ContainerNetworkServer",
+                "ContainerPlugin",
+                "ContainerResource",
+                "ContainerVersion",
+                "ContainerXPC",
+            ],
+            path: "Sources/Plugins/NetworkVmnetHelper",
+            exclude: ["config.toml"]
+        ),
         .target(
             name: "ContainerNetworkClient",
             dependencies: [
@@ -367,6 +386,24 @@ let package = Package(
                 "ContainerXPC",
             ],
             path: "Sources/Services/NetworkVmnet/Server"
+        ),
+        .target(
+            name: "ContainerNetworkVmnetHelperServer",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                "ContainerNetworkServer",
+                "ContainerResource",
+                "ContainerXPC",
+            ],
+            path: "Sources/Services/NetworkVmnetHelper/Server"
+        ),
+        .testTarget(
+            name: "ContainerNetworkVmnetHelperServerTests",
+            dependencies: [
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                "ContainerNetworkVmnetHelperServer",
+            ]
         ),
         .target(
             name: "ContainerRuntimeLinuxClient",

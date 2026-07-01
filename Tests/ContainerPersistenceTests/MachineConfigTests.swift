@@ -91,5 +91,81 @@ struct MachineConfigTests {
         let keys = MachineConfig.settableKeys.map(\.key)
         #expect(keys.contains("virtualization"))
         #expect(keys.contains("kernel"))
+        #expect(keys.contains("network"))
+    }
+
+    @Test func networksDefaultToEmpty() {
+        #expect(MachineConfig.default.networks.isEmpty)
+    }
+
+    @Test func withReplacesNetworks() throws {
+        let updated = try MachineConfig.default.with([:], networks: ["default", "lan,ip=192.168.1.50"])
+        #expect(updated.networks == ["default", "lan,ip=192.168.1.50"])
+    }
+
+    @Test func withNilNetworksPreservesExisting() throws {
+        let withNets = try MachineConfig.default.with([:], networks: ["lan"])
+        // A scalar update (networks omitted) must not clear the network list.
+        let updated = try withNets.with(["cpus": "4"])
+        #expect(updated.networks == ["lan"])
+        #expect(updated.cpus == 4)
+    }
+
+    @Test func withEmptyNetworksResetsToDefault() throws {
+        let withNets = try MachineConfig.default.with([:], networks: ["lan"])
+        let reset = try withNets.with([:], networks: [])
+        #expect(reset.networks.isEmpty)
+    }
+
+    @Test func decodingMissingNetworksUsesEmpty() throws {
+        // Boot-config.json written before machine networking must still load.
+        let legacy = #"{"cpus":4,"memory":"1gb","homeMount":"rw"}"#
+        let decoded = try JSONDecoder().decode(MachineConfig.self, from: Data(legacy.utf8))
+        #expect(decoded.networks.isEmpty)
+    }
+
+    @Test func roundTripJSONNetworks() throws {
+        let config = try MachineConfig.default.with([:], networks: ["lan,ip=192.168.1.50", "default"])
+        let data = try JSONEncoder().encode(config)
+        let decoded = try JSONDecoder().decode(MachineConfig.self, from: data)
+        #expect(decoded.networks == ["lan,ip=192.168.1.50", "default"])
+    }
+
+    @Test func settableKeysIncludeKernelArg() {
+        #expect(MachineConfig.settableKeys.map(\.key).contains("kernel-arg"))
+    }
+
+    @Test func kernelArgsDefaultToEmpty() {
+        #expect(MachineConfig.default.kernelArgs.isEmpty)
+    }
+
+    @Test func withReplacesKernelArgs() throws {
+        let updated = try MachineConfig.default.with([:], kernelArgs: ["quiet", "console=ttyS0"])
+        #expect(updated.kernelArgs == ["quiet", "console=ttyS0"])
+    }
+
+    @Test func withNilKernelArgsPreservesExisting() throws {
+        let withArgs = try MachineConfig.default.with([:], kernelArgs: ["quiet"])
+        let updated = try withArgs.with(["cpus": "4"])
+        #expect(updated.kernelArgs == ["quiet"])
+    }
+
+    @Test func withEmptyKernelArgsClears() throws {
+        let withArgs = try MachineConfig.default.with([:], kernelArgs: ["quiet"])
+        let cleared = try withArgs.with([:], kernelArgs: [])
+        #expect(cleared.kernelArgs.isEmpty)
+    }
+
+    @Test func decodingMissingKernelArgsUsesEmpty() throws {
+        let legacy = #"{"cpus":4,"memory":"1gb","homeMount":"rw"}"#
+        let decoded = try JSONDecoder().decode(MachineConfig.self, from: Data(legacy.utf8))
+        #expect(decoded.kernelArgs.isEmpty)
+    }
+
+    @Test func roundTripJSONKernelArgs() throws {
+        let config = try MachineConfig.default.with([:], kernelArgs: ["quiet", "loglevel=3"])
+        let data = try JSONEncoder().encode(config)
+        let decoded = try JSONDecoder().decode(MachineConfig.self, from: data)
+        #expect(decoded.kernelArgs == ["quiet", "loglevel=3"])
     }
 }

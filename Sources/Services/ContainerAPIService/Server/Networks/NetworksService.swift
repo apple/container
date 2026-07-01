@@ -314,6 +314,11 @@ public actor NetworksService {
         }
     }
 
+    /// The builtin vmnet plugin predates generic option forwarding. It has
+    /// dedicated arguments instead of `--option`, owns the `variant`
+    /// concept, and is the only plugin whose subnets the apiserver manages.
+    private static let builtinVmnetPlugin = "container-network-vmnet"
+
     public func plugin(for id: String) throws -> String {
         guard let serviceState = serviceStates[id] else {
             throw ContainerizationError(.notFound, message: "no network for id \(id)")
@@ -328,6 +333,25 @@ public actor NetworksService {
     private func registerService(configuration: NetworkConfiguration) async throws {
         guard configuration.mode == .nat || configuration.mode == .hostOnly else {
             throw ContainerizationError(.invalidArgument, message: "unsupported network mode \(configuration.mode.rawValue)")
+        }
+
+        let isBuiltinVmnet = configuration.plugin == Self.builtinVmnetPlugin
+
+        // Only the builtin vmnet plugin accepts the variant and IPv6
+        // subnet arguments. Passing them to another plugin would crash
+        // its launchd service on an unknown argument, so reject them at
+        // creation time instead.
+        guard isBuiltinVmnet || configuration.options["variant"] == nil else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "the variant option is specific to the \(Self.builtinVmnetPlugin) plugin"
+            )
+        }
+        guard isBuiltinVmnet || configuration.ipv6Subnet == nil else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "network plugin \(configuration.plugin) does not support IPv6 subnets"
+            )
         }
 
         guard let networkPlugin = self.networkPlugins.first(where: { $0.name == configuration.plugin }) else {
@@ -354,18 +378,23 @@ public actor NetworksService {
         }
 
         if let ipv4Subnet = configuration.ipv4Subnet {
-            var existingCidrs: [CIDRv4] = []
-            for serviceState in serviceStates.values {
-                existingCidrs.append(serviceState.status.ipv4Subnet)
-            }
-            let overlap = existingCidrs.first {
-                $0.contains(ipv4Subnet.lower)
-                    || $0.contains(ipv4Subnet.upper)
-                    || ipv4Subnet.contains($0.lower)
-                    || ipv4Subnet.contains($0.upper)
-            }
-            if let overlap {
-                throw ContainerizationError(.exists, message: "IPv4 subnet \(ipv4Subnet) overlaps an existing network with subnet \(overlap)")
+            // Overlap validation covers managed subnets only. Other
+            // plugins describe external networks that may legitimately
+            // share address space with a managed subnet.
+            if isBuiltinVmnet {
+                var existingCidrs: [CIDRv4] = []
+                for serviceState in serviceStates.values {
+                    existingCidrs.append(serviceState.status.ipv4Subnet)
+                }
+                let overlap = existingCidrs.first {
+                    $0.contains(ipv4Subnet.lower)
+                        || $0.contains(ipv4Subnet.upper)
+                        || ipv4Subnet.contains($0.lower)
+                        || ipv4Subnet.contains($0.upper)
+                }
+                if let overlap {
+                    throw ContainerizationError(.exists, message: "IPv4 subnet \(ipv4Subnet) overlaps an existing network with subnet \(overlap)")
+                }
             }
 
             args += ["--subnet", ipv4Subnet.description]
@@ -393,6 +422,15 @@ public actor NetworksService {
 
         if let variant = configuration.options["variant"] {
             args += ["--variant", variant]
+        }
+
+        // Forward plugin-specific options to plugins other than the builtin
+        // vmnet helper, which predates generic option forwarding and rejects
+        // unknown arguments.
+        if !isBuiltinVmnet {
+            for (key, value) in configuration.options.sorted(by: { $0.key < $1.key }) where key != "variant" {
+                args += ["--option", "\(key)=\(value)"]
+            }
         }
 
         let entityPath = try store.entityPath(configuration.id)

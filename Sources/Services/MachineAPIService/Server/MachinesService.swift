@@ -364,13 +364,14 @@ public actor MachinesService {
                 initializedFile: path.appending(MachineBundle.initializedFile),
                 homeMountOption: bootConfig.homeMount,
                 virtualization: bootConfig.virtualization,
+                networks: bootConfig.networks,
             )
 
             config.resources.cpus = bootConfig.cpus
             config.resources.cpuOverhead = 0
             config.resources.memoryInBytes = bootConfig.memory.toUInt64(unit: .bytes)
 
-            let kernel: Kernel
+            var kernel: Kernel
             if let kernelPath = bootConfig.kernelPath {
                 let validated = try MachineConfig.validateKernelPath(kernelPath.string)
                 kernel = Kernel(
@@ -380,6 +381,8 @@ public actor MachinesService {
             } else {
                 kernel = try await ClientKernel.getDefaultKernel(for: .current)
             }
+            // Append any user-configured kernel command-line arguments.
+            kernel.commandLine.kernelArgs.append(contentsOf: bootConfig.kernelArgs)
 
             var fhs: [FileHandle] = []
             do {
@@ -639,6 +642,7 @@ extension MachineConfiguration {
         initializedFile: FilePath,
         homeMountOption: MachineConfig.HomeMountOption,
         virtualization: Bool,
+        networks: [String],
     ) async throws -> ContainerConfiguration {
         var config = ContainerConfiguration(
             id: cid,
@@ -676,7 +680,7 @@ extension MachineConfiguration {
 
         config.platform = platform
         config.labels = [
-            ResourceLabelKeys.plugin: "machine"
+            ResourceLabelKeys.plugin: ResourcePluginValues.machine
         ]
         let domain = Self.defaultDNSDomain
         config.dns = ContainerConfiguration.DNSConfiguration(
@@ -684,15 +688,7 @@ extension MachineConfiguration {
             domain: domain,
             searchDomains: [domain],
         )
-        guard let defaultNetwork = try await NetworkClient().builtin else {
-            throw ContainerizationError(.invalidState, message: "default network is not present")
-        }
-        config.networks = [
-            AttachmentConfiguration(
-                network: defaultNetwork.id,
-                options: AttachmentOptions(hostname: dnsHostname)
-            )
-        ]
+        config.networks = try await MachineNetworking.attachments(for: networks, dnsHostname: dnsHostname, containerId: cid)
 
         config.capAdd = ["ALL"]
         config.ssh = true
