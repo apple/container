@@ -61,8 +61,23 @@ struct TestCLINetwork {
             defer { _ = client.shutdown() }
             var request = HTTPClientRequest(url: url)
             request.method = .GET
-            let response = try await client.execute(request, timeout: .seconds(10))
-            #expect(response.status == .ok, "request to \(url) failed")
+
+            // waitForContainerRunning only tells us init is running; the python http
+            // server inside is still starting, so retry until it accepts connections.
+            var lastError: Error?
+            var response: HTTPClientResponse?
+            for attempt in 1...10 {
+                do {
+                    response = try await client.execute(request, timeout: .seconds(3))
+                    break
+                } catch {
+                    lastError = error
+                    print("request to \(url) failed on attempt \(attempt): \(error)")
+                    try await Task.sleep(for: .seconds(1))
+                }
+            }
+            let final = try #require(response, "request to \(url) failed after retries: \(lastError.map(String.init(describing:)) ?? "no error")")
+            #expect(final.status == .ok, "request to \(url) returned \(final.status)")
         }
     }
 
@@ -145,9 +160,12 @@ struct TestCLINetwork {
             let ip = container.networks[0].ipv4Address.address
             let serverURL = "http://\(ip):\(port)"
 
-            // Internal connection should succeed.
+            // Internal connection should succeed. `waitForContainerRunning` only
+            // proves the container's init is up; the python http.server inside
+            // may still be starting, so let curl retry on connection refused.
             let internalResult = try f.run([
-                "run", "--rm", "--network", net, curlImage, "curl", serverURL,
+                "run", "--rm", "--network", net, curlImage,
+                "curl", "--retry", "10", "--retry-connrefused", "--retry-delay", "1", serverURL,
             ])
             #expect(internalResult.status == 0, "connection within isolated network should succeed")
 
