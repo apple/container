@@ -78,6 +78,9 @@ final class ContainerFixture: Sendable {
     /// Created at fixture init; removed on cleanup unless `CLITEST_PRESERVE_SCRATCH=true`.
     let testDir: FilePath
 
+    /// Logger for this fixture scope. Tests may emit diagnostic messages via this logger.
+    let log: Logger
+
     // MARK: - Unstructured API
 
     /// Runs `body` with a fresh fixture, then tears down all registered resources.
@@ -116,7 +119,7 @@ final class ContainerFixture: Sendable {
                     return handler
                 }
             }
-            return StderrLogHandler()
+            return StreamLogHandler.standardOutput(label: label)
         }
         logger[metadataKey: "testID"] = "\(testID)"
 
@@ -310,7 +313,6 @@ final class ContainerFixture: Sendable {
 
     // MARK: - Private
 
-    private let log: Logger
     private let cleanupTasks: Mutex<[@Sendable () async throws -> Void]> = .init([])
     private static let commandSeq: Mutex<Int> = .init(0)
 

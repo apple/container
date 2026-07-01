@@ -90,6 +90,8 @@ let package = Package(
                 .product(name: "ContainerizationArchive", package: "containerization"),
                 .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "ContainerizationOCI", package: "containerization"),
+                .product(name: "ContainerizationOS", package: "containerization"),
+                .product(name: "TOML", package: "swift-toml"),
                 "ContainerAPIClient",
                 "ContainerLog",
                 "ContainerPersistence",

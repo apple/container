@@ -20,9 +20,15 @@ import Testing
 /// Serial prune tests — `container prune` affects all stopped containers regardless of name.
 @Suite(.serialized)
 struct TestCLIPruneCommandSerial {
-    @Test(.disabled("flaky — prune picks up containers from concurrent suites; tests being rewritten"))
-    func testContainerPruneNoContainers() async throws {
+    @Test func testContainerPruneNoContainers() async throws {
         try await ContainerFixture.with { f in
+            // Establish empty state — the serial global pass runs after the concurrent
+            // pass, and any test that failed mid-cleanup could leave stopped containers
+            // that would break the "reclaimed zero" assertion. Machine-backing containers
+            // are excluded from `container delete --all` by design so this doesn't
+            // interfere with the machine plugin.
+            _ = try? f.run(["delete", "--all", "--force"])
+
             let result = try f.run(["prune"]).check()
             #expect(result.error.contains("Reclaimed Zero KB in disk space"), "should show no containers message")
         }
