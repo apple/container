@@ -167,7 +167,10 @@ struct TestCLINetwork {
                 "run", "--rm", "--network", net, curlImage,
                 "curl", "--retry", "10", "--retry-connrefused", "--retry-delay", "1", serverURL,
             ])
-            #expect(internalResult.status == 0, "connection within isolated network should succeed")
+            #expect(
+                internalResult.status == 0,
+                "connection within isolated network should succeed, got exit \(internalResult.status): \(internalResult.error)"
+            )
 
             // External connection should be blocked — the isolated network has no gateway.
             let externalResult = try f.run([
