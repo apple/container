@@ -133,6 +133,45 @@ struct DirectoryWatcherTest {
         }
     }
 
+    private final class Counter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = 0
+        func increment() {
+            lock.withLock { value += 1 }
+        }
+        var count: Int {
+            lock.withLock { value }
+        }
+    }
+
+    /// When the watch handler throws, `_startWatching` must close the file
+    /// descriptor it opened. Otherwise, the once-per-second retry loop leaks a
+    /// descriptor on every iteration, eventually exhausting the host's file
+    /// descriptors (see issue #1097).
+    @Test func testFailingHandlerDoesNotLeakDescriptors() async throws {
+        try await withTempDir { tempPath in
+            let watcher = DirectoryWatcher(directoryPath: tempPath, log: nil)
+            let counter = Counter()
+
+            await watcher.startWatching { [counter] _ in
+                counter.increment()
+                throw ContainerizationError(.internalError, message: "intentional failure")
+            }
+
+            // Allow the retry loop to run several times so that any per-retry
+            // descriptor leak would accumulate.
+            try await Task.sleep(for: .seconds(4))
+
+            // The handler should have been retried multiple times.
+            #expect(counter.count >= 2, "watcher did not retry the failing handler")
+
+            let openDescriptors = try FileManager.default.contentsOfDirectory(atPath: "/dev/fd").count
+            // A leak would grow roughly one descriptor per retry; allow generous
+            // slack for descriptors unrelated to the watcher.
+            #expect(openDescriptors < 100, "file descriptors appear to be leaking: \(openDescriptors) open")
+        }
+    }
+
     @Test func testWatchingRecreatedDirectory() async throws {
         try await withTempDir { tempPath in
             let dirPath = tempPath.appending(UUID().uuidString)
