@@ -22,6 +22,7 @@ import Logging
 public struct StderrLogHandler: LogHandler {
     public var logLevel: Logger.Level = .info
     public var metadata: Logger.Metadata = [:]
+    public var metadataProvider: Logger.MetadataProvider?
 
     public subscript(metadataKey metadataKey: String) -> Logger.Metadata.Value? {
         get {
@@ -43,13 +44,21 @@ public struct StderrLogHandler: LogHandler {
         function: String,
         line: UInt
     ) {
+        var effectiveMetadata = self.metadata
+        if let provided = self.metadataProvider?.get(), !provided.isEmpty {
+            effectiveMetadata.merge(provided) { _, new in new }
+        }
+        if let metadata, !metadata.isEmpty {
+            effectiveMetadata.merge(metadata) { _, new in new }
+        }
+
         let data: Data
         switch logLevel {
         case .debug, .trace:
             let timestamp = isoTimestamp()
-            if let metadata, !metadata.isEmpty {
+            if !effectiveMetadata.isEmpty {
                 data =
-                    "\(timestamp) \(message.description): \(metadata.description)\n"
+                    "\(timestamp) \(message.description): \(effectiveMetadata.description)\n"
                     .data(using: .utf8) ?? Data()
             } else {
                 data =
@@ -57,9 +66,9 @@ public struct StderrLogHandler: LogHandler {
                     .data(using: .utf8) ?? Data()
             }
         default:
-            if let metadata, !metadata.isEmpty {
+            if !effectiveMetadata.isEmpty {
                 data =
-                    "\(message.description): \(metadata.description)\n"
+                    "\(message.description): \(effectiveMetadata.description)\n"
                     .data(using: .utf8) ?? Data()
             } else {
                 data =
