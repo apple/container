@@ -49,8 +49,8 @@ container run [<options>] <image> [<arguments> ...]
 *   `--cidfile <cidfile>`: Write the container ID to the path provided
 *   `-d, --detach`: Run the container and detach from the process
 *   `--dns <ip>`: DNS nameserver IP address
-*   `--dns-domain <domain>`: Default DNS domain
-*   `--dns-option <option>`: DNS options
+*   `--dns-domain <domain>`: Set the default domain written to the guest container's `/etc/resolv.conf`. This does not register host- or guest-resolvable DNS records; use `container system dns create` and the `config.toml` `[dns]` domain setting to configure local container DNS domains.
+*   `--dns-option <option>`: Add a resolver option written to the guest container's `/etc/resolv.conf`, such as `debug`, `ndots:0`, `timeout:1`, `attempts:1`, or `rotate`. This does not register host- or guest-resolvable DNS records; use `container system dns create` and the `config.toml` `[dns]` domain setting to configure local container DNS domains.
 *   `--dns-search <domain>`: DNS search domains
 *   `--entrypoint <cmd>`: Override the entrypoint of the image
 *   `--init`: Run an init process inside the container that forwards signals and reaps processes
@@ -222,8 +222,8 @@ container create [<options>] <image> [<arguments> ...]
 *   `--cidfile <cidfile>`: Write the container ID to the path provided
 *   `-d, --detach`: Run the container and detach from the process
 *   `--dns <ip>`: DNS nameserver IP address
-*   `--dns-domain <domain>`: Default DNS domain
-*   `--dns-option <option>`: DNS options
+*   `--dns-domain <domain>`: Set the default domain written to the guest container's `/etc/resolv.conf`. This does not register host- or guest-resolvable DNS records; use `container system dns create` and the `config.toml` `[dns]` domain setting to configure local container DNS domains.
+*   `--dns-option <option>`: Add a resolver option written to the guest container's `/etc/resolv.conf`, such as `debug`, `ndots:0`, `timeout:1`, `attempts:1`, or `rotate`. This does not register host- or guest-resolvable DNS records; use `container system dns create` and the `config.toml` `[dns]` domain setting to configure local container DNS domains.
 *   `--dns-search <domain>`: DNS search domains
 *   `--entrypoint <cmd>`: Override the entrypoint of the image
 *   `--init`: Run an init process inside the container that forwards signals and reaps processes
