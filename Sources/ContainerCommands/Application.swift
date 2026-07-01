@@ -24,17 +24,29 @@ import ContainerizationError
 import ContainerizationOS
 import Foundation
 import Logging
+import Synchronization
 import SystemPackage
 import TerminalProgress
 
 // This logger is only used until `asyncCommand.run()`.
 // `log` is updated only once in the `validate()` method.
-private nonisolated(unsafe) var bootstrapLogger = {
-    LoggingSystem.bootstrap({ _ in StderrLogHandler() })
-    var log = Logger(label: "com.apple.container")
-    log.logLevel = .info
-    return log
-}()
+// Protected by Mutex for Swift 6 concurrency safety.
+private let _bootstrapLogger = Mutex<Logger?>(nil)
+private var bootstrapLogger: Logger {
+    get {
+        _bootstrapLogger.withLock { logger in
+            if let existing = logger { return existing }
+            LoggingSystem.bootstrap({ _ in StderrLogHandler() })
+            var log = Logger(label: "com.apple.container")
+            log.logLevel = .info
+            logger = log
+            return log
+        }
+    }
+    set {
+        _bootstrapLogger.withLock { $0 = newValue }
+    }
+}
 
 public struct Application: AsyncLoggableCommand {
     @OptionGroup

@@ -90,13 +90,13 @@ to prepare your build environment.
 
 6. Build `container`.
 
-    ```
+    ```bash
     make clean all
     ```
 
 7. Restart the `container` services.
 
-    ```
+    ```bash
     bin/container system stop
     bin/container system start
     ```
@@ -145,7 +145,7 @@ Add the following to your `~/.config/container/config.toml`:
 image = "builder:latest"
 ```
 
-3. Run the `container` build as usual:
+1. Run the `container` build as usual:
 
 ```bash
 container build ...

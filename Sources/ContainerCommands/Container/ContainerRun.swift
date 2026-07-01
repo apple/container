@@ -137,18 +137,17 @@ extension Application {
 
                 if !self.managementFlags.cidfile.isEmpty {
                     let path = self.managementFlags.cidfile
-                    let data = id.data(using: .utf8)
-                    var attributes = [FileAttributeKey: Any]()
-                    attributes[.posixPermissions] = 0o644
-                    let success = FileManager.default.createFile(
-                        atPath: path,
-                        contents: data,
-                        attributes: attributes
-                    )
-                    guard success else {
+                    guard let data = id.data(using: .utf8) else {
                         throw ContainerizationError(
-                            .internalError, message: "failed to create cidfile at \(path): \(errno)")
+                            .internalError,
+                            message: "failed to encode container id for cidfile at \(path)")
                     }
+                    let fileURL = URL(fileURLWithPath: path)
+                    try data.write(to: fileURL, options: .atomic)
+                    try FileManager.default.setAttributes(
+                        [.posixPermissions: 0o644],
+                        ofItemAtPath: path
+                    )
                 }
 
                 if detach {
