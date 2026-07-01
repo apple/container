@@ -101,24 +101,6 @@ let package = Package(
             ],
             path: "Tests/IntegrationTests"
         ),
-        .testTarget(
-            name: "CLITests",
-            dependencies: [
-                .product(name: "AsyncHTTPClient", package: "async-http-client"),
-                .product(name: "Containerization", package: "containerization"),
-                .product(name: "ContainerizationArchive", package: "containerization"),
-                .product(name: "ContainerizationExtras", package: "containerization"),
-                .product(name: "ContainerizationOS", package: "containerization"),
-                .product(name: "TOML", package: "swift-toml"),
-                "ContainerBuild",
-                "ContainerLog",
-                "ContainerPersistence",
-                "ContainerResource",
-                "MachineAPIClient",
-                "Yams",
-            ],
-            path: "Tests/CLITests"
-        ),
         .target(
             name: "ContainerCommands",
             dependencies: [

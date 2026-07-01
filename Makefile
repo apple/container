@@ -170,6 +170,8 @@ TEST_BINARY = $(BUILD_BIN_DIR)/containerPackageTests.xctest/Contents/MacOS/conta
 # Set of files we do not want to get caught in the coverage generation
 LLVM_COV_IGNORE := \
 	--ignore-filename-regex=".build/" \
+	--ignore-filename-regex="/Tests/" \
+	--ignore-filename-regex="/ContainerTestSupport/" \
 	--ignore-filename-regex=".pb.swift" \
 	--ignore-filename-regex=".proto" \
 	--ignore-filename-regex=".grpc.swift"
@@ -194,12 +196,10 @@ define GENERATE_COV_REPORTS
 	@cat $(COVERAGE_OUTPUT_DIR)/$(2)/coverage-percent.txt
 endef
 
-# New integration test infrastructure.
 # PARALLEL_WIDTH controls --experimental-maximum-parallelization-width for the
 # concurrent pass. WARMUP_FILTER, CONCURRENT_FILTER, and GLOBAL_FILTER select
-# the three phases. Expand the filter lists as suites are migrated from CLITests.
-#PARALLEL_WIDTH ?= $(shell sysctl -n hw.physicalcpu)
-PARALLEL_WIDTH ?= 2
+# the three phases.
+PARALLEL_WIDTH ?= $(shell sysctl -n hw.physicalcpu)
 WARMUP_FILTER = ImageWarmup/
 
 CONCURRENT_TEST_SUITES ?= $(sort $(addsuffix /,$(basename $(notdir \
@@ -264,27 +264,22 @@ define RUN_INTEGRATION
 	}
 endef
 
-.PHONY: integration-new
-integration-new: init-block
+.PHONY: integration
+integration: init-block
 	$(RUN_INTEGRATION)
 
-.PHONY: coverage-integration-new
-coverage-integration-new: INTEGRATION_SWIFT_EXTRA = --skip-build --enable-code-coverage
-coverage-integration-new: INTEGRATION_POST_TEST = cp $(COV_DATA_DIR)/*.profraw $(COVERAGE_OUTPUT_DIR)/integration/ ;
-coverage-integration-new: all
+.PHONY: coverage-integration
+coverage-integration: INTEGRATION_SWIFT_EXTRA = --skip-build --enable-code-coverage
+coverage-integration: INTEGRATION_POST_TEST = cp $(COV_DATA_DIR)/*.profraw $(COVERAGE_OUTPUT_DIR)/integration/ ;
+coverage-integration: all
 	@mkdir -p $(COVERAGE_OUTPUT_DIR)/integration
 	$(RUN_INTEGRATION)
 
-INTEGRATION_TEST_SUITES ?= NoTests/
-
 empty :=
 space := $(empty) $(empty)
-INTEGRATION_FILTER := $(subst $(space),|,$(strip $(INTEGRATION_TEST_SUITES)))
 
-.PHONY: coverage-new
-# Merges unit coverage with integration-new coverage. Use this during migration;
-# replace coverage with coverage-new in CI until all legacy tests are removed.
-coverage-new: coverage-build coverage-unit coverage-integration-new
+.PHONY: coverage
+coverage: coverage-build coverage-unit coverage-integration
 	@echo Merging integration coverage profdata...
 	@xcrun llvm-profdata merge -sparse $(COVERAGE_OUTPUT_DIR)/integration/*.profraw -o $(COVERAGE_OUTPUT_DIR)/integration/default.profdata
 	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/integration/default.profdata,integration)
@@ -301,17 +296,6 @@ coverage-build:
 	@echo Building tests with coverage instrumentation...
 	@$(SWIFT) build --build-tests --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION)
 
-.PHONY: coverage
-# Merge the raw coverage data generated from coverage-unit and coverage-integration into one unified report
-coverage: coverage-build coverage-unit coverage-integration
-	@echo Merging combined coverage profdata...
-	@mkdir -p $(COVERAGE_OUTPUT_DIR)/combined
-	@xcrun llvm-profdata merge -sparse \
-		$(COVERAGE_OUTPUT_DIR)/unit/default.profdata \
-		$(COVERAGE_OUTPUT_DIR)/integration/default.profdata \
-		-o $(COVERAGE_OUTPUT_DIR)/combined/default.profdata
-	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/combined/default.profdata,combined)
-
 .PHONY: coverage-unit
 coverage-unit:
 	@echo Running unit test coverage...
@@ -322,50 +306,6 @@ coverage-unit:
 	@xcrun llvm-profdata merge -sparse $(COV_DATA_DIR)/*.profraw -o $(COVERAGE_OUTPUT_DIR)/unit/default.profdata
 	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/unit/default.profdata,unit)
 
-.PHONY: coverage-integration
-coverage-integration: all
-	@echo Ensuring apiserver stopped before the coverage integration tests...
-	@bin/container system stop && sleep 3 && scripts/ensure-container-stopped.sh
-	@echo Running integration test coverage...
-	@rm -f $(COV_DATA_DIR)/*.profraw
-	@mkdir -p $(COVERAGE_OUTPUT_DIR)/integration
-	@bin/container --debug system start --timeout 60 $(SYSTEM_START_OPTS) && \
-	echo "Starting CLI integration tests with coverage" && \
-	{ \
-		export CLITEST_LOG_ROOT=$(LOG_ROOT) ; \
-		export CONTAINER_CLI_PATH=$(ROOT_DIR)/bin/container ; \
-		$(SWIFT) test --skip-build --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(INTEGRATION_FILTER)" ; \
-		exit_code=$$? ; \
-		cp $(COV_DATA_DIR)/*.profraw $(COVERAGE_OUTPUT_DIR)/integration/ ; \
-		echo Ensuring apiserver stopped after the coverage integration tests ; \
-		scripts/ensure-container-stopped.sh ; \
-		exit $${exit_code} ; \
-	}
-	@echo Merging integration coverage profdata...
-	@xcrun llvm-profdata merge -sparse $(COVERAGE_OUTPUT_DIR)/integration/*.profraw -o $(COVERAGE_OUTPUT_DIR)/integration/default.profdata
-	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/integration/default.profdata,integration)
-
-.PHONY: integration
-integration: init-block
-	@echo Ensuring apiserver stopped before the CLI integration tests...
-	@bin/container system stop && sleep 3 && scripts/ensure-container-stopped.sh
-	@if [ -n "$(APP_ROOT)" ]; then \
-		echo "Clearing application data under $(APP_ROOT) (preserving kernels)..." ; \
-		mkdir -p $(APP_ROOT) ; \
-		find "$(APP_ROOT)" -mindepth 1 -maxdepth 1 ! -name kernels -exec rm -rf {} + ; \
-	fi
-	@echo Running the integration tests...
-	@bin/container --debug system start --timeout 60 --enable-kernel-install $(SYSTEM_START_OPTS) && \
-	echo "Starting CLI integration tests" && \
-	{ \
-		CLITEST_LOG_ROOT=$(LOG_ROOT) && export CLITEST_LOG_ROOT ; \
-		CONTAINER_CLI_PATH=$(ROOT_DIR)/bin/container && export CONTAINER_CLI_PATH ; \
-		$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(INTEGRATION_FILTER)" ; \
-		exit_code=$$? ; \
-		echo Ensuring apiserver stopped after the CLI integration tests ; \
-		scripts/ensure-container-stopped.sh ; \
-		exit $${exit_code} ; \
-	}
 
 .PHONY: fmt
 fmt: swift-fmt update-licenses
