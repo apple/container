@@ -42,8 +42,12 @@ public enum RequestScheme: String, Sendable {
     /// Returns the prescribed protocol to use while making a HTTP request to a webserver
     /// - Parameter host: The domain or IP address of the webserver
     /// - Parameter internalDnsDomain: The DNS domain used for container name resolution
+    /// - Parameter insecureRegistries: Hosts explicitly configured for insecure
+    ///   (plain-text HTTP) access. When `self` is `.auto`, a matching host
+    ///   resolves to `.http`. An explicit `.http`/`.https` always takes
+    ///   precedence over this list.
     /// - Returns: RequestScheme
-    public func schemeFor(host: String, internalDnsDomain: String?) throws -> Self {
+    public func schemeFor(host: String, internalDnsDomain: String?, insecureRegistries: [String] = []) throws -> Self {
         guard host.count > 0 else {
             throw ContainerizationError(.invalidArgument, message: "host cannot be empty")
         }
@@ -51,8 +55,19 @@ public enum RequestScheme: String, Sendable {
         case .http, .https:
             return self
         case .auto:
-            return Self.isInternalHost(host: host, internalDnsDomain: internalDnsDomain) ? .http : .https
+            if Self.isInternalHost(host: host, internalDnsDomain: internalDnsDomain) || Self.isInsecureRegistry(host: host, insecureRegistries: insecureRegistries) {
+                return .http
+            }
+            return .https
         }
+    }
+
+    /// Returns `true` if `host` is present in the explicitly configured list of
+    /// insecure registries. Matching is case-insensitive and exact (host or
+    /// `host:port`, as configured).
+    public static func isInsecureRegistry(host: String, insecureRegistries: [String]) -> Bool {
+        let host = host.lowercased()
+        return insecureRegistries.contains { $0.lowercased() == host }
     }
 
     /// Checks if the given `host` string is a private IP address

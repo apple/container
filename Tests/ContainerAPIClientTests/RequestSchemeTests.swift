@@ -72,4 +72,44 @@ struct RequestSchemeTests {
         let hostName = "some-dns-name.io.\(Self.defaultDnsDomain)"
         #expect(RequestScheme.isInternalHost(host: hostName, internalDnsDomain: Self.defaultDnsDomain))
     }
+
+    @Test func testInsecureRegistryResolvesToHTTPForAuto() throws {
+        let insecure = ["my-registry.local", "registry.example.com:5000"]
+        // Exact host match -> http.
+        #expect(
+            try RequestScheme.auto.schemeFor(
+                host: "my-registry.local", internalDnsDomain: Self.defaultDnsDomain, insecureRegistries: insecure) == .http)
+        // host:port match -> http.
+        #expect(
+            try RequestScheme.auto.schemeFor(
+                host: "registry.example.com:5000", internalDnsDomain: Self.defaultDnsDomain, insecureRegistries: insecure) == .http)
+        // Case-insensitive match -> http.
+        #expect(
+            try RequestScheme.auto.schemeFor(
+                host: "My-Registry.Local", internalDnsDomain: Self.defaultDnsDomain, insecureRegistries: insecure) == .http)
+        // Non-matching host -> https.
+        #expect(
+            try RequestScheme.auto.schemeFor(
+                host: "other-registry.com", internalDnsDomain: Self.defaultDnsDomain, insecureRegistries: insecure) == .https)
+    }
+
+    @Test func testExplicitSchemeIgnoresInsecureRegistries() throws {
+        let insecure = ["my-registry.local"]
+        // Explicit https wins even if host is in the insecure list.
+        #expect(
+            try RequestScheme.https.schemeFor(
+                host: "my-registry.local", internalDnsDomain: Self.defaultDnsDomain, insecureRegistries: insecure) == .https)
+        // Explicit http stays http regardless of list.
+        #expect(
+            try RequestScheme.http.schemeFor(
+                host: "other.com", internalDnsDomain: Self.defaultDnsDomain, insecureRegistries: insecure) == .http)
+    }
+
+    @Test func testIsInsecureRegistry() throws {
+        let insecure = ["my-registry.local", "registry.example.com:5000"]
+        #expect(RequestScheme.isInsecureRegistry(host: "my-registry.local", insecureRegistries: insecure))
+        #expect(RequestScheme.isInsecureRegistry(host: "MY-REGISTRY.LOCAL", insecureRegistries: insecure))
+        #expect(!RequestScheme.isInsecureRegistry(host: "my-registry.local:5000", insecureRegistries: insecure))
+        #expect(!RequestScheme.isInsecureRegistry(host: "unknown.com", insecureRegistries: []))
+    }
 }
