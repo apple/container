@@ -1064,7 +1064,7 @@ container registry list [--format <format>] [--quiet] [--debug]
 
 ### `container machine create`
 
-Creates a container machine from an image and boots it. Use `--cpus`, `--memory`, and `--home-mount` to configure it, or `--no-boot` to create it without booting.
+Creates a container machine from an image and boots it. Use `--cpus`, `--memory`, `--home-mount`, and `--mount` to configure it, or `--no-boot` to create it without booting.
 
 **Usage**
 
@@ -1084,6 +1084,7 @@ container machine create [<options>] <image>
 *   `--cpus <cpus>`: Number of virtual CPUs
 *   `--memory <memory>`: Memory allocation (e.g., 2G, 8G). Default: half of system memory
 *   `--home-mount <home-mount>`: User's home directory mount option (ro, rw, none). Default: rw
+*   `--mount <host:guest[:ro|rw]>`: Mount a host directory into the container machine. The host path must be an existing directory and the guest path must be absolute; the mode defaults to `rw`. Can be repeated.
 *   `--virtualization`: Enable nested virtualization. Requires Apple Silicon M3+ and macOS 15+ and kernel with CONFIG_KVM=y.
 *   `--kernel <path>`: Path to a custom kernel binary (e.g. `vmlinux`).
 
@@ -1119,6 +1120,9 @@ container machine create --no-boot alpine:3.22
 
 # enable nested virtualization with a custom kernel built with CONFIG_KVM=y
 container machine create --virtualization --kernel ./vmlinux-kvm alpine:3.22
+
+# mount additional host directories into the container machine
+container machine create --mount /Volumes/Project:/Project --mount /tmp/data:/data:ro alpine:3.22
 ```
 
 ### `container machine run`
