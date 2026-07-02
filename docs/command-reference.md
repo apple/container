@@ -1553,7 +1553,7 @@ container system kernel set [--arch <arch>] [--binary <binary>] [--force] [--rec
 *   `--force`: Overwrites an existing kernel with the same name
 *   `--recommended`: Download and install the recommended kernel as the default (takes precedence over all other flags)
 *   `--tar <tar>`: Filesystem path or remote URL to a tar archive containing a kernel file
-*   `--digest <digest>`: Expected digest for the tar archive, for example `sha256:<hex>`
+*   `--digest <digest>`: Expected digest for the tar archive, for example `sha256:<hex>`. Required when `--tar` is a remote URL.
 
 ### `container system property list (ls)`
 

@@ -174,7 +174,7 @@ extension Application {
             }
         }
 
-        private func installDefaultKernel(kernelURL: URL, kernelBinaryPath: String, kernelDigest: String?) async throws {
+        private func installDefaultKernel(kernelURL: URL, kernelBinaryPath: String, kernelDigest: String) async throws {
             var shouldInstallKernel = false
             if kernelInstall == nil {
                 print("No default kernel configured.")

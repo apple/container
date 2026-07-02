@@ -178,16 +178,18 @@ final public class KernelConfig: Codable, Sendable {
 
     public let binaryPath: String
     public let url: URL
-    public let digest: String?
+    public let digest: String
 
-    public init(
-        binaryPath: String = defaultBinaryPath,
-        url: URL = defaultURL,
-        digest: String? = nil
-    ) {
+    public init(binaryPath: String = defaultBinaryPath) {
+        self.binaryPath = binaryPath
+        self.url = Self.defaultURL
+        self.digest = Self.defaultDigest
+    }
+
+    public init(binaryPath: String = defaultBinaryPath, url: URL, digest: String) {
         self.binaryPath = binaryPath
         self.url = url
-        self.digest = digest ?? (url.absoluteString == Self.defaultURL.absoluteString ? Self.defaultDigest : nil)
+        self.digest = digest
     }
 
     public init(from decoder: any Decoder) throws {
@@ -195,16 +197,27 @@ final public class KernelConfig: Codable, Sendable {
         self.binaryPath =
             try container.decodeIfPresent(String.self, forKey: .binaryPath)
             ?? Self.defaultBinaryPath
-        if let urlString = try container.decodeIfPresent(String.self, forKey: .url),
-            let parsed = URL(string: urlString)
-        {
+        if let urlString = try container.decodeIfPresent(String.self, forKey: .url) {
+            guard let parsed = URL(string: urlString) else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .url,
+                    in: container,
+                    debugDescription: "invalid kernel URL '\(urlString)'")
+            }
             self.url = parsed
         } else {
             self.url = Self.defaultURL
         }
-        self.digest =
-            try container.decodeIfPresent(String.self, forKey: .digest)
-            ?? (self.url.absoluteString == Self.defaultURL.absoluteString ? Self.defaultDigest : nil)
+        if let digest = try container.decodeIfPresent(String.self, forKey: .digest) {
+            self.digest = digest
+        } else if self.url.absoluteString == Self.defaultURL.absoluteString {
+            self.digest = Self.defaultDigest
+        } else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .digest,
+                in: container,
+                debugDescription: "kernel.digest is required when kernel.url is not the default URL")
+        }
     }
 
     // JSONEncoder special-cases URL to encode as absoluteString, but third-party
@@ -217,7 +230,7 @@ final public class KernelConfig: Codable, Sendable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(binaryPath, forKey: .binaryPath)
         try container.encode(url.absoluteString, forKey: .url)
-        try container.encodeIfPresent(digest, forKey: .digest)
+        try container.encode(digest, forKey: .digest)
     }
 }
 

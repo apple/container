@@ -176,7 +176,7 @@ struct ConfigurationLoaderTests {
         }
     }
 
-    @Test func customKernelURLWithoutDigestLeavesDigestUnset() async throws {
+    @Test func customKernelURLWithoutDigestThrows() async throws {
         try await TemporaryStorage.withTempDir { tempDir in
             let toml = """
                 [kernel]
@@ -185,13 +185,40 @@ struct ConfigurationLoaderTests {
             let tmpFile = tempDir.appending("test.toml")
             try Self.writeToml(toml, to: tmpFile)
 
-            let config: ContainerSystemConfig = try await ConfigurationLoader.load(configurationFiles: [tmpFile])
-            #expect(config.kernel.url.absoluteString == "https://example.com/custom-kernel.tar")
-            #expect(config.kernel.digest == nil)
+            await #expect(throws: (any Error).self) {
+                let _: ContainerSystemConfig = try await ConfigurationLoader.load(configurationFiles: [tmpFile])
+            }
         }
+    }
 
-        let programmaticConfig = KernelConfig(url: URL(string: "https://example.com/custom-kernel.tar")!)
-        #expect(programmaticConfig.digest == nil)
+    @Test func layeredCustomKernelURLRequiresDigestInSameFile() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let userFile = tempDir.appending("user.toml")
+            let systemFile = tempDir.appending("system.toml")
+
+            try Self.writeToml(
+                """
+                [kernel]
+                url = "https://example.com/custom-kernel.tar"
+                """, to: userFile)
+            try Self.writeToml(
+                """
+                [kernel]
+                digest = "\(KernelConfig.defaultDigest)"
+                """, to: systemFile)
+
+            await #expect(throws: (any Error).self) {
+                let _: ContainerSystemConfig = try await ConfigurationLoader.load(
+                    configurationFiles: [userFile, systemFile])
+            }
+        }
+    }
+
+    @Test func customKernelURLWithDigestCanBeConstructed() {
+        let digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        let config = KernelConfig(url: URL(string: "https://example.com/custom-kernel.tar")!, digest: digest)
+        #expect(config.url.absoluteString == "https://example.com/custom-kernel.tar")
+        #expect(config.digest == digest)
     }
 
     @Test func unknownKeysIgnored() async throws {

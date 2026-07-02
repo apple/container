@@ -47,7 +47,7 @@ extension Application {
         @Option(name: .customLong("tar"), help: "Filesystem path or remote URL to a tar archive containing a kernel file")
         var tarPath: String? = nil
 
-        @Option(name: .long, help: "Expected digest for the tar archive, for example sha256:<hex>")
+        @Option(name: .long, help: "Expected digest for the tar archive, for example sha256:<hex>. Required when --tar is a remote URL.")
         var digest: String? = nil
 
         @OptionGroup
@@ -108,6 +108,9 @@ extension Application {
             guard let remoteURL = URL(string: tarPath) else {
                 throw ContainerizationError(.invalidArgument, message: "invalid remote URL '\(tarPath)' for argument '--tar'. Missing protocol?")
             }
+            guard let digest else {
+                throw ArgumentParser.ValidationError("'--digest' is required when '--tar' is a remote URL")
+            }
             try await Self.downloadAndInstallWithProgressBar(
                 tarRemoteURL: remoteURL,
                 kernelFilePath: binaryPath,
@@ -131,12 +134,12 @@ extension Application {
             tarRemoteURL: URL,
             kernelFilePath: String,
             platform: SystemPlatform = .current,
-            expectedDigest: String? = nil,
+            expectedDigest: String,
             force: Bool
         ) async throws {
             let progressConfig = try ProgressConfig(
                 showTasks: true,
-                totalTasks: expectedDigest == nil ? 2 : 3
+                totalTasks: 3
             )
             let progress = ProgressBar(config: progressConfig)
             defer {

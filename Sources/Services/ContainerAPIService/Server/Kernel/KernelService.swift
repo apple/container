@@ -116,13 +116,19 @@ public actor KernelService {
             )
         }
 
-        let expectedDigest = try expectedDigest.map(Self.parseExpectedDigest)
         var tarFile = tar
         let localTarPath = tar.scheme == nil || tar.isFileURL ? tar.path : nil
         let isLocalTar = localTarPath.map { FileManager.default.fileExists(atPath: $0) } ?? false
         if isLocalTar, let localTarPath {
             tarFile = URL(fileURLWithPath: localTarPath)
         }
+        guard isLocalTar || expectedDigest != nil else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "kernel archive digest is required for remote URL '\(tar)'"
+            )
+        }
+        let expectedDigest = try expectedDigest.map(Self.parseExpectedDigest)
 
         let tempDir = FileManager.default.uniqueTemporaryDirectory()
         defer {

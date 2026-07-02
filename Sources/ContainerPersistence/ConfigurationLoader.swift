@@ -104,6 +104,7 @@ public enum ConfigurationLoader {
         try await loadAndDecode(
             ContainerSystemConfig.self,
             configurationFiles: configurationFiles,
+            validateKernelConfigLayers: true,
             decodeErrorContext: "failed to decode configuration"
         )
     }
@@ -148,6 +149,7 @@ public enum ConfigurationLoader {
         _ type: T.Type,
         configurationFiles: [FilePath],
         scope: ConfigKey? = nil,
+        validateKernelConfigLayers: Bool = false,
         decodeErrorContext: String
     ) async throws -> T {
         let paths = configurationFiles.isEmpty ? defaultConfigFiles() : configurationFiles
@@ -158,14 +160,28 @@ public enum ConfigurationLoader {
 
         var providers: [FileProvider<TOMLSnapshot>] = []
         for path in paths {
+            let provider: FileProvider<TOMLSnapshot>
             do {
-                try providers.append(await FileProvider<TOMLSnapshot>(filePath: path, allowMissing: true))
+                provider = try await FileProvider<TOMLSnapshot>(filePath: path, allowMissing: true)
             } catch {
                 throw ContainerizationError(
                     .invalidArgument,
                     message: "failed to load configuration from '\(path)': \(error)"
                 )
             }
+            if validateKernelConfigLayers {
+                do {
+                    try validateKernelArchiveDigest(in: provider, path: path)
+                } catch let error as ContainerizationError {
+                    throw error
+                } catch {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "failed to validate kernel configuration from '\(path)': \(error)"
+                    )
+                }
+            }
+            providers.append(provider)
         }
 
         let reader = ConfigReader(providers: providers)
@@ -176,6 +192,27 @@ public enum ConfigurationLoader {
             throw ContainerizationError(
                 .invalidArgument,
                 message: "\(decodeErrorContext): \(error)"
+            )
+        }
+    }
+
+    private static func validateKernelArchiveDigest(in provider: FileProvider<TOMLSnapshot>, path: FilePath) throws {
+        let urlResult = try provider.value(forKey: AbsoluteConfigKey(ConfigKey("kernel.url")), type: .string)
+        guard let urlValue = urlResult.value else {
+            return
+        }
+        guard case .string(let urlString) = urlValue.content else {
+            return
+        }
+        guard urlString != KernelConfig.defaultURL.absoluteString else {
+            return
+        }
+
+        let digestResult = try provider.value(forKey: AbsoluteConfigKey(ConfigKey("kernel.digest")), type: .string)
+        guard digestResult.value != nil else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "kernel.digest is required in '\(path)' when kernel.url configures a custom archive"
             )
         }
     }

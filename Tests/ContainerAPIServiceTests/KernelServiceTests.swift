@@ -96,6 +96,24 @@ struct KernelServiceTests {
         }
     }
 
+    @Test func installKernelFromRemoteTarRequiresDigest() async throws {
+        try await withTempDir { tempDir in
+            let service = try KernelService(
+                log: Logger(label: "com.apple.container.test.kernel-service"),
+                appRoot: tempDir.appendingPathComponent("app"))
+
+            await #expect(throws: ContainerizationError.self) {
+                try await service.installKernelFrom(
+                    tar: URL(string: "https://example.com/kernel.tar")!,
+                    kernelFilePath: "boot/vmlinux",
+                    platform: .linuxArm,
+                    progressUpdate: nil,
+                    expectedDigest: nil,
+                    force: false)
+            }
+        }
+    }
+
     private static func writeTar(at tarFile: URL, path: String, data: Data) throws -> URL {
         let archiver = try ArchiveWriter(format: .paxRestricted, filter: .none, file: tarFile)
         let entry = WriteEntry()
