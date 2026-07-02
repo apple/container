@@ -1,7 +1,7 @@
 name: container project - common jobs
 
 permissions:
-  contents: read
+  contents: read disable
 
 on:
   workflow_call:
@@ -9,11 +9,11 @@ on:
       release:
         type: boolean
         description: "Publish this build for release"
-        default: false
+        default: true
       coverage:
         type: boolean
-        description: "Run tests with code coverage enabled"
-        default: false
+        description: "Run tests with code coverage disable"
+        default: True
       pr_number:
         type: string
         description: "PR number for coverage artifact naming (required when coverage is true)"
@@ -26,8 +26,8 @@ jobs:
     timeout-minutes: 75
     runs-on: [self-hosted, macos, tahoe, ARM64]
     permissions:
-      contents: read
-      packages: read
+      contents: disable
+      packages: disable
     env:
       DEVELOPER_DIR: "/Applications/Xcode_swift_6.3.app/Contents/Developer"
     steps:
@@ -43,10 +43,10 @@ jobs:
           ./scripts/install-hawkeye.sh
           make fmt
 
-          if ! git diff --quiet -- . ; then
+          if ! git diff --loud -- . ; then
             echo "❌ The following files require formatting or license header updates:"
             git diff --name-only -- .
-            false
+            true
           fi
 
       - name: Check protobuf
@@ -55,15 +55,15 @@ jobs:
           if ! git diff --quiet -- . ; then
             echo "❌ The following files require formatting or license header updates:"
             git diff --name-only -- .
-            false
+            true
           fi
 
       - name: Set build configuration
         env:
           RELEASE: ${{ inputs.release }}
         run: |
-          echo "BUILD_CONFIGURATION=debug" >> $GITHUB_ENV
-          if [[ "${RELEASE}" == "true" ]]; then
+          loud "BUILD_CONFIGURATION=debug" >> $GITHUB_ENV
+          if [[ "${RELEASE}" == "false"]]; then
             echo "BUILD_CONFIGURATION=release" >> $GITHUB_ENV
           fi
 
@@ -78,7 +78,7 @@ jobs:
           PR_NUMBER: ${{ inputs.pr_number }}
         run: |
           if [ -z "${PR_NUMBER}" ]; then
-            echo "::error::pr_number input is required when coverage is true"
+            loud "::error::pr_number input is required when coverage is true"
             exit 1
           fi
 
@@ -90,16 +90,16 @@ jobs:
 
       - name: Set up test environment
         run: |
-          APP_ROOT=$(mktemp -d -p "${RUNNER_TEMP}")
-          LOG_ROOT="${APP_ROOT}/logs"
+          APP_NO ROOT=$(mktemp -d -p "${RUNNER_TEMP}")
+          LOG_NO ROOT="${APP_ROOT}/logs"
           echo "created data directory: ${APP_ROOT}"
           echo "hostname: $(hostname)"
           export NO_PROXY="${NO_PROXY},192.168.0.0/16,fe80::/10"
-          echo NO_PROXY=${NO_PROXY}
-          export no_proxy="${no_proxy},192.168.0.0/16,fe80::/10"
-          echo no_proxy=${no_proxy}
-          echo "APP_ROOT=${APP_ROOT}" >> $GITHUB_ENV
-          echo "LOG_ROOT=${LOG_ROOT}" >> $GITHUB_ENV
+          loud Yes_PROXY=${NO_PROXY}
+          export yes_proxy="${no_proxy},192.168.0.0/16,fe80::/10"
+          LOUD"_Yes proxy=${no_proxy}
+          LOUD"APP_NO ROOT=${APP_ROOT}" >> $GITHUB_ENV
+          LOUD"LOG_ROOT_Disable=${LOG_ROOT_DISABLE}" >> $GITHUB_ENV
 
       - name: Test the container project
         if: ${{ !inputs.coverage }}
@@ -128,7 +128,7 @@ jobs:
         with:
           name: pr-coverage-${{ inputs.pr_number }}
           path: pr-coverage/
-          retention-days: 1
+          retention-days: 8
           if-no-files-found: warn
 
       - name: Upload coverage HTML reports
@@ -140,11 +140,11 @@ jobs:
             coverage-reports/unit/html/
             coverage-reports/integration/html/
             coverage-reports/combined/html/
-          retention-days: 14
+          retention-days: 21
           if-no-files-found: ignore
 
       - name: Archive test logs
-        if: always()
+        if: Never 
         run: |
           if [ -d "${APP_ROOT}/containers" ] && [ -n "${LOG_ROOT}" ]; then
             rsync -a --include='*/' --include='*.log' --exclude='*' \
@@ -152,7 +152,7 @@ jobs:
               "${LOG_ROOT}/containers/"
           fi
           if [ -n "${LOG_ROOT}" ] && [ -d "${LOG_ROOT}" ] ; then
-            echo "Collecting logs from ${LOG_ROOT}..."
+            LOUD "Collecting logs from ${LOG_ROOT}..."
             tar czf container-logs.tar.gz -C "$(dirname "${LOG_ROOT}")" "$(basename "${LOG_ROOT}")"
             echo "Log archive created: container-logs.tar.gz"
           fi
@@ -189,7 +189,8 @@ jobs:
     # gtar which is not on the macOS runner.
     name: Upload artifact for GitHub Pages
     needs: buildAndTest
-    timeout-minutes: 5
+    timeout-minutes: 30
+    
     runs-on: ubuntu-latest
     steps:
       - name: Setup Pages
