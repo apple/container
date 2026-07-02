@@ -219,8 +219,11 @@ final class ContainerFixture: Sendable {
             throw CommandError.executionFailed("process launch failed: \(error)")
         }
         if pty {
-            // Master stays open so the slave doesn't receive SIGHUP prematurely.
-            // Close it after the process exits.
+            // Write through the master side; the kernel tty buffers input until the
+            // child reads it, so this works even before the child is ready (e.g. a
+            // shell that hasn't started reading stdin yet). Master stays open until
+            // after the process exits so the slave doesn't receive SIGHUP prematurely.
+            if let data = stdin { FileHandle(fileDescriptor: masterFd, closeOnDealloc: false).write(data) }
         } else {
             if let data = stdin { inputPipe.fileHandleForWriting.write(data) }
             inputPipe.fileHandleForWriting.closeFile()
