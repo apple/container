@@ -22,7 +22,8 @@ import Testing
 struct TestCLIRemoveSerial {
     @Test func testDeleteAllStopped() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = ContainerFixture.warmupImages[0]
+            if try !f.isImagePresent(image) { try f.doPull(image) }
             let name1 = "\(f.testID)-c1"
             let name2 = "\(f.testID)-c2"
             try f.doCreate(name: name1, image: image)
@@ -39,7 +40,8 @@ struct TestCLIRemoveSerial {
 
     @Test func testDeleteAllSkipsRunning() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = ContainerFixture.warmupImages[0]
+            if try !f.isImagePresent(image) { try f.doPull(image) }
             let runningName = "\(f.testID)-running"
             let stoppedName = "\(f.testID)-stopped"
 
@@ -60,7 +62,8 @@ struct TestCLIRemoveSerial {
 
     @Test func testDeleteAllForce() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = ContainerFixture.warmupImages[0]
+            if try !f.isImagePresent(image) { try f.doPull(image) }
             let name = "\(f.testID)-c"
             try f.doLongRun(name: name, image: image, autoRemove: false)
             f.addCleanup { try f.doRemoveIfExists(name, force: true, ignoreFailure: true) }

@@ -36,7 +36,8 @@ struct TestCLIPruneCommandSerial {
 
     @Test func testContainerPruneStoppedContainers() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = ContainerFixture.warmupImages[0]
+            if try !f.isImagePresent(image) { try f.doPull(image) }
 
             // One running container that must survive the prune.
             try await f.withContainer(image: image, tag: "running", containerArgs: ["sleep", "3600"]) { npcName in
