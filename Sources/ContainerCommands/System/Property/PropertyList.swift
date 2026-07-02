@@ -17,8 +17,8 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerPersistence
-import ContainerPlugin
 import Foundation
+import SystemPackage
 
 enum ListOutputFormat: String, Decodable, ExpressibleByArgument {
     case json
@@ -42,11 +42,20 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
+            let health = try await ClientHealthCheck.ping(timeout: .seconds(10))
+            let configurationFiles = [
+                ConfigurationLoader.configurationFile(in: FilePath(health.appRoot.path(percentEncoded: false)), of: .appRoot),
+                ConfigurationLoader.configurationFile(in: FilePath(health.installRoot.path(percentEncoded: false)), of: .installRoot),
+            ]
+            let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load(configurationFiles: configurationFiles)
+            let properties = try SystemProperties(
+                config: containerSystemConfig,
+                plugin: PluginProperties.load(configurationFiles: configurationFiles)
+            )
             let output =
                 switch format {
-                case .json: try Output.renderJSON(containerSystemConfig)
-                case .toml: try Output.renderTOML(containerSystemConfig)
+                case .json: try Output.renderJSON(properties)
+                case .toml: try Output.renderTOML(properties)
                 }
             Output.emit(output)
         }
