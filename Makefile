@@ -197,30 +197,21 @@ define GENERATE_COV_REPORTS
 endef
 
 # PARALLEL_WIDTH controls --experimental-maximum-parallelization-width for the
-# concurrent pass. WARMUP_FILTER, CONCURRENT_FILTER, and GLOBAL_FILTER select
+# concurrent pass. WARMUP_FILTER, CONCURRENT_FILTER, and SERIAL_FILTER select
 # the three phases.
 PARALLEL_WIDTH ?= $(shell sysctl -n hw.physicalcpu)
 WARMUP_FILTER = ImageWarmup/
 
+# Concurrent suites: Test*.swift files whose names do NOT end in Serial.
 CONCURRENT_TEST_SUITES ?= $(sort $(addsuffix /,$(basename $(notdir \
-    $(shell find Tests/IntegrationTests -name 'TestCLI*.swift' \
+    $(shell find Tests/IntegrationTests -name 'Test*.swift' \
             ! -name '*Serial.swift' 2>/dev/null)))))
 CONCURRENT_FILTER = $(subst $(space),|,$(strip $(CONCURRENT_TEST_SUITES)))
 
-GLOBAL_TEST_SUITES ?= \
-	TestCLIBuilderEnvOnlySerial/ \
-	TestCLIBuilderLifecycleSerial/ \
-	TestCLIBuilderLocalOutputSerial/ \
-	TestCLIBuilderSerial/ \
-	TestCLIBuilderTarExportSerial/ \
-	TestCLIKernelSetSerial/ \
-	TestCLIMachineRuntimeSerial/ \
-	TestCLIPruneCommandSerial/ \
-	TestCLIRemoveSerial/ \
-	TestCLIRunLifecycleSerial/ \
-	TestCLISystemDFSerial/ \
-	TestCLIVolumesSerial/
-GLOBAL_FILTER = $(subst $(space),|,$(strip $(GLOBAL_TEST_SUITES)))
+# Serial suites: Test*.swift files whose names end in Serial.
+SERIAL_TEST_SUITES ?= $(sort $(addsuffix /,$(basename $(notdir \
+    $(shell find Tests/IntegrationTests -name 'Test*Serial.swift' 2>/dev/null)))))
+SERIAL_FILTER = $(subst $(space),|,$(strip $(SERIAL_TEST_SUITES)))
 
 INTEGRATION_SWIFT_EXTRA ?=
 INTEGRATION_POST_TEST ?=
@@ -255,7 +246,7 @@ define RUN_INTEGRATION
 		echo "==> Concurrent pass (width=$(PARALLEL_WIDTH))" && \
 		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --experimental-maximum-parallelization-width $(PARALLEL_WIDTH) --filter "$(CONCURRENT_FILTER)" && \
 		echo "==> Global pass (serial)" && \
-		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --experimental-maximum-parallelization-width 1 --filter "$(GLOBAL_FILTER)" ; \
+		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --experimental-maximum-parallelization-width 1 --filter "$(SERIAL_FILTER)" ; \
 		exit_code=$$? ; \
 		$(INTEGRATION_POST_TEST) \
 		echo Ensuring apiserver stopped after the CLI integration tests ; \
