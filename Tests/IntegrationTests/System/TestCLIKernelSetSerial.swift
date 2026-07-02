@@ -26,6 +26,7 @@ import Testing
 struct TestCLIKernelSetSerial {
     private let remoteTar = ContainerSystemConfig().kernel.url
     private let defaultBinaryPath = ContainerSystemConfig().kernel.binaryPath
+    private let defaultDigest = KernelConfig.defaultDigest
 
     /// Kernel release string parsed from the binary filename.
     ///
@@ -60,7 +61,13 @@ struct TestCLIKernelSetSerial {
             let tempDir = URL(filePath: f.testDir.string)
             let localTarPath = tempDir.appending(path: remoteTar.lastPathComponent)
             try await ContainerAPIClient.FileDownloader.downloadFile(url: remoteTar, to: localTarPath)
-            try f.run(["system", "kernel", "set", "--force", "--tar", localTarPath.path, "--binary", symlinkBinaryPath]).check()
+            try f.run([
+                "system", "kernel", "set",
+                "--force",
+                "--tar", localTarPath.path,
+                "--binary", symlinkBinaryPath,
+                "--digest", defaultDigest,
+            ]).check()
             try await validateGuestKernel(f)
         }
     }
@@ -73,7 +80,13 @@ struct TestCLIKernelSetSerial {
 
         try await ContainerFixture.with { f in
             f.addCleanup { resetKernelToRecommended(f) }
-            try f.run(["system", "kernel", "set", "--force", "--tar", remoteTar.absoluteString, "--binary", symlinkBinaryPath]).check()
+            try f.run([
+                "system", "kernel", "set",
+                "--force",
+                "--tar", remoteTar.absoluteString,
+                "--binary", symlinkBinaryPath,
+                "--digest", defaultDigest,
+            ]).check()
             try await validateGuestKernel(f)
         }
     }

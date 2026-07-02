@@ -95,6 +95,7 @@ struct ConfigurationLoaderTests {
             #expect(!config.vminit.image.isEmpty)
             #expect(!config.kernel.binaryPath.isEmpty)
             #expect(!config.kernel.url.absoluteString.isEmpty)
+            #expect(config.kernel.digest == KernelConfig.defaultDigest)
             #expect(config.network.subnet == nil)
             #expect(config.network.subnetv6 == nil)
             #expect(config.registry.domain == "docker.io")
@@ -120,6 +121,7 @@ struct ConfigurationLoaderTests {
                 [kernel]
                 binaryPath = "custom/path"
                 url = "https://example.com/kernel.tar"
+                digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
                 [network]
                 subnet = "10.0.0.1/16"
@@ -147,6 +149,7 @@ struct ConfigurationLoaderTests {
             #expect(config.vminit.image == "custom-init:latest")
             #expect(config.kernel.binaryPath == "custom/path")
             #expect(config.kernel.url.absoluteString == "https://example.com/kernel.tar")
+            #expect(config.kernel.digest == "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
             let expectedSubnet = try CIDRv4("10.0.0.1/16")
             let expectedSubnetV6 = try CIDRv6("fd01::/48")
             #expect(config.network.subnet == expectedSubnet)
@@ -171,6 +174,51 @@ struct ConfigurationLoaderTests {
             #expect(config.container.cpus == 4)
             #expect(config.container.memory == ContainerConfig.defaultMemory)
         }
+    }
+
+    @Test func customKernelURLWithoutDigestThrows() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let toml = """
+                [kernel]
+                url = "https://example.com/custom-kernel.tar"
+                """
+            let tmpFile = tempDir.appending("test.toml")
+            try Self.writeToml(toml, to: tmpFile)
+
+            await #expect(throws: (any Error).self) {
+                let _: ContainerSystemConfig = try await ConfigurationLoader.load(configurationFiles: [tmpFile])
+            }
+        }
+    }
+
+    @Test func layeredCustomKernelURLRequiresDigestInSameFile() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let userFile = tempDir.appending("user.toml")
+            let systemFile = tempDir.appending("system.toml")
+
+            try Self.writeToml(
+                """
+                [kernel]
+                url = "https://example.com/custom-kernel.tar"
+                """, to: userFile)
+            try Self.writeToml(
+                """
+                [kernel]
+                digest = "\(KernelConfig.defaultDigest)"
+                """, to: systemFile)
+
+            await #expect(throws: (any Error).self) {
+                let _: ContainerSystemConfig = try await ConfigurationLoader.load(
+                    configurationFiles: [userFile, systemFile])
+            }
+        }
+    }
+
+    @Test func customKernelURLWithDigestCanBeConstructed() {
+        let digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        let config = KernelConfig(url: URL(string: "https://example.com/custom-kernel.tar")!, digest: digest)
+        #expect(config.url.absoluteString == "https://example.com/custom-kernel.tar")
+        #expect(config.digest == digest)
     }
 
     @Test func unknownKeysIgnored() async throws {

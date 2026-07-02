@@ -19,6 +19,7 @@ import Containerization
 import ContainerizationArchive
 import ContainerizationError
 import ContainerizationExtras
+import CryptoKit
 import Foundation
 import Logging
 import TerminalProgress
@@ -28,6 +29,11 @@ public actor KernelService {
 
     private let log: Logger
     private let kernelDirectory: URL
+
+    private struct ExpectedDigest {
+        let algorithm: String
+        let hex: String
+    }
 
     public init(log: Logger, appRoot: URL) throws {
         self.log = log
@@ -81,7 +87,14 @@ public actor KernelService {
     /// Copies a kernel binary from inside of tar file into the managed kernels directory
     /// as the default kernel for the provided platform.
     /// The parameter `tar` maybe a location to a local file on disk, or a remote URL.
-    public func installKernelFrom(tar: URL, kernelFilePath: String, platform: SystemPlatform, progressUpdate: ProgressUpdateHandler?, force: Bool) async throws {
+    public func installKernelFrom(
+        tar: URL,
+        kernelFilePath: String,
+        platform: SystemPlatform,
+        progressUpdate: ProgressUpdateHandler?,
+        expectedDigest: String? = nil,
+        force: Bool
+    ) async throws {
         log.debug(
             "KernelService: enter",
             metadata: [
@@ -103,37 +116,119 @@ public actor KernelService {
             )
         }
 
+        var tarFile = tar
+        let localTarPath = tar.scheme == nil || tar.isFileURL ? tar.path : nil
+        let isLocalTar = localTarPath.map { FileManager.default.fileExists(atPath: $0) } ?? false
+        if isLocalTar, let localTarPath {
+            tarFile = URL(fileURLWithPath: localTarPath)
+        }
+        guard isLocalTar || expectedDigest != nil else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "kernel archive digest is required for remote URL '\(tar)'"
+            )
+        }
+        let expectedDigest = try expectedDigest.map(Self.parseExpectedDigest)
+
         let tempDir = FileManager.default.uniqueTemporaryDirectory()
         defer {
             try? FileManager.default.removeItem(at: tempDir)
         }
 
         await progressUpdate?([
-            .setDescription("Downloading kernel")
+            .setDescription(isLocalTar ? "Reading kernel archive" : "Downloading kernel")
         ])
-        let taskManager = ProgressTaskCoordinator()
-        let downloadTask = await taskManager.startTask()
-        var tarFile = tar
-        if !FileManager.default.fileExists(atPath: tar.absoluteString) {
+        var downloadedSHA256Digest: String?
+        if !isLocalTar {
+            let taskManager = ProgressTaskCoordinator()
+            let downloadTask = await taskManager.startTask()
             self.log.debug("KernelService: start download", metadata: ["tar": "\(tar)"])
             tarFile = tempDir.appendingPathComponent(tar.lastPathComponent)
             var downloadProgressUpdate: ProgressUpdateHandler?
             if let progressUpdate {
                 downloadProgressUpdate = ProgressTaskCoordinator.handler(for: downloadTask, from: progressUpdate)
             }
-            try await ContainerAPIClient.FileDownloader.downloadFile(url: tar, to: tarFile, progressUpdate: downloadProgressUpdate)
+            downloadedSHA256Digest = try await ContainerAPIClient.FileDownloader.downloadFile(
+                url: tar,
+                to: tarFile,
+                progressUpdate: downloadProgressUpdate,
+                computingSHA256: expectedDigest != nil)
+            await taskManager.finish()
         }
-        await taskManager.finish()
+        await progressUpdate?([
+            .addTasks(1)
+        ])
+
+        if let expectedDigest {
+            await progressUpdate?([
+                .setDescription("Verifying kernel archive")
+            ])
+            if let downloadedSHA256Digest {
+                try Self.verifyDigest(actualSHA256Hex: downloadedSHA256Digest, expected: expectedDigest)
+            } else {
+                try Self.verifyDigest(of: tarFile, expected: expectedDigest)
+            }
+            await progressUpdate?([
+                .addTasks(1)
+            ])
+        }
 
         await progressUpdate?([
             .setDescription("Unpacking kernel")
         ])
         let kernelFile = try self.extractFile(tarFile: tarFile, at: kernelFilePath, to: tempDir)
         try self.installKernel(kernelFile: kernelFile, platform: platform, force: force)
+        await progressUpdate?([
+            .addTasks(1)
+        ])
 
-        if !FileManager.default.fileExists(atPath: tar.absoluteString) {
+        if !isLocalTar {
             try FileManager.default.removeItem(at: tarFile)
         }
+    }
+
+    static func verifyDigest(of file: URL, expected: String) throws {
+        let expectedDigest = try parseExpectedDigest(expected)
+        try verifyDigest(of: file, expected: expectedDigest)
+    }
+
+    private static func verifyDigest(of file: URL, expected: ExpectedDigest) throws {
+        let actualDigest = try sha256Hex(of: file)
+        try verifyDigest(actualSHA256Hex: actualDigest, expected: expected)
+    }
+
+    private static func verifyDigest(actualSHA256Hex actualDigest: String, expected: ExpectedDigest) throws {
+        guard actualDigest == expected.hex else {
+            throw ContainerizationError(
+                .invalidState,
+                message: "kernel archive digest mismatch: expected sha256:\(expected.hex), got sha256:\(actualDigest)"
+            )
+        }
+    }
+
+    private static func parseExpectedDigest(_ expected: String) throws -> ExpectedDigest {
+        let parts = expected.lowercased().split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else {
+            throw ContainerizationError(.invalidArgument, message: "invalid digest value '\(expected)': expected '<algorithm>:<hex>'")
+        }
+        let digest = ExpectedDigest(algorithm: String(parts[0]), hex: String(parts[1]))
+        guard digest.algorithm == "sha256" else {
+            throw ContainerizationError(.unsupported, message: "unsupported digest algorithm '\(digest.algorithm)'")
+        }
+        guard digest.hex.count == 64, digest.hex.utf8.allSatisfy({ ($0 >= 48 && $0 <= 57) || ($0 >= 97 && $0 <= 102) }) else {
+            throw ContainerizationError(.invalidArgument, message: "invalid sha256 digest value '\(expected)'")
+        }
+        return digest
+    }
+
+    static func sha256Hex(of file: URL) throws -> String {
+        var hasher = SHA256()
+        let handle = try FileHandle(forReadingFrom: file)
+        defer { try? handle.close() }
+        while let data = try handle.read(upToCount: Int(1.mib())), !data.isEmpty {
+            hasher.update(data: data)
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     private func setDefaultKernel(name: String, platform: SystemPlatform) throws {
