@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerTestSupport
+import ContainerResource
 import ContainerizationExtras
 import Foundation
 import SystemPackage
@@ -90,7 +91,10 @@ struct ConfigurationLoaderTests {
             #expect(config.build.memory == BuildConfig.defaultMemory)
             #expect(config.container.cpus == 4)
             #expect(config.container.memory == ContainerConfig.defaultMemory)
+            #expect(config.dns.nameservers == ContainerConfiguration.DNSConfiguration.defaultNameservers)
             #expect(config.dns.domain == nil)
+            #expect(config.dns.searchDomains == [])
+            #expect(config.dns.options == [])
             #expect(!config.build.image.isEmpty)
             #expect(!config.vminit.image.isEmpty)
             #expect(!config.kernel.binaryPath.isEmpty)
@@ -115,7 +119,10 @@ struct ConfigurationLoaderTests {
                 memory = "8g"
 
                 [dns]
+                nameservers = ["8.8.8.8", "8.8.4.4"]
                 domain = "custom"
+                searchDomains = ["svc.local", "corp.local"]
+                options = ["ndots:1"]
 
                 [kernel]
                 binaryPath = "custom/path"
@@ -142,7 +149,10 @@ struct ConfigurationLoaderTests {
             #expect(config.container.cpus == 16)
             let expectedContainerMemory = try MemorySize("8g")
             #expect(config.container.memory == expectedContainerMemory)
+            #expect(config.dns.nameservers == ["8.8.8.8", "8.8.4.4"])
             #expect(config.dns.domain == "custom")
+            #expect(config.dns.searchDomains == ["svc.local", "corp.local"])
+            #expect(config.dns.options == ["ndots:1"])
             #expect(config.build.image == "custom-builder:latest")
             #expect(config.vminit.image == "custom-init:latest")
             #expect(config.kernel.binaryPath == "custom/path")
