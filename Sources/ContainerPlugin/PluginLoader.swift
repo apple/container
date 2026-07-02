@@ -64,6 +64,27 @@ public struct PluginLoader: Sendable {
             .appending(path: "container-plugins")
             .resolvingSymlinksInPath()
     }
+
+    /// Returns the user-level plugins directory outside any versioned install root.
+    /// Respects ``XDG_DATA_HOME``; falls back to ``~/.local/share``.
+    /// Returns nil when the directory does not exist (plugins are opt-in).
+    static public func userHomePluginsDir() -> URL? {
+        let fm = FileManager.default
+        let base: String
+        if let xdg = ProcessInfo.processInfo.environment["XDG_DATA_HOME"], !xdg.isEmpty {
+            base = xdg
+        } else {
+            base = fm.homeDirectoryForCurrentUser
+                .appendingPathComponent(".local/share")
+                .path
+        }
+        let url = URL(fileURLWithPath: "\(base)/container/plugins")
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue else {
+            return nil
+        }
+        return url
+    }
 }
 
 extension PluginLoader {

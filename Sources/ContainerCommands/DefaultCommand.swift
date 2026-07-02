@@ -62,7 +62,8 @@ struct DefaultCommand: AsyncLoggableCommand {
             .appending(FilePath.Component("container"))
             .appending(FilePath.Component("plugins"))
         let installRootPluginsURL = URL(fileURLWithPath: installRootPluginsPath.string)
-        let hintPaths = [userPluginsURL, installRootPluginsURL]
+        let hintPaths = [PluginLoader.userHomePluginsDir(), userPluginsURL, installRootPluginsURL]
+            .compactMap { $0 }
             .map { $0.appendingPathComponent(command).path(percentEncoded: false) }
             .joined(separator: "\n  - ")
 
