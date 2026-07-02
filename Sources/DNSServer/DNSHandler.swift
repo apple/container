@@ -14,6 +14,20 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+/// Context for a DNS request.
+public struct DNSRequestContext: Sendable {
+    /// The source IP address for the datagram, if available.
+    public let remoteIPAddress: String?
+
+    /// The source port for the datagram, if available.
+    public let remotePort: Int?
+
+    public init(remoteIPAddress: String? = nil, remotePort: Int? = nil) {
+        self.remoteIPAddress = remoteIPAddress
+        self.remotePort = remotePort
+    }
+}
+
 /// Protocol for implementing custom DNS handlers.
 public protocol DNSHandler {
     /// Attempt to answer a DNS query
@@ -22,4 +36,19 @@ public protocol DNSHandler {
     /// - Returns: The response message for the query, or nil if the request
     ///   is not within the scope of the handler.
     func answer(query: Message) async throws -> Message?
+
+    /// Attempt to answer a DNS query with request context.
+    /// - Parameters:
+    ///   - query: the query message
+    ///   - context: request context such as the source address.
+    /// - Throws: a server failure occurred during the query
+    /// - Returns: The response message for the query, or nil if the request
+    ///   is not within the scope of the handler.
+    func answer(query: Message, context: DNSRequestContext) async throws -> Message?
+}
+
+extension DNSHandler {
+    public func answer(query: Message, context: DNSRequestContext) async throws -> Message? {
+        try await answer(query: query)
+    }
 }
