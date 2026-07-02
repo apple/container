@@ -19,6 +19,7 @@ import ContainerAPIClient
 import ContainerPersistence
 import ContainerPlugin
 import ContainerResource
+import ContainerRuntimeLinuxClient
 import ContainerizationError
 import Foundation
 import TerminalProgress
@@ -88,7 +89,15 @@ extension Application {
 
             let options = ContainerCreateOptions(autoRemove: managementFlags.remove)
             let client = ContainerClient()
-            try await client.create(configuration: ck.0, options: options, kernel: ck.1, initImage: ck.2)
+            let blockIO = try Parser.blockIO(specs: managementFlags.blkio)
+            let runtimeData: Data? = try blockIO.map { try JSONEncoder().encode(LinuxRuntimeData(blockIO: $0)) }
+            try await client.create(
+                configuration: ck.0,
+                options: options,
+                kernel: ck.1,
+                initImage: ck.2,
+                runtimeData: runtimeData
+            )
 
             if !self.managementFlags.cidfile.isEmpty {
                 let path = self.managementFlags.cidfile

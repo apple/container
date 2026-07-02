@@ -1201,6 +1201,59 @@ struct ParserTest {
         #expect(result.memoryInBytes == 256.mib())
     }
 
+    @Test func testBlockIOSpecsCombined() throws {
+        let parsed = try Parser.blockIO(specs: [
+            "weight=500,leaf-weight=300",
+            "device=/dev/null,weight=700,leaf-weight=400",
+            "device=/dev/null,read-bps=1mb,write-bps=2mb",
+            "device=/dev/null,read-iops=1000,write-iops=2000",
+        ])
+        let blockIO = try #require(parsed)
+        #expect(blockIO.weight == 500)
+        #expect(blockIO.leafWeight == 300)
+        #expect(blockIO.weightDevice.first?.weight == 700)
+        #expect(blockIO.weightDevice.first?.leafWeight == 400)
+        #expect(blockIO.throttleReadBpsDevice.first?.rate == 1.mib())
+        #expect(blockIO.throttleWriteBpsDevice.first?.rate == 2.mib())
+        #expect(blockIO.throttleReadIOPSDevice.first?.rate == 1000)
+        #expect(blockIO.throttleWriteIOPSDevice.first?.rate == 2000)
+    }
+
+    @Test func testBlockIOAcceptsMajorMinorLiteral() throws {
+        let parsed = try Parser.blockIO(specs: ["device=8:0,weight=600,read-bps=512kb"])
+        let blockIO = try #require(parsed)
+        let weightDevice = try #require(blockIO.weightDevice.first)
+        #expect(weightDevice.major == 8)
+        #expect(weightDevice.minor == 0)
+        #expect(weightDevice.weight == 600)
+        #expect(blockIO.throttleReadBpsDevice.first?.rate == 512 * 1024)
+    }
+
+    @Test func testBlockIORejectsInvalidWeight() throws {
+        #expect {
+            _ = try Parser.blockIO(specs: ["weight=1"])
+        } throws: { _ in
+            true
+        }
+    }
+
+    @Test func testBlockIORejectsUnknownKey() throws {
+        #expect {
+            _ = try Parser.blockIO(specs: ["device=/dev/null,bogus=1"])
+        } throws: { _ in
+            true
+        }
+    }
+
+    @Test func testBlockIORejectsGlobalKeyOnDeviceSpec() throws {
+        // read-bps without device= is meaningless.
+        #expect {
+            _ = try Parser.blockIO(specs: ["read-bps=1mb"])
+        } throws: { _ in
+            true
+        }
+    }
+
     @Test func testResourcesBuildPropertyLookup() async throws {
         let content = """
             [build]

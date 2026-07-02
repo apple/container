@@ -372,7 +372,9 @@ let package = Package(
         ),
         .target(
             name: "ContainerRuntimeLinuxClient",
-            dependencies: [],
+            dependencies: [
+                .product(name: "ContainerizationOCI", package: "containerization"),
+            ],
             path: "Sources/Services/RuntimeLinux/Client"
         ),
         .executableTarget(

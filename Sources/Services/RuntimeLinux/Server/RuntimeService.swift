@@ -19,6 +19,7 @@ import ContainerOS
 import ContainerPersistence
 import ContainerResource
 import ContainerRuntimeClient
+import ContainerRuntimeLinuxClient
 import ContainerXPC
 import Containerization
 import ContainerizationError
@@ -158,6 +159,9 @@ public actor RuntimeService {
             try bundle.createLogFile()
 
             var config = try bundle.configuration
+            // Pick up Linux-specific runtime data (e.g. blkio cgroup tuning) carried opaquely
+            // through `RuntimeConfiguration.runtimeData`.
+            let runtimeData: Data? = (try? RuntimeConfiguration.readRuntimeConfiguration(from: self.root))?.runtimeData
 
             var kernel = try bundle.kernel
             kernel.commandLine.kernelArgs.append("oops=panic")
@@ -254,7 +258,7 @@ public actor RuntimeService {
             let id = config.id
             let rootfs = try bundle.containerRootfs.asMount
             let container = try LinuxContainer(id, rootfs: rootfs, vmm: vmm, logger: self.log) { czConfig in
-                try Self.configureContainer(czConfig: &czConfig, config: config, dynamicEnv: dynamicEnv, log: self.log)
+                try Self.configureContainer(czConfig: &czConfig, config: config, runtimeData: runtimeData, dynamicEnv: dynamicEnv, log: self.log)
                 czConfig.interfaces = interfaces
                 czConfig.process.stdout = stdout
                 czConfig.process.stderr = stderr
@@ -981,12 +985,17 @@ public actor RuntimeService {
     private static func configureContainer(
         czConfig: inout LinuxContainer.Configuration,
         config: ContainerConfiguration,
+        runtimeData: Data? = nil,
         dynamicEnv: [String: String] = [:],
         log: Logger? = nil,
     ) throws {
         czConfig.cpus = config.resources.cpus
         czConfig.cpuOverhead = config.resources.cpuOverhead
         czConfig.memoryInBytes = config.resources.memoryInBytes
+        if let runtimeData {
+            let linuxData = try JSONDecoder().decode(LinuxRuntimeData.self, from: runtimeData)
+            czConfig.blockIO = linuxData.blockIO.map(Self.toContainerizationBlockIO)
+        }
         czConfig.sysctl = config.sysctls.reduce(into: [String: String]()) {
             $0[$1.key] = $1.value
         }
@@ -1196,6 +1205,31 @@ public actor RuntimeService {
         }
 
         return Containerization.LinuxCapabilities(capabilities: Array(caps))
+    }
+
+    /// Convert the OCI block I/O wire format (carried in `ContainerConfiguration`)
+    /// into the `Containerization.LinuxBlockIO` wrapper expected by
+    /// `LinuxContainer.Configuration`.
+    private static func toContainerizationBlockIO(_ oci: ContainerizationOCI.LinuxBlockIO) -> Containerization.LinuxBlockIO {
+        Containerization.LinuxBlockIO(
+            weight: oci.weight,
+            leafWeight: oci.leafWeight,
+            weightDevice: oci.weightDevice.map {
+                Containerization.LinuxWeightDevice(major: $0.major, minor: $0.minor, weight: $0.weight, leafWeight: $0.leafWeight)
+            },
+            throttleReadBpsDevice: oci.throttleReadBpsDevice.map {
+                Containerization.LinuxThrottleDevice(major: $0.major, minor: $0.minor, rate: $0.rate)
+            },
+            throttleWriteBpsDevice: oci.throttleWriteBpsDevice.map {
+                Containerization.LinuxThrottleDevice(major: $0.major, minor: $0.minor, rate: $0.rate)
+            },
+            throttleReadIOPSDevice: oci.throttleReadIOPSDevice.map {
+                Containerization.LinuxThrottleDevice(major: $0.major, minor: $0.minor, rate: $0.rate)
+            },
+            throttleWriteIOPSDevice: oci.throttleWriteIOPSDevice.map {
+                Containerization.LinuxThrottleDevice(major: $0.major, minor: $0.minor, rate: $0.rate)
+            }
+        )
     }
 
     private nonisolated func closeHandle(_ handle: Int32) throws {
