@@ -141,7 +141,7 @@ extension Application {
             }
 
             do {
-                print("Verifying machine API server is running...")
+                log.info("Verifying machine API server is running...")
                 _ = try await MachineClient().list()
             } catch {
                 throw ContainerizationError(
@@ -174,7 +174,7 @@ extension Application {
         private func installDefaultKernel(kernelURL: URL, kernelBinaryPath: String) async throws {
             var shouldInstallKernel = false
             if kernelInstall == nil {
-                print("No default kernel configured.")
+                log.warning("No default kernel configured.")
                 print("Install the recommended default kernel from [\(kernelURL)]? [Y/n]: ", terminator: "")
                 guard let read = readLine(strippingNewline: true) else {
                     throw ContainerizationError(.internalError, message: "failed to read user input")
