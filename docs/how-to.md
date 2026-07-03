@@ -326,9 +326,9 @@ Run `container network list` to see the networks that exist:
 
 ```console
 % container network list
-NETWORK  STATE    SUBNET
-default  running  192.168.64.0/24
-foo      running  192.168.65.0/24
+NETWORK  SUBNET
+default  192.168.64.0/24
+foo      192.168.65.0/24
 %
 ```
 
