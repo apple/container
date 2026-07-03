@@ -513,6 +513,23 @@ struct ParserTest {
     }
 
     @Test
+    func testMountEmptyDirectiveSegment() throws {
+        // A comma-segment consisting solely of "=" characters splits to an empty
+        // array under Swift's default omittingEmptySubsequences, so reading the
+        // key without a guard would trap. These must surface a validation error.
+        for input in ["=", "==", "type=bind,=,dst=/foo"] {
+            #expect {
+                _ = try Parser.mount(input)
+            } throws: { error in
+                guard let error = error as? ContainerizationError else {
+                    return false
+                }
+                return error.description.contains("invalid mount directive")
+            }
+        }
+    }
+
+    @Test
     func testIsValidDomainNameOk() throws {
         let names = [
             "a",
