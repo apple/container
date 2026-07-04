@@ -593,12 +593,12 @@ container image push [--scheme <scheme>] [--progress <type>] [--arch <arch>] [--
 
 ### `container image save`
 
-Saves an image to a tar archive on disk. Useful for exporting images for offline transport.
+Saves an image to a tar archive. Useful for exporting images for offline transport. If no output file is specified, the tar stream is written to stdout.
 
 **Usage**
 
 ```bash
-container image save [--arch <arch>] [--os <os>] --output <output> [--platform <platform>] [--debug] <references> ...
+container image save [--arch <arch>] [--os <os>] [--output <output>] [--platform <platform>] [--debug] <references> ...
 ```
 
 **Arguments**
@@ -609,23 +609,43 @@ container image save [--arch <arch>] [--os <os>] --output <output> [--platform <
 
 *   `-a, --arch <arch>`: Architecture for the saved image
 *   `--os <os>`: OS for the saved image
-*   `-o, --output <output>`: Pathname for the saved image
+*   `-o, --output <output>`: Pathname for the saved image (defaults to stdout)
 *   `--platform <platform>`: Platform for the saved image (format: os/arch[/variant], takes precedence over --os and --arch)
+
+**Examples**
+
+```bash
+# save an image to a file
+container image save -o myimage.tar myimage:latest
+
+# save to stdout and pipe to another tool
+container image save myimage:latest > myimage.tar
+```
 
 ### `container image load`
 
-Loads images from a tar archive created by `image save`. The tar file must be specified via `--input`.
+Loads images from a tar archive created by `image save`. If no input file is specified, the archive is read from stdin.
 
 **Usage**
 
 ```bash
-container image load --input <input> [--force] [--debug]
+container image load [--input <input>] [--force] [--debug]
 ```
 
 **Options**
 
-*   `-i, --input <input>`: Path to the image tar archive
+*   `-i, --input <input>`: Path to the image tar archive (defaults to stdin)
 *   `-f, --force`: Load images even if invalid member files are detected
+
+**Examples**
+
+```bash
+# load images from a file
+container image load -i myimage.tar
+
+# load images from stdin
+container image load < myimage.tar
+```
 
 ### `container image tag`
 
