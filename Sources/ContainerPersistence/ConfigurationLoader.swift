@@ -197,6 +197,8 @@ public enum ConfigurationLoader {
     }
 
     private static func validateKernelArchiveDigest(in provider: FileProvider<TOMLSnapshot>, path: FilePath) throws {
+        // Validate each layer before merging so a custom archive URL is paired with
+        // the digest from the same config file, not a default digest from a lower layer.
         let urlResult = try provider.value(forKey: AbsoluteConfigKey(ConfigKey("kernel.url")), type: .string)
         guard let urlValue = urlResult.value else {
             return

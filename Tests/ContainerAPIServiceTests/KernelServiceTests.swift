@@ -26,15 +26,28 @@ import Testing
 struct KernelServiceTests {
     @Test func verifyDigest() throws {
         try withTempFile(contents: "kernel archive") { file in
-            try KernelService.verifyDigest(of: file, expected: "sha256:\(KernelService.sha256Hex(of: file))")
+            let sha256 = try KernelService.sha256Hex(of: file)
+            let sha1 = "53f38d6b06c833a50448ab246037de7994443b70"
+
+            try KernelService.verifyDigest(of: file, expected: "sha256:\(sha256)")
             #expect(throws: ContainerizationError.self) {
                 try KernelService.verifyDigest(of: file, expected: "sha256-not-a-digest")
+            }
+            #expect(throws: ContainerizationError.self) {
+                try KernelService.verifyDigest(of: file, expected: "sha1:\(sha1)")
             }
             #expect(throws: ContainerizationError.self) {
                 try KernelService.verifyDigest(of: file, expected: "sha256:not-a-digest")
             }
             #expect(throws: ContainerizationError.self) {
                 try KernelService.verifyDigest(of: file, expected: String(repeating: "0", count: 64))
+            }
+            #expect(throws: ContainerizationError.self) {
+                let truncatedSHA256 = String(sha256.dropLast(2))
+                try KernelService.verifyDigest(of: file, expected: "sha256:\(truncatedSHA256)")
+            }
+            #expect(throws: ContainerizationError.self) {
+                try KernelService.verifyDigest(of: file, expected: "sha256:\(sha1)")
             }
             #expect(throws: ContainerizationError.self) {
                 try KernelService.verifyDigest(of: file, expected: "sha256:\(String(repeating: "0", count: 64))")

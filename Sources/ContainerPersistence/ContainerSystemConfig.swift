@@ -180,13 +180,7 @@ final public class KernelConfig: Codable, Sendable {
     public let url: URL
     public let digest: String
 
-    public init(binaryPath: String = defaultBinaryPath) {
-        self.binaryPath = binaryPath
-        self.url = Self.defaultURL
-        self.digest = Self.defaultDigest
-    }
-
-    public init(binaryPath: String = defaultBinaryPath, url: URL, digest: String) {
+    public init(binaryPath: String = defaultBinaryPath, url: URL = defaultURL, digest: String = defaultDigest) {
         self.binaryPath = binaryPath
         self.url = url
         self.digest = digest
