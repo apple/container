@@ -78,6 +78,9 @@ final class ContainerFixture: Sendable {
     /// Created at fixture init; removed on cleanup unless `CLITEST_PRESERVE_SCRATCH=true`.
     let testDir: FilePath
 
+    /// Logger for this fixture scope. Tests may emit diagnostic messages via this logger.
+    let log: Logger
+
     // MARK: - Unstructured API
 
     /// Runs `body` with a fresh fixture, then tears down all registered resources.
@@ -116,7 +119,7 @@ final class ContainerFixture: Sendable {
                     return handler
                 }
             }
-            return StderrLogHandler()
+            return StreamLogHandler.standardOutput(label: label)
         }
         logger[metadataKey: "testID"] = "\(testID)"
 
@@ -216,8 +219,11 @@ final class ContainerFixture: Sendable {
             throw CommandError.executionFailed("process launch failed: \(error)")
         }
         if pty {
-            // Master stays open so the slave doesn't receive SIGHUP prematurely.
-            // Close it after the process exits.
+            // Write through the master side; the kernel tty buffers input until the
+            // child reads it, so this works even before the child is ready (e.g. a
+            // shell that hasn't started reading stdin yet). Master stays open until
+            // after the process exits so the slave doesn't receive SIGHUP prematurely.
+            if let data = stdin { FileHandle(fileDescriptor: masterFd, closeOnDealloc: false).write(data) }
         } else {
             if let data = stdin { inputPipe.fileHandleForWriting.write(data) }
             inputPipe.fileHandleForWriting.closeFile()
@@ -262,7 +268,7 @@ final class ContainerFixture: Sendable {
     /// Call this directly only when using ``doCreate(_:image:args:volumes:networks:ports:)``
     /// and ``doStart(_:)`` — ``withContainer(image:tag:runArgs:containerArgs:autoRemove:_:)``
     /// waits automatically.
-    func waitForContainerRunning(_ name: String, attempts: Int = 30) throws {
+    func waitForContainerRunning(_ name: String, attempts: Int = 30) async throws {
         for _ in 0..<attempts {
             if let result = try? run(["inspect", name]),
                 result.status == 0,
@@ -270,7 +276,7 @@ final class ContainerFixture: Sendable {
             {
                 return
             }
-            sleep(1)
+            try await Task.sleep(for: .seconds(1))
         }
         throw CommandError.executionFailed("container '\(name)' did not reach running state")
     }
@@ -304,13 +310,12 @@ final class ContainerFixture: Sendable {
             _ = try? run(["stop", "-s", "SIGKILL", name])
             if !autoRemove { _ = try? run(["delete", name]) }
         }
-        try waitForContainerRunning(name)
+        try await waitForContainerRunning(name)
         try await body(name)
     }
 
     // MARK: - Private
 
-    private let log: Logger
     private let cleanupTasks: Mutex<[@Sendable () async throws -> Void]> = .init([])
     private static let commandSeq: Mutex<Int> = .init(0)
 
@@ -346,5 +351,27 @@ final class ContainerFixture: Sendable {
             }
             return URL(filePath: path.string)
         }
+    }
+}
+
+// MARK: - Retry
+
+extension ContainerFixture {
+    /// Retries `body` up to `attempts` times, sleeping `delay` between each attempt.
+    ///
+    /// - Returns when `body` returns `true`.
+    /// - Retries when `body` returns `false`.
+    /// - Propagates immediately (aborting the loop) when `body` throws.
+    ///
+    /// Throws `CommandError.executionFailed` if all attempts return `false`.
+    func retry(attempts: Int, delay: Duration = .seconds(1), _ body: () async throws -> Bool) async throws {
+        for attempt in 1...attempts {
+            if try await body() { return }
+            print("retry: attempt \(attempt)/\(attempts) not yet ready")
+            if attempt < attempts {
+                try await Task.sleep(for: delay)
+            }
+        }
+        throw CommandError.executionFailed("retry: condition not met after \(attempts) attempts")
     }
 }
