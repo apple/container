@@ -223,7 +223,11 @@ define GENERATE_COV_REPORTS
 		-output-dir=$(COVERAGE_OUTPUT_DIR)/$(2)/html \
 		$(TEST_BINARY) $(3)
 	@echo Extracting $(2) coverage percentages...
-	@jq -r '"line coverage: \(.data[0].totals.lines.percent | . * 100 | round | . / 100)%\nfunction coverage: \(.data[0].totals.functions.percent | . * 100 | round | . / 100)%"' \
+	@jq -r '.data[0].totals as $$t | \
+		"Coverage summary:", \
+		"  lines:     \($$t.lines.percent | . * 100 | round | . / 100)% (\($$t.lines.covered) of \($$t.lines.count))", \
+		"  functions: \($$t.functions.percent | . * 100 | round | . / 100)% (\($$t.functions.covered) of \($$t.functions.count))", \
+		"  regions:   \($$t.regions.percent | . * 100 | round | . / 100)% (\($$t.regions.covered) of \($$t.regions.count))"' \
 		$(COVERAGE_OUTPUT_DIR)/$(2)/coverage-summary.json > $(COVERAGE_OUTPUT_DIR)/$(2)/coverage-percent.txt
 	@echo "-- $(2) coverage --"
 	@cat $(COVERAGE_OUTPUT_DIR)/$(2)/coverage-percent.txt
