@@ -173,7 +173,7 @@ dsym:
 
 .PHONY: test
 test: build-tests
-	@$(SWIFT) test --skip-build -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI
+	@$(SWIFT) test --skip-build -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI --skip IntegrationTests
 
 .PHONY: install-kernel
 install-kernel:
@@ -196,16 +196,17 @@ COV_BINARIES := \
 	$(BUILD_BIN_DIR)/container-apiserver \
 	$(BUILD_BIN_DIR)/container-runtime-linux \
 	$(BUILD_BIN_DIR)/container-network-vmnet \
-	$(BUILD_BIN_DIR)/container-core-images
+	$(BUILD_BIN_DIR)/container-core-images \
+	$(BUILD_BIN_DIR)/machine-apiserver
 COV_OBJECT_FLAGS := $(patsubst %,-object %,$(COV_BINARIES))
 # Set of files we do not want to get caught in the coverage generation
 LLVM_COV_IGNORE := \
 	--ignore-filename-regex=".build/" \
+	--ignore-filename-regex="/Tests/" \
+	--ignore-filename-regex="/ContainerTestSupport/" \
 	--ignore-filename-regex=".pb.swift" \
 	--ignore-filename-regex=".proto" \
-	--ignore-filename-regex=".grpc.swift" \
-	--ignore-filename-regex="/Tests/" \
-	--ignore-filename-regex="ContainerTestSupport/"
+	--ignore-filename-regex=".grpc.swift"
 
 # Generate JSON + HTML coverage reports and a coverage-percent.txt from a profdata file.
 # $(1) = profdata path, $(2) = tier name (unit/integration/combined), $(3) = additional -object flags (optional)
@@ -228,45 +229,100 @@ define GENERATE_COV_REPORTS
 	@cat $(COVERAGE_OUTPUT_DIR)/$(2)/coverage-percent.txt
 endef
 
-INTEGRATION_TEST_SUITES ?= \
-	TestCLIHelp \
-	TestCLIStatus \
-	TestCLIVersion \
-	TestCLINetwork \
-	TestCLIRunLifecycle \
-	TestCLIRunCapabilities \
-	TestCLIExecCommand \
-	TestCLICreateCommand \
-	TestCLIRunCommand1 \
-	TestCLIRunCommand2 \
-	TestCLIRunCommand3 \
-	TestCLIPruneCommand \
-	TestCLIRegistry \
-	TestCLIStatsCommand \
-	TestCLIImagesCommand \
-	TestCLIRunBase \
-	TestCLIRunInitImage \
-	TestCLIBuildBase \
-	TestCLIExportCommand \
-	TestCLIVolumes \
-	TestCLIKernelSet \
-	TestCLIAnonymousVolumes \
-	TestCLINotFound \
-	TestCLISystemDF \
-	TestCLIMachineCommand \
-	TestCLIMachineRuntime \
-	TestCLINoParallelCases
+# PARALLEL_WIDTH controls --experimental-maximum-parallelization-width for the
+# concurrent pass. WARMUP_FILTER, CONCURRENT_FILTER, and SERIAL_FILTER select
+# the three phases.
+PARALLEL_WIDTH ?= $(shell sysctl -n hw.physicalcpu)
+WARMUP_FILTER = ImageWarmup/
+
+# Concurrent suites: Test*.swift files whose names do NOT end in Serial.
+CONCURRENT_TEST_SUITES ?= $(sort $(addsuffix /,$(basename $(notdir \
+    $(shell find Tests/IntegrationTests -name 'Test*.swift' \
+            ! -name '*Serial.swift' 2>/dev/null)))))
+CONCURRENT_FILTER = $(subst $(space),|,$(strip $(CONCURRENT_TEST_SUITES)))
+
+# Serial suites: Test*.swift files whose names end in Serial.
+SERIAL_TEST_SUITES ?= $(sort $(addsuffix /,$(basename $(notdir \
+    $(shell find Tests/IntegrationTests -name 'Test*Serial.swift' 2>/dev/null)))))
+SERIAL_FILTER = $(subst $(space),|,$(strip $(SERIAL_TEST_SUITES)))
+
+INTEGRATION_SWIFT_EXTRA ?=
+INTEGRATION_POST_TEST ?=
+# Environment prefix applied to the `container system start` invocation. Empty for
+# ordinary runs; coverage runs set LLVM_PROFILE_FILE here so launchd-managed helper
+# (XPC service) processes emit their own profraw data.
+INTEGRATION_PROFILE_ENV ?=
+
+PRESERVE_KERNELS ?= false
+# Default scratch root under the project directory so container build can access context
+# subdirectories (macOS restricts access to /var/folders from the container binary).
+# Override with SCRATCH_ROOT=/your/path on the command line.
+SCRATCH_ROOT ?= $(ROOT_DIR)/.test-scratch
+
+define RUN_INTEGRATION
+	@echo Ensuring apiserver stopped before the CLI integration tests...
+	@bin/container system stop && sleep 3 && scripts/ensure-container-stopped.sh
+	@if [ -n "$(APP_ROOT)" ]; then \
+		mkdir -p $(APP_ROOT) ; \
+		if [ "$(PRESERVE_KERNELS)" = "true" ]; then \
+			echo "Clearing application data under $(APP_ROOT) (preserving kernels)..." ; \
+			find "$(APP_ROOT)" -mindepth 1 -maxdepth 1 ! -name kernels -exec rm -rf {} + ; \
+		else \
+			echo "Clearing application data under $(APP_ROOT)..." ; \
+			find "$(APP_ROOT)" -mindepth 1 -maxdepth 1 -exec rm -rf {} + ; \
+		fi ; \
+	fi
+	@echo Running the integration tests...
+	@$(INTEGRATION_PROFILE_ENV) bin/container --debug system start --timeout 60 --enable-kernel-install $(SYSTEM_START_OPTS) && \
+	{ \
+		CLITEST_LOG_ROOT=$(LOG_ROOT) && export CLITEST_LOG_ROOT ; \
+		CLITEST_SCRATCH_ROOT=$(SCRATCH_ROOT) && export CLITEST_SCRATCH_ROOT ; \
+		CONTAINER_CLI_PATH=$(ROOT_DIR)/bin/container && export CONTAINER_CLI_PATH ; \
+		echo "==> Warmup pass" && \
+		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(WARMUP_FILTER)" && \
+		echo "==> Concurrent pass (width=$(PARALLEL_WIDTH))" && \
+		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --experimental-maximum-parallelization-width $(PARALLEL_WIDTH) --filter "$(CONCURRENT_FILTER)" && \
+		echo "==> Global pass (serial)" && \
+		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --experimental-maximum-parallelization-width 1 --filter "$(SERIAL_FILTER)" ; \
+		exit_code=$$? ; \
+		$(INTEGRATION_POST_TEST) \
+		echo Ensuring apiserver stopped after the CLI integration tests ; \
+		scripts/ensure-container-stopped.sh ; \
+		exit $${exit_code} ; \
+	}
+endef
+
+.PHONY: integration
+integration: init-block
+	$(RUN_INTEGRATION)
+
+.PHONY: coverage-integration
+coverage-integration: INTEGRATION_SWIFT_EXTRA = --skip-build --enable-code-coverage
+coverage-integration: INTEGRATION_POST_TEST = cp $(COV_DATA_DIR)/*.profraw $(COVERAGE_OUTPUT_DIR)/integration/ || true ;
+# Continuous mode (%c) mmaps the profraw and syncs counters live. The XPC helper
+# services are torn down by `launchctl bootout` (SIGTERM/SIGKILL) rather than
+# exiting cleanly, so a non-continuous profile (written by an atexit handler that
+# never runs on SIGKILL) would lose the helpers' counters. %p-%m keeps each
+# process/module profile in its own file so they don't collide.
+coverage-integration: INTEGRATION_PROFILE_ENV = LLVM_PROFILE_FILE=$(COVERAGE_OUTPUT_DIR)/integration/%p-%m%c.profraw
+coverage-integration: coverage-all
+	@mkdir -p $(COVERAGE_OUTPUT_DIR)/integration
+	@rm -f $(COVERAGE_OUTPUT_DIR)/integration/*.profraw
+	$(RUN_INTEGRATION)
+	@echo Merging integration coverage profdata...
+	@xcrun llvm-profdata merge -sparse $(COVERAGE_OUTPUT_DIR)/integration/*.profraw -o $(COVERAGE_OUTPUT_DIR)/integration/default.profdata
+	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/integration/default.profdata,integration,$(COV_OBJECT_FLAGS))
 
 empty :=
 space := $(empty) $(empty)
-INTEGRATION_FILTER := $(subst $(space),|,$(strip $(INTEGRATION_TEST_SUITES)))
 
 # Opt the coverage targets in to instrumentation. The value propagates to the
 # shared build-tests target so compilation is instrumented when necessary.
 coverage coverage-all coverage-unit coverage-integration: COVERAGE_FLAG = --enable-code-coverage -Xswiftc -DCONTAINER_COVERAGE
 
 .PHONY: coverage
-# Merge the raw coverage data generated from coverage-unit and coverage-integration into one unified report
+# Merge the per-tier profdata from coverage-unit and coverage-integration into a
+# combined report. Each prerequisite target produces its own tier report first.
 coverage: coverage-unit coverage-integration
 	@echo Merging combined coverage profdata...
 	@mkdir -p $(COVERAGE_OUTPUT_DIR)/combined
@@ -281,57 +337,10 @@ coverage-unit: build-tests
 	@echo Running unit test coverage...
 	@rm -f $(COV_DATA_DIR)/*.profraw
 	@mkdir -p $(COVERAGE_OUTPUT_DIR)/unit
-	@$(SWIFT) test --skip-build --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI
+	@$(SWIFT) test --skip-build --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI --skip IntegrationTests
 	@echo Merging unit coverage profdata...
 	@xcrun llvm-profdata merge -sparse $(COV_DATA_DIR)/*.profraw -o $(COVERAGE_OUTPUT_DIR)/unit/default.profdata
 	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/unit/default.profdata,unit)
-
-.PHONY: coverage-integration
-coverage-integration: coverage-all
-	@echo Ensuring apiserver stopped before the coverage integration tests...
-	@bin/container system stop && sleep 3 && scripts/ensure-container-stopped.sh
-	@echo Running integration test coverage...
-	@rm -f $(COV_DATA_DIR)/*.profraw
-	@mkdir -p $(COVERAGE_OUTPUT_DIR)/integration
-	@rm -f $(COVERAGE_OUTPUT_DIR)/integration/*.profraw
-	@LLVM_PROFILE_FILE=$(COVERAGE_OUTPUT_DIR)/integration/%p-%m%c.profraw \
-	bin/container --debug system start --timeout 60 $(SYSTEM_START_OPTS) && \
-	echo "Starting CLI integration tests with coverage" && \
-	{ \
-		export CLITEST_LOG_ROOT=$(LOG_ROOT) ; \
-		export CONTAINER_CLI_PATH=$(ROOT_DIR)/bin/container ; \
-		$(SWIFT) test --skip-build --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(INTEGRATION_FILTER)" ; \
-		exit_code=$$? ; \
-		cp $(COV_DATA_DIR)/*.profraw $(COVERAGE_OUTPUT_DIR)/integration/ ; \
-		echo Ensuring apiserver stopped after the coverage integration tests ; \
-		scripts/ensure-container-stopped.sh ; \
-		exit $${exit_code} ; \
-	}
-	@echo Merging integration coverage profdata...
-	@xcrun llvm-profdata merge -sparse $(COVERAGE_OUTPUT_DIR)/integration/*.profraw -o $(COVERAGE_OUTPUT_DIR)/integration/default.profdata
-	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/integration/default.profdata,integration,$(COV_OBJECT_FLAGS))
-
-.PHONY: integration
-integration: build-tests init-block
-	@echo Ensuring apiserver stopped before the CLI integration tests...
-	@bin/container system stop && sleep 3 && scripts/ensure-container-stopped.sh
-	@if [ -n "$(APP_ROOT)" ]; then \
-		echo "Clearing application data under $(APP_ROOT) (preserving kernels)..." ; \
-		mkdir -p $(APP_ROOT) ; \
-		find "$(APP_ROOT)" -mindepth 1 -maxdepth 1 ! -name kernels -exec rm -rf {} + ; \
-	fi
-	@echo Running the integration tests...
-	@bin/container --debug system start --timeout 60 --enable-kernel-install $(SYSTEM_START_OPTS) && \
-	echo "Starting CLI integration tests" && \
-	{ \
-		CLITEST_LOG_ROOT=$(LOG_ROOT) && export CLITEST_LOG_ROOT ; \
-		CONTAINER_CLI_PATH=$(ROOT_DIR)/bin/container && export CONTAINER_CLI_PATH ; \
-		$(SWIFT) test --skip-build -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(INTEGRATION_FILTER)" ; \
-		exit_code=$$? ; \
-		echo Ensuring apiserver stopped after the CLI integration tests ; \
-		scripts/ensure-container-stopped.sh ; \
-		exit $${exit_code} ; \
-	}
 
 .PHONY: fmt
 fmt: swift-fmt update-licenses
