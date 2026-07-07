@@ -22,7 +22,7 @@ public enum PublishProtocol: String, Sendable, Codable {
     case tcp = "tcp"
     case udp = "udp"
 
-    /// Initialize a protocol with to default value, `.tcp`.
+    /// Initialize a protocol with the default value, `.tcp`.
     public init() {
         self = .tcp
     }
