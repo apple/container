@@ -46,13 +46,16 @@ extension ContainerFixture {
     }
 
     /// Starts a detached container. Uses the first warmup image when `image` is nil.
+    ///
+    /// `containerEnv` injects environment variables into the container via `-e` flags.
+    /// To set the CLI subprocess environment (e.g. for `--ssh`), use ``run(_:env:)`` directly.
     func doLongRun(
         name: String,
         image: String? = nil,
         args: [String] = [],
         containerArgs: [String] = ["sleep", "infinity"],
         autoRemove: Bool = true,
-        env: [String: String] = [:]
+        containerEnv: [String: String] = [:]
     ) throws {
         let imageRef = image ?? ContainerFixture.warmupImages[0]
         var runArgs = ["run"]
@@ -60,7 +63,7 @@ extension ContainerFixture {
         runArgs += ["--name", name, "-d"]
         runArgs += proxyEnvironmentArgs
         runArgs += args
-        for (k, v) in env { runArgs += ["-e", "\(k)=\(v)"] }
+        for (k, v) in containerEnv { runArgs += ["-e", "\(k)=\(v)"] }
         runArgs.append(imageRef)
         runArgs += containerArgs
         try run(runArgs).check()

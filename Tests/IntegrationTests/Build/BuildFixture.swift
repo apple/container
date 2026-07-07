@@ -58,20 +58,6 @@ extension ContainerFixture {
         static let ow = FilePermissions(rawValue: 0o002)
         static let ox = FilePermissions(rawValue: 0o001)
     }
-
-    /// Output of `container image inspect`, used to verify build results.
-    struct ImageInspectOutput: Codable {
-        struct Configuration: Codable { let name: String }
-        struct Variant: Codable {
-            struct Platform: Codable {
-                let os: String
-                let architecture: String
-            }
-            let platform: Platform
-        }
-        let configuration: Configuration
-        let variants: [Variant]
-    }
 }
 
 // MARK: - Builder lifecycle helpers
@@ -97,7 +83,7 @@ extension ContainerFixture {
 
     /// Polls until the buildkit container is running and the builder shim is ready.
     func waitForBuilderRunning() async throws {
-        try waitForContainerRunning("buildkit", attempts: 10)
+        try await waitForContainerRunning("buildkit", attempts: 10)
         for _ in 0..<3 {
             let response = try? doExec("buildkit", cmd: ["pidof", "-s", "container-builder-shim"])
             if let r = response, !r.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -365,30 +351,5 @@ extension ContainerFixture {
     func assertContainerMissingFile(_ container: String, at path: String, _ comment: String? = nil) throws {
         let exists = try containerHasFile(container, at: path)
         #expect(!exists, "\(comment ?? path) should NOT exist in container")
-    }
-}
-
-extension ContainerFixture {
-
-    /// Returns the `configuration.name` of an image via `container image inspect`.
-    func inspectImage(_ name: String) throws -> String {
-        let result = try run(["image", "inspect", name]).check()
-        let outputs = try JSONDecoder().decode([ImageInspectOutput].self, from: result.outputData)
-        guard let first = outputs.first else {
-            throw CommandError.executionFailed("image '\(name)' not found in inspect output")
-        }
-        return first.configuration.name
-    }
-
-    /// Asserts that the image was successfully built and is present in the image store.
-    func assertImageBuilt(_ image: String) throws {
-        let name = try inspectImage(image)
-        #expect(name == image, "expected image \(image) to be present")
-    }
-
-    /// Returns the full inspect output for an image, including variant information.
-    func doInspectImages(_ name: String) throws -> [ImageInspectOutput] {
-        let result = try run(["image", "inspect", name]).check()
-        return try JSONDecoder().decode([ImageInspectOutput].self, from: result.outputData)
     }
 }
