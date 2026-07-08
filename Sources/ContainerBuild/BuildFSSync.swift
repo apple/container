@@ -151,15 +151,6 @@ actor BuildFSSync: BuildPipelineHandler {
             let entry = DirEntry(url: url, isDirectory: url.hasDirectoryPath, relativePath: relPath)
             entries[parentPath, default: []].insert(entry)
 
-            if url.isSymlink {
-                let target: URL = url.resolvingSymlinksInPath()
-                if self.contextDir.parentOf(target) {
-                    let relPath = try target.relativeChildPath(to: self.contextDir)
-                    let entry = DirEntry(url: target, isDirectory: target.hasDirectoryPath, relativePath: relPath)
-                    let parentPath: String = try target.deletingLastPathComponent().relativeChildPath(to: self.contextDir)
-                    entries[parentPath, default: []].insert(entry)
-                }
-            }
         }
 
         var fileOrder = [String]()
@@ -335,12 +326,7 @@ actor BuildFSSync: BuildPipelineHandler {
 
         init(path: URL, contextDir: URL) throws {
             if path.isSymlink {
-                let target: URL = path.resolvingSymlinksInPath()
-                if contextDir.parentOf(target) {
-                    self.target = target.relativePathFrom(from: path)
-                } else {
-                    self.target = target.cleanPath
-                }
+                self.target = try FileManager.default.destinationOfSymbolicLink(atPath: path.cleanPath)
             } else {
                 self.target = ""
             }

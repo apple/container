@@ -285,9 +285,9 @@ define RUN_INTEGRATION
 		echo "==> Warmup pass" && \
 		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(WARMUP_FILTER)" && \
 		echo "==> Concurrent pass (width=$(PARALLEL_WIDTH))" && \
-		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --experimental-maximum-parallelization-width $(PARALLEL_WIDTH) --filter "$(CONCURRENT_FILTER)" && \
+		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --parallel --num-workers $(PARALLEL_WIDTH) --filter "$(CONCURRENT_FILTER)" && \
 		echo "==> Global pass (serial)" && \
-		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --experimental-maximum-parallelization-width 1 --filter "$(SERIAL_FILTER)" ; \
+		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --no-parallel --filter "$(SERIAL_FILTER)" ; \
 		exit_code=$$? ; \
 		$(INTEGRATION_POST_TEST) \
 		echo Ensuring apiserver stopped after the CLI integration tests ; \

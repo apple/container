@@ -54,9 +54,16 @@ extension URL {
         self.path.fs_cleaned
     }
 
+    private func stripPrivatePrefix(_ path: String) -> String {
+        if path.hasPrefix("/private/") {
+            return String(path.dropFirst(8))
+        }
+        return path
+    }
+
     func parentOf(_ url: URL) -> Bool {
-        let parentPath = self.absoluteURL.cleanPath
-        let childPath = url.absoluteURL.cleanPath
+        let parentPath = stripPrivatePrefix(self.absoluteURL.cleanPath)
+        let childPath = stripPrivatePrefix(url.absoluteURL.cleanPath)
 
         guard parentPath.fs_isAbsolute else {
             return true
@@ -74,15 +81,15 @@ extension URL {
             throw BuildFSSync.Error.pathIsNotChild(cleanPath, context.cleanPath)
         }
 
-        let ctxParts = context.cleanPath.fs_components
-        let selfParts = cleanPath.fs_components
+        let ctxParts = stripPrivatePrefix(context.absoluteURL.cleanPath).fs_components
+        let selfParts = stripPrivatePrefix(self.absoluteURL.cleanPath).fs_components
 
         return selfParts.dropFirst(ctxParts.count).joined(separator: "/")
     }
 
     func relativePathFrom(from base: URL) -> String {
-        let destParts = cleanPath.fs_components
-        let baseParts = base.cleanPath.fs_components
+        let destParts = stripPrivatePrefix(self.absoluteURL.cleanPath).fs_components
+        let baseParts = stripPrivatePrefix(base.absoluteURL.cleanPath).fs_components
 
         let common = zip(destParts, baseParts).prefix { $0 == $1 }.count
         guard common > 0 else { return cleanPath }

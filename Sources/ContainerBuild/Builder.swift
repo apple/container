@@ -222,7 +222,9 @@ public struct Builder: Sendable {
 
                 switch type {
                 case "oci", "tar", "local":
-                    break  // ignore destination
+                    if let destination = destination {
+                        components.append("dest=\(destination.path(percentEncoded: false))")
+                    }
                 default:
                     throw Builder.Error.invalidExport(rawValue, "unsupported output type")
                 }

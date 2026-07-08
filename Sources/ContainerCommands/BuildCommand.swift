@@ -245,10 +245,15 @@ extension Application {
                     }
                     try fileHandle.close()
                     buildFileData = try Data(contentsOf: URL(filePath: tempFile.path()))
+                    
+                    let contextIgnoreURL = URL(fileURLWithPath: contextDir).appendingPathComponent(".dockerignore")
+                    ignoreFileData = try? Data(contentsOf: contextIgnoreURL)
                 } else {
-                    let ignoreFileURL = URL(filePath: dockerfile + ".dockerignore")
+                    let specificIgnoreURL = URL(filePath: dockerfile + ".dockerignore")
+                    let contextIgnoreURL = URL(fileURLWithPath: contextDir).appendingPathComponent(".dockerignore")
+                    
                     buildFileData = try Data(contentsOf: URL(filePath: dockerfile))
-                    ignoreFileData = try? Data(contentsOf: ignoreFileURL)
+                    ignoreFileData = (try? Data(contentsOf: specificIgnoreURL)) ?? (try? Data(contentsOf: contextIgnoreURL))
                 }
 
                 // BUG: See https://github.com/apple/container/issues/735.
