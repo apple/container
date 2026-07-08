@@ -1199,6 +1199,38 @@ container machine inspect [--debug] [<id>]
 
 No options.
 
+### `container machine stats`
+
+Displays real-time resource usage statistics for a container machine. A running container machine is itself backed by a container, so this reports that container's CPU percentage, memory usage, network I/O, block I/O, and process count. By default it continuously updates in an interactive display (like `top`); use `--no-stream` for a single snapshot. Uses the default container machine if no ID is given.
+
+**Usage**
+
+```bash
+container machine stats [--format <format>] [--no-stream] [--debug] [<id>]
+```
+
+**Arguments**
+
+*   `<id>`: Container machine ID (uses default if not specified)
+
+**Options**
+
+*   `--format <format>`: Format of the output (values: json, table, yaml, toml; default: table)
+*   `--no-stream`: Disable streaming stats and only pull the first result
+
+**Examples**
+
+```bash
+# show stats for the default container machine (interactive)
+container machine stats
+
+# show stats for a named container machine
+container machine stats my-machine
+
+# get a single snapshot as JSON
+container machine stats --format json --no-stream my-machine
+```
+
 ### `container machine set`
 
 Sets configuration values on a container machine. Changes take effect after the container machine is stopped and restarted. Uses the default container machine if no ID is given.
