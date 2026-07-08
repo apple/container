@@ -191,7 +191,7 @@ struct ConfigurationLoaderTests {
         }
     }
 
-    @Test func layeredCustomKernelURLRequiresDigestInSameFile() async throws {
+    @Test func layeredCustomKernelURLCanUseDigestFromLowerLayer() async throws {
         try await TemporaryStorage.withTempDir { tempDir in
             let userFile = tempDir.appending("user.toml")
             let systemFile = tempDir.appending("system.toml")
@@ -207,10 +207,10 @@ struct ConfigurationLoaderTests {
                 digest = "\(KernelConfig.defaultDigest)"
                 """, to: systemFile)
 
-            await #expect(throws: (any Error).self) {
-                let _: ContainerSystemConfig = try await ConfigurationLoader.load(
-                    configurationFiles: [userFile, systemFile])
-            }
+            let config: ContainerSystemConfig = try await ConfigurationLoader.load(
+                configurationFiles: [userFile, systemFile])
+            #expect(config.kernel.url.absoluteString == "https://example.com/custom-kernel.tar")
+            #expect(config.kernel.digest == KernelConfig.defaultDigest)
         }
     }
 

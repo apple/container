@@ -187,11 +187,6 @@ public actor KernelService {
         }
     }
 
-    static func verifyDigest(of file: URL, expected: String) throws {
-        let expectedDigest = try parseExpectedDigest(expected)
-        try verifyDigest(of: file, expected: expectedDigest)
-    }
-
     private static func verifyDigest(of file: URL, expected: ExpectedDigest) throws {
         let actualDigest = try sha256Hex(of: file)
         try verifyDigest(actualSHA256Hex: actualDigest, expected: expected)

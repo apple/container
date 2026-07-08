@@ -17,6 +17,7 @@
 import Containerization
 import ContainerizationArchive
 import ContainerizationError
+import CryptoKit
 import Foundation
 import Logging
 import Testing
@@ -24,37 +25,6 @@ import Testing
 @testable import ContainerAPIService
 
 struct KernelServiceTests {
-    @Test func verifyDigest() throws {
-        try withTempFile(contents: "kernel archive") { file in
-            let sha256 = try KernelService.sha256Hex(of: file)
-            let sha1 = "53f38d6b06c833a50448ab246037de7994443b70"
-
-            try KernelService.verifyDigest(of: file, expected: "sha256:\(sha256)")
-            #expect(throws: ContainerizationError.self) {
-                try KernelService.verifyDigest(of: file, expected: "sha256-not-a-digest")
-            }
-            #expect(throws: ContainerizationError.self) {
-                try KernelService.verifyDigest(of: file, expected: "sha1:\(sha1)")
-            }
-            #expect(throws: ContainerizationError.self) {
-                try KernelService.verifyDigest(of: file, expected: "sha256:not-a-digest")
-            }
-            #expect(throws: ContainerizationError.self) {
-                try KernelService.verifyDigest(of: file, expected: String(repeating: "0", count: 64))
-            }
-            #expect(throws: ContainerizationError.self) {
-                let truncatedSHA256 = String(sha256.dropLast(2))
-                try KernelService.verifyDigest(of: file, expected: "sha256:\(truncatedSHA256)")
-            }
-            #expect(throws: ContainerizationError.self) {
-                try KernelService.verifyDigest(of: file, expected: "sha256:\(sha1)")
-            }
-            #expect(throws: ContainerizationError.self) {
-                try KernelService.verifyDigest(of: file, expected: "sha256:\(String(repeating: "0", count: 64))")
-            }
-        }
-    }
-
     @Test func installKernelFromLocalTarVerifiesDigest() async throws {
         try await withTempDir { tempDir in
             let kernelPath = "boot/vmlinux"
@@ -109,6 +79,45 @@ struct KernelServiceTests {
         }
     }
 
+    @Test func installKernelFromLocalTarRejectsInvalidDigestValues() async throws {
+        try await withTempDir { tempDir in
+            let kernelPath = "boot/vmlinux"
+            let kernelData = Data("kernel binary".utf8)
+            let tarFile = try Self.writeTar(
+                at: tempDir.appendingPathComponent("kernel.tar"),
+                path: kernelPath,
+                data: kernelData)
+            let service = try KernelService(
+                log: Logger(label: "com.apple.container.test.kernel-service"),
+                appRoot: tempDir.appendingPathComponent("app"))
+            let sha256 = try KernelService.sha256Hex(of: tarFile)
+            let sha1 = try Self.sha1Hex(of: tarFile)
+            let invalidDigests = [
+                "sha256-not-a-digest",
+                "sha1:\(sha1)",
+                "sha256:not-a-digest",
+                String(repeating: "0", count: 64),
+                "sha256:\(String(sha256.dropLast(2)))",
+                "sha256:\(sha1)",
+            ]
+
+            for digest in invalidDigests {
+                await #expect(throws: ContainerizationError.self) {
+                    try await service.installKernelFrom(
+                        tar: URL(fileURLWithPath: tarFile.path),
+                        kernelFilePath: kernelPath,
+                        platform: .linuxArm,
+                        progressUpdate: nil,
+                        expectedDigest: digest,
+                        force: false)
+                }
+            }
+            await #expect(throws: ContainerizationError.self) {
+                _ = try await service.getDefaultKernel(platform: .linuxArm)
+            }
+        }
+    }
+
     @Test func installKernelFromRemoteTarRequiresDigest() async throws {
         try await withTempDir { tempDir in
             let service = try KernelService(
@@ -139,11 +148,9 @@ struct KernelServiceTests {
         return tarFile
     }
 
-    private func withTempFile(contents: String, body: (URL) throws -> Void) throws {
-        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try Data(contents.utf8).write(to: file)
-        defer { try? FileManager.default.removeItem(at: file) }
-        try body(file)
+    private static func sha1Hex(of file: URL) throws -> String {
+        let data = try Data(contentsOf: file)
+        return Insecure.SHA1.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
     private func withTempDir(body: (URL) async throws -> Void) async throws {
