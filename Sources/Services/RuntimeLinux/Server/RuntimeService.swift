@@ -518,31 +518,52 @@ public actor RuntimeService {
         let signal = try Signal(stopOptions.signal ?? "SIGTERM")
         let timeout: Duration = .seconds(stopOptions.timeoutInSeconds)
 
-        return try await self.lock.withLock { _ in
-            switch await self.state {
-            case .running, .booted:
-                await self.setState(.stopping)
+        return try await withThrowingTaskGroup(of: XPCMessage.self) { group in
+            group.addTask {
+                return try await self.lock.withLock { _ in
+                    switch await self.state {
+                    case .running, .booted:
+                        await self.setState(.stopping)
 
-                let ctr = try await self.getContainer()
-                let exitStatus = try await self.gracefulStopContainer(
-                    ctr.container,
-                    signal: signal,
-                    timeout: timeout
-                )
+                        let ctr = try await self.getContainer()
+                        let exitStatus = try await self.gracefulStopContainer(
+                            ctr.container,
+                            signal: signal,
+                            timeout: timeout
+                        )
 
-                do {
-                    if case .stopped = await self.state {
-                        return message.reply()
+                        do {
+                            if case .stopped = await self.state {
+                                return message.reply()
+                            }
+                            try await self.cleanUpContainer(containerInfo: ctr, exitStatus: exitStatus)
+                        } catch {
+                            self.log.error("failed to clean up container", metadata: ["error": "\(error)"])
+                        }
+                        await self.setState(.stopped)
+                    default:
+                        break
                     }
-                    try await self.cleanUpContainer(containerInfo: ctr, exitStatus: exitStatus)
-                } catch {
-                    self.log.error("failed to clean up container", metadata: ["error": "\(error)"])
+                    return message.reply()
                 }
-                await self.setState(.stopped)
-            default:
-                break
             }
-            return message.reply()
+
+            group.addTask {
+                try await Task.sleep(for: timeout)
+                self.log.warning("stop operation timed out; force killing the container")
+                if let ctr = try? await self.getContainer() {
+                    try? await ctr.container.kill(.kill)
+                    try? await self.cleanUpContainer(containerInfo: ctr, exitStatus: ExitStatus(exitCode: 137))
+                    await self.setState(.stopped)
+                }
+                return message.reply()
+            }
+
+            guard let result = try await group.next() else {
+                throw ContainerizationError(.internalError, message: "stop failed")
+            }
+            group.cancelAll()
+            return result
         }
     }
 
