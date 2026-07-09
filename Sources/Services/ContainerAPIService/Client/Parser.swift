@@ -24,6 +24,14 @@ import ContainerizationOS
 import Foundation
 import SystemPackage
 
+// MARK: - Collection capacity hints
+// Methods in this file build arrays and dictionaries in loops where the final
+// size is known from the input parameter count. reserveCapacity() and
+// Dictionary(minimumCapacity:) avoid O(log n) reallocation copies as the
+// collection grows incrementally. While this is a micro-optimization for each
+// individual call, these methods execute on every `container run/create` and
+// the savings compound at scale.
+
 /// A parsed volume specification from user input
 public struct ParsedVolume {
     public let name: String
@@ -50,6 +58,12 @@ public struct Parser {
         let ram = try Measurement.parse(parsing: memory)
         let mb = ram.converted(to: .mebibytes)
         return Int64(mb.value)
+    }
+
+    public static func memoryStringAsBytes(_ memory: String) throws -> UInt64 {
+        let ram = try Measurement.parse(parsing: memory)
+        let mb = ram.converted(to: .bytes)
+        return UInt64(mb.value)
     }
 
     public static func user(
@@ -118,7 +132,7 @@ public struct Parser {
         }
         combined.append(contentsOf: Parser.env(envList: envs))
 
-        let deduped = combined.reduce(into: [String: String]()) { map, entry in
+        let deduped = combined.reduce(into: [String: String](minimumCapacity: combined.count)) { map, entry in
             let key = String(entry.split(separator: "=", maxSplits: 1).first ?? Substring(entry))
             map[key] = entry
         }
@@ -226,7 +240,7 @@ public struct Parser {
     }
 
     public static func labels(_ rawLabels: [String]) throws -> [String: String] {
-        var result: [String: String] = [:]
+        var result: [String: String] = Dictionary(minimumCapacity: rawLabels.count)
         for label in rawLabels {
             if label.isEmpty {
                 throw ContainerizationError(.invalidArgument, message: "label cannot be an empty string")
@@ -324,8 +338,9 @@ public struct Parser {
     public static let defaultDirectives = ["type": "virtiofs"]
 
     public static func tmpfsMounts(_ mounts: [String]) throws -> [Filesystem] {
-        var result: [Filesystem] = []
         let mounts = mounts.dedupe()
+        var result: [Filesystem] = []
+        result.reserveCapacity(mounts.count)
         for tmpfs in mounts {
             let fs = Filesystem.tmpfs(destination: tmpfs, options: [])
             try validateMount(.filesystem(fs))
@@ -335,8 +350,9 @@ public struct Parser {
     }
 
     public static func mounts(_ rawMounts: [String], relativeTo basePath: URL? = nil) throws -> [VolumeOrFilesystem] {
-        var mounts: [VolumeOrFilesystem] = []
         let rawMounts = rawMounts.dedupe()
+        var mounts: [VolumeOrFilesystem] = []
+        mounts.reserveCapacity(rawMounts.count)
         for mount in rawMounts {
             let m = try Parser.mount(mount, relativeTo: basePath)
             try validateMount(m)
@@ -478,6 +494,7 @@ public struct Parser {
 
     public static func volumes(_ rawVolumes: [String], relativeTo basePath: URL? = nil) throws -> [VolumeOrFilesystem] {
         var mounts: [VolumeOrFilesystem] = []
+        mounts.reserveCapacity(rawVolumes.count)
         for volume in rawVolumes {
             let m = try Parser.volume(volume, relativeTo: basePath)
             try Parser.validateMount(m)
@@ -587,6 +604,7 @@ public struct Parser {
     /// - Throws: ContainerizationError if parsing fails
     public static func publishPorts(_ rawPublishPorts: [String]) throws -> [PublishPort] {
         var publishPorts: [PublishPort] = []
+        publishPorts.reserveCapacity(rawPublishPorts.count)
 
         // Process each raw port string
         for socket in rawPublishPorts {
@@ -720,6 +738,7 @@ public struct Parser {
     /// - Throws: ContainerizationError if parsing fails or a path is invalid
     public static func publishSockets(_ rawPublishSockets: [String]) throws -> [PublishSocket] {
         var sockets: [PublishSocket] = []
+        sockets.reserveCapacity(rawPublishSockets.count)
 
         // Process each raw socket string
         for socket in rawPublishSockets {
@@ -913,6 +932,7 @@ public struct Parser {
     ///   - nofile=1024:unlimited (soft=1024, hard=UINT64_MAX)
     public static func rlimits(_ rawUlimits: [String]) throws -> [ProcessConfiguration.Rlimit] {
         var rlimits: [ProcessConfiguration.Rlimit] = []
+        rlimits.reserveCapacity(rawUlimits.count)
         var seenTypes: Set<String> = []
 
         for ulimit in rawUlimits {
@@ -1004,6 +1024,7 @@ public struct Parser {
     /// Returns normalized uppercase CAP_* strings.
     public static func capabilities(capAdd: [String], capDrop: [String]) throws -> (capAdd: [String], capDrop: [String]) {
         var normalizedAdd: [String] = []
+        normalizedAdd.reserveCapacity(capAdd.count)
         for cap in capAdd {
             let upper = cap.uppercased()
             if upper == "ALL" {
@@ -1018,6 +1039,7 @@ public struct Parser {
         }
 
         var normalizedDrop: [String] = []
+        normalizedDrop.reserveCapacity(capDrop.count)
         for cap in capDrop {
             let upper = cap.uppercased()
             if upper == "ALL" {
@@ -1035,11 +1057,6 @@ public struct Parser {
     // MARK: Miscellaneous
 
     public static func parseBool(string: String) -> Bool? {
-        let lower = string.lowercased()
-        switch lower {
-        case "true", "t": return true
-        case "false", "f": return false
-        default: return nil
-        }
+        Parsers.parseBool(string: string)
     }
 }

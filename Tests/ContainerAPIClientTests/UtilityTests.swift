@@ -90,6 +90,29 @@ struct UtilityTests {
         }
     }
 
+    @Test("Trim fully-qualified digest strips scheme and truncates to 12 chars")
+    func testTrimDigestFullyQualified() {
+        let hex = "0be69a25c33692845efb1e93f4254f28505a330896376bf8"
+        #expect(Utility.trimDigest(digest: "sha256:\(hex)") == String(hex.prefix(12)))
+    }
+
+    @Test("Trim digest with unknown scheme strips scheme prefix")
+    func testTrimDigestUnknownScheme() {
+        let hex = "abcdef123456789012345678"
+        #expect(Utility.trimDigest(digest: "blake3:\(hex)") == String(hex.prefix(12)))
+    }
+
+    @Test("Trim digest with no scheme truncates directly")
+    func testTrimDigestNoScheme() {
+        let hex = "abcdef1234567890"
+        #expect(Utility.trimDigest(digest: hex) == String(hex.prefix(12)))
+    }
+
+    @Test("Trim digest shorter than 12 chars returns value unchanged")
+    func testTrimDigestShort() {
+        #expect(Utility.trimDigest(digest: "sha256:abc") == "abc")
+    }
+
     @Test
     func testPublishPortParser() throws {
         let ports = try Parser.publishPorts([

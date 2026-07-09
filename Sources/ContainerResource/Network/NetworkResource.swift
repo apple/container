@@ -35,11 +35,11 @@ public struct NetworkResource: ManagedResource {
 
     // MARK: ManagedResource
 
-    /// The unique identifier for this network. Identical to ``configuration/id``.
-    public var id: String { configuration.id }
+    /// The unique identifier for this network. Identical to ``configuration/name``.
+    public var id: String { configuration.name }
 
     /// The user-assigned name for this network. For networks, name and ID are the same.
-    public var name: String { configuration.id }
+    public var name: String { configuration.name }
 
     /// The time at which this network was created.
     public var creationDate: Date { configuration.creationDate }

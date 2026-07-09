@@ -22,6 +22,7 @@ import ContainerResource
 import Containerization
 import ContainerizationError
 import ContainerizationOCI
+import ContainerizationOS
 import Foundation
 import SystemPackage
 import TerminalProgress
@@ -48,11 +49,7 @@ extension Application {
         @Option(
             name: .shortAndLong, help: "Pathname for the saved image", completion: .file(),
             transform: { str in
-                let path = FilePath(str)
-                guard path.isRelative else { return path.lexicallyNormalized() }
-                return FilePath(FileManager.default.currentDirectoryPath)
-                    .pushing(path)
-                    .lexicallyNormalized()
+                FilePathOps.absolutePath(FilePath(str))
             })
         var output: FilePath?
 
@@ -84,7 +81,7 @@ extension Application {
                 do {
                     images.append(try await ClientImage.get(reference: reference, containerSystemConfig: containerSystemConfig).description)
                 } catch {
-                    print("failed to get image for reference \(reference): \(error)")
+                    log.error("failed to get image for reference \(reference): \(error)")
                 }
             }
 
@@ -143,7 +140,15 @@ extension Application {
 
             progress.finish()
             for reference in references {
-                print(reference)
+                if output == nil {
+                    // stdout is carrying the OCI archive in this branch, so the
+                    // saved-reference list goes to stderr via the logger. Printing
+                    // it to stdout appends non-archive bytes after the tar EOF and
+                    // corrupts the stream for redirection and pipelines (#1801).
+                    log.info("\(reference)")
+                } else {
+                    print(reference)
+                }
             }
         }
     }

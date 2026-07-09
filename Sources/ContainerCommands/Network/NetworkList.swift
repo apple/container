@@ -39,7 +39,7 @@ extension Application {
         public func run() async throws {
             let networkClient = NetworkClient()
             let networks = try await networkClient.list()
-            try Output.render(json: networks, display: networks, format: format, quiet: quiet)
+            try Output.render(payload: networks, display: networks, format: format, quiet: quiet)
         }
     }
 }

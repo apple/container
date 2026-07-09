@@ -40,7 +40,7 @@ extension Application {
             } catch {
                 if error is ContainerizationError {
                     if (error as? ContainerizationError)?.code == .notFound {
-                        print("builder is not running")
+                        log.warning("builder is not running")
                         return
                     }
                 }

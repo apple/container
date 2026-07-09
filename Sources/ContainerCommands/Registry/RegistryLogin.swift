@@ -94,7 +94,7 @@ extension Application {
             )
             try await client.ping()
             try keychain.save(hostname: server, username: username, password: password)
-            print("Login succeeded")
+            log.info("Login succeeded")
         }
     }
 }

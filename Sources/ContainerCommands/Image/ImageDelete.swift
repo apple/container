@@ -82,7 +82,7 @@ extension Application {
             let freed = formatter.string(fromByteCount: Int64(size))
 
             if didDeleteAnyImage {
-                print("Reclaimed \(freed) in disk space")
+                log.info("Reclaimed \(freed) in disk space")
             }
             if failures.count > 0 {
                 throw ContainerizationError(.internalError, message: "failed to delete one or more images: \(failures)")

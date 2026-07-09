@@ -193,13 +193,14 @@ public actor RuntimeService {
                             ipv4Gateway: attachment.ipv4Gateway,
                             ipv6Address: attachment.ipv6Address,
                             macAddress: attachment.macAddress,
-                            mtu: mtu
+                            mtu: mtu,
+                            variant: attachment.variant
                         )
                     }
-                    guard let iStrategy = self.interfaceStrategies[NetworkInterfaceKey(plugin: info.plugin, variant: info.options["variant"])] else {
+                    guard let iStrategy = self.interfaceStrategies[NetworkInterfaceKey(plugin: info.plugin, variant: attachment.variant)] else {
                         throw ContainerizationError(
                             .internalError,
-                            message: "no available interface strategy for network \(attachment.network), plugin=\(info.plugin) variant=\(info.options["variant"] ?? "nil")")
+                            message: "no available interface strategy for network \(attachment.network), plugin=\(info.plugin) variant=\(attachment.variant ?? "nil")")
                     }
                     let interface = try iStrategy.toInterface(
                         attachment: attachment,
@@ -513,16 +514,20 @@ public actor RuntimeService {
         self.log.debug("enter", metadata: ["func": "\(#function)"])
         defer { self.log.debug("exit", metadata: ["func": "\(#function)"]) }
 
+        let stopOptions = try message.stopOptions()
+        let signal = try Signal(stopOptions.signal ?? "SIGTERM")
+        let timeout: Duration = .seconds(stopOptions.timeoutInSeconds)
+
         return try await self.lock.withLock { _ in
             switch await self.state {
             case .running, .booted:
                 await self.setState(.stopping)
 
                 let ctr = try await self.getContainer()
-                let stopOptions = try message.stopOptions()
                 let exitStatus = try await self.gracefulStopContainer(
                     ctr.container,
-                    stopOpts: stopOptions
+                    signal: signal,
+                    timeout: timeout
                 )
 
                 do {
@@ -980,6 +985,7 @@ public actor RuntimeService {
         log: Logger? = nil,
     ) throws {
         czConfig.cpus = config.resources.cpus
+        czConfig.cpuOverhead = config.resources.cpuOverhead
         czConfig.memoryInBytes = config.resources.memoryInBytes
         czConfig.sysctl = config.sysctls.reduce(into: [String: String]()) {
             $0[$1.key] = $1.value
@@ -999,9 +1005,14 @@ public actor RuntimeService {
 
         for mount in config.mounts {
             if try mount.isSocket() {
+                let attrs = try? FileManager.default.attributesOfItem(atPath: mount.source)
+                let permissions = (attrs?[.posixPermissions] as? NSNumber)
+                    .map { FilePermissions(rawValue: mode_t($0.intValue)) }
                 let socket = UnixSocketConfiguration(
                     source: URL(filePath: mount.source),
-                    destination: URL(filePath: mount.destination)
+                    destination: URL(filePath: mount.destination),
+                    permissions: permissions,
+                    direction: .into,
                 )
                 czConfig.sockets.append(socket)
             } else {
@@ -1034,11 +1045,11 @@ public actor RuntimeService {
             czConfig.sockets.append(socketConfig)
         }
 
-        let containerId = config.id
+        let hostnameSource = config.networks.first?.options.hostname ?? config.id
         czConfig.hostname =
-            containerId.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: true)
+            hostnameSource.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: true)
             .first
-            .map { String($0) } ?? containerId
+            .map { String($0) } ?? config.id
 
         if let dns = config.dns {
             czConfig.dns = DNS(
@@ -1206,7 +1217,7 @@ public actor RuntimeService {
         return container
     }
 
-    private func gracefulStopContainer(_ lc: LinuxContainer, stopOpts: ContainerStopOptions) async throws -> ExitStatus {
+    private func gracefulStopContainer(_ lc: LinuxContainer, signal: Signal, timeout: Duration) async throws -> ExitStatus {
         // Try and gracefully shut down the process. Even if this succeeds we need to power off
         // the vm, but we should try this first always.
         var code = ExitStatus(exitCode: 255)
@@ -1216,9 +1227,8 @@ public actor RuntimeService {
                     try await lc.wait()
                 }
                 group.addTask {
-                    let signal = try Signal(stopOpts.signal ?? "SIGTERM")
                     try await lc.kill(signal)
-                    try await Task.sleep(for: .seconds(stopOpts.timeoutInSeconds))
+                    try await Task.sleep(for: timeout)
                     try await lc.kill(.kill)
 
                     return ExitStatus(exitCode: 137)
@@ -1233,7 +1243,9 @@ public actor RuntimeService {
 
                 return code
             }
-        } catch {}
+        } catch {
+            self.log.error("graceful stop failed; forcing vm shutdown", metadata: ["error": "\(error)"])
+        }
 
         // Now actually bring down the vm.
         try await lc.stop()

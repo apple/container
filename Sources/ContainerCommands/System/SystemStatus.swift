@@ -48,25 +48,33 @@ extension Application {
             let apiServerCommit: String
             let apiServerBuild: String
             let apiServerAppName: String
+
+            init(
+                status: String,
+                appRoot: String = "",
+                installRoot: String = "",
+                logRoot: String? = nil,
+                apiServerVersion: String = "",
+                apiServerCommit: String = "",
+                apiServerBuild: String = "",
+                apiServerAppName: String = ""
+            ) {
+                self.status = status
+                self.appRoot = appRoot
+                self.installRoot = installRoot
+                self.logRoot = logRoot
+                self.apiServerVersion = apiServerVersion
+                self.apiServerCommit = apiServerCommit
+                self.apiServerBuild = apiServerBuild
+                self.apiServerAppName = apiServerAppName
+            }
         }
 
         public func run() async throws {
             let isRegistered = try ServiceManager.isRegistered(fullServiceLabel: "\(prefix)apiserver")
             if !isRegistered {
-                if format == .json {
-                    let status = PrintableStatus(
-                        status: "unregistered",
-                        appRoot: "",
-                        installRoot: "",
-                        logRoot: nil,
-                        apiServerVersion: "",
-                        apiServerCommit: "",
-                        apiServerBuild: "",
-                        apiServerAppName: ""
-                    )
-                    try Output.emit(Output.renderJSON(status))
-                } else {
-                    print("apiserver is not running and not registered with launchd")
+                try Output.render(payload: PrintableStatus(status: "unregistered"), format: format) {
+                    "apiserver is not running and not registered with launchd"
                 }
                 Application.exit(withError: ExitCode(1))
             }
@@ -74,52 +82,40 @@ extension Application {
             // Now ping our friendly daemon. Fail after 10 seconds with no response.
             do {
                 let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
-
-                if format == .json {
-                    let status = PrintableStatus(
-                        status: "running",
-                        appRoot: systemHealth.appRoot.path(percentEncoded: false),
-                        installRoot: systemHealth.installRoot.path(percentEncoded: false),
-                        logRoot: systemHealth.logRoot?.string,
-                        apiServerVersion: systemHealth.apiServerVersion,
-                        apiServerCommit: systemHealth.apiServerCommit,
-                        apiServerBuild: systemHealth.apiServerBuild,
-                        apiServerAppName: systemHealth.apiServerAppName
-                    )
-                    try Output.emit(Output.renderJSON(status))
-                } else {
-                    let rows: [[String]] = [
-                        ["FIELD", "VALUE"],
-                        ["status", "running"],
-                        ["appRoot", systemHealth.appRoot.path(percentEncoded: false)],
-                        ["installRoot", systemHealth.installRoot.path(percentEncoded: false)],
-                        ["logRoot", systemHealth.logRoot?.string ?? ""],
-                        ["apiserver.version", systemHealth.apiServerVersion],
-                        ["apiserver.commit", systemHealth.apiServerCommit],
-                        ["apiserver.build", systemHealth.apiServerBuild],
-                        ["apiserver.appName", systemHealth.apiServerAppName],
-                    ]
-                    let formatter = TableOutput(rows: rows)
-                    print(formatter.format())
+                let status = PrintableStatus(
+                    status: "running",
+                    appRoot: systemHealth.appRoot.path(percentEncoded: false),
+                    installRoot: systemHealth.installRoot.path(percentEncoded: false),
+                    logRoot: systemHealth.logRoot?.string,
+                    apiServerVersion: systemHealth.apiServerVersion,
+                    apiServerCommit: systemHealth.apiServerCommit,
+                    apiServerBuild: systemHealth.apiServerBuild,
+                    apiServerAppName: systemHealth.apiServerAppName
+                )
+                try Output.render(payload: status, format: format) {
+                    Self.statusTable(status)
                 }
             } catch {
-                if format == .json {
-                    let status = PrintableStatus(
-                        status: "not running",
-                        appRoot: "",
-                        installRoot: "",
-                        logRoot: nil,
-                        apiServerVersion: "",
-                        apiServerCommit: "",
-                        apiServerBuild: "",
-                        apiServerAppName: ""
-                    )
-                    try Output.emit(Output.renderJSON(status))
-                } else {
-                    print("apiserver is not running")
+                try Output.render(payload: PrintableStatus(status: "not running"), format: format) {
+                    "apiserver is not running"
                 }
                 Application.exit(withError: ExitCode(1))
             }
+        }
+
+        private static func statusTable(_ status: PrintableStatus) -> String {
+            let rows: [[String]] = [
+                ["FIELD", "VALUE"],
+                ["status", status.status],
+                ["appRoot", status.appRoot],
+                ["installRoot", status.installRoot],
+                ["logRoot", status.logRoot ?? ""],
+                ["apiserver.version", status.apiServerVersion],
+                ["apiserver.commit", status.apiServerCommit],
+                ["apiserver.build", status.apiServerBuild],
+                ["apiserver.appName", status.apiServerAppName],
+            ]
+            return TableOutput(rows: rows).format()
         }
     }
 }

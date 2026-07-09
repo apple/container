@@ -23,7 +23,7 @@ import PackageDescription
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
 let builderShimVersion = "0.12.0"
-let scVersion = "0.33.3"
+let scVersion = "0.36.0"
 
 let package = Package(
     name: "container",
@@ -49,6 +49,8 @@ let package = Package(
         .library(name: "ContainerOS", targets: ["ContainerOS"]),
         .library(name: "SocketForwarder", targets: ["SocketForwarder"]),
         .library(name: "TerminalProgress", targets: ["TerminalProgress"]),
+        .library(name: "MachineAPIClient", targets: ["MachineAPIClient"]),
+        .library(name: "MachineAPIService", targets: ["MachineAPIService"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion)),
@@ -60,7 +62,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.36.0"),
         .package(url: "https://github.com/apple/swift-system.git", from: "1.6.4"),
         .package(url: "https://github.com/grpc/grpc-swift-2.git", from: "2.3.0"),
-        .package(url: "https://github.com/grpc/grpc-swift-nio-transport.git", from: "2.4.4"),
+        .package(url: "https://github.com/grpc/grpc-swift-nio-transport.git", from: "2.9.0"),
         .package(url: "https://github.com/grpc/grpc-swift-protobuf.git", from: "2.2.0"),
         .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.20.1"),
         .package(url: "https://github.com/swiftlang/swift-docc-plugin.git", from: "1.1.0"),
@@ -79,21 +81,25 @@ let package = Package(
             path: "Sources/CLI"
         ),
         .testTarget(
-            name: "CLITests",
+            name: "IntegrationTests",
             dependencies: [
                 .product(name: "AsyncHTTPClient", package: "async-http-client"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "SystemPackage", package: "swift-system"),
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationArchive", package: "containerization"),
                 .product(name: "ContainerizationExtras", package: "containerization"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
                 .product(name: "TOML", package: "swift-toml"),
-                "ContainerBuild",
+                "ContainerAPIClient",
                 "ContainerLog",
                 "ContainerPersistence",
                 "ContainerResource",
+                "MachineAPIClient",
                 "Yams",
             ],
-            path: "Tests/CLITests"
+            path: "Tests/IntegrationTests"
         ),
         .target(
             name: "ContainerCommands",
@@ -116,6 +122,7 @@ let package = Package(
                 "ContainerVersion",
                 .product(name: "SystemPackage", package: "swift-system"),
                 "ContainerXPC",
+                "MachineAPIClient",
                 "TerminalProgress",
                 "Yams",
             ],
@@ -561,6 +568,54 @@ let package = Package(
             dependencies: [
                 .product(name: "SystemPackage", package: "swift-system")
             ]
+        ),
+        .target(
+            name: "MachineAPIClient",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                .product(name: "Logging", package: "swift-log"),
+                "ContainerAPIClient",
+                "ContainerPersistence",
+                "ContainerResource",
+                "ContainerXPC",
+                "TerminalProgress",
+            ],
+            path: "Sources/Services/MachineAPIService/Client"
+        ),
+        .target(
+            name: "MachineAPIService",
+            dependencies: [
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationEXT4", package: "containerization"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                "ContainerAPIClient",
+                "ContainerResource",
+                "ContainerRuntimeClient",
+                "ContainerXPC",
+                "MachineAPIClient",
+            ],
+            path: "Sources/Services/MachineAPIService/Server"
+        ),
+        .executableTarget(
+            name: "machine-apiserver",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "Logging", package: "swift-log"),
+                "ContainerAPIClient",
+                "ContainerLog",
+                "ContainerPersistence",
+                "ContainerPlugin",
+                "ContainerVersion",
+                "ContainerXPC",
+                "MachineAPIClient",
+                "MachineAPIService",
+            ],
+            path: "Sources/Plugins/MachineAPIServer",
+            exclude: ["config.toml", "Resources"]
         ),
     ]
 )

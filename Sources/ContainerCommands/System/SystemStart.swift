@@ -21,6 +21,7 @@ import ContainerPlugin
 import ContainerXPC
 import ContainerizationError
 import Foundation
+import MachineAPIClient
 import SystemPackage
 import TerminalProgress
 
@@ -103,7 +104,7 @@ extension Application {
 
             let apiServerDataPath = appRoot.appending(FilePath.Component("apiserver"))
             let apiServerDataURL = URL(fileURLWithPath: apiServerDataPath.string)
-            try! FileManager.default.createDirectory(at: apiServerDataURL, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: apiServerDataURL, withIntermediateDirectories: true)
 
             var env = PluginLoader.filterEnvironment()
             env[ApplicationRoot.environmentName] = appRoot.string
@@ -125,17 +126,27 @@ extension Application {
             let data = try plist.encode()
             try data.write(to: plistURL)
 
-            print("Registering API server with launchd...")
+            log.info("Launching container-apiserver...")
             try ServiceManager.register(plistPath: plistURL.path)
 
             // Now ping our friendly daemon. Fail if we don't get a response.
             do {
-                print("Verifying apiserver is running...")
+                log.info("Testing access to container-apiserver...")
                 _ = try await ClientHealthCheck.ping(timeout: timeout)
             } catch {
                 throw ContainerizationError(
                     .internalError,
                     message: "failed to get a response from apiserver: \(error)"
+                )
+            }
+
+            do {
+                print("Verifying machine API server is running...")
+                _ = try await MachineClient().list()
+            } catch {
+                throw ContainerizationError(
+                    .internalError,
+                    message: "failed to get a response from machine API server: \(error)"
                 )
             }
 
@@ -152,7 +163,7 @@ extension Application {
         private func installInitialFilesystem(initImage: String) async throws {
             var pullCommand = try ImagePull.parse()
             pullCommand.reference = initImage
-            print("Installing base container filesystem...")
+            log.info("Installing base container filesystem...")
             do {
                 try await pullCommand.run()
             } catch {
@@ -169,7 +180,7 @@ extension Application {
                     throw ContainerizationError(.internalError, message: "failed to read user input")
                 }
                 guard read.lowercased() == "y" || read.count == 0 else {
-                    print("Please use the `container system kernel set --recommended` command to configure the default kernel")
+                    log.info("Please use the `container system kernel set --recommended` command to configure the default kernel")
                     return
                 }
                 shouldInstallKernel = true
@@ -179,7 +190,7 @@ extension Application {
             guard shouldInstallKernel else {
                 return
             }
-            print("Installing kernel...")
+            log.info("Installing kernel...")
             try await KernelSet.downloadAndInstallWithProgressBar(tarRemoteURL: kernelURL, kernelFilePath: kernelBinaryPath, force: true)
         }
 

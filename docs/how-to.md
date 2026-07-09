@@ -136,7 +136,7 @@ container volume delete myexport
 
 ## Build and run a multiplatform image
 
-Using the [project from the tutorial example](tutorial.md#set-up-a-simple-project), you can create an image to use both on Apple silicon Macs and on x86-64 servers.
+Using the [project from the tutorial example](./tutorials/start-here.md#set-up-a-simple-project), you can create an image to use both on Apple silicon Macs and on x86-64 servers.
 
 When building the image, just add `--arch` options that direct the builder to create an image supporting both the `arm64` and `amd64` architectures:
 
@@ -168,7 +168,7 @@ container image push registry.example.com/fido/web-test:latest
 
 ## Get container or image details
 
-`container image list` and `container list` provide basic information for all of your images and containers. You can also use `list` and `inspect` commands to print detailed JSON output for one or more resources.
+`container image list` and `container list` provide basic information for all of your images and containers. You can also use `list` and `inspect` commands to print detailed machine-readable output for resources.
 
 Use the `inspect` command and send the result to the `jq` command to get pretty-printed JSON for the images or containers that you specify:
 
@@ -679,9 +679,9 @@ Use the `vminit` image tag corresponding to the `scVersion` value in the project
 Or, use `vminit:latest` if you have a local `containerization` project in [edit mode](../BUILDING.md#develop-using-a-local-copy-of-containerization).
 
 ```dockerfile
-FROM ghcr.io/apple/containerization/vminit:0.32.2 AS base
+FROM ghcr.io/apple/containerization/vminit:0.34.0 AS base
 
-FROM ghcr.io/apple/containerization/vminit:0.32.2
+FROM ghcr.io/apple/containerization/vminit:0.34.0
 COPY --from=base /sbin/vminitd /sbin/vminitd.real
 COPY wrapper /sbin/vminitd
 ```
@@ -707,6 +707,10 @@ Check the VM boot logs to confirm your custom init code executed:
 [    0.129230] custom-init: === CUSTOM INIT IMAGE RUNNING ===
 ```
 
+## Use container machines
+
+Container machines are persistent Linux environments built from OCI images — your home directory is mounted in, the user account matches your host account, and the filesystem survives stop and start. See [container-machine.md](./container-machine.md) for the full guide.
+
 ## Configure system properties
 
 The `container system property` subcommand manages the configuration settings for the `container` CLI and services. You can customize various aspects of container behavior, including build settings, default images, and network configuration.
@@ -719,7 +723,7 @@ Use `container system property list` to show all properties that have set defaul
 cpus = 2
 memory = "2048mb"
 rosetta = true
-image = "ghcr.io/apple/container-builder-shim/builder:0.11.0"
+image = "ghcr.io/apple/container-builder-shim/builder:0.12.0"
 
 [container]
 cpus = 4
@@ -738,7 +742,7 @@ url = "https://github.com/kata-containers/kata-containers/releases/download/3.26
 domain = "docker.io"
 
 [vminit]
-image = "ghcr.io/apple/containerization/vminit:0.30.1"
+image = "ghcr.io/apple/containerization/vminit:0.34.0"
 ```
 
 ### Example: Disable Rosetta for builds

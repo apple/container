@@ -32,14 +32,16 @@ struct HelpCommandTests {
             for child in children {
                 guard let name = child.configuration.commandName else { continue }
                 let canonical = path + [name]
+                let canonicalResolved = HelpCommand.resolveSubcommand(path: canonical) != nil
                 #expect(
-                    HelpCommand.resolveSubcommand(path: canonical) != nil,
+                    canonicalResolved,
                     "help should resolve '\(canonical.joined(separator: " "))' but returned nil"
                 )
                 for alias in child.configuration.aliases {
                     let aliasPath = path + [alias]
+                    let aliasResolved = HelpCommand.resolveSubcommand(path: aliasPath) != nil
                     #expect(
-                        HelpCommand.resolveSubcommand(path: aliasPath) != nil,
+                        aliasResolved,
                         "help should resolve alias path '\(aliasPath.joined(separator: " "))' but returned nil"
                     )
                 }
@@ -51,7 +53,9 @@ struct HelpCommandTests {
 
     @Test
     func unknownSubcommandReturnsNil() {
-        #expect(HelpCommand.resolveSubcommand(path: ["nonexistent"]) == nil)
-        #expect(HelpCommand.resolveSubcommand(path: ["image", "nonexistent"]) == nil)
+        let unknownResolved = HelpCommand.resolveSubcommand(path: ["nonexistent"]) == nil
+        #expect(unknownResolved)
+        let nestedUnknownResolved = HelpCommand.resolveSubcommand(path: ["image", "nonexistent"]) == nil
+        #expect(nestedUnknownResolved)
     }
 }

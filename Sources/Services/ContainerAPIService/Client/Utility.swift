@@ -24,6 +24,11 @@ import Foundation
 import Logging
 import TerminalProgress
 
+// MARK: - Collection capacity hints
+// Dictionary(minimumCapacity:) and reserveCapacity() are used in this file to
+// pre-allocate storage when the final collection size is known from the input.
+// This avoids incremental reallocation overhead in hot-path parser methods.
+
 public struct Utility {
     static let publishedPortCountLimit = 64
 
@@ -44,12 +49,11 @@ public struct Utility {
     }
 
     public static func trimDigest(digest: String) -> String {
-        var digest = digest
-        digest.trimPrefix("sha256:")
-        if digest.count > 24 {
-            digest = String(digest.prefix(24)) + "..."
+        var hex = digest
+        if let colonIndex = digest.firstIndex(of: ":") {
+            hex = String(digest[digest.index(after: colonIndex)...])
         }
-        return digest
+        return String(hex.prefix(12))
     }
 
     public static func validEntityName(_ name: String) throws {
@@ -367,7 +371,7 @@ public struct Utility {
     /// - Parameter pairs: Array of strings in "key=value" format
     /// - Returns: Dictionary mapping keys to values
     public static func parseKeyValuePairs(_ pairs: [String]) -> [String: String] {
-        var result: [String: String] = [:]
+        var result: [String: String] = Dictionary(minimumCapacity: pairs.count)
         for pair in pairs {
             let components = pair.split(separator: "=", maxSplits: 1)
             if components.count == 2 {
