@@ -583,7 +583,7 @@ public actor RuntimeService {
         let id = try message.id()
         let signal = try Signal(message.signal())
 
-        try await self.lock.withLock { [self] _ in
+        let skipWait: Bool = try await self.lock.withLock { [self] _ in
             switch await self.state {
             case .running:
                 let ctr = try await getContainer()
@@ -595,11 +595,30 @@ public actor RuntimeService {
                     guard let proc = processInfo.process else {
                         throw ContainerizationError(.invalidState, message: "process \(id) not started")
                     }
-                    try await proc.kill(signal)
-                    return
+                    do {
+                        try await proc.kill(signal)
+                    } catch {
+                        let errStr = String(describing: error)
+                        if errStr.contains("clientIsStopped") {
+                            return true
+                        } else {
+                            throw error
+                        }
+                    }
+                    return false
                 }
 
-                try await ctr.container.kill(signal)
+                do {
+                    try await ctr.container.kill(signal)
+                } catch {
+                    let errStr = String(describing: error)
+                    if errStr.contains("clientIsStopped") {
+                        return true
+                    } else {
+                        throw error
+                    }
+                }
+                return false
             default:
                 throw ContainerizationError(
                     .invalidState,
@@ -608,9 +627,14 @@ public actor RuntimeService {
             }
         }
 
+        if skipWait {
+            self.log.debug("Kill ignored because agent is stopped (process likely already exited)", metadata: ["id": "\(id)"])
+            self.releaseWaiters(for: id, status: ExitStatus(exitCode: 255))
+        }
+
         // SIGKILL is guaranteed by the kernel to terminate the target, so block
         // until we observe the exit.
-        if signal == .kill {
+        if signal == .kill && !skipWait {
             _ = await withCheckedContinuation { cc in
                 self.waitForExit(id: id, cont: cc)
             }
