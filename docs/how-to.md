@@ -656,7 +656,10 @@ cpus = 4
 memory = "1gb"
 
 [dns]
+nameservers = ["1.1.1.1"]
 domain = "test"
+searchDomains = []
+options = []
 
 [kernel]
 binaryPath = "opt/kata/share/kata-containers/vmlinux-6.18.5-177"
