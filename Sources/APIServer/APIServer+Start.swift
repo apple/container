@@ -35,9 +35,15 @@ extension APIServer {
             abstract: "Start helper for the API server"
         )
 
-        static let listenAddress = "127.0.0.1"
-        static let localhostDNSPort = 1053
-        static let dnsPort = 2053
+        /// Network configuration for the API server.
+        enum NetworkConfig {
+            /// Address the API server DNS and networking listens on.
+            static let listenAddress = "127.0.0.1"
+            /// Port for the localhost DNS resolver (used for `--localhost` domains).
+            static let localhostDNSPort = 1053
+            /// Port for the container hostname DNS resolver.
+            static let dnsPort = 2053
+        }
 
         @Flag(name: .long, help: "Enable debug logging")
         var debug = false
@@ -117,12 +123,12 @@ extension APIServer {
                         log.info(
                             "starting DNS resolver for container hostnames",
                             metadata: [
-                                "host": "\(Self.listenAddress)",
-                                "port": "\(Self.dnsPort)",
+                                "host": "\(Self.NetworkConfig.listenAddress)",
+                                "port": "\(Self.NetworkConfig.dnsPort)",
                             ]
                         )
                         do {
-                            try await dnsServer.run(host: Self.listenAddress, port: Self.dnsPort)
+                            try await dnsServer.run(host: Self.NetworkConfig.listenAddress, port: Self.NetworkConfig.dnsPort)
                             return .success(())
                         } catch {
                             return .failure(error)
@@ -143,11 +149,11 @@ extension APIServer {
                             log.info(
                                 "starting DNS resolver for localhost",
                                 metadata: [
-                                    "host": "\(Self.listenAddress)",
-                                    "port": "\(Self.localhostDNSPort)",
+                                    "host": "\(Self.NetworkConfig.listenAddress)",
+                                    "port": "\(Self.NetworkConfig.localhostDNSPort)",
                                 ]
                             )
-                            try await dnsServer.run(host: Self.listenAddress, port: Self.localhostDNSPort)
+                            try await dnsServer.run(host: Self.NetworkConfig.listenAddress, port: Self.NetworkConfig.localhostDNSPort)
                             return .success(())
                         } catch {
                             return .failure(error)

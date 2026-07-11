@@ -31,9 +31,9 @@ touch ~/.config/container/config.toml
 
 ### Set the values you want to customize
 
-Open the file in the editor of your choice and add only the sections and keys you want to change. 
+Open the file in the editor of your choice and add only the sections and keys you want to change.
 
-For this tutorial, increase the default CPU and memory limits used for each new container and set a DNS domain for resolving container IP addresses from the host. 
+For this tutorial, increase the default CPU and memory limits used for each new container and set a DNS domain for resolving container IP addresses from the host.
 
 ```toml
 [container]
@@ -44,7 +44,7 @@ memory = "4g"
 domain = "test"
 ```
 
-Each top-level table maps directly to a section of [ContainerSystemConfig](../container-system-config.md). 
+Each top-level table maps directly to a section of [ContainerSystemConfig](../container-system-config.md).
 
 ### Restart the `container` service
 
@@ -57,7 +57,7 @@ container system start
 
 ### Verify the values are loaded
 
-Use `container system property list` (alias `ls`) to print the merged configuration that the `container` service is using. 
+Use `container system property list` (alias `ls`) to print the merged configuration that the `container` service is using.
 
 ```console
 % container system property list
