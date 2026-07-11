@@ -138,7 +138,6 @@ public actor KernelService {
         await progressUpdate?([
             .setDescription(isLocalTar ? "Reading kernel archive" : "Downloading kernel")
         ])
-        var downloadedSHA256Digest: String?
         if !isLocalTar {
             let taskManager = ProgressTaskCoordinator()
             let downloadTask = await taskManager.startTask()
@@ -148,11 +147,10 @@ public actor KernelService {
             if let progressUpdate {
                 downloadProgressUpdate = ProgressTaskCoordinator.handler(for: downloadTask, from: progressUpdate)
             }
-            downloadedSHA256Digest = try await ContainerAPIClient.FileDownloader.downloadFile(
+            try await ContainerAPIClient.FileDownloader.downloadFile(
                 url: tar,
                 to: tarFile,
-                progressUpdate: downloadProgressUpdate,
-                computingSHA256: expectedDigest != nil)
+                progressUpdate: downloadProgressUpdate)
             await taskManager.finish()
         }
         await progressUpdate?([
@@ -163,11 +161,7 @@ public actor KernelService {
             await progressUpdate?([
                 .setDescription("Verifying kernel archive")
             ])
-            if let downloadedSHA256Digest {
-                try Self.verifyDigest(actualSHA256Hex: downloadedSHA256Digest, expected: expectedDigest)
-            } else {
-                try Self.verifyDigest(of: tarFile, expected: expectedDigest)
-            }
+            try Self.verifyDigest(of: tarFile, expected: expectedDigest)
             await progressUpdate?([
                 .addTasks(1)
             ])

@@ -50,6 +50,30 @@ struct TestCLIKernelSetSerial {
 
     // MARK: - Tests
 
+    @Test func remoteTarCannotBeShadowedByLocalPath() async throws {
+        try await ContainerFixture.with { f in
+            let shadow = URL(filePath: f.testDir.string)
+                .appending(path: "https:")
+                .appending(path: "example.com")
+                .appending(path: "kernel.tar")
+            try FileManager.default.createDirectory(
+                at: shadow.deletingLastPathComponent(),
+                withIntermediateDirectories: true)
+            try Data().write(to: shadow)
+
+            let result = try f.run(
+                [
+                    "system", "kernel", "set",
+                    "--tar", "https://example.com/kernel.tar",
+                    "--binary", "vmlinux",
+                ],
+                currentDirectory: f.testDir)
+
+            #expect(result.status != 0)
+            #expect(result.error.contains("'--digest' is required when '--tar' is a remote URL"))
+        }
+    }
+
     @Test func fromLocalTar() async throws {
         let symlinkBinaryPath = URL(filePath: defaultBinaryPath)
             .deletingLastPathComponent()

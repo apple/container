@@ -94,9 +94,12 @@ extension Application {
                 throw ArgumentParser.ValidationError("missing argument '--tar")
             }
             let platform = try getSystemPlatform()
+            let remoteURL = URL(string: tarPath)
+            let remoteScheme = remoteURL?.scheme?.lowercased()
+            let isHTTPURL = remoteScheme == "http" || remoteScheme == "https"
             let localTarPath = URL(fileURLWithPath: tarPath, relativeTo: .currentDirectory()).path
             let fm = FileManager.default
-            if fm.fileExists(atPath: localTarPath) {
+            if !isHTTPURL && fm.fileExists(atPath: localTarPath) {
                 try await ClientKernel.installKernelFromTar(
                     tarFile: localTarPath,
                     kernelFilePath: binaryPath,
@@ -105,7 +108,7 @@ extension Application {
                     force: force)
                 return
             }
-            guard let remoteURL = URL(string: tarPath) else {
+            guard let remoteURL else {
                 throw ContainerizationError(.invalidArgument, message: "invalid remote URL '\(tarPath)' for argument '--tar'. Missing protocol?")
             }
             guard let digest else {
