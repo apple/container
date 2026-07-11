@@ -18,10 +18,32 @@ import Testing
 
 @Suite
 struct TestCLIHelp {
+    @Test func testRootHelp() async throws {
+        try await ContainerFixture.with { f in
+            let result = try f.run(["--help"])
+            #expect(result.status == 0, "root help should succeed, stderr: \(result.error)")
+            #expect(
+                result.output.contains("OVERVIEW: A container platform for macOS"),
+                "output should contain overview section"
+            )
+        }
+    }
+
     @Test func testHelp() async throws {
         try await ContainerFixture.with { f in
             let result = try f.run(["help"])
             #expect(result.status == 0, "help should succeed, stderr: \(result.error)")
+            #expect(
+                result.output.contains("OVERVIEW: A container platform for macOS"),
+                "output should contain overview section"
+            )
+        }
+    }
+
+    @Test func testDefaultHelp() async throws {
+        try await ContainerFixture.with { f in
+            let result = try f.run([])
+            #expect(result.status == 0, "default help should succeed, stderr: \(result.error)")
             #expect(
                 result.output.contains("OVERVIEW: A container platform for macOS"),
                 "output should contain overview section"

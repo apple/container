@@ -153,6 +153,7 @@ let package = Package(
         .testTarget(
             name: "ContainerCommandsTests",
             dependencies: [
+                "ContainerAPIClient",
                 "ContainerCommands",
                 "ContainerResource",
             ]

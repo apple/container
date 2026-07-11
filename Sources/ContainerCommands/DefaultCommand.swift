@@ -34,12 +34,14 @@ struct DefaultCommand: AsyncLoggableCommand {
     var remaining: [String] = []
 
     func run() async throws {
-        // See if we have a possible plugin command.
-        let pluginLoader = try? await Application.createPluginLoader()
         guard let command = remaining.first else {
+            let pluginLoader = await Application.pluginLoaderForHelp()
             await Application.printModifiedHelpText(pluginLoader: pluginLoader)
             return
         }
+
+        // See if we have a possible plugin command.
+        let pluginLoader = try? await Application.createPluginLoader()
 
         // Check for edge cases and unknown options to match the behavior in the absence of plugins.
         if command.isEmpty {
