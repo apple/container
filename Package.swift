@@ -431,6 +431,14 @@ let package = Package(
                 .product(name: "SystemPackage", package: "swift-system"),
             ]
         ),
+        .testTarget(
+            name: "ContainerLogTests",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                "ContainerLog",
+            ]
+        ),
         .target(
             name: "ContainerPersistence",
             dependencies: [
