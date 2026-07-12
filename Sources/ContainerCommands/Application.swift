@@ -94,9 +94,14 @@ public struct Application: AsyncLoggableCommand {
                 name: "Other",
                 subcommands: Self.otherCommands()
             ),
-        ],
-        // Hidden command to handle plugins on unrecognized input.
-        defaultSubcommand: DefaultCommand.self
+        ]
+        // Note: intentionally no `defaultSubcommand`. Routing unrecognized
+        // top-level input to `DefaultCommand` via `defaultSubcommand` combined
+        // with its `.captureForPassthrough` argument breaks flag parsing for
+        // unrelated, legitimately-matched subcommands throughout the tree
+        // (e.g. `container system status --debug` would fail to recognize
+        // `--debug`). See https://github.com/apple/container/issues/1936.
+        // Plugin dispatch is instead handled manually in `main()` below.
     )
 
     public static func main() async throws {
@@ -116,6 +121,30 @@ public struct Application: AsyncLoggableCommand {
 
         let fullArgs = CommandLine.arguments
         let args = Array(fullArgs.dropFirst())
+
+        // If the input doesn't correspond to one of our own subcommands, hand
+        // it off to `DefaultCommand` for plugin dispatch (or to show the
+        // plugin-aware help text) before ever invoking `Application.parseAsRoot`.
+        // This intentionally avoids ArgumentParser's `defaultSubcommand`
+        // mechanism; see the note on `configuration` above.
+        if let dispatch = Self.pluginDispatchArguments(args) {
+            do {
+                // Mirror the `validate()` side effects (debug log level,
+                // Rosetta check) that `Application.parseAsRoot` would
+                // otherwise have applied on its way to the default subcommand.
+                var app = Application()
+                app.logOptions = dispatch.logOptions
+                try app.validate()
+
+                var defaultCommand = DefaultCommand()
+                defaultCommand.logOptions = dispatch.logOptions
+                defaultCommand.remaining = dispatch.remaining
+                try await defaultCommand.run()
+            } catch {
+                Application.exit(withError: error)
+            }
+            return
+        }
 
         do {
             var command = try Application.parseAsRoot(args)
@@ -218,6 +247,56 @@ public struct Application: AsyncLoggableCommand {
                 """
             )
         }
+    }
+
+    /// Determines whether `args` should be routed directly to `DefaultCommand`
+    /// (i.e. treated as a plugin invocation, or as a bare/`--debug`-only
+    /// invocation that should show the plugin-aware help text), rather than
+    /// being parsed as one of `Application`'s own subcommands.
+    ///
+    /// Returns `nil` when `args` should instead be parsed normally by
+    /// `Application.parseAsRoot` — either because it starts with a
+    /// recognized subcommand name/alias, or because it's requesting `--help`,
+    /// `-h`, or `--version`, which ArgumentParser already handles.
+    static func pluginDispatchArguments(_ args: [String]) -> (logOptions: Flags.Logging, remaining: [String])? {
+        let knownNames = Self.knownSubcommandNames()
+        var debug = false
+        var index = args.startIndex
+        while index < args.endIndex {
+            switch args[index] {
+            case "--debug":
+                debug = true
+                index += 1
+            case "--help", "-h", "--version":
+                return nil
+            default:
+                if knownNames.contains(args[index]) {
+                    return nil
+                }
+                return (Flags.Logging(debug: debug), Array(args[index...]))
+            }
+        }
+        // Nothing left but recognized root-level flags (or no args at all):
+        // fall through to `DefaultCommand`, which shows the plugin-aware
+        // help text when `remaining` is empty.
+        return (Flags.Logging(debug: debug), [])
+    }
+
+    /// All subcommand names and aliases directly reachable from the root,
+    /// whether declared via `subcommands` or `groupedSubcommands`.
+    private static func knownSubcommandNames() -> Set<String> {
+        var names = Set<String>()
+        func add(_ command: any ParsableCommand.Type) {
+            if let commandName = command.configuration.commandName {
+                names.insert(commandName)
+            }
+            names.formUnion(command.configuration.aliases)
+        }
+        configuration.subcommands.forEach(add)
+        configuration.groupedSubcommands.forEach { group in
+            group.subcommands.forEach(add)
+        }
+        return names
     }
 
     private static func otherCommands() -> [any ParsableCommand.Type] {
