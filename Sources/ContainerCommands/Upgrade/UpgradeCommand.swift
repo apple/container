@@ -31,8 +31,8 @@ extension Application {
         /// Launchd prefix of the services that must be stopped before upgrading.
         private static let launchdPrefix = "com.apple.container."
 
-        @Option(name: .shortAndLong, help: "Upgrade to a specific release version (defaults to the latest release)")
-        var version: String?
+        @Option(name: [.customShort("v"), .customLong("release")], help: "Upgrade to a specific release version (defaults to the latest release)")
+        var release: String?
 
         @Flag(name: .shortAndLong, help: "Force the upgrade even if the target version is already installed")
         var force = false
@@ -52,25 +52,25 @@ extension Application {
                 )
             }
 
-            let release = try await fetchRelease()
-            let target = release.tagName
+            let targetRelease = try await fetchRelease()
+            let target = targetRelease.tagName
             let installed = ReleaseVersion.version()
 
             guard UpgradePolicy.shouldUpgrade(target: target, installed: installed, force: force) else {
-                if version == nil {
+                if release == nil {
                     print("Container is already on latest version \(target) (use -f to force update)")
                 } else {
                     print("Container is already on version \(target) (use -f to force update)")
                 }
                 return
             }
-            if version == nil {
+            if release == nil {
                 print("Updating to latest version \(target)")
             } else {
                 print("Updating to release version \(target)")
             }
 
-            guard let package = release.installerPackage() else {
+            guard let package = targetRelease.installerPackage() else {
                 throw ContainerizationError(.notFound, message: "No suitable package found")
             }
             if !package.isSigned {
@@ -94,23 +94,21 @@ extension Application {
         }
 
         private func fetchRelease() async throws -> GitHubRelease {
-            let endpoint = GitHubRelease.endpoint(forVersion: version)
+            let endpoint = GitHubRelease.endpoint(forVersion: release)
             let failureMessage =
-                version.map { "Release '\($0)' not found" } ?? "Failed fetching latest release"
+                release.map { "Release '\($0)' not found" } ?? "Failed fetching latest release"
 
-            let data: Data
             do {
                 let (body, response) = try await URLSession.shared.data(from: endpoint)
                 guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
                     throw ContainerizationError(.notFound, message: failureMessage)
                 }
-                data = body
+                return try JSONDecoder().decode(GitHubRelease.self, from: body)
             } catch let error as ContainerizationError {
                 throw error
             } catch {
                 throw ContainerizationError(.internalError, message: "\(failureMessage): \(error)")
             }
-            return try JSONDecoder().decode(GitHubRelease.self, from: data)
         }
 
         private func confirmUnsignedPackage() -> Bool {

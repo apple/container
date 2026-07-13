@@ -1587,12 +1587,12 @@ Upgrades the installed `container` toolset to a release published on GitHub. The
 **Usage**
 
 ```bash
-container upgrade [--version <version>] [--force] [--debug]
+container upgrade [--release <release>] [--force] [--debug]
 ```
 
 **Options**
 
-*   `-v, --version <version>`: Upgrade to a specific release version (defaults to the latest release)
+*   `-v, --release <release>`: Upgrade to a specific release version (defaults to the latest release)
 *   `-f, --force`: Force the upgrade even if the target version is already installed
 
 **Examples**
@@ -1603,7 +1603,7 @@ container system stop
 container upgrade
 
 # Upgrade (or downgrade) to a specific release
-container upgrade --version 0.6.0
+container upgrade --release 0.6.0
 
 # Reinstall the current version
 container upgrade --force

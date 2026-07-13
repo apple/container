@@ -130,18 +130,18 @@ struct UpgradeCommandTests {
     @Test
     func parsesDefaults() throws {
         let command = try Application.UpgradeCommand.parse([])
-        #expect(command.version == nil)
+        #expect(command.release == nil)
         #expect(command.force == false)
     }
 
     @Test
-    func parsesVersionAndForce() throws {
-        let long = try Application.UpgradeCommand.parse(["--version", "0.6.0", "--force"])
-        #expect(long.version == "0.6.0")
+    func parsesReleaseAndForce() throws {
+        let long = try Application.UpgradeCommand.parse(["--release", "0.6.0", "--force"])
+        #expect(long.release == "0.6.0")
         #expect(long.force == true)
 
         let short = try Application.UpgradeCommand.parse(["-v", "0.6.0", "-f"])
-        #expect(short.version == "0.6.0")
+        #expect(short.release == "0.6.0")
         #expect(short.force == true)
     }
 }
