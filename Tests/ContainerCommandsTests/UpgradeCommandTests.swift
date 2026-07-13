@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ArgumentParser
 import Foundation
 import Testing
 
@@ -124,5 +125,23 @@ struct UpgradeCommandTests {
         #expect(UpgradePolicy.shouldUpgrade(target: "0.7.0", installed: "0.6.0", force: false))
         // "Downgrade" is just a different string: upgrade.
         #expect(UpgradePolicy.shouldUpgrade(target: "0.5.0", installed: "0.6.0", force: false))
+    }
+
+    @Test
+    func parsesDefaults() throws {
+        let command = try Application.UpgradeCommand.parse([])
+        #expect(command.version == nil)
+        #expect(command.force == false)
+    }
+
+    @Test
+    func parsesVersionAndForce() throws {
+        let long = try Application.UpgradeCommand.parse(["--version", "0.6.0", "--force"])
+        #expect(long.version == "0.6.0")
+        #expect(long.force == true)
+
+        let short = try Application.UpgradeCommand.parse(["-v", "0.6.0", "-f"])
+        #expect(short.version == "0.6.0")
+        #expect(short.force == true)
     }
 }
