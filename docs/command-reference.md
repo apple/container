@@ -1577,3 +1577,34 @@ container system property list
 # output as JSON for scripting
 container system property list --format json
 ```
+
+## Software Update
+
+### `container upgrade`
+
+Upgrades the installed `container` toolset to a release published on GitHub. The command refuses to run while container services are running; stop them first with `container system stop`. It downloads the signed installer package for the target release (asking for confirmation before falling back to an unsigned package) and installs it with `sudo installer`, which prompts for an administrator password.
+
+**Usage**
+
+```bash
+container upgrade [--version <version>] [--force] [--debug]
+```
+
+**Options**
+
+*   `-v, --version <version>`: Upgrade to a specific release version (defaults to the latest release)
+*   `-f, --force`: Force the upgrade even if the target version is already installed
+
+**Examples**
+
+```bash
+# Upgrade to the latest release
+container system stop
+container upgrade
+
+# Upgrade (or downgrade) to a specific release
+container upgrade --version 0.6.0
+
+# Reinstall the current version
+container upgrade --force
+```
