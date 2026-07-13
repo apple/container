@@ -233,6 +233,31 @@ struct ConfigurationLoaderTests {
         }
     }
 
+    @Test func copyConfigDereferencesSymlink() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let fm = FileManager.default
+            let target = tempDir.appending("target.toml")
+            let source = tempDir.appending("config.toml")
+            try Self.writeToml("[build]\ncpus = 8", to: target)
+            try fm.setAttributes([.posixPermissions: 0o444], ofItemAtPath: target.string)
+            try fm.createSymbolicLink(atPath: source.string, withDestinationPath: target.string)
+
+            let destBase = tempDir.appending("dest")
+            try ConfigurationLoader.copyConfigurationToReadOnly(from: source, to: destBase)
+
+            let destFile = destBase.appending("config").appending("config.toml")
+            let attrs = try fm.attributesOfItem(atPath: destFile.string)
+            let fileType = try #require(attrs[.type] as? FileAttributeType)
+            #expect(fileType == .typeRegular)
+            let perms = try #require(attrs[.posixPermissions] as? Int)
+            #expect(perms == 0o444)
+
+            try fm.removeItem(atPath: target.string)
+            let copied = try String(contentsOf: URL(filePath: destFile.string), encoding: .utf8)
+            #expect(copied.contains("cpus = 8"))
+        }
+    }
+
     @Test func copyConfigOverwritesExistingReadOnlyDestination() async throws {
         try await TemporaryStorage.withTempDir { tempDir in
             let source = tempDir.appending("config.toml")
