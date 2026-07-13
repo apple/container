@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerXPC
+import ContainerizationError
 import Darwin
 import Testing
 
@@ -38,6 +39,7 @@ struct ClientProcessTests {
     @Test
     func forwardedSignalsUseLinuxCompatibleNames() throws {
         #expect(try ClientProcessImpl.forwardedSignalName(SIGINT) == "INT")
+        #expect(try ClientProcessImpl.forwardedSignalName(SIGKILL) == "KILL")
         #expect(try ClientProcessImpl.forwardedSignalName(SIGTERM) == "TERM")
         #expect(try ClientProcessImpl.forwardedSignalName(SIGWINCH) == "WINCH")
         #expect(try ClientProcessImpl.forwardedSignalName(SIGUSR1) == "USR1")
@@ -48,6 +50,18 @@ struct ClientProcessTests {
     func forwardedSignalRejectsUnsupportedSignal() {
         #expect(throws: Error.self) {
             try ClientProcessImpl.forwardedSignalName(Int32.max)
+        }
+    }
+
+    @Test
+    func forwardedSignalRejectsHostOnlySignal() {
+        #expect {
+            try ClientProcessImpl.forwardedSignalName(SIGINFO)
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.code == .invalidArgument
         }
     }
 }
