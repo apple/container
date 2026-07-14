@@ -33,32 +33,7 @@ container builder delete
 container builder start --cpus 8 --memory 32g
 ```
 
-## Share host files with your container
-
-With the `--volume` option of `container run`, you can share data between the host system and one or more containers, and you can persist data across multiple container runs. The volume option allows you to mount a folder on your host to a filesystem path in the container.
-
-This example mounts a folder named `assets` on your Desktop to the directory `/content/assets` in a container:
-
-<pre>
-% ls -l ~/Desktop/assets
-total 8
--rw-r--r--@ 1 fido  staff  2410 May 13 18:36 link.svg
-% container run --volume ${HOME}/Desktop/assets:/content/assets docker.io/python:alpine ls -l /content/assets
-total 4
--rw-r--r-- 1 root root 2410 May 14 01:36 link.svg
-%
-</pre>
-
-The argument to `--volume` in the example consists of the full pathname for the host folder and the full pathname for the mount point in the container, separated by a colon.
-
-The `--mount` option uses a comma-separated `key=value` syntax to achieve the same result:
-
-<pre>
-% container run --mount source=${HOME}/Desktop/assets,target=/content/assets docker.io/python:alpine ls -l /content/assets
-total 4
--rw-r--r-- 1 root root 2410 May 14 01:36 link.svg
-%
-</pre>
+See [Volumes](./volumes.md) for bind mounts and named volumes.
 
 ## Build and run a multiplatform image
 
