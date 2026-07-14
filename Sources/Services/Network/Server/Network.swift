@@ -22,6 +22,12 @@ public protocol Network: Sendable {
     /// The network's identifier.
     var id: String { get }
 
+    /// An operational hint passed back to the runtime in the allocate response.
+    /// Together with the plugin name, the runtime uses this to select the appropriate
+    /// interface strategy for the sandbox. A `nil` value indicates that the plugin
+    /// has only a single, default variant.
+    nonisolated var variant: String? { get }
+
     /// The network's runtime status. `nil` before ``start()`` completes.
     var status: NetworkStatus? { get async }
 

@@ -23,7 +23,7 @@ import PackageDescription
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
 let builderShimVersion = "0.12.0"
-let scVersion = "0.34.0"
+let scVersion = "0.37.0"
 
 let package = Package(
     name: "container",
@@ -62,7 +62,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.36.0"),
         .package(url: "https://github.com/apple/swift-system.git", from: "1.6.4"),
         .package(url: "https://github.com/grpc/grpc-swift-2.git", from: "2.3.0"),
-        .package(url: "https://github.com/grpc/grpc-swift-nio-transport.git", from: "2.4.4"),
+        .package(url: "https://github.com/grpc/grpc-swift-nio-transport.git", from: "2.9.0"),
         .package(url: "https://github.com/grpc/grpc-swift-protobuf.git", from: "2.2.0"),
         .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.20.1"),
         .package(url: "https://github.com/swiftlang/swift-docc-plugin.git", from: "1.1.0"),
@@ -81,22 +81,25 @@ let package = Package(
             path: "Sources/CLI"
         ),
         .testTarget(
-            name: "CLITests",
+            name: "IntegrationTests",
             dependencies: [
                 .product(name: "AsyncHTTPClient", package: "async-http-client"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "SystemPackage", package: "swift-system"),
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationArchive", package: "containerization"),
                 .product(name: "ContainerizationExtras", package: "containerization"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
                 .product(name: "TOML", package: "swift-toml"),
-                "ContainerBuild",
+                "ContainerAPIClient",
                 "ContainerLog",
                 "ContainerPersistence",
                 "ContainerResource",
                 "MachineAPIClient",
                 "Yams",
             ],
-            path: "Tests/CLITests"
+            path: "Tests/IntegrationTests"
         ),
         .target(
             name: "ContainerCommands",
@@ -208,6 +211,7 @@ let package = Package(
             name: "ContainerAPIServiceTests",
             dependencies: [
                 .product(name: "Containerization", package: "containerization"),
+                "ContainerAPIService",
                 "ContainerResource",
                 "ContainerRuntimeLinuxClient",
                 "ContainerRuntimeClient",
