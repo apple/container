@@ -62,6 +62,40 @@ extension Application {
             let srcRef = try Self.parsePathRef(source)
             let dstRef = try Self.parsePathRef(destination)
 
+            if destination == "-" {
+                guard case .container(let id, let path) = srcRef else {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "when destination is '-', source must be a container reference"
+                    )
+                }
+                guard case .local(let localDash) = dstRef, localDash == "-" else {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "destination '-' is only supported for container-to-host tar streams"
+                    )
+                }
+                try await Self.streamTarFromContainer(client: client, id: id, sourcePath: path)
+                return
+            }
+
+            if source == "-" {
+                guard case .local(let localDash) = srcRef, localDash == "-" else {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "source '-' is only supported for host-to-container tar streams"
+                    )
+                }
+                guard case .container(let id, let path) = dstRef else {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "when source is '-', destination must be a container reference"
+                    )
+                }
+                try await Self.streamTarToContainer(client: client, id: id, destinationPath: path)
+                return
+            }
+
             switch (srcRef, dstRef) {
             case (.container(let id, let path), .local(let localPath)):
                 let srcPath = FilePath(path)
@@ -116,6 +150,147 @@ extension Application {
                     .invalidArgument,
                     message: "one of source or destination must be a container reference (container_id:path)")
             }
+        }
+
+        private static func streamTarFromContainer(client: ContainerClient, id: String, sourcePath: String) async throws {
+            let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: tempDir) }
+
+            let sourceFilePath = FilePath(sourcePath)
+            let fallbackName = "copy"
+            let leafName = sourceFilePath.lastComponent?.string ?? fallbackName
+            let stagingPath = tempDir.appendingPathComponent(leafName)
+
+            try await client.copyOut(id: id, source: sourcePath, destination: stagingPath.path(percentEncoded: false), createParents: true)
+
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: stagingPath.path(percentEncoded: false), isDirectory: &isDirectory) else {
+                throw ContainerizationError(.internalError, message: "failed to stage container copy source for tar streaming")
+            }
+
+            let tarArgs: [String] = ["-C", tempDir.path(percentEncoded: false), "-cf", "-", leafName]
+
+            _ = isDirectory // kept for parity if future behavior diverges by source type
+
+            try runTar(args: tarArgs, stdinData: nil, outputToStdout: true)
+        }
+
+        private static func streamTarToContainer(client: ContainerClient, id: String, destinationPath: String) async throws {
+            let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            let extractDir = tempDir.appendingPathComponent("extract")
+            let archivePath = tempDir.appendingPathComponent("stdin.tar")
+            try FileManager.default.createDirectory(at: extractDir, withIntermediateDirectories: true)
+            FileManager.default.createFile(atPath: archivePath.path(percentEncoded: false), contents: nil)
+            defer { try? FileManager.default.removeItem(at: tempDir) }
+
+            let archiveHandle = try FileHandle(forWritingTo: archivePath)
+            defer { try? archiveHandle.close() }
+
+            var totalBytesRead = 0
+            while let chunk = try FileHandle.standardInput.read(upToCount: 64 * 1024), !chunk.isEmpty {
+                archiveHandle.write(chunk)
+                totalBytesRead += chunk.count
+            }
+
+            if totalBytesRead == 0 {
+                throw ContainerizationError(.invalidArgument, message: "empty tar stream on stdin")
+            }
+
+            let listed = try runTar(args: ["-tf", archivePath.path(percentEncoded: false)], stdinData: nil, outputToStdout: false)
+            let entries = listed
+                .split(separator: "\n", omittingEmptySubsequences: true)
+                .map(String.init)
+
+            guard !entries.isEmpty else {
+                throw ContainerizationError(.invalidArgument, message: "tar stream has no entries")
+            }
+
+            for entry in entries {
+                let normalized = entry.trimmingCharacters(in: .whitespacesAndNewlines)
+                if normalized.isEmpty {
+                    continue
+                }
+                if normalized.hasPrefix("/") {
+                    throw ContainerizationError(.invalidArgument, message: "tar stream contains absolute path: \(normalized)")
+                }
+                let parts = normalized.split(separator: "/")
+                if parts.contains("..") {
+                    throw ContainerizationError(.invalidArgument, message: "tar stream contains parent traversal: \(normalized)")
+                }
+            }
+
+            _ = try runTar(
+                args: ["-xf", archivePath.path(percentEncoded: false), "-C", extractDir.path(percentEncoded: false)],
+                stdinData: nil,
+                outputToStdout: false
+            )
+
+            let topLevelNames = Set(entries.compactMap { entry -> String? in
+                let trimmed = entry.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return nil }
+                return String(trimmed.split(separator: "/", maxSplits: 1).first ?? "")
+            }).sorted()
+
+            guard !topLevelNames.isEmpty else {
+                throw ContainerizationError(.invalidArgument, message: "tar stream has no copyable top-level entries")
+            }
+
+            if topLevelNames.count == 1 {
+                let name = topLevelNames[0]
+                let src = extractDir.appendingPathComponent(name).path(percentEncoded: false)
+                try await client.copyIn(id: id, source: src, destination: destinationPath, createParents: true)
+                return
+            }
+
+            let destinationDirPath = destinationPath.hasSuffix("/") ? destinationPath : destinationPath + "/"
+            for name in topLevelNames {
+                let src = extractDir.appendingPathComponent(name).path(percentEncoded: false)
+                try await client.copyIn(id: id, source: src, destination: destinationDirPath, createParents: true)
+            }
+        }
+
+        @discardableResult
+        private static func runTar(args: [String], stdinData: Data?, outputToStdout: Bool) throws -> String {
+            let process = Process()
+            process.executableURL = URL(filePath: "/usr/bin/tar")
+            process.arguments = args
+
+            let errPipe = Pipe()
+            process.standardError = errPipe
+            if outputToStdout {
+                process.standardOutput = FileHandle.standardOutput
+            } else {
+                process.standardOutput = Pipe()
+            }
+
+            if let stdinData {
+                let inputPipe = Pipe()
+                process.standardInput = inputPipe
+                try process.run()
+                inputPipe.fileHandleForWriting.write(stdinData)
+                inputPipe.fileHandleForWriting.closeFile()
+            } else {
+                try process.run()
+            }
+
+            process.waitUntilExit()
+
+            let stderrData = errPipe.fileHandleForReading.readDataToEndOfFile()
+            let stderrText = String(decoding: stderrData, as: UTF8.self)
+
+            if process.terminationStatus != 0 {
+                let errorText = stderrText.isEmpty ? "tar failed with status \(process.terminationStatus)" : stderrText
+                throw ContainerizationError(.internalError, message: errorText)
+            }
+
+            if outputToStdout {
+                return ""
+            }
+
+            let outPipe = process.standardOutput as? Pipe
+            let stdoutData = outPipe?.fileHandleForReading.readDataToEndOfFile() ?? Data()
+            return String(decoding: stdoutData, as: UTF8.self)
         }
     }
 }

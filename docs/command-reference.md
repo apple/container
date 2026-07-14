@@ -485,6 +485,11 @@ container stats --format json --no-stream web
 
 Copies files between a container and the local filesystem. The container must be running. One of the source or destination must be a container reference in the form `container_id:path`.
 
+`-` is also supported as a tar stream endpoint:
+
+*   `container cp <container_id:/path> -` writes an uncompressed tar stream to stdout
+*   `container cp - <container_id:/path>` reads an uncompressed tar stream from stdin and extracts it into the destination path
+
 **Usage**
 
 ```bash
@@ -500,6 +505,7 @@ container copy [--debug] <source> <destination>
 
 *   Local path: `/path/to/file` or `relative/path`
 *   Container path: `container_id:/path/in/container`
+*   Tar stream endpoint: `-` (stdin or stdout)
 
 **Examples**
 
@@ -512,6 +518,12 @@ container cp mycontainer:/var/log/app.log ./logs/
 
 # copy using the full command name
 container copy ./data.txt mycontainer:/tmp/
+
+# stream a tar archive out of a container path
+container cp mycontainer:/etc - > etc.tar
+
+# stream a tar archive into a container path
+container cp - mycontainer:/tmp/ < payload.tar
 ```
 
 ### `container prune`
