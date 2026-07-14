@@ -26,6 +26,7 @@ import Testing
 struct TestCLIKernelSetSerial {
     private let remoteTar = ContainerSystemConfig().kernel.url
     private let defaultBinaryPath = ContainerSystemConfig().kernel.binaryPath
+    private let defaultDigest = KernelConfig.defaultDigest
 
     /// Kernel release string parsed from the binary filename.
     ///
@@ -49,6 +50,30 @@ struct TestCLIKernelSetSerial {
 
     // MARK: - Tests
 
+    @Test func remoteTarCannotBeShadowedByLocalPath() async throws {
+        try await ContainerFixture.with { f in
+            let shadow = URL(filePath: f.testDir.string)
+                .appending(path: "https:")
+                .appending(path: "example.com")
+                .appending(path: "kernel.tar")
+            try FileManager.default.createDirectory(
+                at: shadow.deletingLastPathComponent(),
+                withIntermediateDirectories: true)
+            try Data().write(to: shadow)
+
+            let result = try f.run(
+                [
+                    "system", "kernel", "set",
+                    "--tar", "https://example.com/kernel.tar",
+                    "--binary", "vmlinux",
+                ],
+                currentDirectory: f.testDir)
+
+            #expect(result.status != 0)
+            #expect(result.error.contains("'--digest' is required when '--tar' is a remote URL"))
+        }
+    }
+
     @Test func fromLocalTar() async throws {
         let symlinkBinaryPath = URL(filePath: defaultBinaryPath)
             .deletingLastPathComponent()
@@ -60,7 +85,13 @@ struct TestCLIKernelSetSerial {
             let tempDir = URL(filePath: f.testDir.string)
             let localTarPath = tempDir.appending(path: remoteTar.lastPathComponent)
             try await ContainerAPIClient.FileDownloader.downloadFile(url: remoteTar, to: localTarPath)
-            try f.run(["system", "kernel", "set", "--force", "--tar", localTarPath.path, "--binary", symlinkBinaryPath]).check()
+            try f.run([
+                "system", "kernel", "set",
+                "--force",
+                "--tar", localTarPath.path,
+                "--binary", symlinkBinaryPath,
+                "--digest", defaultDigest,
+            ]).check()
             try await validateGuestKernel(f)
         }
     }
@@ -73,7 +104,13 @@ struct TestCLIKernelSetSerial {
 
         try await ContainerFixture.with { f in
             f.addCleanup { resetKernelToRecommended(f) }
-            try f.run(["system", "kernel", "set", "--force", "--tar", remoteTar.absoluteString, "--binary", symlinkBinaryPath]).check()
+            try f.run([
+                "system", "kernel", "set",
+                "--force",
+                "--tar", remoteTar.absoluteString,
+                "--binary", symlinkBinaryPath,
+                "--digest", defaultDigest,
+            ]).check()
             try await validateGuestKernel(f)
         }
     }
