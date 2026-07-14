@@ -171,7 +171,7 @@ extension Application {
 
             let tarArgs: [String] = ["-C", tempDir.path(percentEncoded: false), "-cf", "-", leafName]
 
-            _ = isDirectory // kept for parity if future behavior diverges by source type
+            _ = isDirectory  // kept for parity if future behavior diverges by source type
 
             try runTar(args: tarArgs, stdinData: nil, outputToStdout: true)
         }
@@ -198,7 +198,8 @@ extension Application {
             }
 
             let listed = try runTar(args: ["-tf", archivePath.path(percentEncoded: false)], stdinData: nil, outputToStdout: false)
-            let entries = listed
+            let entries =
+                listed
                 .split(separator: "\n", omittingEmptySubsequences: true)
                 .map(String.init)
 
@@ -226,11 +227,13 @@ extension Application {
                 outputToStdout: false
             )
 
-            let topLevelNames = Set(entries.compactMap { entry -> String? in
-                let trimmed = entry.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { return nil }
-                return String(trimmed.split(separator: "/", maxSplits: 1).first ?? "")
-            }).sorted()
+            let topLevelNames = Set(
+                entries.compactMap { entry -> String? in
+                    let trimmed = entry.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else { return nil }
+                    return String(trimmed.split(separator: "/", maxSplits: 1).first ?? "")
+                }
+            ).sorted()
 
             guard !topLevelNames.isEmpty else {
                 throw ContainerizationError(.invalidArgument, message: "tar stream has no copyable top-level entries")
