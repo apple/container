@@ -772,6 +772,46 @@ public actor RuntimeService {
         }
     }
 
+    /// Clean up unused space in the container filesystem.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with the following parameters:
+    ///     - id: The container ID.
+    ///
+    /// - Returns: An XPC message with no parameters.
+    @Sendable
+    public func clean(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`clean` xpc handler")
+        switch self.state {
+        case .running:
+            guard message.string(key: RuntimeKeys.id.rawValue) != nil else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no id supplied for clean"
+                )
+            }
+
+            let ctr = try getContainer()
+
+            // Perform filesystem trim on the root filesystem
+            try await ctr.container.filesystemOperation(operation: .trim, path: "/")
+
+            // Perform filesystem trim on each named volume mount
+            for mount in ctr.config.mounts {
+                if case .volume = mount.type {
+                    try await ctr.container.filesystemOperation(operation: .trim, path: mount.destination)
+                }
+            }
+
+            return message.reply()
+        default:
+            throw ContainerizationError(
+                .invalidState,
+                message: "cannot clean: container is not running"
+            )
+        }
+    }
+
     /// Dial a vsock port on the virtual machine.
     ///
     /// - Parameters:
