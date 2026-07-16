@@ -173,7 +173,7 @@ dsym:
 
 .PHONY: test
 test: build-tests
-	@$(SWIFT) test --skip-build -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI --skip IntegrationTests
+	@$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI --skip IntegrationTests
 
 .PHONY: install-kernel
 install-kernel:
