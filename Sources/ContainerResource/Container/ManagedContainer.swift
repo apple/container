@@ -43,6 +43,10 @@ public struct ManagedContainer: ManagedResource {
 
     /// Container name rule
     public static func nameValid(_ name: String) -> Bool {
+        // Maximum Linux hostname length is 64, but limit to maximum DNS label length
+        guard name.count <= 63 else {
+            return false
+        }
         let pattern = #"^[a-zA-Z0-9][a-zA-Z0-9_.-]+$"#
         return name.range(of: pattern, options: .regularExpression) != nil
     }
