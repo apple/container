@@ -180,20 +180,22 @@ struct PluginLoaderTest {
     func testRegisterWithLaunchdDebugTrue() async throws {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: tempURL) }
+        let serviceRoot = tempURL.appendingPathComponent("service-root", isDirectory: true)
         let factory = try setupMock(tempURL: tempURL)
         let loader = try PluginLoader(
             appRoot: tempURL,
             installRoot: URL(filePath: "/usr/local/"),
             logRoot: nil,
             pluginDirectories: [tempURL],
-            pluginFactories: [factory]
+            pluginFactories: [factory],
+            serviceRoot: serviceRoot
         )
 
         let plugin = loader.findPlugin(name: "service")!
         let stateRoot = tempURL.appendingPathComponent("test-state")
         try loader.registerWithLaunchd(plugin: plugin, pluginStateRoot: stateRoot, debug: true)
 
-        let plistURL = stateRoot.appendingPathComponent("service.plist")
+        let plistURL = serviceRoot.appending(path: "plugin-state/service/service.plist")
         #expect(FileManager.default.fileExists(atPath: plistURL.path))
 
         let plistData = try Data(contentsOf: plistURL)
@@ -207,20 +209,22 @@ struct PluginLoaderTest {
     func testRegisterWithLaunchdDebugFalse() async throws {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: tempURL) }
+        let serviceRoot = tempURL.appendingPathComponent("service-root", isDirectory: true)
         let factory = try setupMock(tempURL: tempURL)
         let loader = try PluginLoader(
             appRoot: tempURL,
             installRoot: URL(filePath: "/usr/local/"),
             logRoot: nil,
             pluginDirectories: [tempURL],
-            pluginFactories: [factory]
+            pluginFactories: [factory],
+            serviceRoot: serviceRoot
         )
 
         let plugin = loader.findPlugin(name: "service")!
         let stateRoot = tempURL.appendingPathComponent("test-state")
         try loader.registerWithLaunchd(plugin: plugin, pluginStateRoot: stateRoot, debug: false)
 
-        let plistURL = stateRoot.appendingPathComponent("service.plist")
+        let plistURL = serviceRoot.appending(path: "plugin-state/service/service.plist")
         #expect(FileManager.default.fileExists(atPath: plistURL.path))
 
         let plistData = try Data(contentsOf: plistURL)
@@ -234,20 +238,22 @@ struct PluginLoaderTest {
     func testRegisterWithLaunchdDebugDefault() async throws {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: tempURL) }
+        let serviceRoot = tempURL.appendingPathComponent("service-root", isDirectory: true)
         let factory = try setupMock(tempURL: tempURL)
         let loader = try PluginLoader(
             appRoot: tempURL,
             installRoot: URL(filePath: "/usr/local/"),
             logRoot: nil,
             pluginDirectories: [tempURL],
-            pluginFactories: [factory]
+            pluginFactories: [factory],
+            serviceRoot: serviceRoot
         )
 
         let plugin = loader.findPlugin(name: "service")!
         let stateRoot = tempURL.appendingPathComponent("test-state")
         try loader.registerWithLaunchd(plugin: plugin, pluginStateRoot: stateRoot)
 
-        let plistURL = stateRoot.appendingPathComponent("service.plist")
+        let plistURL = serviceRoot.appending(path: "plugin-state/service/service.plist")
         #expect(FileManager.default.fileExists(atPath: plistURL.path))
 
         let plistData = try Data(contentsOf: plistURL)
@@ -263,7 +269,7 @@ struct PluginLoaderTest {
     /// serviceRoot and NOT under appRoot — which might be on an external or
     /// removable volume where launchd cannot register Mach services.
     @Test
-    func testRegisterWithLaunchdPlistNotUnderAppRoot() async throws {
+    func testRegisterWithLaunchdInstancedPlistsStayUnderServiceRoot() async throws {
         let appRootURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("app-root-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: appRootURL) }
@@ -285,22 +291,43 @@ struct PluginLoaderTest {
         )
 
         let plugin = loader.findPlugin(name: "service")!
-        try loader.registerWithLaunchd(plugin: plugin)
+        let externalStateRoot = appRootURL.appendingPathComponent("runtime-state", isDirectory: true)
+        try loader.registerWithLaunchd(
+            plugin: plugin,
+            pluginStateRoot: externalStateRoot,
+            instanceId: "default"
+        )
+        try loader.registerWithLaunchd(
+            plugin: plugin,
+            pluginStateRoot: externalStateRoot,
+            instanceId: "secondary"
+        )
 
-        let expectedPlistURL = serviceRootURL
+        let defaultPlistURL =
+            serviceRootURL
             .appendingPathComponent("plugin-state", isDirectory: true)
             .appending(path: plugin.name)
+            .appending(path: "default")
             .appendingPathComponent("service.plist")
-
-        // Plist exists under serviceRoot (internal volume)
-        #expect(FileManager.default.fileExists(atPath: expectedPlistURL.path))
-
-        // Plist must NOT exist under appRoot (which could be an external volume)
-        let appRootPlistURL = appRootURL
+        let secondaryPlistURL =
+            serviceRootURL
             .appendingPathComponent("plugin-state", isDirectory: true)
             .appending(path: plugin.name)
+            .appending(path: "secondary")
             .appendingPathComponent("service.plist")
-        #expect(!FileManager.default.fileExists(atPath: appRootPlistURL.path))
+
+        // Each instance gets a distinct plist under serviceRoot (internal volume).
+        #expect(FileManager.default.fileExists(atPath: defaultPlistURL.path))
+        #expect(FileManager.default.fileExists(atPath: secondaryPlistURL.path))
+
+        // pluginStateRoot may be external and must never contain a launchd plist.
+        #expect(!FileManager.default.fileExists(atPath: externalStateRoot.appendingPathComponent("service.plist").path))
+
+        // An explicitly supplied serviceRoot is propagated to the child service.
+        let plistData = try Data(contentsOf: defaultPlistURL)
+        let plist = try PropertyListSerialization.propertyList(from: plistData, format: nil) as! [String: Any]
+        let environment = plist["EnvironmentVariables"] as! [String: String]
+        #expect(environment[ServiceRoot.environmentName] == serviceRootURL.path(percentEncoded: false))
     }
 
     private func setupMock(tempURL: URL) throws -> MockPluginFactory {

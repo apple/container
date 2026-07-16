@@ -54,7 +54,7 @@ extension Application {
             name: .long,
             help: "Path to the root directory for launchd service registration files; must reside on an internal volume",
             transform: { FilePath(FileManager.default.currentDirectoryPath).resolve($0, defaultPath: FilePath($0)) })
-        var serviceRoot = ServiceRoot.defaultPath
+        var serviceRoot = ServiceRoot.path
 
         @Flag(
             name: .long,
@@ -136,7 +136,8 @@ extension Application {
             // CONTAINER_SERVICE_ROOT is forwarded into the plist environment so the
             // daemon's PluginLoader writes plugin plists to the same root without
             // requiring any additional wiring at other call sites.
-            let plistDir = serviceRoot
+            let plistDir =
+                serviceRoot
                 .appending(FilePath.Component("apiserver"))
             let plistDirURL = URL(fileURLWithPath: plistDir.string)
             try FileManager.default.createDirectory(at: plistDirURL, withIntermediateDirectories: true)
