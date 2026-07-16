@@ -17,28 +17,55 @@
 import Foundation
 import Testing
 
-@Suite(.serialSuites)
+@Suite
 class TestCLIClean: CLITest {
+    private struct StatusJSON: Codable {
+        let appRoot: String
+    }
+
     private func getTestName() -> String {
         Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
     }
 
-    @Test func testCleanRunningContainer() throws {
-        let name = getTestName()
-        try doLongRun(name: name, autoRemove: false)
-        defer {
-            try? doStop(name: name)
-            try? doRemove(name: name)
+    private func appRoot() throws -> URL {
+        let result = try run(arguments: ["system", "status", "--format", "json"]).check()
+        let status = try JSONDecoder().decode(StatusJSON.self, from: result.outputData)
+        return URL(fileURLWithPath: status.appRoot, isDirectory: true)
+    }
+
+    private func allocatedBytes(at url: URL) throws -> Int64 {
+        let values = try url.resourceValues(forKeys: [.fileAllocatedSizeKey, .totalFileAllocatedSizeKey])
+        let allocated = values.totalFileAllocatedSize ?? values.fileAllocatedSize
+        guard let allocated else {
+            throw CLIError.executionFailed("failed to read allocated size for \(url.path)")
         }
+        return Int64(allocated)
+    }
 
-        try waitForContainerRunning(name)
+    private func containerRootfsBlockURL(name: String) throws -> URL {
+        let id = try getContainerId(name)
+        return try appRoot()
+            .appendingPathComponent("containers", isDirectory: true)
+            .appendingPathComponent(id, isDirectory: true)
+            .appendingPathComponent("rootfs.ext4", isDirectory: false)
+    }
 
-        // Clean should succeed on running container
-        try doClean(name: name)
+    private func volumeBlockURL(name: String) throws -> URL {
+        try appRoot()
+            .appendingPathComponent("volumes", isDirectory: true)
+            .appendingPathComponent(name, isDirectory: true)
+            .appendingPathComponent("volume.img", isDirectory: false)
+    }
 
-        // Container should still be running after clean
-        let status = try getContainerStatus(name)
-        #expect(status == "running")
+    private func assertCleanReclaimedSpace(beforeWrite: Int64, afterWrite: Int64, afterClean: Int64) {
+        let writeAllocated = afterWrite - beforeWrite
+        #expect(writeAllocated > 0)
+
+        let reclaimed = afterWrite - afterClean
+        #expect(reclaimed > 0)
+
+        let minExpectedReclaimed = Int64(Double(writeAllocated) * 0.8)
+        #expect(reclaimed >= minExpectedReclaimed)
     }
 
     @Test func testCleanStoppedContainerFails() throws {
@@ -95,12 +122,21 @@ class TestCLIClean: CLITest {
 
         try waitForContainerRunning(name)
 
+        let rootfsBlockURL = try containerRootfsBlockURL(name: name)
+        let beforeWrite = try allocatedBytes(at: rootfsBlockURL)
+
         // Create some files to exercise the filesystem trim path
-        _ = try doExec(name: name, cmd: ["sh", "-c", "dd if=/dev/zero of=/test-file bs=1M count=10"])
+        _ = try doExec(name: name, cmd: ["sh", "-c", "dd if=/dev/urandom of=/test-file bs=1M count=10"])
+        _ = try doExec(name: name, cmd: ["sync"])
+        let afterWrite = try allocatedBytes(at: rootfsBlockURL)
+
         _ = try doExec(name: name, cmd: ["rm", "/test-file"])
 
         // Clean should succeed
         try doClean(name: name)
+        _ = try doExec(name: name, cmd: ["sync"])
+        let afterClean = try allocatedBytes(at: rootfsBlockURL)
+        assertCleanReclaimedSpace(beforeWrite: beforeWrite, afterWrite: afterWrite, afterClean: afterClean)
 
         // Container should still be running
         let status = try getContainerStatus(name)
@@ -140,12 +176,21 @@ class TestCLIClean: CLITest {
 
         try waitForContainerRunning(name)
 
+        let volumeBlockURL = try volumeBlockURL(name: volumeName)
+        let beforeWrite = try allocatedBytes(at: volumeBlockURL)
+
         // Write to volume
-        _ = try doExec(name: name, cmd: ["sh", "-c", "dd if=/dev/zero of=/mnt/vol/test bs=1M count=5"])
+        _ = try doExec(name: name, cmd: ["sh", "-c", "dd if=/dev/urandom of=/mnt/vol/test bs=1M count=5"])
+        _ = try doExec(name: name, cmd: ["sync"])
+        let afterWrite = try allocatedBytes(at: volumeBlockURL)
+
         _ = try doExec(name: name, cmd: ["rm", "/mnt/vol/test"])
 
         // Clean should succeed and also trim the volume
         try doClean(name: name)
+        _ = try doExec(name: name, cmd: ["sync"])
+        let afterClean = try allocatedBytes(at: volumeBlockURL)
+        assertCleanReclaimedSpace(beforeWrite: beforeWrite, afterWrite: afterWrite, afterClean: afterClean)
 
         // Container should still be running
         let status = try getContainerStatus(name)
