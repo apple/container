@@ -17,9 +17,27 @@
 import ContainerizationArchive
 import ContainerizationOS
 import CryptoKit
+import Darwin
 import Foundation
 
 public final class Archiver: Sendable {
+    private struct FileStatus {
+        enum EntryType {
+            case directory
+            case regular
+            case symbolicLink
+        }
+
+        let entryType: EntryType
+        let permissions: UInt16
+        let size: Int64
+        let owner: UInt32
+        let group: UInt32
+        let creationDate: Date?
+        let modificationDate: Date?
+        let symlinkTarget: String?
+    }
+
     public struct ArchiveEntryInfo: Sendable, Codable {
         public let pathOnHost: URL
         public let pathInArchive: URL
@@ -41,6 +59,19 @@ public final class Archiver: Sendable {
             self.group = group
             self.permissions = permissions
         }
+    }
+
+    private struct ArchiveEntryHashInfo: Encodable {
+        let pathOnHost: String
+        let pathInArchive: String
+        let fileType: String
+        let size: Int64?
+        let permissions: mode_t
+        let owner: uid_t?
+        let group: gid_t?
+        let symlinkTarget: String?
+        let creationDate: Date?
+        let modificationDate: Date?
     }
 
     public static func compress(
@@ -83,23 +114,12 @@ public final class Archiver: Sendable {
                     entryInfo.append(info)
                 }
             }
-
-            let archiver = try ArchiveWriter(
-                configuration: writerConfiguration
+            try Self._compressEntries(
+                entryInfo,
+                destination: destination,
+                writerConfiguration: writerConfiguration,
+                hasher: &hasher
             )
-            try archiver.open(file: destination)
-
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = .sortedKeys
-
-            for info in entryInfo {
-                guard let entry = try Self._createEntry(entryInfo: info) else {
-                    throw Error.failedToCreateEntry
-                }
-                hasher.update(data: try encoder.encode(entry))
-                try Self._compressFile(item: info.pathOnHost, entry: entry, archiver: archiver, hasher: &hasher)
-            }
-            try archiver.finishEncoding()
         } catch {
             try? fileManager.removeItem(at: destination)
             throw error
@@ -108,32 +128,119 @@ public final class Archiver: Sendable {
         return hasher.finalize()
     }
 
+    public static func compress(
+        entries: [ArchiveEntryInfo],
+        destination: URL,
+        writerConfiguration: ArchiveWriterConfiguration = ArchiveWriterConfiguration(format: .paxRestricted, filter: .gzip)
+    ) throws -> SHA256.Digest {
+        let destination = destination.standardizedFileURL
+        let fileManager = FileManager.default
+        try? fileManager.removeItem(at: destination)
+
+        var hasher = SHA256()
+
+        do {
+            let directory = destination.deletingLastPathComponent()
+            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+            try Self._compressEntries(
+                entries,
+                destination: destination,
+                writerConfiguration: writerConfiguration,
+                hasher: &hasher
+            )
+        } catch {
+            try? fileManager.removeItem(at: destination)
+            throw error
+        }
+
+        return hasher.finalize()
+    }
+
+    public static func uncompress(source: URL, destination: URL) throws {
+        let source = source.standardizedFileURL
+        let destination = destination.standardizedFileURL
+
+        let reader = try ArchiveReader(
+            format: .paxRestricted,
+            filter: .gzip,
+            file: source
+        )
+        let rejectedMembers = try reader.extractContents(to: destination)
+        if !rejectedMembers.isEmpty {
+            throw Error.rejectedArchiveMembers(rejectedMembers)
+        }
+    }
+
     // MARK: private functions
-    private static func _compressFile(item: URL, entry: WriteEntry, archiver: ArchiveWriter, hasher: inout SHA256) throws {
+    private static func _compressEntries(
+        _ entryInfo: [ArchiveEntryInfo],
+        destination: URL,
+        writerConfiguration: ArchiveWriterConfiguration,
+        hasher: inout SHA256
+    ) throws {
+        let archiver = try ArchiveWriter(configuration: writerConfiguration)
+        try archiver.open(file: destination)
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+
+        for info in entryInfo {
+            guard let entry = try Self._createEntry(entryInfo: info) else {
+                throw Error.failedToCreateEntry
+            }
+            let hashInfo = ArchiveEntryHashInfo(
+                pathOnHost: info.pathOnHost.path,
+                pathInArchive: info.pathInArchive.relativePath,
+                fileType: entry.fileType.rawValue,
+                size: entry.size,
+                permissions: entry.permissions,
+                owner: entry.owner,
+                group: entry.group,
+                symlinkTarget: entry.symlinkTarget,
+                creationDate: entry.creationDate,
+                modificationDate: entry.modificationDate
+            )
+            hasher.update(data: try encoder.encode(hashInfo))
+            try Self._compressFile(itemPath: info.pathOnHost.path, entry: entry, archiver: archiver, hasher: &hasher)
+        }
+        try archiver.finishEncoding()
+    }
+
+    private static func _compressFile(itemPath: String, entry: WriteEntry, archiver: ArchiveWriter, hasher: inout SHA256) throws {
+        guard entry.fileType == .regular else {
+            let writer = archiver.makeTransactionWriter()
+            try writer.writeHeader(entry: entry)
+            try writer.finish()
+            return
+        }
+
         let writer = archiver.makeTransactionWriter()
+
         let bufferSize = Int(1.mib())
         let readBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
         defer { readBuffer.deallocate() }
+
         try writer.writeHeader(entry: entry)
-        if entry.fileType == .regular {
-            // We need to write the data into the archive only if its a regular file
-            // Symlinks and directories require us to only write the archive header
-            guard let stream = InputStream(url: item) else {
-                throw Error.failedToCreateInputStream(item)
+        try itemPath.withCString { fileSystemPath in
+            let fd = open(fileSystemPath, O_RDONLY)
+            guard fd >= 0 else {
+                throw POSIXError.fromErrno()
             }
-            stream.open()
-            defer { stream.close() }
+            defer { close(fd) }
+
             while true {
-                let byteRead = stream.read(readBuffer, maxLength: bufferSize)
-                if byteRead < 0 {
-                    // stream.read returns -1 on error (e.g. TCC access denial under /Users/)
-                    let streamError = stream.streamError
-                    throw Error.failedToReadFile(item, streamError)
+                let bytesRead = read(fd, readBuffer, bufferSize)
+                if bytesRead < 0 {
+                    if errno == EINTR {
+                        continue
+                    }
+                    throw POSIXError.fromErrno()
                 }
-                if byteRead == 0 {
+                if bytesRead == 0 {
                     break
                 }
-                let data = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: readBuffer), count: byteRead, deallocator: .none)
+
+                let data = Data(bytesNoCopy: readBuffer, count: bytesRead, deallocator: .none)
                 hasher.update(data: data)
                 try data.withUnsafeBytes { pointer in
                     try writer.writeChunk(data: pointer)
@@ -143,49 +250,37 @@ public final class Archiver: Sendable {
         try writer.finish()
     }
 
-    private static func _createEntry(entryInfo: ArchiveEntryInfo, pathPrefix: String = "") throws -> WriteEntry? {
+    private static func _createEntry(
+        entryInfo: ArchiveEntryInfo,
+        pathPrefix: String = ""
+    ) throws -> WriteEntry? {
         let entry = WriteEntry()
-        let fileManager = FileManager.default
-        let attributes = try fileManager.attributesOfItem(atPath: entryInfo.pathOnHost.path)
+        let hostPath = entryInfo.pathOnHost.path
+        let status = try Self._fileStatus(atPath: hostPath)
 
-        if let fileType = attributes[.type] as? FileAttributeType {
-            switch fileType {
-            case .typeBlockSpecial, .typeCharacterSpecial, .typeSocket:
-                return nil
-            case .typeDirectory:
-                entry.fileType = .directory
-            case .typeRegular:
-                entry.fileType = .regular
-            case .typeSymbolicLink:
-                entry.fileType = .symbolicLink
-                let symlinkTarget = try fileManager.destinationOfSymbolicLink(atPath: entryInfo.pathOnHost.path)
-                entry.symlinkTarget = symlinkTarget
-            default:
-                return nil
-            }
+        switch status.entryType {
+        case .directory:
+            entry.fileType = .directory
+            entry.size = 0
+        case .regular:
+            entry.fileType = .regular
+            entry.size = status.size
+        case .symbolicLink:
+            entry.fileType = .symbolicLink
+            entry.size = 0
+            // Match Docker build-context semantics and preserve the original target verbatim.
+            entry.symlinkTarget = status.symlinkTarget
         }
-        if let posixPermissions = attributes[.posixPermissions] as? NSNumber {
-            #if os(macOS)
-            entry.permissions = posixPermissions.uint16Value
-            #else
-            entry.permissions = posixPermissions.uint32Value
-            #endif
-        }
-        if let fileSize = attributes[.size] as? UInt64 {
-            entry.size = Int64(fileSize)
-        }
-        if let uid = attributes[.ownerAccountID] as? NSNumber {
-            entry.owner = uid.uint32Value
-        }
-        if let gid = attributes[.groupOwnerAccountID] as? NSNumber {
-            entry.group = gid.uint32Value
-        }
-        if let creationDate = attributes[.creationDate] as? Date {
-            entry.creationDate = creationDate
-        }
-        if let modificationDate = attributes[.modificationDate] as? Date {
-            entry.modificationDate = modificationDate
-        }
+
+        #if os(macOS)
+        entry.permissions = status.permissions
+        #else
+        entry.permissions = UInt32(status.permissions)
+        #endif
+        entry.owner = status.owner
+        entry.group = status.group
+        entry.creationDate = status.creationDate
+        entry.modificationDate = status.modificationDate
 
         // Apply explicit overrides from ArchiveEntryInfo when provided
         if let overrideOwner = entryInfo.owner {
@@ -207,6 +302,83 @@ public final class Archiver: Sendable {
         return entry
     }
 
+    private static func _fileStatus(atPath path: String) throws -> FileStatus {
+        try path.withCString { fileSystemPath in
+            var status = stat()
+            guard lstat(fileSystemPath, &status) == 0 else {
+                throw POSIXError.fromErrno()
+            }
+
+            let mode = status.st_mode & S_IFMT
+            let entryType: FileStatus.EntryType
+            let symlinkTarget: String?
+
+            switch mode {
+            case S_IFDIR:
+                entryType = .directory
+                symlinkTarget = nil
+            case S_IFREG:
+                entryType = .regular
+                symlinkTarget = nil
+            case S_IFLNK:
+                entryType = .symbolicLink
+                symlinkTarget = try Self._symlinkTarget(fileSystemPath: fileSystemPath, sizeHint: Int(status.st_size))
+            default:
+                throw Error.failedToCreateEntry
+            }
+
+            return FileStatus(
+                entryType: entryType,
+                permissions: UInt16(status.st_mode & 0o7777),
+                size: Int64(status.st_size),
+                owner: status.st_uid,
+                group: status.st_gid,
+                creationDate: Self._creationDate(from: status),
+                modificationDate: Self._modificationDate(from: status),
+                symlinkTarget: symlinkTarget
+            )
+        }
+    }
+
+    private static func _symlinkTarget(fileSystemPath: UnsafePointer<CChar>, sizeHint: Int) throws -> String {
+        let capacity = max(sizeHint + 1, Int(PATH_MAX))
+        let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: capacity)
+        defer { buffer.deallocate() }
+
+        let count = readlink(fileSystemPath, buffer, capacity - 1)
+        guard count >= 0 else {
+            throw POSIXError.fromErrno()
+        }
+
+        buffer[count] = 0
+        return String(cString: buffer)
+    }
+
+    private static func _creationDate(from status: stat) -> Date? {
+        #if os(macOS)
+        return Date(
+            timeIntervalSince1970: TimeInterval(status.st_birthtimespec.tv_sec)
+                + TimeInterval(status.st_birthtimespec.tv_nsec) / 1_000_000_000
+        )
+        #else
+        return nil
+        #endif
+    }
+
+    private static func _modificationDate(from status: stat) -> Date? {
+        #if os(macOS)
+        return Date(
+            timeIntervalSince1970: TimeInterval(status.st_mtimespec.tv_sec)
+                + TimeInterval(status.st_mtimespec.tv_nsec) / 1_000_000_000
+        )
+        #else
+        return Date(
+            timeIntervalSince1970: TimeInterval(status.st_mtim.tv_sec)
+                + TimeInterval(status.st_mtim.tv_nsec) / 1_000_000_000
+        )
+        #endif
+    }
+
     private static func _trimPathPrefix(_ path: String, pathPrefix: String) -> String {
         guard !path.isEmpty && !pathPrefix.isEmpty else {
             return path
@@ -220,14 +392,23 @@ public final class Archiver: Sendable {
         let trimmedPath = String(decodedPath.suffix(from: pathPrefix.endIndex))
         return trimmedPath
     }
+
+    private static func _isSymbolicLink(_ path: URL) throws -> Bool {
+        let resourceValues = try path.resourceValues(forKeys: [.isSymbolicLinkKey])
+        if let isSymbolicLink = resourceValues.isSymbolicLink {
+            if isSymbolicLink {
+                return true
+            }
+        }
+        return false
+    }
 }
 
 extension Archiver {
-    public enum Error: Swift.Error, CustomStringConvertible {
+    public enum Error: Swift.Error, CustomStringConvertible, Equatable {
         case failedToCreateEntry
         case fileDoesNotExist(_ url: URL)
-        case failedToCreateInputStream(_ url: URL)
-        case failedToReadFile(_ url: URL, _ underlying: Swift.Error?)
+        case rejectedArchiveMembers([String])
 
         public var description: String {
             switch self {
@@ -235,45 +416,9 @@ extension Archiver {
                 return "failed to create entry"
             case .fileDoesNotExist(let url):
                 return "file \(url.path) does not exist"
-            case .failedToCreateInputStream(let url):
-                return "failed to create input stream for \(url.path)"
-            case .failedToReadFile(let url, let underlying):
-                if let underlying {
-                    return "failed to read file \(url.path): \(underlying)"
-                }
-                return "failed to read file \(url.path)"
+            case .rejectedArchiveMembers(let members):
+                return "rejected archive members: \(members.joined(separator: ", "))"
             }
         }
-    }
-}
-
-extension WriteEntry: @retroactive Encodable {
-    enum CodingKeys: String, CodingKey {
-        case path
-        case fileType
-        case size
-        case permissions
-        case owner
-        case group
-        case symlinkTarget
-        case hardlink
-        case creationDate
-        case modificationDate
-        case contentAccessDate
-    }
-
-    public func encode(to encoder: any Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encodeIfPresent(fileType.rawValue, forKey: .fileType)
-        try container.encodeIfPresent(permissions, forKey: .permissions)
-        try container.encodeIfPresent(path, forKey: .path)
-        try container.encodeIfPresent(size, forKey: .size)
-        try container.encodeIfPresent(owner, forKey: .owner)
-        try container.encodeIfPresent(group, forKey: .group)
-        try container.encodeIfPresent(symlinkTarget, forKey: .symlinkTarget)
-        try container.encodeIfPresent(hardlink, forKey: .hardlink)
-        try container.encodeIfPresent(creationDate, forKey: .creationDate)
-        try container.encodeIfPresent(modificationDate, forKey: .modificationDate)
-        try container.encodeIfPresent(contentAccessDate, forKey: .contentAccessDate)
     }
 }
