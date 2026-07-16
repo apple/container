@@ -52,6 +52,21 @@ extension Application {
                 )
             }
 
+            switch InstallationMethod.detect() {
+            case .installerPackage:
+                try await upgradeInstallerPackage()
+            case .homebrew:
+                try upgradeHomebrew()
+            case .unknown:
+                throw ContainerizationError(
+                    .invalidState,
+                    message:
+                        "Cannot determine how container was installed: found neither the \(InstallationMethod.installerPackageID) package receipt nor a Homebrew installation. Upgrade using the method you installed with, e.g. the installer package from https://github.com/apple/container/releases"
+                )
+            }
+        }
+
+        private func upgradeInstallerPackage() async throws {
             let targetRelease = try await fetchRelease()
             let target = targetRelease.tagName
             let installed = ReleaseVersion.version()
@@ -109,6 +124,29 @@ extension Application {
             } catch {
                 throw ContainerizationError(.internalError, message: "\(failureMessage): \(error)")
             }
+        }
+
+        private func upgradeHomebrew() throws {
+            guard release == nil else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message:
+                        "container was installed with Homebrew, which only upgrades to the latest formula version; re-run without --release, or install the release from https://github.com/apple/container/releases"
+                )
+            }
+            // `brew reinstall` covers --force: `brew upgrade` is a no-op when
+            // the installed formula is already the latest version.
+            let subcommand = force ? "reinstall" : "upgrade"
+            print("Detected Homebrew installation, running `brew \(subcommand) container`...")
+            let brew = Process()
+            brew.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+            brew.arguments = ["brew", subcommand, "container"]
+            try brew.run()
+            brew.waitUntilExit()
+            guard brew.terminationStatus == 0 else {
+                throw ContainerizationError(.internalError, message: "brew \(subcommand) failed")
+            }
+            try printInstalledVersion()
         }
 
         private func confirmUnsignedPackage() -> Bool {

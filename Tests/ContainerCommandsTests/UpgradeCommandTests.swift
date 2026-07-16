@@ -128,6 +128,41 @@ struct UpgradeCommandTests {
     }
 
     @Test
+    func classifiesHomebrewInstallation() {
+        // Apple Silicon prefix.
+        #expect(
+            InstallationMethod.classify(
+                resolvedExecutablePath: "/opt/homebrew/Cellar/container/0.6.0/bin/container",
+                hasInstallerReceipt: false
+            ) == .homebrew)
+        // Intel prefix, where /usr/local is shared with the installer
+        // package: the Cellar path must win even when a receipt exists.
+        #expect(
+            InstallationMethod.classify(
+                resolvedExecutablePath: "/usr/local/Cellar/container/0.6.0/bin/container",
+                hasInstallerReceipt: true
+            ) == .homebrew)
+    }
+
+    @Test
+    func classifiesInstallerPackageInstallation() {
+        #expect(
+            InstallationMethod.classify(
+                resolvedExecutablePath: "/usr/local/bin/container",
+                hasInstallerReceipt: true
+            ) == .installerPackage)
+    }
+
+    @Test
+    func classifiesUnknownInstallation() {
+        #expect(
+            InstallationMethod.classify(
+                resolvedExecutablePath: "/Users/dev/container/.build/release/container",
+                hasInstallerReceipt: false
+            ) == .unknown)
+    }
+
+    @Test
     func parsesDefaults() throws {
         let command = try Application.UpgradeCommand.parse([])
         #expect(command.release == nil)
