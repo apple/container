@@ -41,8 +41,7 @@ public struct ManagedContainer: ManagedResource {
     /// not the protocol's 64-hex default.
     public static func generateId() -> String { UUID().uuidString.lowercased() }
 
-    /// Container name rule (mixed case, dots, hyphens, underscores). Duplicated from
-    /// Utility.validEntityName
+    /// Container name rule
     public static func nameValid(_ name: String) -> Bool {
         let pattern = #"^[a-zA-Z0-9][a-zA-Z0-9_.-]+$"#
         return name.range(of: pattern, options: .regularExpression) != nil
