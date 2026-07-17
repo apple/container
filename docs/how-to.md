@@ -649,7 +649,7 @@ Use `container system property list` to show all properties that have set defaul
 cpus = 2
 memory = "2048mb"
 rosetta = true
-image = "ghcr.io/apple/container-builder-shim/builder:0.12.0"
+image = "ghcr.io/apple/container-builder-shim/builder:0.13.0"
 
 [container]
 cpus = 4
