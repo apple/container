@@ -723,7 +723,7 @@ Use `container system property list` to show all properties that have set defaul
 cpus = 2
 memory = "2048mb"
 rosetta = true
-image = "ghcr.io/apple/container-builder-shim/builder:0.12.0"
+image = "ghcr.io/apple/container-builder-shim/builder:0.13.0"
 
 [container]
 cpus = 4
@@ -733,8 +733,9 @@ memory = "1gb"
 domain = "test"
 
 [kernel]
-binaryPath = "opt/kata/share/kata-containers/vmlinux-6.18.5-177"
-url = "https://github.com/kata-containers/kata-containers/releases/download/3.26.0/kata-static-3.26.0-arm64.tar.zst"
+binaryPath = "opt/kata/share/kata-containers/vmlinux-6.18.15-186"
+url = "https://github.com/kata-containers/kata-containers/releases/download/3.28.0/kata-static-3.28.0-arm64.tar.zst"
+digest = "sha256:f63d54507d1f18635d94475077e4c2330de4d8e05cedf25f7c38f063b0e66a91"
 
 [network]
 
