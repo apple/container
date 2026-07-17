@@ -13,7 +13,12 @@
 # limitations under the License.
 
 # Version and build configuration variables
-BUILD_CONFIGURATION ?= debug
+# Defaults to a release build (for both binaries and tests). This is a plain
+# assignment, so it deliberately IGNORES any BUILD_CONFIGURATION set in the
+# environment (e.g. the value CI exports via $GITHUB_ENV). To force a debug
+# build, pass it on the command line: `make BUILD_CONFIGURATION=debug ...`
+# (command-line assignments still override this).
+BUILD_CONFIGURATION := release
 WARNINGS_AS_ERRORS ?= true
 SWIFT_CONFIGURATION := $(if $(filter-out false,$(WARNINGS_AS_ERRORS)),-Xswiftc -warnings-as-errors)
 export RELEASE_VERSION ?= $(shell git describe --tags --always)
