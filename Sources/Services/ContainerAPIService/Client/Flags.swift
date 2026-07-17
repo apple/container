@@ -344,7 +344,11 @@ public struct Flags {
         )
         public var virtualization: Bool = false
 
-        @Option(name: [.customLong("volume"), .short], help: "Bind mount a volume into the container")
+        @Option(
+            name: [.customLong("volume"), .short],
+            help:
+                "Bind mount a volume into the container. Formats: container-path (anonymous volume), name:container-path[:options], or host-path:container-path[:options], where options is a comma-separated list of mount options (e.g. ro)"
+        )
         public var volumes: [String] = []
 
         public func validate() throws {

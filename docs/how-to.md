@@ -51,6 +51,16 @@ total 4
 
 The argument to `--volume` in the example consists of the full pathname for the host folder and the full pathname for the mount point in the container, separated by a colon.
 
+You can append a third colon-separated component containing a comma-separated list of mount options. For example, use `ro` to make the mount read-only in the container:
+
+<pre>
+% container run --volume ${HOME}/Desktop/assets:/content/assets:ro docker.io/python:alpine touch /content/assets/test
+touch: /content/assets/test: Read-only file system
+</pre>
+
+> [!NOTE]
+> For host directory mounts, only the `ro` option is currently guaranteed to take effect. Other mount options, such as `nosuid`, are applied only when combined with `ro`; without `ro`, they are silently ignored.
+
 The `--mount` option uses a comma-separated `key=value` syntax to achieve the same result:
 
 <pre>
