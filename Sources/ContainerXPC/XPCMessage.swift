@@ -78,10 +78,10 @@ extension XPCMessage {
     public func error() throws {
         let data = data(key: Self.errorKey)
         if let data {
-            let item = try? JSONDecoder().decode(ContainerXPCError.self, from: data)
-            precondition(item != nil, "expected to receive a ContainerXPCXPCError")
-
-            throw ContainerizationError(item!.code, message: item!.message)
+            guard let item = try? JSONDecoder().decode(ContainerXPCError.self, from: data) else {
+                preconditionFailure("expected to receive a ContainerXPCError")
+            }
+            throw ContainerizationError(item.code, message: item.message)
         }
     }
 
@@ -91,10 +91,10 @@ extension XPCMessage {
             message += " (cause: \"\(cause)\")"
         }
         let serializableError = ContainerXPCError(code: error.code.description, message: message)
-        let data = try? JSONEncoder().encode(serializableError)
-        precondition(data != nil)
-
-        set(key: Self.errorKey, value: data!)
+        guard let data = try? JSONEncoder().encode(serializableError) else {
+            preconditionFailure("failed to encode ContainerXPCError")
+        }
+        set(key: Self.errorKey, value: data)
     }
 }
 
