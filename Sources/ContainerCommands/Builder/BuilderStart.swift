@@ -84,6 +84,7 @@ extension Application {
             cpus: Int64?,
             memory: String?,
             log: Logger,
+            ssh: Bool = false,
             dnsNameservers: [String] = [],
             dnsDomain: String? = nil,
             dnsSearchDomains: [String] = [],
@@ -150,6 +151,9 @@ extension Application {
                 let imageChanged = existingImage != builderImage
                 let cpuChanged = existingResources.cpus != resources.cpus
                 let memChanged = existingResources.memoryInBytes != resources.memoryInBytes
+                let sshForwarded = existingContainer.configuration.ssh
+                let sshWanted = ssh && ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] != nil
+                let sshChanged = sshForwarded != sshWanted
                 let dnsChanged = {
                     if !dnsNameservers.isEmpty {
                         return existingDNS?.nameservers != dnsNameservers
@@ -168,7 +172,7 @@ extension Application {
 
                 switch existingContainer.status {
                 case .running:
-                    guard imageChanged || cpuChanged || memChanged || envChanged || dnsChanged else {
+                    guard imageChanged || cpuChanged || memChanged || envChanged || dnsChanged || sshChanged else {
                         // If image, mem, cpu, env, and DNS are the same, continue using the existing builder
                         return
                     }
@@ -178,7 +182,7 @@ extension Application {
                 case .stopped:
                     // If the builder is stopped and matches our requirements, start it
                     // Otherwise, delete it and create a new one
-                    guard imageChanged || cpuChanged || memChanged || envChanged || dnsChanged else {
+                    guard imageChanged || cpuChanged || memChanged || envChanged || dnsChanged || sshChanged else {
                         try await startBuildKit(client: client, id: existingContainer.id, progressUpdate, nil)
                         return
                     }
@@ -242,6 +246,7 @@ extension Application {
 
             var config = ContainerConfiguration(id: Builder.builderContainerId, image: imageDesc, process: processConfig)
             config.resources = resources
+            config.ssh = ssh && ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] != nil
             config.labels = [
                 ResourceLabelKeys.plugin: "builder",
                 ResourceLabelKeys.role: ResourceRoleValues.builder,
