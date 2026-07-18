@@ -24,13 +24,8 @@ public struct OSLogHandler: LogHandler {
     private let logger: os.Logger
 
     public var logLevel: Logger.Level = .info
-    private var formattedMetadata: String?
-
-    public var metadata = Logger.Metadata() {
-        didSet {
-            self.formattedMetadata = self.formatMetadata(self.metadata)
-        }
-    }
+    public var metadataProvider: Logger.MetadataProvider?
+    public var metadata = Logger.Metadata()
 
     public subscript(metadataKey metadataKey: String) -> Logger.Metadata.Value? {
         get {
@@ -56,14 +51,14 @@ extension OSLogHandler {
         function: String,
         line: UInt
     ) {
-        var formattedMetadata = self.formattedMetadata
-        if let metadataOverride = metadata, !metadataOverride.isEmpty {
-            formattedMetadata = self.formatMetadata(
-                self.metadata.merging(metadataOverride) {
-                    $1
-                }
-            )
+        var effectiveMetadata = self.metadata
+        if let provided = self.metadataProvider?.get(), !provided.isEmpty {
+            effectiveMetadata.merge(provided) { _, new in new }
         }
+        if let metadataOverride = metadata, !metadataOverride.isEmpty {
+            effectiveMetadata.merge(metadataOverride) { _, new in new }
+        }
+        let formattedMetadata = self.formatMetadata(effectiveMetadata)
 
         var finalMessage = message.description
         if let formattedMetadata {
