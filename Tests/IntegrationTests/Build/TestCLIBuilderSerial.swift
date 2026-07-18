@@ -250,6 +250,81 @@ struct TestCLIBuilderSerial {
         }
     }
 
+    @Test func testBuildWithSSHDefaultForwarding() async throws {
+        try await ContainerFixture.with { f in
+            try await f.withBuilder { f in
+                let socketDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+                try FileManager.default.createDirectory(at: socketDir, withIntermediateDirectories: true)
+                defer {
+                    try? FileManager.default.removeItem(at: socketDir)
+                }
+
+                let socketPath = socketDir.appendingPathComponent("ssh-auth.sock").path
+
+                let serverFd = socket(AF_UNIX, SOCK_STREAM, 0)
+                precondition(serverFd >= 0, "socket() failed")
+                defer {
+                    Darwin.close(serverFd)
+                }
+
+                var addr = sockaddr_un()
+                addr.sun_family = sa_family_t(AF_UNIX)
+                withUnsafeMutableBytes(of: &addr.sun_path) { bytes in
+                    socketPath.withCString { cStr in
+                        bytes.copyMemory(from: UnsafeRawBufferPointer(start: cStr, count: socketPath.utf8.count + 1))
+                    }
+                }
+
+                let bindResult = withUnsafePointer(to: addr) { ptr in
+                    ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
+                        bind(serverFd, sockaddrPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
+                    }
+                }
+                precondition(bindResult == 0, "bind() failed: \(errno)")
+                precondition(listen(serverFd, 5) == 0, "listen() failed")
+
+                let acceptThread = Thread {
+                    while true {
+                        let clientFd = accept(serverFd, nil, nil)
+                        if clientFd < 0 { break }
+                        Darwin.close(clientFd)
+                    }
+                }
+                acceptThread.start()
+
+                let previousSSHAuthSock = getenv("SSH_AUTH_SOCK").map { String(cString: $0) }
+                setenv("SSH_AUTH_SOCK", socketPath, 1)
+                defer {
+                    if let previousSSHAuthSock {
+                        setenv("SSH_AUTH_SOCK", previousSSHAuthSock, 1)
+                    } else {
+                        unsetenv("SSH_AUTH_SOCK")
+                    }
+                }
+
+                let dir = try f.createTempDir()
+                try f.createContext(
+                    dir: dir,
+                    dockerfile: """
+                        FROM ghcr.io/linuxcontainers/alpine:3.20
+                        RUN --mount=type=ssh \\
+                            test -n "$SSH_AUTH_SOCK" && \\
+                            test -S "$SSH_AUTH_SOCK"
+                        """)
+
+                let image = "registry.local/ssh-default-forwarding:\(UUID().uuidString)"
+                try f.run([
+                    "build",
+                    "--ssh", "default",
+                    "-f", dir.appending("Dockerfile").string,
+                    "-t", image,
+                    dir.appending("context").string,
+                ]).check()
+                try f.assertImageBuilt(image)
+            }
+        }
+    }
+
     @Test func testBuildDockerfileKeywords() async throws {
         try await ContainerFixture.with { f in
             try await f.withBuilder { f in

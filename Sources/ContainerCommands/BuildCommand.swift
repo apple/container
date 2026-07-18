@@ -125,6 +125,12 @@ extension Application {
 
         var secrets: [String: SecretType] = [:]
 
+        @Option(
+            name: .long,
+            help: ArgumentHelp("Forward SSH agent authentication to the build (format: default)", valueName: "default")
+        )
+        var ssh: String = ""
+
         @Option(name: [.short, .customLong("tag")], help: ArgumentHelp("Name for the built image", valueName: "name"))
         var targetImageNames: [String] = {
             [UUID().uuidString.lowercased()]
@@ -165,12 +171,26 @@ extension Application {
                 progress.set(description: "Dialing builder")
 
                 let dnsNameservers = self.dns.nameservers
-                let builder: Builder? = try await withThrowingTaskGroup(of: Builder.self) { [vsockPort, cpus, memory, dnsNameservers] group in
+
+                // Ensure the builder is started (or restarted) with the correct SSH configuration
+                // before attempting to dial. This handles the case where the builder is already
+                // running but was not started with SSH forwarding enabled.
+                try await BuilderStart.start(
+                    cpus: cpus,
+                    memory: memory,
+                    log: log,
+                    ssh: ssh == "default",
+                    dnsNameservers: dnsNameservers,
+                    progressUpdate: progress.handler,
+                    containerSystemConfig: containerSystemConfig,
+                )
+
+                let builder: Builder? = try await withThrowingTaskGroup(of: Builder.self) { [vsockPort, cpus, memory, dnsNameservers, ssh] group in
                     defer {
                         group.cancelAll()
                     }
 
-                    group.addTask { [vsockPort, cpus, memory, log, dnsNameservers] in
+                    group.addTask { [vsockPort, cpus, memory, log, dnsNameservers, ssh] in
                         let client = ContainerClient()
                         while true {
                             do {
@@ -192,6 +212,7 @@ extension Application {
                                     cpus: cpus,
                                     memory: memory,
                                     log: log,
+                                    ssh: ssh == "default",
                                     dnsNameservers: dnsNameservers,
                                     progressUpdate: progress.handler,
                                     containerSystemConfig: containerSystemConfig,
@@ -349,13 +370,15 @@ extension Application {
                     }()
                     group.addTask {
                         [
-                            terminal, buildArg, secretsData, contextDir, ignoreFileData, label, noCache, target, quiet, cacheIn, cacheOut, pull, exports, imageNames, tempURL, log,
+                            terminal, buildArg, secretsData, ssh, contextDir, ignoreFileData, label, noCache, target, quiet, cacheIn, cacheOut, pull, exports, imageNames, tempURL,
+                            log
                         ] in
                         let config = Builder.BuildConfig(
                             buildID: buildID,
                             contentStore: RemoteContentStoreClient(),
                             buildArgs: buildArg,
                             secrets: secretsData,
+                            ssh: ssh,
                             contextDir: contextDir,
                             dockerfile: buildFileData,
                             dockerignore: ignoreFileData,
@@ -509,6 +532,17 @@ extension Application {
                 } else {
                     throw ValidationError("secret bad value \(parts[1])")
                 }
+            }
+
+            switch ssh {
+            case "":
+                break
+            case "default" where ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] != nil:
+                break
+            case "default":
+                throw ValidationError("--ssh default requires SSH_AUTH_SOCK to be set")
+            default:
+                throw ValidationError("only --ssh default is currently supported")
             }
         }
     }
