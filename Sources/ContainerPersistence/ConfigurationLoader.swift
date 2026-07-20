@@ -209,8 +209,9 @@ public enum ConfigurationLoader {
         let destDir = destPath.removingLastComponent()
         try fm.createDirectory(atPath: destDir.string, withIntermediateDirectories: true)
 
+        let resolvedSourcePath = try sourcePath.resolvingSymlinks()
         try fm.copyItem(
-            at: URL(filePath: sourcePath.string),
+            at: URL(filePath: resolvedSourcePath.string),
             to: URL(filePath: destPath.string)
         )
         try fm.setAttributes([.posixPermissions: READ_ONLY], ofItemAtPath: destPath.string)
