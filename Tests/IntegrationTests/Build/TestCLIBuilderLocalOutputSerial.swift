@@ -19,7 +19,8 @@ import Testing
 
 @Suite(.serialized)
 struct TestCLIBuilderLocalOutputSerial {
-    @Test func testBuildLocalOutputHappyPath() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildLocalOutputHappyPath(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             try await f.withBuilder { f in
                 // Comprehensive multi-stage build with context and build args.
@@ -45,6 +46,7 @@ struct TestCLIBuilderLocalOutputSerial {
                 let imageName = "local-comprehensive-test:\(UUID().uuidString)"
                 let response = try f.buildWithPathsAndLocalOutput(
                     tag: imageName, contextDir: dir, outputDir: outputDir,
+                    transferMode: transferMode,
                     buildArgs: ["MESSAGE=Hello from build args"])
                 #expect(response.contains(outputDir.string), "output should reference the export path")
                 #expect(FileManager.default.fileExists(atPath: outputDir.string))
@@ -59,7 +61,8 @@ struct TestCLIBuilderLocalOutputSerial {
                     context: [.file("testfile.txt", content: .data("Hello from basic build\n".data(using: .utf8)!))])
                 let basicOutputDir = basicDir.appending("basic-local-output")
                 let basicResponse = try f.buildWithPathsAndLocalOutput(
-                    tag: "local-basic-test:\(UUID().uuidString)", contextDir: basicDir, outputDir: basicOutputDir)
+                    tag: "local-basic-test:\(UUID().uuidString)", contextDir: basicDir, outputDir: basicOutputDir,
+                    transferMode: transferMode)
                 #expect(basicResponse.contains(basicOutputDir.string))
                 #expect(FileManager.default.fileExists(atPath: basicOutputDir.string))
 
@@ -71,14 +74,16 @@ struct TestCLIBuilderLocalOutputSerial {
                     context: [.file("testfile.txt", content: .data("Test content\n".data(using: .utf8)!))])
                 let ctxOutputDir = ctxDir.appending("context-local-output")
                 let ctxResponse = try f.buildWithPathsAndLocalOutput(
-                    tag: "local-context-test:\(UUID().uuidString)", contextDir: ctxDir, outputDir: ctxOutputDir)
+                    tag: "local-context-test:\(UUID().uuidString)", contextDir: ctxDir, outputDir: ctxOutputDir,
+                    transferMode: transferMode)
                 #expect(ctxResponse.contains(ctxOutputDir.string))
                 #expect(FileManager.default.fileExists(atPath: ctxOutputDir.string))
             }
         }
     }
 
-    @Test func testBuildLocalOutputEdgeCases() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildLocalOutputEdgeCases(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             try await f.withBuilder { f in
                 // Different paths for Dockerfile context and build context.
@@ -98,7 +103,8 @@ struct TestCLIBuilderLocalOutputSerial {
                     tag: "local-diffpaths-test:\(UUID().uuidString)",
                     contextDir: buildContextDir,
                     dockerfilePath: dockerfileDir.appending("Dockerfile"),
-                    outputDir: outputDir)
+                    outputDir: outputDir,
+                    transferMode: transferMode)
                 #expect(response.contains(outputDir.string))
                 #expect(FileManager.default.fileExists(atPath: outputDir.string))
 
@@ -115,7 +121,8 @@ struct TestCLIBuilderLocalOutputSerial {
                     .write(to: URL(filePath: existingOutputDir.appending("existing.txt").string), options: .atomic)
                 let existingResponse = try f.buildWithPathsAndLocalOutput(
                     tag: "local-existing-test:\(UUID().uuidString)",
-                    contextDir: existingDir, outputDir: existingOutputDir)
+                    contextDir: existingDir, outputDir: existingOutputDir,
+                    transferMode: transferMode)
                 #expect(existingResponse.contains(existingOutputDir.string))
                 let contents = try FileManager.default.contentsOfDirectory(atPath: existingOutputDir.string)
                 #expect(!contents.isEmpty)
@@ -123,7 +130,8 @@ struct TestCLIBuilderLocalOutputSerial {
         }
     }
 
-    @Test func testBuildLocalOutputFailure() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildLocalOutputFailure(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             try await f.withBuilder { f in
                 let dir = try f.createTempDir()
@@ -137,6 +145,7 @@ struct TestCLIBuilderLocalOutputSerial {
                     "build",
                     "-f", dir.appending("Dockerfile").string,
                     "-t", "local-invalid-test:\(UUID().uuidString)",
+                    "--transfer-mode", transferMode,
                     "--output", "type=local,dest=/nonexistent/invalid/path",
                     dir.appending("context").string,
                 ])

@@ -263,12 +263,18 @@ public struct Builder: Sendable {
         }
     }
 
+    public enum TransferMode: String, Sendable {
+        case tar
+        case json
+    }
+
     public struct BuildConfig: Sendable {
         public let buildID: String
         public let contentStore: ContentStore
         public let buildArgs: [String]
         public let secrets: [String: Data]
         public let contextDir: String
+        public let transferMode: TransferMode
         public let dockerfile: Data
         public let dockerignore: Data?
         public let labels: [String]
@@ -290,6 +296,7 @@ public struct Builder: Sendable {
             buildArgs: [String],
             secrets: [String: Data],
             contextDir: String,
+            transferMode: TransferMode,
             dockerfile: Data,
             dockerignore: Data?,
             labels: [String],
@@ -310,6 +317,7 @@ public struct Builder: Sendable {
             self.buildArgs = buildArgs
             self.secrets = secrets
             self.contextDir = contextDir
+            self.transferMode = transferMode
             self.dockerfile = dockerfile
             self.dockerignore = dockerignore
             self.labels = labels
@@ -334,6 +342,7 @@ public struct Builder: Sendable {
         metadata.addString(config.dockerfile.base64EncodedString(), forKey: "dockerfile")
         metadata.addString(config.terminal != nil ? "tty" : "plain", forKey: "progress")
         metadata.addString(config.target, forKey: "target")
+        metadata.addString(config.transferMode.rawValue, forKey: "transfer-mode")
 
         if let dockerignore = config.dockerignore {
             metadata.addString(dockerignore.base64EncodedString(), forKey: "dockerignore")
