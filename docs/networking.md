@@ -56,6 +56,9 @@ With both steps done, confirm it end-to-end from your Mac:
 % curl http://my-web-server.test:8000
 ```
 
+See [Host integration](./host-integration.md) for the reverse direction — reaching a
+service running on your Mac from inside a container.
+
 ## Container-to-container networking
 
 From one container, use another container's DNS name to reach a service it exposes.
@@ -126,40 +129,6 @@ Test access using `curl`:
 ...
 <br><address>Node.js v25.2.1/ <a href="https://github.com/http-party/http-server">http-server</a> server running @ [::1]:8080</address>
 </body></html>
-```
-
-## Access a host service from a container
-
-> [!IMPORTANT]
-> Due to macOS security constraints around packet filter rules, this feature has limited functionality:
-> - Creating a localhost domain disables Private Relay.
-> - The local domain packet filter rule is removed on a restart.
-
-Create a DNS domain with `--localhost <ipv4-address>` to make a domain used by a container to access a host service. Any IPv4 address can be used as `<ipv4-address>`, which will be assigned to the domain name in container.
-
-Choose an IP address that is least likely to conflict with any networks or reserved IP addresses in your environment. Reasonably safe address ranges include:
-
-- The documentation ranges 192.0.2.0/24, 198.51.100.0/24, and 203.0.113.0/24.
-- The 172.16.0.0/12 private range.
-
-To connect a host HTTP server from a container, run:
-
-```bash
-mkdir -p /tmp/test; cd /tmp/test; echo "hello" > index.html
-python3 -m http.server 8000 --bind 127.0.0.1
-```
-
-Create a domain for host connection:
-
-```bash
-sudo container system dns create host.container.internal --localhost 203.0.113.113
-```
-
-Test access to the host HTTP server from a container:
-
-```console
-% container run -it --rm alpine/curl curl http://host.container.internal:8000
-hello
 ```
 
 ## Set a custom MAC address for your container
@@ -237,7 +206,7 @@ container stop my-web-server
 container network delete foo
 ```
 
-Networks support both IPv4 and IPv6. When creating a network without explicit subnet options, the system uses default values if configured via system properties (see below), or automatically allocates subnets. The system validates that custom subnets don't overlap with existing networks.
+Networks support both IPv4 and IPv6. When creating a network without explicit subnet options, the system uses default values if configured in your runtime configuration file (see [Configure default network subnets](#configure-default-network-subnets)), or automatically allocates subnets. The system validates that custom subnets don't overlap with existing networks.
 
 ## Configure default network subnets
 

@@ -619,7 +619,7 @@ container image save [--arch <arch>] [--os <os>] --output <output> [--platform <
 
 ### `container image load`
 
-Loads images from a tar archive created by `image save`. The tar file must be specified via `--input`.
+Loads images from a tar archive created by `image save`. Specify the tar file with `--input`.
 
 **Usage**
 
@@ -1000,7 +1000,7 @@ The registry commands manage authentication and defaults for container registrie
 
 ### `container registry login`
 
-Authenticates with a registry. Credentials can be provided interactively or via flags. The login is stored for reuse by subsequent commands.
+Authenticates with a registry. You can provide credentials interactively or with flags. The login is stored for reuse by subsequent commands.
 
 **Usage**
 
