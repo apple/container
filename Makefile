@@ -46,6 +46,15 @@ ifneq ($(strip $(LOG_ROOT)),)
 	SYSTEM_START_OPTS += --log-root "$(strip $(LOG_ROOT))"
 endif
 
+# swift test event-stream JSON output for the concurrent/global integration
+# passes, only when LOG_ROOT is set.
+CONCURRENT_EVENT_STREAM_OPTS :=
+GLOBAL_EVENT_STREAM_OPTS :=
+ifneq ($(strip $(LOG_ROOT)),)
+	CONCURRENT_EVENT_STREAM_OPTS += --event-stream-output-path "$(strip $(LOG_ROOT))/integration-concurrent.json" --event-stream-version 6.3
+	GLOBAL_EVENT_STREAM_OPTS += --event-stream-output-path "$(strip $(LOG_ROOT))/integration-global.json" --event-stream-version 6.3
+endif
+
 MACOS_VERSION := $(shell sw_vers -productVersion)
 MACOS_MAJOR := $(shell echo $(MACOS_VERSION) | cut -d. -f1)
 
@@ -285,9 +294,9 @@ define RUN_INTEGRATION
 		echo "==> Warmup pass" && \
 		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(WARMUP_FILTER)" && \
 		echo "==> Concurrent pass (width=$(PARALLEL_WIDTH))" && \
-		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --experimental-maximum-parallelization-width $(PARALLEL_WIDTH) --filter "$(CONCURRENT_FILTER)" && \
+		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) $(CONCURRENT_EVENT_STREAM_OPTS) --experimental-maximum-parallelization-width $(PARALLEL_WIDTH) --filter "$(CONCURRENT_FILTER)" && \
 		echo "==> Global pass (serial)" && \
-		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --experimental-maximum-parallelization-width 1 --filter "$(SERIAL_FILTER)" ; \
+		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) $(GLOBAL_EVENT_STREAM_OPTS) --experimental-maximum-parallelization-width 1 --filter "$(SERIAL_FILTER)" ; \
 		exit_code=$$? ; \
 		$(INTEGRATION_POST_TEST) \
 		echo Ensuring apiserver stopped after the CLI integration tests ; \
