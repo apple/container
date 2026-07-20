@@ -1348,6 +1348,23 @@ struct ParserTest {
         #expect(result["key99"] == "value99")
     }
 
+    @Test("labels preserve '=' characters in the value")
+    func testLabelsValueWithEquals() throws {
+        // Regression: a label whose value contained '=' (a common shape,
+        // e.g. router rules or nested key=value config) was rejected as an
+        // "invalid label format" because the entry was split on every '='.
+        let result = try Parser.labels([
+            "plain=value",
+            "config=key=value",
+            "expr=a=b=c",
+            "flag",
+        ])
+        #expect(result["plain"] == "value")
+        #expect(result["config"] == "key=value")
+        #expect(result["expr"] == "a=b=c")
+        #expect(result["flag"] == "")
+    }
+
     @Test("resolve with large input preserves all entries")
     func testParseKeyValuePairsLargeInput() {
         let pairs = (0..<100).map { "key\($0)=value\($0)" }
