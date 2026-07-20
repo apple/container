@@ -210,10 +210,11 @@ extension ContainerFixture {
     public func build(
         tag: String,
         contextDir: FilePath = FilePath("."),
+        transferMode: String = "tar",
         buildArgs: [String] = [],
         otherArgs: [String] = []
     ) throws -> String {
-        try buildWithPaths(tags: [tag], contextDir: contextDir, buildArgs: buildArgs, otherArgs: otherArgs)
+        try buildWithPaths(tags: [tag], contextDir: contextDir, transferMode: transferMode, buildArgs: buildArgs, otherArgs: otherArgs)
     }
 
     /// Builds using a context directory and an optional explicit Dockerfile path.
@@ -229,12 +230,13 @@ extension ContainerFixture {
         tags: [String] = [],
         contextDir: FilePath = FilePath("."),
         dockerfilePath: FilePath? = nil,
+        transferMode: String = "tar",
         buildArgs: [String] = [],
         otherArgs: [String] = []
     ) throws -> String {
         let contextPath = contextDir.appending("context")
         let resolvedDockerfile = dockerfilePath ?? contextDir.appending("Dockerfile")
-        var args = ["build", "-f", resolvedDockerfile.string]
+        var args = ["build", "-f", resolvedDockerfile.string, "--transfer-mode", transferMode]
         for tag in tags { args += ["-t", tag] }
         for arg in buildArgs { args += ["--build-arg", arg] }
         args.append(contextPath.string)
@@ -253,11 +255,12 @@ extension ContainerFixture {
         tags: [String],
         contextDir: FilePath,
         dockerfileContents: String,
+        transferMode: String = "tar",
         buildArgs: [String] = [],
         otherArgs: [String] = []
     ) throws -> String {
         let contextPath = contextDir.appending("context")
-        var args = ["build", "-f", "-"]
+        var args = ["build", "-f", "-", "--transfer-mode", transferMode]
         for tag in tags { args += ["-t", tag] }
         for arg in buildArgs { args += ["--build-arg", arg] }
         args.append(contextPath.string)
@@ -277,6 +280,7 @@ extension ContainerFixture {
         contextDir: FilePath = FilePath("."),
         dockerfilePath: FilePath? = nil,
         outputDir: FilePath,
+        transferMode: String = "tar",
         buildArgs: [String] = []
     ) throws -> String {
         let contextPath = contextDir.appending("context")
@@ -285,6 +289,7 @@ extension ContainerFixture {
             "build",
             "-f", resolvedDockerfile.string,
             "-t", tag,
+            "--transfer-mode", transferMode,
             "--output", "type=local,dest=\(outputDir.string)",
         ]
         for arg in buildArgs { args += ["--build-arg", arg] }
