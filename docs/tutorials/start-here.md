@@ -233,6 +233,9 @@ my-web-server   0.23%   12.45 MiB / 1.00 GiB  856.00 KiB / 1.2 KiB 2.10 MiB / 51
 > [!NOTE]
 > Without the `--no-stream` flag, `container stats` continuously updates the display in real-time, similar to the `top` command. Press Ctrl+C to exit the live view.
 
+See [Resource usage](../resource-usage.md) for what each metric means, setting
+CPU/memory limits, and reclaiming disk space.
+
 ### Run other commands in the container
 
 You can run other commands in `my-web-server` by using the `container exec` command. To list the files under the content directory, run an `ls` command:
