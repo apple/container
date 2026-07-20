@@ -80,7 +80,9 @@ extension Application {
             }
             progress.start()
 
-            try Utility.validEntityName(id)
+            guard ManagedContainer.nameValid(id) else {
+                throw ContainerizationError(.invalidArgument, message: "container ID \(id) is not a valid container ID")
+            }
 
             // Check if container with id already exists.
             let client = ContainerClient()
