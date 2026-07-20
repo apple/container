@@ -19,7 +19,8 @@ import Testing
 
 @Suite(.serialized)
 struct TestCLIBuilderTarExportSerial {
-    @Test func testBuildExportTar() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildExportTar(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             try await f.withBuilder { f in
                 let dir = try f.createTempDir()
@@ -32,6 +33,7 @@ struct TestCLIBuilderTarExportSerial {
                 let result = try f.run([
                     "build",
                     "-f", dir.appending("Dockerfile").string,
+                    "--transfer-mode", transferMode,
                     "-o", "type=tar,dest=\(exportPath.string)",
                     dir.appending("context").string,
                 ])
@@ -44,7 +46,8 @@ struct TestCLIBuilderTarExportSerial {
         }
     }
 
-    @Test func testBuildExportTarToDirectory() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildExportTarToDirectory(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             try await f.withBuilder { f in
                 let dir = try f.createTempDir()
@@ -59,6 +62,7 @@ struct TestCLIBuilderTarExportSerial {
                 let result = try f.run([
                     "build",
                     "-f", dir.appending("Dockerfile").string,
+                    "--transfer-mode", transferMode,
                     "-o", "type=tar,dest=\(exportDir.string)",
                     dir.appending("context").string,
                 ])
@@ -72,7 +76,8 @@ struct TestCLIBuilderTarExportSerial {
         }
     }
 
-    @Test func testBuildExportTarMultipleRuns() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildExportTarMultipleRuns(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             try await f.withBuilder { f in
                 let dir = try f.createTempDir()
@@ -88,6 +93,7 @@ struct TestCLIBuilderTarExportSerial {
                 let buildArgs = [
                     "build",
                     "-f", dir.appending("Dockerfile").string,
+                    "--transfer-mode", transferMode,
                     "-o", "type=tar,dest=\(exportDir.string)",
                     dir.appending("context").string,
                 ]
@@ -105,7 +111,8 @@ struct TestCLIBuilderTarExportSerial {
         }
     }
 
-    @Test func testBuildExportTarInvalidDest() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildExportTarInvalidDest(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             try await f.withBuilder { f in
                 let dir = try f.createTempDir()
@@ -114,6 +121,7 @@ struct TestCLIBuilderTarExportSerial {
                 let result = try f.run([
                     "build",
                     "-f", dir.appending("Dockerfile").string,
+                    "--transfer-mode", transferMode,
                     "-o", "type=tar",  // missing dest
                     dir.appending("context").string,
                 ])
