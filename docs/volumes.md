@@ -69,11 +69,6 @@ Remove every volume that isn't attached to a container:
 container volume prune
 ```
 
-> [!NOTE]
-> Unlike Docker, anonymous volumes created implicitly by a container do not
-> auto-cleanup when the container is removed with `--rm`. Delete them explicitly with
-> `container volume delete`.
-
 Mount a named volume the same way you bind-mount a host directory, using the volume
 name as the source:
 
@@ -86,6 +81,32 @@ Or with `--mount`:
 ```bash
 container run -it --rm --mount type=volume,source=foo,target=/mnt/foo alpine sh
 ```
+
+## Anonymous volumes
+
+Using `-v /path` or `--mount type=volume,target=/path` without specifying a source
+auto-creates a named volume for you — an anonymous volume. It's named with a bare UUID
+(no prefix) and tagged with the `com.apple.container.resource.anonymous` label:
+
+```bash
+# Creates an anonymous volume
+container run -v /data alpine
+```
+
+Find it by its label (the bare UUID name has no "anon" marker to `grep` for):
+
+```bash
+VOL=$(container volume list --format json | jq -r '.[] | select(.configuration.labels["com.apple.container.resource.anonymous"] != null) | .id')
+container run -v $VOL:/data alpine
+```
+
+> [!NOTE]
+> Unlike Docker, anonymous volumes do **not** auto-cleanup when the container is removed
+> with `--rm`. Delete them explicitly:
+>
+> ```bash
+> container volume rm $VOL
+> ```
 
 ## Named volume mount options
 
