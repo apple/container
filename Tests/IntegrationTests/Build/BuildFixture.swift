@@ -207,7 +207,7 @@ extension ContainerFixture {
             try FileManager.default.createDirectory(
                 atPath: parentDir, withIntermediateDirectories: true, attributes: nil)
             let targetPath = appendingRelative(contextDir, target)
-            let relativeDest = relativePathFrom(targetPath, from: fullPath)
+            let relativeDest = relativePathFrom(targetPath, from: FilePath(parentDir))
             try FileManager.default.createSymbolicLink(
                 atPath: fullPath.string, withDestinationPath: relativeDest)
             lchown(fullPath.string, uid, gid)
