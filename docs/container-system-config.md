@@ -50,6 +50,10 @@ Defaults applied when `container run` / `container create` is invoked without `-
 |----------|-----------|---------|----------------------------------------------------------------------------|
 | `domain` | `String?` | unset   | Local DNS domain appended to container hostnames (e.g. `"test"` makes `my-web-server` resolvable as `my-web-server.test`). When unset, no domain is appended. |
 
+Setting `domain` here tells the `container` service what domain to register container
+hostnames under. See [Networking: Set up DNS-based container
+names](./networking.md#set-up-dns-based-container-names) for the full walkthrough.
+
 ## `[kernel]`
 
 Guest kernel used when launching container VMs. Defaults change per release as kernels are bumped — check the [source](../Sources/ContainerPersistence/ContainerSystemConfig.swift) for current values.
