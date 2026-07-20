@@ -906,22 +906,10 @@ container volume create --opt journal=journal --opt size=10g myvolume
 
 **Anonymous Volumes**
 
-Anonymous volumes are auto-created when using `-v /path` or `--mount type=volume,dst=/path` without specifying a source. They use UUID-based naming (`anon-{36-char-uuid}`):
-
-```bash
-# Creates anonymous volume
-container run -v /data alpine
-
-# Reuse anonymous volume by ID
-VOL=$(container volume list -q | grep anon)
-container run -v $VOL:/data alpine
-
-# Manual cleanup
-container volume rm $VOL
-```
-
-> [!NOTE]
-> Unlike Docker, anonymous volumes do NOT auto-cleanup with `--rm`. Manual deletion is required.
+Using `-v /path` or `--mount type=volume,dst=/path` without a source auto-creates a
+named volume for you, tagged with the `com.apple.container.resource.anonymous` label.
+See [Mounts and volumes](./volumes.md#anonymous-volumes) for how to find and clean
+these up.
 
 ### `container volume delete (rm)`
 
