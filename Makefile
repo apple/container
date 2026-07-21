@@ -308,6 +308,7 @@ endef
 
 .PHONY: integration
 integration: init-block
+	@echo "HOSTNAME: $$(hostname)"
 	$(RUN_INTEGRATION)
 
 .PHONY: coverage-integration
@@ -320,6 +321,7 @@ coverage-integration: INTEGRATION_POST_TEST = cp $(COV_DATA_DIR)/*.profraw $(COV
 # process/module profile in its own file so they don't collide.
 coverage-integration: INTEGRATION_PROFILE_ENV = LLVM_PROFILE_FILE=$(COVERAGE_OUTPUT_DIR)/integration/%p-%m%c.profraw
 coverage-integration: coverage-all
+	@echo "HOSTNAME: $$(hostname)"
 	@mkdir -p $(COVERAGE_OUTPUT_DIR)/integration
 	@rm -f $(COVERAGE_OUTPUT_DIR)/integration/*.profraw
 	$(RUN_INTEGRATION)
