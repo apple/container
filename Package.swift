@@ -85,6 +85,9 @@ let package = Package(
             dependencies: [
                 .product(name: "AsyncHTTPClient", package: "async-http-client"),
                 .product(name: "Logging", package: "swift-log"),
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOHTTP1", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "SystemPackage", package: "swift-system"),
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationArchive", package: "containerization"),
@@ -95,6 +98,7 @@ let package = Package(
                 "ContainerAPIClient",
                 "ContainerLog",
                 "ContainerPersistence",
+                "ContainerPlugin",
                 "ContainerResource",
                 "MachineAPIClient",
                 "Yams",

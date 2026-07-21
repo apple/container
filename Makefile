@@ -288,6 +288,7 @@ define RUN_INTEGRATION
 	@echo Running the integration tests...
 	@$(INTEGRATION_PROFILE_ENV) bin/container --debug system start --timeout 60 --enable-kernel-install $(SYSTEM_START_OPTS) && \
 	{ \
+		if [ -n "$(APP_ROOT)" ]; then CONTAINER_APP_ROOT=$(APP_ROOT) && export CONTAINER_APP_ROOT ; fi ; \
 		CLITEST_LOG_ROOT=$(LOG_ROOT) && export CLITEST_LOG_ROOT ; \
 		CLITEST_SCRATCH_ROOT=$(SCRATCH_ROOT) && export CLITEST_SCRATCH_ROOT ; \
 		CONTAINER_CLI_PATH=$(ROOT_DIR)/bin/container && export CONTAINER_CLI_PATH ; \
