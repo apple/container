@@ -43,7 +43,7 @@ public actor SnapshotStore {
             if image.reference == initImage {
                 minBlockSize = 512.mib()
             }
-            return EXT4Unpacker(blockSizeInBytes: minBlockSize)
+            return EXT4Unpacker(capacityInBytes: minBlockSize)
         }
     }
 
