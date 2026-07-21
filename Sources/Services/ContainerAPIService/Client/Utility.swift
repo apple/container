@@ -56,14 +56,6 @@ public struct Utility {
         return String(hex.prefix(12))
     }
 
-    public static func validEntityName(_ name: String) throws {
-        let pattern = #"^[a-zA-Z0-9][a-zA-Z0-9_.-]+$"#
-        let regex = try Regex(pattern)
-        if try regex.firstMatch(in: name) == nil {
-            throw ContainerizationError(.invalidArgument, message: "invalid entity name \(name)")
-        }
-    }
-
     public static func validMACAddress(_ macAddress: String) throws {
         let pattern = #"^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$"#
         let regex = try Regex(pattern)
