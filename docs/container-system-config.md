@@ -30,7 +30,7 @@ Resources and image used for the builder VM that runs `container build`.
 
 | Key       | Type        | Default                                              | Description                                                                 |
 |-----------|-------------|------------------------------------------------------|-----------------------------------------------------------------------------|
-| `rosetta` | `Bool`      | `true`                                               | Whether the builder VM uses Rosetta translation for non-native architectures. |
+| `rosetta` | `Bool`      | `true`                                               | Whether the builder VM uses Rosetta translation for non-native architectures. Rosetta is automatically disabled if not installed on the host; QEMU is used as a fallback. |
 | `cpus`    | `Int`       | `2`                                                  | CPU count for the builder VM.                                              |
 | `memory`  | [MemorySize](#memorysize-format)  | `"2048mb"`                                           | RAM allocation for the builder VM. |
 | `image`   | `String`    | `ghcr.io/apple/container-builder-shim/builder:<tag>` | Reference for the builder image. The tag segment is taken from the project's bundled `container-builder-shim` version. |

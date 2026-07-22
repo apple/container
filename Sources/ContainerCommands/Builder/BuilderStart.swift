@@ -193,7 +193,7 @@ extension Application {
                 }
             }
 
-            let useRosetta = containerSystemConfig.build.rosetta
+            let useRosetta = containerSystemConfig.build.rosetta && FileManager.default.fileExists(atPath: "/Library/Apple/usr/libexec/oah/libRosettaRuntime")
             let shimArguments = [
                 "--debug",
                 "--vsock",
