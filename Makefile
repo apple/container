@@ -191,6 +191,17 @@ install-kernel:
 	@echo Starting system to install kernel
 	@bin/container --debug system start --timeout 60 --enable-kernel-install $(SYSTEM_START_OPTS)
 
+# Setup test environment: build, install kernel, start system
+.PHONY: setup-test-env
+setup-test-env:
+	@echo "Setting up test environment..."
+	@scripts/setup-test-env.sh $(SYSTEM_START_OPTS)
+
+# Run integration tests (requires system to be running with kernel installed)
+.PHONY: integration-test
+integration-test:
+	@$(SWIFT) test -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(INTEGRATION_FILTER)"
+
 
 # Coverage report generation helpers
 # Directory that swift test spits out raw coverage data
