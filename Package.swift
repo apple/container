@@ -301,6 +301,15 @@ let package = Package(
             ],
             path: "Sources/Services/ContainerImagesService/Client"
         ),
+        .testTarget(
+            name: "ContainerImagesServiceTests",
+            dependencies: [
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                "ContainerImagesService",
+                "ContainerImagesServiceClient",
+                "ContainerXPC",
+            ]
+        ),
         .executableTarget(
             name: "container-network-vmnet",
             dependencies: [
