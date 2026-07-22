@@ -63,9 +63,25 @@ extension Application {
 
         @Argument var references: [String]
 
+        /// Resolve the platform to use for saving images. This is a thin wrapper
+        /// around `DefaultPlatform.resolve(...)` that falls back to
+        /// `Platform.current` when no platform information is available.
+        public static func resolvePlatform(
+            platform: String?,
+            os: String?,
+            arch: String?,
+            environment: [String: String] = ProcessInfo.processInfo.environment,
+            log: Logger? = nil
+        ) throws -> Platform {
+            return try DefaultPlatform.resolve(platform: platform, os: os, arch: arch, environment: environment, log: log) ?? Platform.current
+        }
+
         public func run() async throws {
             let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
-            let p = try DefaultPlatform.resolve(platform: platform, os: os, arch: arch, log: log)
+            // Resolve platform via helper so it can be unit-tested. Prefer explicit
+            // flags and env var, but fall back to the host's current platform when
+            // none is provided so `image save` works for pulled remote images.
+            let p = try Self.resolvePlatform(platform: platform, os: os, arch: arch, log: log)
 
             let progressConfig = try ProgressConfig(
                 description: "Saving image(s)"
