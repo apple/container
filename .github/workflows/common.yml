@@ -32,7 +32,7 @@ jobs:
       DEVELOPER_DIR: "/Applications/Xcode_swift_6.3.app/Contents/Developer"
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -103,11 +103,11 @@ jobs:
 
       - name: Test the container project
         if: ${{ !inputs.coverage }}
-        run: make APP_ROOT="${APP_ROOT}" LOG_ROOT="${LOG_ROOT}" test install-kernel integration integration-new
+        run: make APP_ROOT="${APP_ROOT}" LOG_ROOT="${LOG_ROOT}" test install-kernel integration
 
       - name: Test the container project with coverage
         if: ${{ inputs.coverage }}
-        run: make APP_ROOT="${APP_ROOT}" LOG_ROOT="${LOG_ROOT}" install-kernel coverage-new
+        run: make APP_ROOT="${APP_ROOT}" LOG_ROOT="${LOG_ROOT}" install-kernel coverage
 
       - name: Extract coverage percentages
         if: ${{ inputs.coverage }}

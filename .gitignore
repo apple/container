@@ -15,7 +15,7 @@ installer/
 .venv/
 .claude/
 .clitests/
-test-*/
+.vscode/
 test_results/
 *.pid
 *.log

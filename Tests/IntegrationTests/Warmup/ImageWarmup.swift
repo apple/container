@@ -14,18 +14,19 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerTestSupport
 import Testing
 
-/// Pulls each image in ``ContainerFixture/warmupImages`` in parallel before
-/// concurrent integration tests run. The Makefile's warmup pass runs this
-/// suite first so that ``ContainerFixture/copyWarmupImage(_:)`` can tag
-/// from a pre-populated store rather than pulling on demand.
+/// Pulls each image in ``WarmupImage`` in parallel before concurrent
+/// integration tests run. The Makefile's warmup pass runs this suite first
+/// so that ``ContainerFixture/copyWarmupImage(_:)`` can tag from a
+/// pre-populated store rather than pulling on demand.
 @Suite
 struct ImageWarmup {
-    @Test(arguments: ContainerFixture.warmupImages)
-    func pull(image: String) async throws {
+    @Test(arguments: WarmupImage.allCases)
+    func pull(image: WarmupImage) async throws {
         try await ContainerFixture.with { f in
-            try f.run(["image", "pull", image]).check("failed to pull \(image)")
+            try f.run(["image", "pull", image.rawValue]).check("failed to pull \(image.rawValue)")
         }
     }
 }

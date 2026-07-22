@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerTestSupport
 import Testing
 
 @Suite
@@ -25,7 +26,7 @@ struct TestCLIRmRaceCondition {
 
             try f.doCreate(name: name)
             try f.doStart(name)
-            try f.waitForContainerRunning(name)
+            try await f.waitForContainerRunning(name)
             try f.doStop(name)
 
             // Immediately attempt removal — both outcomes are valid:

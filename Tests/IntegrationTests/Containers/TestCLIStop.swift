@@ -14,13 +14,14 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerTestSupport
 import Testing
 
 @Suite
 struct TestCLIStop {
     @Test func testStopWithExplicitSignal() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = try f.copyWarmupImage(.alpine320)
             try await f.withContainer(image: image, autoRemove: false) { name in
                 try f.doStop(name, signal: "SIGTERM")
                 #expect(try f.getContainerStatus(name) == "stopped")
@@ -30,7 +31,7 @@ struct TestCLIStop {
 
     @Test func testStopWithoutSignal() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = try f.copyWarmupImage(.alpine320)
             try await f.withContainer(image: image, autoRemove: false) { name in
                 try f.doStop(name, signal: nil)
                 #expect(try f.getContainerStatus(name) == "stopped")
@@ -40,7 +41,7 @@ struct TestCLIStop {
 
     @Test func testStopSignalInInspect() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = try f.copyWarmupImage(.alpine320)
             try await f.withContainer(image: image, autoRemove: false) { name in
                 let inspect = try f.inspectContainer(name)
                 // Alpine doesn't set a STOPSIGNAL, so this should be nil.
@@ -51,7 +52,7 @@ struct TestCLIStop {
 
     @Test func testStopIdempotent() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = try f.copyWarmupImage(.alpine320)
             try await f.withContainer(image: image, autoRemove: false) { name in
                 try f.doStop(name, signal: "SIGKILL")
                 #expect(try f.getContainerStatus(name) == "stopped")

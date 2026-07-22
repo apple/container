@@ -47,17 +47,9 @@ public struct OSLogHandler: LogHandler {
 }
 
 extension OSLogHandler {
-    public func log(
-        level: Logger.Level,
-        message: Logger.Message,
-        metadata: Logger.Metadata?,
-        source: String,
-        file: String,
-        function: String,
-        line: UInt
-    ) {
+    public func log(event: LogEvent) {
         var formattedMetadata = self.formattedMetadata
-        if let metadataOverride = metadata, !metadataOverride.isEmpty {
+        if let metadataOverride = event.metadata, !metadataOverride.isEmpty {
             formattedMetadata = self.formatMetadata(
                 self.metadata.merging(metadataOverride) {
                     $1
@@ -65,13 +57,13 @@ extension OSLogHandler {
             )
         }
 
-        var finalMessage = message.description
+        var finalMessage = event.message.description
         if let formattedMetadata {
             finalMessage += " " + formattedMetadata
         }
 
         self.logger.log(
-            level: level.toOSLogLevel(),
+            level: event.level.toOSLogLevel(),
             "\(finalMessage, privacy: .public)"
         )
     }

@@ -14,7 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import Darwin
+import ContainerTestSupport
 import Foundation
 import Testing
 
@@ -879,52 +879,7 @@ struct TestCLIMachineRuntimeSerial {
             let name = "\(f.testID)-machine"
             f.addCleanup { f.cleanupMachine(name) }
 
-            // sockaddr_un.sun_path is 104 bytes on macOS — use /tmp to keep
-            // the path short enough to fit regardless of the project directory depth.
-            let socketDir = "/tmp/\(f.testID)-ssh"
-            try FileManager.default.createDirectory(
-                atPath: socketDir, withIntermediateDirectories: true)
-            f.addCleanup { try? FileManager.default.removeItem(atPath: socketDir) }
-            let socketPath = socketDir + "/ssh-auth.sock"
-
-            let serverFd = socket(AF_UNIX, SOCK_STREAM, 0)
-            guard serverFd >= 0 else {
-                Issue.record("socket() failed")
-                return
-            }
-            defer { Darwin.close(serverFd) }
-
-            var addr = sockaddr_un()
-            addr.sun_family = sa_family_t(AF_UNIX)
-            withUnsafeMutableBytes(of: &addr.sun_path) { bytes in
-                socketPath.withCString { cStr in
-                    bytes.copyMemory(
-                        from: UnsafeRawBufferPointer(
-                            start: cStr, count: socketPath.utf8.count + 1))
-                }
-            }
-            let bindResult = withUnsafePointer(to: addr) { ptr in
-                ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                    bind(serverFd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
-                }
-            }
-            guard bindResult == 0 else {
-                Issue.record("bind() failed")
-                return
-            }
-            guard listen(serverFd, 5) == 0 else {
-                Issue.record("listen() failed")
-                return
-            }
-
-            let acceptThread = Thread {
-                while true {
-                    let clientFd = accept(serverFd, nil, nil)
-                    if clientFd < 0 { break }
-                    Darwin.close(clientFd)
-                }
-            }
-            acceptThread.start()
+            let socketPath = try f.makeFakeSSHAgentSocket()
             try await Task.sleep(for: .seconds(1))
 
             try f.doMachineCreate(name: name, image: machineImage)
