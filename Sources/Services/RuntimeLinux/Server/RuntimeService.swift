@@ -1074,7 +1074,9 @@ public actor RuntimeService {
         let process = config.initProcess
 
         czConfig.process.arguments = [process.executable] + process.arguments
-        czConfig.process.environmentVariables = process.environment
+        // Expose the container ID to the workload so tools running inside the
+        // guest can recover the authoritative ID regardless of the hostname.
+        czConfig.process.environmentVariables = ProcessConfiguration.environmentExposingContainerID(process.environment, id: config.id)
 
         if config.ssh {
             if !czConfig.process.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
@@ -1124,7 +1126,9 @@ public actor RuntimeService {
         proc.stderr = stdio[2]
 
         proc.arguments = [config.executable] + config.arguments
-        proc.environmentVariables = config.environment
+        // Expose the container ID to the workload so tools running inside the
+        // guest can recover the authoritative ID regardless of the hostname.
+        proc.environmentVariables = ProcessConfiguration.environmentExposingContainerID(config.environment, id: containerConfig.id)
 
         if containerConfig.ssh {
             if !proc.environmentVariables.contains(where: { $0.starts(with: "\(Self.sshAuthSocketEnvVar)=") }) {
