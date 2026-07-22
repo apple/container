@@ -18,7 +18,17 @@
 # environment (e.g. the value CI exports via $GITHUB_ENV). To force a debug
 # build, pass it on the command line: `make BUILD_CONFIGURATION=debug ...`
 # (command-line assignments still override this).
+#
+# OUTPUT_CONFIGURATION names the bin/<config>/ tree that the staging, package,
+# and dSYM artifacts are written to. CI's non-make steps (e.g. "Create package")
+# locate those artifacts under bin/<config>/ using the BUILD_CONFIGURATION value
+# CI exported to the environment, which is "debug" for PR builds even though we
+# now build release. Capture that inherited value BEFORE forcing release, and
+# use it for the output paths so artifacts land where CI looks for them. Falls
+# back to the build configuration when nothing was inherited (local builds).
+OUTPUT_CONFIGURATION := $(BUILD_CONFIGURATION)
 BUILD_CONFIGURATION := release
+OUTPUT_CONFIGURATION := $(if $(OUTPUT_CONFIGURATION),$(OUTPUT_CONFIGURATION),$(BUILD_CONFIGURATION))
 WARNINGS_AS_ERRORS ?= true
 SWIFT_CONFIGURATION := $(if $(filter-out false,$(WARNINGS_AS_ERRORS)),-Xswiftc -warnings-as-errors) -Xswiftc -enable-testing
 # Code-coverage instrumentation, layered onto the shared build stages. Empty for
@@ -35,10 +45,10 @@ SWIFT_BUILD = $(SWIFT) build -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION)
 DEST_DIR ?= /usr/local/
 ROOT_DIR := $(shell git rev-parse --show-toplevel)
 BUILD_BIN_DIR = $(shell $(SWIFT) build -c $(BUILD_CONFIGURATION) --show-bin-path)
-STAGING_DIR := bin/$(BUILD_CONFIGURATION)/staging/
-PKG_PATH := bin/$(BUILD_CONFIGURATION)/container-installer-unsigned.pkg
-DSYM_DIR := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM
-DSYM_PATH := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM.zip
+STAGING_DIR := bin/$(OUTPUT_CONFIGURATION)/staging/
+PKG_PATH := bin/$(OUTPUT_CONFIGURATION)/container-installer-unsigned.pkg
+DSYM_DIR := bin/$(OUTPUT_CONFIGURATION)/bundle/container-dSYM
+DSYM_PATH := bin/$(OUTPUT_CONFIGURATION)/bundle/container-dSYM.zip
 CODESIGN_OPTS ?= --force --sign - --timestamp=none
 
 
@@ -91,7 +101,7 @@ build-tests:
 
 .PHONY: coverage-all
 coverage-all: build-tests
-	@"$(MAKE)" BUILD_CONFIGURATION=$(BUILD_CONFIGURATION) DEST_DIR="$(ROOT_DIR)/" SUDO= install
+	@"$(MAKE)" BUILD_CONFIGURATION=$(BUILD_CONFIGURATION) OUTPUT_CONFIGURATION=$(OUTPUT_CONFIGURATION) DEST_DIR="$(ROOT_DIR)/" SUDO= install
 	@"$(MAKE)" init-block
 
 .PHONY: cli
@@ -106,7 +116,7 @@ cli:
 .PHONY: container
 # Install binaries under project directory
 container: build
-	@"$(MAKE)" BUILD_CONFIGURATION=$(BUILD_CONFIGURATION) DEST_DIR="$(ROOT_DIR)/" SUDO= install
+	@"$(MAKE)" BUILD_CONFIGURATION=$(BUILD_CONFIGURATION) OUTPUT_CONFIGURATION=$(OUTPUT_CONFIGURATION) DEST_DIR="$(ROOT_DIR)/" SUDO= install
 
 .PHONY: release
 release: BUILD_CONFIGURATION = release
