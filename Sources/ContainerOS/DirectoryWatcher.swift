@@ -94,6 +94,10 @@ public actor DirectoryWatcher {
             let files = try FileManager.default.contentsOfDirectory(atPath: directoryPath.string)
             try handler(files.map { directoryPath.appending($0) })
         } catch {
+            // The dispatch source that would normally take ownership of the
+            // descriptor and close it on cancellation has not been created yet,
+            // so close it here to avoid leaking a file descriptor on every retry.
+            close(descriptor)
             throw ContainerizationError(.internalError, message: "failed to run handler for \(directoryPath.string)")
         }
 
