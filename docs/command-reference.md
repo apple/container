@@ -72,7 +72,7 @@ container run [<options>] <image> [<arguments> ...]
 *   `--ssh`: Forward SSH agent socket to container
 *   `--shm-size <shm-size>`: Size of `/dev/shm` (e.g. 64M, 1G)
 *   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
-*   `-v, --volume <volume>`: Bind mount a volume into the container
+*   `-v, --volume <volume>`: Bind mount a volume into the container. Formats: `container-path` (anonymous volume), `name:container-path[:options]`, or `host-path:container-path[:options]`, where `options` is a comma-separated list of mount options (e.g. `ro`)
 *   `--virtualization`: Expose virtualization capabilities to the container (requires host and guest support)
 
 **Registry Options**
@@ -245,7 +245,7 @@ container create [<options>] <image> [<arguments> ...]
 *   `--ssh`: Forward SSH agent socket to container
 *   `--shm-size <shm-size>`: Size of `/dev/shm` (e.g. 64M, 1G)
 *   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
-*   `-v, --volume <volume>`: Bind mount a volume into the container
+*   `-v, --volume <volume>`: Bind mount a volume into the container. Formats: `container-path` (anonymous volume), `name:container-path[:options]`, or `host-path:container-path[:options]`, where `options` is a comma-separated list of mount options (e.g. `ro`)
 *   `--virtualization`: Expose virtualization capabilities to the container (requires host and guest support)
 
 **Registry Options**
