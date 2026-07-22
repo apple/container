@@ -876,7 +876,7 @@ struct TestCLIBuilderSerial {
                 let dir = try f.createTempDir()
                 try f.createContext(
                     dir: dir,
-                    dockerfile: "FROM \(ContainerFixture.warmupImages[0])\nADD emptyFile /",
+                    dockerfile: "FROM \(WarmupImage.alpine320.rawValue)\nADD emptyFile /",
                     context: [.file("emptyFile", content: .zeroFilled(size: 1))])
                 let image = "registry.local/no-cache-pull:\(UUID().uuidString)"
                 try f.buildWithPaths(tags: [image], contextDir: dir, otherArgs: ["--pull", "--no-cache"])

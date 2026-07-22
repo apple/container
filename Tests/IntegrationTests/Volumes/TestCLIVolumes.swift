@@ -20,7 +20,7 @@ import Testing
 
 @Suite
 struct TestCLIVolumes {
-    private let alpine = ContainerFixture.warmupImages[0]
+    private let alpine = WarmupImage.alpine320.rawValue
 
     @Test func testVolumeDataPersistenceAcrossContainers() async throws {
         try await ContainerFixture.with { f in

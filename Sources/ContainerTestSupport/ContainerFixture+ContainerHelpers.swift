@@ -57,7 +57,7 @@ extension ContainerFixture {
         autoRemove: Bool = true,
         containerEnv: [String: String] = [:]
     ) throws {
-        let imageRef = image ?? ContainerFixture.warmupImages[0]
+        let imageRef = image ?? WarmupImage.alpine320.rawValue
         var runArgs = ["run"]
         if autoRemove { runArgs.append("--rm") }
         runArgs += ["--name", name, "-d"]
@@ -78,7 +78,7 @@ extension ContainerFixture {
         networks: [String] = [],
         ports: [String] = []
     ) throws {
-        let imageRef = image ?? ContainerFixture.warmupImages[0]
+        let imageRef = image ?? WarmupImage.alpine320.rawValue
         var createArgs = ["create", "--rm", "--name", name]
         createArgs += proxyEnvironmentArgs
         for v in volumes { createArgs += ["-v", v] }

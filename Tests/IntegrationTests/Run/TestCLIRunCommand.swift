@@ -23,7 +23,7 @@ import Testing
 
 @Suite
 struct TestCLIRunCommand {
-    private let alpine = ContainerFixture.warmupImages[0]
+    private let alpine = WarmupImage.alpine320
 
     // MARK: - Basic run options
 

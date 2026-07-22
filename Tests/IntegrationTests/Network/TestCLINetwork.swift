@@ -112,7 +112,7 @@ struct TestCLINetwork {
 
     @Test func testNetworkMTU() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = try f.copyWarmupImage(.alpine320)
             let c = "\(f.testID)-c"
             try f.doLongRun(name: c, image: image, args: ["--network", "default,mtu=1500"], autoRemove: false)
             f.addCleanup {

@@ -26,7 +26,7 @@ import Testing
 /// once a test init image is published to the registry.
 @Suite
 struct TestCLIRunInitImage {
-    private let alpine = ContainerFixture.warmupImages[0]
+    private let alpine = WarmupImage.alpine320
 
     @Test func testRunWithNonExistentInitImage() async throws {
         try await ContainerFixture.with { f in

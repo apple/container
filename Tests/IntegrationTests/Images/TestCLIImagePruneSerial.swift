@@ -17,8 +17,8 @@
 import ContainerTestSupport
 import Testing
 
-private let alpine = ContainerFixture.warmupImages[0]
-private let busybox = ContainerFixture.warmupImages[2]
+private let alpine = WarmupImage.alpine320.rawValue
+private let busybox = WarmupImage.busybox136.rawValue
 
 /// Serial tests for `image prune` and `--max-concurrent-downloads`.
 /// These use `image rm --all` which affects global state.
