@@ -103,37 +103,36 @@ public struct Builder: Sendable {
             throw Error.invalidContinuation
         }
 
-        defer {
-            continuation.finish()
+        let winchHandler = config.terminal != nil ? AsyncSignalHandler.create(notify: [SIGWINCH]) : nil
+        let winchTask: Task<Void, Never>? = config.terminal.map { terminal in
+            let signals = winchHandler!.signals
+            return Task {
+                await Self.forwardTerminalResize(
+                    signals: signals,
+                    readSize: {
+                        let size = try terminal.size
+                        return (rows: size.height, cols: size.width)
+                    },
+                    send: { rows, cols in
+                        var winch = ClientStream()
+                        winch.command = .init()
+                        if let cmdString = try TerminalCommand(rows: rows, cols: cols).json() {
+                            winch.command.command = cmdString
+                            continuation.yield(winch)
+                        }
+                    },
+                    logger: self.logger
+                )
+            }
         }
 
-        if let terminal = config.terminal {
-            Task {
-                let winchHandler = AsyncSignalHandler.create(notify: [SIGWINCH])
-                let setWinch = { (rows: UInt16, cols: UInt16) in
-                    var winch = ClientStream()
-                    winch.command = .init()
-                    if let cmdString = try TerminalCommand(rows: rows, cols: cols).json() {
-                        winch.command.command = cmdString
-                        continuation.yield(winch)
-                    }
-                }
-                let size = try terminal.size
-                var width = size.width
-                var height = size.height
-                try setWinch(height, width)
-
-                for await _ in winchHandler.signals {
-                    let size = try terminal.size
-                    let cols = size.width
-                    let rows = size.height
-                    if cols != width || rows != height {
-                        width = cols
-                        height = rows
-                        try setWinch(height, width)
-                    }
-                }
-            }
+        defer {
+            // Tear down the SIGWINCH forwarder so its signal handler is not left
+            // registered and the task does not outlive the build (finishing the
+            // stream ends the `for await` loop, then cancel the task).
+            winchHandler?.cancel()
+            winchTask?.cancel()
+            continuation.finish()
         }
 
         let pipeline = try await BuildPipeline(config)
@@ -155,6 +154,48 @@ public struct Builder: Sendable {
             self.clientTask.cancel()
             try await group.shutdownGracefully()
             return
+        }
+    }
+
+    /// Forwards terminal window-size (SIGWINCH) changes to the remote build.
+    ///
+    /// Sends the initial size, then re-sends whenever a signal arrives and the
+    /// size has changed. Errors from `readSize`/`send` are logged rather than
+    /// dropped so a single transient failure (for example a momentarily
+    /// unavailable controlling tty) does not silently stop resize forwarding for
+    /// the rest of the build. Returns when `signals` finishes, which happens when
+    /// the owning task is cancelled and its signal handler is torn down.
+    static func forwardTerminalResize(
+        signals: AsyncStream<Int32>,
+        readSize: @escaping @Sendable () throws -> (rows: UInt16, cols: UInt16),
+        send: @escaping @Sendable (_ rows: UInt16, _ cols: UInt16) throws -> Void,
+        logger: Logger
+    ) async {
+        var width: UInt16?
+        var height: UInt16?
+
+        func update() {
+            do {
+                let size = try readSize()
+                guard size.cols != width || size.rows != height else {
+                    return
+                }
+                try send(size.rows, size.cols)
+                width = size.cols
+                height = size.rows
+            } catch {
+                logger.error(
+                    "failed to forward terminal resize event",
+                    metadata: [
+                        "error": "\(error)"
+                    ]
+                )
+            }
+        }
+
+        update()
+        for await _ in signals {
+            update()
         }
     }
 
