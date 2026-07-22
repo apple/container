@@ -1026,31 +1026,16 @@ public actor ContainersService {
         await self.exitMonitor.stopTracking(id: id)
         let path = self.containerRoot.appendingPathComponent(id)
 
-        // Try to get config for service deregistration
-        // Don't fail if bundle is incomplete
-        var config: ContainerConfiguration?
-        let bundle = ContainerResource.Bundle(path: path)
-        do {
-            config = try bundle.configuration
-        } catch {
-            self.log.warning(
-                "failed to read bundle configuration during cleanup for container",
-                metadata: [
-                    "id": "\(id)",
-                    "error": "\(error)",
-                ])
-        }
-
-        // Only try to deregister service if we have a valid config
-        // TODO: Change this so we don't have to reread the config
-        // possibly store the container ID to service label mapping
-        if let config = config {
+        let containerState = self.containers[id]
+        if let runtimeHandler = containerState?.snapshot.configuration.runtimeHandler {
             let label = Self.fullLaunchdServiceLabel(
-                runtimeName: config.runtimeHandler,
+                runtimeName: runtimeHandler,
                 instanceId: id
             )
             try? ServiceManager.deregister(fullServiceLabel: label)
         }
+
+        let bundle = ContainerResource.Bundle(path: path)
 
         // Always try to delete the bundle directory, even if it's incomplete
         do {
