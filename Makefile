@@ -208,8 +208,11 @@ install-kernel:
 
 
 # Coverage report generation helpers
-# Directory that swift test spits out raw coverage data
-COV_DATA_DIR = $(shell $(SWIFT) test --show-coverage-path | xargs dirname)
+# Directory that swift test spits out raw coverage data. Must query the same
+# configuration the coverage tests build/run with (BUILD_CONFIGURATION);
+# otherwise this resolves to the debug codecov path while the profraw files are
+# written under the release path, and the profdata merge finds no *.profraw.
+COV_DATA_DIR = $(shell $(SWIFT) test --show-coverage-path -c $(BUILD_CONFIGURATION) | xargs dirname)
 COV_REPORT_FILE = $(ROOT_DIR)/code-coverage-report
 COVERAGE_OUTPUT_DIR := $(ROOT_DIR)/coverage-reports
 TEST_BINARY = $(BUILD_BIN_DIR)/containerPackageTests.xctest/Contents/MacOS/containerPackageTests
