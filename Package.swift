@@ -23,7 +23,7 @@ import PackageDescription
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
 let builderShimVersion = "0.13.0"
-let scVersion = "0.37.0"
+let scVersion = "0.38.0"
 
 let package = Package(
     name: "container",
@@ -38,6 +38,7 @@ let package = Package(
         .library(name: "ContainerNetworkServer", targets: ["ContainerNetworkServer"]),
         .library(name: "ContainerNetworkVmnetServer", targets: ["ContainerNetworkVmnetServer"]),
         .library(name: "ContainerResource", targets: ["ContainerResource"]),
+        .library(name: "ContainerTestSupport", targets: ["ContainerTestSupport"]),
         .library(name: "ContainerLog", targets: ["ContainerLog"]),
         .library(name: "ContainerPersistence", targets: ["ContainerPersistence"]),
         .library(name: "ContainerPlugin", targets: ["ContainerPlugin"]),
@@ -54,10 +55,10 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion)),
-        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
+        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.7.0"),
         .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
         .package(url: "https://github.com/apple/swift-configuration", from: "1.0.0"),
-        .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.10.1"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.80.0"),
         .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.36.0"),
         .package(url: "https://github.com/apple/swift-system.git", from: "1.6.4"),
@@ -85,6 +86,9 @@ let package = Package(
             dependencies: [
                 .product(name: "AsyncHTTPClient", package: "async-http-client"),
                 .product(name: "Logging", package: "swift-log"),
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOHTTP1", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "SystemPackage", package: "swift-system"),
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationArchive", package: "containerization"),
@@ -95,7 +99,9 @@ let package = Package(
                 "ContainerAPIClient",
                 "ContainerLog",
                 "ContainerPersistence",
+                "ContainerPlugin",
                 "ContainerResource",
+                "ContainerTestSupport",
                 "MachineAPIClient",
                 "Yams",
             ],
@@ -567,7 +573,14 @@ let package = Package(
         .target(
             name: "ContainerTestSupport",
             dependencies: [
-                .product(name: "SystemPackage", package: "swift-system")
+                .product(name: "AsyncHTTPClient", package: "async-http-client"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                .product(name: "TOML", package: "swift-toml"),
+                "ContainerLog",
+                "ContainerPersistence",
+                "ContainerResource",
             ]
         ),
         .target(

@@ -113,7 +113,7 @@ sudo container system dns create test
 
 Enter your administrator password when prompted. The first command requires administrator privileges to create a file containing the domain configuration under the `/etc/resolver` directory, and to tell the macOS DNS resolver to reload its configuration files.
 
-With the domain set to `test`, if you use `--name my-web-server` to start a container, queries to `my-web-server.test` will respond with that container's IP address. You can customize the domain in `~/.config/container/config.toml`.
+See [Customize `container` default configuration values](./container-system-config-tutorial.md) for instructions on how to set the default domain name that the `container` service uses for container name resolution on the host. With the default domain set to `test`, if you use `--name my-web-server` to start a container, queries to `my-web-server.test` will respond with that container's IP address. 
 
 ## Build an image
 
@@ -198,7 +198,7 @@ Open the website, using the container's IP address in the URL:
 open http://192.168.64.3
 ```
 
-If you configured the local domain `test` earlier in the tutorial, you can also open the page with the full hostname for the container:
+If you configured the default domain name `test` for the `container` service earlier in the tutorial, you can also open the page with the full hostname for the container:
 
 ```bash
 open http://my-web-server.test
