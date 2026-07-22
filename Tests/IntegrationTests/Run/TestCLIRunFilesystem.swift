@@ -41,10 +41,9 @@ struct TestCLIRunFilesystem {
 
     @Test func testRootFilesystemHasOrderedJournal() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)

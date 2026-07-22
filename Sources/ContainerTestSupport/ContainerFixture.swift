@@ -234,6 +234,22 @@ public final class ContainerFixture: Sendable {
             status: process.terminationStatus)
     }
 
+    /// Creates a directory at a short, fixed-depth path under `/tmp`, suitable for
+    /// Unix-domain socket files that must fit within `sockaddr_un.sun_path`'s 104-byte
+    /// limit on macOS regardless of the project checkout's directory depth.
+    ///
+    /// Returns the directory path; the caller creates the socket file inside it.
+    /// The directory is removed on fixture cleanup.
+    public func makeShortSocketDir(_ suffix: String) throws -> String {
+        let dir = "/tmp/\(testID)-\(suffix)"
+        try FileManager.default.createDirectory(
+            atPath: dir, withIntermediateDirectories: true, attributes: nil)
+        addCleanup {
+            try? FileManager.default.removeItem(atPath: dir)
+        }
+        return dir
+    }
+
     /// Tags a warmup image to a test-local reference and registers its removal.
     ///
     /// The returned name is `{testID}-{imageName}:{tag}`, e.g.

@@ -49,14 +49,18 @@ extension ContainerFixture {
     ///
     /// `containerEnv` injects environment variables into the container via `-e` flags.
     /// To set the CLI subprocess environment (e.g. for `--ssh`), use ``run(_:env:)`` directly.
+    ///
+    /// Pass `waitUntilRunning: true` to poll for `running` state before returning,
+    /// eliminating a separate ``ContainerFixture/waitForContainerRunning(_:attempts:)`` call.
     public func doLongRun(
         name: String,
         image: String? = nil,
         args: [String] = [],
         containerArgs: [String] = ["sleep", "infinity"],
         autoRemove: Bool = true,
-        containerEnv: [String: String] = [:]
-    ) throws {
+        containerEnv: [String: String] = [:],
+        waitUntilRunning: Bool = false
+    ) async throws {
         let imageRef = image ?? WarmupImage.alpine320.rawValue
         var runArgs = ["run"]
         if autoRemove { runArgs.append("--rm") }
@@ -67,6 +71,9 @@ extension ContainerFixture {
         runArgs.append(imageRef)
         runArgs += containerArgs
         try run(runArgs).check()
+        if waitUntilRunning {
+            try await waitForContainerRunning(name)
+        }
     }
 
     /// Creates a stopped container (`container create`).

@@ -90,8 +90,7 @@ struct TestCLIImagePruneSerial {
             #expect(try f.isImagePresent(busybox), "expected \(busybox) to be pulled")
 
             // Keep alpine in use via a running container.
-            try f.doLongRun(name: containerName, image: alpine, autoRemove: false)
-            try await f.waitForContainerRunning(containerName)
+            try await f.doLongRun(name: containerName, image: alpine, autoRemove: false, waitUntilRunning: true)
 
             let result = try f.run(["image", "prune", "-a"]).check()
             #expect(result.output.contains(busybox), "should prune busybox image")

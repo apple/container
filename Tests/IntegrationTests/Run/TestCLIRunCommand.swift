@@ -29,28 +29,26 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommand() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, autoRemove: false)
+            try await f.doLongRun(name: c, image: image, autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
             _ = try f.doExec(c, cmd: ["date"])
         }
     }
 
     @Test func testRunCommandCWD() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--cwd", "/tmp"], autoRemove: false)
+            try await f.doLongRun(name: c, image: image, args: ["--cwd", "/tmp"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
             let output = try f.doExec(c, cmd: ["pwd"]).trimmingCharacters(in: .whitespacesAndNewlines)
             #expect(output == "/tmp")
         }
@@ -58,14 +56,13 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandEnv() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--env", "FOO=bar"], autoRemove: false)
+            try await f.doLongRun(name: c, image: image, args: ["--env", "FOO=bar"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
             let inspect = try f.inspectContainer(c)
             #expect(inspect.configuration.initProcess.environment.contains("FOO=bar"))
         }
@@ -73,18 +70,17 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandEnvFile() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
             let envFile = f.testDir.appending("test.env")
             let content = "# comment\nFOO=bar\nBAR=baz wow\nURL=https://foo.bar?baz=wow\n"
             try content.write(toFile: envFile.string, atomically: true, encoding: .utf8)
 
-            try f.doLongRun(name: c, image: image, args: ["--env-file", envFile.string], autoRemove: false)
+            try await f.doLongRun(name: c, image: image, args: ["--env-file", envFile.string], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
 
             let inspect = try f.inspectContainer(c)
             for expected in ["FOO=bar", "BAR=baz wow", "URL=https://foo.bar?baz=wow"] {
@@ -95,14 +91,13 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandUserIDGroupID() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--uid", "10", "--gid", "100"], autoRemove: false)
+            try await f.doLongRun(name: c, image: image, args: ["--uid", "10", "--gid", "100"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
             let output = try f.doExec(c, cmd: ["id"]).trimmingCharacters(in: .whitespacesAndNewlines)
             try #expect(output.contains(Regex("uid=10.*?gid=100.*")))
         }
@@ -110,14 +105,13 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandUser() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--user", "nobody"], autoRemove: false)
+            try await f.doLongRun(name: c, image: image, args: ["--user", "nobody"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
             let output = try f.doExec(c, cmd: ["whoami"]).trimmingCharacters(in: .whitespacesAndNewlines)
             #expect(output == "nobody")
         }
@@ -125,14 +119,13 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandCPUs() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--cpus", "2"], autoRemove: false)
+            try await f.doLongRun(name: c, image: image, args: ["--cpus", "2"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
             let output = try f.doExec(c, cmd: ["cat", "/sys/fs/cgroup/cpu.max"])
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             let fields = output.components(separatedBy: .whitespaces)
@@ -146,14 +139,13 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandMemory() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--memory", "1024M"], autoRemove: false)
+            try await f.doLongRun(name: c, image: image, args: ["--memory", "1024M"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
             let inspect = try f.inspectContainer(c)
             let expectedBytes = UInt64(1024) * 1024 * 1024
             #expect(inspect.configuration.resources.memoryInBytes == expectedBytes)
@@ -162,14 +154,13 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandUlimitNofile() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--ulimit", "nofile=1024:2048"], autoRemove: false)
+            try await f.doLongRun(name: c, image: image, args: ["--ulimit", "nofile=1024:2048"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
 
             let inspect = try f.inspectContainer(c)
             let nofile = inspect.configuration.initProcess.rlimits.first { $0.limit == "RLIMIT_NOFILE" }
@@ -185,14 +176,13 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandUlimitNproc() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--ulimit", "nproc=256"], autoRemove: false)
+            try await f.doLongRun(name: c, image: image, args: ["--ulimit", "nproc=256"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
 
             let inspect = try f.inspectContainer(c)
             let nproc = inspect.configuration.initProcess.rlimits.first { $0.limit == "RLIMIT_NPROC" }
@@ -208,17 +198,16 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandMultipleUlimits() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(
+            try await f.doLongRun(
                 name: c, image: image,
                 args: ["--ulimit", "nofile=1024:2048", "--ulimit", "nproc=512", "--ulimit", "stack=8388608"],
-                autoRemove: false)
+                autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
 
             let rlimits = try f.inspectContainer(c).configuration.initProcess.rlimits
             #expect(rlimits.count == 3)
@@ -235,21 +224,20 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandMount() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
             let testData = "hello world"
             let hostFile = f.testDir.appending("testfile.txt")
             try testData.write(toFile: hostFile.string, atomically: true, encoding: .utf8)
 
-            try f.doLongRun(
+            try await f.doLongRun(
                 name: c, image: image,
                 args: ["--mount", "type=virtiofs,source=\(f.testDir.string),target=/tmp/testmount,readonly"],
-                autoRemove: false)
+                autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
 
             let output = try f.doExec(c, cmd: ["cat", "/tmp/testmount/testfile.txt"])
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -259,14 +247,9 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandUnixSocketMount() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            // sockaddr_un.sun_path is 104 bytes on macOS — use /tmp to keep
-            // the host socket path short regardless of project directory depth.
-            let socketDir = "/tmp/\(f.testID)-sock"
-            try FileManager.default.createDirectory(
-                atPath: socketDir, withIntermediateDirectories: true, attributes: nil)
-            f.addCleanup { try? FileManager.default.removeItem(atPath: socketDir) }
+            let socketDir = try f.makeShortSocketDir("sock")
             let socketPath = socketDir + "/ssh-auth.sock"
             let guestSocketPath = "/run/ssh-auth.sock"
 
@@ -275,15 +258,14 @@ struct TestCLIRunCommand {
             try socket.listen()
             f.addCleanup { try? socket.close() }
 
-            try f.doLongRun(
+            try await f.doLongRun(
                 name: c, image: image,
                 args: ["-v", "\(socketPath):\(guestSocketPath)", "-e", "SSH_AUTH_SOCK=\(guestSocketPath)"],
-                autoRemove: false)
+                autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
 
             _ = try f.doExec(c, cmd: ["apk", "add", "netcat-openbsd"])
             let perms = try f.doExec(
@@ -297,14 +279,13 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandTmpfs() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--tmpfs", "/tmp/testtmpfs"], autoRemove: false)
+            try await f.doLongRun(name: c, image: image, args: ["--tmpfs", "/tmp/testtmpfs"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
 
             let output = try f.doExec(c, cmd: ["df", "/tmp/testtmpfs"])
             let lines = output.split(separator: "\n")
@@ -316,14 +297,13 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandShmSize() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--shm-size", "128m"], autoRemove: false)
+            try await f.doLongRun(name: c, image: image, args: ["--shm-size", "128m"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
 
             let output = try f.doExec(c, cmd: ["mount"])
             let shmLine = output.split(separator: "\n").first { $0.contains("/dev/shm") }
@@ -334,20 +314,19 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandVolume() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
             let testData = "one small step"
             let volumeFile = f.testDir.appending("data.txt")
             try testData.write(toFile: volumeFile.string, atomically: true, encoding: .utf8)
 
-            try f.doLongRun(
+            try await f.doLongRun(
                 name: c, image: image,
-                args: ["--volume", "\(f.testDir.string):/tmp/testvolume"], autoRemove: false)
+                args: ["--volume", "\(f.testDir.string):/tmp/testvolume"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
 
             let output = try f.doExec(c, cmd: ["cat", "/tmp/testvolume/data.txt"])
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -357,16 +336,15 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandCidfile() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
             let cidfile = f.testDir.appending("container.cid")
 
-            try f.doLongRun(name: c, image: image, args: ["--cidfile", cidfile.string], autoRemove: false)
+            try await f.doLongRun(name: c, image: image, args: ["--cidfile", cidfile.string], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
 
             let actualID = try String(contentsOfFile: cidfile.string, encoding: .utf8)
             #expect(actualID == c)
@@ -377,14 +355,13 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandNoDNS() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--no-dns"], autoRemove: false)
+            try await f.doLongRun(name: c, image: image, args: ["--no-dns"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
             let result = try f.run(["exec", c, "cat", "/etc/resolv.conf"])
             #expect(result.status != 0)
         }
@@ -392,14 +369,13 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandDefaultResolvConf() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, autoRemove: false)
+            try await f.doLongRun(name: c, image: image, autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
 
             let output = try f.doExec(c, cmd: ["cat", "/etc/resolv.conf"])
             let actualLines = output.components(separatedBy: .newlines)
@@ -421,20 +397,19 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandNonDefaultResolvConf() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(
+            try await f.doLongRun(
                 name: c, image: image,
                 args: [
                     "--dns", "8.8.8.8", "--dns-domain", "example.com",
                     "--dns-search", "test.com", "--dns-option", "debug",
                 ],
-                autoRemove: false)
+                autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
 
             let output = try f.doExec(c, cmd: ["cat", "/etc/resolv.conf"])
             let actualLines = output.components(separatedBy: .newlines)
@@ -453,14 +428,13 @@ struct TestCLIRunCommand {
 
     @Test func testRunDefaultHostsEntries() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, autoRemove: false)
+            try await f.doLongRun(name: c, image: image, autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
 
             let inspect = try f.inspectContainer(c)
             let ip = inspect.networks[0].ipv4Address.address.description
@@ -481,7 +455,7 @@ struct TestCLIRunCommand {
     @Test func testPrivilegedPortError() async throws {
         try #require(geteuid() != 0)
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
             f.addCleanup { try? f.doRemove(c, force: true) }
             let result = try f.run(["run", "--name", c, "--publish", "127.0.0.1:80:80", image])
@@ -495,14 +469,13 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandOSArch() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--os", "linux", "--arch", "amd64"], autoRemove: false)
+            try await f.doLongRun(name: c, image: image, args: ["--os", "linux", "--arch", "amd64"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
             let output = try f.doExec(c, cmd: ["uname", "-sm"])
                 .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             #expect(output == "linux x86_64")
@@ -511,14 +484,13 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandPlatform() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--platform", "linux/amd64"], autoRemove: false)
+            try await f.doLongRun(name: c, image: image, args: ["--platform", "linux/amd64"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
             let output = try f.doExec(c, cmd: ["uname", "-sm"])
                 .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             #expect(output == "linux x86_64")
@@ -529,14 +501,13 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandInit() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--init"], autoRemove: false)
+            try await f.doLongRun(name: c, image: image, args: ["--init"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
 
             let inspect = try f.inspectContainer(c)
             #expect(inspect.configuration.useInit == true)
@@ -549,14 +520,13 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandInitReapsZombies() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--init"], autoRemove: false)
+            try await f.doLongRun(name: c, image: image, args: ["--init"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
 
             _ = try f.doExec(c, cmd: ["sh", "-c", "sh -c 'sh -c \"exit 0\" &' && sleep 1"])
             let ps = try f.doExec(c, cmd: ["sh", "-c", "ps aux | grep -c '\\[sh\\]' || true"])
@@ -567,14 +537,13 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandWithoutInitDefault() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, autoRemove: false)
+            try await f.doLongRun(name: c, image: image, autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
             let inspect = try f.inspectContainer(c)
             #expect(inspect.configuration.useInit == false)
         }
@@ -584,14 +553,13 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandReadOnly() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--read-only"], autoRemove: false)
+            try await f.doLongRun(name: c, image: image, args: ["--read-only"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
-            try await f.waitForContainerRunning(c)
             let result = try f.run(["exec", c, "touch", "/testfile"])
             #expect(result.status != 0, "touch on read-only rootfs should fail")
         }
@@ -601,7 +569,7 @@ struct TestCLIRunCommand {
 
     @Test func testRunCommandEnvFileFromNamedPipe() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
             let pipePath = f.testDir.appending("envfile.pipe")
             guard mkfifo(pipePath.string, 0o600) == 0 else {
@@ -618,14 +586,13 @@ struct TestCLIRunCommand {
             }
             defer { writeTask.cancel() }
 
-            try f.doLongRun(name: c, image: image, args: ["--env-file", pipePath.string], autoRemove: false)
+            try await f.doLongRun(name: c, image: image, args: ["--env-file", pipePath.string], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
             }
             try await writeTask.value
 
-            try await f.waitForContainerRunning(c)
             let inspect = try f.inspectContainer(c)
             #expect(inspect.configuration.initProcess.environment.contains("FOO=bar"))
             #expect(inspect.configuration.initProcess.environment.contains("BAR=baz"))
@@ -639,7 +606,7 @@ struct TestCLIRunCommand {
             let c = "\(f.testID)-c"
             let proxyPort = UInt16.random(in: 50000..<55000)
             let serverPort = UInt16.random(in: 55000..<60000)
-            try f.doLongRun(
+            try await f.doLongRun(
                 name: c, image: "docker.io/library/python:alpine",
                 args: ["--publish", "127.0.0.1:\(proxyPort):\(serverPort)/tcp"],
                 containerArgs: ["python3", "-m", "http.server", "--bind", "0.0.0.0", "\(serverPort)"],
@@ -651,16 +618,7 @@ struct TestCLIRunCommand {
 
             let client = f.makeHTTPClient()
             defer { _ = client.shutdown() }
-            try await f.retry(attempts: 10, delay: .seconds(3)) {
-                do {
-                    var req = HTTPClientRequest(url: "http://127.0.0.1:\(proxyPort)")
-                    req.method = .GET
-                    let resp = try await client.execute(req, timeout: .seconds(3))
-                    return resp.status.code >= 200 && resp.status.code < 300
-                } catch {
-                    return false
-                }
-            }
+            try await f.waitForHTTPOk("http://127.0.0.1:\(proxyPort)", using: client, delay: .seconds(3))
         }
     }
 
@@ -670,7 +628,7 @@ struct TestCLIRunCommand {
             let proxyPortStart = UInt16.random(in: 50000..<55000)
             let serverPortStart = UInt16.random(in: 55000..<60000)
             let c = "\(f.testID)-c"
-            try f.doLongRun(
+            try await f.doLongRun(
                 name: c, image: "docker.io/library/python:alpine",
                 args: ["--publish", "127.0.0.1:\(proxyPortStart)-\(proxyPortStart + range):\(serverPortStart)-\(serverPortStart + range)/tcp"],
                 containerArgs: ["python3", "-m", "http.server", "--bind", "0.0.0.0", "\(serverPortStart)"],
@@ -682,16 +640,7 @@ struct TestCLIRunCommand {
 
             let client2 = f.makeHTTPClient()
             defer { _ = client2.shutdown() }
-            try await f.retry(attempts: 10, delay: .seconds(3)) {
-                do {
-                    var req = HTTPClientRequest(url: "http://127.0.0.1:\(proxyPortStart)")
-                    req.method = .GET
-                    let resp = try await client2.execute(req, timeout: .seconds(3))
-                    return resp.status.code >= 200 && resp.status.code < 300
-                } catch {
-                    return false
-                }
-            }
+            try await f.waitForHTTPOk("http://127.0.0.1:\(proxyPortStart)", using: client2, delay: .seconds(3))
         }
     }
 
@@ -701,7 +650,7 @@ struct TestCLIRunCommand {
             let c = "\(f.testID)-c"
             let proxyPort = UInt16.random(in: 50000..<55000)
             let serverPort = UInt16.random(in: 55000..<60000)
-            try f.doLongRun(
+            try await f.doLongRun(
                 name: c, image: "docker.io/library/node:alpine",
                 args: ["--publish", "[::1]:\(proxyPort):\(serverPort)/tcp"],
                 containerArgs: ["npx", "http-server", "-a", "::", "-p", "\(serverPort)"],
@@ -713,16 +662,7 @@ struct TestCLIRunCommand {
 
             let client3 = f.makeHTTPClient()
             defer { _ = client3.shutdown() }
-            try await f.retry(attempts: 10, delay: .seconds(3)) {
-                do {
-                    var req = HTTPClientRequest(url: "http://[::1]:\(proxyPort)")
-                    req.method = .GET
-                    let resp = try await client3.execute(req, timeout: .seconds(3))
-                    return resp.status.code >= 200 && resp.status.code < 300
-                } catch {
-                    return false
-                }
-            }
+            try await f.waitForHTTPOk("http://[::1]:\(proxyPort)", using: client3, delay: .seconds(3))
         }
     }
 }

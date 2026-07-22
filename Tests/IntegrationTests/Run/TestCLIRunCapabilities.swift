@@ -26,7 +26,7 @@ struct TestCLIRunCapabilities {
 
     @Test func testCapDropInvalid() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let result = try f.run(["run", "--rm", "--cap-drop=CHWOWZERS", image, "ls"])
             #expect(result.status != 0)
             #expect(result.error.contains("CHWOWZERS") || result.error.contains("invalid"))
@@ -35,7 +35,7 @@ struct TestCLIRunCapabilities {
 
     @Test func testCapAddInvalid() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let result = try f.run(["run", "--rm", "--cap-add=CHWOWZERS", image, "ls"])
             #expect(result.status != 0)
             #expect(result.error.contains("CHWOWZERS") || result.error.contains("invalid"))
@@ -46,10 +46,9 @@ struct TestCLIRunCapabilities {
 
     @Test func testCapAddStored() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--cap-add", "NET_ADMIN"], autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, args: ["--cap-add", "NET_ADMIN"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
@@ -63,10 +62,9 @@ struct TestCLIRunCapabilities {
 
     @Test func testCapDropStored() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--cap-drop", "MKNOD"], autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, args: ["--cap-drop", "MKNOD"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
@@ -80,13 +78,12 @@ struct TestCLIRunCapabilities {
 
     @Test func testCapAddDropALLStored() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(
+            try await f.doLongRun(
                 name: c, image: image,
                 args: ["--cap-drop", "ALL", "--cap-add", "SETGID", "--cap-add", "NET_RAW"],
-                autoRemove: false)
-            try await f.waitForContainerRunning(c)
+                autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
@@ -101,10 +98,9 @@ struct TestCLIRunCapabilities {
 
     @Test func testCapAddALLStored() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--cap-add", "ALL"], autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, args: ["--cap-add", "ALL"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
@@ -117,10 +113,9 @@ struct TestCLIRunCapabilities {
 
     @Test func testCapDropLowerCase() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--cap-drop", "mknod"], autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, args: ["--cap-drop", "mknod"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
@@ -135,10 +130,9 @@ struct TestCLIRunCapabilities {
 
     @Test func testCapDropMknodCannotMknod() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--cap-drop", "MKNOD"], autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, args: ["--cap-drop", "MKNOD"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
@@ -152,10 +146,9 @@ struct TestCLIRunCapabilities {
 
     @Test func testCapDropMknodLowerCaseCannotMknod() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--cap-drop", "mknod"], autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, args: ["--cap-drop", "mknod"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
@@ -169,12 +162,11 @@ struct TestCLIRunCapabilities {
 
     @Test func testCapDropALLCannotMknod() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(
+            try await f.doLongRun(
                 name: c, image: image,
-                args: ["--cap-drop", "ALL", "--cap-add", "SETGID"], autoRemove: false)
-            try await f.waitForContainerRunning(c)
+                args: ["--cap-drop", "ALL", "--cap-add", "SETGID"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
@@ -188,13 +180,12 @@ struct TestCLIRunCapabilities {
 
     @Test func testCapDropALLAddMknodCanMknod() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(
+            try await f.doLongRun(
                 name: c, image: image,
                 args: ["--cap-drop", "ALL", "--cap-add", "MKNOD", "--cap-add", "SETGID"],
-                autoRemove: false)
-            try await f.waitForContainerRunning(c)
+                autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
@@ -207,10 +198,9 @@ struct TestCLIRunCapabilities {
 
     @Test func testCapAddALLCanDownInterface() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--cap-add", "ALL"], autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, args: ["--cap-add", "ALL"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
@@ -223,12 +213,11 @@ struct TestCLIRunCapabilities {
 
     @Test func testCapAddALLDropNetAdminCannotDownInterface() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(
+            try await f.doLongRun(
                 name: c, image: image,
-                args: ["--cap-add", "ALL", "--cap-drop", "NET_ADMIN"], autoRemove: false)
-            try await f.waitForContainerRunning(c)
+                args: ["--cap-add", "ALL", "--cap-drop", "NET_ADMIN"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
@@ -242,10 +231,9 @@ struct TestCLIRunCapabilities {
 
     @Test func testCapAddNetAdminCanDownInterface() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--cap-add", "NET_ADMIN"], autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, args: ["--cap-add", "NET_ADMIN"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
@@ -260,10 +248,9 @@ struct TestCLIRunCapabilities {
 
     @Test func testDefaultCapChown() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
@@ -275,10 +262,9 @@ struct TestCLIRunCapabilities {
 
     @Test func testNonRootUserCannotReadShadow() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
@@ -292,10 +278,9 @@ struct TestCLIRunCapabilities {
 
     @Test func testCapDropChown() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--cap-drop", "chown"], autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, args: ["--cap-drop", "chown"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
@@ -308,10 +293,9 @@ struct TestCLIRunCapabilities {
 
     @Test func testDefaultCapFowner() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
@@ -325,13 +309,12 @@ struct TestCLIRunCapabilities {
 
     @Test func testCapDropALLShowsZeroCaps() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(
+            try await f.doLongRun(
                 name: c, image: image,
                 args: ["--cap-drop", "ALL", "--cap-add", "SETUID", "--cap-add", "SETGID"],
-                autoRemove: false)
-            try await f.waitForContainerRunning(c)
+                autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
@@ -348,10 +331,9 @@ struct TestCLIRunCapabilities {
 
     @Test func testNoCapFlagsUsesDefaultCaps() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
@@ -367,10 +349,9 @@ struct TestCLIRunCapabilities {
 
     @Test func testCapAddALLShowsFullCaps() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--cap-add", "ALL"], autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, args: ["--cap-add", "ALL"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
@@ -386,10 +367,9 @@ struct TestCLIRunCapabilities {
 
     @Test func testCapDropALLOnlyShowsZeroEffective() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["--cap-drop", "ALL"], autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, args: ["--cap-drop", "ALL"], autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
@@ -405,16 +385,15 @@ struct TestCLIRunCapabilities {
 
     @Test func testMultipleCapAddDrop() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(
+            try await f.doLongRun(
                 name: c, image: image,
                 args: [
                     "--cap-add", "SYS_ADMIN", "--cap-add", "NET_RAW",
                     "--cap-drop", "MKNOD", "--cap-drop", "CHOWN",
                 ],
-                autoRemove: false)
-            try await f.waitForContainerRunning(c)
+                autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)

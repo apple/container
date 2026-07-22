@@ -23,7 +23,7 @@ import Testing
 struct TestCLIStatsCommand {
     @Test func testStatsNoStreamJSONFormat() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(.alpine320)
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let result = try f.run(["stats", "--format", "json", "--no-stream", name]).check()
                 let stats = try JSONDecoder().decode([ContainerStats].self, from: result.outputData)
@@ -39,7 +39,7 @@ struct TestCLIStatsCommand {
 
     @Test func testStatsIdleCPUPercentage() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(.alpine320)
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image, containerArgs: ["sleep", "3600"]) { name in
                 let result = try f.run(["stats", "--no-stream", name]).check()
                 let lines = result.output.components(separatedBy: .newlines)
@@ -57,7 +57,7 @@ struct TestCLIStatsCommand {
 
     @Test func testStatsHighCPUPercentage() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(.alpine320)
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image, containerArgs: ["sh", "-c", "while true; do :; done"]) { name in
                 let result = try f.run(["stats", "--no-stream", name]).check()
                 let lines = result.output.components(separatedBy: .newlines)
@@ -76,7 +76,7 @@ struct TestCLIStatsCommand {
 
     @Test func testStatsTableFormat() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(.alpine320)
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let result = try f.run(["stats", "--no-stream", name]).check()
                 #expect(result.output.contains("Container ID"), "output should contain table header")
@@ -89,7 +89,7 @@ struct TestCLIStatsCommand {
 
     @Test func testStatsAllContainers() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(.alpine320)
+            let image = WarmupImage.alpine320.rawValue
             // Run two containers simultaneously so both appear in the global stats snapshot.
             try await f.withContainer(image: image, tag: "c1") { name1 in
                 try await f.withContainer(image: image, tag: "c2") { name2 in

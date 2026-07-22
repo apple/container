@@ -46,7 +46,7 @@ struct TestCLIRemoveSerial {
             let runningName = "\(f.testID)-running"
             let stoppedName = "\(f.testID)-stopped"
 
-            try f.doLongRun(name: runningName, image: image, autoRemove: false)
+            try await f.doLongRun(name: runningName, image: image, autoRemove: false)
             f.addCleanup {
                 try? f.doStop(runningName)
                 try? f.doRemove(runningName)
@@ -66,7 +66,7 @@ struct TestCLIRemoveSerial {
             let image = WarmupImage.alpine320.rawValue
             if try !f.isImagePresent(image) { try f.doPull(image) }
             let name = "\(f.testID)-c"
-            try f.doLongRun(name: name, image: image, autoRemove: false)
+            try await f.doLongRun(name: name, image: image, autoRemove: false)
             f.addCleanup { try f.doRemoveIfExists(name, force: true, ignoreFailure: true) }
 
             try f.run(["delete", "--all", "--force"]).check()
