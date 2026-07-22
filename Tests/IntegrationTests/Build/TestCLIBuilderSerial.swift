@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerTestSupport
 import Darwin
 import Foundation
 import Testing

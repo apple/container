@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerResource
+import ContainerTestSupport
 import Foundation
 import Testing
 

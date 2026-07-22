@@ -20,15 +20,15 @@ import Foundation
 
 // MARK: - Network inspect output
 
-struct NetworkInspectOutput: Codable {
-    struct Status: Codable {
-        let ipv4Subnet: String?
-        let ipv4Gateway: String?
-        let ipv6Subnet: String?
+public struct NetworkInspectOutput: Codable {
+    public struct Status: Codable {
+        public let ipv4Subnet: String?
+        public let ipv4Gateway: String?
+        public let ipv6Subnet: String?
     }
-    let id: String
-    let configuration: NetworkConfiguration
-    let status: Status
+    public let id: String
+    public let configuration: NetworkConfiguration
+    public let status: Status
 }
 
 // MARK: - Network lifecycle helpers
@@ -36,7 +36,7 @@ struct NetworkInspectOutput: Codable {
 extension ContainerFixture {
 
     /// Creates a named network, throwing on failure.
-    func doNetworkCreate(_ name: String, args: [String] = []) throws {
+    public func doNetworkCreate(_ name: String, args: [String] = []) throws {
         var arguments = ["network", "create"]
         arguments += args
         arguments.append(name)
@@ -44,17 +44,17 @@ extension ContainerFixture {
     }
 
     /// Deletes a named network, throwing on failure.
-    func doNetworkDelete(_ name: String) throws {
+    public func doNetworkDelete(_ name: String) throws {
         try run(["network", "delete", name]).check()
     }
 
     /// Deletes a named network, silently ignoring errors.
-    func doNetworkDeleteIfExists(_ name: String) {
+    public func doNetworkDeleteIfExists(_ name: String) {
         _ = try? run(["network", "delete", name])
     }
 
     /// Inspects a network and returns decoded output.
-    func inspectNetwork(_ name: String) throws -> NetworkInspectOutput {
+    public func inspectNetwork(_ name: String) throws -> NetworkInspectOutput {
         let result = try run(["network", "inspect", name]).check()
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -66,7 +66,7 @@ extension ContainerFixture {
     }
 
     /// Returns an `HTTPClient` for use in network connectivity tests.
-    func makeHTTPClient() -> HTTPClient {
+    public func makeHTTPClient() -> HTTPClient {
         HTTPClient(eventLoopGroupProvider: .singleton)
     }
 }

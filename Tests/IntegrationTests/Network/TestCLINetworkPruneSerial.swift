@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerTestSupport
 import Testing
 
 /// Serial tests for `network prune` — pruning affects all unused networks regardless of name.

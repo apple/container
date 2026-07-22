@@ -263,6 +263,22 @@ struct ConfigurationLoaderTests {
         }
     }
 
+    @Test func loadFollowsSymlinkedSourceFile() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let realFile = tempDir.appending("real-config.toml")
+            try Self.writeToml("[build]\ncpus = 8\n", to: realFile)
+
+            let symlinkPath = tempDir.appending("config.toml")
+            try FileManager.default.createSymbolicLink(
+                atPath: symlinkPath.string, withDestinationPath: realFile.string)
+
+            let config: ContainerSystemConfig = try await ConfigurationLoader.load(
+                configurationFiles: [symlinkPath]
+            )
+            #expect(config.build.cpus == 8)
+        }
+    }
+
     @Test func copyConfigToAppRoot() async throws {
         try await TemporaryStorage.withTempDir { tempDir in
             let source = tempDir.appending("config.toml")
@@ -309,6 +325,45 @@ struct ConfigurationLoaderTests {
             try ConfigurationLoader.copyConfigurationToReadOnly(from: source, to: destBase)
             let destFile = destBase.appending("config").appending("config.toml")
             #expect(!FileManager.default.fileExists(atPath: destFile.string))
+        }
+    }
+
+    @Test func copyConfigDoesNotFollowDestinationSymlink() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let source = tempDir.appending("config.toml")
+            try Self.writeToml("[build]\ncpus = 8", to: source)
+
+            let outsideDir = tempDir.appending("outside")
+            try FileManager.default.createDirectory(
+                atPath: outsideDir.string, withIntermediateDirectories: true)
+            let outsideFile = outsideDir.appending("do-not-touch")
+            try Self.writeToml("untouched", to: outsideFile)
+
+            let destBase = tempDir.appending("dest")
+            let destFile = destBase.appending("config").appending("config.toml")
+            try FileManager.default.createDirectory(
+                atPath: destFile.removingLastComponent().string,
+                withIntermediateDirectories: true)
+            try FileManager.default.createSymbolicLink(
+                atPath: destFile.string, withDestinationPath: outsideDir.string)
+
+            try ConfigurationLoader.copyConfigurationToReadOnly(from: source, to: destBase)
+
+            var isDirectory: ObjCBool = false
+            let exists = FileManager.default.fileExists(atPath: destFile.string, isDirectory: &isDirectory)
+            #expect(exists)
+            #expect(!isDirectory.boolValue)
+
+            let attrs = try FileManager.default.attributesOfItem(atPath: destFile.string)
+            #expect(attrs[.type] as? FileAttributeType != .typeSymbolicLink)
+            let perms = try #require(attrs[.posixPermissions] as? Int)
+            #expect(perms == 0o444)
+
+            let copied = try String(contentsOf: URL(filePath: destFile.string), encoding: .utf8)
+            #expect(copied.contains("cpus = 8"))
+
+            let outsideContents = try String(contentsOf: URL(filePath: outsideFile.string), encoding: .utf8)
+            #expect(outsideContents == "untouched")
         }
     }
 
