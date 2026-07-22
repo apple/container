@@ -796,9 +796,11 @@ public actor RuntimeService {
             // Perform filesystem trim on the root filesystem
             try await ctr.container.filesystemOperation(operation: .trim, path: "/")
 
-            // Perform filesystem trim on each named volume mount
+            // Trim all block-backed mounts. Named volumes are expected to be
+            // block-backed, and may be represented as either `.volume` or
+            // `.block` depending on how configuration was created.
             for mount in ctr.config.mounts {
-                if case .volume = mount.type {
+                if mount.isBlock {
                     try await ctr.container.filesystemOperation(operation: .trim, path: mount.destination)
                 }
             }
