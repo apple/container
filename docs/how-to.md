@@ -33,6 +33,22 @@ container builder delete
 container builder start --cpus 8 --memory 32g
 ```
 
+## Store container data in a different location
+
+By default, `container` stores its runtime data in the application root. This includes data used by the API server and plugins, and other container-managed resources such as containers, images, networks, and volumes.
+
+Use `--app-root` with `container system start` to store this data somewhere else, such as an external APFS volume or a temporary directory for integration tests.
+
+```bash
+container system stop
+container system start --app-root /Volumes/ContainerData
+container system status
+```
+
+The application root is different from the installation root. The installation root is used for installed `container` executables and plugins. Most users do not need to change it.
+
+To share host files with a specific container, use `--volume` or `--mount` with `container run` instead of changing the application root.
+
 ## Share host files with your container
 
 With the `--volume` option of `container run`, you can share data between the host system and one or more containers, and you can persist data across multiple container runs. The volume option allows you to mount a folder on your host to a filesystem path in the container.
