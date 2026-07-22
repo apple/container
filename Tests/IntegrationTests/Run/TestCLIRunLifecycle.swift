@@ -23,7 +23,7 @@ import Testing
 struct TestCLIRunLifecycle {
     @Test func testRunFailureCleanup() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = try f.copyWarmupImage(.alpine320)
             let name = "\(f.testID)-c"
 
             // First attempt with an invalid user — must fail.
@@ -43,7 +43,7 @@ struct TestCLIRunLifecycle {
 
     @Test func testStartIdempotent() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = try f.copyWarmupImage(.alpine320)
             try await f.withContainer(image: image) { name in
                 let result = try f.run(["start", name])
                 #expect(result.status == 0, "expected start to succeed on already running container")
@@ -57,7 +57,7 @@ struct TestCLIRunLifecycle {
 
     @Test func testStartIdempotentAttachFails() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = try f.copyWarmupImage(.alpine320)
             try await f.withContainer(image: image) { name in
                 let result = try f.run(["start", "-a", name])
                 #expect(
@@ -70,7 +70,7 @@ struct TestCLIRunLifecycle {
 
     @Test func testRunInvalidExecutable() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = try f.copyWarmupImage(.alpine320)
             let name = "\(f.testID)-c"
             f.addCleanup { try f.doRemoveIfExists(name, force: true, ignoreFailure: true) }
             let result = try f.run(["run", "--rm", "--name", name, "-d", image, "foobarbaz"])
@@ -80,7 +80,7 @@ struct TestCLIRunLifecycle {
 
     @Test func testExecInvalidExecutable() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = try f.copyWarmupImage(.alpine320)
             try await f.withContainer(image: image) { name in
                 let result = try f.run(["exec", name, "foobarbaz"])
                 #expect(result.status != 0, "executing invalid executable must fail, not hang")
@@ -90,7 +90,7 @@ struct TestCLIRunLifecycle {
 
     @Test func testSSHForwarding() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = try f.copyWarmupImage(.alpine320)
 
             let socketPath = try f.makeFakeSSHAgentSocket()
 

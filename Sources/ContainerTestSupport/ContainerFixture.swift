@@ -59,16 +59,6 @@ import Testing
 /// pattern the structured helpers don't cover.
 public final class ContainerFixture: Sendable {
 
-    // MARK: - Configuration
-
-    /// Images preloaded by the ``ImageWarmup`` suite before concurrent tests run.
-    /// Add new commonly-used images here; the warmup pass pulls them in parallel.
-    public static let warmupImages: [String] = [
-        "ghcr.io/linuxcontainers/alpine:3.20",
-        "ghcr.io/linuxcontainers/alpine:3.18",
-        "ghcr.io/containerd/busybox:1.36",
-    ]
-
     // MARK: - State
 
     /// Short random identifier prefixed to every resource this test creates.
@@ -249,7 +239,8 @@ public final class ContainerFixture: Sendable {
     /// The returned name is `{testID}-{imageName}:{tag}`, e.g.
     /// `a3f7c2b1-alpine:3.20`. Tests operate freely on this reference;
     /// the canonical warmup image is never touched.
-    public func copyWarmupImage(_ canonical: String) throws -> String {
+    public func copyWarmupImage(_ image: WarmupImage) throws -> String {
+        let canonical = image.rawValue
         let lastComponent = canonical.split(separator: "/").last.map(String.init) ?? canonical
         let parts = lastComponent.split(separator: ":", maxSplits: 1)
         let name = String(parts[0])

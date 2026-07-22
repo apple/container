@@ -37,7 +37,7 @@ struct TestCLIPruneCommandSerial {
 
     @Test func testContainerPruneStoppedContainers() async throws {
         try await ContainerFixture.with { f in
-            let image = ContainerFixture.warmupImages[0]
+            let image = WarmupImage.alpine320.rawValue
             if try !f.isImagePresent(image) { try f.doPull(image) }
 
             // One running container that must survive the prune.

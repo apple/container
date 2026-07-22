@@ -20,7 +20,7 @@ import Testing
 
 @Suite
 struct TestCLIRunCapabilities {
-    private let alpine = ContainerFixture.warmupImages[0]
+    private let alpine = WarmupImage.alpine320
 
     // MARK: - Invalid capability names
 

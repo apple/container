@@ -25,7 +25,7 @@ import Testing
 /// global volume state, so the suite runs in the concurrent pass.
 @Suite
 struct TestCLIAnonymousVolumes {
-    private let alpine = ContainerFixture.warmupImages[0]
+    private let alpine = WarmupImage.alpine320
 
     @Test func testAnonymousVolumeCreationAndPersistence() async throws {
         try await ContainerFixture.with { f in
