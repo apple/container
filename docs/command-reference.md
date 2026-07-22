@@ -627,6 +627,27 @@ container image load --input <input> [--force] [--debug]
 *   `-i, --input <input>`: Path to the image tar archive
 *   `-f, --force`: Load images even if invalid member files are detected
 
+### `container image import`
+
+Creates an image from a root filesystem tarball, analogous to `docker import`. The archive may be a plain `.tar` or a compressed `.tar.gz` (and other tar compression formats). Its contents become a single image layer.
+
+**Usage**
+
+```bash
+container image import [--os <os>] [--arch <arch>] [--platform <platform>] [--debug] <tarball> <reference>
+```
+
+**Arguments**
+
+*   `<tarball>`: Path to the root filesystem tar archive
+*   `<reference>`: The reference to assign to the imported image (format: image-name[:tag])
+
+**Options**
+
+*   `--os <os>`: OS for the imported image (default `linux`)
+*   `--arch <arch>`: Architecture for the imported image (default: host architecture)
+*   `--platform <platform>`: Platform for the imported image (format: os/arch[/variant], takes precedence over --os and --arch)
+
 ### `container image tag`
 
 Applies a new tag to an existing image. The original image reference remains unchanged.
