@@ -24,14 +24,14 @@ import TOML
 extension ContainerFixture {
 
     /// Returns the decoded system configuration from `container system property list`.
-    func getSystemConfig() throws -> ContainerSystemConfig {
+    public func getSystemConfig() throws -> ContainerSystemConfig {
         let result = try run(["system", "property", "list", "--format", "toml"]).check()
         return try TOMLDecoder().decode(ContainerSystemConfig.self, from: Data(result.output.utf8))
     }
 
     /// Creates a temporary directory, calls `body` with its URL, then removes it
     /// regardless of whether `body` throws.
-    func withTempDir<T>(_ body: (URL) async throws -> T) async throws -> T {
+    public func withTempDir<T>(_ body: (URL) async throws -> T) async throws -> T {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

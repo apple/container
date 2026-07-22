@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerTestSupport
 import Testing
 
 /// Pulls each image in ``ContainerFixture/warmupImages`` in parallel before

@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import AsyncHTTPClient
+import ContainerTestSupport
 import ContainerizationExtras
 import Foundation
 import Testing

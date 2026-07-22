@@ -35,7 +35,7 @@ extension ContainerFixture {
     /// closing the listening fd is what causes the accept loop to exit.
     ///
     /// Returns the socket path. Pass it as `SSH_AUTH_SOCK` in the CLI process env.
-    func makeFakeSSHAgentSocket() throws -> String {
+    public func makeFakeSSHAgentSocket() throws -> String {
         let socketDir = "/tmp/\(testID)-ssh"
         try FileManager.default.createDirectory(
             atPath: socketDir, withIntermediateDirectories: true, attributes: nil)
