@@ -1348,6 +1348,22 @@ struct ParserTest {
         #expect(result["key99"] == "value99")
     }
 
+    @Test("label value may contain '=' (split on first '=' only)")
+    func testLabelValueContainingEquals() throws {
+        let result = try Parser.labels([
+            "config=key=value",
+            "traefik.http.routers.x.rule=Host(`ex.com`)",
+            "plain=value",
+            "novalue",
+            "emptyvalue=",
+        ])
+        #expect(result["config"] == "key=value")
+        #expect(result["traefik.http.routers.x.rule"] == "Host(`ex.com`)")
+        #expect(result["plain"] == "value")
+        #expect(result["novalue"] == "")
+        #expect(result["emptyvalue"] == "")
+    }
+
     @Test("resolve with large input preserves all entries")
     func testParseKeyValuePairsLargeInput() {
         let pairs = (0..<100).map { "key\($0)=value\($0)" }
