@@ -57,9 +57,9 @@ extension Application {
                 return
             }
             
-            for (index, node) in rootNodes.enumerated() {
+            for node in rootNodes {
                 // Determine root print style. The root doesn't have the ├── marker
-                printRootNode(node, isLast: index == rootNodes.count - 1)
+                printRootNode(node)
             }
         }
 
@@ -162,7 +162,7 @@ extension Application {
             return true
         }
         
-        private func printRootNode(_ node: Node, isLast: Bool) {
+        private func printRootNode(_ node: Node) {
             var line = node.resource.displayReference
             if size {
                 line += " (\(node.displaySize))"
