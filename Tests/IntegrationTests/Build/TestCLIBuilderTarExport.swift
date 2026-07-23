@@ -18,8 +18,7 @@ import ContainerTestSupport
 import Foundation
 import Testing
 
-@Suite(.serialized)
-struct TestCLIBuilderTarExportSerial {
+struct TestCLIBuilderTarExport {
     @Test func testBuildExportTar() async throws {
         try await ContainerFixture.with { f in
             try await f.withBuilder { f in

@@ -95,41 +95,18 @@ extension ContainerFixture {
         throw CommandError.executionFailed("timed out waiting for container-builder-shim on buildkit")
     }
 
-    /// Deletes any existing builder, starts a fresh one, runs `body`, then deletes the builder.
+    /// Runs `body` against the shared builder, relying on `container build` to
+    /// auto-start `buildkit` on first use.
     ///
-    /// Each build test gets an isolated builder to avoid inter-test contamination.
-    /// Acquires a process-wide lock so only one test holds the buildkit singleton at a time,
-    /// regardless of how many suites run concurrently in the global pass.
+    /// The builder is a real buildkitd behind a multiplexed gRPC connection, so
+    /// concurrent tests can run builds against the same instance simultaneously.
+    /// Tests that instead need to manipulate builder lifecycle state (start/stop/
+    /// delete) must run in a serial suite so they don't race with in-flight builds.
     public func withBuilder(
-        cpus: Int64 = 2,
-        memoryInGBs: Int64 = 2,
         _ body: @Sendable (ContainerFixture) async throws -> Void
     ) async throws {
-        try await withoutActuallyEscaping(body) { escapingBody in
-            try await Self.builderLock.withLock { _ in
-                _ = try? self.run(["builder", "delete", "--force"])
-                try self.builderStart(cpus: cpus, memoryInGBs: memoryInGBs)
-                defer { _ = try? self.run(["builder", "delete", "--force"]) }
-                try await self.waitForBuilderRunning()
-                try await escapingBody(self)
-            }
-        }
+        try await body(self)
     }
-
-    /// Acquires the process-wide builder lock without starting a builder.
-    ///
-    /// Use this in tests that manually manage the builder lifecycle (e.g. lifecycle
-    /// tests that call ``builderStart()``/``builderStop()`` directly) so they
-    /// serialise correctly with tests that use ``withBuilder(_:)``.
-    public func withBuilderLock<T: Sendable>(_ body: @Sendable () async throws -> T) async throws -> T {
-        try await withoutActuallyEscaping(body) { escapingBody in
-            try await Self.builderLock.withLock { _ in
-                try await escapingBody()
-            }
-        }
-    }
-
-    private static let builderLock = AsyncLock()
 }
 
 // MARK: - Build context helpers

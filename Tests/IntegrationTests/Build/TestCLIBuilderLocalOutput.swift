@@ -18,8 +18,7 @@ import ContainerTestSupport
 import Foundation
 import Testing
 
-@Suite(.serialized)
-struct TestCLIBuilderLocalOutputSerial {
+struct TestCLIBuilderLocalOutput {
     @Test func testBuildLocalOutputHappyPath() async throws {
         try await ContainerFixture.with { f in
             try await f.withBuilder { f in
