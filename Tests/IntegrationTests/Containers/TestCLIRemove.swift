@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerTestSupport
 import Foundation
 import Testing
 
@@ -22,7 +23,7 @@ import Testing
 struct TestCLIRemove {
     @Test func testDeleteStopped() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             let name = "\(f.testID)-c"
             // create without --rm so the container persists after being stopped
             try f.doCreate(name: name, image: image)
@@ -34,7 +35,7 @@ struct TestCLIRemove {
 
     @Test func testDeleteAlias() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             let name = "\(f.testID)-c"
             try f.doCreate(name: name, image: image)
             try f.run(["rm", name]).check("rm alias failed")
@@ -45,7 +46,7 @@ struct TestCLIRemove {
 
     @Test func testDeleteForceRunning() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 try f.doRemove(name, force: true)
                 let result = try f.run(["inspect", name])
@@ -71,7 +72,7 @@ struct TestCLIRemove {
 
     @Test func testDeleteDuplicateIds() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             let name = "\(f.testID)-c"
             try f.doCreate(name: name, image: image)
             f.addCleanup { try f.doRemoveIfExists(name, force: true, ignoreFailure: true) }

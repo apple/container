@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerTestSupport
 import Foundation
 import Testing
 
@@ -31,7 +32,7 @@ struct TestCLIRunLifecycleSerial {
             f.addCleanup { try? f.doRemove(name) }
 
             let server = "\(f.testID)-server"
-            try f.doLongRun(
+            try await f.doLongRun(
                 name: server,
                 image: serverImage,
                 args: ["--publish", "\(port):\(port)"],

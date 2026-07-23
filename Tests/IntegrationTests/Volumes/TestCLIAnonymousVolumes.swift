@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerResource
+import ContainerTestSupport
 import Foundation
 import Testing
 
@@ -24,14 +25,13 @@ import Testing
 /// global volume state, so the suite runs in the concurrent pass.
 @Suite
 struct TestCLIAnonymousVolumes {
-    private let alpine = ContainerFixture.warmupImages[0]
+    private let alpine = WarmupImage.alpine320
 
     @Test func testAnonymousVolumeCreationAndPersistence() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["-v", "/data"], autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, args: ["-v", "/data"], autoRemove: false, waitUntilRunning: true)
 
             let volumeIDs = try f.getContainerMountedVolumeNames(c)
             try #require(volumeIDs.count == 1, "should have exactly one anonymous volume")
@@ -46,10 +46,9 @@ struct TestCLIAnonymousVolumes {
 
     @Test func testAnonymousVolumePersistenceWithoutRm() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c1"
-            try f.doLongRun(name: c, image: image, args: ["-v", "/data"], autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, args: ["-v", "/data"], autoRemove: false, waitUntilRunning: true)
             _ = try f.doExec(c, cmd: ["sh", "-c", "echo 'persistent-data' > /data/test.txt"])
 
             let volumeIDs = try f.getContainerMountedVolumeNames(c)
@@ -62,8 +61,7 @@ struct TestCLIAnonymousVolumes {
             #expect(try f.volumeExists(volumeID), "anonymous volume should persist without --rm")
 
             let c2 = "\(f.testID)-c2"
-            try f.doLongRun(name: c2, image: image, args: ["-v", "\(volumeID):/data"], autoRemove: false)
-            try await f.waitForContainerRunning(c2)
+            try await f.doLongRun(name: c2, image: image, args: ["-v", "\(volumeID):/data"], autoRemove: false, waitUntilRunning: true)
             let output = try f.doExec(c2, cmd: ["cat", "/data/test.txt"])
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             #expect(output == "persistent-data")
@@ -74,12 +72,11 @@ struct TestCLIAnonymousVolumes {
 
     @Test func testMultipleAnonymousVolumes() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(
+            try await f.doLongRun(
                 name: c, image: image,
-                args: ["-v", "/data1", "-v", "/data2", "-v", "/data3"], autoRemove: false)
-            try await f.waitForContainerRunning(c)
+                args: ["-v", "/data1", "-v", "/data2", "-v", "/data3"], autoRemove: false, waitUntilRunning: true)
 
             let volumeIDs = try f.getContainerMountedVolumeNames(c)
             #expect(volumeIDs.count == 3, "should have 3 anonymous volumes")
@@ -93,12 +90,11 @@ struct TestCLIAnonymousVolumes {
 
     @Test func testAnonymousMountSyntax() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(
+            try await f.doLongRun(
                 name: c, image: image,
-                args: ["--mount", "type=volume,dst=/mydata"], autoRemove: false)
-            try await f.waitForContainerRunning(c)
+                args: ["--mount", "type=volume,dst=/mydata"], autoRemove: false, waitUntilRunning: true)
 
             let volumeIDs = try f.getContainerMountedVolumeNames(c)
             #expect(volumeIDs.count == 1, "should have one anonymous volume from --mount syntax")
@@ -111,10 +107,9 @@ struct TestCLIAnonymousVolumes {
 
     @Test func testAnonymousVolumeUUIDFormat() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["-v", "/data"], autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, args: ["-v", "/data"], autoRemove: false, waitUntilRunning: true)
 
             // Capture volume IDs before any stop/remove so cleanup and assert can use them.
             let volumeIDs = try f.getContainerMountedVolumeNames(c)
@@ -132,10 +127,9 @@ struct TestCLIAnonymousVolumes {
 
     @Test func testAnonymousVolumeMetadata() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["-v", "/data"], autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, args: ["-v", "/data"], autoRemove: false, waitUntilRunning: true)
 
             // Capture volume ID before stop/remove.
             let volumeIDs = try f.getContainerMountedVolumeNames(c)
@@ -162,14 +156,13 @@ struct TestCLIAnonymousVolumes {
 
     @Test func testAnonymousVolumeListDisplay() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let namedVol = "\(f.testID)-namedvol"
             let c = "\(f.testID)-c"
             try f.doVolumeCreate(namedVol)
             f.addCleanup { f.doVolumeDeleteIfExists(namedVol) }
 
-            try f.doLongRun(name: c, image: image, args: ["-v", "/data"], autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, args: ["-v", "/data"], autoRemove: false, waitUntilRunning: true)
 
             // Capture volume IDs while container is running.
             let volumeIDs = try f.getContainerMountedVolumeNames(c)
@@ -189,16 +182,15 @@ struct TestCLIAnonymousVolumes {
 
     @Test func testAnonymousVolumeMixedWithNamedVolume() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let namedVol = "\(f.testID)-namedvol"
             let c = "\(f.testID)-c"
             try f.doVolumeCreate(namedVol)
             f.addCleanup { f.doVolumeDeleteIfExists(namedVol) }
 
-            try f.doLongRun(
+            try await f.doLongRun(
                 name: c, image: image,
-                args: ["-v", "\(namedVol):/named", "-v", "/anon"], autoRemove: false)
-            try await f.waitForContainerRunning(c)
+                args: ["-v", "\(namedVol):/named", "-v", "/anon"], autoRemove: false, waitUntilRunning: true)
 
             let allVolumeIDs = try f.getContainerMountedVolumeNames(c)
             let anonVols = allVolumeIDs.filter { $0 != namedVol }
@@ -214,10 +206,9 @@ struct TestCLIAnonymousVolumes {
 
     @Test func testAnonymousVolumeManualDeletion() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["-v", "/data"], autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, args: ["-v", "/data"], autoRemove: false, waitUntilRunning: true)
 
             let volumeIDs = try f.getContainerMountedVolumeNames(c)
             try #require(volumeIDs.count == 1)
@@ -233,10 +224,9 @@ struct TestCLIAnonymousVolumes {
 
     @Test func testAnonymousVolumeDetachedMode() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, args: ["-v", "/data"], autoRemove: true)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, args: ["-v", "/data"], autoRemove: true, waitUntilRunning: true)
 
             // Capture volume IDs while the container is still running; --rm means
             // doStop will also remove it.

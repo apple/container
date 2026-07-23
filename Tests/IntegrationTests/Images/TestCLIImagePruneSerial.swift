@@ -14,10 +14,11 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerTestSupport
 import Testing
 
-private let alpine = ContainerFixture.warmupImages[0]
-private let busybox = ContainerFixture.warmupImages[2]
+private let alpine = WarmupImage.alpine320.rawValue
+private let busybox = WarmupImage.busybox136.rawValue
 
 /// Serial tests for `image prune` and `--max-concurrent-downloads`.
 /// These use `image rm --all` which affects global state.
@@ -89,8 +90,7 @@ struct TestCLIImagePruneSerial {
             #expect(try f.isImagePresent(busybox), "expected \(busybox) to be pulled")
 
             // Keep alpine in use via a running container.
-            try f.doLongRun(name: containerName, image: alpine, autoRemove: false)
-            try await f.waitForContainerRunning(containerName)
+            try await f.doLongRun(name: containerName, image: alpine, autoRemove: false, waitUntilRunning: true)
 
             let result = try f.run(["image", "prune", "-a"]).check()
             #expect(result.output.contains(busybox), "should prune busybox image")

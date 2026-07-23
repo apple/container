@@ -46,6 +46,15 @@ ifneq ($(strip $(LOG_ROOT)),)
 	SYSTEM_START_OPTS += --log-root "$(strip $(LOG_ROOT))"
 endif
 
+# swift test event-stream JSON output for the concurrent/global integration
+# passes, only when LOG_ROOT is set.
+CONCURRENT_EVENT_STREAM_OPTS :=
+GLOBAL_EVENT_STREAM_OPTS :=
+ifneq ($(strip $(LOG_ROOT)),)
+	CONCURRENT_EVENT_STREAM_OPTS += --event-stream-output-path "$(strip $(LOG_ROOT))/integration-concurrent.json" --event-stream-version 6.3
+	GLOBAL_EVENT_STREAM_OPTS += --event-stream-output-path "$(strip $(LOG_ROOT))/integration-global.json" --event-stream-version 6.3
+endif
+
 MACOS_VERSION := $(shell sw_vers -productVersion)
 MACOS_MAJOR := $(shell echo $(MACOS_VERSION) | cut -d. -f1)
 
@@ -279,15 +288,16 @@ define RUN_INTEGRATION
 	@echo Running the integration tests...
 	@$(INTEGRATION_PROFILE_ENV) bin/container --debug system start --timeout 60 --enable-kernel-install $(SYSTEM_START_OPTS) && \
 	{ \
+		if [ -n "$(APP_ROOT)" ]; then CONTAINER_APP_ROOT=$(APP_ROOT) && export CONTAINER_APP_ROOT ; fi ; \
 		CLITEST_LOG_ROOT=$(LOG_ROOT) && export CLITEST_LOG_ROOT ; \
 		CLITEST_SCRATCH_ROOT=$(SCRATCH_ROOT) && export CLITEST_SCRATCH_ROOT ; \
 		CONTAINER_CLI_PATH=$(ROOT_DIR)/bin/container && export CONTAINER_CLI_PATH ; \
 		echo "==> Warmup pass" && \
 		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(WARMUP_FILTER)" && \
 		echo "==> Concurrent pass (width=$(PARALLEL_WIDTH))" && \
-		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --experimental-maximum-parallelization-width $(PARALLEL_WIDTH) --filter "$(CONCURRENT_FILTER)" && \
+		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) $(CONCURRENT_EVENT_STREAM_OPTS) --experimental-maximum-parallelization-width $(PARALLEL_WIDTH) --filter "$(CONCURRENT_FILTER)" && \
 		echo "==> Global pass (serial)" && \
-		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --experimental-maximum-parallelization-width 1 --filter "$(SERIAL_FILTER)" ; \
+		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) $(GLOBAL_EVENT_STREAM_OPTS) --experimental-maximum-parallelization-width 1 --filter "$(SERIAL_FILTER)" ; \
 		exit_code=$$? ; \
 		$(INTEGRATION_POST_TEST) \
 		echo Ensuring apiserver stopped after the CLI integration tests ; \
@@ -298,6 +308,7 @@ endef
 
 .PHONY: integration
 integration: init-block
+	@echo "HOSTNAME: $$(hostname)"
 	$(RUN_INTEGRATION)
 
 .PHONY: coverage-integration
@@ -310,6 +321,7 @@ coverage-integration: INTEGRATION_POST_TEST = cp $(COV_DATA_DIR)/*.profraw $(COV
 # process/module profile in its own file so they don't collide.
 coverage-integration: INTEGRATION_PROFILE_ENV = LLVM_PROFILE_FILE=$(COVERAGE_OUTPUT_DIR)/integration/%p-%m%c.profraw
 coverage-integration: coverage-all
+	@echo "HOSTNAME: $$(hostname)"
 	@mkdir -p $(COVERAGE_OUTPUT_DIR)/integration
 	@rm -f $(COVERAGE_OUTPUT_DIR)/integration/*.profraw
 	$(RUN_INTEGRATION)
