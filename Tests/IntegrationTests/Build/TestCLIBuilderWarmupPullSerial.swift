@@ -24,16 +24,14 @@ import Testing
 struct TestCLIBuilderWarmupPullSerial {
     @Test func testBuildNoCachePullLatestImage() async throws {
         try await ContainerFixture.with { f in
-            try await f.withBuilder { f in
-                let dir = try f.createTempDir()
-                try f.createContext(
-                    dir: dir,
-                    dockerfile: "FROM \(WarmupImage.alpine320.rawValue)\nADD emptyFile /",
-                    context: [.file("emptyFile", content: .zeroFilled(size: 1))])
-                let image = "registry.local/no-cache-pull:\(UUID().uuidString)"
-                try f.buildWithPaths(tags: [image], contextDir: dir, otherArgs: ["--pull", "--no-cache"])
-                try f.assertImageBuilt(image)
-            }
+            let dir = try f.createTempDir()
+            try f.createContext(
+                dir: dir,
+                dockerfile: "FROM \(WarmupImage.alpine320.rawValue)\nADD emptyFile /",
+                context: [.file("emptyFile", content: .zeroFilled(size: 1))])
+            let image = "registry.local/no-cache-pull:\(UUID().uuidString)"
+            try f.buildWithPaths(tags: [image], contextDir: dir, otherArgs: ["--pull", "--no-cache"])
+            try f.assertImageBuilt(image)
         }
     }
 }

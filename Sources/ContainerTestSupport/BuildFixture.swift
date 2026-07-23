@@ -94,19 +94,6 @@ extension ContainerFixture {
         }
         throw CommandError.executionFailed("timed out waiting for container-builder-shim on buildkit")
     }
-
-    /// Runs `body` against the shared builder, relying on `container build` to
-    /// auto-start `buildkit` on first use.
-    ///
-    /// The builder is a real buildkitd behind a multiplexed gRPC connection, so
-    /// concurrent tests can run builds against the same instance simultaneously.
-    /// Tests that instead need to manipulate builder lifecycle state (start/stop/
-    /// delete) must run in a serial suite so they don't race with in-flight builds.
-    public func withBuilder(
-        _ body: @Sendable (ContainerFixture) async throws -> Void
-    ) async throws {
-        try await body(self)
-    }
 }
 
 // MARK: - Build context helpers

@@ -21,8 +21,6 @@ import Testing
 
 /// Tests for `container builder start`, `stop`, and `delete` lifecycle commands.
 ///
-/// These tests manage the builder manually — they do not use ``withBuilder``
-/// because they are specifically testing the lifecycle commands themselves.
 /// Serialized because they stop/delete the shared `buildkit` container, which
 /// would race with in-flight builds in the concurrent pool.
 @Suite(.serialized)
