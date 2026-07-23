@@ -928,6 +928,13 @@ struct ParserTest {
     }
 
     @Test
+    func testManagementFlagsParseHostname() throws {
+        let managementFlags = try Flags.Management.parse(["--hostname", "custom-host"])
+
+        #expect(managementFlags.hostname == "custom-host")
+    }
+
+    @Test
     func testUlimitParserSoftAndHard() throws {
         let result = try Parser.rlimits(["nofile=1024:2048"])
         #expect(result.count == 1)
