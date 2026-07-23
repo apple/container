@@ -92,6 +92,29 @@ The command to push your multiplatform image to a registry is no different than 
 container image push registry.example.com/fido/web-test:latest
 ```
 
+## Work with tools that expect Docker
+
+`container` uses standard OCI images, so it can run images published for Docker and other OCI-compatible runtimes. However, `container` is not a drop-in replacement for the Docker CLI or the Docker Engine API. It does not expose a Docker-compatible API socket such as `/var/run/docker.sock`.
+
+If a development tool only needs a service container, run that service directly with `container run` and point the tool at the published host port. For example, to run PostgreSQL locally:
+
+```bash
+container run -d \
+  --name dev-postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -p 127.0.0.1:5432:5432 \
+  postgres:16-alpine
+```
+
+Then connect to `127.0.0.1:5432` from the host. When finished, stop and remove the service:
+
+```bash
+container stop dev-postgres
+container delete dev-postgres
+```
+
+Tools that shell out to the `docker` command or call the Docker Engine API directly need native support for `container`, a compatibility layer, or a tool-specific workflow that avoids the Docker API dependency.
+
 ## Get container or image details
 
 `container image list` and `container list` provide basic information for all of your images and containers. You can also use `list` and `inspect` commands to print detailed machine-readable output for resources.

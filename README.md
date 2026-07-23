@@ -7,6 +7,8 @@
 
 The tool consumes and produces [OCI-compatible container images](https://github.com/opencontainers/image-spec), so you can pull and run images from any standard container registry. You can push images that you build to those registries as well, and run the images in any other OCI-compatible application.
 
+OCI image compatibility means that `container` works with standard container images. It does not mean that `container` exposes a Docker-compatible CLI or Docker Engine API socket. Tools that require the Docker CLI or Docker Engine API need either native `container` integration or an alternate workflow that runs the required service containers directly with `container run`.
+
 `container` uses the [Containerization](https://github.com/apple/containerization) Swift package for low-level container, image, and process management.
 
 ![introductory movie showing some basic commands](./docs/assets/landing-movie.gif)
