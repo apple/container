@@ -106,7 +106,7 @@ public struct MachineClient: Sendable {
 
             let response = try await xpcSend(
                 message: request,
-                timeout: .seconds(10)
+                timeout: nil
             )
             let data = response.dataNoCopy(key: MachineKeys.machines.rawValue)
             guard let data else {
@@ -142,7 +142,7 @@ public struct MachineClient: Sendable {
             let bootData = try JSONEncoder().encode(bootConfig)
             request.set(key: MachineKeys.bootConfig.rawValue, value: bootData)
 
-            let _ = try await xpcSend(message: request)
+            let _ = try await xpcSend(message: request, timeout: nil)
         } catch {
             throw ContainerizationError(
                 .internalError,
@@ -158,7 +158,7 @@ public struct MachineClient: Sendable {
             let request = XPCMessage(route: MachineRoutes.deleteMachine.rawValue)
             request.set(key: MachineKeys.id.rawValue, value: id)
 
-            let _ = try await xpcSend(message: request, timeout: .seconds(15))
+            let _ = try await xpcSend(message: request, timeout: .seconds(60))
         } catch {
             throw ContainerizationError(
                 .internalError,
@@ -216,7 +216,7 @@ public struct MachineClient: Sendable {
             let dynamicEnvData = try JSONEncoder().encode(dynamicEnv)
             request.set(key: MachineKeys.dynamicEnv.rawValue, value: dynamicEnvData)
 
-            let response = try await xpcSend(message: request)
+            let response = try await xpcSend(message: request, timeout: nil)
             guard let data = response.dataNoCopy(key: MachineKeys.snapshot.rawValue) else {
                 throw ContainerizationError(
                     .internalError,
@@ -239,7 +239,7 @@ public struct MachineClient: Sendable {
             let request = XPCMessage(route: MachineRoutes.stopMachine.rawValue)
             request.set(key: MachineKeys.id.rawValue, value: id)
 
-            let _ = try await xpcSend(message: request, timeout: .seconds(30))
+            let _ = try await xpcSend(message: request, timeout: nil)
         } catch {
             throw ContainerizationError(
                 .internalError,
@@ -272,7 +272,7 @@ public struct MachineClient: Sendable {
             let request = XPCMessage(route: MachineRoutes.inspectMachine.rawValue)
             request.set(key: MachineKeys.id.rawValue, value: id)
 
-            let response = try await xpcSend(message: request)
+            let response = try await xpcSend(message: request, timeout: nil)
             guard let data = response.dataNoCopy(key: MachineKeys.snapshot.rawValue) else {
                 throw ContainerizationError(
                     .internalError,
