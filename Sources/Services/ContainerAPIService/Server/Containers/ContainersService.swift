@@ -334,7 +334,6 @@ public actor ContainersService {
             }
 
             let path = self.containerRoot.appendingPathComponent(configuration.id)
-            let systemPlatform = kernel.platform
 
             // Fetch init image (custom or default)
             self.log.debug(
@@ -343,7 +342,7 @@ public actor ContainersService {
                     "id": "\(configuration.id)"
                 ]
             )
-            let initFilesystem = try await self.getInitBlock(for: systemPlatform.ociPlatform(), imageRef: initImage)
+            let initFilesystem = try await self.getInitBlock(for: SystemPlatform.current.ociPlatform(), imageRef: initImage)
 
             do {
                 self.log.debug(
