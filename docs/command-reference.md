@@ -408,6 +408,30 @@ container export -o mycontainer.tar mycontainer
 container export mycontainer > mycontainer.tar
 ```
 
+### `container clean`
+
+Cleans unused space on the root filesystem and each named volume mount in one or more running containers. The command only works while the container is running.
+
+**Usage**
+
+```bash
+container clean [--debug] <container-ids> ...
+```
+
+**Arguments**
+
+*   `<container-ids>`: Container IDs
+
+**Examples**
+
+```bash
+# clean a single running container
+container clean mycontainer
+
+# clean multiple running containers
+container clean mycontainer1 mycontainer2
+```
+
 ### `container logs`
 
 Fetches logs from a container. You can follow the logs (`-f`/`--follow`), restrict the number of lines shown, or view boot logs.

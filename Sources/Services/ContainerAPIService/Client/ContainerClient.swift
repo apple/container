@@ -388,4 +388,19 @@ public struct ContainerClient: Sendable {
             )
         }
     }
+
+    public func clean(id: String) async throws {
+        let request = XPCMessage(route: .containerClean)
+        request.set(key: .id, value: id)
+
+        do {
+            try await xpcClient.send(request)
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to clean container",
+                cause: error
+            )
+        }
+    }
 }
