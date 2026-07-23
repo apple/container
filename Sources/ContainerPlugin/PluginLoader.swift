@@ -34,10 +34,16 @@ public struct PluginLoader: Sendable {
 
     public typealias PluginQualifier = ((Plugin) -> Bool)
 
-    // A path on disk managed by the PluginLoader, where it stores
-    // runtime data for loaded plugins. This includes the launchd plists
-    // and logs files.
-    private let pluginResourceRoot: URL
+    // A path on the system (internal) volume where launchd plists are written.
+    // Derived from serviceRoot, which is always on an internal volume, so that
+    // plist registration succeeds even when appRoot is on an external or
+    // removable volume — launchd cannot bootstrap Mach services from plists on
+    // such volumes.
+    private let plistResourceRoot: URL
+
+    // The resolved service root propagated to child services so nested plugin
+    // loaders use the same internal-volume location for their launchd plists.
+    private let serviceRoot: URL
 
     public init(
         appRoot: URL,
@@ -45,11 +51,14 @@ public struct PluginLoader: Sendable {
         logRoot: FilePath?,
         pluginDirectories: [URL],
         pluginFactories: [PluginFactory],
-        log: Logger? = nil
+        log: Logger? = nil,
+        serviceRoot: URL? = nil
     ) throws {
-        let pluginResourceRoot = appRoot.appendingPathComponent("plugin-state")
-        try FileManager.default.createDirectory(at: pluginResourceRoot, withIntermediateDirectories: true)
-        self.pluginResourceRoot = pluginResourceRoot
+        let resolvedServiceRoot = serviceRoot ?? URL(fileURLWithPath: ServiceRoot.pathname, isDirectory: true)
+        self.serviceRoot = resolvedServiceRoot
+        let plistResourceRoot = resolvedServiceRoot.appendingPathComponent("plugin-state", isDirectory: true)
+        try FileManager.default.createDirectory(at: plistResourceRoot, withIntermediateDirectories: true)
+        self.plistResourceRoot = plistResourceRoot
         self.appRoot = appRoot
         self.installRoot = installRoot
         self.logRoot = logRoot
@@ -217,7 +226,7 @@ extension PluginLoader {
 
     public func registerWithLaunchd(
         plugin: Plugin,
-        pluginStateRoot: URL? = nil,
+        pluginStateRoot _: URL? = nil,
         args: [String]? = nil,
         instanceId: String? = nil,
         debug: Bool = false,
@@ -230,7 +239,14 @@ extension PluginLoader {
 
         let id = plugin.getLaunchdLabel(instanceId: instanceId)
         log?.info("Registering plugin", metadata: ["id": "\(id)"])
-        let rootURL = pluginStateRoot ?? self.pluginResourceRoot.appending(path: plugin.name)
+        // pluginStateRoot contains runtime data and may be on an external volume.
+        // launchd plists must always remain under plistResourceRoot on the
+        // internal volume. Include the instance ID so registrations for multiple
+        // instances of the same plugin do not overwrite each other.
+        var rootURL = self.plistResourceRoot.appending(path: plugin.name)
+        if let instanceId {
+            rootURL = rootURL.appending(path: instanceId)
+        }
         let resourceURL = plugin.resourceURL
 
         try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
@@ -238,6 +254,7 @@ extension PluginLoader {
         var env = Self.filterEnvironment()
         env[ApplicationRoot.environmentName] = appRoot.path(percentEncoded: false)
         env[InstallRoot.environmentName] = installRoot.path(percentEncoded: false)
+        env[ServiceRoot.environmentName] = serviceRoot.path(percentEncoded: false)
         if let logRoot {
             env[LogRoot.environmentName] =
                 logRoot.isAbsolute
