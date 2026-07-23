@@ -484,6 +484,12 @@ let package = Package(
                 "CAuditToken",
             ]
         ),
+        .testTarget(
+            name: "ContainerXPCTests",
+            dependencies: [
+                "ContainerXPC"
+            ]
+        ),
         .target(
             name: "ContainerOS",
             dependencies: [
