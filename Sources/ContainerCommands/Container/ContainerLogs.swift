@@ -63,27 +63,7 @@ extension Application {
             follow: Bool
         ) async throws {
             if let n {
-                var buffer = Data()
-                let size = try fh.seekToEnd()
-                var offset = size
-                var lines: [String] = []
-
-                while offset > 0, lines.count < n {
-                    let readSize = min(1024, offset)
-                    offset -= readSize
-                    try fh.seek(toOffset: offset)
-
-                    let data = fh.readData(ofLength: Int(readSize))
-                    buffer.insert(contentsOf: data, at: 0)
-
-                    if let chunk = String(data: buffer, encoding: .utf8) {
-                        lines = chunk.components(separatedBy: .newlines)
-                        lines = lines.filter { !$0.isEmpty }
-                    }
-                }
-
-                lines = Array(lines.suffix(n))
-                for line in lines {
+                for line in try Self.lastLines(fh: fh, n: n) {
                     print(line)
                 }
             } else {
@@ -107,6 +87,36 @@ extension Application {
                 setbuf(stdout, nil)
                 try await Self.followFile(fh: fh)
             }
+        }
+
+        /// Returns the last `n` non-empty lines of the file, reading backward in
+        /// 1024-byte chunks.
+        ///
+        /// While `offset > 0` the buffer starts in the middle of a line, so its
+        /// first line is a fragment truncated at the chunk boundary. Keep reading
+        /// until there are *more* than `n` lines (so the first of the `n` kept
+        /// lines is complete) or the start of the file is reached. Stopping at
+        /// `>= n` instead would keep a truncated leading line whenever the last
+        /// `n` lines span more than one chunk.
+        static func lastLines(fh: FileHandle, n: Int) throws -> [String] {
+            var buffer = Data()
+            var offset = try fh.seekToEnd()
+            var lines: [String] = []
+
+            while offset > 0, lines.count <= n {
+                let readSize = min(1024, offset)
+                offset -= readSize
+                try fh.seek(toOffset: offset)
+
+                let data = fh.readData(ofLength: Int(readSize))
+                buffer.insert(contentsOf: data, at: 0)
+
+                if let chunk = String(data: buffer, encoding: .utf8) {
+                    lines = chunk.components(separatedBy: .newlines).filter { !$0.isEmpty }
+                }
+            }
+
+            return Array(lines.suffix(n))
         }
 
         private static func followFile(fh: FileHandle) async throws {
