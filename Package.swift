@@ -159,6 +159,7 @@ let package = Package(
         .testTarget(
             name: "ContainerCommandsTests",
             dependencies: [
+                "ContainerAPIClient",
                 "ContainerCommands",
                 "ContainerResource",
             ]
@@ -482,6 +483,13 @@ let package = Package(
                 .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "Logging", package: "swift-log"),
                 "CAuditToken",
+            ]
+        ),
+        .testTarget(
+            name: "ContainerXPCTests",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+                "ContainerXPC",
             ]
         ),
         .target(

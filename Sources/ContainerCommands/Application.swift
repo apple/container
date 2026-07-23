@@ -36,6 +36,8 @@ private nonisolated(unsafe) var bootstrapLogger = {
     return log
 }()
 
+typealias APIServerHealthCheck = @Sendable (Duration) async throws -> SystemHealth
+
 public struct Application: AsyncLoggableCommand {
     @OptionGroup
     public var logOptions: Flags.Logging
@@ -129,7 +131,7 @@ public struct Application: AsyncLoggableCommand {
             // by ArgumentParser and lands here.
             let containsHelp = fullArgs.contains("-h") || fullArgs.contains("--help")
             if fullArgs.count <= 2 && containsHelp {
-                let pluginLoader = try? await createPluginLoader()
+                let pluginLoader = await pluginLoaderForHelp()
                 await Self.printModifiedHelpText(pluginLoader: pluginLoader)
                 return
             }
@@ -144,6 +146,25 @@ public struct Application: AsyncLoggableCommand {
     }
 
     public static func createPluginLoader() async throws -> PluginLoader {
+        try await createPluginLoader(
+            healthTimeout: .seconds(10),
+            healthCheck: defaultAPIServerHealthCheck(timeout:)
+        )
+    }
+
+    static func pluginLoaderForHelp(
+        healthCheck: @escaping APIServerHealthCheck = defaultAPIServerHealthCheck(timeout:)
+    ) async -> PluginLoader? {
+        try? await createPluginLoader(
+            healthTimeout: .seconds(1),
+            healthCheck: healthCheck
+        )
+    }
+
+    private static func createPluginLoader(
+        healthTimeout: Duration,
+        healthCheck: @escaping APIServerHealthCheck
+    ) async throws -> PluginLoader {
         let installRootPath = CommandLine.executablePath
             .removingLastComponent()
             .removingLastComponent()
@@ -175,7 +196,7 @@ public struct Application: AsyncLoggableCommand {
             AppBundlePluginFactory(logger: bootstrapLogger),
         ]
 
-        guard let systemHealth = try? await ClientHealthCheck.ping(timeout: .seconds(10)) else {
+        guard let systemHealth = try? await healthCheck(healthTimeout) else {
             throw ContainerizationError(.timeout, message: "unable to retrieve application data root from API server")
         }
         return try PluginLoader(
@@ -186,6 +207,10 @@ public struct Application: AsyncLoggableCommand {
             pluginFactories: pluginFactories,
             log: bootstrapLogger
         )
+    }
+
+    private static func defaultAPIServerHealthCheck(timeout: Duration) async throws -> SystemHealth {
+        try await ClientHealthCheck.ping(timeout: timeout)
     }
 
     /// Load the system configuration using `appRoot` / `installRoot` reported by the
