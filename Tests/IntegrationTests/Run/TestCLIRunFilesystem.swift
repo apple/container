@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerTestSupport
 import Foundation
 import Testing
 
@@ -31,7 +32,7 @@ import Testing
 // therefore 1024+92=1116 and 1024+256=1280.
 @Suite
 struct TestCLIRunFilesystem {
-    private let alpine = ContainerFixture.warmupImages[0]
+    private let alpine = WarmupImage.alpine320
 
     private static let featureCompatOffset = 1116
     private static let defaultMountOptsOffset = 1280
@@ -40,10 +41,9 @@ struct TestCLIRunFilesystem {
 
     @Test func testRootFilesystemHasOrderedJournal() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(alpine)
+            let image = alpine.rawValue
             let c = "\(f.testID)-c"
-            try f.doLongRun(name: c, image: image, autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)

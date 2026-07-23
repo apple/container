@@ -59,16 +59,6 @@ import Testing
 /// pattern the structured helpers don't cover.
 public final class ContainerFixture: Sendable {
 
-    // MARK: - Configuration
-
-    /// Images preloaded by the ``ImageWarmup`` suite before concurrent tests run.
-    /// Add new commonly-used images here; the warmup pass pulls them in parallel.
-    public static let warmupImages: [String] = [
-        "ghcr.io/linuxcontainers/alpine:3.20",
-        "ghcr.io/linuxcontainers/alpine:3.18",
-        "ghcr.io/containerd/busybox:1.36",
-    ]
-
     // MARK: - State
 
     /// Short random identifier prefixed to every resource this test creates.
@@ -244,12 +234,29 @@ public final class ContainerFixture: Sendable {
             status: process.terminationStatus)
     }
 
+    /// Creates a directory at a short, fixed-depth path under `/tmp`, suitable for
+    /// Unix-domain socket files that must fit within `sockaddr_un.sun_path`'s 104-byte
+    /// limit on macOS regardless of the project checkout's directory depth.
+    ///
+    /// Returns the directory path; the caller creates the socket file inside it.
+    /// The directory is removed on fixture cleanup.
+    public func makeShortSocketDir(_ suffix: String) throws -> String {
+        let dir = "/tmp/\(testID)-\(suffix)"
+        try FileManager.default.createDirectory(
+            atPath: dir, withIntermediateDirectories: true, attributes: nil)
+        addCleanup {
+            try? FileManager.default.removeItem(atPath: dir)
+        }
+        return dir
+    }
+
     /// Tags a warmup image to a test-local reference and registers its removal.
     ///
     /// The returned name is `{testID}-{imageName}:{tag}`, e.g.
     /// `a3f7c2b1-alpine:3.20`. Tests operate freely on this reference;
     /// the canonical warmup image is never touched.
-    public func copyWarmupImage(_ canonical: String) throws -> String {
+    public func copyWarmupImage(_ image: WarmupImage) throws -> String {
+        let canonical = image.rawValue
         let lastComponent = canonical.split(separator: "/").last.map(String.init) ?? canonical
         let parts = lastComponent.split(separator: ":", maxSplits: 1)
         let name = String(parts[0])

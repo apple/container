@@ -69,4 +69,23 @@ extension ContainerFixture {
     public func makeHTTPClient() -> HTTPClient {
         HTTPClient(eventLoopGroupProvider: .singleton)
     }
+
+    /// Polls `url` via HTTP GET until it returns a 2xx status.
+    ///
+    /// Useful after a container reaches `running` state, since that only proves
+    /// the container's init process is up — a server inside may still be starting.
+    public func waitForHTTPOk(
+        _ url: String, using client: HTTPClient, attempts: Int = 10, delay: Duration = .seconds(1)
+    ) async throws {
+        try await retry(attempts: attempts, delay: delay) {
+            do {
+                var req = HTTPClientRequest(url: url)
+                req.method = .GET
+                let resp = try await client.execute(req, timeout: .seconds(3))
+                return resp.status.code >= 200 && resp.status.code < 300
+            } catch {
+                return false
+            }
+        }
+    }
 }
