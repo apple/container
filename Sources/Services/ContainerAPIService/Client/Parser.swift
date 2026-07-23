@@ -245,7 +245,9 @@ public struct Parser {
             if label.isEmpty {
                 throw ContainerizationError(.invalidArgument, message: "label cannot be an empty string")
             }
-            let parts = label.split(separator: "=", maxSplits: 2)
+            // Split on the first `=` only, so a value may itself contain `=`
+            // (e.g. `--label 'rule=Host(`ex.com`)'`), matching `docker run --label`.
+            let parts = label.split(separator: "=", maxSplits: 1)
             switch parts.count {
             case 1:
                 result[String(parts[0])] = ""
