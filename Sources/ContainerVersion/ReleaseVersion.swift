@@ -20,10 +20,17 @@ import Foundation
 public struct ReleaseVersion {
     public static func singleLine(appName: String) -> String {
         var versionDetails: [String: String] = ["build": buildType()]
-        versionDetails["commit"] = gitCommit().map { String($0.prefix(7)) } ?? "unspecified"
+        versionDetails["commit"] = displayCommit(gitCommit())
         let extras: String = versionDetails.map { "\($0): \($1)" }.sorted().joined(separator: ", ")
 
         return "\(appName) version \(version()) (\(extras))"
+    }
+
+    static func displayCommit(_ commit: String?) -> String {
+        guard let commit, !commit.isEmpty, commit != "unspecified" else {
+            return "unspecified"
+        }
+        return String(commit.prefix(7))
     }
 
     public static func buildType() -> String {
