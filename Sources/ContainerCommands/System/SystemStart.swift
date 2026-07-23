@@ -132,7 +132,30 @@ extension Application {
             // Now ping our friendly daemon. Fail if we don't get a response.
             do {
                 log.info("Testing access to container-apiserver...")
-                _ = try await ClientHealthCheck.ping(timeout: timeout)
+                let systemHealth = try await ClientHealthCheck.ping(timeout: timeout)
+                // The launchd label and mach service are fixed constants, so a
+                // daemon already running for a different app-root can answer the
+                // ping. Detect the mismatch and fail loudly instead of silently
+                // reporting success for an app-root we did not actually start.
+                // Both sides are run through realpath(3) (via FilePath) so the
+                // comparison is canonical: /var -> /private/var, trailing slash
+                // and "."/".." segments are normalized, and symlinks resolved.
+                // URL.resolvingSymlinksInPath() is intentionally NOT used on
+                // its own because it does not always resolve the same set of
+                // symlinks as realpath(3) (e.g. /var on macOS), which would
+                // produce false-positive mismatches.
+                let resolvedRequestedAppRoot = try appRoot.resolvingSymlinks()
+                let resolvedDaemonAppRoot = try FilePath(systemHealth.appRoot.path).resolvingSymlinks()
+                guard resolvedDaemonAppRoot == resolvedRequestedAppRoot else {
+                    throw ContainerizationError(
+                        .internalError,
+                        message: """
+                        apiserver is already running with a different app-root: \
+                        requested \(appRoot.string), got \(systemHealth.appRoot.path). \
+                        Run `container system stop` first to stop the existing daemon.
+                        """
+                    )
+                }
             } catch {
                 throw ContainerizationError(
                     .internalError,

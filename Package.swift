@@ -163,6 +163,15 @@ let package = Package(
                 "ContainerResource",
             ]
         ),
+        .testTarget(
+            name: "SystemStartAppRootTests",
+            dependencies: [
+                "ContainerAPIClient",
+                "ContainerCommands",
+                "ContainerPersistence",
+            ],
+            path: "Tests/SystemStartAppRootTests"
+        ),
         .executableTarget(
             name: "container-apiserver",
             dependencies: [
