@@ -44,7 +44,7 @@ public actor HealthCheckHarness {
         if let logRoot {
             reply.set(key: .logRoot, value: logRoot.string)
         }
-        reply.set(key: .apiServerVersion, value: ReleaseVersion.singleLine(appName: "container-apiserver"))
+        reply.set(key: .apiServerVersion, value: ReleaseVersion.version())
         reply.set(key: .apiServerCommit, value: get_git_commit().map { String(cString: $0) } ?? "unspecified")
         // Extra optional fields for richer client display
         reply.set(key: .apiServerBuild, value: ReleaseVersion.buildType())
