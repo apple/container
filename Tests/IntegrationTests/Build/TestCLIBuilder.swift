@@ -403,6 +403,51 @@ struct TestCLIBuilder {
         }
     }
 
+    @Test func testBuildIidfile() async throws {
+        try await ContainerFixture.with { f in
+            let dir = try f.createTempDir()
+            try f.createContext(
+                dir: dir,
+                dockerfile: "FROM scratch\nADD emptyFile /",
+                context: [.file("emptyFile", content: .zeroFilled(size: 1))])
+            let tag = "registry.local/iidfile-test:\(UUID().uuidString)"
+            let iidfile = dir.appending("image.id")
+
+            try f.buildWithPaths(tags: [tag], contextDir: dir, otherArgs: ["--iidfile", iidfile.string])
+
+            #expect(FileManager.default.fileExists(atPath: iidfile.string), "iidfile should be created")
+            let writtenDigest = try String(contentsOfFile: iidfile.string, encoding: .utf8)
+            #expect(!writtenDigest.hasSuffix("\n"), "iidfile should not contain a trailing newline")
+            #expect(writtenDigest.hasPrefix("sha256:"), "iidfile should contain a digest")
+
+            let inspected = try f.doInspectImages(tag)
+            #expect(inspected.count == 1)
+            #expect(writtenDigest == inspected[0].configuration.descriptor.digest)
+        }
+    }
+
+    @Test func testBuildIidfileRejectsNonOCIOutput() async throws {
+        try await ContainerFixture.with { f in
+            let dir = try f.createTempDir()
+            try f.createContext(
+                dir: dir,
+                dockerfile: "FROM scratch\nADD emptyFile /",
+                context: [.file("emptyFile", content: .zeroFilled(size: 1))])
+            let iidfile = dir.appending("image.id")
+            let exportPath = dir.appending("export.tar")
+
+            let result = try f.run([
+                "build",
+                "-f", dir.appending("Dockerfile").string,
+                "-o", "type=tar,dest=\(exportPath.string)",
+                "--iidfile", iidfile.string,
+                dir.appending("context").string,
+            ])
+            #expect(result.status != 0, "build should reject --iidfile combined with a non-OCI output")
+            #expect(!FileManager.default.fileExists(atPath: iidfile.string), "iidfile should not be created")
+        }
+    }
+
     @Test func testBuildAfterContextChange() async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()

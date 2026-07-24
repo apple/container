@@ -147,6 +147,7 @@ container build [<options>] [<context-dir>]
 *   `--dns-option <option>`: DNS options
 *   `--dns-search <domain>`: DNS search domains
 *   `-f, --file <path>`: Path to Dockerfile
+*   `--iidfile <path>`: Write the image ID to the file
 *   `-l, --label <key=val>`: Set a label
 *   `-m, --memory <memory>`: Amount of builder container memory (1MiByte granularity), with optional K, M, G, T, or P suffix (default: 2048MB)
 *   `--no-cache`: Do not use cache
