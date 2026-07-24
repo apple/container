@@ -866,7 +866,7 @@ Creates a new named volume with an optional size and driver-specific options.
 **Usage**
 
 ```bash
-container volume create [--label <label> ...] [--opt <opt> ...] [-s <s>] [--debug] <name>
+container volume create [--driver <driver>] [--label <label> ...] [--opt <opt> ...] [-s <s>] [--debug] <name>
 ```
 
 **Arguments**
@@ -875,25 +875,43 @@ container volume create [--label <label> ...] [--opt <opt> ...] [-s <s>] [--debu
 
 **Options**
 
+*   `--driver <driver>`: Volume driver to use (default: `local`)
 *   `--label <label>`: Set metadata for a volume
-*   `--opt <opt>`: Set driver specific options
-*   `-s <s>`: Size of the volume in bytes, with optional K, M, G, T, or P suffix. Takes precedence over `--opt size=` if both are specified.
+*   `--opt <opt>`: Set driver specific options (format: key=value)
+*   `-s <s>`: Size of the volume in bytes, with optional K, M, G, T, or P suffix (local driver only). Takes precedence over `--opt size=` if both are specified.
 
-**Driver Options**
+**Drivers**
 
-Driver options are passed with `--opt key=value`. The following options are supported for the default `local` driver:
+*   `local` (default): Creates a block-backed ext4 volume on the host. Supports `--opt size=<size>` and `-s`. Supported options:
+    *   `size=<value>`: Volume size with optional unit suffix (K, M, G, T, P). Minimum 1 MiB. Equivalent to `-s`; if `-s` is also specified, `-s` takes precedence.
+    *   `journal=<mode>[:<size>]`: Configure ext4 journaling on the volume. `<mode>` must be one of:
+        *   `ordered` — journals metadata only; data is written to disk before its metadata is committed (default kernel behavior, good balance of safety and performance)
+        *   `writeback` — journals metadata only; data ordering relative to metadata commits is not guaranteed (fastest, least safe)
+        *   `journal` — journals both metadata and data (safest, highest write amplification)
 
-*   `size=<value>`: Volume size with optional unit suffix (K, M, G, T, P). Minimum 1 MiB. Equivalent to `-s`; if `-s` is also specified, `-s` takes precedence.
-*   `journal=<mode>[:<size>]`: Configure ext4 journaling on the volume. `<mode>` must be one of:
-    *   `ordered` — journals metadata only; data is written to disk before its metadata is committed (default kernel behavior, good balance of safety and performance)
-    *   `writeback` — journals metadata only; data ordering relative to metadata commits is not guaranteed (fastest, least safe)
-    *   `journal` — journals both metadata and data (safest, highest write amplification)
-
-    An optional `:<size>` suffix sets the journal size (same unit suffixes as `size`). If omitted, the kernel selects a default journal size.
+        An optional `:<size>` suffix sets the journal size (same unit suffixes as `size`). If omitted, the kernel selects a default journal size.
+*   `smb`: Mounts an SMB/CIFS network share directly inside the guest. No block image is created. Requires `--opt share=//server/share`. Supported options:
+    *   `share=//server/share` *(required)*: UNC path to the SMB share
+    *   `username=<user>`: SMB username
+    *   `password=<pass>`: SMB password
+    *   `domain=<domain>`: SMB domain or workgroup
+*   `nfs`: Mounts an NFS export directly inside the guest. No block image is created. Requires `--opt share=server:/export/path`. Supported options:
+    *   `share=server:/export/path` *(required)*: NFS server and export path
+    *   `addr=<server-ip>` *(recommended)*: Explicit server IP address — required by the kernel's NFS client when mounting without a userspace helper
+    *   `vers=<version>`: NFS protocol version (e.g. `4`, `3`; default negotiated)
+    *   `proto=tcp` *(recommended)*: Force TCP transport — required if the guest kernel was built with `CONFIG_NFS_DISABLE_UDP_SUPPORT`
+    *   `nolock`: Disable NLM file locking — use if the server does not support the lock manager
+    *   Any additional options are passed as mount options (e.g. `timeo=600`, `retrans=2`)
 
 **Examples**
 
 ```bash
+# Create a local volume
+container volume create mydata
+
+# Create a local volume with a specific size
+container volume create -s 10G mydata
+
 # create a volume with ordered journaling
 container volume create --opt journal=ordered myvolume
 
@@ -902,6 +920,22 @@ container volume create --opt journal=writeback:64m myvolume
 
 # create a volume with full data journaling and an explicit volume size
 container volume create --opt journal=journal --opt size=10g myvolume
+
+# Create an SMB volume
+container volume create --driver smb \
+  --opt share=//fileserver/share \
+  --opt username=user \
+  --opt password=secret \
+  myshare
+
+# Create an NFS volume
+container volume create --driver nfs \
+  --opt share=nas.local:/exports/data \
+  --opt addr=nas.local \
+  --opt vers=3 \
+  --opt proto=tcp \
+  myexport
+
 ```
 
 **Anonymous Volumes**
