@@ -243,10 +243,18 @@ define GENERATE_COV_REPORTS
 endef
 
 # PARALLEL_WIDTH controls --experimental-maximum-parallelization-width for the
-# concurrent pass. WARMUP_FILTER, CONCURRENT_FILTER, and SERIAL_FILTER select
-# the three phases.
+# concurrent pass. WARMUP_FILTER, BUILDER_WARMUP_FILTER, CONCURRENT_FILTER, and
+# SERIAL_FILTER select the phases.
+#
+# BuilderWarmup runs as its own sequential step, after WARMUP_FILTER and before
+# the concurrent pass, rather than folded into WARMUP_FILTER: swift-testing
+# parallelizes suites within one `swift test` invocation by default, and
+# racing the builder's image fetch/VM boot against ImageWarmup's concurrent
+# image pulls starved a launchd helper spawn long enough to blow past its XPC
+# timeout on CI.
 PARALLEL_WIDTH ?= $(shell sysctl -n hw.physicalcpu)
 WARMUP_FILTER = ImageWarmup/
+BUILDER_WARMUP_FILTER = BuilderWarmup/
 
 # Concurrent suites: Test*.swift files whose names do NOT end in Serial.
 CONCURRENT_TEST_SUITES ?= $(sort $(addsuffix /,$(basename $(notdir \
@@ -294,6 +302,8 @@ define RUN_INTEGRATION
 		CONTAINER_CLI_PATH=$(ROOT_DIR)/bin/container && export CONTAINER_CLI_PATH ; \
 		echo "==> Warmup pass" && \
 		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(WARMUP_FILTER)" && \
+		echo "==> Builder warmup pass" && \
+		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(BUILDER_WARMUP_FILTER)" && \
 		echo "==> Concurrent pass (width=$(PARALLEL_WIDTH))" && \
 		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) $(CONCURRENT_EVENT_STREAM_OPTS) --experimental-maximum-parallelization-width $(PARALLEL_WIDTH) --filter "$(CONCURRENT_FILTER)" && \
 		echo "==> Global pass (serial)" && \

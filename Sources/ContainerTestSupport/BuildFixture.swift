@@ -66,8 +66,34 @@ extension ContainerFixture {
 extension ContainerFixture {
 
     /// Starts the buildkit builder container.
-    public func builderStart(cpus: Int64 = 2, memoryInGBs: Int64 = 2) throws {
+    ///
+    /// Defaults scale with the host rather than a fixed 2 CPU / 2GB, since the
+    /// concurrent test pool submits builds from many suites to this one shared
+    /// builder at once.
+    public func builderStart(
+        cpus: Int64 = ContainerFixture.hostScaledBuilderCPUs,
+        memoryInGBs: Int64 = ContainerFixture.hostScaledBuilderMemoryGBs
+    ) throws {
         try run(["builder", "start", "-c", "\(cpus)", "-m", "\(memoryInGBs)GB"]).check()
+    }
+
+    /// Roughly half the host's CPUs.
+    ///
+    /// Floored at 1 so this never requests more CPUs than a constrained host
+    /// (e.g. nested virtualization) actually has, and capped at 8 so a large
+    /// dev machine doesn't starve the ~30 other suites running concurrently.
+    public static var hostScaledBuilderCPUs: Int64 {
+        let half = ProcessInfo.processInfo.processorCount / 2
+        let atLeastOne = max(half, 1)
+        return Int64(min(atLeastOne, 8))
+    }
+
+    /// Roughly 40% of the host's physical RAM, floored at 1GB and capped at 8GB.
+    public static var hostScaledBuilderMemoryGBs: Int64 {
+        let fortyPercentBytes = Double(ProcessInfo.processInfo.physicalMemory) * 0.4
+        let gigabytes = Int64(fortyPercentBytes / 1_073_741_824)
+        let atLeastOne = max(gigabytes, 1)
+        return min(atLeastOne, 8)
     }
 
     /// Stops the buildkit builder container.
