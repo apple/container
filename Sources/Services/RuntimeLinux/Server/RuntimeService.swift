@@ -160,8 +160,18 @@ public actor RuntimeService {
             var config = try bundle.configuration
 
             var kernel = try bundle.kernel
-            kernel.commandLine.kernelArgs.append("oops=panic")
-            kernel.commandLine.kernelArgs.append("lsm=lockdown,capability,landlock,yama,apparmor")
+            // Built-in defaults keyed by arg name. Each is applied only if the user did not already
+            // supply the same key via --kernel-arg, letting custom kernels override them (e.g. lsm=...,bpf).
+            let defaultKernelArgs: KeyValuePairs = [
+                "oops": "panic",
+                "lsm": "lockdown,capability,landlock,yama,apparmor",
+            ]
+            for (key, value) in defaultKernelArgs {
+                guard !kernel.commandLine.kernelArgs.contains(where: { $0.hasPrefix("\(key)=") }) else {
+                    continue
+                }
+                kernel.commandLine.kernelArgs.append("\(key)=\(value)")
+            }
             let vmm = VZVirtualMachineManager(
                 kernel: kernel,
                 initialFilesystem: bundle.initialFilesystem.asMount,
