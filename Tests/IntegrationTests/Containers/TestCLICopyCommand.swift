@@ -21,6 +21,44 @@ import Testing
 @Suite
 struct TestCLICopyCommand {
 
+    private func tarCreate(baseDir: URL, entryName: String) throws -> Data {
+        let process = Process()
+        process.executableURL = URL(filePath: "/usr/bin/tar")
+        process.arguments = ["-C", baseDir.path(percentEncoded: false), "-cf", "-", entryName]
+        let outPipe = Pipe()
+        let errPipe = Pipe()
+        process.standardOutput = outPipe
+        process.standardError = errPipe
+        try process.run()
+        process.waitUntilExit()
+        let output = outPipe.fileHandleForReading.readDataToEndOfFile()
+        let error = errPipe.fileHandleForReading.readDataToEndOfFile()
+        if process.terminationStatus != 0 {
+            let message = String(decoding: error, as: UTF8.self)
+            throw CommandError.executionFailed("tar create failed: \(message)")
+        }
+        return output
+    }
+
+    private func tarExtract(archiveData: Data, destination: URL) throws {
+        let process = Process()
+        process.executableURL = URL(filePath: "/usr/bin/tar")
+        process.arguments = ["-xf", "-", "-C", destination.path(percentEncoded: false)]
+        let inPipe = Pipe()
+        let errPipe = Pipe()
+        process.standardInput = inPipe
+        process.standardError = errPipe
+        try process.run()
+        inPipe.fileHandleForWriting.write(archiveData)
+        inPipe.fileHandleForWriting.closeFile()
+        process.waitUntilExit()
+        let error = errPipe.fileHandleForReading.readDataToEndOfFile()
+        if process.terminationStatus != 0 {
+            let message = String(decoding: error, as: UTF8.self)
+            throw CommandError.executionFailed("tar extract failed: \(message)")
+        }
+    }
+
     // MARK: - Basic host/container copy
 
     @Test func testCopyHostToContainer() async throws {
@@ -61,6 +99,46 @@ struct TestCLICopyCommand {
                 try f.run(["cp", src.string, "\(name):/tmp/"]).check()
                 let cat = try f.doExec(name, cmd: ["cat", "/tmp/aliasfile.txt"])
                 #expect(cat.trimmingCharacters(in: .whitespacesAndNewlines) == content)
+            }
+        }
+    }
+
+    @Test func testCopyContainerToStdoutTarStream() async throws {
+        try await ContainerFixture.with { f in
+            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            try await f.withContainer(image: image) { name in
+                try f.doExec(name, cmd: ["sh", "-c", "echo -n 'tar-stream-out' > /tmp/tarout.txt"])
+
+                let result = try f.run(["copy", "\(name):/tmp/tarout.txt", "-"])
+                #expect(result.status == 0)
+                #expect(!result.outputData.isEmpty)
+
+                let extractDir = URL(fileURLWithPath: f.testDir.string).appendingPathComponent("extract-out")
+                try FileManager.default.createDirectory(at: extractDir, withIntermediateDirectories: true)
+                try tarExtract(archiveData: result.outputData, destination: extractDir)
+
+                let extractedFile = extractDir.appendingPathComponent("tarout.txt")
+                let extracted = try String(contentsOf: extractedFile, encoding: .utf8)
+                #expect(extracted == "tar-stream-out")
+            }
+        }
+    }
+
+    @Test func testCopyStdinTarStreamToContainer() async throws {
+        try await ContainerFixture.with { f in
+            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            try await f.withContainer(image: image) { name in
+                let payloadRoot = URL(fileURLWithPath: f.testDir.string).appendingPathComponent("payload")
+                try FileManager.default.createDirectory(at: payloadRoot, withIntermediateDirectories: true)
+                let payloadFile = payloadRoot.appendingPathComponent("in.txt")
+                try "tar-stream-in".write(to: payloadFile, atomically: true, encoding: .utf8)
+                let tarData = try tarCreate(baseDir: URL(fileURLWithPath: f.testDir.string), entryName: "payload")
+
+                let result = try f.run(["copy", "-", "\(name):/tmp/"], stdin: tarData)
+                #expect(result.status == 0)
+
+                let content = try f.doExec(name, cmd: ["cat", "/tmp/payload/in.txt"])
+                #expect(content.trimmingCharacters(in: .whitespacesAndNewlines) == "tar-stream-in")
             }
         }
     }
