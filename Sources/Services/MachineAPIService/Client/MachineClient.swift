@@ -390,10 +390,18 @@ extension MachineClient {
             }
         }
 
-        if var resources, let setupScript {
-            resources.setupScript = setupScript
-        }
+        return merge(resources: resources, setupScript: setupScript)
+    }
 
+    /// Merge a separately-fetched setup script into the decoded machine resources.
+    ///
+    /// `MachineResources` is a value type, so mutating a copy bound via `if var`
+    /// would not affect the returned value. Assign through the optional instead.
+    static func merge(resources: MachineResources?, setupScript: String?) -> MachineResources? {
+        var resources = resources
+        if let setupScript {
+            resources?.setupScript = setupScript
+        }
         return resources
     }
 }
