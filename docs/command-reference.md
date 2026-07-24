@@ -1578,3 +1578,40 @@ container system property list
 # output as JSON for scripting
 container system property list --format json
 ```
+
+## Software Update
+
+### `container upgrade`
+
+Upgrades the installed `container` toolset. The command refuses to run while container services are running; stop them first with `container system stop`.
+
+The upgrade follows the method used to install `container`:
+
+*   **Installer package** (release page): downloads the signed installer package for the target release (asking for confirmation before falling back to an unsigned package) and installs it with `sudo installer`, which prompts for an administrator password.
+*   **Homebrew**: runs `brew upgrade container` (`brew reinstall container` with `--force`). The `--release` option is not supported for Homebrew installations, since the formula only offers its latest version.
+*   Any other installation (for example, a build from source) is not upgraded; the command exits with an error describing how to upgrade manually.
+
+**Usage**
+
+```bash
+container upgrade [--release <release>] [--force] [--debug]
+```
+
+**Options**
+
+*   `-v, --release <release>`: Upgrade to a specific release version (defaults to the latest release)
+*   `-f, --force`: Force the upgrade even if the target version is already installed
+
+**Examples**
+
+```bash
+# Upgrade to the latest release
+container system stop
+container upgrade
+
+# Upgrade (or downgrade) to a specific release
+container upgrade --release 0.6.0
+
+# Reinstall the current version
+container upgrade --force
+```
