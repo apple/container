@@ -22,7 +22,11 @@ import Testing
 extension ContainerFixture {
     /// Decoded output of `container image inspect` or `container image list --format json`.
     public struct ImageInspectOutput: Codable {
-        public struct Configuration: Codable { public let name: String }
+        public struct Configuration: Codable {
+            public struct Descriptor: Codable { public let digest: String }
+            public let name: String
+            public let descriptor: Descriptor
+        }
         public struct Variant: Codable {
             public struct Platform: Codable {
                 public let os: String
