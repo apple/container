@@ -243,6 +243,7 @@ public actor ImagesService {
             throw ContainerizationError(.invalidArgument, message: "cannot load tar image with rejected paths: \(rejectedMembers)")
         }
 
+        try DockerArchiveConverter.convertIfNeeded(at: tempDir)
         let loaded = try await self.imageStore.load(from: tempDir)
         var images: [ImageDescription] = []
         for image in loaded {
