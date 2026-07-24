@@ -16,11 +16,8 @@
 
 import ArgumentParser
 import ContainerAPIClient
-import ContainerPersistence
-import ContainerPlugin
 import ContainerResource
 import Containerization
-import ContainerizationError
 import ContainerizationOCI
 import Foundation
 
@@ -92,19 +89,31 @@ extension Application {
             
             for resource in resources {
                 let allDiffIDs = resource.variants.map { $0.config.rootfs.diffIDs }
-                let sizeStr = resource.variants.first.map { formatter.string(fromByteCount: $0.size) } ?? "0 MB"
+                let totalSize = resource.variants.reduce(Int64(0)) { $0 + $1.size }
+                let sizeStr = formatter.string(fromByteCount: totalSize)
                 nodes.append(Node(resource: resource, allDiffIDs: allDiffIDs, displaySize: sizeStr))
             }
             
-            // Sort nodes by number of diffIDs (parents have fewer diffIDs)
-            nodes.sort { ($0.allDiffIDs.first?.count ?? 0) < ($1.allDiffIDs.first?.count ?? 0) }
+            // Sort nodes by the minimum diffID count across all variants (parents have fewer layers)
+            nodes.sort { lhs, rhs in
+                let lhsMin = lhs.allDiffIDs.map(\.count).min() ?? 0
+                let rhsMin = rhs.allDiffIDs.map(\.count).min() ?? 0
+                return lhsMin < rhsMin
+            }
             
             var roots: [Node] = []
             
             for node in nodes {
                 var foundParent = false
-                // Find a parent: a node with maximum diffIDs that is a strict prefix of current node's diffIDs
-                for potentialParent in roots.flatMap({ getAllNodes(in: $0) }).sorted(by: { ($0.allDiffIDs.first?.count ?? 0) > ($1.allDiffIDs.first?.count ?? 0) }) {
+                // Build a flat list of all placed nodes, sorted by most layers first (deepest match wins)
+                let candidates = roots.flatMap { getAllNodes(in: $0) }
+                    .sorted { lhs, rhs in
+                        let lhsMax = lhs.allDiffIDs.map(\.count).max() ?? 0
+                        let rhsMax = rhs.allDiffIDs.map(\.count).max() ?? 0
+                        return lhsMax > rhsMax
+                    }
+                
+                for potentialParent in candidates {
                     if isPrefixOfAny(potentialParent.allDiffIDs, of: node.allDiffIDs) {
                         potentialParent.children.append(node)
                         foundParent = true
