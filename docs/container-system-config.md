@@ -71,9 +71,18 @@ Default subnets used when creating networks without explicit `--subnet` / `--sub
 
 ## `[registry]`
 
-| Key      | Type     | Default      | Description                                                                                                  |
-|----------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
-| `domain` | `String` | `"docker.io"` | Registry assumed when an image reference omits the registry host (e.g. `alpine` → `docker.io/library/alpine`). |
+| Key                   | Type       | Default       | Description                                                                                                  |
+|-----------------------|------------|---------------|--------------------------------------------------------------------------------------------------------------|
+| `domain`              | `String`   | `"docker.io"`  | Registry assumed when an image reference omits the registry host (e.g. `alpine` → `docker.io/library/alpine`). |
+| `insecureRegistries`  | `[String]` | `[]`           | Registry hosts (optionally `host:port`) accessed over plain-text HTTP instead of HTTPS. Matching is case-insensitive and exact. Only applies when the scheme is left at the default (`auto`); an explicit `--scheme https`/`--scheme http` always wins. **Disables transport security for the listed registries — only add hosts you trust.** |
+
+Example:
+
+```toml
+[registry]
+domain = "docker.io"
+insecureRegistries = ["my-registry.local", "192.168.1.10:5000"]
+```
 
 ## `[vminit]`
 

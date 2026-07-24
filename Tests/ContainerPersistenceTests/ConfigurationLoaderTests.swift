@@ -473,6 +473,37 @@ struct ConfigurationLoaderTests {
         }
     }
 
+    @Test func insecureRegistriesDecodeAndMatch() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let toml = """
+                [registry]
+                domain = "ghcr.io"
+                insecureRegistries = ["my-registry.local", "192.168.1.10:5000"]
+                """
+            let tmpFile = tempDir.appending("test.toml")
+            try Self.writeToml(toml, to: tmpFile)
+
+            let config: ContainerSystemConfig = try await ConfigurationLoader.load(configurationFiles: [tmpFile])
+            #expect(config.registry.domain == "ghcr.io")
+            #expect(config.registry.insecureRegistries == ["my-registry.local", "192.168.1.10:5000"])
+            #expect(config.registry.isInsecure(host: "my-registry.local"))
+            #expect(config.registry.isInsecure(host: "My-Registry.Local"))
+            #expect(config.registry.isInsecure(host: "192.168.1.10:5000"))
+            #expect(!config.registry.isInsecure(host: "other-registry.io"))
+        }
+    }
+
+    @Test func insecureRegistriesDefaultsToEmpty() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let tmpFile = tempDir.appending("test.toml")
+            try Self.writeToml("[registry]\ndomain = \"docker.io\"\n", to: tmpFile)
+
+            let config: ContainerSystemConfig = try await ConfigurationLoader.load(configurationFiles: [tmpFile])
+            #expect(config.registry.insecureRegistries.isEmpty)
+            #expect(!config.registry.isInsecure(host: "docker.io"))
+        }
+    }
+
     @Test func layeredPrecedence() async throws {
         try await TemporaryStorage.withTempDir { tempDir in
             let userFile = tempDir.appending("user.toml")
