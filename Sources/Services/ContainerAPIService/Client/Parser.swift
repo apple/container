@@ -369,7 +369,10 @@ public struct Parser {
         var directives = defaultDirectives
         for part in parts {
             let keyVal = part.split(separator: "=", maxSplits: 2)
-            var key = String(keyVal[0])
+            guard let rawKey = keyVal.first else {
+                throw ContainerizationError(.invalidArgument, message: "invalid mount directive '\(part)' in \(mount)")
+            }
+            var key = String(rawKey)
             var skipValue = false
             switch key {
             case "type", "size", "mode":
