@@ -110,6 +110,15 @@ struct ParserTest {
     }
 
     @Test
+    func testPublishPortOne() throws {
+        let result = try Parser.publishPorts(["127.0.0.1:1:1/tcp"])
+        #expect(result.count == 1)
+        #expect(result[0].hostPort == UInt16(1))
+        #expect(result[0].containerPort == UInt16(1))
+        #expect(result[0].count == 1)
+    }
+
+    @Test
     func testPublishPortInvalidProtocol() throws {
         #expect {
             _ = try Parser.publishPorts(["8080:8000/sctp"])
