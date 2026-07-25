@@ -125,7 +125,9 @@ public struct Parser {
 
     public static func allEnv(imageEnvs: [String], envFiles: [String], envs: [String]) throws -> [String] {
         var combined: [String] = []
-        combined.append(contentsOf: Parser.env(envList: imageEnvs))
+        // Image config is untrusted. Bare env var names here must not be expanded from the host
+        // process's environment.
+        combined.append(contentsOf: imageEnvs.filter { $0.contains("=") })
         for envFile in envFiles {
             let content = try Parser.envFile(path: envFile)
             combined.append(contentsOf: content)
