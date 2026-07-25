@@ -493,6 +493,26 @@ struct ParserTest {
     }
 
     @Test
+    func testMountBindSourceContainingEquals() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("test-bind-eq-\(UUID().uuidString)=v1")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        let result = try Parser.mount("type=bind,src=\(tempDir.path),dst=/foo")
+
+        switch result {
+        case .filesystem(let fs):
+            #expect(fs.source == tempDir.path)
+            #expect(fs.destination == "/foo")
+            #expect(!fs.isVolume)
+        case .volume:
+            #expect(Bool(false), "Expected filesystem mount, got volume")
+        }
+    }
+
+    @Test
     func testMountVolumeValidName() throws {
         let result = try Parser.mount("type=volume,src=myvolume,dst=/data")
 

@@ -390,7 +390,7 @@ public struct Parser {
         }
         var directives = defaultDirectives
         for part in parts {
-            let keyVal = part.split(separator: "=", maxSplits: 2)
+            let keyVal = part.split(separator: "=", maxSplits: 1)
             var key = String(keyVal[0])
             var skipValue = false
             switch key {
