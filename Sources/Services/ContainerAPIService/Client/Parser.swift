@@ -724,13 +724,13 @@ public struct Parser {
             throw ContainerizationError(.invalidArgument, message: "invalid publish container port: \(containerPortText)")
         }
 
-        guard hostPortRangeStart > 1,
+        guard hostPortRangeStart >= 1,
             hostPortRangeStart <= hostPortRangeEnd
         else {
             throw ContainerizationError(.invalidArgument, message: "invalid publish host port range: \(hostPortText)")
         }
 
-        guard containerPortRangeStart > 1,
+        guard containerPortRangeStart >= 1,
             containerPortRangeStart <= containerPortRangeEnd
         else {
             throw ContainerizationError(.invalidArgument, message: "invalid publish container port range: \(containerPortText)")
