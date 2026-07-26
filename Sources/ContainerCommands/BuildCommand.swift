@@ -63,6 +63,9 @@ extension Application {
         @Option(name: .long, help: ArgumentHelp("Set build-time variables", valueName: "key=val"))
         var buildArg: [String] = []
 
+        @Option(name: .long, help: ArgumentHelp("Set build-contexts. Relative Paths are resolved based on the current working directory.", valueName: "name=<ref>"))
+        var buildContext: [String] = []
+
         @Option(name: .long, help: ArgumentHelp("Cache imports for the build", valueName: "value", visibility: .hidden))
         var cacheIn: [String] = {
             []
@@ -370,13 +373,14 @@ extension Application {
                     }()
                     group.addTask {
                         [
-                            terminal, buildArg, secretsData, ssh, contextDir, ignoreFileData, label, noCache, target, quiet, cacheIn, cacheOut, pull, exports, imageNames, tempURL,
-                            log
+                            terminal, buildArg, buildContext, secretsData, ssh, contextDir, ignoreFileData, label, noCache, target, quiet, cacheIn, cacheOut, pull, exports,
+                            imageNames, tempURL, log,
                         ] in
                         let config = Builder.BuildConfig(
                             buildID: buildID,
                             contentStore: RemoteContentStoreClient(),
                             buildArgs: buildArg,
+                            buildContexts: buildContext,
                             secrets: secretsData,
                             ssh: ssh,
                             contextDir: contextDir,
