@@ -17,6 +17,7 @@
 import ContainerAPIClient
 import ContainerPersistence
 import Containerization
+import ContainerizationArchive
 import ContainerizationOCI
 import Foundation
 import GRPCCore
@@ -78,6 +79,12 @@ struct BuildImageResolver: BuildPipelineHandler {
             let progress = ProgressBar(config: progressConfig)
             defer { progress.finish() }
             progress.start()
+            if let parsed = parseLocalRef(ref: ref) {
+                guard let image = try await handleLocalUCI(url: parsed.url, digest: parsed.digest) else {
+                    throw Error.imageNotFound
+                }
+                return image
+            }
 
             if self.pull {
                 return try await ClientImage.pull(reference: ref, platform: platform, containerSystemConfig: containerSystemConfig, progressUpdate: progress.handler)
@@ -113,6 +120,79 @@ struct BuildImageResolver: BuildPipelineHandler {
             }
         }
         throw Error.unknownPlatformForImage(platform.description, ref)
+    }
+
+    // handle oci-layout from build-context
+    // Not throwing here so that we can fall back to pull or fetch
+    private func parseLocalRef(ref: String) -> (url: URL, digest: String?)? {
+        guard let range = ref.firstRange(of: "oci-layout://") else {
+            return nil
+        }
+        var ref = ref
+        ref.removeSubrange(range)
+
+        let digest = extractDigest(ref)
+        if let digest, let range = ref.range(of: digest) {
+            ref.removeSubrange(range)
+        }
+        ref = ref.trimmingCharacters(in: ["@"])
+        if !FileManager.default.fileExists(atPath: ref) {
+            return nil
+        }
+        let url = URL(filePath: ref)
+        guard url.isDirectory else {
+            return nil
+        }
+        return (url, digest)
+    }
+
+    private func handleLocalUCI(url: URL, digest: String?) async throws -> ClientImage? {
+        let tarURL = URL.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".tar")
+
+        defer { try? FileManager.default.removeItem(at: tarURL) }
+
+        let writerCfg = ArchiveWriterConfiguration(
+            format: .paxRestricted,
+            filter: .none
+        )
+
+        let root = url
+
+        let _ = try Archiver.compress(
+            source: url,
+            destination: tarURL,
+            writerConfiguration: writerCfg,
+            closure: { url in
+                guard let rel = try? url.relativeChildPath(to: root) else {
+                    return nil
+                }
+                return Archiver.ArchiveEntryInfo(
+                    pathOnHost: url,
+                    pathInArchive: URL(fileURLWithPath: rel)
+                )
+            }
+        )
+
+        let result = try await ClientImage.load(from: tarURL.absolutePath(), force: true)
+        let images = result.images
+        let first = images.first
+        if let digest {
+            return images.first(where: { $0.digest == digest }) ?? first
+        }
+        return first
+    }
+
+    private func extractDigest(_ string: String) -> String? {
+        guard let reg = try? Regex("[A-Za-z][A-Za-z0-9]*(?:[-_+.][A-Za-z][A-Za-z0-9]*)*[:][[:xdigit:]]{32,}") else {
+            return nil
+        }
+        let matches = string.matches(of: reg)
+        // digest always comes last when specified
+        guard let last = matches.last else {
+            return nil
+        }
+        return String(string[last.range])
     }
 }
 
