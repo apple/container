@@ -113,19 +113,12 @@ actor BuildFSSync: BuildPipelineHandler {
         sender.yield(response)
     }
 
-    private struct DirEntry: Hashable {
-        let url: URL
+    private struct DirEntry {
         let isDirectory: Bool
         let relativePath: String
-
-        func hash(into hasher: inout Hasher) {
-            hasher.combine(relativePath)
-        }
-
-        static func == (lhs: DirEntry, rhs: DirEntry) -> Bool {
-            lhs.relativePath == rhs.relativePath
-        }
     }
+
+    private typealias DirEntries = [String: [String: DirEntry]]
 
     func walk(
         _ sender: AsyncStream<ClientStream>.Continuation,
@@ -134,7 +127,7 @@ actor BuildFSSync: BuildPipelineHandler {
     ) async throws {
         let wantsTar = packet.mode() == "tar"
 
-        var entries: [String: Set<DirEntry>] = [:]
+        var entries: DirEntries = [:]
         let followPaths: [String] = packet.followPaths() ?? []
 
         let followPathsWalked = try walk(root: self.contextDir, includePatterns: followPaths)
@@ -148,16 +141,14 @@ actor BuildFSSync: BuildPipelineHandler {
 
             let relPath = try url.relativeChildPath(to: contextDir)
             let parentPath = try url.deletingLastPathComponent().relativeChildPath(to: contextDir)
-            let entry = DirEntry(url: url, isDirectory: url.hasDirectoryPath, relativePath: relPath)
-            entries[parentPath, default: []].insert(entry)
+            entries[parentPath, default: [:]][relPath] = DirEntry(isDirectory: url.hasDirectoryPath, relativePath: relPath)
 
             if url.isSymlink {
                 let target: URL = url.resolvingSymlinksInPath()
                 if self.contextDir.parentOf(target) {
                     let relPath = try target.relativeChildPath(to: self.contextDir)
-                    let entry = DirEntry(url: target, isDirectory: target.hasDirectoryPath, relativePath: relPath)
                     let parentPath: String = try target.deletingLastPathComponent().relativeChildPath(to: self.contextDir)
-                    entries[parentPath, default: []].insert(entry)
+                    entries[parentPath, default: [:]][relPath] = DirEntry(isDirectory: target.hasDirectoryPath, relativePath: relPath)
                 }
             }
         }
@@ -213,15 +204,7 @@ actor BuildFSSync: BuildPipelineHandler {
                 return nil
             }
 
-            guard let items = entries[parent] else {
-                return nil
-            }
-
-            let include = items.contains { item in
-                item.relativePath == rel
-            }
-
-            guard include else {
+            guard entries[parent]?[rel] != nil else {
                 return nil
             }
 
@@ -300,7 +283,7 @@ actor BuildFSSync: BuildPipelineHandler {
 
     private func processDirectory(
         _ currentDir: String,
-        inputEntries: [String: Set<DirEntry>],
+        inputEntries: DirEntries,
         processedPaths: inout [String]
     ) throws {
         guard let entries = inputEntries[currentDir] else {
@@ -308,7 +291,7 @@ actor BuildFSSync: BuildPipelineHandler {
         }
 
         // Sort purely by lexicographical order of relativePath
-        let sortedEntries = entries.sorted { $0.relativePath < $1.relativePath }
+        let sortedEntries = entries.values.sorted { $0.relativePath < $1.relativePath }
 
         for entry in sortedEntries {
             processedPaths.append(entry.relativePath)
