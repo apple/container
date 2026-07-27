@@ -164,6 +164,34 @@ let package = Package(
                 "ContainerResource",
             ]
         ),
+        .testTarget(
+            name: "K8sTests",
+            dependencies: [
+                "k8s",
+                "ContainerResource",
+                "Yams",
+            ],
+            path: "Tests/K8sPluginTests"
+        ),
+        .executableTarget(
+            name: "k8s",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                "ContainerAPIClient",
+                "ContainerLog",
+                "ContainerPersistence",
+                "ContainerResource",
+                "ContainerVersion",
+                "TerminalProgress",
+                "Yams",
+            ],
+            path: "Sources/Plugins/K8s",
+            exclude: ["config.toml"],
+            resources: [.process("Resources/kindnet.yaml")]
+        ),
         .executableTarget(
             name: "container-apiserver",
             dependencies: [
