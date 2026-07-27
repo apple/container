@@ -49,10 +49,25 @@ struct LogTailerTests {
         #expect(lines == ["two"])
     }
 
+    /// Blank lines are lines. `tail -n` preserves them, and so must this.
     @Test
-    func skipsBlankLines() throws {
+    func preservesBlankLines() throws {
+        let lines = try lastLines(of: "one\n\ntwo\n", n: 3)
+        #expect(lines == ["one", "", "two"])
+    }
+
+    /// A run of blank lines at the end of the file is still counted and returned.
+    @Test
+    func preservesTrailingBlankLines() throws {
         let lines = try lastLines(of: "one\n\n\ntwo\n\n", n: 2)
-        #expect(lines == ["one", "two"])
+        #expect(lines == ["two", ""])
+    }
+
+    /// A file of nothing but newlines yields that many blank lines.
+    @Test
+    func handlesFileOfOnlyBlankLines() throws {
+        let lines = try lastLines(of: "\n\n\n\n\n", n: 3)
+        #expect(lines == ["", "", ""])
     }
 
     @Test

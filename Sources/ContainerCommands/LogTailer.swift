@@ -62,7 +62,7 @@ enum LogTailer {
             try fh.seek(toOffset: offset)
 
             let chunk = fh.readData(ofLength: Int(readSize))
-            lineCount += Self.countLines(in: chunk, precedingChunk: chunks.last)
+            lineCount += Self.countNewlines(in: chunk)
             chunks.append(chunk)
         }
 
@@ -76,28 +76,25 @@ enum LogTailer {
             return []
         }
 
-        let lines = text.components(separatedBy: .newlines).filter { !$0.isEmpty }
+        var lines = text.components(separatedBy: "\n")
+        // A trailing newline terminates the final line rather than starting an empty one.
+        if lines.last?.isEmpty == true {
+            lines.removeLast()
+        }
         return Array(lines.suffix(n))
     }
 
-    private static func countLines(in chunk: Data, precedingChunk: Data?) -> Int {
+    private static func countNewlines(in chunk: Data) -> Int {
         var count = 0
-        var previous: UInt8?
-        for byte in chunk {
-            if byte != Self.newline, previous == nil || previous == Self.newline {
-                count += 1
-            }
-            previous = byte
-        }
-
-        if let last = chunk.last, last != Self.newline, let first = precedingChunk?.first, first != Self.newline {
-            count -= 1
+        for byte in chunk where byte == Self.newline {
+            count += 1
         }
         return count
     }
 
     private static func followFile(fh: FileHandle) async throws {
         _ = try fh.seekToEnd()
+        let pending = LineBuffer()
         let stream = AsyncStream<String> { cont in
             fh.readabilityHandler = { handle in
                 let data = handle.availableData
@@ -107,21 +104,43 @@ enum LogTailer {
                     } catch {
                         fh.readabilityHandler = nil
                         cont.finish()
-                        return
                     }
+                    return
                 }
-                if let str = String(data: data, encoding: .utf8), !str.isEmpty {
-                    var lines = str.components(separatedBy: .newlines)
-                    lines = lines.filter { !$0.isEmpty }
-                    for line in lines {
-                        cont.yield(line)
-                    }
+                for line in pending.appendAndTakeCompleteLines(data) {
+                    cont.yield(line)
                 }
             }
         }
 
         for await line in stream {
             print(line)
+        }
+    }
+
+    /// Accumulates bytes across reads so only complete lines are emitted. A read can end
+    /// mid-line or mid-UTF-8-sequence, so without this a fragment would print as a whole
+    /// line and a split multi-byte character would discard the entire read.
+    private final class LineBuffer: @unchecked Sendable {
+        private let lock = NSLock()
+        private var buffer = Data()
+
+        func appendAndTakeCompleteLines(_ data: Data) -> [String] {
+            lock.lock()
+            defer { lock.unlock() }
+
+            buffer.append(data)
+
+            var lines: [String] = []
+            var start = buffer.startIndex
+            while let index = buffer[start...].firstIndex(of: LogTailer.newline) {
+                lines.append(String(decoding: buffer[start..<index], as: UTF8.self))
+                start = buffer.index(after: index)
+            }
+            if start > buffer.startIndex {
+                buffer = Data(buffer[start...])
+            }
+            return lines
         }
     }
 }
