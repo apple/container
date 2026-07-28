@@ -14,12 +14,13 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerOS
 import ContainerizationError
 import DNSServer
 import Foundation
 import SystemPackage
 import Testing
+
+@testable import ContainerOS
 
 struct DirectoryWatcherTest {
     let testUUID = UUID().uuidString
@@ -133,6 +134,30 @@ struct DirectoryWatcherTest {
         }
     }
 
+    @Test func testFailingHandlerDoesNotLeakDescriptors() async throws {
+        try await withTempDir { tempPath in
+            let watcher = DirectoryWatcher(directoryPath: tempPath, log: nil)
+            let baseline = try openDescriptorCount()
+
+            for _ in 0..<32 {
+                do {
+                    try await watcher._startWatching { _ in
+                        throw ContainerizationError(.internalError, message: "intentional test failure")
+                    }
+                    Issue.record("expected the failing watch handler to throw")
+                } catch is ContainerizationError {
+                    // Expected.
+                }
+            }
+
+            let afterFailures = try openDescriptorCount()
+            #expect(
+                afterFailures <= baseline + 2,
+                "failing handlers leaked descriptors: before=\(baseline), after=\(afterFailures)"
+            )
+        }
+    }
+
     @Test func testWatchingRecreatedDirectory() async throws {
         try await withTempDir { tempPath in
             let dirPath = tempPath.appending(UUID().uuidString)
@@ -170,5 +195,11 @@ struct DirectoryWatcherTest {
                 Set(createdPaths.paths.compactMap { $0.lastComponent?.string }) == Set([beforeDelete, afterDelete]))
         }
 
+    }
+
+    private func openDescriptorCount() throws -> Int {
+        try FileManager.default.contentsOfDirectory(atPath: "/dev/fd")
+            .compactMap(Int.init)
+            .count
     }
 }
