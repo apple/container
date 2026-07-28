@@ -152,6 +152,11 @@ extension ContainerFixture {
     public func doExport(_ name: String, to path: FilePath) throws {
         try run(["export", name, "-o", path.string]).check()
     }
+
+    /// Cleans a running container.
+    func doClean(name: String) throws {
+        try run(["clean", name]).check()
+    }
 }
 
 // MARK: - Inspect helpers

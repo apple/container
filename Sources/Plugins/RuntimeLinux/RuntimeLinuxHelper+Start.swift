@@ -106,6 +106,7 @@ extension RuntimeLinuxHelper {
                         RuntimeRoutes.statistics.rawValue: XPCServer.route(server.statistics),
                         RuntimeRoutes.copyIn.rawValue: XPCServer.route(server.copyIn),
                         RuntimeRoutes.copyOut.rawValue: XPCServer.route(server.copyOut),
+                        RuntimeRoutes.clean.rawValue: XPCServer.route(server.clean),
                     ],
                     log: log
                 )

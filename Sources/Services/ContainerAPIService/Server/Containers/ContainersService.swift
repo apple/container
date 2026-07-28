@@ -911,6 +911,18 @@ public actor ContainersService {
         try EXT4.EXT4Reader(blockDevice: FilePath(rootfs)).export(archive: FilePath(archive))
     }
 
+    public func clean(id: String) async throws {
+        self.log.debug("\(#function)")
+
+        let state = try self._getContainerState(id: id)
+        guard state.snapshot.status == .running else {
+            throw ContainerizationError(.invalidState, message: "container is not running")
+        }
+
+        let client = try state.getClient()
+        try await client.clean(id: id)
+    }
+
     private func handleContainerExit(id: String, code: ExitStatus? = nil) async throws {
         try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { [self] context in
             try await handleContainerExit(id: id, code: code, context: context)

@@ -342,6 +342,21 @@ extension RuntimeClient {
 
         return try JSONDecoder().decode(ContainerStats.self, from: data)
     }
+
+    public func clean(id: String) async throws {
+        let request = XPCMessage(route: RuntimeRoutes.clean.rawValue)
+        request.set(key: RuntimeKeys.id.rawValue, value: id)
+
+        do {
+            try await self.client.send(request)
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to clean container \(self.id)",
+                cause: error
+            )
+        }
+    }
 }
 
 extension XPCMessage {
