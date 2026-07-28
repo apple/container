@@ -53,6 +53,30 @@ struct TestCLIImagePruneSerial {
         }
     }
 
+    @Test func testImagePrunePreservesBuilderImage() async throws {
+        try await ContainerFixture.with { f in
+            _ = try? f.builderDelete(force: true)
+            try? f.doRemoveImages()
+            f.addCleanup {
+                try? f.builderDelete(force: true)
+                try? f.doRemoveImages()
+            }
+
+            try f.builderStart()
+            try await f.waitForBuilderRunning()
+            let builderImage = try f.getSystemConfig().build.image
+            _ = try f.doInspectImages(builderImage)
+
+            try f.doPull(alpine)
+            let result = try f.run(["image", "prune", "-a"]).check()
+
+            #expect(result.output.contains(alpine), "should prune unused alpine image")
+            #expect(try !f.isImagePresent(alpine), "expected unused alpine image to be removed")
+            _ = try f.doInspectImages(builderImage)
+            #expect(try f.getContainerStatus("buildkit") == "running", "builder should remain usable after image prune")
+        }
+    }
+
     @Test func testImagePruneUnusedImages() async throws {
         try await ContainerFixture.with { f in
             _ = try? f.run(["delete", "--all", "--force"])
