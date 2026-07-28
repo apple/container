@@ -86,7 +86,7 @@ public actor DirectoryWatcher {
         handler: @escaping ([FilePath]) throws -> Void
     ) throws {
         let descriptor = open(directoryPath.string, O_EVTONLY)
-        guard descriptor > 0 else {
+        guard descriptor >= 0 else {
             throw ContainerizationError(.internalError, message: "cannot open \(directoryPath.string), descriptor=\(descriptor)")
         }
 
