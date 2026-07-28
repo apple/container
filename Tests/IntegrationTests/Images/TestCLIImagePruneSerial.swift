@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerAPIClient
 import ContainerTestSupport
 import Testing
 
@@ -64,15 +65,18 @@ struct TestCLIImagePruneSerial {
 
             try f.builderStart()
             try await f.waitForBuilderRunning()
-            let builderImage = try f.getSystemConfig().build.image
-            _ = try f.doInspectImages(builderImage)
+            let builder = try f.inspectContainer("buildkit")
+            let builderDigest = builder.configuration.image.digest
+            var storedImages = try await ClientImage.list()
+            #expect(storedImages.contains { $0.digest == builderDigest }, "expected builder image in the image store")
 
             try f.doPull(alpine)
             let result = try f.run(["image", "prune", "-a"]).check()
 
             #expect(result.output.contains(alpine), "should prune unused alpine image")
             #expect(try !f.isImagePresent(alpine), "expected unused alpine image to be removed")
-            _ = try f.doInspectImages(builderImage)
+            storedImages = try await ClientImage.list()
+            #expect(storedImages.contains { $0.digest == builderDigest }, "expected builder image to remain in the image store")
             #expect(try f.getContainerStatus("buildkit") == "running", "builder should remain usable after image prune")
         }
     }
