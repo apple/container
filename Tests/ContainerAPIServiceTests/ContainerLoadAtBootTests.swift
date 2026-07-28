@@ -25,13 +25,14 @@ import Testing
 
 struct ContainerLoadAtBootTests {
     @Test
-    func malformedBundleRemainsOnDisk() throws {
+    func malformedConfigurationFilesRemainOnDisk() throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
 
         let bundlePath = fixture.containers.appendingPathComponent("malformed")
         try FileManager.default.createDirectory(at: bundlePath, withIntermediateDirectories: true)
         try Data("{".utf8).write(to: bundlePath.appendingPathComponent("config.json"))
+        try Data("{".utf8).write(to: bundlePath.appendingPathComponent("runtime-configuration.json"))
 
         let states = try ContainersService.loadAtBoot(
             root: fixture.containers,
