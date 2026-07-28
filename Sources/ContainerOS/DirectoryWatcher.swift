@@ -83,7 +83,7 @@ public actor DirectoryWatcher {
     }
 
     func _startWatching(
-        handler: @escaping ([FilePath]) throws -> Void
+        handler: @Sendable @escaping ([FilePath]) throws -> Void
     ) throws {
         let descriptor = open(directoryPath.string, O_EVTONLY)
         guard descriptor >= 0 else {
