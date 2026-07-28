@@ -46,6 +46,10 @@ public actor DirectoryWatcher {
 
     private let log: Logger?
 
+    var isWatching: Bool {
+        source.withLock { $0 != nil }
+    }
+
     /// Creates a new `DirectoryWatcher` for the given directory path.
     ///
     /// - Parameters:

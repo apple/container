@@ -50,8 +50,8 @@ struct DirectoryWatcherTest {
     private final class CreatedPaths: Sendable {
         private let paths = Mutex<[FilePath]>([])
 
-        func append(_ path: FilePath) {
-            paths.withLock { $0.append(path) }
+        func record(_ paths: [FilePath]) {
+            self.paths.withLock { $0.append(contentsOf: paths) }
         }
 
         func contains(_ expectedNames: Set<String>) -> Bool {
@@ -62,22 +62,39 @@ struct DirectoryWatcherTest {
         }
     }
 
-    private func waitForPaths(
-        _ expectedNames: Set<String>,
-        in createdPaths: CreatedPaths,
-        timeout: Duration = .seconds(5)
+    private func waitUntil(
+        timeout: Duration = .seconds(5),
+        _ condition: () async -> Bool
     ) async -> Bool {
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: timeout)
 
         while clock.now < deadline {
-            if createdPaths.contains(expectedNames) {
+            if await condition() {
                 return true
             }
             try? await Task.sleep(for: .milliseconds(25))
         }
 
-        return createdPaths.contains(expectedNames)
+        return await condition()
+    }
+
+    private func waitForPaths(
+        _ expectedNames: Set<String>,
+        in createdPaths: CreatedPaths
+    ) async -> Bool {
+        await waitUntil {
+            createdPaths.contains(expectedNames)
+        }
+    }
+
+    private func waitForWatcher(
+        _ watcher: DirectoryWatcher,
+        toBeWatching expected: Bool = true
+    ) async -> Bool {
+        await waitUntil {
+            await watcher.isWatching == expected
+        }
     }
 
     @Test func testWatchingExistingDirectory() async throws {
@@ -88,11 +105,10 @@ struct DirectoryWatcherTest {
             let name = "newFile"
 
             await watcher.startWatching { [createdPaths] paths in
-                for path in paths where path.lastComponent?.string == name {
-                    createdPaths.append(path)
-                }
+                createdPaths.record(paths)
             }
 
+            try #require(await waitForWatcher(watcher), "directory watcher did not initialise")
             let newFile = tempPath.appending(name)
             FileManager.default.createFile(atPath: newFile.string, contents: nil)
 
@@ -113,12 +129,11 @@ struct DirectoryWatcherTest {
             let name = "newFile"
 
             await watcher.startWatching { [createdPaths] paths in
-                for path in paths where path.lastComponent?.string == name {
-                    createdPaths.append(path)
-                }
+                createdPaths.record(paths)
             }
 
             try FileManager.default.createDirectory(atPath: childPath.string, withIntermediateDirectories: true)
+            try #require(await waitForWatcher(watcher), "directory watcher did not initialise")
             let newFile = childPath.appending(name)
             FileManager.default.createFile(atPath: newFile.string, contents: nil)
 
@@ -140,12 +155,11 @@ struct DirectoryWatcherTest {
             let name = "newFile"
 
             await watcher.startWatching { paths in
-                for path in paths where path.lastComponent?.string == name {
-                    createdPaths.append(path)
-                }
+                createdPaths.record(paths)
             }
 
             try FileManager.default.createDirectory(atPath: childPath.string, withIntermediateDirectories: true)
+            try #require(await waitForWatcher(watcher), "directory watcher did not initialise")
 
             let newFile = childPath.appending(name)
             FileManager.default.createFile(atPath: newFile.string, contents: nil)
@@ -195,21 +209,27 @@ struct DirectoryWatcherTest {
             let afterDelete = "afterDelete"
 
             await watcher.startWatching { [createdPaths] paths in
-                for path in paths
-                where path.lastComponent?.string == beforeDelete || path.lastComponent?.string == afterDelete {
-                    createdPaths.append(path)
-                }
+                createdPaths.record(paths)
             }
 
+            try #require(await waitForWatcher(watcher), "directory watcher did not initialise")
             let file1 = dirPath.appending(beforeDelete)
             FileManager.default.createFile(atPath: file1.string, contents: nil)
-            #expect(
+            try #require(
                 await waitForPaths([beforeDelete], in: createdPaths),
                 "directory watcher failed to detect file before directory recreation"
             )
 
             try FileManager.default.removeItem(atPath: dirPath.string)
+            try #require(
+                await waitForWatcher(watcher, toBeWatching: false),
+                "directory watcher did not stop after directory removal"
+            )
             try FileManager.default.createDirectory(atPath: dirPath.string, withIntermediateDirectories: true)
+            try #require(
+                await waitForWatcher(watcher),
+                "directory watcher did not resume after directory recreation"
+            )
 
             let file2 = dirPath.appending(afterDelete)
             FileManager.default.createFile(atPath: file2.string, contents: nil)
