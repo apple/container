@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerPersistence
 import ContainerResource
 import ContainerizationError
 import Foundation
@@ -111,6 +112,77 @@ struct UtilityTests {
     @Test("Trim digest shorter than 12 chars returns value unchanged")
     func testTrimDigestShort() {
         #expect(Utility.trimDigest(digest: "sha256:abc") == "abc")
+    }
+
+    @Test
+    func testDNSConfigurationFromFlagsFallsBackToSystemConfigDefaults() throws {
+        let management = try Flags.Management.parse([])
+        let systemConfig = ContainerSystemConfig(
+            dns: DNSConfig(
+                domain: "custom",
+                nameservers: ["8.8.8.8", "8.8.4.4"],
+                searchDomains: ["example.com"],
+                options: ["ndots:5"]
+            )
+        )
+
+        let dnsConfig = Utility.dnsConfigurationFromFlags(
+            management: management,
+            containerSystemConfig: systemConfig
+        )
+
+        #expect(dnsConfig?.nameservers == ["8.8.8.8", "8.8.4.4"])
+        #expect(dnsConfig?.domain == "custom")
+        #expect(dnsConfig?.searchDomains == ["example.com"])
+        #expect(dnsConfig?.options == ["ndots:5"])
+    }
+
+    @Test
+    func testDNSConfigurationFromFlagsPrefersCLIFlagsOverSystemConfig() throws {
+        let management = try Flags.Management.parse([
+            "--dns", "1.1.1.1",
+            "--dns-domain", "cli.local",
+            "--dns-search", "cli.local",
+            "--dns-option", "timeout:2"
+        ])
+        let systemConfig = ContainerSystemConfig(
+            dns: DNSConfig(
+                domain: "custom",
+                nameservers: ["8.8.8.8"],
+                searchDomains: ["example.com"],
+                options: ["ndots:5"]
+            )
+        )
+
+        let dnsConfig = Utility.dnsConfigurationFromFlags(
+            management: management,
+            containerSystemConfig: systemConfig
+        )
+
+        #expect(dnsConfig?.nameservers == ["1.1.1.1"])
+        #expect(dnsConfig?.domain == "cli.local")
+        #expect(dnsConfig?.searchDomains == ["cli.local"])
+        #expect(dnsConfig?.options == ["timeout:2"])
+    }
+
+    @Test
+    func testDNSConfigurationFromFlagsReturnsNilWhenNoDNS() throws {
+        let management = try Flags.Management.parse(["--no-dns"])
+        let systemConfig = ContainerSystemConfig(
+            dns: DNSConfig(
+                domain: "custom",
+                nameservers: ["8.8.8.8"],
+                searchDomains: ["example.com"],
+                options: ["ndots:5"]
+            )
+        )
+
+        let dnsConfig = Utility.dnsConfigurationFromFlags(
+            management: management,
+            containerSystemConfig: systemConfig
+        )
+
+        #expect(dnsConfig == nil)
     }
 
     @Test
