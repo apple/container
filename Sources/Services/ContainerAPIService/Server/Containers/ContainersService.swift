@@ -132,12 +132,15 @@ public actor ContainersService {
                     continue
                 }
 
+                let exit = ContainerResource.Bundle(path: dir).exitStatus
                 let state = ContainerState(
                     snapshot: .init(
                         configuration: config,
                         status: .stopped,
                         networks: [],
-                        startedDate: nil
+                        startedDate: nil,
+                        exitCode: exit?.exitCode,
+                        exitedAt: exit?.exitedAt
                     ),
                 )
                 results[config.id] = state
@@ -1004,10 +1007,19 @@ public actor ContainersService {
 
         state.snapshot.status = .stopped
         state.snapshot.networks = []
-        // Keep why it stopped, not just that it did.
+        // Keep why it stopped, not just that it did — in memory for this apiserver, and
+        // on disk so the answer survives a restart.
         if let code {
             state.snapshot.exitCode = code.exitCode
             state.snapshot.exitedAt = code.exitedAt
+            do {
+                try bundle.setExitStatus(
+                    ExitRecord(exitCode: code.exitCode, exitedAt: code.exitedAt))
+            } catch {
+                self.log.warning(
+                    "failed to record exit status",
+                    metadata: ["id": "\(id)", "error": "\(error)"])
+            }
         }
         state.client = nil
         await self.setContainerState(id, state, context: context)
