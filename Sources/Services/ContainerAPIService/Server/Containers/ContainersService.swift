@@ -1004,6 +1004,11 @@ public actor ContainersService {
 
         state.snapshot.status = .stopped
         state.snapshot.networks = []
+        // Keep why it stopped, not just that it did.
+        if let code {
+            state.snapshot.exitCode = code.exitCode
+            state.snapshot.exitedAt = code.exitedAt
+        }
         state.client = nil
         await self.setContainerState(id, state, context: context)
 
