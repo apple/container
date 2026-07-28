@@ -25,16 +25,6 @@ import Testing
 @testable import ContainerOS
 
 struct DirectoryWatcherTest {
-    let testUUID = UUID().uuidString
-
-    private var testDir: FilePath {
-        let tempURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            .appendingPathComponent(".clitests")
-            .appendingPathComponent(testUUID)
-        try! FileManager.default.createDirectory(at: tempURL, withIntermediateDirectories: true)
-        return FilePath(tempURL.path)
-    }
-
     private func withTempDir<T>(_ body: (FilePath) async throws -> T) async throws -> T {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: tempURL, withIntermediateDirectories: true)
