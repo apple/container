@@ -39,16 +39,29 @@ public struct ContainerSnapshot: Codable, Sendable {
     public var networks: [Attachment]
     /// When the container was started.
     public var startedDate: Date?
+    /// The exit code of the container's initial process, once it has exited.
+    ///
+    /// The engine already knew this — the runtime reports it and ExitMonitor
+    /// acts on it — but it was dropped on the floor, so a stopped container was
+    /// indistinguishable from one that had failed. `nil` while running, and for
+    /// containers that were already stopped before the apiserver started.
+    public var exitCode: Int32?
+    /// When the container's initial process exited.
+    public var exitedAt: Date?
 
     public init(
         configuration: ContainerConfiguration,
         status: RuntimeStatus,
         networks: [Attachment],
-        startedDate: Date? = nil
+        startedDate: Date? = nil,
+        exitCode: Int32? = nil,
+        exitedAt: Date? = nil
     ) {
         self.configuration = configuration
         self.status = status
         self.networks = networks
         self.startedDate = startedDate
+        self.exitCode = exitCode
+        self.exitedAt = exitedAt
     }
 }
