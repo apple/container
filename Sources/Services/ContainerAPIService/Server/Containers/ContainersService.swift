@@ -389,11 +389,12 @@ public actor ContainersService {
 
     /// Bootstrap the init process of the container.
     public func bootstrap(id: String, stdio: [FileHandle?], dynamicEnv: [String: String]) async throws {
+        let resolvedID = try self.resolveContainerID(id)
         log.debug(
             "ContainersService: enter",
             metadata: [
                 "func": "\(#function)",
-                "id": "\(id)",
+                "id": "\(resolvedID)",
                 "env": "\(dynamicEnv)",
             ]
         )
@@ -402,13 +403,13 @@ public actor ContainersService {
                 "ContainersService: exit",
                 metadata: [
                     "func": "\(#function)",
-                    "id": "\(id)",
+                    "id": "\(resolvedID)",
                 ]
             )
         }
 
-        try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
-            var state = try await self.getContainerState(id: id, context: context)
+        try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(resolvedID)"]) { context in
+            var state = try await self.getContainerState(id: resolvedID, context: context)
 
             // We've already bootstrapped this container. Ideally we should be able to
             // return some sort of error code from the sandbox svc to check here, but this
@@ -417,7 +418,7 @@ public actor ContainersService {
                 return
             }
 
-            let path = self.containerRoot.appendingPathComponent(id)
+            let path = self.containerRoot.appendingPathComponent(resolvedID)
             let (config, _) = try Self.getContainerConfiguration(at: path)
 
             var networkBootstrapInfos = [NetworkBootstrapInfo]()
@@ -439,25 +440,25 @@ public actor ContainersService {
 
                 let runtime = state.snapshot.configuration.runtimeHandler
                 let runtimeClient = try await RuntimeClient.create(
-                    id: id,
+                    id: resolvedID,
                     runtime: runtime
                 )
                 try await runtimeClient.bootstrap(stdio: stdio, networkBootstrapInfos: networkBootstrapInfos, dynamicEnv: dynamicEnv)
 
                 try await self.exitMonitor.registerProcess(
-                    id: id,
+                    id: resolvedID,
                     onExit: self.handleContainerExit
                 )
 
                 state.client = runtimeClient
-                await self.setContainerState(id, state, context: context)
+                await self.setContainerState(resolvedID, state, context: context)
             } catch {
                 let label = Self.fullLaunchdServiceLabel(
                     runtimeName: config.runtimeHandler,
-                    instanceId: id
+                    instanceId: resolvedID
                 )
 
-                await self.exitMonitor.stopTracking(id: id)
+                await self.exitMonitor.stopTracking(id: resolvedID)
                 try? ServiceManager.deregister(fullServiceLabel: label)
                 throw error
             }
@@ -471,12 +472,14 @@ public actor ContainersService {
         config: ProcessConfiguration,
         stdio: [FileHandle?]
     ) async throws {
+        let resolvedID = try self.resolveContainerID(id)
+        let resolvedProcessID = processID == id ? resolvedID : processID
         log.debug(
             "ContainersService: enter",
             metadata: [
                 "func": "\(#function)",
-                "id": "\(id)",
-                "processId": "\(processID)",
+                "id": "\(resolvedID)",
+                "processId": "\(resolvedProcessID)",
                 "command": "\(config.arguments.isEmpty ? "" : config.arguments[0])",
             ]
         )
@@ -485,15 +488,15 @@ public actor ContainersService {
                 "ContainersService: exit",
                 metadata: [
                     "func": "\(#function)",
-                    "id": "\(id)",
+                    "id": "\(resolvedID)",
                 ]
             )
         }
 
-        let state = try self._getContainerState(id: id)
+        let state = try self._getContainerState(id: resolvedID)
         let client = try state.getClient()
         try await client.createProcess(
-            processID,
+            resolvedProcessID,
             config: config,
             stdio: stdio
         )
@@ -503,12 +506,14 @@ public actor ContainersService {
     /// createProcess, or the init process of the container which requires
     /// id == processID.
     public func startProcess(id: String, processID: String) async throws {
+        let resolvedID = try self.resolveContainerID(id)
+        let resolvedProcessID = processID == id ? resolvedID : processID
         log.debug(
             "ContainersService: enter",
             metadata: [
                 "func": "\(#function)",
-                "id": "\(id)",
-                "processId": "\(processID)",
+                "id": "\(resolvedID)",
+                "processId": "\(resolvedProcessID)",
             ]
         )
         defer {
@@ -516,22 +521,22 @@ public actor ContainersService {
                 "ContainersService: exit",
                 metadata: [
                     "func": "\(#function)",
-                    "id": "\(id)",
-                    "processId": "\(processID)",
+                    "id": "\(resolvedID)",
+                    "processId": "\(resolvedProcessID)",
                 ]
             )
         }
 
-        try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)", "processId": "\(processID)"]) { context in
-            var state = try await self.getContainerState(id: id, context: context)
+        try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(resolvedID)", "processId": "\(resolvedProcessID)"]) { context in
+            var state = try await self.getContainerState(id: resolvedID, context: context)
 
-            let isInit = Self.isInitProcess(id: id, processID: processID)
+            let isInit = Self.isInitProcess(id: resolvedID, processID: resolvedProcessID)
             if state.snapshot.status == .running && isInit {
                 return
             }
 
             let client = try state.getClient()
-            try await client.startProcess(processID)
+            try await client.startProcess(resolvedProcessID)
 
             guard isInit else {
                 return
@@ -541,11 +546,11 @@ public actor ContainersService {
                 let log = self.log
                 let waitFunc: ExitMonitor.WaitHandler = {
                     log.info("registering container with exit monitor")
-                    let code = try await client.wait(id)
+                    let code = try await client.wait(resolvedID)
                     log.info(
                         "container finished in exit monitor",
                         metadata: [
-                            "id": "\(id)",
+                            "id": "\(resolvedID)",
                             "rc": "\(code)",
                         ])
 
@@ -557,9 +562,9 @@ public actor ContainersService {
                 state.snapshot.status = .running
                 state.snapshot.networks = sandboxSnapshot.networks
                 state.snapshot.startedDate = Date()
-                await self.setContainerState(id, state, context: context)
+                await self.setContainerState(resolvedID, state, context: context)
             } catch {
-                await self.exitMonitor.stopTracking(id: id)
+                await self.exitMonitor.stopTracking(id: resolvedID)
                 try? await client.stop(options: ContainerStopOptions.default)
                 throw error
             }
@@ -568,12 +573,14 @@ public actor ContainersService {
 
     /// Send a signal to the container.
     public func kill(id: String, processID: String, signal: String) async throws {
+        let resolvedID = try self.resolveContainerID(id)
+        let resolvedProcessID = processID == id ? resolvedID : processID
         log.debug(
             "ContainersService: enter",
             metadata: [
                 "func": "\(#function)",
-                "id": "\(id)",
-                "processId": "\(processID)",
+                "id": "\(resolvedID)",
+                "processId": "\(resolvedProcessID)",
                 "signal": "\(signal)",
             ]
         )
@@ -582,32 +589,33 @@ public actor ContainersService {
                 "ContainersService: exit",
                 metadata: [
                     "func": "\(#function)",
-                    "id": "\(id)",
-                    "processId": "\(processID)",
+                    "id": "\(resolvedID)",
+                    "processId": "\(resolvedProcessID)",
                 ]
             )
         }
 
-        let state = try self._getContainerState(id: id)
+        let state = try self._getContainerState(id: resolvedID)
         let client = try state.getClient()
-        try await client.kill(processID, signal: signal)
+        try await client.kill(resolvedProcessID, signal: signal)
 
         // SIGKILL is guaranteed to terminate the target. When directed at the
         // container's init process, follow up with the same API-server cleanup
         // that `stop` performs.
-        if processID == id, (try? Signal(signal)) == .kill {
-            try await handleContainerExit(id: id)
+        if resolvedProcessID == resolvedID, (try? Signal(signal)) == .kill {
+            try await handleContainerExit(id: resolvedID)
         }
     }
 
     /// Stop all containers inside the sandbox, aborting any processes currently
     /// executing inside the container, before stopping the underlying sandbox.
     public func stop(id: String, options: ContainerStopOptions) async throws {
+        let resolvedID = try self.resolveContainerID(id)
         log.debug(
             "ContainersService: enter",
             metadata: [
                 "func": "\(#function)",
-                "id": "\(id)",
+                "id": "\(resolvedID)",
             ]
         )
         defer {
@@ -615,12 +623,12 @@ public actor ContainersService {
                 "ContainersService: exit",
                 metadata: [
                     "func": "\(#function)",
-                    "id": "\(id)",
+                    "id": "\(resolvedID)",
                 ]
             )
         }
 
-        let state = try self._getContainerState(id: id)
+        let state = try self._getContainerState(id: resolvedID)
 
         // Stop should be idempotent.
         let client: RuntimeClient
@@ -642,15 +650,16 @@ public actor ContainersService {
                 throw err
             }
         }
-        try await handleContainerExit(id: id)
+        try await handleContainerExit(id: resolvedID)
     }
 
     public func dial(id: String, port: UInt32) async throws -> FileHandle {
+        let resolvedID = try self.resolveContainerID(id)
         log.debug(
             "ContainersService: enter",
             metadata: [
                 "func": "\(#function)",
-                "id": "\(id)",
+                "id": "\(resolvedID)",
                 "port": "\(port)",
             ]
         )
@@ -659,13 +668,13 @@ public actor ContainersService {
                 "ContainersService: exit",
                 metadata: [
                     "func": "\(#function)",
-                    "id": "\(id)",
+                    "id": "\(resolvedID)",
                     "port": "\(port)",
                 ]
             )
         }
 
-        let state = try self._getContainerState(id: id)
+        let state = try self._getContainerState(id: resolvedID)
         let client = try state.getClient()
         return try await client.dial(port)
     }
@@ -673,12 +682,14 @@ public actor ContainersService {
     /// Wait waits for the container's init process or exec to exit and returns the
     /// exit status.
     public func wait(id: String, processID: String) async throws -> ExitStatus {
+        let resolvedID = try self.resolveContainerID(id)
+        let resolvedProcessID = processID == id ? resolvedID : processID
         log.debug(
             "ContainersService: enter",
             metadata: [
                 "func": "\(#function)",
-                "id": "\(id)",
-                "processId": "\(processID)",
+                "id": "\(resolvedID)",
+                "processId": "\(resolvedProcessID)",
             ]
         )
         defer {
@@ -686,25 +697,27 @@ public actor ContainersService {
                 "ContainersService: exit",
                 metadata: [
                     "func": "\(#function)",
-                    "id": "\(id)",
-                    "processId": "\(processID)",
+                    "id": "\(resolvedID)",
+                    "processId": "\(resolvedProcessID)",
                 ]
             )
         }
 
-        let state = try self._getContainerState(id: id)
+        let state = try self._getContainerState(id: resolvedID)
         let client = try state.getClient()
-        return try await client.wait(processID)
+        return try await client.wait(resolvedProcessID)
     }
 
     /// Resize resizes the container's PTY if one exists.
     public func resize(id: String, processID: String, size: Terminal.Size) async throws {
+        let resolvedID = try self.resolveContainerID(id)
+        let resolvedProcessID = processID == id ? resolvedID : processID
         log.trace(
             "ContainersService: enter",
             metadata: [
                 "func": "\(#function)",
-                "id": "\(id)",
-                "processId": "\(processID)",
+                "id": "\(resolvedID)",
+                "processId": "\(resolvedProcessID)",
             ]
         )
         defer {
@@ -712,24 +725,25 @@ public actor ContainersService {
                 "ContainersService: exit",
                 metadata: [
                     "func": "\(#function)",
-                    "id": "\(id)",
-                    "processId": "\(processID)",
+                    "id": "\(resolvedID)",
+                    "processId": "\(resolvedProcessID)",
                 ]
             )
         }
 
-        let state = try self._getContainerState(id: id)
+        let state = try self._getContainerState(id: resolvedID)
         let client = try state.getClient()
-        try await client.resize(processID, size: size)
+        try await client.resize(resolvedProcessID, size: size)
     }
 
     // Get the logs for the container.
     public func logs(id: String) async throws -> [FileHandle] {
+        let resolvedID = try self.resolveContainerID(id)
         log.debug(
             "ContainersService: enter",
             metadata: [
                 "func": "\(#function)",
-                "id": "\(id)",
+                "id": "\(resolvedID)",
             ]
         )
         defer {
@@ -737,7 +751,7 @@ public actor ContainersService {
                 "ContainersService: exit",
                 metadata: [
                     "func": "\(#function)",
-                    "id": "\(id)",
+                    "id": "\(resolvedID)",
                 ]
             )
         }
@@ -747,8 +761,8 @@ public actor ContainersService {
         // first try and get the container state so we get a nicer error message
         // (container foo not found) however.
         do {
-            _ = try _getContainerState(id: id)
-            let path = self.containerRoot.appendingPathComponent(id)
+            _ = try _getContainerState(id: resolvedID)
+            let path = self.containerRoot.appendingPathComponent(resolvedID)
             let bundle = ContainerResource.Bundle(path: path)
             return [
                 try FileHandle(forReadingFrom: bundle.containerLog),
@@ -766,9 +780,10 @@ public actor ContainersService {
     public func copyIn(id: String, source: String, destination: String, mode: UInt32, createParents: Bool = true) async throws {
         self.log.debug("\(#function)")
 
-        let state = try self._getContainerState(id: id)
+        let resolvedID = try self.resolveContainerID(id)
+        let state = try self._getContainerState(id: resolvedID)
         guard state.snapshot.status == .running else {
-            throw ContainerizationError(.invalidState, message: "container \(id) is not running")
+            throw ContainerizationError(.invalidState, message: "container \(resolvedID) is not running")
         }
         let client = try state.getClient()
         try await client.copyIn(source: source, destination: destination, mode: mode, createParents: createParents)
@@ -778,9 +793,10 @@ public actor ContainersService {
     public func copyOut(id: String, source: String, destination: String, createParents: Bool = true) async throws {
         self.log.debug("\(#function)")
 
-        let state = try self._getContainerState(id: id)
+        let resolvedID = try self.resolveContainerID(id)
+        let state = try self._getContainerState(id: resolvedID)
         guard state.snapshot.status == .running else {
-            throw ContainerizationError(.invalidState, message: "container \(id) is not running")
+            throw ContainerizationError(.invalidState, message: "container \(resolvedID) is not running")
         }
         let client = try state.getClient()
         try await client.copyOut(source: source, destination: destination, createParents: createParents)
@@ -788,11 +804,12 @@ public actor ContainersService {
 
     /// Get statistics for the container.
     public func stats(id: String) async throws -> ContainerStats {
+        let resolvedID = try self.resolveContainerID(id)
         log.debug(
             "ContainersService: enter",
             metadata: [
                 "func": "\(#function)",
-                "id": "\(id)",
+                "id": "\(resolvedID)",
             ]
         )
         defer {
@@ -800,23 +817,24 @@ public actor ContainersService {
                 "ContainersService: exit",
                 metadata: [
                     "func": "\(#function)",
-                    "id": "\(id)",
+                    "id": "\(resolvedID)",
                 ]
             )
         }
 
-        let state = try self._getContainerState(id: id)
+        let state = try self._getContainerState(id: resolvedID)
         let client = try state.getClient()
         return try await client.statistics()
     }
 
     /// Delete a container and its resources.
     public func delete(id: String, force: Bool) async throws {
+        let resolvedID = try self.resolveContainerID(id)
         log.info(
             "ContainersService: enter",
             metadata: [
                 "func": "\(#function)",
-                "id": "\(id)",
+                "id": "\(resolvedID)",
                 "force": "\(force)",
             ]
         )
@@ -825,18 +843,18 @@ public actor ContainersService {
                 "ContainersService: exit",
                 metadata: [
                     "func": "\(#function)",
-                    "id": "\(id)",
+                    "id": "\(resolvedID)",
                 ]
             )
         }
 
-        let state = try self._getContainerState(id: id)
+        let state = try self._getContainerState(id: resolvedID)
         switch state.snapshot.status {
         case .running:
             if !force {
                 throw ContainerizationError(
                     .invalidState,
-                    message: "container \(id) is \(state.snapshot.status) and can not be deleted"
+                    message: "container \(resolvedID) is \(state.snapshot.status) and can not be deleted"
                 )
             }
             let opts = ContainerStopOptions(
@@ -845,41 +863,42 @@ public actor ContainersService {
             )
             let client = try state.getClient()
             try await client.stop(options: opts)
-            try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
+            try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(resolvedID)"]) { context in
                 self.log.info(
                     "ContainersService: attempt cleanup",
                     metadata: [
                         "func": "\(#function)",
-                        "id": "\(id)",
+                        "id": "\(resolvedID)",
                     ]
                 )
-                try await self.cleanUp(id: id, context: context)
+                try await self.cleanUp(id: resolvedID, context: context)
                 self.log.info(
                     "ContainersService: successful cleanup",
                     metadata: [
                         "func": "\(#function)",
-                        "id": "\(id)",
+                        "id": "\(resolvedID)",
                     ]
                 )
             }
         case .stopping:
             throw ContainerizationError(
                 .invalidState,
-                message: "container \(id) is \(state.snapshot.status) and can not be deleted"
+                message: "container \(resolvedID) is \(state.snapshot.status) and can not be deleted"
             )
         default:
-            try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
-                try await self.cleanUp(id: id, context: context)
+            try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(resolvedID)"]) { context in
+                try await self.cleanUp(id: resolvedID, context: context)
             }
         }
     }
 
     public func containerDiskUsage(id: String) async throws -> UInt64 {
+        let resolvedID = try self.resolveContainerID(id)
         log.debug(
             "ContainersService: enter",
             metadata: [
                 "func": "\(#function)",
-                "id": "\(id)",
+                "id": "\(resolvedID)",
             ]
         )
         defer {
@@ -887,12 +906,12 @@ public actor ContainersService {
                 "ContainersService: exit",
                 metadata: [
                     "func": "\(#function)",
-                    "id": "\(id)",
+                    "id": "\(resolvedID)",
                 ]
             )
         }
 
-        let containerPath = self.containerRoot.appendingPathComponent(id).path
+        let containerPath = self.containerRoot.appendingPathComponent(resolvedID).path
 
         return FileManager.default.allocatedSize(of: URL(fileURLWithPath: containerPath))
     }
@@ -900,12 +919,13 @@ public actor ContainersService {
     public func exportRootfs(id: String, archive: URL) async throws {
         self.log.debug("\(#function)")
 
-        let state = try self._getContainerState(id: id)
+        let resolvedID = try self.resolveContainerID(id)
+        let state = try self._getContainerState(id: resolvedID)
         guard state.snapshot.status == .stopped else {
             throw ContainerizationError(.invalidState, message: "container is not stopped")
         }
 
-        let path = self.containerRoot.appendingPathComponent(id)
+        let path = self.containerRoot.appendingPathComponent(resolvedID)
         let bundle = ContainerResource.Bundle(path: path)
         let rootfs = bundle.containerRootfsBlock
         try EXT4.EXT4Reader(blockDevice: FilePath(rootfs)).export(archive: FilePath(archive))
@@ -1111,16 +1131,43 @@ public actor ContainersService {
         self.containers[id] = state
     }
 
+    func resolveContainerID(_ id: String) throws -> String {
+        try Self.resolveContainerID(id, in: self.containers.keys)
+    }
+
+    static func resolveContainerID(_ id: String, in containerIDs: some Collection<String>) throws -> String {
+        if containerIDs.contains(id) {
+            return id
+        }
+
+        let matches = containerIDs.filter { $0.hasPrefix(id) }
+        if matches.count == 1, let match = matches.first {
+            return match
+        }
+        if matches.count > 1 {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "container ID prefix \(id) is ambiguous"
+            )
+        }
+
+        throw ContainerizationError(
+            .notFound,
+            message: "container with ID \(id) not found"
+        )
+    }
+
     private func getContainerState(id: String, context: AsyncLock.Context) throws -> ContainerState {
         try self._getContainerState(id: id)
     }
 
     private func _getContainerState(id: String) throws -> ContainerState {
-        let state = self.containers[id]
+        let resolvedID = try self.resolveContainerID(id)
+        let state = self.containers[resolvedID]
         guard let state else {
             throw ContainerizationError(
                 .notFound,
-                message: "container with ID \(id) not found"
+                message: "container with ID \(resolvedID) not found"
             )
         }
         return state

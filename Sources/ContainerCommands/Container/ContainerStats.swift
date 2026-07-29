@@ -88,9 +88,10 @@ extension Application {
                 containersToShow = try await client.list(filters: ContainerListFilters(status: .running))
             } else {
                 // Fetch specified containers by ID
-                containersToShow = try await client.list(filters: ContainerListFilters(ids: containers))
+                let resolvedContainers = try await client.resolve(ids: containers)
+                containersToShow = try await client.list(filters: ContainerListFilters(ids: resolvedContainers))
                 // Validate all specified containers were found
-                for containerId in containers {
+                for containerId in resolvedContainers {
                     guard containersToShow.contains(where: { $0.id == containerId }) else {
                         throw ContainerizationError(
                             .notFound,
@@ -111,9 +112,11 @@ extension Application {
             let client = ContainerClient()
 
             // If containers were specified, validate they all exist upfront
+            let resolvedContainerIds: [String]
             if !containerIds.isEmpty {
-                let specifiedContainers = try await client.list(filters: ContainerListFilters(ids: containerIds))
-                for containerId in containerIds {
+                resolvedContainerIds = try await client.resolve(ids: containerIds)
+                let specifiedContainers = try await client.list(filters: ContainerListFilters(ids: resolvedContainerIds))
+                for containerId in resolvedContainerIds {
                     guard specifiedContainers.contains(where: { $0.id == containerId }) else {
                         throw ContainerizationError(
                             .notFound,
@@ -121,6 +124,8 @@ extension Application {
                         )
                     }
                 }
+            } else {
+                resolvedContainerIds = []
             }
 
             clearScreen()
@@ -130,10 +135,10 @@ extension Application {
             while true {
                 do {
                     let containersToShow: [ContainerSnapshot]
-                    if containerIds.isEmpty {
+                    if resolvedContainerIds.isEmpty {
                         containersToShow = try await client.list(filters: ContainerListFilters(status: .running))
                     } else {
-                        containersToShow = try await client.list(filters: ContainerListFilters(ids: containerIds))
+                        containersToShow = try await client.list(filters: ContainerListFilters(ids: resolvedContainerIds))
                     }
 
                     let statsData = try await collectStats(client: client, for: containersToShow)

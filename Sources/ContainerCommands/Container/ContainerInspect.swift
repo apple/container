@@ -36,10 +36,9 @@ extension Application {
 
         public func run() async throws {
             let client = ContainerClient()
-            let uniqueIds = Set(containerIds)
-            let containers = try await client.list().filter {
-                uniqueIds.contains($0.id)
-            }
+            let resolvedIds = try await client.resolve(ids: containerIds)
+            let uniqueIds = Set(resolvedIds)
+            let containers = try await client.list().filter { uniqueIds.contains($0.id) }
 
             if containers.count != uniqueIds.count {
                 let found = Set(containers.map { $0.id })

@@ -68,7 +68,7 @@ extension Application {
                     return c.id
                 }
             } else {
-                containers = Array(Set(containerIds))
+                containers = try await client.resolve(ids: containerIds)
             }
 
             var errors: [any Error] = []
