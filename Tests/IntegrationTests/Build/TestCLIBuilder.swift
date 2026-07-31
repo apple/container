@@ -26,19 +26,21 @@ struct TestCLIBuilder {
 
     // MARK: - Basic build tests
 
-    @Test func testBuildDefaultParams() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildDefaultParams(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(dir: dir, dockerfile: "FROM ghcr.io/linuxcontainers/alpine:3.20")
             // No tags — runtime generates one and prints it to stdout.
-            let output = try f.buildWithPaths(contextDir: dir)
+            let output = try f.buildWithPaths(contextDir: dir, transferMode: transferMode)
             let generatedTag = output.trimmingCharacters(in: .whitespacesAndNewlines)
             #expect(!generatedTag.isEmpty, "build should print the generated image tag to stdout")
             try f.assertImageBuilt(generatedTag)
         }
     }
 
-    @Test func testBuildDotFileSucceeds() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildDotFileSucceeds(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
@@ -49,12 +51,13 @@ struct TestCLIBuilder {
                     .file(".dockerignore", content: .data(".dockerignore\n".data(using: .utf8)!)),
                 ])
             let image = "registry.local/dot-file:\(UUID().uuidString)"
-            try f.build(tag: image, contextDir: dir)
+            try f.build(tag: image, contextDir: dir, transferMode: transferMode)
             try f.assertImageBuilt(image)
         }
     }
 
-    @Test func testBuildFromPreviousStage() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildFromPreviousStage(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
@@ -66,12 +69,13 @@ struct TestCLIBuilder {
                     CMD ["cat", "/layer1.txt"]
                     """)
             let image = "registry.local/from-previous-layer:\(UUID().uuidString)"
-            try f.build(tag: image, contextDir: dir)
+            try f.build(tag: image, contextDir: dir, transferMode: transferMode)
             try f.assertImageBuilt(image)
         }
     }
 
-    @Test func testBuildFromLocalImage() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildFromLocalImage(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
@@ -82,7 +86,7 @@ struct TestCLIBuilder {
                     .file(".dockerignore", content: .data(".dockerignore\n".data(using: .utf8)!)),
                 ])
             let image = "local-only:\(UUID().uuidString)"
-            try f.build(tag: image, contextDir: dir)
+            try f.build(tag: image, contextDir: dir, transferMode: transferMode)
             try f.assertImageBuilt(image)
 
             let dir2 = try f.createTempDir()
@@ -91,12 +95,13 @@ struct TestCLIBuilder {
                 dockerfile: "FROM \(image)",
                 context: [])
             let image2 = "from-local:\(UUID().uuidString)"
-            try f.build(tag: image2, contextDir: dir2)
+            try f.build(tag: image2, contextDir: dir2, transferMode: transferMode)
             try f.assertImageBuilt(image2)
         }
     }
 
-    @Test func testBuildAddFromSpecialDirs() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildAddFromSpecialDirs(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
@@ -104,12 +109,13 @@ struct TestCLIBuilder {
                 dockerfile: "FROM scratch\nADD emptyFile /",
                 context: [.file("emptyFile", content: .zeroFilled(size: 1))])
             let image = "registry.local/scratch-add-special-dir:\(UUID().uuidString)"
-            try f.build(tag: image, contextDir: dir)
+            try f.build(tag: image, contextDir: dir, transferMode: transferMode)
             try f.assertImageBuilt(image)
         }
     }
 
-    @Test func testBuildScratchAdd() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildScratchAdd(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
@@ -117,12 +123,13 @@ struct TestCLIBuilder {
                 dockerfile: "FROM scratch\nADD emptyFile /",
                 context: [.file("emptyFile", content: .zeroFilled(size: 1))])
             let image = "registry.local/scratch-add:\(UUID().uuidString)"
-            try f.build(tag: image, contextDir: dir)
+            try f.build(tag: image, contextDir: dir, transferMode: transferMode)
             try f.assertImageBuilt(image)
         }
     }
 
-    @Test func testBuildAddAll() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildAddAll(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
@@ -139,25 +146,27 @@ struct TestCLIBuilder {
                     .file("emptyFile", content: .zeroFilled(size: 1)),
                 ])
             let image = "registry.local/add-all:\(UUID().uuidString)"
-            let output = try f.build(tag: image, contextDir: dir)
+            let output = try f.build(tag: image, contextDir: dir, transferMode: transferMode)
             #expect(output.contains(image))
             try f.assertImageBuilt(image)
         }
     }
 
-    @Test func testBuildArg() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildArg(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
                 dir: dir,
                 dockerfile: "ARG TAG=unknown\nFROM ghcr.io/linuxcontainers/alpine:${TAG}")
             let image = "registry.local/build-arg:\(UUID().uuidString)"
-            try f.build(tag: image, contextDir: dir, buildArgs: ["TAG=3.20"])
+            try f.build(tag: image, contextDir: dir, transferMode: transferMode, buildArgs: ["TAG=3.20"])
             try f.assertImageBuilt(image)
         }
     }
 
-    @Test func testBuildSecret() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildSecret(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
@@ -193,7 +202,7 @@ struct TestCLIBuilder {
 
             let image = "registry.local/secrets:\(UUID().uuidString)"
             try f.build(
-                tag: image, contextDir: dir,
+                tag: image, contextDir: dir, transferMode: transferMode,
                 otherArgs: [
                     "--secret", "id=ENV1",
                     "--secret", "id=env2,env=ENV_VAR",
@@ -205,7 +214,8 @@ struct TestCLIBuilder {
         }
     }
 
-    @Test func testBuildNetworkAccess() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildNetworkAccess(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
@@ -225,12 +235,13 @@ struct TestCLIBuilder {
                 if let v = ProcessInfo.processInfo.environment[key] { buildArgs.append("\(key)=\(v)") }
             }
             let image = "registry.local/build-network-access:\(UUID().uuidString)"
-            try f.build(tag: image, contextDir: dir, buildArgs: buildArgs)
+            try f.build(tag: image, contextDir: dir, transferMode: transferMode, buildArgs: buildArgs)
             try f.assertImageBuilt(image)
         }
     }
 
-    @Test func testBuildDockerfileKeywords() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildDockerfileKeywords(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
@@ -275,12 +286,13 @@ struct TestCLIBuilder {
                     .file("toCopy", content: .zeroFilled(size: 1)),
                 ])
             let image = "registry.local/dockerfile-keywords:\(UUID().uuidString)"
-            try f.build(tag: image, contextDir: dir)
+            try f.build(tag: image, contextDir: dir, transferMode: transferMode)
             try f.assertImageBuilt(image)
         }
     }
 
-    @Test func testBuildSymlink() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildSymlink(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             let dockerfile = """
@@ -310,19 +322,20 @@ struct TestCLIBuilder {
             ]
             try f.createContext(dir: dir, dockerfile: dockerfile, context: context)
             let image = "registry.local/build-symlinks:\(UUID().uuidString)"
-            try f.build(tag: image, contextDir: dir)
+            try f.build(tag: image, contextDir: dir, transferMode: transferMode)
             try f.assertImageBuilt(image)
         }
     }
 
-    @Test func testBuildAndRun() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildAndRun(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
                 dir: dir,
                 dockerfile: "FROM ghcr.io/linuxcontainers/alpine:3.20\nRUN echo \"foobar\" > /file")
             let image = "\(f.testID)-build-and-run:latest"
-            try f.build(tag: image, contextDir: dir)
+            try f.build(tag: image, contextDir: dir, transferMode: transferMode)
             try f.assertImageBuilt(image)
             try await f.withContainer(image: image) { name in
                 let output = try f.doExec(name, cmd: ["cat", "/file"])
@@ -332,7 +345,8 @@ struct TestCLIBuilder {
         }
     }
 
-    @Test func testBuildDifferentPaths() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildDifferentPaths(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
@@ -350,12 +364,13 @@ struct TestCLIBuilder {
                     .file("Test/test.txt", content: .zeroFilled(size: 1)),
                 ])
             let image = "registry.local/build-diff-context:\(UUID().uuidString)"
-            try f.buildWithPaths(tags: [image], contextDir: dir)
+            try f.buildWithPaths(tags: [image], contextDir: dir, transferMode: transferMode)
             try f.assertImageBuilt(image)
         }
     }
 
-    @Test func testBuildMultiArch() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildMultiArch(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
@@ -372,7 +387,7 @@ struct TestCLIBuilder {
                     .file("emptyFile", content: .zeroFilled(size: 1)),
                 ])
             let image = "registry.local/multi-arch:\(UUID().uuidString)"
-            try f.build(tag: image, contextDir: dir, otherArgs: ["--arch", "amd64,arm64"])
+            try f.build(tag: image, contextDir: dir, transferMode: transferMode, otherArgs: ["--arch", "amd64,arm64"])
             try f.assertImageBuilt(image)
 
             let output = try f.doInspectImages(image)
@@ -382,7 +397,8 @@ struct TestCLIBuilder {
         }
     }
 
-    @Test func testBuildMultipleTags() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildMultipleTags(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
@@ -393,7 +409,7 @@ struct TestCLIBuilder {
             let tag1 = "registry.local/multi-tag-test:\(uuid)"
             let tag2 = "registry.local/multi-tag-test:latest"
             let tag3 = "registry.local/multi-tag-test:v1.0.0"
-            let output = try f.buildWithPaths(tags: [tag1, tag2, tag3], contextDir: dir)
+            let output = try f.buildWithPaths(tags: [tag1, tag2, tag3], contextDir: dir, transferMode: transferMode)
             #expect(output.contains(tag1))
             #expect(output.contains(tag2))
             #expect(output.contains(tag3))
@@ -403,7 +419,8 @@ struct TestCLIBuilder {
         }
     }
 
-    @Test func testBuildAfterContextChange() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildAfterContextChange(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             let initialContent = "initial".data(using: .utf8)!
@@ -416,7 +433,7 @@ struct TestCLIBuilder {
                 ])
 
             let image1 = "\(f.testID)-build-context-change:v1"
-            try f.build(tag: image1, contextDir: dir)
+            try f.build(tag: image1, contextDir: dir, transferMode: transferMode)
             try await f.withContainer(image: image1) { name in
                 let out = try f.doExec(name, cmd: ["cat", "/bar"])
                 #expect(out == "initial")
@@ -426,7 +443,7 @@ struct TestCLIBuilder {
             try "updated".data(using: .utf8)!.write(to: URL(filePath: contextBar.string), options: .atomic)
 
             let image2 = "\(f.testID)-build-context-change:v2"
-            try f.build(tag: image2, contextDir: dir)
+            try f.build(tag: image2, contextDir: dir, transferMode: transferMode)
             try await f.withContainer(image: image2) { name in
                 let out = try f.doExec(name, cmd: ["cat", "/bar"])
                 #expect(out == "updated")
@@ -434,7 +451,8 @@ struct TestCLIBuilder {
         }
     }
 
-    @Test func testBuildWithDockerfileFromStdin() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildWithDockerfileFromStdin(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             let dockerfile = "FROM scratch\nADD emptyFile /"
@@ -442,12 +460,13 @@ struct TestCLIBuilder {
                 dir: dir, dockerfile: "",
                 context: [.file("emptyFile", content: .zeroFilled(size: 1))])
             let image = "registry.local/stdin-file:\(UUID().uuidString)"
-            try f.buildWithStdin(tags: [image], contextDir: dir, dockerfileContents: dockerfile)
+            try f.buildWithStdin(tags: [image], contextDir: dir, dockerfileContents: dockerfile, transferMode: transferMode)
             try f.assertImageBuilt(image)
         }
     }
 
-    @Test func testLowercaseDockerfile() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testLowercaseDockerfile(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let files: [(String, String, String)] = [
                 ("COPY . /app", "copy-uppercase", "COPY"),
@@ -466,13 +485,14 @@ struct TestCLIBuilder {
                         """,
                     context: [.file("testfile.txt", content: .data("test".data(using: .utf8)!))])
                 let image = "registry.local/\(name):\(UUID().uuidString)"
-                try f.build(tag: image, contextDir: dir)
+                try f.build(tag: image, contextDir: dir, transferMode: transferMode)
                 try f.assertImageBuilt(image)
             }
         }
     }
 
-    @Test func testRunWithBindMount() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testRunWithBindMount(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
@@ -491,14 +511,15 @@ struct TestCLIBuilder {
                     .file("config.yaml", content: .data("key: value".data(using: .utf8)!)),
                 ])
             let image = "registry.local/bind-mount-test:\(UUID().uuidString)"
-            try f.build(tag: image, contextDir: dir)
+            try f.build(tag: image, contextDir: dir, transferMode: transferMode)
             try f.assertImageBuilt(image)
         }
     }
 
     // MARK: - .dockerignore tests
 
-    @Test func testBuildDockerIgnore() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildDockerIgnore(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             let dockerignore = """
@@ -539,12 +560,13 @@ struct TestCLIBuilder {
                     .file("src/app.go", content: .data("package src".data(using: .utf8)!)),
                 ])
             let image = "registry.local/dockerignore-test:\(UUID().uuidString)"
-            try f.build(tag: image, contextDir: dir)
+            try f.build(tag: image, contextDir: dir, transferMode: transferMode)
             try f.assertImageBuilt(image)
         }
     }
 
-    @Test func testDockerIgnoreBasic() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testDockerIgnoreBasic(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             let dockerfile = "FROM ghcr.io/linuxcontainers/alpine:3.20\nWORKDIR /app\nCOPY . ."
@@ -561,6 +583,7 @@ struct TestCLIBuilder {
             let image = "registry.local/dockerignore-basic:\(UUID().uuidString)"
             let result = try f.run([
                 "build", "-f", contextDir.appending("Dockerfile").string,
+                "--transfer-mode", transferMode,
                 "-t", image, contextDir.string,
             ])
             try result.check()
@@ -571,7 +594,8 @@ struct TestCLIBuilder {
         }
     }
 
-    @Test func testDockerIgnoreDockerfileSpecific() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testDockerIgnoreDockerfileSpecific(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             let dockerfile = "FROM ghcr.io/linuxcontainers/alpine:3.20\nWORKDIR /app\nCOPY . ."
@@ -588,6 +612,7 @@ struct TestCLIBuilder {
             let image = "registry.local/dockerignore-specific:\(UUID().uuidString)"
             try f.run([
                 "build", "-f", contextDir.appending("Dockerfile").string,
+                "--transfer-mode", transferMode,
                 "-t", image, contextDir.string,
             ]).check()
             try await f.withContainer(image: image, tag: "c") { name in
@@ -597,7 +622,8 @@ struct TestCLIBuilder {
         }
     }
 
-    @Test func testDockerIgnoreOutsideContext() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testDockerIgnoreOutsideContext(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             let dockerfile = "FROM ghcr.io/linuxcontainers/alpine:3.20\nWORKDIR /app\nCOPY . ."
@@ -612,6 +638,7 @@ struct TestCLIBuilder {
             let image = "registry.local/dockerignore-outside:\(UUID().uuidString)"
             try f.run([
                 "build", "-f", dir.appending("Dockerfile").string,
+                "--transfer-mode", transferMode,
                 "-t", image, dir.appending("context").string,
             ]).check()
             try await f.withContainer(image: image, tag: "c") { name in
@@ -621,7 +648,8 @@ struct TestCLIBuilder {
         }
     }
 
-    @Test func testDockerIgnoreIgnoredDockerfile() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testDockerIgnoreIgnoredDockerfile(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             let dockerfile = "FROM ghcr.io/linuxcontainers/alpine:3.20\nWORKDIR /app\nCOPY . ."
@@ -636,6 +664,7 @@ struct TestCLIBuilder {
             let image = "registry.local/dockerignore-ignored-dockerfile:\(UUID().uuidString)"
             try f.run([
                 "build", "-f", contextDir.appending("Dockerfile").string,
+                "--transfer-mode", transferMode,
                 "-t", image, contextDir.string,
             ]).check()
             try await f.withContainer(image: image, tag: "c") { name in
@@ -646,7 +675,8 @@ struct TestCLIBuilder {
         }
     }
 
-    @Test func testDockerIgnoreSubdirDockerfile() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testDockerIgnoreSubdirDockerfile(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             let dockerfile = "FROM ghcr.io/linuxcontainers/alpine:3.20\nWORKDIR /app\nCOPY . ."
@@ -665,7 +695,7 @@ struct TestCLIBuilder {
             let nestedDockerfile = contextDir.appending("nested").appending("project").appending("Dockerfile")
             let image = "registry.local/dockerignore-subdir:\(UUID().uuidString)"
             try f.run([
-                "build", "-f", nestedDockerfile.string, "-t", image, contextDir.string,
+                "build", "-f", nestedDockerfile.string, "--transfer-mode", transferMode, "-t", image, contextDir.string,
             ]).check()
             try await f.withContainer(image: image, tag: "c") { name in
                 try f.assertContainerHasFile(name, at: "/app/included.txt")
@@ -676,7 +706,8 @@ struct TestCLIBuilder {
         }
     }
 
-    @Test func testDockerIgnoreCustomDockerfileName() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testDockerIgnoreCustomDockerfileName(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             let dockerfile = "FROM ghcr.io/linuxcontainers/alpine:3.20\nWORKDIR /app\nCOPY . ."
@@ -694,6 +725,7 @@ struct TestCLIBuilder {
             let image = "registry.local/dockerignore-custom-name:\(UUID().uuidString)"
             try f.run([
                 "build", "-f", contextDir.appending("app1.Dockerfile").string,
+                "--transfer-mode", transferMode,
                 "-t", image, contextDir.string,
             ]).check()
             try await f.withContainer(image: image, tag: "c") { name in
@@ -704,7 +736,8 @@ struct TestCLIBuilder {
         }
     }
 
-    @Test func testDockerIgnoreCustomNameSubdir() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testDockerIgnoreCustomNameSubdir(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             let dockerfile = "FROM ghcr.io/linuxcontainers/alpine:3.20\nWORKDIR /app\nCOPY . ."
@@ -723,7 +756,7 @@ struct TestCLIBuilder {
             let nestedDockerfile = contextDir.appending("nested").appending("project").appending("app2.Dockerfile")
             let image = "registry.local/dockerignore-custom-subdir:\(UUID().uuidString)"
             try f.run([
-                "build", "-f", nestedDockerfile.string, "-t", image, contextDir.string,
+                "build", "-f", nestedDockerfile.string, "--transfer-mode", transferMode, "-t", image, contextDir.string,
             ]).check()
             try await f.withContainer(image: image, tag: "c") { name in
                 try f.assertContainerMissingFile(name, at: "/app/from-app2-ignore.txt")
@@ -734,7 +767,8 @@ struct TestCLIBuilder {
         }
     }
 
-    @Test func testDockerIgnoreCoexistingDockerfiles() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testDockerIgnoreCoexistingDockerfiles(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             let appDockerfile = "FROM ghcr.io/linuxcontainers/alpine:3.20\nWORKDIR /app\nCOPY . ."
@@ -753,6 +787,7 @@ struct TestCLIBuilder {
             let image = "registry.local/dockerignore-coexisting:\(UUID().uuidString)"
             try f.run([
                 "build", "-f", contextDir.appending("app.Dockerfile").string,
+                "--transfer-mode", transferMode,
                 "-t", image, contextDir.string,
             ]).check()
             try await f.withContainer(image: image, tag: "c") { name in
@@ -763,7 +798,8 @@ struct TestCLIBuilder {
         }
     }
 
-    @Test func testDockerIgnoreReadonlyContext() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testDockerIgnoreReadonlyContext(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             let dockerfile = "FROM ghcr.io/linuxcontainers/alpine:3.20\nWORKDIR /app\nCOPY . ."
@@ -787,6 +823,7 @@ struct TestCLIBuilder {
             let image = "registry.local/dockerignore-readonly:\(UUID().uuidString.prefix(6))"
             try f.run([
                 "build", "-f", dir.appending("Dockerfile").string,
+                "--transfer-mode", transferMode,
                 "-t", image, contextDir.string,
             ]).check()
             try await f.withContainer(image: image, tag: "c") { name in
@@ -796,44 +833,48 @@ struct TestCLIBuilder {
         }
     }
 
-    @Test func testNonExistingDockerfile() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testNonExistingDockerfile(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             let image = "registry.local/non-existing-dockerfile:\(UUID().uuidString)"
-            let r1 = try f.run(["build", "-f", "non-existing-path", "-t", image, dir.string])
+            let r1 = try f.run(["build", "-f", "non-existing-path", "--transfer-mode", transferMode, "-t", image, dir.string])
             #expect(r1.status != 0)
-            let r2 = try f.run(["build", "-t", image, dir.string])
+            let r2 = try f.run(["build", "--transfer-mode", transferMode, "-t", image, dir.string])
             #expect(r2.status != 0)
         }
     }
 
     // MARK: - Dockerfile ARG quoting
 
-    @Test func testBuildQuotedImageDockerfileArg() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildQuotedImageDockerfileArg(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
                 dir: dir,
                 dockerfile: "ARG IMAGE=\"ghcr.io/linuxcontainers/alpine:3.20\"\nFROM $IMAGE\nRUN test -f /etc/alpine-release")
             let image = "registry.local/quoted-image-dockerfile-arg:\(UUID().uuidString)"
-            try f.build(tag: image, contextDir: dir)
+            try f.build(tag: image, contextDir: dir, transferMode: transferMode)
             try f.assertImageBuilt(image)
         }
     }
 
-    @Test func testBuildQuotedStringDockerfileArg() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildQuotedStringDockerfileArg(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
                 dir: dir,
                 dockerfile: "FROM ghcr.io/linuxcontainers/alpine:3.20\nARG MYSTRING='\"Hello, world!\"'\nRUN test \"$MYSTRING\" = '\"Hello, world!\"'")
             let image = "registry.local/quoted-string-dockerfile-arg:\(UUID().uuidString)"
-            try f.build(tag: image, contextDir: dir)
+            try f.build(tag: image, contextDir: dir, transferMode: transferMode)
             try f.assertImageBuilt(image)
         }
     }
 
-    @Test func testBuildForwardReferencedDockerfileArg() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildForwardReferencedDockerfileArg(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
@@ -845,36 +886,39 @@ struct TestCLIBuilder {
                     RUN test -f /etc/alpine-release
                     """)
             let image = "registry.local/forward-referenced-dockerfile-arg:\(UUID().uuidString)"
-            try f.build(tag: image, contextDir: dir)
+            try f.build(tag: image, contextDir: dir, transferMode: transferMode)
             try f.assertImageBuilt(image)
         }
     }
 
-    @Test func testBuildQuotedImageBuildArg() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildQuotedImageBuildArg(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
                 dir: dir,
                 dockerfile: "ARG IMAGE\nFROM $IMAGE\nRUN test -f /etc/alpine-release")
             let image = "registry.local/quoted-image-build-arg:\(UUID().uuidString)"
-            try f.build(tag: image, contextDir: dir, buildArgs: ["IMAGE=ghcr.io/linuxcontainers/alpine:3.20"])
+            try f.build(tag: image, contextDir: dir, transferMode: transferMode, buildArgs: ["IMAGE=ghcr.io/linuxcontainers/alpine:3.20"])
             try f.assertImageBuilt(image)
         }
     }
 
-    @Test func testBuildQuotedStringBuildArg() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildQuotedStringBuildArg(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
                 dir: dir,
                 dockerfile: "FROM ghcr.io/linuxcontainers/alpine:3.20\nARG MYSTRING\nRUN test \"$MYSTRING\" = '\"Hello, world!\"'")
             let image = "registry.local/quoted-string-build-arg:\(UUID().uuidString)"
-            try f.build(tag: image, contextDir: dir, buildArgs: ["MYSTRING=\"Hello, world!\""])
+            try f.build(tag: image, contextDir: dir, transferMode: transferMode, buildArgs: ["MYSTRING=\"Hello, world!\""])
             try f.assertImageBuilt(image)
         }
     }
 
-    @Test func testBuildForwardReferencedBuildArg() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildForwardReferencedBuildArg(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
@@ -886,14 +930,15 @@ struct TestCLIBuilder {
                     RUN test -f /etc/alpine-release
                     """)
             let image = "registry.local/forward-referenced-build-arg:\(UUID().uuidString)"
-            try f.build(tag: image, contextDir: dir, buildArgs: ["ALPINE=ghcr.io/linuxcontainers/alpine"])
+            try f.build(tag: image, contextDir: dir, transferMode: transferMode, buildArgs: ["ALPINE=ghcr.io/linuxcontainers/alpine"])
             try f.assertImageBuilt(image)
         }
     }
 
     // MARK: - COPY --from tests
 
-    @Test func testCopyFromLocalImage() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testCopyFromLocalImage(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let baseDir = try f.createTempDir()
             let baseName = "local-base:\(UUID().uuidString)"
@@ -901,7 +946,7 @@ struct TestCLIBuilder {
                 dir: baseDir,
                 dockerfile: "FROM scratch\nADD hello.txt /hello.txt",
                 context: [.file("hello.txt", content: .data("hello\n".data(using: .utf8)!))])
-            try f.build(tag: baseName, contextDir: baseDir)
+            try f.build(tag: baseName, contextDir: baseDir, transferMode: transferMode)
             try f.assertImageBuilt(baseName)
 
             let dir = try f.createTempDir()
@@ -909,12 +954,13 @@ struct TestCLIBuilder {
                 dir: dir,
                 dockerfile: "FROM ghcr.io/linuxcontainers/alpine:3.20\nCOPY --from=\(baseName) /hello.txt /copied.txt\nRUN cat /copied.txt")
             let image = "registry.local/copy-from-local:\(UUID().uuidString)"
-            try f.build(tag: image, contextDir: dir)
+            try f.build(tag: image, contextDir: dir, transferMode: transferMode)
             try f.assertImageBuilt(image)
         }
     }
 
-    @Test func testCopyFromBuildStage() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testCopyFromBuildStage(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
@@ -928,12 +974,13 @@ struct TestCLIBuilder {
                     """,
                 context: [.file("hello.txt", content: .data("hello\n".data(using: .utf8)!))])
             let image = "registry.local/copy-from-stage:\(UUID().uuidString)"
-            try f.build(tag: image, contextDir: dir)
+            try f.build(tag: image, contextDir: dir, transferMode: transferMode)
             try f.assertImageBuilt(image)
         }
     }
 
-    @Test func testCopyRenameFromStage() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testCopyRenameFromStage(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
@@ -947,12 +994,13 @@ struct TestCLIBuilder {
                     """,
                 context: [.file("hello.txt", content: .data("hello\n".data(using: .utf8)!))])
             let image = "registry.local/copy-rename:\(UUID().uuidString)"
-            try f.build(tag: image, contextDir: dir)
+            try f.build(tag: image, contextDir: dir, transferMode: transferMode)
             try f.assertImageBuilt(image)
         }
     }
 
-    @Test func testCopyMissingFileFails() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testCopyMissingFileFails(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
@@ -965,13 +1013,15 @@ struct TestCLIBuilder {
             let image = "registry.local/copy-missing:\(UUID().uuidString)"
             let result = try f.run([
                 "build", "-f", dir.appending("Dockerfile").string,
+                "--transfer-mode", transferMode,
                 "-t", image, dir.appending("context").string,
             ])
             #expect(result.status != 0, "build should fail when source file is missing")
         }
     }
 
-    @Test func testCopyInvalidStageFails() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testCopyInvalidStageFails(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
@@ -980,13 +1030,15 @@ struct TestCLIBuilder {
             let image = "registry.local/copy-invalid-stage:\(UUID().uuidString)"
             let result = try f.run([
                 "build", "-f", dir.appending("Dockerfile").string,
+                "--transfer-mode", transferMode,
                 "-t", image, dir.appending("context").string,
             ])
             #expect(result.status != 0, "build should fail with invalid stage name")
         }
     }
 
-    @Test func testCopyFromNonexistentImageFails() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testCopyFromNonexistentImageFails(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             try f.createContext(
@@ -995,6 +1047,7 @@ struct TestCLIBuilder {
             let image = "registry.local/copy-bad-image:\(UUID().uuidString)"
             let result = try f.run([
                 "build", "-f", dir.appending("Dockerfile").string,
+                "--transfer-mode", transferMode,
                 "-t", image, dir.appending("context").string,
             ])
             #expect(result.status != 0, "build should fail when source image does not exist")
@@ -1004,7 +1057,8 @@ struct TestCLIBuilder {
     /// Regression test: the context *root* itself (not an entry inside it) is a
     /// symlink to a sibling directory, e.g. `context -> real-context`. The build
     /// must resolve the symlink and use the real directory's contents.
-    @Test func testBuildContextRootSymlink() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildContextRootSymlink(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             let dockerfile = """
@@ -1026,7 +1080,7 @@ struct TestCLIBuilder {
                 atPath: contextPath.string, withDestinationPath: "real-context")
 
             let image = "registry.local/build-context-root-symlink:\(UUID().uuidString)"
-            try f.build(tag: image, contextDir: dir)
+            try f.build(tag: image, contextDir: dir, transferMode: transferMode)
             try f.assertImageBuilt(image)
         }
     }
