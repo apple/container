@@ -1,0 +1,128 @@
+//===----------------------------------------------------------------------===//
+// Copyright © 2026 Apple Inc. and the container project authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//===----------------------------------------------------------------------===//
+
+import ContainerTestSupport
+import Foundation
+import SystemPackage
+import Testing
+import Yams
+
+@Suite(.serialized)
+struct TestK8sRunSerial {
+
+    private func dumpNodeDiagnostics(_ f: ContainerFixture, node: String) {
+        print("=== NODE DIAGNOSTICS [\(node)] ===")
+        let cmds: [(label: String, args: [String])] = [
+            ("ip-link", ["ip", "link", "show"]),
+            ("iptables-mss", ["iptables", "-t", "mangle", "-L", "-n", "-v"]),
+            ("containerd", ["systemctl", "status", "containerd", "--no-pager", "-l"]),
+            ("kubelet-log", ["journalctl", "-u", "kubelet", "--no-pager", "-n", "60"]),
+            ("crictl-images", ["crictl", "images"]),
+        ]
+        for (label, args) in cmds {
+            if let r = try? f.run(["exec", node] + args) {
+                let out = r.output.trimmingCharacters(in: .whitespacesAndNewlines)
+                let err = r.error.trimmingCharacters(in: .whitespacesAndNewlines)
+                print("[\(label)] exit=\(r.status)")
+                if !out.isEmpty { print(out) }
+                if !err.isEmpty { print("stderr: \(err)") }
+            }
+        }
+        print("=== END NODE DIAGNOSTICS ===")
+    }
+
+    private func loadKubeconfig() throws -> [String: Any] {
+        let path = FilePath(FileManager.default.homeDirectoryForCurrentUser.path)
+            .appending(".kube")
+            .appending("config")
+        let yaml = try String(contentsOfFile: path.string, encoding: .utf8)
+        guard let parsed = try Yams.load(yaml: yaml) as? [String: Any] else {
+            throw CommandError.executionFailed("could not parse kubeconfig at \(path.string)")
+        }
+        return parsed
+    }
+
+    @Test func testRunSingleNode() async throws {
+        try await ContainerFixture.with { f in
+            let name = "k8s-\(f.testID)"
+            f.addCleanup { _ = try? f.run(["k8s", "delete", "--name", name]) }
+
+            print("[k8s-run] k8s create --name \(name)")
+            let result = try f.run(["k8s", "create", "--name", name])
+            print("[k8s-run] k8s create exit=\(result.status)")
+            if result.status != 0 {
+                print("[k8s-run] k8s create stderr: \(result.error)")
+                dumpNodeDiagnostics(f, node: name)
+            }
+            try result.check()
+            #expect(result.output.contains(name))
+
+            let containerStatus = try f.getContainerStatus(name)
+            print("[k8s-run] container status=\(containerStatus)")
+            #expect(containerStatus == "running")
+
+            let kubeconfig = try loadKubeconfig()
+
+            let clusters = (kubeconfig["clusters"] as? [[String: Any]]) ?? []
+            #expect(clusters.contains { $0["name"] as? String == name })
+
+            let contexts = (kubeconfig["contexts"] as? [[String: Any]]) ?? []
+            #expect(contexts.contains { $0["name"] as? String == name })
+
+            let users = (kubeconfig["users"] as? [[String: Any]]) ?? []
+            #expect(users.contains { $0["name"] as? String == name })
+        }
+    }
+
+    @Test func testConcurrentCreateGetsDifferentPorts() async throws {
+        try await ContainerFixture.with { f in
+            let name1 = "k8s-\(f.testID)-a"
+            let name2 = "k8s-\(f.testID)-b"
+            f.addCleanup { _ = try? f.run(["k8s", "delete", "--name", name1]) }
+            f.addCleanup { _ = try? f.run(["k8s", "delete", "--name", name2]) }
+
+            print("[k8s-run] k8s create --name \(name1)")
+            let result1 = try f.run(["k8s", "create", "--name", name1])
+            print("[k8s-run] k8s create exit=\(result1.status)")
+            if result1.status != 0 {
+                print("[k8s-run] k8s create stderr: \(result1.error)")
+                dumpNodeDiagnostics(f, node: name1)
+            }
+            #expect(result1.status == 0)
+
+            print("[k8s-run] k8s create --name \(name2)")
+            let result2 = try f.run(["k8s", "create", "--name", name2])
+            print("[k8s-run] k8s create exit=\(result2.status)")
+            if result2.status != 0 {
+                print("[k8s-run] k8s create stderr: \(result2.error)")
+                dumpNodeDiagnostics(f, node: name2)
+            }
+            #expect(result2.status == 0)
+
+            #expect(try f.getContainerStatus(name1) == "running")
+            #expect(try f.getContainerStatus(name2) == "running")
+
+            let port1 = try f.inspectContainer(name1).configuration.publishedPorts
+                .first(where: { $0.containerPort == 6443 })?.hostPort
+            let port2 = try f.inspectContainer(name2).configuration.publishedPorts
+                .first(where: { $0.containerPort == 6443 })?.hostPort
+            print("[k8s-run] port1=\(port1.map(String.init) ?? "nil") port2=\(port2.map(String.init) ?? "nil")")
+            #expect(port1 != nil)
+            #expect(port2 != nil)
+            #expect(port1 != port2)
+        }
+    }
+}
