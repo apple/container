@@ -1583,3 +1583,175 @@ container system property list
 # output as JSON for scripting
 container system property list --format json
 ```
+
+## Kubernetes Cluster Management
+
+`container k8s` manages local single-node Kubernetes clusters backed by container VMs. Each cluster runs a Kubernetes control-plane node inside a container using `kindest/node` and `kubeadm`.
+
+> [!IMPORTANT]
+> The `k8s` command is an experimental feature and its subcommands and options are subject to change.
+
+### `container k8s create`
+
+Creates and starts a local Kubernetes cluster. Pulls the node image if needed, runs `kubeadm init`, installs the kindnet CNI, and merges the cluster credentials into `~/.kube/config`.
+
+**Usage**
+
+```bash
+container k8s create [--name <name>] [--node-image <image>] [--rm] [<resource options>] [--debug]
+```
+
+**Options**
+
+*   `--name <name>`: Cluster name (default: `k8s-dev`)
+*   `--node-image <image>`: Node image reference (default: `docker.io/kindest/node:v1.35.5`)
+*   `--rm`: Remove the cluster container after it stops
+
+**Resource Options**
+
+*   `--cpus <cpus>`: Number of virtual CPUs (default: 1/4 of host CPUs, minimum 2)
+*   `--memory <memory>`: Memory allocation (default: 1/4 of host memory, minimum 2g)
+
+**Registry Options**
+
+*   `--scheme <scheme>`: Scheme for the container registry (values: http, https, auto; default: auto)
+
+**Image Fetch Options**
+
+*   `--max-concurrent-downloads <n>`: Maximum number of concurrent downloads (default: 3)
+
+**Examples**
+
+```bash
+# create a cluster with the default name (k8s-dev)
+container k8s create
+
+# create a cluster with a custom name and resource allocation
+container k8s create --name my-cluster --cpus 4 --memory 8g
+
+# create a cluster that removes itself when stopped
+container k8s create --name temp-cluster --rm
+```
+
+### `container k8s start`
+
+Starts a stopped Kubernetes cluster and refreshes its entry in `~/.kube/config` (the container IP can change between starts).
+
+**Usage**
+
+```bash
+container k8s start [--name <name>] [--debug]
+```
+
+**Options**
+
+*   `--name <name>`: Cluster name (default: `k8s-dev`)
+
+**Examples**
+
+```bash
+# start the default cluster
+container k8s start
+
+# start a named cluster
+container k8s start --name my-cluster
+```
+
+### `container k8s delete (rm)`
+
+Stops and deletes a Kubernetes cluster container and removes its entry from `~/.kube/config`.
+
+**Usage**
+
+```bash
+container k8s delete [--name <name>] [--debug]
+```
+
+**Options**
+
+*   `--name <name>`: Cluster name (default: `k8s-dev`)
+
+**Examples**
+
+```bash
+# delete the default cluster
+container k8s delete
+
+# delete a named cluster
+container k8s delete --name my-cluster
+container k8s rm --name my-cluster
+```
+
+### `container k8s list (ls)`
+
+Lists all Kubernetes clusters with their status and node image.
+
+**Usage**
+
+```bash
+container k8s list [--debug]
+```
+
+**Examples**
+
+```bash
+container k8s list
+container k8s ls
+```
+
+### `container k8s load-image`
+
+Exports an image from the local `container` image store and imports it into the cluster's containerd (in the `k8s.io` namespace) so that Kubernetes can schedule pods that reference it.
+
+**Usage**
+
+```bash
+container k8s load-image [--name <name>] [--platform <platform>] <image> [--debug]
+```
+
+**Arguments**
+
+*   `<image>`: Image reference to load (e.g. `my-app:latest`)
+
+**Options**
+
+*   `--name <name>`: Cluster name (default: `k8s-dev`)
+*   `--platform <platform>`: Platform of the image variant to load from a multi-arch image (format: os/arch[/variant], default: `linux/<host-arch>`). Use this when the local store contains a multi-arch manifest list and you want to select a specific variant.
+
+**Examples**
+
+```bash
+# load an image into the default cluster
+container k8s load-image my-app:latest
+
+# load an image into a named cluster
+container k8s load-image --name my-cluster my-app:latest
+
+# load the amd64 variant of a multi-arch image
+container k8s load-image --platform linux/amd64 my-app:latest
+```
+
+### `container k8s write-config`
+
+Fetches the current kubeconfig from a running cluster and merges its context into a kubeconfig file. Use this to refresh credentials after a cluster restart or to write to an alternate config file.
+
+**Usage**
+
+```bash
+container k8s write-config [--name <name>] [--kubeconfig <path>] [--debug]
+```
+
+**Options**
+
+*   `--name <name>`: Cluster name (default: `k8s-dev`)
+*   `--kubeconfig <path>`: Path to the kubeconfig file to write or append to (default: `~/.kube/config`)
+
+**Examples**
+
+```bash
+# refresh credentials for the default cluster into ~/.kube/config
+container k8s write-config
+
+# write the context for a named cluster to an alternate kubeconfig file
+container k8s write-config --name my-cluster --kubeconfig ~/.kube/my-cluster.kubeconfig
+```
