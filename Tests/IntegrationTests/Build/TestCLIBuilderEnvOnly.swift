@@ -19,7 +19,8 @@ import Foundation
 import Testing
 
 struct TestCLIBuilderEnvOnly {
-    @Test func testBuildEnvironmentOnlyImageFromScratch() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildEnvironmentOnlyImageFromScratch(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             let dockerfile =
@@ -35,12 +36,13 @@ struct TestCLIBuilderEnvOnly {
                 """
             try f.createContext(dir: dir, dockerfile: dockerfile)
             let imageName = "test-env-only:\(UUID().uuidString)"
-            try f.build(tag: imageName, contextDir: dir, buildArgs: ["BUILD_DATE=2025-01-01", "VERSION=2.0.0"])
+            try f.build(tag: imageName, contextDir: dir, transferMode: transferMode, buildArgs: ["BUILD_DATE=2025-01-01", "VERSION=2.0.0"])
             try f.assertImageBuilt(imageName)
         }
     }
 
-    @Test func testBuildEnvironmentOnlyImageFromAlpine() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testBuildEnvironmentOnlyImageFromAlpine(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             let dockerfile =
@@ -51,12 +53,13 @@ struct TestCLIBuilderEnvOnly {
                 """
             try f.createContext(dir: dir, dockerfile: dockerfile)
             let imageName = "test-alpine-env:\(UUID().uuidString)"
-            try f.build(tag: imageName, contextDir: dir)
+            try f.build(tag: imageName, contextDir: dir, transferMode: transferMode)
             try f.assertImageBuilt(imageName)
         }
     }
 
-    @Test func testMultiStageBuildWithEnvOnlyBase() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testMultiStageBuildWithEnvOnlyBase(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let baseDir = try f.createTempDir()
             let baseDockerfile =
@@ -68,7 +71,7 @@ struct TestCLIBuilderEnvOnly {
                 """
             try f.createContext(dir: baseDir, dockerfile: baseDockerfile)
             let baseImageName = "test-env-base:\(UUID().uuidString)"
-            try f.build(tag: baseImageName, contextDir: baseDir, buildArgs: ["JOBS=8", "ARCH=arm64"])
+            try f.build(tag: baseImageName, contextDir: baseDir, transferMode: transferMode, buildArgs: ["JOBS=8", "ARCH=arm64"])
             try f.assertImageBuilt(baseImageName)
 
             let downstreamDir = try f.createTempDir()
@@ -79,12 +82,13 @@ struct TestCLIBuilderEnvOnly {
                 """
             try f.createContext(dir: downstreamDir, dockerfile: downstreamDockerfile)
             let downstreamImageName = "test-env-child:\(UUID().uuidString)"
-            try f.build(tag: downstreamImageName, contextDir: downstreamDir)
+            try f.build(tag: downstreamImageName, contextDir: downstreamDir, transferMode: transferMode)
             try f.assertImageBuilt(downstreamImageName)
         }
     }
 
-    @Test func testComplexArgAndEnvCombinations() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testComplexArgAndEnvCombinations(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             let dockerfile =
@@ -104,12 +108,13 @@ struct TestCLIBuilderEnvOnly {
                 """
             try f.createContext(dir: dir, dockerfile: dockerfile)
             let imageName = "test-complex-env:\(UUID().uuidString)"
-            try f.build(tag: imageName, contextDir: dir, buildArgs: ["JOBS=12", "ARCH=arm64"])
+            try f.build(tag: imageName, contextDir: dir, transferMode: transferMode, buildArgs: ["JOBS=12", "ARCH=arm64"])
             try f.assertImageBuilt(imageName)
         }
     }
 
-    @Test func testLabelOnlyDockerfile() async throws {
+    @Test(arguments: ["tar", "json"])
+    func testLabelOnlyDockerfile(transferMode: String) async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
             let dockerfile =
@@ -121,7 +126,7 @@ struct TestCLIBuilderEnvOnly {
                 """
             try f.createContext(dir: dir, dockerfile: dockerfile)
             let imageName = "test-label-only:\(UUID().uuidString)"
-            try f.build(tag: imageName, contextDir: dir)
+            try f.build(tag: imageName, contextDir: dir, transferMode: transferMode)
             try f.assertImageBuilt(imageName)
         }
     }

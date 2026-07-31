@@ -28,6 +28,8 @@ import Foundation
 import NIO
 import TerminalProgress
 
+extension Builder.TransferMode: ExpressibleByArgument {}
+
 extension Application {
     public struct BuildCommand: AsyncLoggableCommand {
         public init() {}
@@ -129,6 +131,9 @@ extension Application {
         var targetImageNames: [String] = {
             [UUID().uuidString.lowercased()]
         }()
+
+        @Option(name: .long, help: ArgumentHelp("Mode to transfer build context (format: tar|json)"))
+        var transferMode: Builder.TransferMode = .tar
 
         @Option(name: .long, help: ArgumentHelp("Set the target build stage", valueName: "stage"))
         var target: String = ""
@@ -349,7 +354,8 @@ extension Application {
                     }()
                     group.addTask {
                         [
-                            terminal, buildArg, secretsData, contextDir, ignoreFileData, label, noCache, target, quiet, cacheIn, cacheOut, pull, exports, imageNames, tempURL, log,
+                            terminal, buildArg, secretsData, contextDir, transferMode, ignoreFileData, label, noCache, target, quiet, cacheIn, cacheOut, pull, exports, imageNames,
+                            tempURL, log,
                         ] in
                         let config = Builder.BuildConfig(
                             buildID: buildID,
@@ -357,6 +363,7 @@ extension Application {
                             buildArgs: buildArg,
                             secrets: secretsData,
                             contextDir: contextDir,
+                            transferMode: transferMode,
                             dockerfile: buildFileData,
                             dockerignore: ignoreFileData,
                             labels: label,
