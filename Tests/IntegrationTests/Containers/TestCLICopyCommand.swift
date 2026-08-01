@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerTestSupport
 import ContainerizationArchive
 import Foundation
 import Testing
@@ -93,7 +94,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyHostToContainer() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let src = f.testDir.appending("testfile.txt")
                 let content = "hello from host"
@@ -107,7 +108,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyContainerToHost() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let content = "hello from container"
                 try f.doExec(name, cmd: ["sh", "-c", "echo -n '\(content)' > /tmp/containerfile.txt"])
@@ -121,7 +122,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyUsingCpAlias() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let src = f.testDir.appending("aliasfile.txt")
                 let content = "testing cp alias"
@@ -140,7 +141,7 @@ struct TestCLICopyCommand {
     /// container exactly as written in the headers.
     @Test func testCopyStdinTarStreamPreservesOwnershipAndMode() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let tar = try makeTarStream([
                     TarEntry(path: "layer/", fileType: .directory, mode: 0o750, uid: 1234, gid: 5678),
@@ -173,7 +174,7 @@ struct TestCLICopyCommand {
     /// rejects them during extraction rather than the host pre-scanning paths.
     @Test func testCopyStdinTarStreamRejectsPathTraversal() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let tar = try makeTarStream([
                     TarEntry(path: "../escaped.txt", mode: 0o644, uid: 0, gid: 0, contents: "escaped")
@@ -190,7 +191,7 @@ struct TestCLICopyCommand {
     /// entry named after the file, carrying the guest's ownership and mode.
     @Test func testCopyFileToStdoutTarStream() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 try f.doExec(name, cmd: ["sh", "-c", "echo -n 'tar-stream-out' > /tmp/tarout.txt; chmod 600 /tmp/tarout.txt; chown 1111:2222 /tmp/tarout.txt"])
 
@@ -216,7 +217,7 @@ struct TestCLICopyCommand {
     /// `cp ctr:/dir - | cp - other:/dest` reproduce `/dest/dir`.
     @Test func testCopyDirectoryToStdoutTarStreamIsParentRelative() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 try f.doExec(name, cmd: ["sh", "-c", "mkdir -p /tmp/bundle/nested && echo -n hi > /tmp/bundle/nested/file.txt"])
 
@@ -234,7 +235,7 @@ struct TestCLICopyCommand {
     /// which only holds if both directions agree on entry naming.
     @Test func testCopyTarStreamRoundTrip() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 try f.doExec(name, cmd: ["sh", "-c", "mkdir -p /tmp/bundle && echo -n roundtrip > /tmp/bundle/file.txt; chmod 604 /tmp/bundle/file.txt"])
 
@@ -269,7 +270,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyContainerToContainerFails() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             let name = "\(f.testID)-c"
             try f.doCreate(name: name, image: image)
             f.addCleanup { try f.doRemoveIfExists(name, ignoreFailure: true) }
@@ -280,7 +281,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyToNonRunningContainerFails() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             let name = "\(f.testID)-c"
             try f.doCreate(name: name, image: image)
             f.addCleanup { try f.doRemoveIfExists(name, ignoreFailure: true) }
@@ -293,7 +294,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyDirectoryHostToContainer() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let srcDir = f.testDir.appending("hostdir")
                 try FileManager.default.createDirectory(atPath: srcDir.string, withIntermediateDirectories: true, attributes: nil)
@@ -310,7 +311,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyDirectoryContainerToHost() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 try f.doExec(name, cmd: ["sh", "-c", "mkdir -p /tmp/guestdir && echo -n 'aaa' > /tmp/guestdir/a.txt && echo -n 'bbb' > /tmp/guestdir/b.txt"])
                 let dest = f.testDir.appending("guestdir")
@@ -325,7 +326,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyNestedDirectoryHostToContainer() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let srcDir = f.testDir.appending("nested")
                 let subDir = srcDir.appending("sub")
@@ -343,7 +344,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyNestedDirectoryContainerToHost() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 try f.doExec(name, cmd: ["sh", "-c", "mkdir -p /tmp/nested/sub && echo -n 'root file' > /tmp/nested/root.txt && echo -n 'nested file' > /tmp/nested/sub/deep.txt"])
                 let dest = f.testDir.appending("nested")
@@ -360,7 +361,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyOutFileToExistingFile() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let content = "container content"
                 try f.doExec(name, cmd: ["sh", "-c", "echo -n '\(content)' > /tmp/source.txt"])
@@ -375,7 +376,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyOutDirectoryToExistingFileFails() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 try f.doExec(name, cmd: ["sh", "-c", "mkdir -p /tmp/srcdir && echo -n 'x' > /tmp/srcdir/file.txt"])
                 let dest = f.testDir.appending("existing.txt")
@@ -388,7 +389,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyOutFileToExistingDirectory() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let content = "container content"
                 try f.doExec(name, cmd: ["sh", "-c", "echo -n '\(content)' > /tmp/source.txt"])
@@ -403,7 +404,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyOutDirectoryToExistingDirectory() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 try f.doExec(name, cmd: ["sh", "-c", "mkdir -p /tmp/srcdir && echo -n 'hello' > /tmp/srcdir/file.txt"])
                 let destDir = f.testDir.appending("dstdir")
@@ -419,7 +420,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyOutFileToNonExistingTrailingSlashFails() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 try f.doExec(name, cmd: ["sh", "-c", "echo -n 'x' > /tmp/source.txt"])
                 let dest = f.testDir.appending("nonexistent").string + "/"
@@ -431,7 +432,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyOutDirectoryToNonExistingTrailingSlash() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 try f.doExec(name, cmd: ["sh", "-c", "mkdir -p /tmp/srcdir && echo -n 'hello' > /tmp/srcdir/file.txt"])
                 let destDir = f.testDir.appending("newdir")
@@ -446,7 +447,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyOutFileToExistingDirectoryTrailingSlash() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let content = "container content"
                 try f.doExec(name, cmd: ["sh", "-c", "echo -n '\(content)' > /tmp/source.txt"])
@@ -461,7 +462,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyOutDirectoryToExistingDirectoryTrailingSlash() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 try f.doExec(name, cmd: ["sh", "-c", "mkdir -p /tmp/srcdir && echo -n 'hello' > /tmp/srcdir/file.txt"])
                 let destDir = f.testDir.appending("dstdir")
@@ -477,7 +478,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyOutDirectoryContentsToNonExisting() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 try f.doExec(name, cmd: ["sh", "-c", "mkdir -p /tmp/srcdir/sub && echo -n 'hello' > /tmp/srcdir/file.txt"])
                 let destDir = f.testDir.appending("newdir")
@@ -492,7 +493,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyOutDirectoryContentsToExistingFileFails() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 try f.doExec(name, cmd: ["sh", "-c", "mkdir -p /tmp/srcdir && echo -n 'x' > /tmp/srcdir/file.txt"])
                 let dest = f.testDir.appending("existing.txt")
@@ -505,7 +506,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyOutDirectoryContentsToExistingDirectory() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 try f.doExec(name, cmd: ["sh", "-c", "mkdir -p /tmp/srcdir && echo -n 'hello' > /tmp/srcdir/file.txt"])
                 let destDir = f.testDir.appending("dstdir")
@@ -521,7 +522,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyOutDirectoryContentsToNonExistingTrailingSlash() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 try f.doExec(name, cmd: ["sh", "-c", "mkdir -p /tmp/srcdir && echo -n 'hello' > /tmp/srcdir/file.txt"])
                 let destDir = f.testDir.appending("newdir")
@@ -534,7 +535,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyOutDirectoryContentsToExistingDirectoryTrailingSlash() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 try f.doExec(name, cmd: ["sh", "-c", "mkdir -p /tmp/srcdir && echo -n 'hello' > /tmp/srcdir/file.txt"])
                 let destDir = f.testDir.appending("dstdir")
@@ -550,7 +551,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyInFileToExistingFile() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let content = "new content"
                 let src = f.testDir.appending("source.txt")
@@ -565,7 +566,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyInDirectoryToExistingFileFails() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let srcDir = f.testDir.appending("srcdir")
                 try FileManager.default.createDirectory(atPath: srcDir.string, withIntermediateDirectories: true, attributes: nil)
@@ -579,7 +580,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyInFileToExistingDirectory() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let content = "host content"
                 let src = f.testDir.appending("source.txt")
@@ -594,7 +595,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyInDirectoryToExistingDirectory() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let srcDir = f.testDir.appending("srcdir")
                 try FileManager.default.createDirectory(atPath: srcDir.string, withIntermediateDirectories: true, attributes: nil)
@@ -611,7 +612,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyInFileToNonExistingTrailingSlashFails() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let src = f.testDir.appending("source.txt")
                 try "x".write(toFile: src.string, atomically: true, encoding: .utf8)
@@ -623,7 +624,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyInDirectoryToNonExistingTrailingSlash() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let srcDir = f.testDir.appending("srcdir")
                 try FileManager.default.createDirectory(atPath: srcDir.string, withIntermediateDirectories: true, attributes: nil)
@@ -639,7 +640,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyInDirectoryContentsToNonExisting() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let srcDir = f.testDir.appending("srcdir")
                 let subDir = srcDir.appending("sub")
@@ -654,7 +655,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyInDirectoryContentsToExistingFileFails() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let srcDir = f.testDir.appending("srcdir")
                 try FileManager.default.createDirectory(atPath: srcDir.string, withIntermediateDirectories: true, attributes: nil)
@@ -668,7 +669,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyInDirectoryContentsToExistingDirectory() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let srcDir = f.testDir.appending("srcdir")
                 try FileManager.default.createDirectory(atPath: srcDir.string, withIntermediateDirectories: true, attributes: nil)
@@ -685,7 +686,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyInDirectoryContentsToNonExistingTrailingSlash() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let srcDir = f.testDir.appending("srcdir")
                 try FileManager.default.createDirectory(atPath: srcDir.string, withIntermediateDirectories: true, attributes: nil)
@@ -699,7 +700,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyInDirectoryContentsToExistingDirectoryTrailingSlash() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let srcDir = f.testDir.appending("srcdir")
                 try FileManager.default.createDirectory(atPath: srcDir.string, withIntermediateDirectories: true, attributes: nil)
@@ -716,7 +717,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyInRelativeSourcePath() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let content = "relative source"
                 try content.write(toFile: f.testDir.appending("relfile.txt").string, atomically: true, encoding: .utf8)
@@ -729,7 +730,7 @@ struct TestCLICopyCommand {
 
     @Test func testCopyOutRelativeDestinationPath() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let content = "relative dest"
                 try f.doExec(name, cmd: ["sh", "-c", "echo -n '\(content)' > /tmp/relfile.txt"])

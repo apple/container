@@ -633,6 +633,18 @@ struct ParserTest {
         #expect(Set(result) == Set(["FOO=fromuser", "BAR=fromimage", "BAZ=fromfile"]))
     }
 
+    @Test
+    func testAllEnvRejectsBareNameFromImage() throws {
+        // Image config is untrusted: a bare name (no "=") must be dropped rather
+        // than expanded from the host process's environment.
+        let result = try Parser.allEnv(
+            imageEnvs: ["PATH", "FOO=fromimage"],
+            envFiles: [],
+            envs: []
+        )
+        #expect(Set(result) == Set(["FOO=fromimage"]))
+    }
+
     private func tmpFileWithContent(_ content: String) throws -> URL {
         let tempDir = FileManager.default.temporaryDirectory
         let tempFile = tempDir.appendingPathComponent("envfile-test-\(UUID().uuidString)")

@@ -22,14 +22,14 @@ import SystemPackage
 
 extension ContainerFixture {
     /// Decoded output of `container inspect <name>`.
-    struct InspectOutput: Codable {
-        struct Status: Codable {
-            let state: String
-            let networks: [ContainerResource.Attachment]
+    public struct InspectOutput: Codable {
+        public struct Status: Codable {
+            public let state: String
+            public let networks: [ContainerResource.Attachment]
         }
-        let configuration: ContainerConfiguration
-        let status: Status
-        var networks: [ContainerResource.Attachment] { status.networks }
+        public let configuration: ContainerConfiguration
+        public let status: Status
+        public var networks: [ContainerResource.Attachment] { status.networks }
     }
 }
 
@@ -38,7 +38,7 @@ extension ContainerFixture {
 extension ContainerFixture {
 
     /// `-e` flags forwarding proxy env vars into container commands.
-    var proxyEnvironmentArgs: [String] {
+    public var proxyEnvironmentArgs: [String] {
         let vars = Set(["HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "NO_PROXY", "no_proxy"])
         return ProcessInfo.processInfo.environment
             .filter { vars.contains($0.key) }
@@ -49,15 +49,19 @@ extension ContainerFixture {
     ///
     /// `containerEnv` injects environment variables into the container via `-e` flags.
     /// To set the CLI subprocess environment (e.g. for `--ssh`), use ``run(_:env:)`` directly.
-    func doLongRun(
+    ///
+    /// Pass `waitUntilRunning: true` to poll for `running` state before returning,
+    /// eliminating a separate ``ContainerFixture/waitForContainerRunning(_:attempts:)`` call.
+    public func doLongRun(
         name: String,
         image: String? = nil,
         args: [String] = [],
         containerArgs: [String] = ["sleep", "infinity"],
         autoRemove: Bool = true,
-        containerEnv: [String: String] = [:]
-    ) throws {
-        let imageRef = image ?? ContainerFixture.warmupImages[0]
+        containerEnv: [String: String] = [:],
+        waitUntilRunning: Bool = false
+    ) async throws {
+        let imageRef = image ?? WarmupImage.alpine320.rawValue
         var runArgs = ["run"]
         if autoRemove { runArgs.append("--rm") }
         runArgs += ["--name", name, "-d"]
@@ -67,10 +71,13 @@ extension ContainerFixture {
         runArgs.append(imageRef)
         runArgs += containerArgs
         try run(runArgs).check()
+        if waitUntilRunning {
+            try await waitForContainerRunning(name)
+        }
     }
 
     /// Creates a stopped container (`container create`).
-    func doCreate(
+    public func doCreate(
         name: String,
         image: String? = nil,
         args: [String] = ["sleep", "infinity"],
@@ -78,7 +85,7 @@ extension ContainerFixture {
         networks: [String] = [],
         ports: [String] = []
     ) throws {
-        let imageRef = image ?? ContainerFixture.warmupImages[0]
+        let imageRef = image ?? WarmupImage.alpine320.rawValue
         var createArgs = ["create", "--rm", "--name", name]
         createArgs += proxyEnvironmentArgs
         for v in volumes { createArgs += ["-v", v] }
@@ -90,12 +97,12 @@ extension ContainerFixture {
     }
 
     /// Starts a stopped container.
-    func doStart(_ name: String) throws {
+    public func doStart(_ name: String) throws {
         try run(["start", name]).check()
     }
 
     /// Stops a container. Pass `signal: nil` to use the server's default.
-    func doStop(_ name: String, signal: String? = "SIGKILL") throws {
+    public func doStop(_ name: String, signal: String? = "SIGKILL") throws {
         var args = ["stop"]
         if let signal { args += ["-s", signal] }
         args.append(name)
@@ -103,7 +110,7 @@ extension ContainerFixture {
     }
 
     /// Deletes a container.
-    func doRemove(_ name: String, force: Bool = false) throws {
+    public func doRemove(_ name: String, force: Bool = false) throws {
         var args = ["delete"]
         if force { args.append("--force") }
         args.append(name)
@@ -116,7 +123,7 @@ extension ContainerFixture {
     /// this when the container is expected to exist and removal must succeed.
     /// Set `ignoreFailure: true` in cleanup contexts where best-effort removal
     /// is acceptable (e.g. the container may have already been removed).
-    func doRemoveIfExists(_ name: String, force: Bool = false, ignoreFailure: Bool = false) throws {
+    public func doRemoveIfExists(_ name: String, force: Bool = false, ignoreFailure: Bool = false) throws {
         do {
             try doRemove(name, force: force)
         } catch {
@@ -126,7 +133,7 @@ extension ContainerFixture {
 
     /// Runs a command inside a container, returns stdout. Throws on non-zero exit.
     @discardableResult
-    func doExec(
+    public func doExec(
         _ name: String,
         cmd: [String],
         detach: Bool = false,
@@ -142,7 +149,7 @@ extension ContainerFixture {
     }
 
     /// Exports a container filesystem to a tar archive at `path`.
-    func doExport(_ name: String, to path: FilePath) throws {
+    public func doExport(_ name: String, to path: FilePath) throws {
         try run(["export", name, "-o", path.string]).check()
     }
 }
@@ -152,7 +159,7 @@ extension ContainerFixture {
 extension ContainerFixture {
 
     /// Returns the parsed inspect output for a container.
-    func inspectContainer(_ name: String) throws -> InspectOutput {
+    public func inspectContainer(_ name: String) throws -> InspectOutput {
         let result = try run(["inspect", name]).check()
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -164,12 +171,12 @@ extension ContainerFixture {
     }
 
     /// Returns the `status.state` string for a container (e.g. `"running"`, `"stopped"`).
-    func getContainerStatus(_ name: String) throws -> String {
+    public func getContainerStatus(_ name: String) throws -> String {
         try inspectContainer(name).status.state
     }
 
     /// Returns the `configuration.id` for a container.
-    func getContainerId(_ name: String) throws -> String {
+    public func getContainerId(_ name: String) throws -> String {
         try inspectContainer(name).configuration.id
     }
 }

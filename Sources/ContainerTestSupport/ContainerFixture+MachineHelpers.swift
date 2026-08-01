@@ -19,38 +19,38 @@ import Testing
 
 // MARK: - Machine output types
 
-struct MachineListItem: Codable {
-    let id: String
-    let status: String
-    let `default`: Bool
-    let ipAddress: String?
-    let cpus: Int
-    let memory: UInt64
-    let diskSize: UInt64?
-    let createdDate: Date?
+public struct MachineListItem: Codable {
+    public let id: String
+    public let status: String
+    public let `default`: Bool
+    public let ipAddress: String?
+    public let cpus: Int
+    public let memory: UInt64
+    public let diskSize: UInt64?
+    public let createdDate: Date?
 }
 
-struct MachineInspectOutput: Codable {
-    let id: String
-    let image: ImageDescription
-    let platform: Platform
-    let status: String
-    let startedDate: Date?
-    let createdDate: Date?
-    let containerId: String?
-    let cpus: Int
-    let memory: UInt64
-    let homeMount: String?
-    let diskSize: UInt64?
-    let ipAddress: String?
+public struct MachineInspectOutput: Codable {
+    public let id: String
+    public let image: ImageDescription
+    public let platform: Platform
+    public let status: String
+    public let startedDate: Date?
+    public let createdDate: Date?
+    public let containerId: String?
+    public let cpus: Int
+    public let memory: UInt64
+    public let homeMount: String?
+    public let diskSize: UInt64?
+    public let ipAddress: String?
 
-    struct ImageDescription: Codable {
-        let reference: String
+    public struct ImageDescription: Codable {
+        public let reference: String
     }
 
-    struct Platform: Codable {
-        let os: String
-        let architecture: String
+    public struct Platform: Codable {
+        public let os: String
+        public let architecture: String
     }
 }
 
@@ -59,12 +59,12 @@ struct MachineInspectOutput: Codable {
 extension ContainerFixture {
 
     /// Runs `container machine <arguments>` and returns the result.
-    func runMachine(_ arguments: [String], env: [String: String] = [:]) throws -> CommandResult {
+    public func runMachine(_ arguments: [String], env: [String: String] = [:]) throws -> CommandResult {
         try run(["machine"] + arguments, env: env, pty: true)
     }
 
     /// Creates a machine without booting it.
-    func doMachineCreate(name: String, image: String, extraArgs: [String] = []) throws {
+    public func doMachineCreate(name: String, image: String, extraArgs: [String] = []) throws {
         var args = ["create", "--no-boot", "--name", name]
         args += extraArgs
         args.append(image)
@@ -72,30 +72,30 @@ extension ContainerFixture {
     }
 
     /// Boots a machine by running a trivial command (which auto-boots).
-    func doMachineBoot(name: String) throws {
+    public func doMachineBoot(name: String) throws {
         try runMachine(["run", "--root", "-n", name, "true"]).check()
     }
 
     /// Stops a machine and returns the output (the machine name).
     @discardableResult
-    func doMachineStop(name: String) throws -> String {
+    public func doMachineStop(name: String) throws -> String {
         let result = try runMachine(["stop", name]).check()
         return result.output.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Removes a machine.
-    func doMachineRemove(name: String) throws {
+    public func doMachineRemove(name: String) throws {
         try runMachine(["rm", name]).check()
     }
 
     /// Silently stops and removes a machine, ignoring errors.
-    func cleanupMachine(_ name: String) {
+    public func cleanupMachine(_ name: String) {
         _ = try? runMachine(["stop", name])
         _ = try? runMachine(["rm", name])
     }
 
     /// Inspects a machine and decodes the JSON output.
-    func doMachineInspect(name: String? = nil) throws -> MachineInspectOutput {
+    public func doMachineInspect(name: String? = nil) throws -> MachineInspectOutput {
         var args = ["inspect"]
         if let name { args.append(name) }
         let result = try runMachine(args).check()
@@ -110,7 +110,7 @@ extension ContainerFixture {
 
     /// Runs a command inside a machine and returns its stdout.
     @discardableResult
-    func doMachineRun(
+    public func doMachineRun(
         name: String,
         root: Bool = false,
         env: [String] = [],
@@ -127,7 +127,7 @@ extension ContainerFixture {
     }
 
     /// Polls machine inspect until the status matches or the attempt limit is reached.
-    func waitForMachineStatus(_ name: String, status: String, maxAttempts: Int = 30) async throws {
+    public func waitForMachineStatus(_ name: String, status: String, maxAttempts: Int = 30) async throws {
         for _ in 0..<maxAttempts {
             let snapshot = try doMachineInspect(name: name)
             if snapshot.status == status { return }

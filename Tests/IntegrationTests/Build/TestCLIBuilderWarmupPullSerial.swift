@@ -15,24 +15,23 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerTestSupport
+import Foundation
 import Testing
 
-@Suite
-struct TestCLIPluginErrors {
-    @Test func testHelpfulMessageWhenPluginsUnavailable() async throws {
-        // Intentionally invoke an unknown plugin command. In CI this should run
-        // without the APIServer started, so DefaultCommand will fail to create
-        // a PluginLoader and emit the improved guidance.
+/// Serial because this repulls the shared warmup alpine image with `--no-cache`,
+/// which would race with concurrent-pool tests relying on it already being cached.
+@Suite(.serialized)
+struct TestCLIBuilderWarmupPullSerial {
+    @Test func testBuildNoCachePullLatestImage() async throws {
         try await ContainerFixture.with { f in
-            let result = try f.run(["nosuchplugin"])
-            #expect(result.status != 0)
-            #expect(result.error.contains("container system start"))
-            #expect(
-                result.error.contains("Plugins are unavailable")
-                    || result.error.contains("Plugin 'container-"))
-            #expect(
-                result.error.contains("container-plugins")
-                    || result.error.contains("container/plugins"))
+            let dir = try f.createTempDir()
+            try f.createContext(
+                dir: dir,
+                dockerfile: "FROM \(WarmupImage.alpine320.rawValue)\nADD emptyFile /",
+                context: [.file("emptyFile", content: .zeroFilled(size: 1))])
+            let image = "registry.local/no-cache-pull:\(UUID().uuidString)"
+            try f.buildWithPaths(tags: [image], contextDir: dir, otherArgs: ["--pull", "--no-cache"])
+            try f.assertImageBuilt(image)
         }
     }
 }

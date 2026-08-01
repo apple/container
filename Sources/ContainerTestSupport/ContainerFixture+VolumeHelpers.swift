@@ -21,7 +21,7 @@ import Foundation
 extension ContainerFixture {
 
     /// Creates a named volume, optionally with extra `--opt` arguments.
-    func doVolumeCreate(_ name: String, opts: [String] = []) throws {
+    public func doVolumeCreate(_ name: String, opts: [String] = []) throws {
         var args = ["volume", "create"]
         for opt in opts { args += ["--opt", opt] }
         args.append(name)
@@ -29,23 +29,23 @@ extension ContainerFixture {
     }
 
     /// Deletes a volume, throwing on failure.
-    func doVolumeDelete(_ name: String) throws {
+    public func doVolumeDelete(_ name: String) throws {
         try run(["volume", "rm", name]).check()
     }
 
     /// Deletes a volume, silently ignoring errors.
-    func doVolumeDeleteIfExists(_ name: String) {
+    public func doVolumeDeleteIfExists(_ name: String) {
         _ = try? run(["volume", "rm", name])
     }
 
     /// Returns `true` if `volume rm` exits non-zero (i.e. the delete was blocked).
-    func doesVolumeDeleteFail(_ name: String) throws -> Bool {
+    public func doesVolumeDeleteFail(_ name: String) throws -> Bool {
         try run(["volume", "rm", name]).status != 0
     }
 
     /// Returns the names of all volume attachments on a container
     /// (the UUID name for anonymous volumes, the explicit name for named volumes).
-    func getContainerMountedVolumeNames(_ containerName: String) throws -> [String] {
+    public func getContainerMountedVolumeNames(_ containerName: String) throws -> [String] {
         let inspect = try inspectContainer(containerName)
         return inspect.configuration.mounts.compactMap { mount in
             if case .volume(let name, _, _, _) = mount.type { return name }
@@ -54,7 +54,7 @@ extension ContainerFixture {
     }
 
     /// Returns the names of all anonymous volumes (UUID-format names) in the local store.
-    func getAnonymousVolumeNames() throws -> [String] {
+    public func getAnonymousVolumeNames() throws -> [String] {
         let result = try run(["volume", "list", "--quiet"]).check()
         return result.output
             .components(separatedBy: .newlines)
@@ -63,14 +63,14 @@ extension ContainerFixture {
     }
 
     /// Deletes all currently known anonymous volumes. Useful before count-based assertions.
-    func doCleanupAnonymousVolumes() {
+    public func doCleanupAnonymousVolumes() {
         for vol in (try? getAnonymousVolumeNames()) ?? [] {
             doVolumeDeleteIfExists(vol)
         }
     }
 
     /// Returns `true` if a volume with the given name appears in `volume list`.
-    func volumeExists(_ name: String) throws -> Bool {
+    public func volumeExists(_ name: String) throws -> Bool {
         let result = try run(["volume", "list", "--quiet"]).check()
         return result.output
             .components(separatedBy: .newlines)

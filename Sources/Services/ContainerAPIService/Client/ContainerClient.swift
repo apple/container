@@ -71,6 +71,8 @@ public struct ContainerClient: Sendable {
             }
 
             try await xpcSend(message: request)
+        } catch let error as ContainerizationError {
+            throw error
         } catch {
             throw ContainerizationError(
                 .internalError,

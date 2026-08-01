@@ -60,6 +60,13 @@ struct ManagedContainerTests {
         #expect(!ManagedContainer.nameValid("a b"))
     }
 
+    @Test func nameValidRejectsNamesLongerThan63Characters() {
+        let maxValidName = String(repeating: "a", count: 63)
+        let tooLongName = String(repeating: "a", count: 64)
+        #expect(ManagedContainer.nameValid(maxValidName))
+        #expect(!ManagedContainer.nameValid(tooLongName))
+    }
+
     @Test func generateIdIsLowercasedUUID() {
         let id = ManagedContainer.generateId()
         #expect(id == id.lowercased())

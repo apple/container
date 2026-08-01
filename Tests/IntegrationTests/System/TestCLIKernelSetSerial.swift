@@ -14,19 +14,24 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerAPIClient
 import ContainerPersistence
+import ContainerTestSupport
 import ContainerizationArchive
 import Foundation
 import Testing
 
 /// Tests for `container system kernel set`. Each test modifies the global default
 /// kernel binary, so the suite must run fully serialised.
+///
+/// None of these tests touch the network: they capture the bytes of whatever
+/// kernel is already installed (from the previous test, or from the initial
+/// `system start --enable-kernel-install`) and repackage them into a fixture
+/// tar via ``KernelFixture``, so the real install/extract/digest-verify/
+/// guest-boot code paths are still exercised end to end.
 @Suite(.serialized)
 struct TestCLIKernelSetSerial {
-    private let remoteTar = ContainerSystemConfig().kernel.url
+    private let fixture = KernelFixture()
     private let defaultBinaryPath = ContainerSystemConfig().kernel.binaryPath
-    private let defaultDigest = KernelConfig.defaultDigest
 
     /// Kernel release string parsed from the binary filename.
     ///
@@ -75,41 +80,37 @@ struct TestCLIKernelSetSerial {
     }
 
     @Test func fromLocalTar() async throws {
-        let symlinkBinaryPath = URL(filePath: defaultBinaryPath)
-            .deletingLastPathComponent()
-            .appending(path: "vmlinux.container")
-            .relativePath
-
         try await ContainerFixture.with { f in
-            f.addCleanup { resetKernelToRecommended(f) }
-            let tempDir = URL(filePath: f.testDir.string)
-            let localTarPath = tempDir.appending(path: remoteTar.lastPathComponent)
-            try await ContainerAPIClient.FileDownloader.downloadFile(url: remoteTar, to: localTarPath)
+            let capturedBinary = try prepareFixture(f)
+            let tarPath = URL(filePath: f.testDir.string).appending(path: "kernel.tar")
+            let digest = try fixture.writeTar(binary: capturedBinary, binaryArchivePath: defaultBinaryPath, to: tarPath)
+
             try f.run([
                 "system", "kernel", "set",
                 "--force",
-                "--tar", localTarPath.path,
+                "--tar", tarPath.path,
                 "--binary", symlinkBinaryPath,
-                "--digest", defaultDigest,
+                "--digest", digest,
             ]).check()
             try await validateGuestKernel(f)
         }
     }
 
     @Test func fromRemoteTarSymlink() async throws {
-        let symlinkBinaryPath = URL(filePath: defaultBinaryPath)
-            .deletingLastPathComponent()
-            .appending(path: "vmlinux.container")
-            .relativePath
-
         try await ContainerFixture.with { f in
-            f.addCleanup { resetKernelToRecommended(f) }
+            let capturedBinary = try prepareFixture(f)
+            let tarPath = URL(filePath: f.testDir.string).appending(path: "kernel.tar")
+            let digest = try fixture.writeTar(binary: capturedBinary, binaryArchivePath: defaultBinaryPath, to: tarPath)
+
+            let server = try LoopbackFileServer(serving: try Data(contentsOf: tarPath))
+            defer { server.shutdown() }
+
             try f.run([
                 "system", "kernel", "set",
                 "--force",
-                "--tar", remoteTar.absoluteString,
+                "--tar", server.url.absoluteString,
                 "--binary", symlinkBinaryPath,
-                "--digest", defaultDigest,
+                "--digest", digest,
             ]).check()
             try await validateGuestKernel(f)
         }
@@ -117,36 +118,48 @@ struct TestCLIKernelSetSerial {
 
     @Test func fromLocalDisk() async throws {
         try await ContainerFixture.with { f in
-            f.addCleanup { resetKernelToRecommended(f) }
-            let tempDir = URL(filePath: f.testDir.string)
-            let localTarPath = tempDir.appending(path: remoteTar.lastPathComponent)
-            try await ContainerAPIClient.FileDownloader.downloadFile(url: remoteTar, to: localTarPath)
-
-            let targetPath = tempDir.appending(path: URL(string: defaultBinaryPath)!.lastPathComponent)
-            let archiveReader = try ArchiveReader(file: localTarPath)
-            let (_, data) = try archiveReader.extractFile(path: defaultBinaryPath)
-            try data.write(to: targetPath, options: .atomic)
-
-            try f.run(["system", "kernel", "set", "--force", "--binary", targetPath.path]).check()
+            let capturedBinary = try prepareFixture(f)
+            try f.run(["system", "kernel", "set", "--force", "--binary", capturedBinary.path]).check()
             try await validateGuestKernel(f)
         }
     }
 
     // MARK: - Private helpers
 
-    /// Resets the kernel back to the recommended default. Used as a cleanup at the
+    /// The archive path `fromLocalTar`/`fromRemoteTarSymlink` request — a symlink
+    /// alongside the real binary, deliberately exercising `KernelService.extractFile`'s
+    /// symlink-following branch.
+    private var symlinkBinaryPath: String {
+        URL(filePath: defaultBinaryPath)
+            .deletingLastPathComponent()
+            .appending(path: "vmlinux.container")
+            .relativePath
+    }
+
+    /// Captures the currently-installed kernel binary and registers cleanup to
+    /// restore it regardless of test outcome. The upcoming `kernel set --force`
+    /// command overwrites whatever is currently installed, so there's no need
+    /// to clear it out first.
+    private func prepareFixture(_ f: ContainerFixture) throws -> URL {
+        let capturedBinary = URL(filePath: f.testDir.string).appending(path: "captured-kernel")
+        try fixture.captureInstalledBinary(to: capturedBinary)
+        f.addCleanup { Self.restoreCapturedKernel(f, from: capturedBinary) }
+        return capturedBinary
+    }
+
+    /// Restores the kernel captured at the start of a test. Used as cleanup at the
     /// end of every test so a failure here doesn't silently affect the next test —
     /// the suite is serialised and the kernel is global state. The fixture's
     /// cleanup runner swallows throws with `try?`, so we record an issue against
     /// the current test rather than rely on error propagation.
-    private func resetKernelToRecommended(_ f: ContainerFixture) {
+    private static func restoreCapturedKernel(_ f: ContainerFixture, from capturedBinary: URL) {
         do {
-            let result = try f.run(["system", "kernel", "set", "--recommended", "--force"])
+            let result = try f.run(["system", "kernel", "set", "--force", "--binary", capturedBinary.path])
             if result.status != 0 {
-                Issue.record("kernel reset to --recommended failed (status \(result.status)): \(result.error)")
+                Issue.record("kernel restore from captured binary failed (status \(result.status)): \(result.error)")
             }
         } catch {
-            Issue.record("kernel reset to --recommended could not run: \(error)")
+            Issue.record("kernel restore from captured binary could not run: \(error)")
         }
     }
 
@@ -154,7 +167,7 @@ struct TestCLIKernelSetSerial {
     /// on the host — that is, `uname -r` matches the release parsed from the kernel
     /// binary filename (see ``expectedKernelRelease``).
     private func validateGuestKernel(_ f: ContainerFixture) async throws {
-        let image = ContainerFixture.warmupImages[0]
+        let image = WarmupImage.alpine320.rawValue
         if try !f.isImagePresent(image) { try f.doPull(image) }
         try await f.withContainer(image: image) { name in
             let release = try f.doExec(name, cmd: ["uname", "-r"])

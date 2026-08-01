@@ -57,29 +57,19 @@ import Testing
 /// prevents leaks. Drop to Tier 1 when a test exercises a specific
 /// create/start/stop sequence, needs low-level control, or uses a resource
 /// pattern the structured helpers don't cover.
-final class ContainerFixture: Sendable {
-
-    // MARK: - Configuration
-
-    /// Images preloaded by the ``ImageWarmup`` suite before concurrent tests run.
-    /// Add new commonly-used images here; the warmup pass pulls them in parallel.
-    static let warmupImages: [String] = [
-        "ghcr.io/linuxcontainers/alpine:3.20",
-        "ghcr.io/linuxcontainers/alpine:3.18",
-        "ghcr.io/containerd/busybox:1.36",
-    ]
+public final class ContainerFixture: Sendable {
 
     // MARK: - State
 
     /// Short random identifier prefixed to every resource this test creates.
-    let testID: String
+    public let testID: String
 
     /// Scratch directory for build inputs, test data, and command output.
     /// Created at fixture init; removed on cleanup unless `CLITEST_PRESERVE_SCRATCH=true`.
-    let testDir: FilePath
+    public let testDir: FilePath
 
     /// Logger for this fixture scope. Tests may emit diagnostic messages via this logger.
-    let log: Logger
+    public let log: Logger
 
     // MARK: - Unstructured API
 
@@ -87,7 +77,7 @@ final class ContainerFixture: Sendable {
     ///
     /// Cleanup runs in LIFO order regardless of whether `body` throws.
     @discardableResult
-    static func with<T>(_ body: (ContainerFixture) async throws -> T) async throws -> T {
+    public static func with<T>(_ body: (ContainerFixture) async throws -> T) async throws -> T {
         let testID = String(UUID().uuidString.prefix(8)).lowercased()
 
         let scratchRoot =
@@ -143,7 +133,7 @@ final class ContainerFixture: Sendable {
 
     /// Registers a cleanup closure to run when the fixture scope exits.
     /// Closures execute in LIFO order.
-    func addCleanup(_ task: @escaping @Sendable () async throws -> Void) {
+    public func addCleanup(_ task: @escaping @Sendable () async throws -> Void) {
         cleanupTasks.withLock { $0.append(task) }
     }
 
@@ -153,7 +143,7 @@ final class ContainerFixture: Sendable {
     /// process launch error). A non-zero exit status is represented in
     /// ``CommandResult/status`` — call ``CommandResult/check(_:)`` to turn it
     /// into a thrown error.
-    func run(
+    public func run(
         _ arguments: [String],
         stdin: Data? = nil,
         currentDirectory: FilePath? = nil,
@@ -244,12 +234,29 @@ final class ContainerFixture: Sendable {
             status: process.terminationStatus)
     }
 
+    /// Creates a directory at a short, fixed-depth path under `/tmp`, suitable for
+    /// Unix-domain socket files that must fit within `sockaddr_un.sun_path`'s 104-byte
+    /// limit on macOS regardless of the project checkout's directory depth.
+    ///
+    /// Returns the directory path; the caller creates the socket file inside it.
+    /// The directory is removed on fixture cleanup.
+    public func makeShortSocketDir(_ suffix: String) throws -> String {
+        let dir = "/tmp/\(testID)-\(suffix)"
+        try FileManager.default.createDirectory(
+            atPath: dir, withIntermediateDirectories: true, attributes: nil)
+        addCleanup {
+            try? FileManager.default.removeItem(atPath: dir)
+        }
+        return dir
+    }
+
     /// Tags a warmup image to a test-local reference and registers its removal.
     ///
     /// The returned name is `{testID}-{imageName}:{tag}`, e.g.
     /// `a3f7c2b1-alpine:3.20`. Tests operate freely on this reference;
     /// the canonical warmup image is never touched.
-    func copyWarmupImage(_ canonical: String) throws -> String {
+    public func copyWarmupImage(_ image: WarmupImage) throws -> String {
+        let canonical = image.rawValue
         let lastComponent = canonical.split(separator: "/").last.map(String.init) ?? canonical
         let parts = lastComponent.split(separator: ":", maxSplits: 1)
         let name = String(parts[0])
@@ -268,7 +275,7 @@ final class ContainerFixture: Sendable {
     /// Call this directly only when using ``doCreate(_:image:args:volumes:networks:ports:)``
     /// and ``doStart(_:)`` — ``withContainer(image:tag:runArgs:containerArgs:autoRemove:_:)``
     /// waits automatically.
-    func waitForContainerRunning(_ name: String, attempts: Int = 30) async throws {
+    public func waitForContainerRunning(_ name: String, attempts: Int = 30) async throws {
         for _ in 0..<attempts {
             if let result = try? run(["inspect", name]),
                 result.status == 0,
@@ -293,7 +300,7 @@ final class ContainerFixture: Sendable {
     /// removes the container on stop. Set `autoRemove: false` when the test
     /// needs to inspect the container's stopped state — cleanup will then stop
     /// *and* delete it.
-    func withContainer(
+    public func withContainer(
         image: String,
         tag: String = "c",
         runArgs: [String] = [],
@@ -364,7 +371,7 @@ extension ContainerFixture {
     /// - Propagates immediately (aborting the loop) when `body` throws.
     ///
     /// Throws `CommandError.executionFailed` if all attempts return `false`.
-    func retry(attempts: Int, delay: Duration = .seconds(1), _ body: () async throws -> Bool) async throws {
+    public func retry(attempts: Int, delay: Duration = .seconds(1), _ body: () async throws -> Bool) async throws {
         for attempt in 1...attempts {
             if try await body() { return }
             print("retry: attempt \(attempt)/\(attempts) not yet ready")

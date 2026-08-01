@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerTestSupport
 import Testing
 
 @Suite
@@ -60,30 +61,18 @@ struct TestCLIRmRaceCondition {
 
             if raceConditionPrevented { return }
 
-            // Race detected — wait for background cleanup then retry with backoff.
+            // Race detected — wait for background cleanup then retry.
             try await Task.sleep(for: .seconds(2))
 
-            var attempts = 0
-            let maxAttempts = 5
-            while attempts < maxAttempts {
-                guard (try? f.getContainerStatus(name)) != nil else { break }
+            try await f.retry(attempts: 5, delay: .seconds(3)) {
+                guard (try? f.getContainerStatus(name)) != nil else { return true }
                 do {
                     try f.doRemove(name)
-                    break
-                } catch CommandError.nonZeroExit(_, let message) {
-                    if message.contains("not found") { break }
-                    guard attempts < maxAttempts - 1 else {
-                        throw CommandError.executionFailed(
-                            "Failed to remove container after \(maxAttempts) attempts: \(message)")
-                    }
-                    let delay = 1 << attempts
-                    try await Task.sleep(for: .seconds(delay))
-                    attempts += 1
+                    return true
+                } catch CommandError.nonZeroExit(_, let message) where message.contains("not found") {
+                    return true
                 } catch {
-                    guard attempts < maxAttempts - 1 else { throw error }
-                    let delay = 1 << attempts
-                    try await Task.sleep(for: .seconds(delay))
-                    attempts += 1
+                    return false
                 }
             }
         }

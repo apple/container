@@ -200,7 +200,9 @@ extension Application {
                 useRosetta ? nil : "--enable-qemu",
             ].compactMap { $0 }
 
-            try ContainerAPIClient.Utility.validEntityName(Builder.builderContainerId)
+            guard ManagedContainer.nameValid(Builder.builderContainerId) else {
+                throw ContainerizationError(.invalidArgument, message: "container ID \(Builder.builderContainerId) is not a valid container ID")
+            }
 
             let image = try await ClientImage.fetch(
                 reference: builderImage,
@@ -290,11 +292,17 @@ extension Application {
                 .setDescription("Starting BuildKit container")
             ])
 
-            try await client.create(
-                configuration: config,
-                options: .default,
-                kernel: kernel
-            )
+            do {
+                try await client.create(
+                    configuration: config,
+                    options: .default,
+                    kernel: kernel
+                )
+            } catch let error as ContainerizationError where error.code == .exists {
+                // A concurrent `container build` invocation already created the builder
+                // while we were fetching the image/kernel above. `bootstrap` below is
+                // idempotent, so just proceed against the container the winner created.
+            }
 
             try await startBuildKit(client: client, id: Builder.builderContainerId, progressUpdate, taskManager)
             log.debug("starting BuildKit and BuildKit-shim")

@@ -14,11 +14,12 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerTestSupport
 import Testing
 
 @Suite
 struct TestCLIProgressAuto {
-    private let alpine = ContainerFixture.warmupImages[0]
+    private let alpine = WarmupImage.alpine320.rawValue
 
     @Test func testAutoProgressFallsBackToPlainWhenPiped() async throws {
         try await ContainerFixture.with { f in

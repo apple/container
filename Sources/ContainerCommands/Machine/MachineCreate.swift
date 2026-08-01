@@ -17,6 +17,7 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerPersistence
+import ContainerResource
 import ContainerizationError
 import ContainerizationOCI
 import Foundation
@@ -115,7 +116,9 @@ extension Application {
                 id = "\(imageName)-\(suffix)"
             }
 
-            try Utility.validEntityName(id)
+            guard ManagedContainer.nameValid(id) else {
+                throw ContainerizationError(.invalidArgument, message: "machine ID \(id) is not a valid machine ID")
+            }
 
             let client = MachineClient()
             let (config, resources) = try await MachineClient.machineConfigFromFlags(

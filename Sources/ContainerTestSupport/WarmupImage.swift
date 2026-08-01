@@ -14,19 +14,10 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerTestSupport
-import Testing
-
-/// Pulls each image in ``WarmupImage`` in parallel before concurrent
-/// integration tests run. The Makefile's warmup pass runs this suite first
-/// so that ``ContainerFixture/copyWarmupImage(_:)`` can tag from a
-/// pre-populated store rather than pulling on demand.
-@Suite
-struct ImageWarmup {
-    @Test(arguments: WarmupImage.allCases)
-    func pull(image: WarmupImage) async throws {
-        try await ContainerFixture.with { f in
-            try f.run(["image", "pull", image.rawValue]).check("failed to pull \(image.rawValue)")
-        }
-    }
+/// Images preloaded by the ``ImageWarmup`` suite before concurrent tests run.
+/// Add new commonly-used images here; the warmup pass pulls them in parallel.
+public enum WarmupImage: String, CaseIterable, Sendable {
+    case alpine320 = "ghcr.io/linuxcontainers/alpine:3.20"
+    case alpine318 = "ghcr.io/linuxcontainers/alpine:3.18"
+    case busybox136 = "ghcr.io/containerd/busybox:1.36"
 }
