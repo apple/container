@@ -63,13 +63,6 @@ extension Application {
             let dstRef = try Self.parsePathRef(destination)
 
             switch (srcRef, dstRef) {
-            // `-` is an uncompressed tar stream on stdin/stdout, matching
-            // `docker cp` and `podman cp`. The descriptor is handed to the
-            // runtime and forwarded to the guest unmodified: nothing is staged
-            // on the host, so host permission rules and path length limits do
-            // not apply, and the ownership and mode recorded in the tar headers
-            // are what land in the container. Neither case prints, so stdout
-            // carries only archive bytes.
             case (.container(let id, let path), .local("-")):
                 try await client.copyOut(id: id, source: path, archive: FileHandle.standardOutput)
             case (.local("-"), .container(let id, let path)):

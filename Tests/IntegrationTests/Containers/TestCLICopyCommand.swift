@@ -197,7 +197,6 @@ struct TestCLICopyCommand {
                 let result = try f.run(["copy", "\(name):/tmp/tarout.txt", "-"])
                 try result.check("stdout tar stream copy failed")
 
-                // Plain tar, not gzip: docker emits an uncompressed stream.
                 #expect(result.outputData.prefix(2) != Data([0x1f, 0x8b]), "stdout stream is gzip compressed")
 
                 let entries = try readTarStream(result.outputData)

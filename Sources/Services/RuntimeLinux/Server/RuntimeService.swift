@@ -706,9 +706,6 @@ public actor RuntimeService {
             }
             let createParents = message.bool(key: RuntimeKeys.createParents.rawValue)
 
-            // A tar stream fd replaces the host source path: the bytes go
-            // straight to the guest, which extracts them honoring the ownership
-            // and mode in the tar headers.
             if let archive = message.fileHandle(key: RuntimeKeys.archiveFd.rawValue) {
                 defer { try? archive.close() }
                 let ctr = try getContainer()
@@ -766,8 +763,6 @@ public actor RuntimeService {
                     message: "no source path supplied for copyOut"
                 )
             }
-            // A tar stream fd replaces the host destination path: the guest
-            // archives the source and the bytes are written straight out.
             if let archive = message.fileHandle(key: RuntimeKeys.archiveFd.rawValue) {
                 defer { try? archive.close() }
                 let ctr = try getContainer()

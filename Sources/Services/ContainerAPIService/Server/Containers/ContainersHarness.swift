@@ -311,9 +311,6 @@ public struct ContainersHarness: Sendable {
         }
         let createParents = message.bool(key: .createParents)
 
-        // fileHandle(key:) hands back a duplicate this process owns, so close it
-        // however the copy ends. The container lookups underneath can throw
-        // before the descriptor is ever forwarded.
         if let archive = message.fileHandle(key: .archiveFd) {
             defer { try? archive.close() }
             try await service.copyIn(id: id, archive: archive, destination: destinationPath, createParents: createParents)
