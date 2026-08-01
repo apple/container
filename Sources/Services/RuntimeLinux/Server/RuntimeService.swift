@@ -686,9 +686,11 @@ public actor RuntimeService {
     ///
     /// - Parameters:
     ///   - message: An XPC message with the following parameters:
-    ///     - sourcePath: The host path to copy from.
+    ///     - sourcePath: The host path to copy from. Unused when archiveFd is set.
     ///     - destinationPath: The container path to copy to.
-    ///     - fileMode: The file permissions mode (UInt64).
+    ///     - fileMode: The file permissions mode (UInt64). Unused when archiveFd is set.
+    ///     - archiveFd: An optional fd yielding a tar stream to extract into
+    ///       destinationPath, in place of copying from sourcePath.
     ///
     /// - Returns: An XPC message with no parameters.
     @Sendable
@@ -696,20 +698,35 @@ public actor RuntimeService {
         self.log.info("`copyIn` xpc handler")
         switch self.state {
         case .running, .booted:
-            guard let source = message.string(key: RuntimeKeys.sourcePath.rawValue) else {
-                throw ContainerizationError(
-                    .invalidArgument,
-                    message: "no source path supplied for copyIn"
-                )
-            }
             guard let destination = message.string(key: RuntimeKeys.destinationPath.rawValue) else {
                 throw ContainerizationError(
                     .invalidArgument,
                     message: "no destination path supplied for copyIn"
                 )
             }
-            let mode = UInt32(message.uint64(key: RuntimeKeys.fileMode.rawValue))
             let createParents = message.bool(key: RuntimeKeys.createParents.rawValue)
+
+            // A tar stream fd replaces the host source path: the bytes go
+            // straight to the guest, which extracts them honoring the ownership
+            // and mode in the tar headers.
+            if let archive = message.fileHandle(key: RuntimeKeys.archiveFd.rawValue) {
+                defer { try? archive.close() }
+                let ctr = try getContainer()
+                try await ctr.container.copyIn(
+                    archive: archive,
+                    to: URL(fileURLWithPath: destination),
+                    createParents: createParents
+                )
+                return message.reply()
+            }
+
+            guard let source = message.string(key: RuntimeKeys.sourcePath.rawValue) else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no source path supplied for copyIn"
+                )
+            }
+            let mode = UInt32(message.uint64(key: RuntimeKeys.fileMode.rawValue))
 
             let ctr = try getContainer()
             try await ctr.container.copyIn(
@@ -733,7 +750,9 @@ public actor RuntimeService {
     /// - Parameters:
     ///   - message: An XPC message with the following parameters:
     ///     - sourcePath: The container path to copy from.
-    ///     - destinationPath: The host path to copy to.
+    ///     - destinationPath: The host path to copy to. Unused when archiveFd is set.
+    ///     - archiveFd: An optional fd the source is written to as a tar
+    ///       stream, in place of copying to destinationPath.
     ///
     /// - Returns: An XPC message with no parameters.
     @Sendable
@@ -747,6 +766,15 @@ public actor RuntimeService {
                     message: "no source path supplied for copyOut"
                 )
             }
+            // A tar stream fd replaces the host destination path: the guest
+            // archives the source and the bytes are written straight out.
+            if let archive = message.fileHandle(key: RuntimeKeys.archiveFd.rawValue) {
+                defer { try? archive.close() }
+                let ctr = try getContainer()
+                try await ctr.container.copyOut(from: URL(fileURLWithPath: source), to: archive)
+                return message.reply()
+            }
+
             guard let destination = message.string(key: RuntimeKeys.destinationPath.rawValue) else {
                 throw ContainerizationError(
                     .invalidArgument,

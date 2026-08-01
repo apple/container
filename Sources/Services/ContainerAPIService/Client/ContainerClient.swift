@@ -350,6 +350,53 @@ public struct ContainerClient: Sendable {
         }
     }
 
+    /// Extract a tar stream read from `archive` into a container directory.
+    ///
+    /// The stream is handed to the runtime as a file descriptor and forwarded to
+    /// the guest unmodified, so the ownership and mode recorded in the tar
+    /// headers are applied verbatim inside the container.
+    public func copyIn(id: String, archive: FileHandle, destination: String, createParents: Bool = true) async throws {
+        let request = XPCMessage(route: .containerCopyIn)
+        request.set(key: .id, value: id)
+        request.set(key: .destinationPath, value: destination)
+        request.set(key: .createParents, value: createParents)
+        request.set(key: .archiveFd, value: Self.duplicate(archive))
+
+        do {
+            try await xpcSend(message: request, timeout: .seconds(300))
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to copy tar stream into container \(id)",
+                cause: error
+            )
+        }
+    }
+
+    /// Write a container path to `archive` as a tar stream.
+    public func copyOut(id: String, source: String, archive: FileHandle) async throws {
+        let request = XPCMessage(route: .containerCopyOut)
+        request.set(key: .id, value: id)
+        request.set(key: .sourcePath, value: source)
+        request.set(key: .archiveFd, value: Self.duplicate(archive))
+
+        do {
+            try await xpcSend(message: request, timeout: .seconds(300))
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to copy tar stream from container \(id)",
+                cause: error
+            )
+        }
+    }
+
+    /// `XPCMessage.set(key:value:)` takes ownership of the descriptor and closes
+    /// it, so hand it a duplicate and leave the caller's handle intact.
+    private static func duplicate(_ handle: FileHandle) -> FileHandle {
+        FileHandle(fileDescriptor: dup(handle.fileDescriptor), closeOnDealloc: false)
+    }
+
     /// Get resource usage statistics for a container.
     public func stats(id: String) async throws -> ContainerStats {
         let request = XPCMessage(route: .containerStats)

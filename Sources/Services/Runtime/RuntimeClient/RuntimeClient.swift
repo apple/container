@@ -319,6 +319,46 @@ extension RuntimeClient {
         }
     }
 
+    /// Extract a tar stream read from `archive` into a container directory.
+    ///
+    /// `archive` stays owned by the caller; a duplicate is sent over XPC, since
+    /// setting a file handle on a message closes the descriptor it is given.
+    public func copyIn(archive: FileHandle, destination: String, createParents: Bool = true) async throws {
+        let request = XPCMessage(route: RuntimeRoutes.copyIn.rawValue)
+        request.set(key: RuntimeKeys.destinationPath.rawValue, value: destination)
+        request.set(key: RuntimeKeys.createParents.rawValue, value: createParents)
+        request.set(key: RuntimeKeys.archiveFd.rawValue, value: FileHandle(fileDescriptor: dup(archive.fileDescriptor), closeOnDealloc: false))
+
+        do {
+            try await self.client.send(request, responseTimeout: .seconds(300))
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to copy tar stream into container \(self.id)",
+                cause: error
+            )
+        }
+    }
+
+    /// Write a container path to `archive` as a tar stream.
+    ///
+    /// `archive` stays owned by the caller, as in ``copyIn(archive:destination:createParents:)``.
+    public func copyOut(source: String, archive: FileHandle) async throws {
+        let request = XPCMessage(route: RuntimeRoutes.copyOut.rawValue)
+        request.set(key: RuntimeKeys.sourcePath.rawValue, value: source)
+        request.set(key: RuntimeKeys.archiveFd.rawValue, value: FileHandle(fileDescriptor: dup(archive.fileDescriptor), closeOnDealloc: false))
+
+        do {
+            try await self.client.send(request, responseTimeout: .seconds(300))
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to copy tar stream from container \(self.id)",
+                cause: error
+            )
+        }
+    }
+
     public func statistics() async throws -> ContainerStats {
         let request = XPCMessage(route: RuntimeRoutes.statistics.rawValue)
 
