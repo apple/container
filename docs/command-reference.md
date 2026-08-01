@@ -485,6 +485,13 @@ container stats --format json --no-stream web
 
 Copies files between a container and the local filesystem. The container must be running. One of the source or destination must be a container reference in the form `container_id:path`.
 
+`-` is also supported as a tar stream endpoint, matching `docker cp` and `podman cp`:
+
+*   `container cp <container_id:/path> -` writes an uncompressed tar stream to stdout. Entries are named relative to the source's parent, so the source's own basename is the top level entry, for both files and directories.
+*   `container cp - <container_id:/path>` reads a tar stream from stdin and extracts it into the destination path. The stream may be uncompressed or gzip, bzip2 or xz compressed.
+
+The stream is passed to the container as a file descriptor and is never unpacked on the host, so host permission rules and path length limits do not apply to its contents. The ownership, mode and symlink targets recorded in the tar headers are applied verbatim inside the container, which makes `container cp -` a way to add content with metadata the host filesystem could not otherwise express. Entries with absolute paths or `..` traversal are rejected during extraction.
+
 **Usage**
 
 ```bash
@@ -500,6 +507,7 @@ container copy [--debug] <source> <destination>
 
 *   Local path: `/path/to/file` or `relative/path`
 *   Container path: `container_id:/path/in/container`
+*   Tar stream endpoint: `-` (stdin or stdout)
 
 **Examples**
 
@@ -512,6 +520,15 @@ container cp mycontainer:/var/log/app.log ./logs/
 
 # copy using the full command name
 container copy ./data.txt mycontainer:/tmp/
+
+# stream a tar archive out of a container path
+container cp mycontainer:/etc - > etc.tar
+
+# stream a tar archive into a container path
+container cp - mycontainer:/tmp/ < payload.tar
+
+# inject files with ownership and modes the host cannot reproduce
+tar --owner=1000 --group=1000 --mode=0600 -cf - certs | container cp - mycontainer:/etc/
 ```
 
 ### `container prune`
