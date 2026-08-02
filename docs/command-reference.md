@@ -381,7 +381,7 @@ container exec [--detach] [--env <env> ...] [--env-file <env-file> ...] [--gid <
 
 ### `container export`
 
-Exports a stopped container's filesystem as a tar archive. The container must be stopped before exporting. If no output file is specified, the tar stream is written to stdout.
+Exports a container's filesystem as a tar archive. For running containers, export automatically takes a runtime snapshot to preserve consistency. If no output file is specified, the tar stream is written to stdout.
 
 **Usage**
 
