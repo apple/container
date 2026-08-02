@@ -101,9 +101,10 @@ public struct Flags {
     public struct Resource: ParsableArguments {
         public init() {}
 
-        public init(cpus: Int64?, memory: String?) {
+        public init(cpus: Int64?, memory: String?, swap: String? = nil) {
             self.cpus = cpus
             self.memory = memory
+            self.swap = swap
         }
 
         @Option(name: .shortAndLong, help: "Number of CPUs to allocate to the container")
@@ -114,6 +115,16 @@ public struct Flags {
             help: "Amount of memory (1MiByte granularity), with optional K, M, G, T, or P suffix"
         )
         public var memory: String?
+
+        @Option(
+            name: .customLong("swap"),
+            help: """
+                Amount of swap to give the container (1MiByte granularity), with optional K, M, G, \
+                T, or P suffix. A workload whose memory exceeds its limit reclaims to it rather \
+                than meeting the out of memory killer. Counts swap alone, not memory plus swap.
+                """
+        )
+        public var swap: String?
     }
 
     public struct DNS: ParsableArguments {

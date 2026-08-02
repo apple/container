@@ -71,6 +71,29 @@ struct ContainerConfigurationResourcesTests {
         let decoded = try JSONDecoder().decode(ContainerConfiguration.self, from: stripped)
         #expect(decoded.resources.cpuOverhead == 1)
     }
+
+    /// The size asked for has to reach the runtime, which reads the container's
+    /// configuration back rather than being handed the flags.
+    @Test func roundTripsSwap() throws {
+        var config = makeTestConfiguration()
+        config.resources.swapInBytes = 512.mib()
+        let data = try JSONEncoder().encode(config)
+        let decoded = try JSONDecoder().decode(ContainerConfiguration.self, from: data)
+        #expect(decoded.resources.swapInBytes == 512.mib())
+    }
+
+    /// A container that asked for no swap gets none, rather than a default size.
+    @Test func decodesMissingSwapAsNone() throws {
+        let config = makeTestConfiguration()
+        let data = try JSONEncoder().encode(config)
+        var obj = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        var resources = try #require(obj["resources"] as? [String: Any])
+        resources.removeValue(forKey: "swapInBytes")
+        obj["resources"] = resources
+        let stripped = try JSONSerialization.data(withJSONObject: obj)
+        let decoded = try JSONDecoder().decode(ContainerConfiguration.self, from: stripped)
+        #expect(decoded.resources.swapInBytes == nil)
+    }
 }
 
 struct ContainerConfigurationCreationDateTests {

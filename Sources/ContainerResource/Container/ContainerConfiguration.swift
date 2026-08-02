@@ -166,6 +166,11 @@ public struct ContainerConfiguration: Sendable, Codable {
         public var cpus: Int = 4
         /// Memory in bytes allocated.
         public var memoryInBytes: UInt64 = 1024.mib()
+        /// Swap in bytes allocated. When set, a raw block device of this size
+        /// backs the container's swap area, which the guest enables so that a
+        /// workload exceeding `memoryInBytes` reclaims to it. Counts swap
+        /// alone, not the memory and swap total the runtime spec carries.
+        public var swapInBytes: UInt64?
         /// Storage quota/size in bytes.
         public var storage: UInt64?
         /// Additional CPU cores allocated for VM overhead (guest agent, etc).
@@ -177,6 +182,7 @@ public struct ContainerConfiguration: Sendable, Codable {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             self.cpus = try c.decodeIfPresent(Int.self, forKey: .cpus) ?? 4
             self.memoryInBytes = try c.decodeIfPresent(UInt64.self, forKey: .memoryInBytes) ?? 1024.mib()
+            self.swapInBytes = try c.decodeIfPresent(UInt64.self, forKey: .swapInBytes)
             self.storage = try c.decodeIfPresent(UInt64.self, forKey: .storage)
             self.cpuOverhead = try c.decodeIfPresent(Int.self, forKey: .cpuOverhead) ?? 1
         }

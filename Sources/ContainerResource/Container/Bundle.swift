@@ -23,6 +23,7 @@ public struct Bundle: Sendable {
     private static let kernelFilename = "kernel.json"
     private static let kernelBinaryFilename = "kernel.bin"
     private static let containerRootFsBlockFilename = "rootfs.ext4"
+    private static let containerSwapBlockFilename = "swap.raw"
     private static let containerRootFsFilename = "rootfs.json"
 
     static let containerConfigFilename = "config.json"
@@ -40,6 +41,11 @@ public struct Bundle: Sendable {
 
     public var containerRootfsBlock: URL {
         self.path.appendingPathComponent(Self.containerRootFsBlockFilename)
+    }
+
+    /// The raw block file backing the container's swap area, when it has one.
+    public var containerSwapBlock: URL {
+        self.path.appendingPathComponent(Self.containerSwapBlockFilename)
     }
 
     private var containerRootfsConfig: URL {

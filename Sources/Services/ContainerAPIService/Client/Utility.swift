@@ -156,6 +156,7 @@ public struct Utility {
         config.resources = try Parser.resources(
             cpus: resource.cpus,
             memory: resource.memory,
+            swap: resource.swap,
             defaultCPUs: containerSystemConfig.container.cpus,
             defaultMemory: containerSystemConfig.container.memory
         )

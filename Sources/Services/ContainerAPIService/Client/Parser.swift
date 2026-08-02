@@ -105,6 +105,7 @@ public struct Parser {
     public static func resources(
         cpus: Int64?,
         memory: String?,
+        swap: String? = nil,
         defaultCPUs: Int,
         defaultMemory: MemorySize,
     ) throws -> ContainerConfiguration.Resources {
@@ -118,6 +119,12 @@ public struct Parser {
 
         if let memory {
             resource.memoryInBytes = try Parser.memoryStringAsMiB(memory).mib()
+        }
+
+        // Left unset the container gets no swap area at all, which is what a
+        // container that is expected to stay within its memory wants.
+        if let swap {
+            resource.swapInBytes = try Parser.memoryStringAsMiB(swap).mib()
         }
 
         return resource

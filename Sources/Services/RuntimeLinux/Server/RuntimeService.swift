@@ -263,8 +263,13 @@ public actor RuntimeService {
 
             let id = config.id
             let rootfs = try bundle.containerRootfs.asMount
+            // A container is only given a swap area when it asked for one.
+            let swapLayer = try config.resources.swapInBytes.map {
+                try bundle.createSwapDevice(size: $0).asMount
+            }
             let container = try LinuxContainer(id, rootfs: rootfs, vmm: vmm, logger: self.log) { czConfig in
                 try Self.configureContainer(czConfig: &czConfig, config: config, dynamicEnv: dynamicEnv, log: self.log)
+                czConfig.swapLayer = swapLayer
                 czConfig.interfaces = interfaces
                 czConfig.process.stdout = stdout
                 czConfig.process.stderr = stderr
@@ -1414,6 +1419,31 @@ extension XPCMessage {
 }
 
 extension ContainerResource.Bundle {
+    /// Create the raw block file backing the container's swap area.
+    ///
+    /// It carries no filesystem: the guest agent writes the swap header to the
+    /// device and enables it. Fully allocated rather than sparse, because the
+    /// kernel maps a swap area's blocks directly and refuses one with holes.
+    /// The area holds nothing that outlives the container, so it is made afresh
+    /// with every bootstrap and the host is told not to synchronize it.
+    func createSwapDevice(size: UInt64) throws -> Filesystem {
+        let path = self.containerSwapBlock
+        guard FileManager.default.createFile(atPath: path.path, contents: nil) else {
+            throw ContainerizationError(
+                .internalError, message: "failed to create swap device at \(path.path)")
+        }
+        let handle = try FileHandle(forWritingTo: path)
+        defer { try? handle.close() }
+        try handle.truncate(atOffset: size)
+        return .block(
+            format: Swap.mountType,
+            source: path.path,
+            destination: "",
+            options: [],
+            sync: .nosync
+        )
+    }
+
     func createLogFile() throws {
         // Create the log file we'll write stdio to.
         // O_TRUNC resolves a log delay issue on restarted containers by force-updating internal state
