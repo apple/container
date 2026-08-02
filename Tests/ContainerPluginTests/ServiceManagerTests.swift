@@ -22,23 +22,35 @@ import Testing
 struct ServiceManagerTests {
     @Test
     func domainStringAquaUsesGuiDomain() throws {
-        #expect(try ServiceManager.domainString(sessionType: "Aqua", uid: 501) == "gui/501")
+        #expect(try ServiceManager.domainString(sessionType: "Aqua", uid: 501, euid: 501) == "gui/501")
     }
 
     @Test
     func domainStringBackgroundUsesUserDomain() throws {
-        #expect(try ServiceManager.domainString(sessionType: "Background", uid: 501) == "user/501")
+        #expect(try ServiceManager.domainString(sessionType: "Background", uid: 501, euid: 501) == "user/501")
     }
 
     @Test
     func domainStringSystemSessionUsesSystemDomain() throws {
-        #expect(try ServiceManager.domainString(sessionType: "System", uid: 0) == "system")
+        #expect(try ServiceManager.domainString(sessionType: "System", uid: 0, euid: 0) == "system")
+    }
+
+    @Test
+    func domainStringRootOutsideAquaUsesSystemDomain() throws {
+        #expect(try ServiceManager.domainString(sessionType: "Background", uid: 0, euid: 0) == "system")
+        #expect(try ServiceManager.domainString(sessionType: "System", uid: 0, euid: 0) == "system")
+    }
+
+    @Test
+    func domainStringRootInAquaKeepsGuiDomain() throws {
+        // Preserve existing Aqua behavior for interactive sudo sessions.
+        #expect(try ServiceManager.domainString(sessionType: "Aqua", uid: 0, euid: 0) == "gui/0")
     }
 
     @Test
     func domainStringUnsupportedSessionThrows() {
         #expect(throws: (any Error).self) {
-            try ServiceManager.domainString(sessionType: "LoginWindow", uid: 501)
+            try ServiceManager.domainString(sessionType: "LoginWindow", uid: 501, euid: 501)
         }
     }
 

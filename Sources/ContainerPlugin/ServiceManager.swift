@@ -45,8 +45,9 @@ public struct ServiceManager {
             // `container system start` is idempotent: if the service is already
             // bootstrapped, launchctl returns non-zero. Treat that as success.
             // Use try? so a launchctl spawn failure does not replace the bootstrap error.
+            // Query the same domain we bootstrapped into.
             if let label = try? launchdLabel(fromPlistAt: plistPath),
-                (try? isRegistered(fullServiceLabel: label)) == true
+                (try? isRegistered(fullServiceLabel: "\(domain)/\(label)")) == true
             {
                 return
             }
@@ -113,8 +114,13 @@ public struct ServiceManager {
     }
 
     /// Check if a service has been registered or not.
+    ///
+    /// Prefer a domain-qualified service target (`gui/501/label`, `system/label`)
+    /// so the lookup agrees with the domain used by `register`. Bare labels still
+    /// use `launchctl list` for compatibility with existing callers.
     public static func isRegistered(fullServiceLabel label: String) throws -> Bool {
-        let exitStatus = try runLaunchctlCommand(args: ["list", label]).status
+        let args = label.contains("/") ? ["print", label] : ["list", label]
+        let exitStatus = try runLaunchctlCommand(args: args).status
         return exitStatus == 0
     }
 
@@ -142,11 +148,18 @@ public struct ServiceManager {
     }
 
     public static func getDomainString() throws -> String {
-        try domainString(sessionType: getLaunchdSessionType(), uid: getuid())
+        try domainString(sessionType: getLaunchdSessionType(), uid: getuid(), euid: geteuid())
     }
 
     /// Compute the launchd domain target for the given session and credentials.
-    static func domainString(sessionType: String, uid: uid_t) throws -> String {
+    ///
+    /// When running as root outside an Aqua session (for example `sudo` on a CI
+    /// runner), bootstrap into the `system` domain. `user/0` and `gui/0` are not
+    /// valid bootstrap targets in that context.
+    static func domainString(sessionType: String, uid: uid_t, euid: uid_t) throws -> String {
+        if euid == 0 && sessionType != LaunchPlist.Domain.Aqua.rawValue {
+            return LaunchPlist.Domain.System.rawValue.lowercased()
+        }
         switch sessionType {
         case LaunchPlist.Domain.System.rawValue:
             return LaunchPlist.Domain.System.rawValue.lowercased()
