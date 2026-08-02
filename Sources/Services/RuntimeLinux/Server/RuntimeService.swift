@@ -997,9 +997,12 @@ public actor RuntimeService {
         czConfig.cpus = config.resources.cpus
         czConfig.cpuOverhead = config.resources.cpuOverhead
         czConfig.memoryInBytes = config.resources.memoryInBytes
-        czConfig.sysctl = config.sysctls.reduce(into: [String: String]()) {
-            $0[$1.key] = $1.value
-        }
+        // Overcommit memory and allow more memory mappings than the kernel default
+        // so workloads inside swap-less guest VMs hit limits less easily.
+        var sysctls = config.sysctls
+        sysctls["vm.overcommit_memory"] = "1"
+        sysctls["vm.max_map_count"] = "262144"
+        czConfig.sysctl = sysctls
         // If the host doesn't support this, we'll throw on container creation.
         czConfig.virtualization = config.virtualization
         czConfig.useInit = config.useInit
