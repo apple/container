@@ -200,30 +200,34 @@ actor BuildFSSync: BuildPipelineHandler {
         _ buildID: String
     ) async throws {
         let wantsTar = packet.mode() == "tar"
+        // context directory -> coming in as resolved (absolute) path
+        // build-context -> relative path to the current working directory
+        let root = URL(filePath: packet.source)
 
         var entries: [String: Set<DirEntry>] = [:]
         let followPaths: [String] = packet.followPaths() ?? []
 
-        let followPathsWalked = try walk(root: self.contextDir, includePatterns: followPaths)
+        let followPathsWalked = try walk(root: root, includePatterns: followPaths)
+
         for url in followPathsWalked {
-            guard self.contextDir.absoluteURL.cleanPath != url.absoluteURL.cleanPath else {
+            guard root.absoluteURL.cleanPath != url.absoluteURL.cleanPath else {
                 continue
             }
-            guard self.contextDir.parentOf(url) else {
+            guard root.parentOf(url) else {
                 continue
             }
 
-            let relPath = try url.relativeChildPath(to: contextDir)
-            let parentPath = try url.deletingLastPathComponent().relativeChildPath(to: contextDir)
+            let relPath = try url.relativeChildPath(to: root)
+            let parentPath = try url.deletingLastPathComponent().relativeChildPath(to: root)
             let entry = DirEntry(url: url, isDirectory: url.hasDirectoryPath, relativePath: relPath)
             entries[parentPath, default: []].insert(entry)
 
             if url.isSymlink {
                 let target: URL = url.resolvingSymlinksInPath()
-                if self.contextDir.parentOf(target) {
-                    let relPath = try target.relativeChildPath(to: self.contextDir)
+                if root.parentOf(target) {
+                    let relPath = try target.relativeChildPath(to: root)
                     let entry = DirEntry(url: target, isDirectory: target.hasDirectoryPath, relativePath: relPath)
-                    let parentPath: String = try target.deletingLastPathComponent().relativeChildPath(to: self.contextDir)
+                    let parentPath: String = try target.deletingLastPathComponent().relativeChildPath(to: root)
                     entries[parentPath, default: []].insert(entry)
                 }
             }
@@ -234,7 +238,7 @@ actor BuildFSSync: BuildPipelineHandler {
 
         if !wantsTar {
             let fileInfos = try fileOrder.map { rel -> FileInfo in
-                try FileInfo(path: contextDir.appendingPathComponent(rel), contextDir: contextDir)
+                try FileInfo(path: root.appendingPathComponent(rel), contextDir: root)
             }
 
             let data = try JSONEncoder().encode(fileInfos)
@@ -268,15 +272,15 @@ actor BuildFSSync: BuildPipelineHandler {
             filter: .none)
 
         let tarHash = try Archiver.compress(
-            source: contextDir,
+            source: root,
             destination: tarURL,
             writerConfiguration: writerCfg
         ) { url in
-            guard let rel = try? url.relativeChildPath(to: contextDir) else {
+            guard let rel = try? url.relativeChildPath(to: root) else {
                 return nil
             }
 
-            guard let parent = try? url.deletingLastPathComponent().relativeChildPath(to: self.contextDir) else {
+            guard let parent = try? url.deletingLastPathComponent().relativeChildPath(to: root) else {
                 return nil
             }
 
