@@ -89,14 +89,6 @@ Contributions to `container` are welcome and encouraged. Please see our [main co
 
 ## Project Status
 
-The container project is under active development and has reached a 1.x release.
-It is considered production-quality: the tool and its Swift package APIs are
-suitable for production use on supported systems.
+The container project is under active development and has reached a 1.x release. It is considered production-quality: both the tool and its Swift package APIs are suitable for production use on supported systems. 
 
-The project follows [semantic versioning](https://semver.org) for both the 
-`container` tool and its Swift package APIs: breaking changes are
-reserved for major version releases, while minor and patch releases remain
-backward compatible.
-
-Release notes flag breaking CLI changes with ⌨️ and breaking API changes with 👩‍💻.
-See the [releases page](https://github.com/apple/container/releases) for details.
+Within a major release, compatibility is maintained at the XPC API level, so older clients can communicate with a newer `container-apiserver`, and vice versa. Minor versions correspond to regular releases (currently monthly), while patch versions are reserved for fixes and hotfixes. See the [releases page](https://github.com/apple/container/releases) for details of recent updates.
