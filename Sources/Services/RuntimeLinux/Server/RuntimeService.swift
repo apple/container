@@ -782,6 +782,72 @@ public actor RuntimeService {
         }
     }
 
+    /// Snapshot the container's root filesystem.
+    ///
+    /// When the container is running, freeze/thaw around the copy for consistency.
+    /// When it is not running, copy directly without freeze/thaw.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with the following parameters:
+    ///     - imagePath: The path to the source filesystem image.
+    ///     - destinationPath: The path where the snapshot will be written.
+    ///
+    /// - Returns: An XPC message with no parameters.
+    @Sendable
+    public func snapshotDisk(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`snapshotDisk` xpc handler")
+        switch self.state {
+        case .running, .booted:
+            guard let imagePath = message.string(key: RuntimeKeys.imagePath.rawValue) else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no image path supplied for snapshotDisk"
+                )
+            }
+            guard let destinationPath = message.string(key: RuntimeKeys.destinationPath.rawValue) else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no destination path supplied for snapshotDisk"
+                )
+            }
+
+            let ctr = try getContainer()
+            let shouldFreeze = self.state == .running
+
+            if shouldFreeze {
+                try await ctr.container.filesystemOperation(operation: .freeze, path: "/")
+            }
+
+            do {
+                try FileManager.default.copyItem(atPath: imagePath, toPath: destinationPath)
+            } catch {
+                if shouldFreeze {
+                    do {
+                        try await ctr.container.filesystemOperation(operation: .thaw, path: "/")
+                    } catch {
+                        self.log.error(
+                            "failed to thaw filesystem after snapshotDisk error",
+                            metadata: [
+                                "error": "\(error)"
+                            ])
+                    }
+                }
+                throw error
+            }
+
+            if shouldFreeze {
+                try await ctr.container.filesystemOperation(operation: .thaw, path: "/")
+            }
+
+            return message.reply()
+        default:
+            throw ContainerizationError(
+                .invalidState,
+                message: "cannot snapshot disk: container is not running"
+            )
+        }
+    }
+
     /// Dial a vsock port on the virtual machine.
     ///
     /// - Parameters:
@@ -997,9 +1063,12 @@ public actor RuntimeService {
         czConfig.cpus = config.resources.cpus
         czConfig.cpuOverhead = config.resources.cpuOverhead
         czConfig.memoryInBytes = config.resources.memoryInBytes
-        czConfig.sysctl = config.sysctls.reduce(into: [String: String]()) {
-            $0[$1.key] = $1.value
-        }
+        // Overcommit memory and allow more memory mappings than the kernel default
+        // so workloads inside swap-less guest VMs hit limits less easily.
+        var sysctls = config.sysctls
+        sysctls["vm.overcommit_memory"] = "1"
+        sysctls["vm.max_map_count"] = "262144"
+        czConfig.sysctl = sysctls
         // If the host doesn't support this, we'll throw on container creation.
         czConfig.virtualization = config.virtualization
         czConfig.useInit = config.useInit
