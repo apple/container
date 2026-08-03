@@ -1024,6 +1024,18 @@ public struct Parser {
 
     /// Parse and validate --cap-add / --cap-drop arguments.
     /// Returns normalized uppercase CAP_* strings.
+    public static func sysctls(_ rawSysctls: [String]) throws -> [String: String] {
+        var result: [String: String] = Dictionary(minimumCapacity: rawSysctls.count)
+        for item in rawSysctls {
+            let parts = item.split(separator: "=", maxSplits: 2)
+            guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else {
+                throw ContainerizationError(.invalidArgument, message: "invalid sysctl format \(item) — expected key=value")
+            }
+            result[String(parts[0])] = String(parts[1])
+        }
+        return result
+    }
+
     public static func capabilities(capAdd: [String], capDrop: [String]) throws -> (capAdd: [String], capDrop: [String]) {
         var normalizedAdd: [String] = []
         normalizedAdd.reserveCapacity(capAdd.count)

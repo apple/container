@@ -257,6 +257,18 @@ public struct Utility {
         config.capDrop = caps.capDrop
         config.stopSignal = imageConfig?.stopSignal
 
+        config.sysctls = try Parser.sysctls(management.sysctl)
+
+        if management.privileged {
+            // Docker-compatible privileged mode: the full capability set and
+            // none of the default masked/read-only paths. Proportionate here
+            // because every guest is its own VM with its own kernel.
+            config.capAdd = ["ALL"]
+            config.capDrop = []
+            config.maskedPaths = []
+            config.readonlyPaths = []
+        }
+
         if let runtime = management.runtime {
             config.runtimeHandler = runtime
         }

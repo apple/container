@@ -1391,6 +1391,21 @@ struct ParserTest {
         #expect(result.capAdd.first == "ALL")
     }
 
+    @Test("sysctls parses key=value pairs")
+    func testSysctls() throws {
+        let result = try Parser.sysctls(["net.ipv4.ip_forward=1", "vm.max_map_count=262144"])
+        #expect(result["net.ipv4.ip_forward"] == "1")
+        #expect(result["vm.max_map_count"] == "262144")
+        #expect(result.count == 2)
+    }
+
+    @Test("sysctls rejects malformed input")
+    func testSysctlsRejectsMalformed() throws {
+        #expect(throws: ContainerizationError.self) { try Parser.sysctls(["no-equals-sign"]) }
+        #expect(throws: ContainerizationError.self) { try Parser.sysctls(["=1"]) }
+        #expect(throws: ContainerizationError.self) { try Parser.sysctls(["net.ipv4.ip_forward="]) }
+    }
+
     @Test("rlimits with large input")
     func testRlimitsLargeInput() throws {
         let result = try Parser.rlimits(["nofile=1024:2048", "nproc=100:200", "memlock=65536:65536"])

@@ -191,6 +191,8 @@ public struct Flags {
             runtime: String?,
             ssh: Bool,
             shmSize: String?,
+            sysctl: [String] = [],
+            privileged: Bool = false,
             tmpFs: [String],
             useInit: Bool,
             virtualization: Bool,
@@ -221,6 +223,8 @@ public struct Flags {
             self.runtime = runtime
             self.ssh = ssh
             self.shmSize = shmSize
+            self.sysctl = sysctl
+            self.privileged = privileged
             self.tmpFs = tmpFs
             self.useInit = useInit
             self.virtualization = virtualization
@@ -344,6 +348,15 @@ public struct Flags {
 
         @Option(name: .customLong("shm-size"), help: "Size of /dev/shm (e.g. 64M, 1G)")
         public var shmSize: String?
+
+        @Option(
+            name: .long,
+            help: .init("Set a sysctl in the container (format: key=value, repeatable)", valueName: "key=value")
+        )
+        public var sysctl: [String] = []
+
+        @Flag(name: .long, help: "Give the container the full capability set and disable the default masked and read-only paths")
+        public var privileged = false
 
         @Option(name: .customLong("tmpfs"), help: "Add a tmpfs mount to the container at the given path")
         public var tmpFs: [String] = []
