@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerTestSupport
+import Darwin
 import Foundation
 import Testing
 
@@ -31,12 +32,11 @@ struct TestCLIClean {
     }
 
     private func allocatedBytes(at url: URL) throws -> Int64 {
-        let values = try url.resourceValues(forKeys: [.fileAllocatedSizeKey, .totalFileAllocatedSizeKey])
-        let allocated = values.totalFileAllocatedSize ?? values.fileAllocatedSize
-        guard let allocated else {
-            throw CommandError.executionFailed("failed to read allocated size for \(url.path)")
+        var fileStatus = stat()
+        guard lstat(url.path, &fileStatus) == 0 else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
         }
-        return Int64(allocated)
+        return Int64(fileStatus.st_blocks) * 512
     }
 
     private func containerRootfsBlockURL(_ fixture: ContainerFixture, name: String) throws -> URL {
@@ -67,6 +67,63 @@ struct TestCLIClean {
             "clean should reclaim at least 80% of storage allocated by the test write")
     }
 
+    private func waitForStableAllocatedSpace(
+        at url: URL,
+        timeout: TimeInterval = 10
+    ) async throws -> Int64 {
+        let deadline = Date.now.addingTimeInterval(timeout)
+        var previous = try allocatedBytes(at: url)
+        var unchangedSamples = 0
+
+        while Date.now < deadline {
+            try await Task.sleep(for: .milliseconds(250))
+            let current = try allocatedBytes(at: url)
+            if current == previous {
+                unchangedSamples += 1
+                if unchangedSamples == 4 {
+                    return current
+                }
+            } else {
+                previous = current
+                unchangedSamples = 0
+            }
+        }
+        return previous
+    }
+
+    private func waitForAllocatedSpace(
+        after baseline: Int64,
+        at url: URL,
+        timeout: TimeInterval = 10
+    ) async throws -> Int64 {
+        let deadline = Date.now.addingTimeInterval(timeout)
+        var allocated = try allocatedBytes(at: url)
+
+        while allocated <= baseline, Date.now < deadline {
+            try await Task.sleep(for: .milliseconds(250))
+            allocated = try allocatedBytes(at: url)
+        }
+        return allocated
+    }
+
+    private func waitForReclaimedSpace(
+        beforeWrite: Int64,
+        afterWrite: Int64,
+        at url: URL,
+        timeout: TimeInterval = 10
+    ) async throws -> Int64 {
+        let allocatedByWrite = afterWrite - beforeWrite
+        let minimumExpectedReclaimed = Int64(Double(allocatedByWrite) * 0.8)
+        let deadline = Date.now.addingTimeInterval(timeout)
+        var afterClean = try allocatedBytes(at: url)
+
+        while afterWrite - afterClean < minimumExpectedReclaimed, Date.now < deadline {
+            try await Task.sleep(for: .milliseconds(250))
+            afterClean = try allocatedBytes(at: url)
+        }
+        return afterClean
+    }
+
     @Test func cleanRejectsStoppedContainer() async throws {
         try await ContainerFixture.with { fixture in
             let name = "\(fixture.testID)-clean-stopped"
@@ -81,6 +138,9 @@ struct TestCLIClean {
 
             let result = try fixture.run(["clean", name])
             #expect(result.status != 0, "clean should reject a stopped container")
+            #expect(
+                result.error.contains("not running"),
+                "clean should report that the stopped container is not running; stderr: \(result.error)")
         }
     }
 
@@ -117,18 +177,23 @@ struct TestCLIClean {
             fixture.addCleanup { try? fixture.doRemove(name, force: true) }
 
             let rootfsBlockURL = try containerRootfsBlockURL(fixture, name: name)
-            let beforeWrite = try allocatedBytes(at: rootfsBlockURL)
+            try fixture.doClean(name)
+            let beforeWrite = try await waitForStableAllocatedSpace(at: rootfsBlockURL)
 
             try fixture.doExec(
                 name,
-                cmd: ["sh", "-c", "dd if=/dev/urandom of=/rootfs-reclaim.dat bs=1M count=64"])
+                cmd: ["sh", "-c", "dd if=/dev/urandom of=/rootfs-reclaim.dat bs=1M count=256"])
             try fixture.doExec(name, cmd: ["sync"])
-            let afterWrite = try allocatedBytes(at: rootfsBlockURL)
+            let afterWrite = try await waitForAllocatedSpace(after: beforeWrite, at: rootfsBlockURL)
 
             try fixture.doExec(name, cmd: ["rm", "/rootfs-reclaim.dat"])
             try fixture.doExec(name, cmd: ["sync"])
             try fixture.doClean(name)
-            let afterClean = try allocatedBytes(at: rootfsBlockURL)
+            let afterClean = try await waitForReclaimedSpace(
+                beforeWrite: beforeWrite,
+                afterWrite: afterWrite,
+                at: rootfsBlockURL)
+            print("rootfs allocated bytes before=\(beforeWrite) afterWrite=\(afterWrite) afterClean=\(afterClean)")
 
             expectReclaimedSpace(
                 beforeWrite: beforeWrite,
@@ -154,18 +219,23 @@ struct TestCLIClean {
             try await fixture.waitForContainerRunning(name)
 
             let volumeBlockURL = try volumeBlockURL(fixture, name: volumeName)
-            let beforeWrite = try allocatedBytes(at: volumeBlockURL)
+            try fixture.doClean(name)
+            let beforeWrite = try await waitForStableAllocatedSpace(at: volumeBlockURL)
 
             try fixture.doExec(
                 name,
-                cmd: ["sh", "-c", "dd if=/dev/urandom of=/mnt/reclaim-data/volume-reclaim.dat bs=1M count=64"])
+                cmd: ["sh", "-c", "dd if=/dev/urandom of=/mnt/reclaim-data/volume-reclaim.dat bs=1M count=256"])
             try fixture.doExec(name, cmd: ["sync"])
-            let afterWrite = try allocatedBytes(at: volumeBlockURL)
+            let afterWrite = try await waitForAllocatedSpace(after: beforeWrite, at: volumeBlockURL)
 
             try fixture.doExec(name, cmd: ["rm", "/mnt/reclaim-data/volume-reclaim.dat"])
             try fixture.doExec(name, cmd: ["sync"])
             try fixture.doClean(name)
-            let afterClean = try allocatedBytes(at: volumeBlockURL)
+            let afterClean = try await waitForReclaimedSpace(
+                beforeWrite: beforeWrite,
+                afterWrite: afterWrite,
+                at: volumeBlockURL)
+            print("volume allocated bytes before=\(beforeWrite) afterWrite=\(afterWrite) afterClean=\(afterClean)")
 
             expectReclaimedSpace(
                 beforeWrite: beforeWrite,

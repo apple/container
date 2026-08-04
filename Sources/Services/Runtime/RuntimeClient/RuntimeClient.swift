@@ -359,9 +359,9 @@ extension RuntimeClient {
         return try JSONDecoder().decode(ContainerStats.self, from: data)
     }
 
-    public func clean(id: String) async throws {
+    public func clean() async throws {
         let request = XPCMessage(route: RuntimeRoutes.clean.rawValue)
-        request.set(key: RuntimeKeys.id.rawValue, value: id)
+        request.set(key: RuntimeKeys.id.rawValue, value: self.id)
 
         do {
             try await self.client.send(request)

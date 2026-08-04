@@ -928,7 +928,7 @@ public actor ContainersService {
         }
 
         let client = try state.getClient()
-        try await client.clean(id: id)
+        try await client.clean()
     }
 
     private func handleContainerExit(id: String, code: ExitStatus? = nil) async throws {

@@ -794,7 +794,7 @@ public actor RuntimeService {
         self.log.info("`clean` xpc handler")
         switch self.state {
         case .running:
-            guard message.string(key: RuntimeKeys.id.rawValue) != nil else {
+            guard let id = message.string(key: RuntimeKeys.id.rawValue) else {
                 throw ContainerizationError(
                     .invalidArgument,
                     message: "no id supplied for clean"
@@ -802,6 +802,12 @@ public actor RuntimeService {
             }
 
             let ctr = try getContainer()
+            guard id == ctr.config.id else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "clean id does not match runtime container"
+                )
+            }
 
             // Perform filesystem trim on the root filesystem
             try await ctr.container.filesystemOperation(operation: .trim, path: "/")
