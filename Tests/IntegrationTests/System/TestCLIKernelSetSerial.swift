@@ -167,7 +167,7 @@ struct TestCLIKernelSetSerial {
     /// on the host — that is, `uname -r` matches the release parsed from the kernel
     /// binary filename (see ``expectedKernelRelease``).
     private func validateGuestKernel(_ f: ContainerFixture) async throws {
-        let image = ContainerFixture.warmupImages[0]
+        let image = WarmupImage.alpine320.rawValue
         if try !f.isImagePresent(image) { try f.doPull(image) }
         try await f.withContainer(image: image) { name in
             let release = try f.doExec(name, cmd: ["uname", "-r"])

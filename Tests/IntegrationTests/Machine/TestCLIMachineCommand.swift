@@ -41,19 +41,17 @@ struct TestCLIMachineCommand {
         }
     }
 
-    @Test func testCreateNameLongestValid() async {
-        await withKnownIssue("XPC timeout on machine-apiserver.bootMachine", isIntermittent: true) {
-            try await ContainerFixture.with { f in
-                // Start with container ID or DNS label length, whichever is shorter.
-                // Reduce by length of UUID suffix.
-                // Reduce by 1 for dash separator between ID and suffix.
-                let maxHostnameLength = min(LinuxContainer.maxIDLength, 63)
-                let maxNameLength = maxHostnameLength - MachineConfiguration.containerUUIDLength - 2
-                let name = String(repeating: "a", count: maxNameLength)
-                f.addCleanup { f.cleanupMachine(name) }
-                try f.doMachineCreate(name: name, image: machineImage)
-                try f.doMachineBoot(name: name)
-            }
+    @Test func testCreateNameLongestValid() async throws {
+        try await ContainerFixture.with { f in
+            // Start with container ID or DNS label length, whichever is shorter.
+            // Reduce by length of UUID suffix.
+            // Reduce by 1 for dash separator between ID and suffix.
+            let maxHostnameLength = min(LinuxContainer.maxIDLength, 63)
+            let maxNameLength = maxHostnameLength - MachineConfiguration.containerUUIDLength - 2
+            let name = String(repeating: "a", count: maxNameLength)
+            f.addCleanup { f.cleanupMachine(name) }
+            try f.doMachineCreate(name: name, image: machineImage)
+            try f.doMachineBoot(name: name)
         }
     }
 

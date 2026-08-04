@@ -22,9 +22,9 @@ import Testing
 
 @Suite
 struct TestCLIImagesCommand {
-    private let alpine = ContainerFixture.warmupImages[0]  // ghcr.io/linuxcontainers/alpine:3.20
-    private let alpine318 = ContainerFixture.warmupImages[1]  // ghcr.io/linuxcontainers/alpine:3.18
-    private let busybox = ContainerFixture.warmupImages[2]  // ghcr.io/containerd/busybox:1.36
+    private let alpine = WarmupImage.alpine320.rawValue  // ghcr.io/linuxcontainers/alpine:3.20
+    private let alpine318 = WarmupImage.alpine318.rawValue  // ghcr.io/linuxcontainers/alpine:3.18
+    private let busybox = WarmupImage.busybox136.rawValue  // ghcr.io/containerd/busybox:1.36
 
     /// Host architecture string for platform tests.
     private var hostArchitecture: String {

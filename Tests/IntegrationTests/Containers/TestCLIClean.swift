@@ -14,186 +14,164 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerTestSupport
 import Foundation
 import Testing
 
 @Suite
-class TestCLIClean: CLITest {
+struct TestCLIClean {
     private struct StatusJSON: Codable {
         let appRoot: String
     }
 
-    private func getTestName() -> String {
-        Test.current!.name.trimmingCharacters(in: ["(", ")"]).lowercased()
-    }
-
-    private func appRoot() throws -> URL {
-        let result = try run(arguments: ["system", "status", "--format", "json"]).check()
+    private func appRoot(_ fixture: ContainerFixture) throws -> URL {
+        let result = try fixture.run(["system", "status", "--format", "json"]).check()
         let status = try JSONDecoder().decode(StatusJSON.self, from: result.outputData)
-        return URL(fileURLWithPath: status.appRoot, isDirectory: true)
+        return URL(filePath: status.appRoot, directoryHint: .isDirectory)
     }
 
     private func allocatedBytes(at url: URL) throws -> Int64 {
         let values = try url.resourceValues(forKeys: [.fileAllocatedSizeKey, .totalFileAllocatedSizeKey])
         let allocated = values.totalFileAllocatedSize ?? values.fileAllocatedSize
         guard let allocated else {
-            throw CLIError.executionFailed("failed to read allocated size for \(url.path)")
+            throw CommandError.executionFailed("failed to read allocated size for \(url.path)")
         }
         return Int64(allocated)
     }
 
-    private func containerRootfsBlockURL(name: String) throws -> URL {
-        let id = try getContainerId(name)
-        return try appRoot()
-            .appendingPathComponent("containers", isDirectory: true)
-            .appendingPathComponent(id, isDirectory: true)
-            .appendingPathComponent("rootfs.ext4", isDirectory: false)
+    private func containerRootfsBlockURL(_ fixture: ContainerFixture, name: String) throws -> URL {
+        let id = try fixture.getContainerId(name)
+        return try appRoot(fixture)
+            .appending(path: "containers", directoryHint: .isDirectory)
+            .appending(path: id, directoryHint: .isDirectory)
+            .appending(path: "rootfs.ext4", directoryHint: .notDirectory)
     }
 
-    private func volumeBlockURL(name: String) throws -> URL {
-        try appRoot()
-            .appendingPathComponent("volumes", isDirectory: true)
-            .appendingPathComponent(name, isDirectory: true)
-            .appendingPathComponent("volume.img", isDirectory: false)
+    private func volumeBlockURL(_ fixture: ContainerFixture, name: String) throws -> URL {
+        try appRoot(fixture)
+            .appending(path: "volumes", directoryHint: .isDirectory)
+            .appending(path: name, directoryHint: .isDirectory)
+            .appending(path: "volume.img", directoryHint: .notDirectory)
     }
 
-    private func assertCleanReclaimedSpace(beforeWrite: Int64, afterWrite: Int64, afterClean: Int64) {
-        let writeAllocated = afterWrite - beforeWrite
-        #expect(writeAllocated > 0)
+    private func expectReclaimedSpace(beforeWrite: Int64, afterWrite: Int64, afterClean: Int64) {
+        let allocatedByWrite = afterWrite - beforeWrite
+        #expect(allocatedByWrite > 0, "test write should allocate host storage")
 
         let reclaimed = afterWrite - afterClean
-        #expect(reclaimed > 0)
+        #expect(reclaimed > 0, "clean should reclaim host storage")
 
-        let minExpectedReclaimed = Int64(Double(writeAllocated) * 0.8)
-        #expect(reclaimed >= minExpectedReclaimed)
+        let minimumExpectedReclaimed = Int64(Double(allocatedByWrite) * 0.8)
+        #expect(
+            reclaimed >= minimumExpectedReclaimed,
+            "clean should reclaim at least 80% of storage allocated by the test write")
     }
 
-    @Test func testCleanStoppedContainerFails() throws {
-        let name = getTestName()
-        try doLongRun(name: name, autoRemove: false)
-        defer { try? doRemove(name: name) }
+    @Test func cleanRejectsStoppedContainer() async throws {
+        try await ContainerFixture.with { fixture in
+            let name = "\(fixture.testID)-clean-stopped"
+            try await fixture.doLongRun(
+                name: name,
+                autoRemove: false,
+                waitUntilRunning: true)
+            fixture.addCleanup { try? fixture.doRemove(name, force: true) }
 
-        try waitForContainerRunning(name)
-        try doStop(name: name)
+            try fixture.doStop(name)
+            #expect(try fixture.getContainerStatus(name) == "stopped")
 
-        let status = try getContainerStatus(name)
-        #expect(status == "stopped")
-
-        // Clean should fail on stopped container
-        let (_, _, _, exitStatus) = try run(arguments: ["clean", name])
-        #expect(exitStatus != 0)
+            let result = try fixture.run(["clean", name])
+            #expect(result.status != 0, "clean should reject a stopped container")
+        }
     }
 
-    @Test func testCleanMultipleContainers() throws {
-        let name1 = getTestName() + "1"
-        let name2 = getTestName() + "2"
+    @Test func cleanSupportsMultipleRunningContainers() async throws {
+        try await ContainerFixture.with { fixture in
+            let primary = "\(fixture.testID)-clean-primary"
+            let secondary = "\(fixture.testID)-clean-secondary"
 
-        try doLongRun(name: name1, autoRemove: false)
-        try doLongRun(name: name2, autoRemove: false)
+            try await fixture.doLongRun(
+                name: primary,
+                autoRemove: false,
+                waitUntilRunning: true)
+            fixture.addCleanup { try? fixture.doRemove(primary, force: true) }
 
-        defer {
-            try? doStop(name: name1)
-            try? doStop(name: name2)
-            try? doRemove(name: name1)
-            try? doRemove(name: name2)
+            try await fixture.doLongRun(
+                name: secondary,
+                autoRemove: false,
+                waitUntilRunning: true)
+            fixture.addCleanup { try? fixture.doRemove(secondary, force: true) }
+
+            try fixture.run(["clean", primary, secondary]).check()
+            #expect(try fixture.getContainerStatus(primary) == "running")
+            #expect(try fixture.getContainerStatus(secondary) == "running")
         }
-
-        try waitForContainerRunning(name1)
-        try waitForContainerRunning(name2)
-
-        // Clean both containers
-        let (_, _, _, exitStatus1) = try run(arguments: ["clean", name1, name2])
-        #expect(exitStatus1 == 0)
-
-        // Both containers should still be running
-        let status1 = try getContainerStatus(name1)
-        let status2 = try getContainerStatus(name2)
-        #expect(status1 == "running")
-        #expect(status2 == "running")
     }
 
-    @Test func testCleanAfterFileCreation() throws {
-        let name = getTestName()
-        try doLongRun(name: name, autoRemove: false)
-        defer {
-            try? doStop(name: name)
-            try? doRemove(name: name)
+    @Test func cleanReclaimsRootFilesystemSpace() async throws {
+        try await ContainerFixture.with { fixture in
+            let name = "\(fixture.testID)-clean-rootfs-reclaim"
+            try await fixture.doLongRun(
+                name: name,
+                autoRemove: false,
+                waitUntilRunning: true)
+            fixture.addCleanup { try? fixture.doRemove(name, force: true) }
+
+            let rootfsBlockURL = try containerRootfsBlockURL(fixture, name: name)
+            let beforeWrite = try allocatedBytes(at: rootfsBlockURL)
+
+            try fixture.doExec(
+                name,
+                cmd: ["sh", "-c", "dd if=/dev/urandom of=/rootfs-reclaim.dat bs=1M count=64"])
+            try fixture.doExec(name, cmd: ["sync"])
+            let afterWrite = try allocatedBytes(at: rootfsBlockURL)
+
+            try fixture.doExec(name, cmd: ["rm", "/rootfs-reclaim.dat"])
+            try fixture.doExec(name, cmd: ["sync"])
+            try fixture.doClean(name)
+            let afterClean = try allocatedBytes(at: rootfsBlockURL)
+
+            expectReclaimedSpace(
+                beforeWrite: beforeWrite,
+                afterWrite: afterWrite,
+                afterClean: afterClean)
+            #expect(try fixture.getContainerStatus(name) == "running")
         }
-
-        try waitForContainerRunning(name)
-
-        let rootfsBlockURL = try containerRootfsBlockURL(name: name)
-        let beforeWrite = try allocatedBytes(at: rootfsBlockURL)
-
-        // Create some files to exercise the filesystem trim path
-        _ = try doExec(name: name, cmd: ["sh", "-c", "dd if=/dev/urandom of=/test-file bs=1M count=10"])
-        _ = try doExec(name: name, cmd: ["sync"])
-        let afterWrite = try allocatedBytes(at: rootfsBlockURL)
-
-        _ = try doExec(name: name, cmd: ["rm", "/test-file"])
-
-        // Clean should succeed
-        try doClean(name: name)
-        _ = try doExec(name: name, cmd: ["sync"])
-        let afterClean = try allocatedBytes(at: rootfsBlockURL)
-        assertCleanReclaimedSpace(beforeWrite: beforeWrite, afterWrite: afterWrite, afterClean: afterClean)
-
-        // Container should still be running
-        let status = try getContainerStatus(name)
-        #expect(status == "running")
     }
 
-    @Test func testCleanWithVolume() throws {
-        let name = getTestName()
-        let volumeName = name + "-vol"
+    @Test func cleanReclaimsNamedVolumeSpace() async throws {
+        try await ContainerFixture.with { fixture in
+            let name = "\(fixture.testID)-clean-volume-reclaim"
+            let volumeName = "\(fixture.testID)-clean-reclaim-data"
 
-        // Create a volume
-        let (_, _, volError, volStatus) = try run(arguments: ["volume", "create", volumeName])
-        guard volStatus == 0 else {
-            throw CLIError.executionFailed("volume create failed: \(volError)")
+            try fixture.doVolumeCreate(volumeName)
+            fixture.addCleanup { fixture.doVolumeDeleteIfExists(volumeName) }
+
+            try fixture.doCreate(
+                name: name,
+                volumes: ["\(volumeName):/mnt/reclaim-data"])
+            fixture.addCleanup { try? fixture.doRemove(name, force: true) }
+            try fixture.doStart(name)
+            try await fixture.waitForContainerRunning(name)
+
+            let volumeBlockURL = try volumeBlockURL(fixture, name: volumeName)
+            let beforeWrite = try allocatedBytes(at: volumeBlockURL)
+
+            try fixture.doExec(
+                name,
+                cmd: ["sh", "-c", "dd if=/dev/urandom of=/mnt/reclaim-data/volume-reclaim.dat bs=1M count=64"])
+            try fixture.doExec(name, cmd: ["sync"])
+            let afterWrite = try allocatedBytes(at: volumeBlockURL)
+
+            try fixture.doExec(name, cmd: ["rm", "/mnt/reclaim-data/volume-reclaim.dat"])
+            try fixture.doExec(name, cmd: ["sync"])
+            try fixture.doClean(name)
+            let afterClean = try allocatedBytes(at: volumeBlockURL)
+
+            expectReclaimedSpace(
+                beforeWrite: beforeWrite,
+                afterWrite: afterWrite,
+                afterClean: afterClean)
+            #expect(try fixture.getContainerStatus(name) == "running")
         }
-
-        defer {
-            try? run(arguments: ["volume", "rm", volumeName])
-        }
-
-        // Create container with volume mount
-        try doCreate(
-            name: name,
-            image: nil,
-            args: nil,
-            volumes: ["\(volumeName):/mnt/vol"],
-            networks: [],
-            ports: []
-        )
-
-        try doStart(name: name)
-
-        defer {
-            try? doStop(name: name)
-            try? doRemove(name: name)
-        }
-
-        try waitForContainerRunning(name)
-
-        let volumeBlockURL = try volumeBlockURL(name: volumeName)
-        let beforeWrite = try allocatedBytes(at: volumeBlockURL)
-
-        // Write to volume
-        _ = try doExec(name: name, cmd: ["sh", "-c", "dd if=/dev/urandom of=/mnt/vol/test bs=1M count=5"])
-        _ = try doExec(name: name, cmd: ["sync"])
-        let afterWrite = try allocatedBytes(at: volumeBlockURL)
-
-        _ = try doExec(name: name, cmd: ["rm", "/mnt/vol/test"])
-
-        // Clean should succeed and also trim the volume
-        try doClean(name: name)
-        _ = try doExec(name: name, cmd: ["sync"])
-        let afterClean = try allocatedBytes(at: volumeBlockURL)
-        assertCleanReclaimedSpace(beforeWrite: beforeWrite, afterWrite: afterWrite, afterClean: afterClean)
-
-        // Container should still be running
-        let status = try getContainerStatus(name)
-        #expect(status == "running")
     }
 }

@@ -71,13 +71,12 @@ struct TestCLINetworkPruneSerial {
             try f.doNetworkCreate(netUnused)
 
             let port = UInt16.random(in: 50000..<60000)
-            try f.doLongRun(
+            try await f.doLongRun(
                 name: containerName,
                 image: "docker.io/library/python:alpine",
                 args: ["--network", netInUse],
                 containerArgs: ["python3", "-m", "http.server", "--bind", "0.0.0.0", "\(port)"],
-                autoRemove: false)
-            try await f.waitForContainerRunning(containerName)
+                autoRemove: false, waitUntilRunning: true)
             let container = try f.inspectContainer(containerName)
             #expect(container.networks.count > 0)
 
@@ -103,13 +102,12 @@ struct TestCLINetworkPruneSerial {
             try f.doNetworkCreate(networkName)
 
             let port = UInt16.random(in: 50000..<60000)
-            try f.doLongRun(
+            try await f.doLongRun(
                 name: containerName,
                 image: "docker.io/library/python:alpine",
                 args: ["--network", networkName],
                 containerArgs: ["python3", "-m", "http.server", "--bind", "0.0.0.0", "\(port)"],
-                autoRemove: false)
-            try await f.waitForContainerRunning(containerName)
+                autoRemove: false, waitUntilRunning: true)
 
             // Network is attached to a running container — prune must skip it.
             try f.run(["network", "prune"]).check()

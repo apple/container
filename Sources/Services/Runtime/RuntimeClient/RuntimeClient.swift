@@ -319,6 +319,22 @@ extension RuntimeClient {
         }
     }
 
+    public func snapshotDisk(imagePath: String, destinationPath: String) async throws {
+        let request = XPCMessage(route: RuntimeRoutes.snapshotDisk.rawValue)
+        request.set(key: RuntimeKeys.imagePath.rawValue, value: imagePath)
+        request.set(key: RuntimeKeys.destinationPath.rawValue, value: destinationPath)
+
+        do {
+            try await self.client.send(request, responseTimeout: .seconds(300))
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to snapshot disk in container \(self.id)",
+                cause: error
+            )
+        }
+    }
+
     public func statistics() async throws -> ContainerStats {
         let request = XPCMessage(route: RuntimeRoutes.statistics.rawValue)
 

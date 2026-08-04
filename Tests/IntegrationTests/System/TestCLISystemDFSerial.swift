@@ -32,7 +32,7 @@ struct TestCLISystemDFSerial {
         let total: Int
     }
 
-    private let alpine = ContainerFixture.warmupImages[0]
+    private let alpine = WarmupImage.alpine320.rawValue
 
     // Issue #1526: reported image size must include content blobs, not just unpacked snapshots.
     @Test func imageDiskUsageIsPopulatedAfterPull() async throws {

@@ -21,7 +21,7 @@ import Testing
 struct TestCLIExecCommand {
     @Test func testCreateExecCommand() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             let name = "\(f.testID)-c"
             try f.doCreate(name: name, image: image)
             f.addCleanup { try? f.doStop(name) }
@@ -36,7 +36,7 @@ struct TestCLIExecCommand {
 
     @Test func testExecDetach() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             let name = "\(f.testID)-c"
             try f.doCreate(name: name, image: image)
             f.addCleanup { try? f.doStop(name) }
@@ -70,7 +70,7 @@ struct TestCLIExecCommand {
 
     @Test func testExecDetachProcessRunning() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             let name = "\(f.testID)-c"
             try f.doCreate(name: name, image: image)
             f.addCleanup { try? f.doStop(name) }
@@ -92,10 +92,10 @@ struct TestCLIExecCommand {
 
     @Test func testExecOnExitingContainer() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             let name = "\(f.testID)-c"
             // sh exits immediately in detached mode with no stdin; container stops on its own.
-            try f.doLongRun(name: name, image: image, containerArgs: ["sh"], autoRemove: false)
+            try await f.doLongRun(name: name, image: image, containerArgs: ["sh"], autoRemove: false)
             f.addCleanup { try? f.doRemove(name) }
             try await Task.sleep(for: .seconds(1))
 

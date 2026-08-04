@@ -15,7 +15,6 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerTestSupport
-import Foundation
 import Testing
 
 /// Serial prune tests — `container prune` affects all stopped containers regardless of name.
@@ -37,7 +36,7 @@ struct TestCLIPruneCommandSerial {
 
     @Test func testContainerPruneStoppedContainers() async throws {
         try await ContainerFixture.with { f in
-            let image = ContainerFixture.warmupImages[0]
+            let image = WarmupImage.alpine320.rawValue
             if try !f.isImagePresent(image) { try f.doPull(image) }
 
             // One running container that must survive the prune.
@@ -56,16 +55,8 @@ struct TestCLIPruneCommandSerial {
                         try f.doStop(pc1Name)
 
                         // Poll until both containers reach stopped state.
-                        let deadline = Date().addingTimeInterval(30)
-                        while true {
-                            let s0 = try f.getContainerStatus(pc0Name)
-                            let s1 = try f.getContainerStatus(pc1Name)
-                            if s0 == "stopped" && s1 == "stopped" { break }
-                            guard Date() < deadline else {
-                                throw CommandError.executionFailed(
-                                    "Timeout waiting for containers to stop: pc0=\(s0), pc1=\(s1)")
-                            }
-                            try await Task.sleep(for: .milliseconds(200))
+                        try await f.retry(attempts: 150, delay: .milliseconds(200)) {
+                            try f.getContainerStatus(pc0Name) == "stopped" && f.getContainerStatus(pc1Name) == "stopped"
                         }
 
                         let result = try f.run(["prune"]).check()

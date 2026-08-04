@@ -15,18 +15,23 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerTestSupport
+import Foundation
 import Testing
 
-/// Pulls each image in ``WarmupImage`` in parallel before concurrent
-/// integration tests run. The Makefile's warmup pass runs this suite first
-/// so that ``ContainerFixture/copyWarmupImage(_:)`` can tag from a
-/// pre-populated store rather than pulling on demand.
-@Suite
-struct ImageWarmup {
-    @Test(arguments: WarmupImage.allCases)
-    func pull(image: WarmupImage) async throws {
+/// Serial because this repulls the shared warmup alpine image with `--no-cache`,
+/// which would race with concurrent-pool tests relying on it already being cached.
+@Suite(.serialized)
+struct TestCLIBuilderWarmupPullSerial {
+    @Test func testBuildNoCachePullLatestImage() async throws {
         try await ContainerFixture.with { f in
-            try f.run(["image", "pull", image.rawValue]).check("failed to pull \(image.rawValue)")
+            let dir = try f.createTempDir()
+            try f.createContext(
+                dir: dir,
+                dockerfile: "FROM \(WarmupImage.alpine320.rawValue)\nADD emptyFile /",
+                context: [.file("emptyFile", content: .zeroFilled(size: 1))])
+            let image = "registry.local/no-cache-pull:\(UUID().uuidString)"
+            try f.buildWithPaths(tags: [image], contextDir: dir, otherArgs: ["--pull", "--no-cache"])
+            try f.assertImageBuilt(image)
         }
     }
 }

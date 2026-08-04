@@ -23,7 +23,7 @@ import Testing
 struct TestCLITermIO {
     @Test func testTermIODoesNotPanic() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             let name = "\(f.testID)-c"
             f.addCleanup { try f.doRemoveIfExists(name, force: true, ignoreFailure: true) }
 
