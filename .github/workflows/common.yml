@@ -94,6 +94,8 @@ jobs:
           LOG_ROOT="${APP_ROOT}/logs"
           echo "created data directory: ${APP_ROOT}"
           echo "hostname: $(hostname)"
+          echo "hw.physicalcpu: $(sysctl -n hw.physicalcpu)"
+          echo "hw.logicalcpu: $(sysctl -n hw.logicalcpu)"
           export NO_PROXY="${NO_PROXY},192.168.0.0/16,fe80::/10"
           echo NO_PROXY=${NO_PROXY}
           export no_proxy="${no_proxy},192.168.0.0/16,fe80::/10"
