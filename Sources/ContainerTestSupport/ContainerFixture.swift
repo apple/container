@@ -141,10 +141,12 @@ public final class ContainerFixture: Sendable {
             let result = try await body(fixture)
             logger.info("test end", metadata: ["result": "pass"])
             await fixture.runCleanup()
+            logger.info("test cleaned up")
             return result
         } catch {
             logger.info("test end", metadata: ["result": "fail", "error": "\(error)"])
             await fixture.runCleanup()
+            logger.info("test cleaned up")
             throw error
         }
     }
