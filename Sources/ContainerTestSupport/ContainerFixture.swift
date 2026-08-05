@@ -88,7 +88,12 @@ public final class ContainerFixture: Sendable {
         let testName =
             Test.current.map { $0.name.hasSuffix("()") ? String($0.name.dropLast(2)) : $0.name }
             ?? testID
-        let suiteName = Test.current.map { "\(type(of: $0))" } ?? "unknown"
+        // Test.current is a value describing the running test, not an instance of the suite
+        // type, so `type(of:)` always yields `Test` itself. Derive the suite from the test's
+        // fully-qualified ID instead (e.g. "IntegrationTests.TestCLIStatus/explicitTableFormat()/...")
+        // — the same identifier format used in the swift-testing event-stream JSON.
+        let testIdentifier = Test.current.map { "\($0.id)" }
+        let suiteName = testIdentifier?.split(separator: "/", maxSplits: 1).first.map(String.init) ?? "unknown"
 
         // Name the scratch directory so it's immediately identifiable when browsing:
         // {sanitizedTestName}-{testID}
@@ -112,6 +117,7 @@ public final class ContainerFixture: Sendable {
             return StreamLogHandler.standardOutput(label: label)
         }
         logger[metadataKey: "testID"] = "\(testID)"
+        logger[metadataKey: "test"] = "\(testIdentifier ?? testName)"
 
         let fixture = ContainerFixture(testID: testID, testDir: testDir, log: logger)
 
