@@ -80,11 +80,6 @@ public final class ContainerFixture: Sendable {
     public static func with<T>(_ body: (ContainerFixture) async throws -> T) async throws -> T {
         let testID = String(UUID().uuidString.prefix(8)).lowercased()
 
-        let scratchRoot =
-            ProcessInfo.processInfo.environment["CLITEST_SCRATCH_ROOT"]
-            .map { FilePath($0) }
-            ?? FilePath(FileManager.default.temporaryDirectory.path)
-
         let testName =
             Test.current.map { $0.name.hasSuffix("()") ? String($0.name.dropLast(2)) : $0.name }
             ?? testID
@@ -95,14 +90,6 @@ public final class ContainerFixture: Sendable {
         let testIdentifier = Test.current.map { "\($0.id)" }
         let suiteName = testIdentifier?.split(separator: "/", maxSplits: 1).first.map(String.init) ?? "unknown"
 
-        // Name the scratch directory so it's immediately identifiable when browsing:
-        // {sanitizedTestName}-{testID}
-        let safeName = testName.replacingOccurrences(
-            of: "[^a-zA-Z0-9]", with: "-", options: .regularExpression)
-        let testDir = scratchRoot.appending("\(safeName)-\(testID)")
-        try FileManager.default.createDirectory(
-            atPath: testDir.string, withIntermediateDirectories: true, attributes: nil)
-
         // Swift Testing doesn't expose a stable per-case identifier or the case's arguments
         // publicly, only `isParameterized`. Parameterized tests share one `testName` across all
         // their concurrently-running cases, so fall back to the per-invocation `testID` to keep
@@ -110,6 +97,8 @@ public final class ContainerFixture: Sendable {
         let isParameterized = Test.Case.current?.isParameterized ?? false
         let logFileName = isParameterized ? "\(testName)-\(testID).log" : "\(testName).log"
 
+        // Set up logging before any fixture work (scratch dir creation, etc.) so a "test start"
+        // message is the first thing recorded — bookended by "test end" once `body` returns.
         var logger = Logger(label: "com.apple.container.test") { label in
             if let root = ProcessInfo.processInfo.environment["CLITEST_LOG_ROOT"], !root.isEmpty {
                 let path =
@@ -125,6 +114,20 @@ public final class ContainerFixture: Sendable {
         }
         logger[metadataKey: "testID"] = "\(testID)"
         logger[metadataKey: "test"] = "\(testIdentifier ?? testName)"
+        logger.info("test start")
+
+        let scratchRoot =
+            ProcessInfo.processInfo.environment["CLITEST_SCRATCH_ROOT"]
+            .map { FilePath($0) }
+            ?? FilePath(FileManager.default.temporaryDirectory.path)
+
+        // Name the scratch directory so it's immediately identifiable when browsing:
+        // {sanitizedTestName}-{testID}
+        let safeName = testName.replacingOccurrences(
+            of: "[^a-zA-Z0-9]", with: "-", options: .regularExpression)
+        let testDir = scratchRoot.appending("\(safeName)-\(testID)")
+        try FileManager.default.createDirectory(
+            atPath: testDir.string, withIntermediateDirectories: true, attributes: nil)
 
         let fixture = ContainerFixture(testID: testID, testDir: testDir, log: logger)
 
@@ -136,9 +139,11 @@ public final class ContainerFixture: Sendable {
 
         do {
             let result = try await body(fixture)
+            logger.info("test end", metadata: ["result": "pass"])
             await fixture.runCleanup()
             return result
         } catch {
+            logger.info("test end", metadata: ["result": "fail", "error": "\(error)"])
             await fixture.runCleanup()
             throw error
         }
