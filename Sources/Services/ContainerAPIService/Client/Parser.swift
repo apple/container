@@ -1056,6 +1056,60 @@ public struct Parser {
         return (normalizedAdd, normalizedDrop)
     }
 
+    // MARK: Security paths
+
+    /// Sentinel that clears all previously accumulated paths, including the runtime defaults.
+    private static let pathResetSentinel = "NONE"
+
+    /// Parse and validate --masked-path arguments.
+    ///
+    /// Values are processed in order on top of the runtime default set, so
+    /// `--masked-path /foo` yields the defaults plus `/foo`. The `NONE` sentinel
+    /// clears everything accumulated so far, including the defaults. A nil result
+    /// means the flag was not supplied and the runtime defaults apply unchanged.
+    public static func maskedPaths(_ values: [String]) throws -> [String]? {
+        try pathOverrides(values, defaults: LinuxContainer.defaultMaskedPaths(), flagName: "masked-path")
+    }
+
+    /// Parse and validate --read-only-path arguments. Ordering, the `NONE`
+    /// sentinel, and the nil result carry the same meaning as ``maskedPaths(_:)``.
+    public static func readonlyPaths(_ values: [String]) throws -> [String]? {
+        try pathOverrides(values, defaults: LinuxContainer.defaultReadonlyPaths(), flagName: "read-only-path")
+    }
+
+    /// Accumulate absolute paths on top of `defaults`, honoring the `NONE` reset
+    /// sentinel and dropping duplicates while preserving first-occurrence order.
+    private static func pathOverrides(_ values: [String], defaults: [String], flagName: String) throws -> [String]? {
+        guard !values.isEmpty else {
+            return nil
+        }
+        var paths = defaults
+        var seen = Set(defaults)
+        for value in values {
+            let trimmed = value.trimmingCharacters(in: .whitespaces)
+            if trimmed.uppercased() == pathResetSentinel {
+                paths = []
+                seen = []
+                continue
+            }
+            guard trimmed.hasPrefix("/") else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "invalid path '\(value)' for --\(flagName): path must be absolute, or the \(pathResetSentinel) sentinel"
+                )
+            }
+            // Strip trailing slashes, preserving the root path itself.
+            var normalized = trimmed
+            while normalized.count > 1 && normalized.hasSuffix("/") {
+                normalized.removeLast()
+            }
+            if seen.insert(normalized).inserted {
+                paths.append(normalized)
+            }
+        }
+        return paths
+    }
+
     // MARK: Miscellaneous
 
     public static func parseBool(string: String) -> Bool? {

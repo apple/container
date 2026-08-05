@@ -512,6 +512,44 @@ chown: /tmp: Operation not permitted
 ```
 
 
+## Mask and protect paths inside a container
+
+> [!NOTE]
+> `--masked-path` and `--read-only-path` are experimental.  The behavior described here are subject to change in a future release.
+
+By default, containers hide a set of sensitive paths from the workload, and mark another set read-only, matching the OCI runtime spec defaults that other production runtimes apply.
+
+Masked by default (files are replaced with `/dev/null`, directories with an empty read-only tmpfs):
+
+`/proc/asound`, `/proc/acpi`, `/proc/kcore`, `/proc/keys`, `/proc/latency_stats`, `/proc/timer_list`, `/proc/timer_stats`, `/proc/sched_debug`, `/proc/scsi`, `/sys/firmware`, `/sys/devices/virtual/powercap`
+
+Read-only by default:
+
+`/proc/bus`, `/proc/fs`, `/proc/irq`, `/proc/sys`, `/proc/sysrq-trigger`
+
+You can extend either set using `--masked-path` and `--read-only-path` with `container run` or `container create`. Both flags can be repeated, take absolute paths, and add to the defaults rather than replacing them:
+
+```console
+% container run --masked-path /etc/alpine-release alpine cat /etc/alpine-release
+% container run --read-only-path /tmp alpine touch /tmp/file
+touch: /tmp/file: Read-only file system
+```
+
+To opt out of the defaults entirely, pass the `NONE` sentinel. It clears every path accumulated so far for that flag, including the defaults:
+
+```bash
+container run --masked-path NONE alpine ls /sys/firmware
+```
+
+Because values are processed in order, `NONE` can be followed by a custom set that replaces the defaults:
+
+```bash
+container run --masked-path NONE --masked-path /run/secrets alpine sh
+```
+
+The two flags are independent, so clearing the masked paths leaves the read-only defaults in place. The paths that a container was created with are visible in `container inspect` under `configuration.maskedPaths` and `configuration.readonlyPaths`; when neither flag is used, both are absent and the runtime defaults apply.
+
+
 ## Expose virtualization capabilities to a container
 
 > [!NOTE]

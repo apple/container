@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import Containerization
 import ContainerizationError
 import ContainerizationExtras
 import Foundation
@@ -1194,6 +1195,152 @@ struct ParserTest {
         } throws: { _ in
             true
         }
+    }
+
+    // MARK: - Masked Paths Parser Tests
+
+    @Test
+    func testMaskedPathsParserEmpty() throws {
+        #expect(try Parser.maskedPaths([]) == nil)
+    }
+
+    @Test
+    func testMaskedPathsParserAppendsToDefaults() throws {
+        let result = try Parser.maskedPaths(["/run/secrets"])
+        #expect(result == LinuxContainer.defaultMaskedPaths() + ["/run/secrets"])
+    }
+
+    @Test
+    func testMaskedPathsParserResetSentinelOnly() throws {
+        #expect(try Parser.maskedPaths(["NONE"]) == [])
+    }
+
+    @Test
+    func testMaskedPathsParserResetSentinelThenPath() throws {
+        #expect(try Parser.maskedPaths(["NONE", "/run/secrets"]) == ["/run/secrets"])
+    }
+
+    @Test
+    func testMaskedPathsParserPathThenResetSentinel() throws {
+        #expect(try Parser.maskedPaths(["/run/secrets", "NONE"]) == [])
+    }
+
+    @Test
+    func testMaskedPathsParserResetSentinelCaseInsensitive() throws {
+        #expect(try Parser.maskedPaths(["none"]) == [])
+        #expect(try Parser.maskedPaths(["None"]) == [])
+    }
+
+    @Test
+    func testMaskedPathsParserOrderedResets() throws {
+        #expect(try Parser.maskedPaths(["/a", "NONE", "/b", "/c"]) == ["/b", "/c"])
+    }
+
+    @Test
+    func testMaskedPathsParserStripsTrailingSlash() throws {
+        #expect(try Parser.maskedPaths(["NONE", "/run/secrets/"]) == ["/run/secrets"])
+        #expect(try Parser.maskedPaths(["NONE", "/"]) == ["/"])
+    }
+
+    @Test
+    func testMaskedPathsParserTrimsWhitespace() throws {
+        #expect(try Parser.maskedPaths(["NONE", "  /run/secrets  "]) == ["/run/secrets"])
+    }
+
+    @Test
+    func testMaskedPathsParserDedupesRepeatedValues() throws {
+        #expect(try Parser.maskedPaths(["NONE", "/run/secrets", "/run/secrets/", "/run/secrets"]) == ["/run/secrets"])
+    }
+
+    @Test
+    func testMaskedPathsParserDedupesAgainstDefaults() throws {
+        let defaults = LinuxContainer.defaultMaskedPaths()
+        #expect(try Parser.maskedPaths([defaults[0]]) == defaults)
+    }
+
+    @Test
+    func testMaskedPathsParserRelativePath() throws {
+        #expect {
+            _ = try Parser.maskedPaths(["proc/kcore"])
+        } throws: { error in
+            "\(error)".contains("proc/kcore") && "\(error)".contains("masked-path")
+        }
+    }
+
+    @Test
+    func testMaskedPathsParserEmptyValue() throws {
+        #expect {
+            _ = try Parser.maskedPaths([""])
+        } throws: { _ in
+            true
+        }
+    }
+
+    // MARK: - Readonly Paths Parser Tests
+
+    @Test
+    func testReadonlyPathsParserEmpty() throws {
+        #expect(try Parser.readonlyPaths([]) == nil)
+    }
+
+    @Test
+    func testReadonlyPathsParserAppendsToDefaults() throws {
+        let result = try Parser.readonlyPaths(["/etc/config"])
+        #expect(result == LinuxContainer.defaultReadonlyPaths() + ["/etc/config"])
+    }
+
+    @Test
+    func testReadonlyPathsParserResetSentinelOnly() throws {
+        #expect(try Parser.readonlyPaths(["NONE"]) == [])
+    }
+
+    @Test
+    func testReadonlyPathsParserResetSentinelThenPath() throws {
+        #expect(try Parser.readonlyPaths(["NONE", "/etc/config"]) == ["/etc/config"])
+    }
+
+    @Test
+    func testReadonlyPathsParserPathThenResetSentinel() throws {
+        #expect(try Parser.readonlyPaths(["/etc/config", "NONE"]) == [])
+    }
+
+    @Test
+    func testReadonlyPathsParserResetSentinelCaseInsensitive() throws {
+        #expect(try Parser.readonlyPaths(["none"]) == [])
+    }
+
+    @Test
+    func testReadonlyPathsParserOrderedResets() throws {
+        #expect(try Parser.readonlyPaths(["/a", "NONE", "/b", "/c"]) == ["/b", "/c"])
+    }
+
+    @Test
+    func testReadonlyPathsParserStripsTrailingSlash() throws {
+        #expect(try Parser.readonlyPaths(["NONE", "/etc/config/"]) == ["/etc/config"])
+    }
+
+    @Test
+    func testReadonlyPathsParserDedupesAgainstDefaults() throws {
+        let defaults = LinuxContainer.defaultReadonlyPaths()
+        #expect(try Parser.readonlyPaths([defaults[0]]) == defaults)
+    }
+
+    @Test
+    func testReadonlyPathsParserRelativePath() throws {
+        #expect {
+            _ = try Parser.readonlyPaths(["proc/sys"])
+        } throws: { error in
+            "\(error)".contains("proc/sys") && "\(error)".contains("read-only-path")
+        }
+    }
+
+    @Test
+    func testReadonlyPathsParserDefaultsAreDistinctFromMaskedPaths() throws {
+        let masked = try Parser.maskedPaths(["/shared"])
+        let readonly = try Parser.readonlyPaths(["/shared"])
+        #expect(masked == LinuxContainer.defaultMaskedPaths() + ["/shared"])
+        #expect(readonly == LinuxContainer.defaultReadonlyPaths() + ["/shared"])
+        #expect(masked != readonly)
     }
 
     // MARK: - Parser.resources
