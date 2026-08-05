@@ -103,13 +103,20 @@ public final class ContainerFixture: Sendable {
         try FileManager.default.createDirectory(
             atPath: testDir.string, withIntermediateDirectories: true, attributes: nil)
 
+        // Swift Testing doesn't expose a stable per-case identifier or the case's arguments
+        // publicly, only `isParameterized`. Parameterized tests share one `testName` across all
+        // their concurrently-running cases, so fall back to the per-invocation `testID` to keep
+        // each case's log file distinct.
+        let isParameterized = Test.Case.current?.isParameterized ?? false
+        let logFileName = isParameterized ? "\(testName)-\(testID).log" : "\(testName).log"
+
         var logger = Logger(label: "com.apple.container.test") { label in
             if let root = ProcessInfo.processInfo.environment["CLITEST_LOG_ROOT"], !root.isEmpty {
                 let path =
                     FilePath(root)
                     .appending("clitests")
                     .appending(suiteName)
-                    .appending(testName + ".log")
+                    .appending(logFileName)
                 if let handler = try? FileLogHandler(label: label, category: "clitests", path: path) {
                     return handler
                 }
