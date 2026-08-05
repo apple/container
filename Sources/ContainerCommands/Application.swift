@@ -225,6 +225,7 @@ public struct Application: AsyncLoggableCommand {
             return [
                 BuilderCommand.self,
                 SystemCommand.self,
+                UpgradeCommand.self,
             ]
         }
 
@@ -232,6 +233,7 @@ public struct Application: AsyncLoggableCommand {
             BuilderCommand.self,
             NetworkCommand.self,
             SystemCommand.self,
+            UpgradeCommand.self,
         ]
     }
 
