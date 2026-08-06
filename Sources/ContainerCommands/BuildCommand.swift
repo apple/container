@@ -22,6 +22,7 @@ import ContainerPersistence
 import ContainerPlugin
 import Containerization
 import ContainerizationError
+import ContainerizationExtras
 import ContainerizationOCI
 import ContainerizationOS
 import Foundation
@@ -66,6 +67,24 @@ extension Application {
         @Option(name: .long, help: ArgumentHelp("Set build-contexts. Relative Paths are resolved based on the current working directory.", valueName: "name=<ref>"))
         var buildContext: [String] = []
 
+        @Option(name: .long, help: ArgumentHelp("Add a host-to-IP mapping resolvable during the build", valueName: "host=ip"))
+        var addHost: [String] = []
+
+        @Option(name: .long, help: ArgumentHelp("Hostname the build environment reports", valueName: "name"))
+        var hostname: String?
+
+        @Option(name: .long, help: ArgumentHelp("Size of /dev/shm during the build", valueName: "bytes"))
+        var shmSize: String?
+
+        @Option(name: .long, help: ArgumentHelp("Set a resource limit for the build", valueName: "type=soft:hard"))
+        var ulimit: [String] = []
+
+        @Option(name: .long, help: ArgumentHelp("Parent cgroup for the build environment", valueName: "cgroup"))
+        var cgroupParent: String?
+
+        @Option(name: .long, help: ArgumentHelp("Network mode for the build (none, host or sandbox)", valueName: "mode"))
+        var network: String?
+
         @Option(name: .long, help: ArgumentHelp("Cache imports for the build", valueName: "value", visibility: .hidden))
         var cacheIn: [String] = {
             []
@@ -83,6 +102,10 @@ extension Application {
         var file: String?
 
         var dockerfile: String = "-"
+
+        /// `--shm-size` parsed to bytes. The frontend takes a plain byte count,
+        /// so the suffixed forms users expect from docker are resolved here.
+        var shmSizeBytes: UInt64?
 
         @Option(name: .shortAndLong, help: ArgumentHelp("Set a label", valueName: "key=val"))
         var label: [String] = []
@@ -373,7 +396,8 @@ extension Application {
                     }()
                     group.addTask {
                         [
-                            terminal, buildArg, buildContext, secretsData, ssh, contextDir, ignoreFileData, label, noCache, target, quiet, cacheIn, cacheOut, pull, exports,
+                            terminal, buildArg, buildContext, addHost, hostname, shmSizeBytes, ulimit, cgroupParent, network,
+                            secretsData, ssh, contextDir, ignoreFileData, label, noCache, target, quiet, cacheIn, cacheOut, pull, exports,
                             imageNames, tempURL, log,
                         ] in
                         let config = Builder.BuildConfig(
@@ -381,6 +405,12 @@ extension Application {
                             contentStore: RemoteContentStoreClient(),
                             buildArgs: buildArg,
                             buildContexts: buildContext,
+                            addHosts: addHost,
+                            ulimits: ulimit,
+                            hostname: hostname,
+                            shmSize: shmSizeBytes,
+                            cgroupParent: cgroupParent,
+                            network: network,
                             secrets: secretsData,
                             ssh: ssh,
                             contextDir: contextDir,
@@ -514,6 +544,42 @@ extension Application {
                     throw ValidationError("build context \(parts[0]) is not a directory: \(value)")
                 }
                 return "\(parts[0])=\(dir.path)"
+            }
+
+            // The sandbox settings are validated here rather than in the
+            // builder so a typo fails before a VM is started. The accepted
+            // shapes are the dockerfile frontend's, which parses add-hosts as
+            // host=ip records, ulimit as name=soft:hard records, and
+            // force-network-mode as one of three names.
+            // https://github.com/moby/buildkit/blob/v0.29.0/frontend/dockerui/attr.go
+            for entry in addHost {
+                let parts = entry.split(separator: "=", maxSplits: 1)
+                guard parts.count == 2, !parts[0].isEmpty,
+                    (try? IPv4Address(String(parts[1]))) != nil
+                else {
+                    throw ValidationError("add-host must be host=ip: \(entry)")
+                }
+            }
+            for entry in ulimit {
+                let parts = entry.split(separator: "=", maxSplits: 1)
+                guard parts.count == 2, !parts[0].isEmpty else {
+                    throw ValidationError("ulimit must be type=soft:hard: \(entry)")
+                }
+                let limits = parts[1].split(separator: ":", maxSplits: 1)
+                guard limits.allSatisfy({ Int64($0) != nil }) else {
+                    throw ValidationError("ulimit values must be integers: \(entry)")
+                }
+            }
+            if let network {
+                guard ["none", "host", "sandbox"].contains(network) else {
+                    throw ValidationError("network must be none, host or sandbox: \(network)")
+                }
+            }
+            if let shmSize {
+                guard let bytes = try? Parser.memoryStringAsBytes(shmSize) else {
+                    throw ValidationError("invalid shm-size: \(shmSize)")
+                }
+                shmSizeBytes = bytes
             }
 
             switch file {

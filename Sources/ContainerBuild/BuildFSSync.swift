@@ -89,6 +89,15 @@ actor BuildFSSync: BuildPipelineHandler {
     /// Resolve the context root a transfer operates on from the dir-name the
     /// shim relayed. Every serving path (walk, read, info) resolves through
     /// here, so the same containment enforcement applies to every root.
+    ///
+    /// This mirrors BuildKit's own session provider, which resolves the
+    /// `dir-name` metadata through a registered directory source and answers
+    /// NotFound for a name it does not hold, so a name is the only thing a
+    /// requester can choose and the server keeps the paths. The primary
+    /// context and the dockerfile directory arrive under BuildKit's default
+    /// names for them.
+    /// https://github.com/moby/buildkit/blob/v0.29.0/session/filesync/filesync.go
+    /// https://github.com/moby/buildkit/blob/v0.29.0/frontend/dockerui/context.go
     private func contextRoot(_ packet: BuildTransfer) throws -> URL {
         guard let name = packet.dirName(), name != "context", name != "dockerfile" else {
             return self.contextDir

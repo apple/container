@@ -268,6 +268,12 @@ public struct Builder: Sendable {
         public let contentStore: ContentStore
         public let buildArgs: [String]
         public let buildContexts: [String]
+        public let addHosts: [String]
+        public let ulimits: [String]
+        public let hostname: String?
+        public let shmSize: UInt64?
+        public let cgroupParent: String?
+        public let network: String?
         public let secrets: [String: Data]
         public let ssh: String
         public let contextDir: String
@@ -291,6 +297,12 @@ public struct Builder: Sendable {
             contentStore: ContentStore,
             buildArgs: [String],
             buildContexts: [String],
+            addHosts: [String] = [],
+            ulimits: [String] = [],
+            hostname: String? = nil,
+            shmSize: UInt64? = nil,
+            cgroupParent: String? = nil,
+            network: String? = nil,
             secrets: [String: Data],
             ssh: String,
             contextDir: String,
@@ -313,6 +325,12 @@ public struct Builder: Sendable {
             self.contentStore = contentStore
             self.buildArgs = buildArgs
             self.buildContexts = buildContexts
+            self.addHosts = addHosts
+            self.ulimits = ulimits
+            self.hostname = hostname
+            self.shmSize = shmSize
+            self.cgroupParent = cgroupParent
+            self.network = network
             self.secrets = secrets
             self.ssh = ssh
             self.contextDir = contextDir
@@ -361,6 +379,24 @@ public struct Builder: Sendable {
         }
         for buildContext in config.buildContexts {
             metadata.addString(buildContext, forKey: "build-context")
+        }
+        for addHost in config.addHosts {
+            metadata.addString(addHost, forKey: "add-host")
+        }
+        for ulimit in config.ulimits {
+            metadata.addString(ulimit, forKey: "ulimit")
+        }
+        if let hostname = config.hostname {
+            metadata.addString(hostname, forKey: "hostname")
+        }
+        if let shmSize = config.shmSize {
+            metadata.addString(String(shmSize), forKey: "shm-size")
+        }
+        if let cgroupParent = config.cgroupParent {
+            metadata.addString(cgroupParent, forKey: "cgroup-parent")
+        }
+        if let network = config.network {
+            metadata.addString(network, forKey: "network")
         }
         for (id, data) in config.secrets {
             metadata.addString(id + "=" + data.base64EncodedString(), forKey: "secrets")
