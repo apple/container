@@ -394,4 +394,105 @@ import Testing
         let secretLeak = infos.first { $0.name.hasSuffix("secret.txt") }
         #expect(secretLeak == nil, "no entry for the external file should appear in walk() results: \(infos.map { $0.name })")
     }
+
+    // MARK: - named contexts: root selection and containment
+    //
+    // Every serving path resolves its root through contextRoot(): the dir-name
+    // the shim relays either names a declared named context, is one of the two
+    // primary names ("context", "dockerfile"), or is refused. These tests pin
+    // that mapping and show the boundary enforcement applies under a named
+    // root exactly as it does under the primary one.
+
+    /// Returns a read packet whose dir-name metadata selects a context root.
+    private func readPacket(source: String, dirName: String) -> BuildTransfer {
+        var p = readPacket(source: source)
+        p.metadata["dir-name"] = dirName
+        return p
+    }
+
+    @Test func testInfoServesFromNamedContextRoot() async throws {
+        let namedDir = base.appendingPathComponent("dep")
+        try fm.createDirectory(at: namedDir, withIntermediateDirectories: true)
+        try write("hello", to: namedDir.appendingPathComponent("hello.txt"))
+
+        let fssync = try BuildFSSync(contextDir, namedContexts: ["dep": namedDir])
+        var continuation: AsyncStream<ClientStream>.Continuation!
+        _ = AsyncStream<ClientStream> { continuation = $0 }
+        defer { continuation.finish() }
+
+        // hello.txt exists only under the named root; resolving it proves the
+        // dir-name selected that root rather than the primary context.
+        try await fssync.info(continuation, readPacket(source: "hello.txt", dirName: "dep"), "build-0")
+    }
+
+    @Test func testInfoPrimaryNamesResolveToContextDir() async throws {
+        let namedDir = base.appendingPathComponent("dep")
+        try fm.createDirectory(at: namedDir, withIntermediateDirectories: true)
+        try write("primary", to: contextDir.appendingPathComponent("main.txt"))
+
+        let fssync = try BuildFSSync(contextDir, namedContexts: ["dep": namedDir])
+        var continuation: AsyncStream<ClientStream>.Continuation!
+        _ = AsyncStream<ClientStream> { continuation = $0 }
+        defer { continuation.finish() }
+
+        // main.txt exists only in the primary context; both reserved names and
+        // the no-metadata packet must resolve there even with named contexts
+        // declared.
+        try await fssync.info(continuation, readPacket(source: "main.txt", dirName: "context"), "build-0")
+        try await fssync.info(continuation, readPacket(source: "main.txt", dirName: "dockerfile"), "build-0")
+        try await fssync.info(continuation, readPacket(source: "main.txt"), "build-0")
+    }
+
+    @Test func testReadRejectsUndeclaredNamedContext() async throws {
+        try write("primary", to: contextDir.appendingPathComponent("main.txt"))
+
+        let fssync = try BuildFSSync(contextDir)
+        var continuation: AsyncStream<ClientStream>.Continuation!
+        _ = AsyncStream<ClientStream> { continuation = $0 }
+        defer { continuation.finish() }
+
+        do {
+            try await fssync.read(continuation, readPacket(source: "main.txt", dirName: "undeclared"), "build-0")
+            Issue.record("read() should refuse a dir-name that was never declared on the command line")
+        } catch let error as BuildFSSync.Error {
+            #expect(error == .unknownNamedContext("undeclared"))
+        }
+    }
+
+    @Test func testReadRejectsSymlinkEscapeFromNamedContextRoot() async throws {
+        let namedDir = base.appendingPathComponent("dep")
+        try fm.createDirectory(at: namedDir, withIntermediateDirectories: true)
+        let secretFile = outsideDir.appendingPathComponent("secret.txt")
+        try write("supersecret", to: secretFile)
+
+        // Symlink inside the named root → absolute path outside it. The
+        // primary-context tests above prove this is refused under contextDir;
+        // this proves the same enforcement holds under a named root.
+        try fm.createSymbolicLink(
+            atPath: namedDir.appendingPathComponent("leak").path(percentEncoded: false),
+            withDestinationPath: secretFile.path(percentEncoded: false)
+        )
+
+        let fssync = try BuildFSSync(contextDir, namedContexts: ["dep": namedDir])
+        var continuation: AsyncStream<ClientStream>.Continuation!
+        _ = AsyncStream<ClientStream> { continuation = $0 }
+        defer { continuation.finish() }
+
+        do {
+            try await fssync.read(continuation, readPacket(source: "leak", dirName: "dep"), "build-0")
+            Issue.record("read() should throw BuildFSSync.Error for a symlink that resolves outside its named context root")
+        } catch is BuildFSSync.Error {
+            // expected
+        }
+    }
+
+    @Test func testInitRejectsMissingNamedContextDirectory() async throws {
+        let missing = base.appendingPathComponent("never-created")
+        do {
+            _ = try BuildFSSync(contextDir, namedContexts: ["dep": missing])
+            Issue.record("init should refuse a named context directory that does not exist")
+        } catch is BuildFSSync.Error {
+            // expected
+        }
+    }
 }
