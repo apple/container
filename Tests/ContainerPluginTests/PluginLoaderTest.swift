@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import Logging
 import Testing
 
 @testable import ContainerPlugin
@@ -268,6 +269,84 @@ struct PluginLoaderTest {
         let programArguments = plist["ProgramArguments"] as! [String]
 
         #expect(!programArguments.contains("--debug"))
+    }
+
+    // MARK: - userHomePluginsDir
+
+    @Test
+    func testUserHomePluginsDirWithXDG() async throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let pluginsDir = tempDir.appendingPathComponent("container/plugins")
+        try FileManager.default.createDirectory(at: pluginsDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        setenv("XDG_DATA_HOME", tempDir.path, 1)
+        defer { unsetenv("XDG_DATA_HOME") }
+
+        let result = PluginLoader.userHomePluginsDir()
+        #expect(result != nil)
+        #expect(result?.path == pluginsDir.path)
+    }
+
+    @Test
+    func testUserHomePluginsDirFallback() async throws {
+        // Without XDG_DATA_HOME, should fall back to ~/.local/share/container/plugins
+        // which doesn't exist in CI, so expect nil.
+        unsetenv("XDG_DATA_HOME")
+        let result = PluginLoader.userHomePluginsDir()
+        #expect(result == nil)
+    }
+
+    @Test
+    func testUserHomePluginsDirNonexistent() async throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        setenv("XDG_DATA_HOME", tempDir.path, 1)
+        defer { unsetenv("XDG_DATA_HOME") }
+
+        // Directory doesn't exist → nil
+        let result = PluginLoader.userHomePluginsDir()
+        #expect(result == nil)
+    }
+
+    @Test
+    func testUserHomePluginsDirPriorityOverInstallRoot() async throws {
+        // When the same plugin name exists in both user-home and install-root dirs,
+        // the user-home plugin wins (earlier in search order).
+        let homeDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let homePluginsDir = homeDir.appendingPathComponent("container/plugins")
+        try FileManager.default.createDirectory(at: homePluginsDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: homeDir) }
+
+        setenv("XDG_DATA_HOME", homeDir.path, 1)
+        defer { unsetenv("XDG_DATA_HOME") }
+
+        let installDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: installDir) }
+
+        let factory = try setupMock(tempURL: installDir)
+
+        // Create a "cli" plugin in the user-home dir with a different abstract
+        try FileManager.default.createDirectory(at: homePluginsDir.appendingPathComponent("cli/bin"), withIntermediateDirectories: true)
+        try Data().write(to: homePluginsDir.appendingPathComponent("cli/bin/cli"))
+        try """
+        abstract = "user-home-plugin"
+        author = "test"
+        """.write(to: homePluginsDir.appendingPathComponent("cli/config.toml"), atomically: true, encoding: .utf8)
+
+        let userHomeURL = try #require(PluginLoader.userHomePluginsDir())
+        let loader = try PluginLoader(
+            appRoot: homeDir,
+            installRoot: URL(filePath: "/usr/local/"),
+            logRoot: nil,
+            pluginDirectories: [userHomeURL, installDir],
+            pluginFactories: [DefaultPluginFactory(logger: Logger(label: "test")), factory]
+        )
+        let plugins = loader.findPlugins()
+        let cliPlugin = plugins.first { $0.name == "cli" }
+        #expect(cliPlugin != nil)
+        #expect(cliPlugin?.config.abstract == "user-home-plugin")
     }
 
     private func setupMock(tempURL: URL) throws -> MockPluginFactory {
