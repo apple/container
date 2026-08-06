@@ -1422,8 +1422,12 @@ extension ContainerResource.Bundle {
     /// Create the raw block file backing the container's swap area.
     ///
     /// It carries no filesystem: the guest agent writes the swap header to the
-    /// device and enables it. Fully allocated rather than sparse, because the
-    /// kernel maps a swap area's blocks directly and refuses one with holes.
+    /// device and enables it. The file is sparse, so it costs the host only the
+    /// pages the guest has actually swapped out, and gives them back on
+    /// discard. A swap area held in a file has to be free of holes, since the
+    /// kernel walks its extents; the guest reaches this one as a block device,
+    /// which the kernel takes as a single extent without consulting the host's
+    /// layout. https://github.com/torvalds/linux/blob/master/mm/swapfile.c
     /// The area holds nothing that outlives the container, so it is made afresh
     /// with every bootstrap and the host is told not to synchronize it.
     func createSwapDevice(size: UInt64) throws -> Filesystem {
