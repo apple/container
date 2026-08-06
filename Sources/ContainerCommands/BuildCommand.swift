@@ -534,6 +534,23 @@ extension Application {
                 }
                 let value = String(parts[1])
                 if passthroughPrefixes.contains(where: { value.hasPrefix($0) }) {
+                    // An oci-layout value names a layout directory on this
+                    // machine, so a missing directory can be refused here with
+                    // its real cause; anything that slips past resolves as an
+                    // image reference and fails with a misleading
+                    // invalid-domain error.
+                    if value.hasPrefix("oci-layout://") {
+                        var path = String(value.dropFirst("oci-layout://".count))
+                        if let at = path.firstIndex(of: "@") {
+                            path = String(path[path.startIndex..<at])
+                        }
+                        var isLayoutDir: ObjCBool = false
+                        guard FileManager.default.fileExists(atPath: path, isDirectory: &isLayoutDir),
+                            isLayoutDir.boolValue
+                        else {
+                            throw ValidationError("build context \(parts[0]) names no OCI layout directory: \(path)")
+                        }
+                    }
                     return entry
                 }
                 let dir = URL(fileURLWithPath: value, relativeTo: .currentDirectory()).standardizedFileURL
