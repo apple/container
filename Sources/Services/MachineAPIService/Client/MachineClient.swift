@@ -77,7 +77,9 @@ public struct MachineClient: Sendable {
             id: id,
             image: img.description,
             platform: requestedPlatform,
-            userSetup: userSetup)
+            userSetup: userSetup,
+            maskedPaths: try Parser.maskedPaths(management.maskedPaths),
+            readonlyPaths: try Parser.readonlyPaths(management.readonlyPaths))
 
         let resources = try? await Self.fetchMachineArtifact(
             reference: img.reference, platform: requestedPlatform, scheme: scheme)

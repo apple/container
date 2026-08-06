@@ -29,5 +29,25 @@ extension Flags {
 
         @Option(name: .long, help: "Platform for the image if it's multi-platform. This takes precedence over --os and --arch")
         public var platform: String?
+
+        /// EXPERIMENTAL: The flag is subject to change.
+        @Option(
+            name: .customLong("masked-path"),
+            help: .init(
+                "[EXPERIMENTAL] Hide a path inside the container machine, in addition to the runtime defaults (or NONE to clear prior values and the defaults)",
+                valueName: "path"
+            )
+        )
+        public var maskedPaths: [String] = []
+
+        /// EXPERIMENTAL: The flag is subject to change.
+        @Option(
+            name: .customLong("read-only-path"),
+            help: .init(
+                "[EXPERIMENTAL] Mark a path inside the container machine read-only, in addition to the runtime defaults (or NONE to clear prior values and the defaults)",
+                valueName: "path"
+            )
+        )
+        public var readonlyPaths: [String] = []
     }
 }

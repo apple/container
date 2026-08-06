@@ -697,6 +697,8 @@ extension MachineConfiguration {
         config.capAdd = ["ALL"]
         config.ssh = true
         config.virtualization = virtualization
+        config.maskedPaths = maskedPaths
+        config.readonlyPaths = readonlyPaths
 
         config.rosetta = platform.architecture == "amd64" && Arch.hostArchitecture() == .arm64
 

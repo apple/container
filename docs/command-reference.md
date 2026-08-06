@@ -1089,6 +1089,8 @@ container machine create [<options>] <image>
 *   `--cpus <cpus>`: Number of virtual CPUs
 *   `--memory <memory>`: Memory allocation (e.g., 2G, 8G). Default: half of system memory
 *   `--home-mount <home-mount>`: User's home directory mount option (ro, rw, none). Default: rw
+*   `--masked-path <path>`: **Experimental.** Hide a path inside the container machine, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
+*   `--read-only-path <path>`: **Experimental.** Mark a path inside the container machine read-only, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
 *   `--virtualization`: Enable nested virtualization. Requires Apple Silicon M3+ and macOS 15+ and kernel with CONFIG_KVM=y.
 *   `--kernel <path>`: Path to a custom kernel binary (e.g. `vmlinux`).
 
@@ -1124,6 +1126,9 @@ container machine create --no-boot alpine:3.22
 
 # enable nested virtualization with a custom kernel built with CONFIG_KVM=y
 container machine create --virtualization --kernel ./vmlinux-kvm alpine:3.22
+
+# mask and protect paths inside the container machine
+container machine create --masked-path /run/secrets --read-only-path /opt alpine:3.22
 ```
 
 ### `container machine run`

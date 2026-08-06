@@ -55,6 +55,12 @@ public struct MachineConfiguration: Sendable, Codable {
     public var platform: ContainerizationOCI.Platform
     /// User setup from first boot. Nil means provisioning has not run yet.
     public var userSetup: UserSetup
+    /// Paths hidden inside the machine, in addition to the runtime defaults.
+    /// Nil means the runtime defaults apply.
+    public var maskedPaths: [String]?
+    /// Paths marked read-only inside the machine, in addition to the runtime defaults.
+    /// Nil means the runtime defaults apply.
+    public var readonlyPaths: [String]?
 
     public var user: ProcessConfiguration.User {
         userSetup.user
@@ -88,14 +94,27 @@ public struct MachineConfiguration: Sendable, Codable {
         id: String,
         image: ImageDescription,
         platform: ContainerizationOCI.Platform,
-        userSetup: UserSetup
+        userSetup: UserSetup,
+        maskedPaths: [String]? = nil,
+        readonlyPaths: [String]? = nil
     ) throws {
         self.id = id
         self.image = image
         self.platform = platform
         self.userSetup = userSetup
+        self.maskedPaths = maskedPaths
+        self.readonlyPaths = readonlyPaths
 
         try self.validate()
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case image
+        case platform
+        case userSetup
+        case maskedPaths
+        case readonlyPaths
     }
 
     public init(from decoder: Decoder) throws {
@@ -106,8 +125,21 @@ public struct MachineConfiguration: Sendable, Codable {
         self.platform = try container.decode(ContainerizationOCI.Platform.self, forKey: .platform)
         // DEPRECATED 0.11.0.0 - `decodeIfPresent` used for down-revision compatibility, remove in 0.13.0.0
         self.userSetup = try container.decodeIfPresent(UserSetup.self, forKey: .userSetup) ?? UserSetup(username: NSUserName(), uid: getuid(), gid: getgid())
+        self.maskedPaths = try container.decodeIfPresent([String].self, forKey: .maskedPaths)
+        self.readonlyPaths = try container.decodeIfPresent([String].self, forKey: .readonlyPaths)
 
         try self.validate()
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        try container.encode(id, forKey: .id)
+        try container.encode(image, forKey: .image)
+        try container.encode(platform, forKey: .platform)
+        try container.encode(userSetup, forKey: .userSetup)
+        try container.encodeIfPresent(maskedPaths, forKey: .maskedPaths)
+        try container.encodeIfPresent(readonlyPaths, forKey: .readonlyPaths)
     }
 
     private func validate() throws {

@@ -527,12 +527,13 @@ Read-only by default:
 
 `/proc/bus`, `/proc/fs`, `/proc/irq`, `/proc/sys`, `/proc/sysrq-trigger`
 
-You can extend either set using `--masked-path` and `--read-only-path` with `container run` or `container create`. Both flags can be repeated, take absolute paths, and add to the defaults rather than replacing them:
+You can extend either set using `--masked-path` and `--read-only-path` with `container run`, `container create`, or `container machine create`. Both flags can be repeated, take absolute paths, and add to the defaults rather than replacing them:
 
 ```console
 % container run --masked-path /etc/alpine-release alpine cat /etc/alpine-release
 % container run --read-only-path /tmp alpine touch /tmp/file
 touch: /tmp/file: Read-only file system
+% container machine create --masked-path /etc/alpine-release --read-only-path /opt alpine:3.22
 ```
 
 To opt out of the defaults entirely, pass the `NONE` sentinel. It clears every path accumulated so far for that flag, including the defaults:
@@ -547,7 +548,7 @@ Because values are processed in order, `NONE` can be followed by a custom set th
 container run --masked-path NONE --masked-path /run/secrets alpine sh
 ```
 
-The two flags are independent, so clearing the masked paths leaves the read-only defaults in place. The paths that a container was created with are visible in `container inspect` under `configuration.maskedPaths` and `configuration.readonlyPaths`; when neither flag is used, both are absent and the runtime defaults apply.
+The two flags are independent, so clearing the masked paths leaves the read-only defaults in place. The paths that a container was created with are visible in `container inspect` under `configuration.maskedPaths` and `configuration.readonlyPaths`; when neither flag is used, both are absent and the runtime defaults apply. For container machines, the paths are fixed when the machine is created and are visible in `container machine inspect` as `maskedPaths` and `readonlyPaths`.
 
 
 ## Expose virtualization capabilities to a container

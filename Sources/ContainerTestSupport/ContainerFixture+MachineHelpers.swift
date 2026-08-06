@@ -43,6 +43,8 @@ public struct MachineInspectOutput: Codable {
     public let homeMount: String?
     public let diskSize: UInt64?
     public let ipAddress: String?
+    public let maskedPaths: [String]?
+    public let readonlyPaths: [String]?
 
     public struct ImageDescription: Codable {
         public let reference: String
