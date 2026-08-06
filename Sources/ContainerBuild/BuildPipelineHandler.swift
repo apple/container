@@ -76,9 +76,21 @@ protocol BuildPipelineHandler: Sendable {
 public actor BuildPipeline {
     let handlers: [BuildPipelineHandler]
     public init(_ config: Builder.BuildConfig) async throws {
+        // Local named contexts are the `name=/absolute/path` entries; the CLI
+        // resolved every local value to an absolute path when it validated the
+        // flag, so a leading slash is what distinguishes a directory from an
+        // image, git, URL or oci-layout reference here.
+        var namedContexts: [String: URL] = [:]
+        for entry in config.buildContexts {
+            let parts = entry.split(separator: "=", maxSplits: 1)
+            guard parts.count == 2, parts[1].hasPrefix("/") else {
+                continue
+            }
+            namedContexts[String(parts[0])] = URL(filePath: String(parts[1]))
+        }
         self.handlers =
             [
-                try BuildFSSync(URL(filePath: config.contextDir)),
+                try BuildFSSync(URL(filePath: config.contextDir), namedContexts: namedContexts),
                 try BuildRemoteContentProxy(config.contentStore),
                 try BuildImageResolver(
                     config.contentStore,

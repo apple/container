@@ -487,6 +487,35 @@ extension Application {
                 }
             }
 
+            // Each --build-context is name=value, where the value is either a
+            // non-local reference (image, git, URL, oci-layout) passed through
+            // to the builder, or a local directory. A local directory must
+            // exist, and is resolved to an absolute path here so that neither
+            // the API server's nor the builder's working directory can change
+            // its meaning.
+            let passthroughPrefixes = [
+                "docker-image://", "oci-layout:", "http://", "https://",
+                "git://", "git@", "ssh://", "local:", "input:",
+            ]
+            buildContext = try buildContext.map { entry in
+                let parts = entry.split(separator: "=", maxSplits: 1)
+                guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else {
+                    throw ValidationError("build context must be name=value: \(entry)")
+                }
+                let value = String(parts[1])
+                if passthroughPrefixes.contains(where: { value.hasPrefix($0) }) {
+                    return entry
+                }
+                let dir = URL(fileURLWithPath: value, relativeTo: .currentDirectory()).standardizedFileURL
+                var isDirectory: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: dir.path, isDirectory: &isDirectory),
+                    isDirectory.boolValue
+                else {
+                    throw ValidationError("build context \(parts[0]) is not a directory: \(value)")
+                }
+                return "\(parts[0])=\(dir.path)"
+            }
+
             switch file {
             case "-":
                 dockerfile = "-"

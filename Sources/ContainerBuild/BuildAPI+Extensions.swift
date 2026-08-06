@@ -36,6 +36,14 @@ extension BuildTransfer {
         return method == "" ? nil : method
     }
 
+    /// The BuildKit local-dir name this transfer belongs to: empty or
+    /// "context" for the primary build context, otherwise the name of a
+    /// `--build-context` the CLI declared.
+    func dirName() -> String? {
+        let dirName = self.metadata["dir-name"]
+        return dirName == "" ? nil : dirName
+    }
+
     func includePatterns() -> [String]? {
         guard let includePatternsString = self.metadata["include-patterns"] else {
             return nil
