@@ -291,8 +291,8 @@ struct K8sHelper {
         sysctl -w net.bridge.bridge-nf-call-ip6tables=1 2>/dev/null || true
         systemctl restart containerd
         ctr -n k8s.io images tag registry.k8s.io/pause:3.10 registry.k8s.io/pause:3.10.1 2>/dev/null || true
-        iptables -t mangle -A OUTPUT  -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
-        iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
+        /usr/sbin/iptables-nft -t mangle -A OUTPUT  -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220 2>/dev/null || true
+        /usr/sbin/iptables-nft -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220 2>/dev/null || true
         """
     }()
 
@@ -538,7 +538,7 @@ struct K8sHelper {
         existing.clusters.append(contentsOf: config.clusters)
         existing.contexts.append(contentsOf: config.contexts)
         existing.users.append(contentsOf: config.users)
-        if setCurrentContext && existing.currentContext == nil {
+        if setCurrentContext {
             existing.currentContext = containerId
         }
 

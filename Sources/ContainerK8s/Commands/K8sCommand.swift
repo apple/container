@@ -17,9 +17,8 @@
 import ArgumentParser
 import ContainerVersion
 
-@main
-struct K8sCommand: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
+public struct K8sCommand: AsyncParsableCommand {
+    public static let configuration = CommandConfiguration(
         commandName: "k8s",
         abstract: "Manage local Kubernetes development clusters (EXPERIMENTAL)",
         discussion: """
@@ -56,4 +55,6 @@ struct K8sCommand: AsyncParsableCommand {
             K8sWriteConfig.self,
         ]
     )
+
+    public init() {}
 }

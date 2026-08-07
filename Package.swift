@@ -52,6 +52,7 @@ let package = Package(
         .library(name: "TerminalProgress", targets: ["TerminalProgress"]),
         .library(name: "MachineAPIClient", targets: ["MachineAPIClient"]),
         .library(name: "MachineAPIService", targets: ["MachineAPIService"]),
+        .library(name: "ContainerK8s", targets: ["ContainerK8s"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion)),
@@ -167,19 +168,21 @@ let package = Package(
         .testTarget(
             name: "K8sTests",
             dependencies: [
-                "k8s",
+                "ContainerK8s",
                 "ContainerResource",
                 "Yams",
             ],
             path: "Tests/K8sPluginTests"
         ),
-        .executableTarget(
-            name: "k8s",
+        .target(
+            name: "ContainerK8s",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationOCI", package: "containerization"),
+                .product(name: "ContainerizationOS", package: "containerization"),
+                .product(name: "SystemPackage", package: "swift-system"),
                 "ContainerAPIClient",
                 "ContainerLog",
                 "ContainerPersistence",
@@ -188,9 +191,13 @@ let package = Package(
                 "TerminalProgress",
                 "Yams",
             ],
-            path: "Sources/Plugins/K8s",
-            exclude: ["config.toml"],
             resources: [.process("Resources/kindnet.yaml")]
+        ),
+        .executableTarget(
+            name: "k8s",
+            dependencies: ["ContainerK8s"],
+            path: "Sources/Plugins/K8s",
+            exclude: ["config.toml"]
         ),
         .executableTarget(
             name: "container-apiserver",
