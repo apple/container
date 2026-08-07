@@ -186,18 +186,18 @@ let package = Package(
                 "ContainerAPIClient",
                 "ContainerLog",
                 "ContainerPersistence",
+                "ContainerPlugin",
                 "ContainerResource",
                 "ContainerVersion",
                 "TerminalProgress",
                 "Yams",
-            ],
-            resources: [.process("Resources/kindnet.yaml")]
+            ]
         ),
         .executableTarget(
             name: "k8s",
             dependencies: ["ContainerK8s"],
             path: "Sources/Plugins/K8s",
-            exclude: ["config.toml"]
+            exclude: ["config.toml", "Resources"]
         ),
         .executableTarget(
             name: "container-apiserver",
