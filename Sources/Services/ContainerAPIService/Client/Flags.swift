@@ -158,8 +158,8 @@ public struct Flags {
             self.scheme = scheme
         }
 
-        @Option(help: "Scheme to use when connecting to the container registry. One of (http, https, auto)")
-        public var scheme: String = "auto"
+        @Option(help: "Scheme to use when connecting to the container registry. One of (http, https)")
+        public var scheme: String = "https"
     }
 
     public struct Management: ParsableArguments {
