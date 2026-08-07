@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerK8s
 import ContainerVersion
 
 public struct K8sCommand: AsyncParsableCommand {
