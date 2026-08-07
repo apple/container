@@ -108,10 +108,15 @@ public struct Parser {
         swap: String? = nil,
         defaultCPUs: Int,
         defaultMemory: MemorySize,
+        defaultSwap: MemorySize = ContainerConfig.defaultSwap,
     ) throws -> ContainerConfiguration.Resources {
         var resource = ContainerConfiguration.Resources()
         resource.cpus = defaultCPUs
         resource.memoryInBytes = Int64(defaultMemory.measurement.converted(to: .mebibytes).value).mib()
+        let defaultSwapInBytes = Int64(defaultSwap.measurement.converted(to: .mebibytes).value).mib()
+        if defaultSwapInBytes > 0 {
+            resource.swapInBytes = defaultSwapInBytes
+        }
 
         if let cpus {
             resource.cpus = Int(cpus)
@@ -121,8 +126,9 @@ public struct Parser {
             resource.memoryInBytes = try Parser.memoryStringAsMiB(memory).mib()
         }
 
-        // Left unset the container gets no swap area at all, which is what a
-        // container that is expected to stay within its memory wants.
+        // Left unset everywhere the container gets no swap area at all, which
+        // is what a container expected to stay within its memory wants; the
+        // flag overrides the configured default the way memory does.
         if let swap {
             resource.swapInBytes = try Parser.memoryStringAsMiB(swap).mib()
         }

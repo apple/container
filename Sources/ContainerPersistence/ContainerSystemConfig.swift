@@ -115,19 +115,25 @@ final public class BuildConfig: Codable, Sendable {
 final public class ContainerConfig: Codable, Sendable {
     public static let defaultCPUs = 4
     public static let defaultMemory = try! MemorySize("1g")
+    /// No swap area, so a container stays within the memory it is given
+    /// unless the operator asks for headroom beyond it.
+    public static let defaultSwap = try! MemorySize("0")
 
     public let cpus: Int
     public let memory: MemorySize
+    public let swap: MemorySize
 
-    public init(cpus: Int = defaultCPUs, memory: MemorySize = defaultMemory) {
+    public init(cpus: Int = defaultCPUs, memory: MemorySize = defaultMemory, swap: MemorySize = defaultSwap) {
         self.cpus = cpus
         self.memory = memory
+        self.swap = swap
     }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.cpus = try container.decodeIfPresent(Int.self, forKey: .cpus) ?? Self.defaultCPUs
         self.memory = try container.decodeIfPresent(MemorySize.self, forKey: .memory) ?? Self.defaultMemory
+        self.swap = try container.decodeIfPresent(MemorySize.self, forKey: .swap) ?? Self.defaultSwap
     }
 }
 

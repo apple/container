@@ -158,7 +158,8 @@ public struct Utility {
             memory: resource.memory,
             swap: resource.swap,
             defaultCPUs: containerSystemConfig.container.cpus,
-            defaultMemory: containerSystemConfig.container.memory
+            defaultMemory: containerSystemConfig.container.memory,
+            defaultSwap: containerSystemConfig.container.swap
         )
 
         let tmpfs = try Parser.tmpfsMounts(management.tmpFs)
