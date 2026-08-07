@@ -15,7 +15,6 @@
 //===----------------------------------------------------------------------===//
 
 #if os(macOS)
-import CAuditToken
 import ContainerizationError
 import Foundation
 import Logging
@@ -172,11 +171,16 @@ public struct XPCServer: Sendable {
             return
         }
 
-        // Ensure that the client has our EUID
-        var token = audit_token_t()
-        xpc_dictionary_get_audit_token(object, &token)
+        // Ensure that the client has our EUID.
+        //
+        // The peer's credentials come from the connection rather than from the message's
+        // audit token: `xpc_dictionary_get_audit_token` is not public API, and App Review
+        // rejects binaries that reference it. For a launchd Mach service every peer
+        // arrives on its own connection, so the connection's EUID and the message
+        // sender's EUID are the same identity — `xpc_connection_get_euid` is the
+        // documented way to read it.
         let serverEuid = geteuid()
-        let clientEuid = audit_token_to_euid(token)
+        let clientEuid = xpc_connection_get_euid(connection)
         guard clientEuid == serverEuid else {
             log.error(
                 "unauthorized request - uid mismatch",
