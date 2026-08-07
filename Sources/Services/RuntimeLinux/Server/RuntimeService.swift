@@ -782,6 +782,54 @@ public actor RuntimeService {
         }
     }
 
+    /// Clean up unused space in the container filesystem.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with the following parameters:
+    ///     - id: The container ID.
+    ///
+    /// - Returns: An XPC message with no parameters.
+    @Sendable
+    public func clean(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`clean` xpc handler")
+        switch self.state {
+        case .running:
+            guard let id = message.string(key: RuntimeKeys.id.rawValue) else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no id supplied for clean"
+                )
+            }
+
+            let ctr = try getContainer()
+            guard id == ctr.config.id else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "clean id does not match runtime container"
+                )
+            }
+
+            // Perform filesystem trim on the root filesystem
+            try await ctr.container.filesystemOperation(operation: .trim, path: "/")
+
+            // Trim all block-backed mounts. Named volumes are expected to be
+            // block-backed, and may be represented as either `.volume` or
+            // `.block` depending on how configuration was created.
+            for mount in ctr.config.mounts {
+                if mount.isBlock {
+                    try await ctr.container.filesystemOperation(operation: .trim, path: mount.destination)
+                }
+            }
+
+            return message.reply()
+        default:
+            throw ContainerizationError(
+                .invalidState,
+                message: "cannot clean: container is not running"
+            )
+        }
+    }
+
     /// Snapshot the container's root filesystem.
     ///
     /// When the container is running, freeze/thaw around the copy for consistency.
