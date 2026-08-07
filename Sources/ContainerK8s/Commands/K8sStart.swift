@@ -22,8 +22,10 @@ import ContainerizationError
 import Foundation
 import Logging
 
-struct K8sStart: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
+public struct K8sStart: AsyncParsableCommand {
+    public init() {}
+
+    public static let configuration = CommandConfiguration(
         commandName: "start",
         abstract: "Start a stopped Kubernetes cluster"
     )
@@ -31,7 +33,7 @@ struct K8sStart: AsyncParsableCommand {
     @Option(name: .long, help: "Cluster name (default: \(K8sHelper.defaultName))")
     var name: String = K8sHelper.defaultName
 
-    func run() async throws {
+    public func run() async throws {
         LoggingSystem.bootstrap { _ in StderrLogHandler() }
         let log = Logger(label: K8sHelper.pluginName)
 

@@ -21,8 +21,10 @@ import Foundation
 import Logging
 import SystemPackage
 
-struct K8sWriteConfig: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
+public struct K8sWriteConfig: AsyncParsableCommand {
+    public init() {}
+
+    public static let configuration = CommandConfiguration(
         commandName: "write-config",
         abstract: "Write the cluster context to a Kubernetes configuration file"
     )
@@ -33,7 +35,7 @@ struct K8sWriteConfig: AsyncParsableCommand {
     @Option(name: .long, help: "Path to the kubeconfig file to write or append to (default: ~/.kube/config)")
     var kubeconfig: String?
 
-    func run() async throws {
+    public func run() async throws {
         LoggingSystem.bootstrap { _ in StderrLogHandler() }
         let log = Logger(label: K8sHelper.pluginName)
 

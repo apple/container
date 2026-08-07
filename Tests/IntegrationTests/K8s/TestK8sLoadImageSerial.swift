@@ -74,6 +74,7 @@ struct TestK8sLoadImageSerial {
             let name = "k8s-\(f.testID)"
             f.addCleanup { _ = try? f.run(["k8s", "delete", "--name", name]) }
 
+            try f.restoreWarmupImage(.kindestNodeV1_35_5)
             print("[k8s-load] k8s create --name \(name)")
             let result = try f.run(["k8s", "create", "--name", name])
             print("[k8s-load] k8s create exit=\(result.status)")
@@ -85,7 +86,7 @@ struct TestK8sLoadImageSerial {
             try result.check()
 
             print("[k8s-load] pulling \(Self.testImage)")
-            try f.doPull(Self.testImage)
+            try f.restoreWarmupImage(.alpine320)
 
             print("[k8s-load] k8s load-image --name \(name) \(Self.testImage)")
             let loadResult = try f.run(["k8s", "load-image", "--name", name, Self.testImage])

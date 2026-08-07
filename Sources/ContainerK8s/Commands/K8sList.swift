@@ -20,14 +20,16 @@ import ContainerLog
 import ContainerResource
 import Logging
 
-struct K8sList: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
+public struct K8sList: AsyncParsableCommand {
+    public init() {}
+
+    public static let configuration = CommandConfiguration(
         commandName: "list",
         abstract: "List clusters and their nodes",
         aliases: ["ls"]
     )
 
-    func run() async throws {
+    public func run() async throws {
         LoggingSystem.bootstrap { _ in StderrLogHandler() }
 
         let snapshots = try await ContainerClient().list(

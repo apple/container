@@ -99,6 +99,7 @@ struct TestK8sWriteConfigSerial {
             let name = "k8s-\(f.testID)"
             f.addCleanup { _ = try? f.run(["k8s", "delete", "--name", name]) }
 
+            try f.restoreWarmupImage(.kindestNodeV1_35_5)
             print("[k8s-cfg] k8s create --name \(name)")
             let result = try f.run(["k8s", "create", "--name", name])
             print("[k8s-cfg] k8s create exit=\(result.status)")
@@ -136,6 +137,7 @@ struct TestK8sWriteConfigSerial {
             let name = "k8s-\(f.testID)"
             f.addCleanup { _ = try? f.run(["k8s", "delete", "--name", name]) }
 
+            try f.restoreWarmupImage(.kindestNodeV1_35_5)
             print("[k8s-cfg] k8s create --name \(name)")
             let result = try f.run(["k8s", "create", "--name", name])
             print("[k8s-cfg] k8s create exit=\(result.status)")
@@ -165,6 +167,7 @@ struct TestK8sWriteConfigSerial {
             let name = "k8s-\(f.testID)"
             f.addCleanup { _ = try? f.run(["k8s", "delete", "--name", name]) }
 
+            try f.restoreWarmupImage(.kindestNodeV1_35_5)
             print("[k8s-cfg] k8s create --name \(name)")
             let result = try f.run(["k8s", "create", "--name", name])
             print("[k8s-cfg] k8s create exit=\(result.status)")
