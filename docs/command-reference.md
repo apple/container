@@ -1130,6 +1130,8 @@ container machine create --virtualization --kernel ./vmlinux-kvm alpine:3.22
 
 Runs a command in a container machine, booting it first if needed. With no command, it opens an interactive login shell. By default the command runs as a user matching the host user.
 
+When a command is provided, `<executable>` and `<arguments>` are joined into a single string and evaluated by the execution user's shell inside the guest (`shell -c "$*"`). Expansion, substitution, and redirection apply. This differs from argv-preserving interfaces such as `docker exec`.
+
 **Usage**
 
 ```bash
@@ -1138,8 +1140,8 @@ container machine run [<options>] [<executable>] [<arguments> ...]
 
 **Arguments**
 
-*   `<executable>`: Command to run (default: login shell)
-*   `<arguments>`: Command arguments
+*   `<executable>`: Command evaluated by the guest shell (default: login shell)
+*   `<arguments>`: Additional words joined into the shell command string
 
 **Options**
 
@@ -1169,6 +1171,9 @@ container machine run -n my-machine uname -a
 
 # pass arguments to the command after --
 container machine run -n my-machine -- cat /proc/cpuinfo
+
+# shell evaluation: quote a script string when you need spaces or substitution
+container machine run -n my-machine -- 'printf ":%s:" "one two three"'
 ```
 
 ### `container machine list (ls)`
