@@ -8,8 +8,9 @@ builder:
         - ContainerRuntimeClient
         - ContainerRuntimeLinuxClient
         - ContainerRuntimeLinuxServer
-        - ContainerNetworkService
-        - ContainerNetworkServiceClient
+        - ContainerNetworkClient
+        - ContainerNetworkServer
+        - ContainerNetworkVmnetServer
         - ContainerImagesService
         - ContainerImagesServiceClient
         - ContainerResource
