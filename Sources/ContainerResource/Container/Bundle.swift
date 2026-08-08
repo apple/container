@@ -160,7 +160,9 @@ extension Bundle {
 
     private static func write(_ path: URL, value: Encodable) throws {
         let data = try JSONEncoder().encode(value)
-        try data.write(to: path)
+        // Write atomically so a crash mid-write cannot leave a truncated file
+        // that later fails to decode (and gets the bundle deleted on reload).
+        try data.write(to: path, options: .atomic)
     }
 
     public func load<T>(filename: String) throws -> T where T: Decodable {
