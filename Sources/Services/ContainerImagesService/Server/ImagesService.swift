@@ -79,7 +79,7 @@ public actor ImagesService {
         return try await imageStore.list().map { $0.description.fromCZ }
     }
 
-    public func pull(reference: String, platform: Platform?, insecure: Bool, progressUpdate: ProgressUpdateHandler?, maxConcurrentDownloads: Int = 3) async throws
+    public func pull(reference: String, platform: Platform?, insecure: Bool, auth: Authentication?, progressUpdate: ProgressUpdateHandler?, maxConcurrentDownloads: Int = 3) async throws
         -> ImageDescription
     {
         self.log.debug(
@@ -103,7 +103,7 @@ public actor ImagesService {
             )
         }
 
-        let img = try await Self.withAuthentication(ref: reference) { auth in
+        let img = try await Self.withAuthentication(ref: reference, auth: auth) { auth in
             try await self.imageStore.pull(
                 reference: reference, platform: platform, insecure: insecure, auth: auth, progress: ContainerizationProgressAdapter.handler(from: progressUpdate),
                 maxConcurrentDownloads: maxConcurrentDownloads)
@@ -114,7 +114,7 @@ public actor ImagesService {
         return img.description.fromCZ
     }
 
-    public func push(reference: String, platform: Platform?, insecure: Bool, progressUpdate: ProgressUpdateHandler?) async throws {
+    public func push(reference: String, platform: Platform?, insecure: Bool, auth: Authentication?, progressUpdate: ProgressUpdateHandler?) async throws {
         self.log.debug(
             "ImagesService: enter",
             metadata: [
@@ -135,7 +135,7 @@ public actor ImagesService {
             )
         }
 
-        try await Self.withAuthentication(ref: reference) { auth in
+        try await Self.withAuthentication(ref: reference, auth: auth) { auth in
             try await self.imageStore.push(
                 reference: reference, platform: platform, insecure: insecure, auth: auth, progress: ContainerizationProgressAdapter.handler(from: progressUpdate))
         }
@@ -412,25 +412,20 @@ extension ImagesService {
 
 extension ImagesService {
     private static func withAuthentication<T>(
-        ref: String, _ body: @Sendable @escaping (_ auth: Authentication?) async throws -> T?
+        ref: String, auth: Authentication?, _ body: @Sendable @escaping (_ auth: Authentication?) async throws -> T?
     ) async throws -> T? {
-        var authentication: Authentication?
         let ref = try Reference.parse(ref)
         guard let host = ref.resolvedDomain else {
             throw ContainerizationError(.invalidArgument, message: "no host specified in image reference: \(ref)")
         }
-        authentication = Self.authenticationFromEnv(host: host)
-        if let authentication {
-            return try await body(authentication)
-        }
-        let keychain = KeychainHelper(securityDomain: Constants.keychainID)
-        do {
-            authentication = try keychain.lookup(hostname: host)
-        } catch let err as KeychainHelper.Error {
-            guard case .keyNotFound = err else {
-                throw ContainerizationError(.internalError, message: "error querying keychain for \(host)", cause: err)
-            }
-        }
+        // Environment credentials take precedence, preserving prior behavior.
+        // Keychain credentials are resolved on the client (CLI) side and passed
+        // in as `auth`. This helper must not read the keychain itself: its code
+        // identity (`com.apple.container.container-core-images`) differs from the
+        // writer's (`com.apple.container.cli`), so the keychain item's access
+        // control would reject the read and securityd would fail it with
+        // errSecInteractionNotAllowed in this non-interactive process.
+        let authentication = Self.authenticationFromEnv(host: host) ?? auth
         do {
             return try await body(authentication)
         } catch let err as RegistryClient.Error {
@@ -456,6 +451,19 @@ extension ImagesService {
             return nil
         }
         return BasicAuthentication(username: user, password: password)
+    }
+}
+
+/// An `Authentication` backed by a pre-resolved `Authorization` header value.
+///
+/// Registry credentials are read from the keychain on the client (CLI) side and
+/// the resulting header is forwarded to the images helper over XPC, so the
+/// helper never reads the keychain itself.
+struct ResolvedAuthentication: Authentication {
+    let authorization: String
+
+    func token() async throws -> String {
+        authorization
     }
 }
 
