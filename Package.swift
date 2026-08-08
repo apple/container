@@ -447,6 +447,12 @@ let package = Package(
             ],
             path: "Sources/Services/Runtime/RuntimeClient"
         ),
+        .testTarget(
+            name: "ContainerRuntimeClientTests",
+            dependencies: [
+                "ContainerRuntimeClient",
+            ]
+        ),
         .target(
             name: "ContainerResource",
             dependencies: [
