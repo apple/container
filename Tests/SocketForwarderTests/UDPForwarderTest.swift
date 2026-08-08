@@ -23,6 +23,33 @@ import Testing
 struct UDPForwarderTest {
     let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
 
+    /// A backend evicted from the proxy cache before its channel finished binding used to
+    /// have no channel to close, and nothing closed the socket once it became active.
+    @Test
+    func testBackendClosedBeforeChannelActiveClosesTheChannel() throws {
+        let clientAddress = try SocketAddress(ipAddress: "127.0.0.1", port: 12345)
+        let serverAddress = try SocketAddress(ipAddress: "127.0.0.1", port: 54321)
+        let frontendChannel = EmbeddedChannel()
+
+        let backend = UDPProxyBackend(
+            clientAddress: clientAddress,
+            serverAddress: serverAddress,
+            frontendChannel: frontendChannel,
+            log: nil
+        )
+
+        // Evicted while the backend channel is still binding, so there is no channel yet.
+        backend.close()
+
+        // The bind then completes and the channel becomes active.
+        let backendChannel = EmbeddedChannel(handler: backend)
+        try backendChannel.connect(to: serverAddress).wait()
+
+        #expect(!backendChannel.isActive)
+        _ = try? backendChannel.finish()
+        _ = try? frontendChannel.finish()
+    }
+
     @Test
     func testUDPForwarder() async throws {
         let requestCount = 100
