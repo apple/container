@@ -34,6 +34,7 @@ extension Application {
                 ImagePush.self,
                 ImageSave.self,
                 ImageTag.self,
+                ImageTree.self,
             ],
             aliases: ["i"]
         )
