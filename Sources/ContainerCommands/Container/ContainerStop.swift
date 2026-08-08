@@ -63,7 +63,23 @@ extension Application {
                 let filters = ContainerListFilters().withoutMachines()
                 containers = try await client.list(filters: filters).map { $0.id }
             } else {
-                containers = containerIds
+                // Fetch all running containers so we can resolve partial IDs
+                let runningContainers = try await client.list(filters: ContainerListFilters().withoutMachines())
+                
+                var resolvedContainers: [String] = []
+                for shortId in containerIds {
+                    // Find running containers where the full ID starts with the user's input
+                    let matches = runningContainers.filter { $0.id.hasPrefix(shortId) }
+                    
+                    if matches.isEmpty {
+                        throw ContainerizationError(.notFound, message: "No such container: \(shortId)")
+                    } else if matches.count > 1 {
+                        throw ContainerizationError(.invalidArgument, message: "Ambiguous container ID: \(shortId)")
+                    } else {
+                        resolvedContainers.append(matches[0].id)
+                    }
+                }
+                containers = resolvedContainers
             }
 
             let opts = ContainerStopOptions(
