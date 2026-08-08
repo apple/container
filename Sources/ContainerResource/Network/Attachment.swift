@@ -25,8 +25,7 @@ public struct Attachment: Codable, Sendable {
     /// The CIDR address describing the interface IPv4 address, with the prefix length of the subnet.
     public let ipv4Address: CIDRv4
     /// The IPv4 gateway address.
-    public let ipv4Gateway: IPv4Address
-    /// The CIDR address describing the interface IPv6 address, with the prefix length of the subnet.
+    public let ipv4Gateway: IPv4Address?    /// The CIDR address describing the interface IPv6 address, with the prefix length of the subnet.
     /// The address is nil if the IPv6 subnet could not be determined at network creation time.
     public let ipv6Address: CIDRv6?
     /// The MAC address associated with the attachment (optional).
@@ -40,7 +39,7 @@ public struct Attachment: Codable, Sendable {
         network: String,
         hostname: String,
         ipv4Address: CIDRv4,
-        ipv4Gateway: IPv4Address,
+        ipv4Gateway: IPv4Address?,
         ipv6Address: CIDRv6?,
         macAddress: MACAddress?,
         mtu: UInt32? = nil,

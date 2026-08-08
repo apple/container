@@ -1149,7 +1149,9 @@ public actor RuntimeService {
 
     private nonisolated func getDefaultNameservers(from attachments: [Attachment]) -> [String] {
         for attachment in attachments {
-            return [attachment.ipv4Gateway.description]
+            if let gateway = attachment.ipv4Gateway {
+                        return [gateway.description]
+                    }
         }
         return []
     }
