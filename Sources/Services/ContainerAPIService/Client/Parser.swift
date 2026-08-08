@@ -345,7 +345,7 @@ public struct Parser {
         var seenDestinations: Set<String> = []
 
         for tmpfs in mounts {
-            let parts = tmpfs.split(separator: ":", maxSplits: 1)
+            let parts = tmpfs.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
             let destination = String(parts[0])
             let options = parts.count == 2 ? String(parts[1]).split(separator: ",").map(String.init) : []
 

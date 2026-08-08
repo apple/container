@@ -1536,6 +1536,13 @@ struct ParserTest {
         #expect(result[0].options == ["rw", "exec"])
     }
 
+    @Test("tmpfsMounts throws on empty destination")
+    func testTmpfsMountsEmptyDestination() throws {
+        #expect(throws: ContainerizationError.self) {
+            _ = try Parser.tmpfsMounts([""])
+        }
+    }
+
     @Test("volumes with large input")
     func testVolumesLargeInput() throws {
         let volumes = (0..<20).map { "vol\($0):/mnt/vol\($0)" }
