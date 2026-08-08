@@ -14,6 +14,8 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import Foundation
+import Logging
 import SystemPackage
 import Testing
 
@@ -26,6 +28,31 @@ struct ApplicationRootTests {
 
     @Test func defaultPathEndsWithContainerComponent() {
         #expect(ApplicationRoot.defaultPath.lastComponent?.string == "com.apple.container")
+    }
+
+    @Test
+    func testAppRootIsExcludedFromBackups() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+        let appRoot = tempDir.appendingPathComponent("test-app-root-\(UUID())")
+
+        defer {
+            try? FileManager.default.removeItem(at: appRoot)
+        }
+
+        var logger = Logger(label: "test.ApplicationRoot")
+        logger.logLevel = .critical
+
+        try ApplicationRoot.ensureCreated(at: appRoot, log: logger)
+
+        var isDirectory: ObjCBool = false
+        let exists = FileManager.default.fileExists(atPath: appRoot.path, isDirectory: &isDirectory)
+        #expect(exists && isDirectory.boolValue, "appRoot should be created")
+
+        let readBack = try appRoot.resourceValues(forKeys: [.isExcludedFromBackupKey])
+        #expect(
+            readBack.isExcludedFromBackup == true,
+            "ApplicationRoot.ensureCreated should explicitly exclude appRoot from backups."
+        )
     }
 }
 

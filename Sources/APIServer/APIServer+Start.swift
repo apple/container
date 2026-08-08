@@ -59,6 +59,8 @@ extension APIServer {
             }
 
             do {
+                let appRootURL = URL(fileURLWithPath: appRoot.string)
+                try ApplicationRoot.ensureCreated(at: appRootURL, log: log)
                 log.info("configuring XPC server")
                 var routes = [XPCRoute: XPCServer.RouteHandler]()
                 let pluginLoader = try initializePluginLoader(log: log)
