@@ -869,6 +869,20 @@ public actor ContainersService {
             )
         default:
             try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
+                // Re-read status under the lock. The check above ran unlocked, and
+                // startProcess holds this same lock while transitioning a container
+                // to .running — without this re-check we could delete the bundle of
+                // a container that started in the meantime (TOCTOU).
+                let current = try self.getContainerState(id: id, context: context)
+                switch current.snapshot.status {
+                case .running, .stopping:
+                    throw ContainerizationError(
+                        .invalidState,
+                        message: "container \(id) is \(current.snapshot.status) and can not be deleted"
+                    )
+                default:
+                    break
+                }
                 try await self.cleanUp(id: id, context: context)
             }
         }
