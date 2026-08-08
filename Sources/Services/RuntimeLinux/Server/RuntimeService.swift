@@ -69,11 +69,19 @@ public actor RuntimeService {
         }
 
         public func doExit(exitStatus: ExitStatus) {
-            for cc in continuations {
+            // Exit fires exactly once. A second call (e.g. an onExit callback that
+            // is retried after it threw) must not resume the same continuations
+            // again — resuming a CheckedContinuation twice traps.
+            guard self.exitStatus == nil else {
+                return
+            }
+            self.exitStatus = exitStatus
+
+            let pending = continuations
+            continuations = []
+            for cc in pending {
                 cc.resume(returning: exitStatus)
             }
-
-            self.exitStatus = exitStatus
         }
     }
 
