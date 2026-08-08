@@ -34,13 +34,13 @@ extension Application {
 
         @Option(
             name: .shortAndLong,
-            help: "Path to the root directory for application data",
+            help: "Path to the root directory for container data, including API server state and plugin state",
             transform: { FilePath(FileManager.default.currentDirectoryPath).resolve($0, defaultPath: FilePath($0)) })
         var appRoot = ApplicationRoot.defaultPath
 
         @Option(
             name: .long,
-            help: "Path to the root directory for application executables and plugins",
+            help: "Path to the root directory for container executables and plugins",
             transform: { FilePath(FileManager.default.currentDirectoryPath).resolve($0, defaultPath: FilePath($0)) })
         var installRoot = InstallRoot.defaultPath
 
