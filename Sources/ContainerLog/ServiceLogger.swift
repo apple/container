@@ -24,7 +24,7 @@ public struct ServiceLogger {
     /// - Parameters:
     ///   - label: A unique identifier for the application.
     ///   - category: An identifier for the application subsystem.
-    ///   - metadata: Metadata to include for all messsages. A message
+    ///   - metadata: Metadata to include for all messages. A message
     ///     specific value for a duplicate key overrides these values.
     ///   - debug: Enable debug logging.
     ///   - logPath: If supplied, create log files under the named
