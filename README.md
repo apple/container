@@ -83,6 +83,14 @@ To retain your user data so that it is available should you reinstall later, run
 - [Build and run](./BUILDING.md) `container` on your own development system.
 - View the project [API documentation](https://apple.github.io/container/documentation/).
 
+### Agent skill
+
+Install the `apple-container` agent skill to help coding agents use `container` for Linux development workflows, image builds, networking, and troubleshooting:
+
+```bash
+npx skills add apple/container@apple-container
+```
+
 ## Contributing
 
 Contributions to `container` are welcome and encouraged. Please see our [main contributing guide](https://github.com/apple/containerization/blob/main/CONTRIBUTING.md) for more information.
