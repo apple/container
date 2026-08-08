@@ -19,7 +19,7 @@ public struct StandardQueryValidator: DNSHandler {
     private let handler: DNSHandler
 
     /// Create the handler.
-    /// - Parameter delegate: the handler that receives valid queries
+    /// - Parameter handler: the handler that receives valid queries
     public init(handler: DNSHandler) {
         self.handler = handler
     }
