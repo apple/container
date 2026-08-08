@@ -41,9 +41,19 @@ public struct AttachmentOptions: Codable, Sendable {
     /// The MTU for the network interface.
     public let mtu: UInt32?
 
-    public init(hostname: String, macAddress: MACAddress? = nil, mtu: UInt32? = nil) {
+    /// Last assigned IPv4, re-offered on restart for a best-effort sticky IP
+    /// (reassigned if taken).
+    public let ipv4Address: IPv4Address?
+
+    public init(
+        hostname: String,
+        macAddress: MACAddress? = nil,
+        mtu: UInt32? = nil,
+        ipv4Address: IPv4Address? = nil
+    ) {
         self.hostname = hostname
         self.macAddress = macAddress
         self.mtu = mtu
+        self.ipv4Address = ipv4Address
     }
 }
