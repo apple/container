@@ -267,7 +267,10 @@ extension ClientImage {
         request.set(key: .imageReference, value: reference)
         try request.set(platform: platform)
 
-        let insecure = try scheme.schemeFor(host: host, internalDnsDomain: containerSystemConfig.dns.domain) == .http
+        let insecure =
+            try scheme.schemeFor(
+                host: host, internalDnsDomain: containerSystemConfig.dns.domain,
+                insecureRegistries: containerSystemConfig.registry.insecureRegistries) == .http
         request.set(key: .insecureFlag, value: insecure)
         request.set(key: .maxConcurrentDownloads, value: Int64(maxConcurrentDownloads))
 
@@ -390,7 +393,10 @@ extension ClientImage {
         }
         request.set(key: .imageReference, value: reference)
 
-        let insecure = try scheme.schemeFor(host: host, internalDnsDomain: containerSystemConfig.dns.domain) == .http
+        let insecure =
+            try scheme.schemeFor(
+                host: host, internalDnsDomain: containerSystemConfig.dns.domain,
+                insecureRegistries: containerSystemConfig.registry.insecureRegistries) == .http
         request.set(key: .insecureFlag, value: insecure)
 
         try request.set(platform: platform)

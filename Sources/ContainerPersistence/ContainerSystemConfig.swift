@@ -243,12 +243,27 @@ final public class RegistryConfig: Codable, Sendable {
 
     public let domain: String
 
-    public init(domain: String = defaultDomain) {
+    /// Registry hosts (optionally with a `:port`) that should be accessed
+    /// insecurely, i.e. over plain-text HTTP. Empty by default; entries must be
+    /// added explicitly to opt in to insecure access for a specific registry.
+    public let insecureRegistries: [String]
+
+    public init(domain: String = defaultDomain, insecureRegistries: [String] = []) {
         self.domain = domain
+        self.insecureRegistries = insecureRegistries
     }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.domain = try container.decodeIfPresent(String.self, forKey: .domain) ?? Self.defaultDomain
+        self.insecureRegistries = try container.decodeIfPresent([String].self, forKey: .insecureRegistries) ?? []
+    }
+
+    /// Returns `true` if the given registry `host` has been explicitly marked
+    /// as insecure in the configuration. Matching is case-insensitive and
+    /// compares the host exactly as configured (host or `host:port`).
+    public func isInsecure(host: String) -> Bool {
+        let host = host.lowercased()
+        return insecureRegistries.contains { $0.lowercased() == host }
     }
 }
