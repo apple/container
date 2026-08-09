@@ -35,6 +35,9 @@ extension Application {
         @Flag(name: .shortAndLong, help: "Delete containers even if they are running")
         var force = false
 
+        @Flag(name: .shortAndLong, help: "Remove the anonymous volumes and pod the container was given")
+        var volumes = false
+
         @OptionGroup
         public var logOptions: Flags.Logging
 
@@ -56,6 +59,8 @@ extension Application {
         public mutating func run() async throws {
             let client = ContainerClient()
             let force = self.force
+            let removeAnonymous = self.volumes
+            let log = self.log
 
             let containers: [String]
             if all {
@@ -76,7 +81,13 @@ extension Application {
                 for container in containers {
                     group.addTask {
                         do {
+                            // What the container was given is recorded on the
+                            // container, so it is read before the container goes.
+                            let given =
+                                removeAnonymous
+                                ? await AnonymousResources.given(to: try await client.get(id: container)) : nil
                             try await client.delete(id: container, force: force)
+                            await given?.remove(log: log)
                             print(container)
                             return nil
                         } catch {
