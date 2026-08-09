@@ -45,6 +45,15 @@ public struct ContainerConfiguration: Sendable, Codable {
     /// Resource values for the container.
     public var resources: Resources = .init()
     /// Name of the runtime that supports the container.
+    /// The pod the container runs in.
+    ///
+    /// A container is always in one, sharing that pod's machine with whatever
+    /// else is in it, so a container alone in a pod is the same arrangement
+    /// with one member. A caller that names no pod is asking for one of its
+    /// own and is given a name for it before the container is made, which is
+    /// why this is not a question the rest of the code has to ask.
+    public var pod: String = PodConfiguration.generateId()
+
     public var runtimeHandler: String = "container-runtime-linux"
     /// Configure exposing virtualization support in the container.
     public var virtualization: Bool = false
@@ -87,6 +96,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         case initProcess
         case platform
         case resources
+        case pod
         case runtimeHandler
         case virtualization
         case ssh
@@ -125,6 +135,12 @@ public struct ContainerConfiguration: Sendable, Codable {
         initProcess = try container.decode(ProcessConfiguration.self, forKey: .initProcess)
         platform = try container.decodeIfPresent(ContainerizationOCI.Platform.self, forKey: .platform) ?? .current
         resources = try container.decodeIfPresent(Resources.self, forKey: .resources) ?? .init()
+        // A container written before a container was always in a pod carries
+        // no pod, and there is no machine for it to be in. It fails to read,
+        // and a container that fails to read is taken away at boot, which is
+        // what already happens to any container this version cannot make sense
+        // of.
+        pod = try container.decode(String.self, forKey: .pod)
         runtimeHandler = try container.decodeIfPresent(String.self, forKey: .runtimeHandler) ?? "container-runtime-linux"
         virtualization = try container.decodeIfPresent(Bool.self, forKey: .virtualization) ?? false
         ssh = try container.decodeIfPresent(Bool.self, forKey: .ssh) ?? false

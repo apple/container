@@ -28,6 +28,10 @@ public struct RuntimeConfiguration: Codable, Sendable {
     public let initialFilesystem: Filesystem
     public let kernel: Kernel
     public let containerConfiguration: ContainerConfiguration?
+    /// The pod this instance drives, when it drives a pod rather than a single
+    /// container. The containers that share the pod's machine keep runtime
+    /// configurations of their own.
+    public let podConfiguration: PodConfiguration?
     public let containerRootFilesystem: Filesystem?
     public let options: ContainerCreateOptions?
     public let runtimeData: Data?
@@ -37,6 +41,7 @@ public struct RuntimeConfiguration: Codable, Sendable {
         initialFilesystem: Filesystem,
         kernel: Kernel,
         containerConfiguration: ContainerConfiguration? = nil,
+        podConfiguration: PodConfiguration? = nil,
         containerRootFilesystem: Filesystem? = nil,
         options: ContainerCreateOptions? = nil,
         runtimeData: Data? = nil
@@ -45,6 +50,7 @@ public struct RuntimeConfiguration: Codable, Sendable {
         self.initialFilesystem = initialFilesystem
         self.kernel = kernel
         self.containerConfiguration = containerConfiguration
+        self.podConfiguration = podConfiguration
         self.containerRootFilesystem = containerRootFilesystem
         self.options = options
         self.runtimeData = runtimeData
