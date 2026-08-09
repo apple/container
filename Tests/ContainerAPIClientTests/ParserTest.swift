@@ -1528,7 +1528,7 @@ struct ParserTest {
         let mounts = [
             "/mnt/scratch:rw,exec",
             "/mnt/scratch", // Should be deduped based on path
-            "/mnt/cache:ro"
+            "/mnt/cache:ro",
         ]
         let result = try Parser.tmpfsMounts(mounts)
         #expect(result.count == 2)
