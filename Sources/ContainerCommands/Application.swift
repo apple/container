@@ -91,6 +91,12 @@ public struct Application: AsyncLoggableCommand {
                 ]
             ),
             CommandGroup(
+                name: "Pod",
+                subcommands: [
+                    PodCommand.self
+                ]
+            ),
+            CommandGroup(
                 name: "Other",
                 subcommands: Self.otherCommands()
             ),
