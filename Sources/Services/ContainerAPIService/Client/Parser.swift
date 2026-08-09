@@ -353,7 +353,12 @@ public struct Parser {
                  throw ContainerizationError(.invalidArgument, message: "mount destination cannot be empty")
             }
             
-            let normalizedDest = FilePath(destination).lexicallyNormalized().string
+            let filePath = FilePath(destination)
+            guard filePath.isAbsolute else {
+                 throw ContainerizationError(.invalidArgument, message: "\(destination) is not an absolute path")
+            }
+            
+            let normalizedDest = filePath.lexicallyNormalized().string
             if seenDestinations.contains(normalizedDest) { continue }
             seenDestinations.insert(normalizedDest)
 

@@ -1543,6 +1543,13 @@ struct ParserTest {
         }
     }
 
+    @Test("tmpfsMounts throws on non-absolute destination")
+    func testTmpfsMountsNonAbsoluteDestination() throws {
+        #expect(throws: ContainerizationError.self) {
+            _ = try Parser.tmpfsMounts(["relative/path:rw"])
+        }
+    }
+
     @Test("volumes with large input")
     func testVolumesLargeInput() throws {
         let volumes = (0..<20).map { "vol\($0):/mnt/vol\($0)" }
