@@ -78,6 +78,15 @@ extension APIServer {
                     routes: &routes
                 )
                 await containersService.setNetworksService(networkService)
+                let podsService = try initializePodsService(
+                    pluginLoader: pluginLoader,
+                    containerSystemConfig: containerSystemConfig,
+                    log: log,
+                    routes: &routes
+                )
+                await podsService.setContainersService(containersService)
+                await podsService.setNetworksService(networkService)
+                await containersService.setPodsService(podsService)
                 initializeHealthCheckService(log: log, routes: &routes)
                 try initializeKernelService(log: log, routes: &routes)
                 let volumesService = try await initializeVolumeService(containersService: containersService, log: log, routes: &routes)
@@ -269,6 +278,35 @@ extension APIServer {
             let harness = KernelHarness(service: svc, log: log)
             routes[XPCRoute.installKernel] = XPCServer.route(harness.install)
             routes[XPCRoute.getDefaultKernel] = XPCServer.route(harness.getDefaultKernel)
+        }
+
+        private func initializePodsService(
+            pluginLoader: PluginLoader,
+            containerSystemConfig: ContainerSystemConfig,
+            log: Logger,
+            routes: inout [XPCRoute: XPCServer.RouteHandler]
+        ) throws -> PodsService {
+            log.info("initializing pods service")
+
+            let appRootURL = URL(fileURLWithPath: appRoot.string)
+            let service = try PodsService(
+                appRoot: appRootURL,
+                pluginLoader: pluginLoader,
+                containerSystemConfig: containerSystemConfig,
+                debugHelpers: debug,
+                log: log
+            )
+            let harness = PodsHarness(service: service, log: log)
+
+            routes[XPCRoute.podCreate] = XPCServer.route(harness.create)
+            routes[XPCRoute.podStart] = XPCServer.route(harness.start)
+            routes[XPCRoute.podStop] = XPCServer.route(harness.stop)
+            routes[XPCRoute.podDelete] = XPCServer.route(harness.delete)
+            routes[XPCRoute.podInspect] = XPCServer.route(harness.inspect)
+            routes[XPCRoute.podList] = XPCServer.route(harness.list)
+            routes[XPCRoute.podUpdate] = XPCServer.route(harness.update)
+
+            return service
         }
 
         private func initializeContainersService(

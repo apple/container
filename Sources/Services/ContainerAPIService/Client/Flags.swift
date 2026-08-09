@@ -195,6 +195,7 @@ public struct Flags {
             networks: [String],
             os: String,
             platform: String?,
+            pod: String? = nil,
             publishPorts: [String],
             publishSockets: [String],
             readOnly: Bool,
@@ -227,6 +228,7 @@ public struct Flags {
             self.networks = networks
             self.os = os
             self.platform = platform
+            self.pod = pod
             self.publishPorts = publishPorts
             self.publishSockets = publishSockets
             self.readOnly = readOnly
@@ -321,6 +323,15 @@ public struct Flags {
 
         @Option(name: .long, help: "Use the specified name as the container ID")
         public var name: String?
+
+        @Option(
+            name: .long,
+            help: """
+                Run the container in a pod, whose machine it shares with the pod's other \
+                containers. Without this the container is given a machine of its own.
+                """
+        )
+        public var pod: String?
 
         @Option(name: [.customLong("network")], help: "Attach the container to a network (format: <name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE])")
         public var networks: [String] = []

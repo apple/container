@@ -153,14 +153,32 @@ public struct Utility {
         var config = ContainerConfiguration(id: id, image: description, process: pc)
         config.platform = requestedPlatform
 
-        config.resources = try Parser.resources(
-            cpus: resource.cpus,
-            memory: resource.memory,
-            swap: resource.swap,
-            defaultCPUs: containerSystemConfig.container.cpus,
-            defaultMemory: containerSystemConfig.container.memory,
-            defaultSwap: containerSystemConfig.container.swap
-        )
+        if let pod = management.pod {
+            // A container in a pod falls back to what the pod's machine holds
+            // rather than to what a machine of its own would be given, so a
+            // container that named no limit draws on the whole of the pod's,
+            // and one that named a limit still holds to it.
+            var podResources = try await ClientPod.inspect(pod).configuration.resources
+            if let cpus = resource.cpus {
+                podResources.cpus = Int(cpus)
+            }
+            if let memory = resource.memory {
+                podResources.memoryInBytes = try Parser.memoryStringAsMiB(memory).mib()
+            }
+            if let swap = resource.swap {
+                podResources.swapInBytes = try Parser.memoryStringAsMiB(swap).mib()
+            }
+            config.resources = podResources
+        } else {
+            config.resources = try Parser.resources(
+                cpus: resource.cpus,
+                memory: resource.memory,
+                swap: resource.swap,
+                defaultCPUs: containerSystemConfig.container.cpus,
+                defaultMemory: containerSystemConfig.container.memory,
+                defaultSwap: containerSystemConfig.container.swap
+            )
+        }
 
         let tmpfs = try Parser.tmpfsMounts(management.tmpFs)
         let volumesOrFs = try Parser.volumes(management.volumes)
@@ -237,6 +255,41 @@ public struct Utility {
         }
 
         config.labels = try Parser.labels(management.labels)
+        // A container runs in a pod. Naming none asks for one of its own, so
+        // one is named here rather than left for something later to notice was
+        // missing, which is how a sandbox is made for a container that came
+        // without one.
+        // https://github.com/kubernetes/cri-api/blob/master/pkg/apis/runtime/v1/api.proto
+        config.pod = management.pod ?? PodConfiguration.generateId()
+
+        // Naming a pod joins one that is already there, so it has to be there,
+        // and joining it is joining its network: how that network is reached is
+        // the pod's to have been given, and asking for it here is asking the pod
+        // to be something it already is. Both are refused rather than accepted
+        // and ignored, which is how nerdctl answers a container joining
+        // another's network. The name a container answers to travels inside its
+        // attachment, so --hostname is covered by --network.
+        // https://github.com/containerd/nerdctl/blob/main/pkg/containerutil/container_network_manager.go
+        if let named = management.pod {
+            guard (try? await ClientPod.inspect(named)) != nil else {
+                throw ContainerizationError(.notFound, message: "pod \(named) does not exist")
+            }
+            var held: [String] = []
+            if !management.publishPorts.isEmpty { held.append("-p/--publish") }
+            if !management.dns.nameservers.isEmpty || management.dns.domain != nil
+                || !management.dns.searchDomains.isEmpty || !management.dns.options.isEmpty
+            {
+                held.append("--dns")
+            }
+            if !management.networks.isEmpty { held.append("--network") }
+            guard held.isEmpty else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message:
+                        "these belong to the pod whose network the container joins, so they are not the container's to ask for: \(held.joined(separator: ", "))"
+                )
+            }
+        }
 
         config.publishedPorts = try Parser.publishPorts(management.publishPorts)
         guard config.publishedPorts.count <= publishedPortCountLimit else {
@@ -268,7 +321,9 @@ public struct Utility {
         return (config, kernel, management.initImage)
     }
 
-    static func getAttachmentConfigurations(
+    /// The networks a container or a pod attaches to, resolved from what the
+    /// caller named and the built-in network when it named none.
+    public static func getAttachmentConfigurations(
         containerId: String,
         builtinNetworkId: String?,
         networks: [Parser.ParsedNetwork],

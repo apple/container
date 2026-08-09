@@ -25,10 +25,18 @@ public enum RuntimeRoutes: String {
 
     // MARK: - Sandbox lifecycle
 
-    /// Bootstrap the sandbox: create the VM, configure networks, and boot the guest.
+    /// Bootstrap the sandbox: create the VM, configure networks, put the
+    /// containers it holds in it, and boot the guest.
     case bootstrap = "com.apple.container.runtime/bootstrap"
+    /// Hold the running sandbox to a memory size, which its containers share.
+    case updateResources = "com.apple.container.runtime/updateResources"
     /// Stop the sandbox and all processes running inside it.
     case stop = "com.apple.container.runtime/stop"
+    /// Stop one container in the sandbox, leaving the sandbox and the other
+    /// containers in it running. The runtime interface stops a container and
+    /// stops a sandbox with separate calls for this reason.
+    /// https://github.com/kubernetes/cri-api/blob/master/pkg/apis/runtime/v1/api.proto
+    case stopContainer = "com.apple.container.runtime/stopContainer"
     /// Return the current state of the sandbox.
     case state = "com.apple.container.runtime/state"
     /// Get resource usage statistics for the sandbox.

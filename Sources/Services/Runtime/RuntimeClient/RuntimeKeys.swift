@@ -17,6 +17,18 @@
 public enum RuntimeKeys: String {
     /// ID key.
     case id
+    /// The container in the sandbox a request is addressed to. A sandbox
+    /// holding one container still names it, so every request says which
+    /// container it means.
+    case containerId
+    /// The configuration of a container being placed in a sandbox.
+    case containerConfig
+    /// The path to the bundle of a container being placed in a sandbox.
+    case bundlePath
+    /// The paths to the bundles of every container the sandbox holds.
+    case bundlePaths
+    /// A memory size in bytes the sandbox is to be held to.
+    case memoryInBytes
     /// Vsock port number key.
     case port
     /// Exit code for a process

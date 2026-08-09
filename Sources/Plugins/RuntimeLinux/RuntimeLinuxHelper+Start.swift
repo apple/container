@@ -94,9 +94,11 @@ extension RuntimeLinuxHelper {
                     connection: anonymousConnection,
                     routes: [
                         RuntimeRoutes.bootstrap.rawValue: XPCServer.route(server.bootstrap),
+                        RuntimeRoutes.updateResources.rawValue: XPCServer.route(server.updateResources),
                         RuntimeRoutes.createProcess.rawValue: XPCServer.route(server.createProcess),
                         RuntimeRoutes.state.rawValue: XPCServer.route(server.state),
                         RuntimeRoutes.stop.rawValue: XPCServer.route(server.stop),
+                        RuntimeRoutes.stopContainer.rawValue: XPCServer.route(server.stopContainer),
                         RuntimeRoutes.kill.rawValue: XPCServer.route(server.kill),
                         RuntimeRoutes.resize.rawValue: XPCServer.route(server.resize),
                         RuntimeRoutes.wait.rawValue: XPCServer.route(server.wait),

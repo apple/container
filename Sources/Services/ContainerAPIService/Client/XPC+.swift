@@ -117,6 +117,13 @@ public enum XPCKeys: String {
     /// Init image reference
     case initImage
 
+    /// Pod
+    case podId
+    case podConfig
+    case podSnapshot
+    case podSnapshots
+    case memoryInBytes
+
     /// Volume
     case volume
     case volumes
@@ -180,6 +187,17 @@ public enum XPCRoute: String {
     case volumeDelete
     case volumeList
     case volumeInspect
+
+    // The sandbox verbs the runtime interface specifies, named for what they
+    // do to a pod rather than for the containers inside it.
+    // https://github.com/kubernetes/cri-api/blob/master/pkg/apis/runtime/v1/api.proto
+    case podCreate
+    case podStart
+    case podStop
+    case podDelete
+    case podInspect
+    case podList
+    case podUpdate
 
     case volumeDiskUsage
     case systemDiskUsage
