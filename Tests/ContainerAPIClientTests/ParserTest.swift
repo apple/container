@@ -1527,7 +1527,7 @@ struct ParserTest {
     func testTmpfsMountsWithColons() throws {
         let mounts = [
             "/mnt/scratch:rw,exec",
-            "/mnt/scratch", // Should be deduped based on path
+            "/mnt/scratch",  // Should be deduped based on path
             "/mnt/cache:ro",
         ]
         let result = try Parser.tmpfsMounts(mounts)
