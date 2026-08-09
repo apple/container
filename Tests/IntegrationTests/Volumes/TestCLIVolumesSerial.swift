@@ -43,13 +43,44 @@ struct TestCLIVolumesSerial {
             let list = try f.run(["volume", "list", "--quiet"]).check().output
             #expect(list.contains(v1) && list.contains(v2))
 
-            let result = try f.run(["volume", "prune"]).check()
+            let result = try f.run(["volume", "prune", "--all"]).check()
             #expect(result.output.contains(v1))
             #expect(result.output.contains(v2))
             #expect(result.error.contains("Reclaimed"))
 
             let listAfter = try f.run(["volume", "list", "--quiet"]).check().output
             #expect(!listAfter.contains(v1) && !listAfter.contains(v2))
+        }
+    }
+
+    @Test func testVolumePruneTakesTheAnonymousAndKeepsTheNamed() async throws {
+        try await ContainerFixture.with { f in
+            let named = "\(f.testID)-named"
+            let c = "\(f.testID)-c1"
+            try f.doPull(alpine)
+            f.addCleanup {
+                try? f.doRemoveIfExists(c, force: true, ignoreFailure: true)
+                f.doVolumeDeleteIfExists(named)
+            }
+
+            // A container given a mount with no name is given a volume nobody
+            // asked for by name, which is the kind a prune is free to take.
+            try f.doVolumeCreate(named)
+            try await f.doLongRun(name: c, image: alpine, args: ["-v", "/data"], autoRemove: false, waitUntilRunning: true)
+            let anonymous = try f.getContainerMountedVolumeNames(c)
+            try #require(anonymous.count == 1, "the container should mount exactly one anonymous volume")
+            let anon = anonymous[0]
+            f.addCleanup { f.doVolumeDeleteIfExists(anon) }
+
+            try f.doStop(c)
+            try f.doRemove(c)
+
+            try f.run(["volume", "prune"]).check()
+            #expect(!(try f.volumeExists(anon)), "an anonymous volume nothing mounts should be pruned")
+            #expect(try f.volumeExists(named), "a named volume should survive a prune that was not asked for all")
+
+            try f.run(["volume", "prune", "--all"]).check()
+            #expect(!(try f.volumeExists(named)), "a named volume should be pruned when all of them are asked for")
         }
     }
 
@@ -71,7 +102,7 @@ struct TestCLIVolumesSerial {
             try f.doVolumeCreate(vUnused)
             try await f.doLongRun(name: c, image: image, args: ["-v", "\(vInUse):/data"], autoRemove: false, waitUntilRunning: true)
 
-            try f.run(["volume", "prune"]).check()
+            try f.run(["volume", "prune", "--all"]).check()
 
             let listAfter = try f.run(["volume", "list", "--quiet"]).check().output
             #expect(listAfter.contains(vInUse), "in-use volume should NOT be pruned")
@@ -98,11 +129,11 @@ struct TestCLIVolumesSerial {
             try f.doCreate(name: c, image: image, volumes: ["\(vol):/data"])
             try await Task.sleep(for: .seconds(1))
 
-            try f.run(["volume", "prune"]).check()
+            try f.run(["volume", "prune", "--all"]).check()
             #expect(try f.volumeExists(vol), "volume attached to stopped container should NOT be pruned")
 
             try? f.doRemoveIfExists(c, force: true, ignoreFailure: true)
-            try f.run(["volume", "prune"]).check()
+            try f.run(["volume", "prune", "--all"]).check()
             #expect(!(try f.volumeExists(vol)), "volume should be pruned after container is deleted")
         }
     }

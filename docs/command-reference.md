@@ -949,17 +949,17 @@ container volume delete --all
 
 ### `container volume prune`
 
-Removes all volumes that have no container references. This includes volumes that are not attached to any running or stopped containers. The command reports the actual disk space reclaimed after deletion.
+Removes the anonymous volumes that have no container references, meaning those attached to no running or stopped container. A volume created with a name is kept, since it is yours to mount later, and `--all` removes those too. The command reports the actual disk space reclaimed after deletion.
 
 **Usage**
 
 ```bash
-container volume prune [--debug]
+container volume prune [--all] [--debug]
 ```
 
 **Options**
 
-No options.
+- `--all`, `-a`: Remove volumes that were named too, not only anonymous ones.
 
 ### `container volume list (ls)`
 

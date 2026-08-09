@@ -143,10 +143,12 @@ container image prune
 container image prune --all
 ```
 
-Remove volumes with no container references:
+Remove the anonymous volumes with no container references, and then every unused
+volume including the ones you named:
 
 ```bash
 container volume prune
+container volume prune --all
 ```
 
 Reclaim space used by the builder VM's layer cache by replacing the builder:

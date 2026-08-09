@@ -95,10 +95,12 @@ container volume inspect foo
 A volume's image is sparse, so `sizeInBytes` reports the size the volume can grow to —
 512 GiB by default — rather than the space it currently occupies on disk.
 
-Remove every volume that has no container referencing it:
+Remove the anonymous volumes that no container references. A volume you named is
+yours to mount later, so it is kept unless you ask for all of them:
 
 ```bash
 container volume prune
+container volume prune --all
 ```
 
 > [!WARNING]

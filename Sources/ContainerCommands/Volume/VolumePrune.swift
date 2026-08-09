@@ -23,7 +23,10 @@ extension Application.VolumeCommand {
         public init() {}
         public static let configuration = CommandConfiguration(
             commandName: "prune",
-            abstract: "Remove volumes with no container references")
+            abstract: "Remove anonymous volumes with no container references")
+
+        @Flag(name: .shortAndLong, help: "Remove volumes that were named too, not only anonymous ones")
+        var all = false
 
         @OptionGroup
         public var logOptions: Flags.Logging
@@ -43,8 +46,15 @@ extension Application.VolumeCommand {
                 }
             }
 
+            // A volume someone named is theirs, and one nothing mounts yet is
+            // still theirs to mount, so a prune leaves it alone unless asked for
+            // all of them. A volume nobody named was made because a container
+            // was given one, and is of no use to anyone once nothing mounts it.
             let volumesToPrune = allVolumes.filter { volume in
-                !volumesInUse.contains(volume.name)
+                guard !volumesInUse.contains(volume.name) else {
+                    return false
+                }
+                return all || volume.isAnonymous
             }
 
             var prunedVolumes = [String]()
