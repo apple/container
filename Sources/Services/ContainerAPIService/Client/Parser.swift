@@ -318,7 +318,7 @@ public struct Parser {
         let rlimits = try Parser.rlimits(processFlags.ulimits)
 
         return .init(
-            executable: commandToRun.first!,
+            executable: commandToRun[0],
             arguments: [String](commandToRun.dropFirst()),
             environment: envvars,
             workingDirectory: workingDir,
