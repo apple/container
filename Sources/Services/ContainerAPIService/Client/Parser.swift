@@ -350,16 +350,18 @@ public struct Parser {
             let options = parts.count == 2 ? String(parts[1]).split(separator: ",").map(String.init) : []
 
             if destination.isEmpty {
-                 throw ContainerizationError(.invalidArgument, message: "mount destination cannot be empty")
+                throw ContainerizationError(.invalidArgument, message: "mount destination cannot be empty")
             }
-            
+
             let filePath = FilePath(destination)
             guard filePath.isAbsolute else {
-                 throw ContainerizationError(.invalidArgument, message: "\(destination) is not an absolute path")
+                throw ContainerizationError(.invalidArgument, message: "\(destination) is not an absolute path")
             }
-            
+
             let normalizedDest = filePath.lexicallyNormalized().string
-            if seenDestinations.contains(normalizedDest) { continue }
+            if seenDestinations.contains(normalizedDest) {
+                continue
+            }
             seenDestinations.insert(normalizedDest)
 
             let fs = Filesystem.tmpfs(destination: destination, options: options)
