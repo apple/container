@@ -38,7 +38,7 @@ public struct NetworkClient: Sendable {
     ///
     /// Pass a different value to ``init(serviceIdentifier:)`` to connect to an
     /// alternative service endpoint, for example during testing.
-    public static let defaultServiceIdentifier = "com.apple.container.apiserver"
+    public static let defaultServiceIdentifier = "com.apple.container.core.container-core-containers"
 
     /// The name of the default network created automatically on first use.
     public static let defaultNetworkName = "default"
@@ -88,7 +88,7 @@ public struct NetworkClient: Sendable {
         return try JSONDecoder().decode(NetworkResource.self, from: resourceData)
     }
 
-    /// Returns the current state of all networks known to the API server.
+    /// Returns the current state of all networks the core plugin holds.
     ///
     /// - Returns: An array of ``NetworkResource`` values, or an empty array if no
     ///   networks exist or the server returns no data.
@@ -96,12 +96,35 @@ public struct NetworkClient: Sendable {
     public func list() async throws -> [NetworkResource] {
         let request = XPCMessage(route: .networkList)
 
-        let response = try await xpcSend(message: request, timeout: .seconds(1))
+        // The route is served by a plugin, so the wait is the one a request to
+        // a service that may still have to launch is given. Launching one takes
+        // seconds, and a budget shorter than that fails a caller for the state
+        // of the machine rather than for anything it asked.
+        let response = try await xpcSend(message: request)
 
         guard let resourceData = response.dataNoCopy(key: .networkResources) else {
             return []
         }
         return try JSONDecoder().decode([NetworkResource].self, from: resourceData)
+    }
+
+    /// Resolve a container hostname to its network attachment.
+    ///
+    /// - Parameter hostname: A canonical DNS hostname with a trailing dot.
+    /// - Returns: The attachment whose hostname matches, or nil when no
+    ///   network knows the name.
+    public func lookup(hostname: String) async throws -> Attachment? {
+        let request = XPCMessage(route: .networkLookup)
+        request.set(key: .hostname, value: hostname)
+
+        // Served by the same plugin as the listing, and given the same wait for
+        // the same reason.
+        let response = try await xpcSend(message: request)
+
+        guard let data = response.dataNoCopy(key: .attachment) else {
+            return nil
+        }
+        return try JSONDecoder().decode(Attachment.self, from: data)
     }
 
     /// Returns the network with the given identifier.

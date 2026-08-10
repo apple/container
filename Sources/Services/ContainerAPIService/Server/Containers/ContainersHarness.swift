@@ -46,6 +46,62 @@ public struct ContainersHarness: Sendable {
     }
 
     @Sendable
+    public func volumeNamesInUse(_ message: XPCMessage) async throws -> XPCMessage {
+        let names = try await service.volumeNamesInUse()
+        let data = try JSONEncoder().encode(names)
+
+        let reply = message.reply()
+        reply.set(key: .references, value: data)
+        return reply
+    }
+
+    @Sendable
+    public func volumeReferences(_ message: XPCMessage) async throws -> XPCMessage {
+        guard let name = message.string(key: .volumeName) else {
+            throw ContainerizationError(.invalidArgument, message: "volume name cannot be empty")
+        }
+        let ids = try await service.containersReferencingVolume(name)
+        let data = try JSONEncoder().encode(ids)
+
+        let reply = message.reply()
+        reply.set(key: .references, value: data)
+        return reply
+    }
+
+    @Sendable
+    public func networkReferences(_ message: XPCMessage) async throws -> XPCMessage {
+        guard let id = message.string(key: .id) else {
+            throw ContainerizationError(.invalidArgument, message: "network id cannot be empty")
+        }
+        let ids = try await service.containersAttachedToNetwork(id)
+        let data = try JSONEncoder().encode(ids)
+
+        let reply = message.reply()
+        reply.set(key: .references, value: data)
+        return reply
+    }
+
+    @Sendable
+    public func imageReferences(_ message: XPCMessage) async throws -> XPCMessage {
+        let references = await service.getActiveImageReferences()
+        let data = try JSONEncoder().encode(references)
+
+        let reply = message.reply()
+        reply.set(key: .references, value: data)
+        return reply
+    }
+
+    @Sendable
+    public func usageTotals(_ message: XPCMessage) async throws -> XPCMessage {
+        let totals = await service.calculateDiskUsage()
+        let data = try JSONEncoder().encode(totals)
+
+        let reply = message.reply()
+        reply.set(key: .usageTotals, value: data)
+        return reply
+    }
+
+    @Sendable
     public func bootstrap(_ message: XPCMessage) async throws -> XPCMessage {
         let id = message.string(key: .id)
         guard let id else {

@@ -19,16 +19,14 @@ import Logging
 
 /// Service for calculating disk usage across all resource types
 public actor DiskUsageService {
-    private let containersService: ContainersService
+    private let containers = ContainerClient()
     private let volumesService: VolumesService
     private let log: Logger
 
     public init(
-        containersService: ContainersService,
         volumesService: VolumesService,
         log: Logger
     ) {
-        self.containersService = containersService
         self.volumesService = volumesService
         self.log = log
     }
@@ -38,11 +36,11 @@ public actor DiskUsageService {
         log.debug("calculating disk usage for all resources")
 
         // Get active image references first (needed for image calculation)
-        let activeImageRefs = await containersService.getActiveImageReferences()
+        let activeImageRefs = try await containers.activeImageReferences()
 
         // Query all services concurrently
         async let imageStats = ClientImage.calculateDiskUsage(activeReferences: activeImageRefs)
-        async let containerStats = containersService.calculateDiskUsage()
+        async let containerStats = containers.calculateDiskUsage()
         async let volumeStats = volumesService.calculateDiskUsage()
 
         let (imageData, containerData, volumeData) = try await (imageStats, containerStats, volumeStats)
@@ -54,26 +52,16 @@ public actor DiskUsageService {
                 sizeInBytes: imageData.totalSize,
                 reclaimable: imageData.reclaimableSize
             ),
-            containers: ResourceUsage(
-                total: containerData.0,
-                active: containerData.1,
-                sizeInBytes: containerData.2,
-                reclaimable: containerData.3
-            ),
-            volumes: ResourceUsage(
-                total: volumeData.0,
-                active: volumeData.1,
-                sizeInBytes: volumeData.2,
-                reclaimable: volumeData.3
-            )
+            containers: containerData,
+            volumes: volumeData
         )
 
         log.debug(
             "disk usage calculation complete",
             metadata: [
                 "images_total": "\(imageData.totalCount)",
-                "containers_total": "\(containerData.0)",
-                "volumes_total": "\(volumeData.0)",
+                "containers_total": "\(containerData.total)",
+                "volumes_total": "\(volumeData.total)",
             ])
 
         return stats

@@ -282,8 +282,7 @@ public actor ContainersService {
     }
 
     /// Calculate disk usage for containers
-    /// - Returns: Tuple of (total count, active count, total size, reclaimable size)
-    public func calculateDiskUsage() async -> (Int, Int, UInt64, UInt64) {
+    public func calculateDiskUsage() async -> ResourceUsage {
         await lock.withLock(logMetadata: ["acquirer": "\(#function)"]) { _ in
             var totalSize: UInt64 = 0
             var reclaimableSize: UInt64 = 0
@@ -302,7 +301,12 @@ public actor ContainersService {
                 }
             }
 
-            return (await self.containers.count, activeCount, totalSize, reclaimableSize)
+            return ResourceUsage(
+                total: await self.containers.count,
+                active: activeCount,
+                sizeInBytes: totalSize,
+                reclaimable: reclaimableSize
+            )
         }
     }
 

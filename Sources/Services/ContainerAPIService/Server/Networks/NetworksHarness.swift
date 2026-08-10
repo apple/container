@@ -41,6 +41,18 @@ public struct NetworksHarness: Sendable {
     }
 
     @Sendable
+    public func lookup(_ message: XPCMessage) async throws -> XPCMessage {
+        guard let hostname = message.string(key: .hostname) else {
+            throw ContainerizationError(.invalidArgument, message: "hostname cannot be empty")
+        }
+        let reply = message.reply()
+        if let attachment = try await service.lookup(hostname: hostname) {
+            reply.set(key: .attachment, value: try JSONEncoder().encode(attachment))
+        }
+        return reply
+    }
+
+    @Sendable
     public func create(_ message: XPCMessage) async throws -> XPCMessage {
         let data = message.dataNoCopy(key: .networkConfig)
         guard let data else {

@@ -128,6 +128,14 @@ public enum XPCKeys: String {
     case volume
     case volumes
     case volumeName
+    /// JSON array of container, volume, or image identifiers a query returns.
+    case references
+    /// JSON UsageTotals a resource kind reports.
+    case usageTotals
+    /// A canonical DNS hostname, with its trailing dot.
+    case hostname
+    /// JSON Attachment a network lookup returns.
+    case attachment
     case volumeSize
     case volumeDriver
     case volumeDriverOpts
@@ -172,6 +180,11 @@ public enum XPCRoute: String {
     case containerCopyIn
     case containerCopyOut
     case containerExport
+    case containerVolumesInUse
+    case containerVolumeReferences
+    case containerNetworkReferences
+    case containerImageReferences
+    case containerUsageTotals
 
     case pluginLoad
     case pluginGet
@@ -182,6 +195,7 @@ public enum XPCRoute: String {
     case networkCreate
     case networkDelete
     case networkList
+    case networkLookup
 
     case volumeCreate
     case volumeDelete

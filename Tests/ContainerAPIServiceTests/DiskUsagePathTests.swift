@@ -50,7 +50,6 @@ struct DiskUsagePathTests {
     private func makeVolumesService(appRoot: FilePath) async throws -> VolumesService {
         try await VolumesService(
             resourceRoot: appRoot.appending("volumes"),
-            containersService: makeContainersService(appRoot: appRoot),
             log: log
         )
     }

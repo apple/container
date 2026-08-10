@@ -36,7 +36,7 @@ public actor NetworksService {
 
     private let pluginLoader: PluginLoader
     private let resourceRoot: FilePath
-    private let containersService: ContainersService
+    private let containers = ContainerClient()
     private let log: Logger
     private let debugHelpers: Bool
 
@@ -50,14 +50,12 @@ public actor NetworksService {
     public init(
         pluginLoader: PluginLoader,
         resourceRoot: FilePath,
-        containersService: ContainersService,
         defaultNetworkConfiguration: NetworkConfiguration,
         log: Logger,
         debugHelpers: Bool = false,
     ) async throws {
         self.pluginLoader = pluginLoader
         self.resourceRoot = resourceRoot
-        self.containersService = containersService
         self.log = log
         self.debugHelpers = debugHelpers
 
@@ -251,7 +249,7 @@ public actor NetworksService {
             // A container created after this answer can attach to the network
             // while it is deleted, the same window image delete accepts against
             // container create; the attach then fails naming the missing network.
-            let referringContainers = try await self.containersService.containersAttachedToNetwork(id)
+            let referringContainers = try await self.containers.containersAttachedToNetwork(id)
 
             // bail if any referring containers
             guard referringContainers.isEmpty else {

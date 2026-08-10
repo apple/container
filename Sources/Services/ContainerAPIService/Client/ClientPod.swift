@@ -22,7 +22,7 @@ import Foundation
 
 /// Pods: machines that several containers run inside and share.
 public struct ClientPod {
-    static let serviceIdentifier = "com.apple.container.apiserver"
+    static let serviceIdentifier = "com.apple.container.core.container-core-containers"
 
     /// Write down a pod, so containers can be placed in it before it boots.
     public static func create(

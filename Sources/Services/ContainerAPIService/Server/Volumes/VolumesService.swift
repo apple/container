@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerAPIClient
 import ContainerPersistence
 import ContainerResource
 import Containerization
@@ -31,17 +32,16 @@ public actor VolumesService {
     private let store: ContainerPersistence.FilesystemEntityStore<VolumeConfiguration>
     private let log: Logger
     private let lock = AsyncLock()
-    private let containersService: ContainersService
+    private let containers = ContainerClient()
 
     // Storage constants
     private static let entityFile = "entity.json"
     private static let blockFile = "volume.img"
 
-    public init(resourceRoot: FilePath, containersService: ContainersService, log: Logger) async throws {
+    public init(resourceRoot: FilePath, log: Logger) async throws {
         try FileManager.default.createDirectory(atPath: resourceRoot.string, withIntermediateDirectories: true)
         self.resourceRoot = resourceRoot
         self.store = try FilesystemEntityStore<VolumeConfiguration>(path: resourceRoot, type: "volumes", log: log)
-        self.containersService = containersService
         self.log = log
 
         // Migrate configs stored with the old `createdAt` key to `creationDate`.
@@ -179,7 +179,7 @@ public actor VolumesService {
 
     /// Calculate disk usage for volumes
     /// - Returns: Tuple of (total count, active count, total size, reclaimable size)
-    public func calculateDiskUsage() async throws -> (Int, Int, UInt64, UInt64) {
+    public func calculateDiskUsage() async throws -> ResourceUsage {
         log.debug(
             "VolumesService: enter",
             metadata: [
@@ -198,7 +198,7 @@ public actor VolumesService {
         return try await lock.withLock { _ in
             let allVolumes = try await self.store.list()
 
-            let inUseSet = try await self.containersService.volumeNamesInUse()
+            let inUseSet = try await self.containers.volumeNamesInUse()
 
             var totalSize: UInt64 = 0
             var reclaimableSize: UInt64 = 0
@@ -214,7 +214,12 @@ public actor VolumesService {
                 }
             }
 
-            return (allVolumes.count, inUseSet.count, totalSize, reclaimableSize)
+            return ResourceUsage(
+                total: allVolumes.count,
+                active: inUseSet.count,
+                sizeInBytes: totalSize,
+                reclaimable: reclaimableSize
+            )
         }
     }
 
@@ -363,7 +368,7 @@ public actor VolumesService {
         // A container created after this answer can name the volume and lose
         // it, the same window image delete accepts against container create;
         // the create then fails naming the missing volume.
-        let referencing = try await containersService.containersReferencingVolume(name)
+        let referencing = try await containers.containersReferencingVolume(name)
         guard referencing.isEmpty else {
             throw VolumeError.volumeInUse(name)
         }
