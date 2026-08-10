@@ -49,6 +49,30 @@ public struct ServiceManager {
         status = try runLaunchctlCommand(args: ["bootout", label])
     }
 
+    /// Deregister a service by its bare label, from whichever domain holds it.
+    ///
+    /// The domain a service sits in belongs to the session that registered it,
+    /// not to the session asking about it now: `register` bootstraps into the
+    /// domain of whoever called it, so a system started from a terminal no
+    /// window server owns lands in `user/<uid>`, and the same command from a
+    /// login session lands in `gui/<uid>`. Either one can drive the other's
+    /// services afterwards, because reaching them is a matter of the Mach
+    /// namespace rather than of the domain they were bootstrapped into.
+    ///
+    /// Returns whether a domain gave the service up, so that a caller looking
+    /// in the wrong place is told so rather than left to assume it was heard.
+    @discardableResult
+    public static func deregisterAnyDomain(serviceLabel label: String) throws -> Bool {
+        for domain in try Self.getDomainStrings() {
+            var status: Int32 = -1
+            try Self.deregister(fullServiceLabel: "\(domain)/\(label)", status: &status)
+            if status == 0 {
+                return true
+            }
+        }
+        return false
+    }
+
     /// Restart a service by a launchd label.
     public static func kickstart(fullServiceLabel label: String) throws {
         _ = try runLaunchctlCommand(args: ["kickstart", "-k", label])
@@ -119,6 +143,14 @@ public struct ServiceManager {
             throw ContainerizationError(.internalError, message: "could not decode output of command `launchctl managername`")
         }
         return outputText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Every launchd domain a service of this user's could be registered in,
+    /// the caller's own first so that the common case is answered first.
+    public static func getDomainStrings() throws -> [String] {
+        let own = try Self.getDomainString()
+        let userDomains = ["user/\(getuid())", "gui/\(getuid())"]
+        return [own] + userDomains.filter { $0 != own }
     }
 
     public static func getDomainString() throws -> String {

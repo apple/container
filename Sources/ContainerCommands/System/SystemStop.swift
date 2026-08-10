@@ -49,8 +49,7 @@ extension Application {
                 }
             )
 
-            let launchdDomainString = try ServiceManager.getDomainString()
-            let fullLabel = "\(launchdDomainString)/\(prefix)apiserver"
+            let apiserverLabel = "\(prefix)apiserver"
 
             var running = true
             do {
@@ -88,32 +87,44 @@ extension Application {
                 } catch {
                     log.warning("failed to wait for all containers", metadata: ["error": "\(error)"])
                 }
-
-                // Stopping the services is what this command is for, so it
-                // happens whether or not the containers could be waited for.
-                // Asking the API server about its containers is asking the
-                // service being stopped, and it is when that service is in a
-                // bad way that stopping it matters most: leaving it running
-                // because it could not answer leaves the one process that
-                // needed stopping.
-                log.info("stopping service", metadata: ["label": "\(fullLabel)"])
-                do {
-                    try ServiceManager.deregister(fullServiceLabel: fullLabel)
-                } catch {
-                    log.warning("failed to stop service", metadata: ["label": "\(fullLabel)", "error": "\(error)"])
-                }
             }
 
-            // Note: The assumption here is that we would have registered the launchd services
-            // in the same domain as `launchdDomainString`. This is a fairly sane assumption since
-            // if somehow the launchd domain changed, XPC interactions would not be possible.
+            // Stopping the services is what this command is for, so it
+            // happens whether or not the containers could be waited for, and
+            // whether or not the API server answered its health check at all.
+            // Asking the API server about its containers is asking the
+            // service being stopped, and it is when that service is in a
+            // bad way that stopping it matters most: leaving it running
+            // because it could not answer leaves the one process that
+            // needed stopping.
+            log.info("stopping service", metadata: ["label": "\(apiserverLabel)"])
+            do {
+                if try !ServiceManager.deregisterAnyDomain(serviceLabel: apiserverLabel) {
+                    log.warning(
+                        "failed to stop service",
+                        metadata: ["label": "\(apiserverLabel)", "error": "no launchd domain holds it"])
+                }
+            } catch {
+                log.warning("failed to stop service", metadata: ["label": "\(apiserverLabel)", "error": "\(error)"])
+            }
+
+            // The domain a service was registered in is the one belonging to
+            // the session that started it, which is not necessarily this one:
+            // a system brought up from a terminal no window server owns sits
+            // in `user/<uid>`, and this command run from a login session looks
+            // in `gui/<uid>`. Either session can drive the other's services,
+            // so a mismatch does not announce itself as a failure to reach
+            // them; it announces itself as a stop that says it stopped
+            // everything while every service it named is still running.
             try ServiceManager.enumerate()
                 .filter { $0.hasPrefix(prefix) }
-                .filter { $0 != fullLabel }
-                .map { "\(launchdDomainString)/\($0)" }
+                .filter { $0 != apiserverLabel }
                 .forEach {
                     log.info("stopping service", metadata: ["label": "\($0)"])
-                    try? ServiceManager.deregister(fullServiceLabel: $0)
+                    let stopped = (try? ServiceManager.deregisterAnyDomain(serviceLabel: $0)) ?? false
+                    if !stopped {
+                        log.warning("failed to stop service", metadata: ["label": "\($0)"])
+                    }
                 }
         }
     }
