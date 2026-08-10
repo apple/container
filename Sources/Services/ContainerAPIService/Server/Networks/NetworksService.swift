@@ -248,50 +248,41 @@ public actor NetworksService {
                 throw ContainerizationError(.invalidArgument, message: "cannot delete builtin network: \(id)")
             }
 
-            // prevent container operations while we atomically check and delete
-            try await self.containersService.withContainerList(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { containers in
-                // find all containers that refer to the network
-                var referringContainers = Set<String>()
-                for container in containers {
-                    for attachmentConfiguration in container.configuration.networks {
-                        if attachmentConfiguration.network == id {
-                            referringContainers.insert(container.configuration.id)
-                            break
-                        }
-                    }
-                }
+            // A container created after this answer can attach to the network
+            // while it is deleted, the same window image delete accepts against
+            // container create; the attach then fails naming the missing network.
+            let referringContainers = try await self.containersService.containersAttachedToNetwork(id)
 
-                // bail if any referring containers
-                guard referringContainers.isEmpty else {
-                    throw ContainerizationError(
-                        .invalidState,
-                        message: "cannot delete subnet \(id) with referring containers: \(referringContainers.joined(separator: ", "))"
-                    )
-                }
+            // bail if any referring containers
+            guard referringContainers.isEmpty else {
+                throw ContainerizationError(
+                    .invalidState,
+                    message: "cannot delete subnet \(id) with referring containers: \(referringContainers.joined(separator: ", "))"
+                )
+            }
 
-                // start network deletion, this is the last place we'll want to throw
-                do {
-                    try await self.deregisterService(configuration: serviceState.configuration)
-                } catch {
-                    self.log.error(
-                        "failed to deregister network service",
-                        metadata: [
-                            "id": "\(id)",
-                            "error": "\(error.localizedDescription)",
-                        ])
-                }
+            // start network deletion, this is the last place we'll want to throw
+            do {
+                try await self.deregisterService(configuration: serviceState.configuration)
+            } catch {
+                self.log.error(
+                    "failed to deregister network service",
+                    metadata: [
+                        "id": "\(id)",
+                        "error": "\(error.localizedDescription)",
+                    ])
+            }
 
-                // deletion is underway, do not throw anything now
-                do {
-                    try await self.store.delete(id)
-                } catch {
-                    self.log.error(
-                        "failed to delete network from configuration store",
-                        metadata: [
-                            "id": "\(id)",
-                            "error": "\(error.localizedDescription)",
-                        ])
-                }
+            // deletion is underway, do not throw anything now
+            do {
+                try await self.store.delete(id)
+            } catch {
+                self.log.error(
+                    "failed to delete network from configuration store",
+                    metadata: [
+                        "id": "\(id)",
+                        "error": "\(error.localizedDescription)",
+                    ])
             }
 
             // having deleted successfully, remove the runtime state

@@ -243,6 +243,44 @@ public actor ContainersService {
         }
     }
 
+    /// The name of every volume a container mounts, gathered inside the
+    /// containers lock so no container is created into the answer.
+    public func volumeNamesInUse() async throws -> Set<String> {
+        try await withContainerList(logMetadata: ["acquirer": "\(#function)"]) { containers in
+            var names = Set<String>()
+            for container in containers {
+                for mount in container.configuration.mounts {
+                    if mount.isVolume, let volumeName = mount.volumeName {
+                        names.insert(volumeName)
+                    }
+                }
+            }
+            return names
+        }
+    }
+
+    /// The containers that mount the named volume, gathered inside the
+    /// containers lock. An empty answer says the volume was free when asked,
+    /// which is the strongest claim one resource can make about another from
+    /// outside the other's lock.
+    public func containersReferencingVolume(_ name: String) async throws -> [String] {
+        try await withContainerList(logMetadata: ["acquirer": "\(#function)", "name": "\(name)"]) { containers in
+            containers.filter { container in
+                container.configuration.mounts.contains { $0.isVolume && $0.volumeName == name }
+            }.map { $0.configuration.id }
+        }
+    }
+
+    /// The containers attached to the named network, gathered inside the
+    /// containers lock.
+    public func containersAttachedToNetwork(_ id: String) async throws -> [String] {
+        try await withContainerList(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { containers in
+            containers.filter { container in
+                container.configuration.networks.contains { $0.network == id }
+            }.map { $0.configuration.id }
+        }
+    }
+
     /// Calculate disk usage for containers
     /// - Returns: Tuple of (total count, active count, total size, reclaimable size)
     public func calculateDiskUsage() async -> (Int, Int, UInt64, UInt64) {

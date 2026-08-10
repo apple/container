@@ -198,35 +198,23 @@ public actor VolumesService {
         return try await lock.withLock { _ in
             let allVolumes = try await self.store.list()
 
-            // Atomically get active volumes with container list
-            return try await self.containersService.withContainerList(logMetadata: ["acquirer": "\(#function)"]) { containers in
-                var inUseSet = Set<String>()
+            let inUseSet = try await self.containersService.volumeNamesInUse()
 
-                // Find all mounted volumes
-                for container in containers {
-                    for mount in container.configuration.mounts {
-                        if mount.isVolume, let volumeName = mount.volumeName {
-                            inUseSet.insert(volumeName)
-                        }
-                    }
+            var totalSize: UInt64 = 0
+            var reclaimableSize: UInt64 = 0
+
+            // Calculate sizes
+            for volume in allVolumes {
+                let volumePath = self.volumePath(for: volume.name)
+                let volumeSize = FileManager.default.allocatedSize(of: URL(fileURLWithPath: volumePath))
+                totalSize += volumeSize
+
+                if !inUseSet.contains(volume.name) {
+                    reclaimableSize += volumeSize
                 }
-
-                var totalSize: UInt64 = 0
-                var reclaimableSize: UInt64 = 0
-
-                // Calculate sizes
-                for volume in allVolumes {
-                    let volumePath = self.volumePath(for: volume.name)
-                    let volumeSize = FileManager.default.allocatedSize(of: URL(fileURLWithPath: volumePath))
-                    totalSize += volumeSize
-
-                    if !inUseSet.contains(volume.name) {
-                        reclaimableSize += volumeSize
-                    }
-                }
-
-                return (allVolumes.count, inUseSet.count, totalSize, reclaimableSize)
             }
+
+            return (allVolumes.count, inUseSet.count, totalSize, reclaimableSize)
         }
     }
 
@@ -372,19 +360,16 @@ public actor VolumesService {
             throw VolumeError.volumeNotFound(name)
         }
 
-        // Check if volume is in use by any container atomically
-        try await containersService.withContainerList(logMetadata: ["acquirer": "\(#function)", "name": "\(name)"]) { containers in
-            for container in containers {
-                for mount in container.configuration.mounts {
-                    if mount.isVolume && mount.volumeName == name {
-                        throw VolumeError.volumeInUse(name)
-                    }
-                }
-            }
-
-            try await self.store.delete(name)
-            try self.removeVolumeDirectory(for: name)
+        // A container created after this answer can name the volume and lose
+        // it, the same window image delete accepts against container create;
+        // the create then fails naming the missing volume.
+        let referencing = try await containersService.containersReferencingVolume(name)
+        guard referencing.isEmpty else {
+            throw VolumeError.volumeInUse(name)
         }
+
+        try await self.store.delete(name)
+        try self.removeVolumeDirectory(for: name)
 
         log.info("deleted volume", metadata: ["name": "\(name)"])
     }
