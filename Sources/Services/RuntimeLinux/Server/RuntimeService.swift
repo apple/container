@@ -815,7 +815,7 @@ public actor RuntimeService {
             let shouldFreeze = self.state == .running
 
             if shouldFreeze {
-                try await ctr.container.filesystemOperation(operation: .freeze, path: "/")
+                try await ctr.container.filesystemOperation(operation: .freeze, path: "/", containerID: ctr.config.id)
             }
 
             do {
@@ -823,7 +823,7 @@ public actor RuntimeService {
             } catch {
                 if shouldFreeze {
                     do {
-                        try await ctr.container.filesystemOperation(operation: .thaw, path: "/")
+                        try await ctr.container.filesystemOperation(operation: .thaw, path: "/", containerID: ctr.config.id)
                     } catch {
                         self.log.error(
                             "failed to thaw filesystem after snapshotDisk error",
@@ -836,7 +836,7 @@ public actor RuntimeService {
             }
 
             if shouldFreeze {
-                try await ctr.container.filesystemOperation(operation: .thaw, path: "/")
+                try await ctr.container.filesystemOperation(operation: .thaw, path: "/", containerID: ctr.config.id)
             }
 
             return message.reply()
