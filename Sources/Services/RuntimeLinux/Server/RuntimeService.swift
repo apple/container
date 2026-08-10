@@ -1324,14 +1324,23 @@ public actor RuntimeService {
             podConfig.shareProcessNamespace = config.shareProcessNamespace
             podConfig.hostname = config.hostname ?? Self.hostname(networks: config.networks, id: config.id)
             // The hosts file names the pod at its own address so its containers
-            // reach the name they answer to, and it is written once for the pod
-            // the way the resolver and the hostname are.
+            // reach the name they answer to, and names the network's gateway so
+            // they reach the host they run on: `host.containers.internal` is the
+            // cross-runtime name for it, which Podman established, and
+            // `host.docker.internal` the one Docker's tools look for, so both are
+            // given as Podman gives them. It is written once for the pod the way
+            // the resolver and the hostname are.
             var hostsEntries = [Hosts.Entry.localHostIPV4()]
             if let primary = attachments.first {
                 hostsEntries.append(
                     Hosts.Entry(
                         ipAddress: primary.ipv4Address.address.description,
                         hostnames: [podConfig.hostname ?? config.id],
+                    ))
+                hostsEntries.append(
+                    Hosts.Entry(
+                        ipAddress: primary.ipv4Gateway.description,
+                        hostnames: ["host.containers.internal", "host.docker.internal"],
                     ))
             }
             podConfig.hosts = Hosts(entries: hostsEntries)
