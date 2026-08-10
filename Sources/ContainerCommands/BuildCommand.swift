@@ -470,6 +470,18 @@ extension Application {
             } catch {
                 throw NSError(domain: "Build", code: 1, userInfo: [NSLocalizedDescriptionKey: "\(error)"])
             }
+
+            // The build churned the builder's cache: it re-transferred the
+            // context and unpacked every layer, then discarded what it did not
+            // keep. The builder freed those blocks inside its filesystem; trim
+            // returns them to the host, so the sparse backing file tracks what
+            // the cache is using rather than the high water mark of every build.
+            // Best effort: a build that succeeded is not failed by a reclaim.
+            do {
+                try await ContainerClient().trim(id: "buildkit")
+            } catch {
+                log.warning("failed to reclaim builder space after build", metadata: ["error": "\(error)"])
+            }
         }
 
         public mutating func validate() throws {

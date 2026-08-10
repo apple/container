@@ -43,6 +43,8 @@ public enum RuntimeKeys: String {
     case fd
     /// Options for stopping a container key.
     case stopOptions
+    /// Bytes a filesystem trim reported discarded.
+    case trimmedBytes
     /// An endpoint to talk to the runtime service.
     case runtimeServiceEndpoint
 

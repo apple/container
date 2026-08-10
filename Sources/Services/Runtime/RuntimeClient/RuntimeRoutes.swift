@@ -52,6 +52,8 @@ public enum RuntimeRoutes: String {
     case start = "com.apple.container.runtime/start"
     /// Send a signal to a process inside the sandbox.
     case kill = "com.apple.container.runtime/kill"
+    /// Discard the free blocks of the container's root filesystem.
+    case trim = "com.apple.container.runtime/trim"
     /// Resize the PTY of a process inside the sandbox.
     case resize = "com.apple.container.runtime/resize"
     /// Wait for a process inside the sandbox to exit.

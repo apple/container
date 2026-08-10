@@ -458,6 +458,38 @@ public actor RuntimeService {
     }
 
     /// Signal a process running in the virtual machine.
+    /// Discard the free blocks of the container's root filesystem, so its
+    /// sparse backing file gives them back to the host.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with no parameters.
+    ///
+    /// - Returns: An XPC message with the bytes the filesystem reported
+    ///   trimmed under the trimmedBytes key.
+    @Sendable
+    public func trim(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.debug("enter", metadata: ["func": "\(#function)"])
+        defer { self.log.debug("exit", metadata: ["func": "\(#function)"]) }
+
+        let id = try message.id()
+
+        let trimmed = try await self.lock.withLock { [self] _ in
+            switch await self.state {
+            case .running:
+                return try await self.getSandbox().trimContainer(id)
+            default:
+                throw ContainerizationError(
+                    .invalidState,
+                    message: "cannot trim: container is not running"
+                )
+            }
+        }
+
+        let reply = message.reply()
+        reply.set(key: RuntimeKeys.trimmedBytes.rawValue, value: trimmed)
+        return reply
+    }
+
     ///
     /// - Parameters:
     ///   - message: An XPC message with the following parameters:

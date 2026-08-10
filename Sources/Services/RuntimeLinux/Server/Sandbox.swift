@@ -44,6 +44,11 @@ protocol Sandbox: Sendable {
     /// Signal a container's init process.
     func killContainer(_ id: String, signal: Signal) async throws
 
+    /// Discard the free blocks of a container's root filesystem, returning
+    /// the bytes the filesystem reported trimmed.
+    @discardableResult
+    func trimContainer(_ id: String) async throws -> UInt64
+
     /// Wait for a container's init process to exit.
     func waitContainer(_ id: String, timeoutInSeconds: Int64?) async throws -> ExitStatus
 

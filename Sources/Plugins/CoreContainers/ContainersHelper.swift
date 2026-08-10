@@ -205,6 +205,7 @@ extension ContainersHelper {
             routes[XPCRoute.containerResize.rawValue] = XPCServer.route(harness.resize)
             routes[XPCRoute.containerWait.rawValue] = XPCServer.route(harness.wait)
             routes[XPCRoute.containerKill.rawValue] = XPCServer.route(harness.kill)
+            routes[XPCRoute.containerTrim.rawValue] = XPCServer.route(harness.trim)
             routes[XPCRoute.containerStats.rawValue] = XPCServer.route(harness.stats)
             routes[XPCRoute.containerDiskUsage.rawValue] = XPCServer.route(harness.diskUsage)
             routes[XPCRoute.containerCopyIn.rawValue] = XPCServer.route(harness.copyIn)

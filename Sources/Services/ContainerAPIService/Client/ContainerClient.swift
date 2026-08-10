@@ -20,6 +20,7 @@ import Containerization
 import ContainerizationError
 import ContainerizationOCI
 import Foundation
+import Logging
 
 /// A client for interacting with the container API server.
 ///
@@ -308,6 +309,32 @@ public struct ContainerClient: Sendable {
             throw ContainerizationError(
                 .internalError,
                 message: "failed to delete container",
+                cause: error
+            )
+        }
+    }
+
+    /// Discard the free blocks of a running container's root filesystem, so its
+    /// sparse backing file gives them back to the host rather than holding the
+    /// high water mark of everything ever written to it. The guest agent
+    /// performs the trim on the container's own view of the filesystem, so it
+    /// reaches the blocks the container freed regardless of what the container
+    /// runs or which capabilities it holds. Returns the number of bytes the
+    /// filesystem reported trimmed.
+    @discardableResult
+    public func trim(id: String) async throws -> UInt64 {
+        let request = XPCMessage(route: .containerTrim)
+        request.set(key: .id, value: id)
+
+        do {
+            // Sized to the operation: a first trim walks every free extent of
+            // the filesystem, which can take tens of seconds on a large one.
+            let reply = try await xpcSend(message: request, timeout: .seconds(300))
+            return reply.uint64(key: .trimmedBytes)
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to trim container \(id)",
                 cause: error
             )
         }

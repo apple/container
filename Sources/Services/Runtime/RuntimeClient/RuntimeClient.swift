@@ -271,6 +271,24 @@ extension RuntimeClient {
         }
     }
 
+    public func trim(_ id: String) async throws -> UInt64 {
+        let request = self.request(RuntimeRoutes.trim.rawValue)
+        request.set(key: RuntimeKeys.id.rawValue, value: id)
+
+        do {
+            // Sized to the operation: a first trim walks every free extent of
+            // the filesystem, which can take tens of seconds on a large one.
+            let reply = try await self.client.send(request, responseTimeout: .seconds(300))
+            return reply.uint64(key: RuntimeKeys.trimmedBytes.rawValue)
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to trim container \(id) in sandbox \(self.id)",
+                cause: error
+            )
+        }
+    }
+
     public func resize(_ id: String, size: Terminal.Size) async throws {
         let request = self.request(RuntimeRoutes.resize.rawValue)
         request.set(key: RuntimeKeys.id.rawValue, value: id)

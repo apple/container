@@ -688,6 +688,29 @@ public actor ContainersService {
     }
 
     /// Send a signal to the container.
+    public func trim(id: String) async throws -> UInt64 {
+        log.debug(
+            "ContainersService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "id": "\(id)",
+            ]
+        )
+        defer {
+            log.debug(
+                "ContainersService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "id": "\(id)",
+                ]
+            )
+        }
+
+        let state = try self._getContainerState(id: id)
+        let client = try state.getClient()
+        return try await client.trim(id)
+    }
+
     public func kill(id: String, processID: String, signal: String) async throws {
         log.debug(
             "ContainersService: enter",
