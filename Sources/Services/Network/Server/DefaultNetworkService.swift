@@ -90,6 +90,7 @@ public actor DefaultNetworkService: NetworkService {
             ipv4Address: try CIDRv4(ip, prefix: status.ipv4Subnet.prefix),
             ipv4Gateway: status.ipv4Gateway,
             ipv6Address: ipv6Address,
+            ipv6Gateway: status.ipv6Subnet?.gateway,
             macAddress: macAddress,
             variant: network.variant
         )
@@ -160,6 +161,7 @@ public actor DefaultNetworkService: NetworkService {
             ipv4Address: ipv4Address,
             ipv4Gateway: status.ipv4Gateway,
             ipv6Address: ipv6Address,
+            ipv6Gateway: status.ipv6Subnet?.gateway,
             macAddress: macAddress,
             variant: network.variant
         )

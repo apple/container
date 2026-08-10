@@ -1328,8 +1328,9 @@ public actor RuntimeService {
             // they reach the host they run on: `host.containers.internal` is the
             // cross-runtime name for it, which Podman established, and
             // `host.docker.internal` the one Docker's tools look for, so both are
-            // given as Podman gives them. It is written once for the pod the way
-            // the resolver and the hostname are.
+            // given as Podman gives them, at the IPv4 gateway and, on a dual-stack
+            // network, the IPv6 gateway too. It is written once for the pod the
+            // way the resolver and the hostname are.
             var hostsEntries = [Hosts.Entry.localHostIPV4()]
             if let primary = attachments.first {
                 hostsEntries.append(
@@ -1342,6 +1343,13 @@ public actor RuntimeService {
                         ipAddress: primary.ipv4Gateway.description,
                         hostnames: ["host.containers.internal", "host.docker.internal"],
                     ))
+                if let ipv6Gateway = primary.ipv6Gateway {
+                    hostsEntries.append(
+                        Hosts.Entry(
+                            ipAddress: ipv6Gateway.description,
+                            hostnames: ["host.containers.internal", "host.docker.internal"],
+                        ))
+                }
             }
             podConfig.hosts = Hosts(entries: hostsEntries)
             // The runtime asks for these two of every machine it boots; they
@@ -1555,6 +1563,7 @@ public actor RuntimeService {
                         ipv4Address: attachment.ipv4Address,
                         ipv4Gateway: attachment.ipv4Gateway,
                         ipv6Address: attachment.ipv6Address,
+                        ipv6Gateway: attachment.ipv6Gateway,
                         macAddress: attachment.macAddress,
                         mtu: mtu,
                         variant: attachment.variant
