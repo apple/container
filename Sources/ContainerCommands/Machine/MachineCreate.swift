@@ -65,6 +65,11 @@ extension Application {
         @Option(name: .long, help: "User's home directory mount option (ro, rw, none). Default: rw")
         public var homeMount: String?
 
+        @Option(
+            name: .long,
+            help: "Mount a host directory into the container machine (format: host:guest[:ro|rw]). Can be repeated.")
+        public var mount: [String] = []
+
         @Flag(name: .long, help: "Enable nested virtualization (requires Apple Silicon M3+ and macOS 15+ and kernel with CONFIG_KVM=y)")
         public var virtualization: Bool = false
 
@@ -102,7 +107,8 @@ extension Application {
                     "home-mount": homeMount,
                     "virtualization": virtualization ? "true" : nil,
                     "kernel": resolvedKernel?.string,
-                ].compactMapValues { $0 }
+                ].compactMapValues { $0 },
+                mounts: mount.isEmpty ? nil : mount
             )
 
             let id: String
