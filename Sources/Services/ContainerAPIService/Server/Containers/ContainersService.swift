@@ -152,11 +152,17 @@ public actor ContainersService {
                     ),
                 )
                 results[config.id] = state
-                guard runtimePlugins.first(where: { $0.name == config.runtimeHandler }) != nil else {
-                    throw ContainerizationError(
-                        .internalError,
-                        message: "failed to find runtime plugin \(config.runtimeHandler)"
-                    )
+                // A missing plugin says nothing about the container: the
+                // loader's answer varies with how this process was spawned,
+                // and a bundle outlives any one spawn. Removal is reserved
+                // for a bundle that cannot be read at all.
+                if runtimePlugins.first(where: { $0.name == config.runtimeHandler }) == nil {
+                    log.warning(
+                        "no runtime plugin for container",
+                        metadata: [
+                            "id": "\(config.id)",
+                            "runtime": "\(config.runtimeHandler)",
+                        ])
                 }
             } catch {
                 try? FileManager.default.removeItem(at: dir)
@@ -573,6 +579,66 @@ public actor ContainersService {
                 await self.exitMonitor.stopTracking(id: id)
                 try? await client.stop(options: ContainerStopOptions.default)
                 throw error
+            }
+        }
+    }
+
+    /// Adopt the containers the reconnected machines report.
+    ///
+    /// The machines a restarted control plane finds alive were dialed by the
+    /// pods service; each reports the containers it holds and their state.
+    /// A container the machine says is running is adopted as running: its
+    /// client is the pod's, addressed to it, and the exit monitor tracks it
+    /// again the way bootstrap tracked it first, so its exit is handled by
+    /// whoever is serving when it comes.
+    public func reconnect() async {
+        guard let podsService = self.podsService else {
+            return
+        }
+        await self.lock.withLock(logMetadata: ["acquirer": "\(#function)"]) { context in
+            for (id, var state) in await self.containers {
+                guard state.client == nil else {
+                    continue
+                }
+                let pod = state.snapshot.configuration.pod
+                guard let podClient = try? await podsService.client(for: pod) else {
+                    continue
+                }
+                let client = podClient.addressing(id)
+                guard let sandbox = try? await client.state(),
+                    let reported = sandbox.containers.first(where: { $0.id == id }),
+                    reported.status == .running
+                else {
+                    continue
+                }
+                do {
+                    let log = self.log
+                    try await self.exitMonitor.registerProcess(
+                        id: id,
+                        onExit: self.handleContainerExit
+                    )
+                    let waitFunc: ExitMonitor.WaitHandler = {
+                        let code = try await client.wait(id)
+                        log.info(
+                            "container finished in exit monitor",
+                            metadata: [
+                                "id": "\(id)",
+                                "rc": "\(code)",
+                            ])
+                        return code
+                    }
+                    try await self.exitMonitor.track(id: id, waitingOn: waitFunc)
+                    state.client = client
+                    state.snapshot.status = .running
+                    state.snapshot.networks = sandbox.networks
+                    state.snapshot.startedDate = reported.startedDate
+                    await self.setContainerState(id, state, context: context)
+                    self.log.info("adopted a running container", metadata: ["id": "\(id)", "pod": "\(pod)"])
+                } catch {
+                    self.log.warning(
+                        "failed to adopt a running container",
+                        metadata: ["id": "\(id)", "error": "\(error)"])
+                }
             }
         }
     }

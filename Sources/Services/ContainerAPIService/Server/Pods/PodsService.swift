@@ -147,6 +147,60 @@ public actor PodsService {
         return pods
     }
 
+    /// Adopt the machines that outlived the process that made them.
+    ///
+    /// A pod's machine is a launchd service, so it survives the control
+    /// plane that registered it. A restarted control plane would otherwise
+    /// hold every pod as not ready and answer stops and deletes against
+    /// machines it cannot reach; the kubelet reconciles the same gap by
+    /// listing what its runtime actually holds when it starts, and
+    /// containerd by re-dialing the shims it finds alive.
+    /// https://github.com/kubernetes/cri-api/blob/master/pkg/apis/runtime/v1/api.proto
+    ///
+    /// Each pod whose service still answers is dialed and believed: the
+    /// machine's own snapshot says whether it runs. A pod whose service is
+    /// gone stays written down and not ready, which is what it was before
+    /// its machine first booted.
+    public func reconnect() async {
+        await self.lock.withLock(logMetadata: ["acquirer": "\(#function)"]) { context in
+            let pods = await self.pods
+            self.log.info("looking for machines to adopt", metadata: ["pods": "\(pods.count)"])
+            for (id, var state) in pods {
+                guard state.client == nil else {
+                    continue
+                }
+                let runtime = state.configuration.runtimeHandler
+                // launchctl answers for the service's bare label: not the
+                // domain-prefixed form bootout takes, and not the mach name
+                // the client dials, which carries the runtime prefix.
+                let label = "\(Self.machServicePrefix).\(runtime).\(id)"
+                guard (try? ServiceManager.isRegistered(fullServiceLabel: label)) == true else {
+                    self.log.info("no service answers for the pod", metadata: ["pod": "\(id)"])
+                    continue
+                }
+                do {
+                    let client = try await RuntimeClient.create(id: id, runtime: runtime)
+                    let sandbox = try await client.state()
+                    guard sandbox.status == .running else {
+                        self.log.info(
+                            "a pod's machine answered but is not running",
+                            metadata: ["pod": "\(id)", "status": "\(sandbox.status)"])
+                        continue
+                    }
+                    state.client = client
+                    state.state = .ready
+                    state.startedDate = sandbox.containers.compactMap { $0.startedDate }.min()
+                    await self.setPodState(id, state, context: context)
+                    self.log.info("adopted a running machine", metadata: ["pod": "\(id)"])
+                } catch {
+                    self.log.warning(
+                        "a pod's service answered launchd but not the runtime",
+                        metadata: ["pod": "\(id)", "error": "\(error)"])
+                }
+            }
+        }
+    }
+
     /// Where a pod keeps what it is made of.
     public func path(for id: String) -> URL {
         self.podRoot.appendingPathComponent(id)

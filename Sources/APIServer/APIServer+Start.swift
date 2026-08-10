@@ -87,6 +87,12 @@ extension APIServer {
                 await podsService.setContainersService(containersService)
                 await podsService.setNetworksService(networkService)
                 await containersService.setPodsService(podsService)
+
+                // Machines outlive the process that made them, so before
+                // serving, adopt the ones still running: pods dial their
+                // launchd services, containers take their machine's word.
+                await podsService.reconnect()
+                await containersService.reconnect()
                 initializeHealthCheckService(log: log, routes: &routes)
                 try initializeKernelService(log: log, routes: &routes)
                 let volumesService = try await initializeVolumeService(containersService: containersService, log: log, routes: &routes)

@@ -37,6 +37,10 @@ protocol Sandbox: Sendable {
     /// Stop a container, leaving the machine running for the others.
     func stopContainer(_ id: String) async throws
 
+    /// Take a stopped container out of the machine, so its name is free to
+    /// place again.
+    func removeContainer(_ id: String) async throws
+
     /// Signal a container's init process.
     func killContainer(_ id: String, signal: Signal) async throws
 
