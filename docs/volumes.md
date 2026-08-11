@@ -154,9 +154,8 @@ container stops, the mount and everything written to it are gone. You can't shar
 Use a `tmpfs` mount when you need high-performance storage and don't need the data to
 persist after the container stops.
 
-Use either `--tmpfs` or `--mount type=tmpfs`. Both accept the `size` and `mode` options:
-`--tmpfs` takes them as a colon-separated suffix on the path, and `--mount` as
-comma-separated `key=value` pairs.
+Use either `--tmpfs` or `--mount type=tmpfs`. Both accept the `size` and `mode` options;
+see [Mount options](#mount-options) for the syntax each one takes.
 
 Mount a `tmpfs` filesystem at `/tmpfsmount1` with `--tmpfs`:
 
@@ -202,9 +201,9 @@ container run --rm --mount type=tmpfs,target=/tmpfsmount1,size=512M,mode=1777 al
 
 ## Mount options
 
-Mount-time options go on `container run` or `container create`, using `--mount` or
-`--volume`; for `--tmpfs`, see [Tmpfs mounts](#tmpfs-mounts). Creation-time options go on
-`container volume create`, using `--opt`.
+Mount-time options go on `container run` or `container create`, using `--mount`,
+`--volume`, or `--tmpfs`. Creation-time options go on `container volume create`, using
+`--opt`.
 
 ### Options for `--mount`
 
@@ -221,12 +220,30 @@ Mount-time options go on `container run` or `container create`, using `--mount` 
 
 ### Options for `--volume`
 
-`--volume` uses the colon-separated form `[source:]destination[:options]`. Use `ro` to
-mount read-only:
+`--volume` uses the colon-separated form `[source:]destination[:options]`, comma-separated
+if there is more than one:
 
 ```bash
 container run --rm --volume foo:/mnt/foo:ro alpine sh
 ```
+
+| Key | Values | Description |
+|---|---|---|
+| `ro` | key only, no value | Mount read-only. |
+
+### Options for `--tmpfs`
+
+`--tmpfs` uses the colon-separated form `destination[:options]`, comma-separated if there
+is more than one:
+
+```bash
+container run --rm --tmpfs /tmpfsmount1:size=64M,mode=1777 alpine sh
+```
+
+| Key | Values | Description |
+|---|---|---|
+| `size` | for example `512M`, `1G` | Upper bound on the guest memory the mount can consume. |
+| `mode` | octal, for example `1777` | Permission bits for the mount point, the same as `chmod`. |
 
 ### Options for `container volume create`
 
