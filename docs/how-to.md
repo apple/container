@@ -86,6 +86,12 @@ Linux c0376e0a-0bfd-4eea-9e9e-9f9a2c327051 6.1.68 #1 SMP Mon Mar 31 18:27:51 UTC
 %
 </pre>
 
+Running `amd64` images requires Rosetta. If you receive an installation error, navigate to `/System/Library/CoreServices/` and open `Rosetta 2 Updater.app` to install it.
+
+<pre>
+Error: failed to bootstrap container ... "Rosetta is not installed" ...
+</pre>
+
 The command to push your multiplatform image to a registry is no different than that for a single-platform image:
 
 ```bash
