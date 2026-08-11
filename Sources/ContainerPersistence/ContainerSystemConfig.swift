@@ -118,12 +118,12 @@ final public class ContainerConfig: Codable, Sendable {
 
     public let cpus: Int
     public let memory: MemorySize
-    public let dns: ContainerDNSConfig
+    public let dns: ContainerDNSConfig?
 
     public init(
         cpus: Int = defaultCPUs,
         memory: MemorySize = defaultMemory,
-        dns: ContainerDNSConfig = .init()
+        dns: ContainerDNSConfig? = nil
     ) {
         self.cpus = cpus
         self.memory = memory
@@ -134,7 +134,7 @@ final public class ContainerConfig: Codable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.cpus = try container.decodeIfPresent(Int.self, forKey: .cpus) ?? Self.defaultCPUs
         self.memory = try container.decodeIfPresent(MemorySize.self, forKey: .memory) ?? Self.defaultMemory
-        self.dns = try container.decodeIfPresent(ContainerDNSConfig.self, forKey: .dns) ?? .init()
+        self.dns = try container.decodeIfPresent(ContainerDNSConfig.self, forKey: .dns)
     }
 }
 
@@ -152,20 +152,16 @@ final public class DNSConfig: Codable, Sendable {
 }
 
 final public class ContainerDNSConfig: Codable, Sendable {
-    public static let defaultNameservers: [String] = []
-    public static let defaultSearchDomains: [String] = []
-    public static let defaultOptions: [String] = []
-
     public let domain: String?
-    public let nameservers: [String]
-    public let searchDomains: [String]
-    public let options: [String]
+    public let nameservers: [String]?
+    public let searchDomains: [String]?
+    public let options: [String]?
 
     public init(
         domain: String? = nil,
-        nameservers: [String] = defaultNameservers,
-        searchDomains: [String] = defaultSearchDomains,
-        options: [String] = defaultOptions
+        nameservers: [String]? = nil,
+        searchDomains: [String]? = nil,
+        options: [String]? = nil
     ) {
         self.domain = domain
         self.nameservers = nameservers
@@ -176,9 +172,9 @@ final public class ContainerDNSConfig: Codable, Sendable {
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.domain = try container.decodeIfPresent(String.self, forKey: .domain)
-        self.nameservers = try container.decodeIfPresent([String].self, forKey: .nameservers) ?? Self.defaultNameservers
-        self.searchDomains = try container.decodeIfPresent([String].self, forKey: .searchDomains) ?? Self.defaultSearchDomains
-        self.options = try container.decodeIfPresent([String].self, forKey: .options) ?? Self.defaultOptions
+        self.nameservers = try container.decodeIfPresent([String].self, forKey: .nameservers)
+        self.searchDomains = try container.decodeIfPresent([String].self, forKey: .searchDomains)
+        self.options = try container.decodeIfPresent([String].self, forKey: .options)
     }
 }
 

@@ -326,23 +326,30 @@ public struct Utility {
         return [AttachmentConfiguration(network: builtinNetworkId, options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: nil, mtu: 1280))]
     }
 
+    /// Resolves the DNS configuration for a container from CLI flags, falling back
+    /// to the defaults configured in `~/.config/container/config.toml`.
+    ///
+    /// Precedence: CLI flags > `[container.dns]` defaults > host domain fallback.
+    /// `hostDomainFallback` is the API server's own DNS domain (the `[dns]` section),
+    /// used so a container's default domain still matches the host domain when no
+    /// `--dns-domain` flag and no `[container.dns]` domain are configured.
     public static func dnsConfiguration(
         from flags: Flags.DNS,
-        defaults: ContainerDNSConfig,
+        defaults: ContainerDNSConfig?,
         hostDomainFallback: String? = nil
     ) -> ContainerConfiguration.DNSConfiguration {
         let nameservers =
             flags.nameservers.isEmpty
-            ? defaults.nameservers
+            ? (defaults?.nameservers ?? [])
             : flags.nameservers
-        let domain = flags.domain ?? defaults.domain ?? hostDomainFallback
+        let domain = flags.domain ?? defaults?.domain ?? hostDomainFallback
         let searchDomains =
             flags.searchDomains.isEmpty
-            ? defaults.searchDomains
+            ? (defaults?.searchDomains ?? [])
             : flags.searchDomains
         let options =
             flags.options.isEmpty
-            ? defaults.options
+            ? (defaults?.options ?? [])
             : flags.options
         return .init(
             nameservers: nameservers,
