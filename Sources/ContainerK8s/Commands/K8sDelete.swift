@@ -33,12 +33,6 @@ public struct K8sDelete: AsyncParsableCommand {
     @Option(name: .long, help: "Cluster name (default: \(K8sHelper.defaultName))")
     var name: String = K8sHelper.defaultName
 
-    public var worker: (any WorkerProvisioner)?
-
-    private enum CodingKeys: String, CodingKey {
-        case name
-    }
-
     public func run() async throws {
         LoggingSystem.bootstrap { _ in StderrLogHandler() }
         let log = Logger(label: K8sHelper.pluginName)
@@ -50,11 +44,6 @@ public struct K8sDelete: AsyncParsableCommand {
                 log.error("container is not a k8s cluster, refusing delete", metadata: ["name": "\(name)"])
                 throw ContainerizationError(.invalidArgument, message: "\(name) is not a k8s cluster")
             }
-        }
-
-        if let worker {
-            let workerName = "\(name)-worker-0"
-            try await worker.teardown(name: workerName, log: log)
         }
 
         do {

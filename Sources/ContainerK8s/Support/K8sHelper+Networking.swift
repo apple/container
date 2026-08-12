@@ -67,7 +67,7 @@ extension K8sHelper {
         throw ContainerizationError(.internalError, message: "no available host port found above \(clusterHostPortBase)")
     }
 
-    static func clusterPort() async throws -> String {
+    public static func clusterPort() async throws -> String {
         let snapshots = try await ContainerClient().list(
             filters: ContainerListFilters(labels: [ResourceLabelKeys.plugin: pluginName])
         )

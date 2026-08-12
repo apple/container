@@ -51,12 +51,6 @@ public struct K8sCreate: AsyncParsableCommand {
     @Option(help: "Node image reference (default: \(K8sHelper.nodeImage))")
     var nodeImage: String = K8sHelper.nodeImage
 
-    public var worker: (any WorkerProvisioner)?
-
-    private enum CodingKeys: String, CodingKey {
-        case name, remove, resourceFlags, registryFlags, imageFetchFlags, nodeImage
-    }
-
     public func run() async throws {
         LoggingSystem.bootstrap { _ in StderrLogHandler() }
         let log = Logger(label: K8sHelper.pluginName)
@@ -153,7 +147,7 @@ public struct K8sCreate: AsyncParsableCommand {
             initImage: initfs
         )
 
-        // From here on, clean up the cluster container if a worker step fails.
+        // From here on, clean up the cluster container if any step fails.
         do {
             progress.set(description: "Starting cluster")
             let io = try ProcessIO.create(tty: false, interactive: false, detach: true)
@@ -165,23 +159,12 @@ public struct K8sCreate: AsyncParsableCommand {
             progress.set(description: "Waiting for node to boot")
             try await K8sHelper.waitForNodeBooted(containerId: name, client: client, log: log)
 
-            // Provision the worker before cluster init so its address can be added as a cert SAN.
-            let workerName = "\(name)-worker-0"
-            if let worker {
-                progress.set(description: "Provisioning worker node")
-                try await worker.provision(name: workerName, log: log)
-            }
-
             let snapshot = try await client.get(id: name)
             guard let vmIP = snapshot.networks.first?.ipv4Address.address.description else {
                 throw ContainerizationError(.internalError, message: "no VM IP for control plane \(name)")
             }
             var sans = ["127.0.0.1"]
             if let fqdn { sans.append(contentsOf: [vmIP, fqdn]) }
-            if let worker {
-                let workerAddr = try await worker.address(name: workerName, log: log)
-                sans.append(workerAddr)
-            }
 
             progress.set(description: "Running kubeadm init")
             try await K8sHelper.prepareNode(nodeID: name, client: client, log: log)
@@ -191,19 +174,6 @@ public struct K8sCreate: AsyncParsableCommand {
 
             progress.set(description: "Waiting for cluster to be ready")
             try await K8sHelper.waitForReady(containerId: name, client: client, log: log)
-
-            if let worker {
-                let (token, caCertHash) = try await K8sHelper.createJoinToken(nodeID: name, client: client)
-                progress.set(description: "Joining worker node")
-                try await worker.join(
-                    name: workerName,
-                    controlPlaneEndpoint: "\(vmIP):6443",
-                    token: token,
-                    caCertHash: caCertHash,
-                    log: log)
-                progress.set(description: "Waiting for worker node to be ready")
-                try await worker.waitForReady(name: workerName, log: log)
-            }
 
             progress.set(description: "Writing kubeconfig")
             do {
@@ -215,11 +185,9 @@ public struct K8sCreate: AsyncParsableCommand {
                 log.info("cluster is running; use 'container k8s write-config --name \(name)' to write the kubeconfig")
             }
         } catch {
-            if worker != nil {
-                try? await client.stop(id: name)
-                try? await client.delete(id: name)
-                try? K8sHelper.removeConfig(containerId: name, log: log)
-            }
+            try? await client.stop(id: name)
+            try? await client.delete(id: name)
+            try? K8sHelper.removeConfig(containerId: name, log: log)
             throw error
         }
 

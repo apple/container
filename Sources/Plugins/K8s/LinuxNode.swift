@@ -21,37 +21,53 @@ import ContainerResource
 import ContainerizationError
 import Logging
 
-/// A `WorkerProvisioner` that runs an additional k8s node as a Linux container
-/// on the same host, using the same kindest/node image as the control plane.
-public struct LinuxWorker: WorkerProvisioner {
+/// A `NodeProvisioner` that runs a k8s node as a Linux container on the same host,
+/// using the same kindest/node image as the control plane.
+public struct LinuxNode: NodeProvisioner {
+    public enum Role: String, Sendable {
+        case controlPlane = "control-plane"
+        case worker = "worker"
+    }
+
     public let defaultNodeImage: String?
 
     private let clusterName: String
+    private let role: Role
     private let cpus: Int64?
     private let memory: String?
     private let registryScheme: String
     private let maxConcurrentDownloads: Int
+    private let remove: Bool
+    private let fqdn: String?
 
     public init(
         clusterName: String,
+        role: Role = .worker,
         nodeImage: String? = nil,
         cpus: Int64? = nil,
         memory: String? = nil,
-        registryScheme: String = "auto",
-        maxConcurrentDownloads: Int = 3
+        registryScheme: String = "https",
+        maxConcurrentDownloads: Int = 3,
+        remove: Bool = false,
+        fqdn: String? = nil
     ) {
         self.clusterName = clusterName
+        self.role = role
         self.defaultNodeImage = nodeImage
         self.cpus = cpus
         self.memory = memory
         self.registryScheme = registryScheme
         self.maxConcurrentDownloads = maxConcurrentDownloads
+        self.remove = remove
+        self.fqdn = fqdn
     }
 
     public func provision(name: String, log: Logger) async throws {
         let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
         let resolvedImage = defaultNodeImage ?? K8sHelper.nodeImage
         try await K8sHelper.ensureImage(nodeImage: resolvedImage, log: log, containerSystemConfig: containerSystemConfig)
+
+        let publishPorts = role == .controlPlane && fqdn == nil ? [try await K8sHelper.clusterPort()] : []
 
         let management = Flags.Management(
             arch: Arch.hostArchitecture().rawValue,
@@ -67,7 +83,7 @@ public struct LinuxWorker: WorkerProvisioner {
             kernelArgs: [],
             labels: [
                 "\(ResourceLabelKeys.plugin)=\(K8sHelper.pluginName)",
-                "\(ResourceLabelKeys.role)=\(K8sHelper.workerRoleName)",
+                "\(ResourceLabelKeys.role)=\(role.rawValue)",
             ],
             maskedPaths: [],
             mounts: [],
@@ -75,11 +91,11 @@ public struct LinuxWorker: WorkerProvisioner {
             networks: [],
             os: "linux",
             platform: nil,
-            publishPorts: [],
+            publishPorts: publishPorts,
             publishSockets: [],
             readOnly: false,
             readonlyPaths: [],
-            remove: false,
+            remove: remove,
             rosetta: true,
             runtime: nil,
             ssh: false,
@@ -113,7 +129,7 @@ public struct LinuxWorker: WorkerProvisioner {
         let client = ContainerClient()
         try await client.create(
             configuration: config,
-            options: ContainerCreateOptions(autoRemove: false),
+            options: ContainerCreateOptions(autoRemove: remove),
             kernel: kernel,
             initImage: initfs
         )
@@ -131,7 +147,7 @@ public struct LinuxWorker: WorkerProvisioner {
         let client = ContainerClient()
         let snapshot = try await client.get(id: name)
         guard let ip = snapshot.networks.first?.ipv4Address.address.description else {
-            throw ContainerizationError(.internalError, message: "no VM IP for worker node \(name)")
+            throw ContainerizationError(.internalError, message: "no VM IP for node \(name)")
         }
         return ip
     }
@@ -165,7 +181,7 @@ public struct LinuxWorker: WorkerProvisioner {
     public func waitForReady(name: String, log: Logger) async throws {
         let timeout = 180
         let client = ContainerClient()
-        log.info("Waiting for worker node to become ready", metadata: ["node": "\(name)"])
+        log.info("Waiting for node to become ready", metadata: ["node": "\(name)"])
         for attempt in 1...timeout {
             let code: Int32
             do {
@@ -176,13 +192,13 @@ public struct LinuxWorker: WorkerProvisioner {
             } catch {
                 throw ContainerizationError(
                     .internalError,
-                    message: "worker node \(name) stopped unexpectedly while waiting for readiness: \(error)")
+                    message: "node \(name) stopped unexpectedly while waiting for readiness: \(error)")
             }
             if code == 0 { return }
             if attempt == timeout {
                 throw ContainerizationError(
                     .timeout,
-                    message: "worker node \(name) did not become Ready within \(timeout * 2)s")
+                    message: "node \(name) did not become Ready within \(timeout * 2)s")
             }
             try await Task.sleep(for: .seconds(2))
         }
@@ -194,7 +210,7 @@ public struct LinuxWorker: WorkerProvisioner {
             try? await client.stop(id: name)
             try await client.delete(id: name)
         } catch let error as ContainerizationError where error.code == .notFound {
-            log.debug("worker container not found, skipping delete", metadata: ["name": "\(name)"])
+            log.debug("node container not found, skipping delete", metadata: ["name": "\(name)"])
         }
     }
 }

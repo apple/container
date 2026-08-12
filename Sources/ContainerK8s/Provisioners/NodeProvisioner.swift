@@ -29,7 +29,7 @@ import Logging
 /// `K8sDelete` calls `teardown` before removing cluster containers.
 ///
 /// If any provisioner step throws, `K8sCreate` deletes the cluster before re-throwing.
-public protocol WorkerProvisioner: Sendable {
+public protocol NodeProvisioner: Sendable {
     /// Optional node image the provisioner prefers.  `K8sCreate` does not use this directly;
     /// it is available for the provisioner's own `provision` implementation.
     var defaultNodeImage: String? { get }
@@ -37,6 +37,9 @@ public protocol WorkerProvisioner: Sendable {
     /// Set up the external machine identified by `name` before cluster initialisation.
     func provision(name: String, log: Logger) async throws
 
+    // func provisionControlPlane(name: String, log: Logger) async throws
+
+    // func provisionCombinationWorker(name: String, log: Logger) async throws
     /// Return the IP address of the worker machine identified by `name`.
     func address(name: String, log: Logger) async throws -> String
 

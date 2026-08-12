@@ -20,10 +20,8 @@ import ContainerizationError
 import ContainerizationOCI
 import Foundation
 import Logging
-import SystemPackage
 
 extension K8sHelper {
-    // MARK: - Node bootstrap
 
     public static func prepareNode(nodeID: String, client: ContainerClient, log: Logger) async throws {
         log.info("Preparing node", metadata: ["id": "\(nodeID)"])
@@ -86,7 +84,6 @@ extension K8sHelper {
         }
     }
 
-    /// Creates a bootstrap token and returns the kubeadm join parameters needed by a worker node.
     static func createJoinToken(nodeID: String, client: ContainerClient) async throws -> (token: String, caCertHash: String) {
         let (code, output) = try await execCapture(
             containerId: nodeID, executable: kubeadmPath,
@@ -104,8 +101,6 @@ extension K8sHelper {
         return (token: parts[tokenIdx + 1], caCertHash: parts[hashIdx + 1])
     }
 
-    // MARK: - Private bootstrap helpers
-
     private static func loadKindnetManifest(log: Logger) async throws -> String {
         let pluginLoader = try await makePluginLoader(log: log)
         guard let plugin = pluginLoader.findPlugin(forExecutable: CommandLine.executablePath),
@@ -120,38 +115,13 @@ extension K8sHelper {
         return contents
     }
 
-    /// NOTE: This duplicates `Application.createPluginLoader()` in
-    /// Sources/ContainerCommands/Application.swift. `ContainerK8s` cannot depend on
-    /// `ContainerCommands`, so the plugin directory/factory list here is kept in sync
-    /// by hand — if that logic changes, update this copy too (or factor a shared
-    /// constructor into `ContainerPlugin`).
     private static func makePluginLoader(log: Logger) async throws -> PluginLoader {
         let health = try await ClientHealthCheck.ping(timeout: .seconds(10))
-
-        let installRootPath = FilePath(health.installRoot.path(percentEncoded: false))
-        let userPluginsURL = PluginLoader.userPluginsDir(installRoot: health.installRoot)
-        var directoryExists: ObjCBool = false
-        _ = FileManager.default.fileExists(atPath: userPluginsURL.path, isDirectory: &directoryExists)
-
-        let appBundlePluginsURL = Bundle.main.resourceURL?.appending(path: "plugins")
-        let installRootPluginsPath =
-            installRootPath
-            .appending(FilePath.Component("libexec"))
-            .appending(FilePath.Component("container"))
-            .appending(FilePath.Component("plugins"))
-        let installRootPluginsURL = URL(fileURLWithPath: installRootPluginsPath.string)
-
-        let pluginDirectories = [
-            directoryExists.boolValue ? userPluginsURL : nil,
-            appBundlePluginsURL,
-            installRootPluginsURL,
-        ].compactMap { $0 }
-
         return try PluginLoader(
             appRoot: health.appRoot,
             installRoot: health.installRoot,
             logRoot: health.logRoot,
-            pluginDirectories: pluginDirectories,
+            pluginDirectories: PluginLoader.defaultPluginDirectories(installRoot: health.installRoot),
             pluginFactories: [
                 DefaultPluginFactory(logger: log),
                 AppBundlePluginFactory(logger: log),

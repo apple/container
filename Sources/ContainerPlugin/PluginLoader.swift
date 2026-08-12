@@ -65,6 +65,30 @@ public struct PluginLoader: Sendable {
             .appending(path: "container-plugins")
             .resolvingSymlinksInPath()
     }
+
+    /// Returns the standard three-directory search list for a given install root:
+    /// user plugin dir (if it exists), app-bundle plugins, and the install-root libexec path.
+    public static func defaultPluginDirectories(installRoot: URL) -> [URL] {
+        let userPluginsURL = Self.userPluginsDir(installRoot: installRoot)
+        var directoryExists: ObjCBool = false
+        _ = FileManager.default.fileExists(atPath: userPluginsURL.path, isDirectory: &directoryExists)
+
+        let appBundlePluginsURL = Bundle.main.resourceURL?.appending(path: "plugins")
+
+        let installRootPath = FilePath(installRoot.path(percentEncoded: false))
+        let installRootPluginsPath =
+            installRootPath
+            .appending(FilePath.Component("libexec"))
+            .appending(FilePath.Component("container"))
+            .appending(FilePath.Component("plugins"))
+        let installRootPluginsURL = URL(fileURLWithPath: installRootPluginsPath.string)
+
+        return [
+            directoryExists.boolValue ? userPluginsURL : nil,
+            appBundlePluginsURL,
+            installRootPluginsURL,
+        ].compactMap { $0 }
+    }
 }
 
 extension PluginLoader {
