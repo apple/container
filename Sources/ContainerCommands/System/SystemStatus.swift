@@ -16,7 +16,6 @@
 
 import ArgumentParser
 import ContainerAPIClient
-import ContainerPersistence
 import ContainerPlugin
 import ContainerResource
 import ContainerVersion
@@ -66,9 +65,9 @@ extension Application {
             }
         }
 
-        /// Collects system-wide status from the CLI, the running daemon, and the
-        /// loaded system configuration. Resource and defaults fields are populated
-        /// best-effort and omitted when their source is unavailable.
+        /// Collects system-wide status from the CLI and the running daemon.
+        /// Resource counts are populated best-effort and omitted when their
+        /// source is unavailable.
         static func gather(health: SystemHealth) async -> StatusPayload {
             let client = ClientInfo(
                 version: ReleaseVersion.version(),
@@ -109,27 +108,13 @@ extension Application {
                 resources = Self.withImageCount(resources, imageCount: images.count)
             }
 
-            var defaults: DefaultsInfo? = nil
-            if let config = try? await Application.loadContainerSystemConfig() {
-                defaults = DefaultsInfo(
-                    registryDomain: config.registry.domain,
-                    kernelBinaryPath: config.kernel.binaryPath,
-                    containerCPUs: config.container.cpus,
-                    containerMemory: config.container.memory.description,
-                    builderImage: config.build.image,
-                    initImage: config.vminit.image,
-                    dnsDomain: config.dns.domain
-                )
-            }
-
             return StatusPayload(
                 status: "running",
                 client: client,
                 server: server,
                 host: host,
                 paths: paths,
-                resources: resources,
-                defaults: defaults
+                resources: resources
             )
         }
 
@@ -181,18 +166,6 @@ extension Application {
                 }
             }
 
-            if let defaults = status.defaults {
-                rows.append(["defaults.registryDomain", defaults.registryDomain])
-                rows.append(["defaults.kernelBinaryPath", defaults.kernelBinaryPath])
-                rows.append(["defaults.containerCPUs", String(defaults.containerCPUs)])
-                rows.append(["defaults.containerMemory", defaults.containerMemory])
-                rows.append(["defaults.builderImage", defaults.builderImage])
-                rows.append(["defaults.initImage", defaults.initImage])
-                if let dnsDomain = defaults.dnsDomain {
-                    rows.append(["defaults.dnsDomain", dnsDomain])
-                }
-            }
-
             return TableOutput(rows: rows).format()
         }
     }
@@ -204,7 +177,6 @@ extension Application {
         let host: HostInfo?
         let paths: PathInfo?
         let resources: ResourceCounts?
-        let defaults: DefaultsInfo?
 
         init(
             status: String,
@@ -212,8 +184,7 @@ extension Application {
             server: ServerInfo? = nil,
             host: HostInfo? = nil,
             paths: PathInfo? = nil,
-            resources: ResourceCounts? = nil,
-            defaults: DefaultsInfo? = nil
+            resources: ResourceCounts? = nil
         ) {
             self.status = status
             self.client = client
@@ -221,7 +192,6 @@ extension Application {
             self.host = host
             self.paths = paths
             self.resources = resources
-            self.defaults = defaults
         }
     }
 
@@ -255,15 +225,5 @@ extension Application {
         let containersTotal: Int
         let containersRunning: Int
         var images: Int?
-    }
-
-    struct DefaultsInfo: Codable {
-        let registryDomain: String
-        let kernelBinaryPath: String
-        let containerCPUs: Int
-        let containerMemory: String
-        let builderImage: String
-        let initImage: String
-        let dnsDomain: String?
     }
 }

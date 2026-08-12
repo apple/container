@@ -22,8 +22,7 @@ import Testing
 struct SystemStatusTests {
     private func makeRunningPayload(
         paths: Application.PathInfo? = nil,
-        resources: Application.ResourceCounts? = nil,
-        defaults: Application.DefaultsInfo? = nil
+        resources: Application.ResourceCounts? = nil
     ) -> Application.StatusPayload {
         Application.StatusPayload(
             status: "running",
@@ -31,8 +30,7 @@ struct SystemStatusTests {
             server: Application.ServerInfo(version: "9.9.9", build: "release", commit: "deadbeef", appName: "container-apiserver"),
             host: Application.HostInfo(architecture: "arm64", operatingSystem: "macOS 26.0", cpus: 8),
             paths: paths,
-            resources: resources,
-            defaults: defaults
+            resources: resources
         )
     }
 
@@ -66,16 +64,7 @@ struct SystemStatusTests {
                 var r = Application.ResourceCounts(containersTotal: 5, containersRunning: 2)
                 r.images = 7
                 return r
-            }(),
-            defaults: Application.DefaultsInfo(
-                registryDomain: "docker.io",
-                kernelBinaryPath: "opt/kata/vmlinux",
-                containerCPUs: 4,
-                containerMemory: "1024MB",
-                builderImage: "ghcr.io/apple/builder:latest",
-                initImage: "vminit:latest",
-                dnsDomain: "test.local"
-            )
+            }()
         )
         let table = Application.SystemStatus.statusTable(payload)
         #expect(table.contains("server.version"))
@@ -85,10 +74,6 @@ struct SystemStatusTests {
         #expect(table.contains("containers.total"))
         #expect(table.contains("containers.running"))
         #expect(table.contains("images.total"))
-        #expect(table.contains("defaults.registryDomain"))
-        #expect(table.contains("docker.io"))
-        #expect(table.contains("defaults.dnsDomain"))
-        #expect(table.contains("test.local"))
     }
 
     @Test
@@ -101,24 +86,6 @@ struct SystemStatusTests {
         #expect(decoded.server?.commit == "deadbeef")
         #expect(decoded.host?.cpus == 8)
         #expect(decoded.paths == nil)
-    }
-
-    @Test
-    func optionalDNSDomainOmittedWhenNil() {
-        let payload = makeRunningPayload(
-            defaults: Application.DefaultsInfo(
-                registryDomain: "docker.io",
-                kernelBinaryPath: "opt/kata/vmlinux",
-                containerCPUs: 4,
-                containerMemory: "1024MB",
-                builderImage: "img",
-                initImage: "vminit",
-                dnsDomain: nil
-            )
-        )
-        let table = Application.SystemStatus.statusTable(payload)
-        #expect(table.contains("defaults.registryDomain"))
-        #expect(!table.contains("defaults.dnsDomain"))
     }
 
     @Test
