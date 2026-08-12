@@ -1,0 +1,200 @@
+//===----------------------------------------------------------------------===//
+// Copyright © 2026 Apple Inc. and the container project authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//===----------------------------------------------------------------------===//
+
+import ContainerAPIClient
+import ContainerK8s
+import ContainerPersistence
+import ContainerResource
+import ContainerizationError
+import Logging
+
+/// A `WorkerProvisioner` that runs an additional k8s node as a Linux container
+/// on the same host, using the same kindest/node image as the control plane.
+public struct LinuxWorker: WorkerProvisioner {
+    public let defaultNodeImage: String?
+
+    private let clusterName: String
+    private let cpus: Int64?
+    private let memory: String?
+    private let registryScheme: String
+    private let maxConcurrentDownloads: Int
+
+    public init(
+        clusterName: String,
+        nodeImage: String? = nil,
+        cpus: Int64? = nil,
+        memory: String? = nil,
+        registryScheme: String = "auto",
+        maxConcurrentDownloads: Int = 3
+    ) {
+        self.clusterName = clusterName
+        self.defaultNodeImage = nodeImage
+        self.cpus = cpus
+        self.memory = memory
+        self.registryScheme = registryScheme
+        self.maxConcurrentDownloads = maxConcurrentDownloads
+    }
+
+    public func provision(name: String, log: Logger) async throws {
+        let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
+        let resolvedImage = defaultNodeImage ?? K8sHelper.nodeImage
+        try await K8sHelper.ensureImage(nodeImage: resolvedImage, log: log, containerSystemConfig: containerSystemConfig)
+
+        let management = Flags.Management(
+            arch: Arch.hostArchitecture().rawValue,
+            capAdd: ["ALL"],
+            capDrop: [],
+            cidfile: "",
+            detach: true,
+            dns: Flags.DNS(),
+            dnsDisabled: false,
+            entrypoint: nil,
+            initImage: nil,
+            kernel: nil,
+            kernelArgs: [],
+            labels: [
+                "\(ResourceLabelKeys.plugin)=\(K8sHelper.pluginName)",
+                "\(ResourceLabelKeys.role)=\(K8sHelper.workerRoleName)",
+            ],
+            maskedPaths: [],
+            mounts: [],
+            name: name,
+            networks: [],
+            os: "linux",
+            platform: nil,
+            publishPorts: [],
+            publishSockets: [],
+            readOnly: false,
+            readonlyPaths: [],
+            remove: false,
+            rosetta: true,
+            runtime: nil,
+            ssh: false,
+            shmSize: nil,
+            tmpFs: [],
+            useInit: false,
+            virtualization: false,
+            volumes: []
+        )
+
+        let updatedResource = K8sHelper.defaultedResourceFlags(Flags.Resource(cpus: cpus, memory: memory))
+        var processFlags = Flags.Process()
+        processFlags.env = K8sHelper.nodeProxyEnv()
+
+        var (config, kernel, initfs) = try await Utility.containerConfigFromFlags(
+            id: name,
+            image: resolvedImage,
+            arguments: [],
+            process: processFlags,
+            management: management,
+            resource: updatedResource,
+            registry: Flags.Registry(scheme: registryScheme),
+            imageFetch: Flags.ImageFetch(maxConcurrentDownloads: maxConcurrentDownloads),
+            containerSystemConfig: containerSystemConfig,
+            progressUpdate: { _ in },
+            log: log
+        )
+        config.maskedPaths = []
+        config.readonlyPaths = []
+
+        let client = ContainerClient()
+        try await client.create(
+            configuration: config,
+            options: ContainerCreateOptions(autoRemove: false),
+            kernel: kernel,
+            initImage: initfs
+        )
+
+        let io = try ProcessIO.create(tty: false, interactive: false, detach: true)
+        defer { try? io.close() }
+        let process = try await client.bootstrap(id: name, stdio: io.stdio)
+        try await process.start()
+        try io.closeAfterStart()
+
+        try await K8sHelper.waitForNodeBooted(containerId: name, client: client, log: log)
+    }
+
+    public func address(name: String, log: Logger) async throws -> String {
+        let client = ContainerClient()
+        let snapshot = try await client.get(id: name)
+        guard let ip = snapshot.networks.first?.ipv4Address.address.description else {
+            throw ContainerizationError(.internalError, message: "no VM IP for worker node \(name)")
+        }
+        return ip
+    }
+
+    public func join(
+        name: String,
+        controlPlaneEndpoint: String,
+        token: String,
+        caCertHash: String,
+        log: Logger
+    ) async throws {
+        let client = ContainerClient()
+        try await K8sHelper.prepareNode(nodeID: name, client: client, log: log)
+
+        let (code, output) = try await K8sHelper.execCapture(
+            containerId: name,
+            executable: K8sHelper.kubeadmPath,
+            arguments: [
+                "join", controlPlaneEndpoint,
+                "--token", token,
+                "--discovery-token-ca-cert-hash", caCertHash,
+                "--ignore-preflight-errors", K8sHelper.ignorePreflightErrors,
+                "--cri-socket", "unix:///run/containerd/containerd.sock",
+            ],
+            client: client)
+        guard code == 0 else {
+            throw ContainerizationError(.internalError, message: "kubeadm join failed on \(name): \(output)")
+        }
+    }
+
+    public func waitForReady(name: String, log: Logger) async throws {
+        let timeout = 180
+        let client = ContainerClient()
+        log.info("Waiting for worker node to become ready", metadata: ["node": "\(name)"])
+        for attempt in 1...timeout {
+            let code: Int32
+            do {
+                code = try await K8sHelper.runProbe(
+                    client: client,
+                    containerId: clusterName,
+                    arguments: ["wait", "--for=condition=Ready", "node/\(name)", "--timeout=2s"])
+            } catch {
+                throw ContainerizationError(
+                    .internalError,
+                    message: "worker node \(name) stopped unexpectedly while waiting for readiness: \(error)")
+            }
+            if code == 0 { return }
+            if attempt == timeout {
+                throw ContainerizationError(
+                    .timeout,
+                    message: "worker node \(name) did not become Ready within \(timeout * 2)s")
+            }
+            try await Task.sleep(for: .seconds(2))
+        }
+    }
+
+    public func teardown(name: String, log: Logger) async throws {
+        let client = ContainerClient()
+        do {
+            try? await client.stop(id: name)
+            try await client.delete(id: name)
+        } catch let error as ContainerizationError where error.code == .notFound {
+            log.debug("worker container not found, skipping delete", metadata: ["name": "\(name)"])
+        }
+    }
+}
