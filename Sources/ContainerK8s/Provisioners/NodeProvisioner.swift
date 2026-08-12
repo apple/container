@@ -37,9 +37,6 @@ public protocol NodeProvisioner: Sendable {
     /// Set up the external machine identified by `name` before cluster initialisation.
     func provision(name: String, log: Logger) async throws
 
-    // func provisionControlPlane(name: String, log: Logger) async throws
-
-    // func provisionCombinationWorker(name: String, log: Logger) async throws
     /// Return the IP address of the worker machine identified by `name`.
     func address(name: String, log: Logger) async throws -> String
 

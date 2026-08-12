@@ -18,6 +18,19 @@ import ContainerK8s
 
 @main struct K8sPlugin {
     static func main() async {
+        K8sCreate.makeDefaultProvisioner = { clusterName, nodeImage, cpus, memory, registryScheme, maxConcurrentDownloads, remove, fqdn in
+            LinuxNode(
+                clusterName: clusterName,
+                role: .controlPlane,
+                nodeImage: nodeImage,
+                cpus: cpus,
+                memory: memory,
+                registryScheme: registryScheme,
+                maxConcurrentDownloads: maxConcurrentDownloads,
+                remove: remove,
+                fqdn: fqdn
+            )
+        }
         await K8sCommand.main()
     }
 }

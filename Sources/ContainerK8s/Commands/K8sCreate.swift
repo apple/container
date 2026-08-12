@@ -33,6 +33,20 @@ public struct K8sCreate: AsyncParsableCommand {
         abstract: "Create and start a local Kubernetes cluster"
     )
 
+    /// Called by the executable target to supply the default control-plane provisioner.
+    /// The closure receives the parsed CLI values and returns a `NodeProvisioner`.
+    /// Set this before `K8sCommand.main()` runs.
+    nonisolated(unsafe) public static var makeDefaultProvisioner: ((
+        _ clusterName: String,
+        _ nodeImage: String,
+        _ cpus: Int64?,
+        _ memory: String?,
+        _ registryScheme: String,
+        _ maxConcurrentDownloads: Int,
+        _ remove: Bool,
+        _ fqdn: String?
+    ) -> any NodeProvisioner)?
+
     @Option(name: .long, help: "Cluster name (default: \(K8sHelper.defaultName))")
     var name: String = K8sHelper.defaultName
 
@@ -75,94 +89,26 @@ public struct K8sCreate: AsyncParsableCommand {
         progress.start()
 
         let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
-        try await K8sHelper.ensureImage(nodeImage: nodeImage, log: log, containerSystemConfig: containerSystemConfig)
-
         let fqdn = K8sHelper.fqdn(for: name, domain: containerSystemConfig.dns.domain)
 
-        let management = Flags.Management(
-            arch: Arch.hostArchitecture().rawValue,
-            capAdd: ["ALL"],
-            capDrop: [],
-            cidfile: "",
-            detach: true,
-            dns: Flags.DNS(),
-            dnsDisabled: false,
-            entrypoint: nil,
-            initImage: nil,
-            kernel: nil,
-            kernelArgs: [],
-            labels: [
-                "\(ResourceLabelKeys.plugin)=\(K8sHelper.pluginName)",
-                "\(ResourceLabelKeys.role)=\(K8sHelper.controlPlaneRoleName)",
-            ],
-            maskedPaths: [],
-            mounts: [],
-            name: name,
-            networks: [],
-            os: "linux",
-            platform: nil,
-            publishPorts: fqdn == nil ? [try await K8sHelper.clusterPort()] : [],
-            publishSockets: [],
-            readOnly: false,
-            readonlyPaths: [],
-            remove: remove,
-            rosetta: true,
-            runtime: nil,
-            ssh: false,
-            shmSize: nil,
-            tmpFs: [],
-            useInit: false,
-            virtualization: false,
-            volumes: []
-        )
+        let provisioner: any NodeProvisioner
+        if let factory = Self.makeDefaultProvisioner {
+            provisioner = factory(
+                name, nodeImage,
+                resourceFlags.cpus, resourceFlags.memory,
+                registryFlags.scheme, imageFetchFlags.maxConcurrentDownloads,
+                remove, fqdn
+            )
+        } else {
+            throw ContainerizationError(.internalError, message: "no node provisioner configured for K8sCreate")
+        }
 
-        let updatedResource = K8sHelper.defaultedResourceFlags(resourceFlags)
-        var processFlags = Flags.Process()
-        processFlags.env = K8sHelper.nodeProxyEnv()
-
-        var (config, kernel, initfs) = try await Utility.containerConfigFromFlags(
-            id: name,
-            image: nodeImage,
-            arguments: [],
-            process: processFlags,
-            management: management,
-            resource: updatedResource,
-            registry: registryFlags,
-            imageFetch: imageFetchFlags,
-            containerSystemConfig: containerSystemConfig,
-            progressUpdate: progress.handler,
-            log: log
-        )
-
-        // Allow the node to modify /proc/sys (e.g. net.ipv4.ip_forward) during setup.
-        config.maskedPaths = []
-        config.readonlyPaths = []
+        progress.set(description: "Starting cluster")
+        try await provisioner.provision(name: name, log: log)
 
         let client = ContainerClient()
-        let options = ContainerCreateOptions(autoRemove: remove)
-        try await client.create(
-            configuration: config,
-            options: options,
-            kernel: kernel,
-            initImage: initfs
-        )
-
-        // From here on, clean up the cluster container if any step fails.
         do {
-            progress.set(description: "Starting cluster")
-            let io = try ProcessIO.create(tty: false, interactive: false, detach: true)
-            defer { try? io.close() }
-            let process = try await client.bootstrap(id: name, stdio: io.stdio)
-            try await process.start()
-            try io.closeAfterStart()
-
-            progress.set(description: "Waiting for node to boot")
-            try await K8sHelper.waitForNodeBooted(containerId: name, client: client, log: log)
-
-            let snapshot = try await client.get(id: name)
-            guard let vmIP = snapshot.networks.first?.ipv4Address.address.description else {
-                throw ContainerizationError(.internalError, message: "no VM IP for control plane \(name)")
-            }
+            let vmIP = try await provisioner.address(name: name, log: log)
             var sans = ["127.0.0.1"]
             if let fqdn { sans.append(contentsOf: [vmIP, fqdn]) }
 
@@ -185,8 +131,7 @@ public struct K8sCreate: AsyncParsableCommand {
                 log.info("cluster is running; use 'container k8s write-config --name \(name)' to write the kubeconfig")
             }
         } catch {
-            try? await client.stop(id: name)
-            try? await client.delete(id: name)
+            try? await provisioner.teardown(name: name, log: log)
             try? K8sHelper.removeConfig(containerId: name, log: log)
             throw error
         }
