@@ -653,7 +653,7 @@ No options.
 
 ### `container image delete (rm)`
 
-Deletes one or more images. If no images are provided, `--all` can be used to delete all images. Images currently referenced by running containers cannot be deleted without first removing those containers.
+Deletes one or more images. If no images are provided, `--all` can be used to delete all images. Images currently referenced by running containers cannot be deleted without first removing those containers. When multiple images match the given name, locally built image is deleted first.
 
 **Usage**
 
