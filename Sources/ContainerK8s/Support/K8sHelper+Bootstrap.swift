@@ -102,7 +102,7 @@ extension K8sHelper {
     }
 
     private static func loadKindnetManifest(log: Logger) async throws -> String {
-        let pluginLoader = try await makePluginLoader(log: log)
+        let pluginLoader = try await Utility.createPluginLoader(log: log)
         guard let plugin = pluginLoader.findPlugin(forExecutable: CommandLine.executablePath),
             let resourceURL = plugin.resourceURL
         else {
@@ -113,21 +113,6 @@ extension K8sHelper {
             throw ContainerizationError(.internalError, message: "kindnet manifest resource missing at \(url.path)")
         }
         return contents
-    }
-
-    private static func makePluginLoader(log: Logger) async throws -> PluginLoader {
-        let health = try await ClientHealthCheck.ping(timeout: .seconds(10))
-        return try PluginLoader(
-            appRoot: health.appRoot,
-            installRoot: health.installRoot,
-            logRoot: health.logRoot,
-            pluginDirectories: PluginLoader.defaultPluginDirectories(installRoot: health.installRoot),
-            pluginFactories: [
-                DefaultPluginFactory(logger: log),
-                AppBundlePluginFactory(logger: log),
-            ],
-            log: log
-        )
     }
 
     private static var nodePrepScript: String {
