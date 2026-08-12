@@ -40,6 +40,11 @@ extension Application.PodCommand {
         @Option(name: .long, help: "Hostname the pod's machine reports, which its containers share")
         var hostname: String?
 
+        @Option(
+            name: [.customLong("dns-name")],
+            help: "DNS name the pod answers to, in place of its name under the default domain")
+        var dnsName: String?
+
         @Option(name: .long, help: "Network to attach the pod to, which its containers share")
         var network: [String] = []
 
@@ -100,6 +105,7 @@ extension Application.PodCommand {
                 builtinNetworkId: builtinNetworkId,
                 networks: parsedNetworks,
                 dnsDomain: containerSystemConfig.dns.domain,
+                dnsName: dnsName,
             )
             for attachmentConfiguration in configuration.networks {
                 _ = try await networkClient.get(id: attachmentConfiguration.network)

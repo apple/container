@@ -230,6 +230,7 @@ public struct Utility {
                 builtinNetworkId: builtinNetworkId,
                 networks: parsedNetworks,
                 dnsDomain: containerSystemConfig.dns.domain,
+                dnsName: management.dnsName,
             )
             for attachmentConfiguration in config.networks {
                 _ = try await networkClient.get(id: attachmentConfiguration.network)
@@ -336,11 +337,18 @@ public struct Utility {
 
     /// The networks a container or a pod attaches to, resolved from what the
     /// caller named and the built-in network when it named none.
+    ///
+    /// The name the first attachment answers to is the caller's `dnsName`
+    /// when one was given, taken as it is; otherwise the id qualified by the
+    /// default domain. The name is the one per-resource thing here, so it is
+    /// a property of the resource rather than of any configuration the whole
+    /// machine shares.
     public static func getAttachmentConfigurations(
         containerId: String,
         builtinNetworkId: String?,
         networks: [Parser.ParsedNetwork],
         dnsDomain: String?,
+        dnsName: String? = nil,
     ) throws -> [AttachmentConfiguration] {
         // Validate MAC addresses if provided
         for network in networks {
@@ -351,7 +359,9 @@ public struct Utility {
 
         // make an FQDN for the first interface
         let fqdn: String?
-        if !containerId.contains(".") {
+        if let dnsName {
+            fqdn = dnsName.hasSuffix(".") ? dnsName : "\(dnsName)."
+        } else if !containerId.contains(".") {
             // add default domain if it exists, and container ID is unqualified
             if let dnsDomain {
                 fqdn = "\(containerId).\(dnsDomain)."

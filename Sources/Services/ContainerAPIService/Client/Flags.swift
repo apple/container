@@ -184,6 +184,7 @@ public struct Flags {
             detach: Bool,
             dns: Flags.DNS,
             dnsDisabled: Bool,
+            dnsName: String? = nil,
             entrypoint: String?,
             initImage: String?,
             kernel: String?,
@@ -217,6 +218,7 @@ public struct Flags {
             self.detach = detach
             self.dns = dns
             self.dnsDisabled = dnsDisabled
+            self.dnsName = dnsName
             self.entrypoint = entrypoint
             self.initImage = initImage
             self.kernel = kernel
@@ -335,6 +337,11 @@ public struct Flags {
 
         @Option(name: [.customLong("network")], help: "Attach the container to a network (format: <name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE])")
         public var networks: [String] = []
+
+        @Option(
+            name: [.customLong("dns-name")],
+            help: "DNS name the container answers to, in place of its name under the default domain")
+        public var dnsName: String?
 
         @Flag(name: [.customLong("no-dns")], help: "Do not configure DNS in the container")
         public var dnsDisabled = false
