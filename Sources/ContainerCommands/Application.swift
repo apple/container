@@ -129,7 +129,7 @@ public struct Application: AsyncLoggableCommand {
             // by ArgumentParser and lands here.
             let containsHelp = fullArgs.contains("-h") || fullArgs.contains("--help")
             if fullArgs.count <= 2 && containsHelp {
-                let pluginLoader = try? await createPluginLoader()
+                let pluginLoader = try? await Utility.createPluginLoader(log: bootstrapLogger)
                 await Self.printModifiedHelpText(pluginLoader: pluginLoader)
                 return
             }
@@ -141,51 +141,6 @@ public struct Application: AsyncLoggableCommand {
                 Application.exit(withError: error)
             }
         }
-    }
-
-    public static func createPluginLoader() async throws -> PluginLoader {
-        let installRootPath = CommandLine.executablePath
-            .removingLastComponent()
-            .removingLastComponent()
-        // TODO: Remove when we convert PluginLoader to FilePath.
-        let installRootURL = URL(fileURLWithPath: installRootPath.string)
-        let pluginsURL = PluginLoader.userPluginsDir(installRoot: installRootURL)
-        var directoryExists: ObjCBool = false
-        _ = FileManager.default.fileExists(atPath: pluginsURL.path, isDirectory: &directoryExists)
-        let userPluginsURL = directoryExists.boolValue ? pluginsURL : nil
-
-        // plugins built into the application installed as a macOS app bundle
-        let appBundlePluginsURL = Bundle.main.resourceURL?.appending(path: "plugins")
-
-        // plugins built into the application installed as a Unix-like application
-        let installRootPluginsPath =
-            installRootPath
-            .appending(FilePath.Component("libexec"))
-            .appending(FilePath.Component("container"))
-            .appending(FilePath.Component("plugins"))
-        let installRootPluginsURL = URL(fileURLWithPath: installRootPluginsPath.string)
-        let pluginDirectories = [
-            userPluginsURL,
-            appBundlePluginsURL,
-            installRootPluginsURL,
-        ].compactMap { $0 }
-
-        let pluginFactories: [any PluginFactory] = [
-            DefaultPluginFactory(logger: bootstrapLogger),
-            AppBundlePluginFactory(logger: bootstrapLogger),
-        ]
-
-        guard let systemHealth = try? await ClientHealthCheck.ping(timeout: .seconds(10)) else {
-            throw ContainerizationError(.timeout, message: "unable to retrieve application data root from API server")
-        }
-        return try PluginLoader(
-            appRoot: systemHealth.appRoot,
-            installRoot: systemHealth.installRoot,
-            logRoot: systemHealth.logRoot,
-            pluginDirectories: pluginDirectories,
-            pluginFactories: pluginFactories,
-            log: bootstrapLogger
-        )
     }
 
     /// Load the system configuration using `appRoot` / `installRoot` reported by the
