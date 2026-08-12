@@ -158,8 +158,8 @@ public struct Flags {
             self.scheme = scheme
         }
 
-        @Option(help: "Scheme to use when connecting to the container registry. One of (http, https, auto)")
-        public var scheme: String = "auto"
+        @Option(help: "Scheme to use when connecting to the container registry. One of (http, https)")
+        public var scheme: String = "https"
     }
 
     public struct Management: ParsableArguments {
@@ -176,7 +176,9 @@ public struct Flags {
             entrypoint: String?,
             initImage: String?,
             kernel: String?,
+            kernelArgs: [String],
             labels: [String],
+            maskedPaths: [String],
             mounts: [String],
             name: String?,
             networks: [String],
@@ -185,6 +187,7 @@ public struct Flags {
             publishPorts: [String],
             publishSockets: [String],
             readOnly: Bool,
+            readonlyPaths: [String],
             remove: Bool,
             rosetta: Bool,
             runtime: String?,
@@ -205,7 +208,9 @@ public struct Flags {
             self.entrypoint = entrypoint
             self.initImage = initImage
             self.kernel = kernel
+            self.kernelArgs = kernelArgs
             self.labels = labels
+            self.maskedPaths = maskedPaths
             self.mounts = mounts
             self.name = name
             self.networks = networks
@@ -214,6 +219,7 @@ public struct Flags {
             self.publishPorts = publishPorts
             self.publishSockets = publishSockets
             self.readOnly = readOnly
+            self.readonlyPaths = readonlyPaths
             self.remove = remove
             self.rosetta = rosetta
             self.runtime = runtime
@@ -277,8 +283,27 @@ public struct Flags {
         )
         public var kernel: String?
 
+        @Option(
+            name: .customLong("kernel-arg"),
+            help: .init(
+                "Append a raw boot argument to the kernel command line (repeatable).",
+                valueName: "arg"
+            )
+        )
+        public var kernelArgs: [String] = []
+
         @Option(name: [.short, .customLong("label")], help: "Add a key=value label to the container")
         public var labels: [String] = []
+
+        /// EXPERIMENTAL: The flag is subject to change.
+        @Option(
+            name: .customLong("masked-path"),
+            help: .init(
+                "[EXPERIMENTAL] Hide a path inside the container, in addition to the runtime defaults (or NONE to clear prior values and the defaults)",
+                valueName: "path"
+            )
+        )
+        public var maskedPaths: [String] = []
 
         @Option(name: .customLong("mount"), help: "Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)")
         public var mounts: [String] = []
@@ -318,6 +343,16 @@ public struct Flags {
 
         @Flag(name: .long, help: "Mount the container's root filesystem as read-only")
         public var readOnly = false
+
+        /// EXPERIMENTAL: The flag is subject to change.
+        @Option(
+            name: .customLong("read-only-path"),
+            help: .init(
+                "[EXPERIMENTAL] Mark a path inside the container read-only, in addition to the runtime defaults (or NONE to clear prior values and the defaults)",
+                valueName: "path"
+            )
+        )
+        public var readonlyPaths: [String] = []
 
         @Flag(name: [.customLong("rm"), .long], help: "Remove the container after it stops")
         public var remove = false

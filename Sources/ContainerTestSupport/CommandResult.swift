@@ -16,21 +16,21 @@
 
 import Foundation
 
-struct CommandResult: Sendable {
-    let outputData: Data
-    let errorData: Data
-    let status: Int32
+public struct CommandResult: Sendable {
+    public let outputData: Data
+    public let errorData: Data
+    public let status: Int32
 
-    var output: String {
+    public var output: String {
         String(data: outputData, encoding: .utf8) ?? ""
     }
 
-    var error: String {
+    public var error: String {
         String(data: errorData, encoding: .utf8) ?? ""
     }
 
     @discardableResult
-    func check(_ message: String? = nil) throws -> CommandResult {
+    public func check(_ message: String? = nil) throws -> CommandResult {
         guard status == 0 else {
             let detail = message ?? error.trimmingCharacters(in: .whitespacesAndNewlines)
             throw CommandError.nonZeroExit(status, detail)
@@ -39,7 +39,7 @@ struct CommandResult: Sendable {
     }
 }
 
-enum CommandError: Error {
+public enum CommandError: Error {
     case binaryNotFound
     case executionFailed(String)
     case nonZeroExit(Int32, String)

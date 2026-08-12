@@ -17,6 +17,7 @@
 import ContainerAPIClient
 import ContainerResource
 import Containerization
+import ContainerizationEXT4
 import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOCI
@@ -39,11 +40,13 @@ public actor SnapshotStore {
             guard platform.os == "linux" else {
                 return nil
             }
-            var minBlockSize = 512.gib()
+            let capacityInBytes: UInt64
             if image.reference == initImage {
-                minBlockSize = 512.mib()
+                capacityInBytes = 512.mib()
+            } else {
+                capacityInBytes = 512.gib()
             }
-            return EXT4Unpacker(blockSizeInBytes: minBlockSize)
+            return EXT4Unpacker(capacityInBytes: capacityInBytes, journal: .init(defaultMode: .ordered))
         }
     }
 

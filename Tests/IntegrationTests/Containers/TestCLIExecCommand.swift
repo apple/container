@@ -14,13 +14,14 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerTestSupport
 import Testing
 
 @Suite
 struct TestCLIExecCommand {
     @Test func testCreateExecCommand() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             let name = "\(f.testID)-c"
             try f.doCreate(name: name, image: image)
             f.addCleanup { try? f.doStop(name) }
@@ -35,7 +36,7 @@ struct TestCLIExecCommand {
 
     @Test func testExecDetach() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             let name = "\(f.testID)-c"
             try f.doCreate(name: name, image: image)
             f.addCleanup { try? f.doStop(name) }
@@ -69,21 +70,22 @@ struct TestCLIExecCommand {
 
     @Test func testExecDetachProcessRunning() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             let name = "\(f.testID)-c"
             try f.doCreate(name: name, image: image)
             f.addCleanup { try? f.doStop(name) }
             try f.doStart(name)
             try await f.waitForContainerRunning(name)
 
-            let output = try f.doExec(name, cmd: ["sleep", "10"], detach: true)
+            // Generous duration: ContainersService's host-wide lock can queue this exec's start behind other containers' multi-second VM boots.
+            let output = try f.doExec(name, cmd: ["sleep", "60"], detach: true)
             try #require(
                 output.trimmingCharacters(in: .whitespacesAndNewlines) == name,
                 "exec --detach should print the container name")
 
             let ps = try f.doExec(name, cmd: ["ps", "aux"])
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            try #require(ps.contains("sleep 10"), "detached 'sleep 10' should appear in ps output")
+            try #require(ps.contains("sleep 60"), "detached 'sleep 60' should appear in ps output")
 
             try f.doStop(name)
         }
@@ -91,10 +93,10 @@ struct TestCLIExecCommand {
 
     @Test func testExecOnExitingContainer() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             let name = "\(f.testID)-c"
             // sh exits immediately in detached mode with no stdin; container stops on its own.
-            try f.doLongRun(name: name, image: image, containerArgs: ["sh"], autoRemove: false)
+            try await f.doLongRun(name: name, image: image, containerArgs: ["sh"], autoRemove: false)
             f.addCleanup { try? f.doRemove(name) }
             try await Task.sleep(for: .seconds(1))
 

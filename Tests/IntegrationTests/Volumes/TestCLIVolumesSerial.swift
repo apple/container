@@ -14,12 +14,13 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerTestSupport
 import Foundation
 import Testing
 
 @Suite(.serialized)
 struct TestCLIVolumesSerial {
-    private let alpine = ContainerFixture.warmupImages[0]
+    private let alpine = WarmupImage.alpine320.rawValue
 
     @Test func testVolumePruneNoVolumes() async throws {
         try await ContainerFixture.with { f in
@@ -68,8 +69,7 @@ struct TestCLIVolumesSerial {
 
             try f.doVolumeCreate(vInUse)
             try f.doVolumeCreate(vUnused)
-            try f.doLongRun(name: c, image: image, args: ["-v", "\(vInUse):/data"], autoRemove: false)
-            try await f.waitForContainerRunning(c)
+            try await f.doLongRun(name: c, image: image, args: ["-v", "\(vInUse):/data"], autoRemove: false, waitUntilRunning: true)
 
             try f.run(["volume", "prune"]).check()
 

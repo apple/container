@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerTestSupport
 import ContainerizationExtras
 import Foundation
 import Testing
@@ -22,7 +23,7 @@ import Testing
 struct TestCLICreateCommand {
     @Test func testCreateArgsPassthrough() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             let name = "\(f.testID)-c"
             try f.doCreate(name: name, image: image, args: ["echo", "-n", "hello", "world"])
             try f.doRemove(name)
@@ -31,7 +32,7 @@ struct TestCLICreateCommand {
 
     @Test func testCreateWithMACAddress() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             let name = "\(f.testID)-c"
             let expectedMAC = try MACAddress("02:42:ac:11:00:03")
 
@@ -51,7 +52,7 @@ struct TestCLICreateCommand {
 
     @Test func testPublishPortParserMaxPorts() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             let name = "\(f.testID)-c"
             var args: [String] = ["create", "--name", name]
             for i in 0..<64 {
@@ -67,7 +68,7 @@ struct TestCLICreateCommand {
 
     @Test func testPublishPortParserTooManyPorts() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             let name = "\(f.testID)-c"
             var args: [String] = ["create", "--name", name]
             for i in 0..<65 {
@@ -83,7 +84,7 @@ struct TestCLICreateCommand {
 
     @Test func testCreateWithFQDNName() async throws {
         try await ContainerFixture.with { f in
-            let image = try f.copyWarmupImage(ContainerFixture.warmupImages[0])
+            let image = WarmupImage.alpine320.rawValue
             // Prefix with testID to avoid name collisions; hostname is the first FQDN component.
             let name = "\(f.testID).example.com"
             let expectedHostname = f.testID

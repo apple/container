@@ -15,23 +15,24 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import SystemPackage
 import Testing
 
 // MARK: - Image inspect types
 
 extension ContainerFixture {
     /// Decoded output of `container image inspect` or `container image list --format json`.
-    struct ImageInspectOutput: Codable {
-        struct Configuration: Codable { let name: String }
-        struct Variant: Codable {
-            struct Platform: Codable {
-                let os: String
-                let architecture: String
+    public struct ImageInspectOutput: Codable {
+        public struct Configuration: Codable { public let name: String }
+        public struct Variant: Codable {
+            public struct Platform: Codable {
+                public let os: String
+                public let architecture: String
             }
-            let platform: Platform
+            public let platform: Platform
         }
-        let configuration: Configuration
-        let variants: [Variant]
+        public let configuration: Configuration
+        public let variants: [Variant]
     }
 }
 
@@ -40,43 +41,64 @@ extension ContainerFixture {
 extension ContainerFixture {
 
     /// Pulls an image. Passes optional extra args (e.g. `["--platform", "linux/amd64"]`).
-    func doPull(_ imageName: String, args: [String] = []) throws {
+    public func doPull(_ imageName: String, args: [String] = []) throws {
         var pullArgs = ["image", "pull"] + args
         pullArgs.append(imageName)
         try run(pullArgs).check()
     }
 
     /// Returns all images currently in the local store.
-    func doListImages() throws -> [ImageInspectOutput] {
+    public func doListImages() throws -> [ImageInspectOutput] {
         let result = try run(["image", "list", "--format", "json"]).check()
         return try JSONDecoder().decode([ImageInspectOutput].self, from: result.outputData)
     }
 
     /// Returns true if an image with the given exact reference is present.
-    func isImagePresent(_ targetImage: String) throws -> Bool {
+    public func isImagePresent(_ targetImage: String) throws -> Bool {
         try doListImages().contains { $0.configuration.name == targetImage }
     }
 
     /// Tags `image` with `newName`.
-    func doImageTag(_ image: String, newName: String) throws {
+    public func doImageTag(_ image: String, newName: String) throws {
         try run(["image", "tag", image, newName]).check()
     }
 
     /// Removes the given images, or all images when `images` is `nil`.
-    func doRemoveImages(_ images: [String]? = nil) throws {
+    public func doRemoveImages(_ images: [String]? = nil) throws {
         var args = ["image", "rm"]
         if let images { args.append(contentsOf: images) } else { args.append("--all") }
         try run(args).check()
     }
 
+    /// Saves `image` to ``WarmupImage/cacheTarPath``, overwriting any existing archive.
+    ///
+    /// Called once per image by the `ImageWarmup` suite. No `--platform`/`--os`/`--arch`
+    /// is passed, so `image save` captures every platform the image supports.
+    public func cacheWarmupImage(_ image: WarmupImage) throws {
+        try FileManager.default.createDirectory(
+            atPath: WarmupImage.cacheDirectory.string, withIntermediateDirectories: true)
+        try run(["image", "save", "--output", image.cacheTarPath.string, image.rawValue])
+            .check("failed to cache \(image.rawValue)")
+    }
+
+    /// Reloads `image` from its cached tar archive rather than pulling over the network.
+    ///
+    /// Use this in serial tests to restore a warmup image after a destructive operation
+    /// (`image rm --all`, `image prune`) removes it from the store. Requires the
+    /// `ImageWarmup` suite to have already run and populated the cache.
+    public func restoreWarmupImage(_ image: WarmupImage) throws {
+        try run(["image", "load", "--input", image.cacheTarPath.string])
+            .check("failed to restore \(image.rawValue) from cache")
+    }
+
     /// Returns the full inspect output for an image, including variant information.
-    func doInspectImages(_ name: String) throws -> [ImageInspectOutput] {
+    public func doInspectImages(_ name: String) throws -> [ImageInspectOutput] {
         let result = try run(["image", "inspect", name]).check()
         return try JSONDecoder().decode([ImageInspectOutput].self, from: result.outputData)
     }
 
     /// Returns the `configuration.name` of an image.
-    func inspectImage(_ name: String) throws -> String {
+    public func inspectImage(_ name: String) throws -> String {
         let outputs = try doInspectImages(name)
         guard let first = outputs.first else {
             throw CommandError.executionFailed("image '\(name)' not found in inspect output")
@@ -85,7 +107,7 @@ extension ContainerFixture {
     }
 
     /// Asserts that the image was successfully built and is present in the image store.
-    func assertImageBuilt(_ image: String) throws {
+    public func assertImageBuilt(_ image: String) throws {
         let name = try inspectImage(image)
         #expect(name == image, "expected image \(image) to be present")
     }

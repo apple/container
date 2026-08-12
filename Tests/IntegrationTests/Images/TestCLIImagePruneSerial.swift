@@ -14,10 +14,11 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerTestSupport
 import Testing
 
-private let alpine = ContainerFixture.warmupImages[0]
-private let busybox = ContainerFixture.warmupImages[2]
+private let alpine = WarmupImage.alpine320.rawValue
+private let busybox = WarmupImage.busybox136.rawValue
 
 /// Serial tests for `image prune` and `--max-concurrent-downloads`.
 /// These use `image rm --all` which affects global state.
@@ -58,8 +59,8 @@ struct TestCLIImagePruneSerial {
             try? f.doRemoveImages()
             f.addCleanup { try? f.doRemoveImages() }
 
-            try f.doPull(alpine)
-            try f.doPull(busybox)
+            try f.restoreWarmupImage(.alpine320)
+            try f.restoreWarmupImage(.busybox136)
             #expect(try f.isImagePresent(alpine), "expected \(alpine) to be pulled")
             #expect(try f.isImagePresent(busybox), "expected \(busybox) to be pulled")
 
@@ -83,14 +84,13 @@ struct TestCLIImagePruneSerial {
                 try? f.doRemoveImages()
             }
 
-            try f.doPull(alpine)
-            try f.doPull(busybox)
+            try f.restoreWarmupImage(.alpine320)
+            try f.restoreWarmupImage(.busybox136)
             #expect(try f.isImagePresent(alpine), "expected \(alpine) to be pulled")
             #expect(try f.isImagePresent(busybox), "expected \(busybox) to be pulled")
 
             // Keep alpine in use via a running container.
-            try f.doLongRun(name: containerName, image: alpine, autoRemove: false)
-            try await f.waitForContainerRunning(containerName)
+            try await f.doLongRun(name: containerName, image: alpine, autoRemove: false, waitUntilRunning: true)
 
             let result = try f.run(["image", "prune", "-a"]).check()
             #expect(result.output.contains(busybox), "should prune busybox image")

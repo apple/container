@@ -125,7 +125,9 @@ public struct Parser {
 
     public static func allEnv(imageEnvs: [String], envFiles: [String], envs: [String]) throws -> [String] {
         var combined: [String] = []
-        combined.append(contentsOf: Parser.env(envList: imageEnvs))
+        // Image config is untrusted. Bare env var names here must not be expanded from the host
+        // process's environment.
+        combined.append(contentsOf: imageEnvs.filter { $0.contains("=") })
         for envFile in envFiles {
             let content = try Parser.envFile(path: envFile)
             combined.append(contentsOf: content)
@@ -316,7 +318,7 @@ public struct Parser {
         let rlimits = try Parser.rlimits(processFlags.ulimits)
 
         return .init(
-            executable: commandToRun.first!,
+            executable: commandToRun[0],
             arguments: [String](commandToRun.dropFirst()),
             environment: envvars,
             workingDirectory: workingDir,
@@ -338,11 +340,31 @@ public struct Parser {
     public static let defaultDirectives = ["type": "virtiofs"]
 
     public static func tmpfsMounts(_ mounts: [String]) throws -> [Filesystem] {
-        let mounts = mounts.dedupe()
         var result: [Filesystem] = []
         result.reserveCapacity(mounts.count)
+        var seenDestinations: Set<String> = []
+
         for tmpfs in mounts {
-            let fs = Filesystem.tmpfs(destination: tmpfs, options: [])
+            let parts = tmpfs.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+            let destination = String(parts[0])
+            let options = parts.count == 2 ? String(parts[1]).split(separator: ",").map(String.init) : []
+
+            if destination.isEmpty {
+                throw ContainerizationError(.invalidArgument, message: "mount destination cannot be empty")
+            }
+
+            let filePath = FilePath(destination)
+            guard filePath.isAbsolute else {
+                throw ContainerizationError(.invalidArgument, message: "\(destination) is not an absolute path")
+            }
+
+            let normalizedDest = filePath.lexicallyNormalized().string
+            if seenDestinations.contains(normalizedDest) {
+                continue
+            }
+            seenDestinations.insert(normalizedDest)
+
+            let fs = Filesystem.tmpfs(destination: destination, options: options)
             try validateMount(.filesystem(fs))
             result.append(fs)
         }
@@ -1052,6 +1074,60 @@ public struct Parser {
         }
 
         return (normalizedAdd, normalizedDrop)
+    }
+
+    // MARK: Security paths
+
+    /// Sentinel that clears all previously accumulated paths, including the runtime defaults.
+    private static let pathResetSentinel = "NONE"
+
+    /// Parse and validate --masked-path arguments.
+    ///
+    /// Values are processed in order on top of the runtime default set, so
+    /// `--masked-path /foo` yields the defaults plus `/foo`. The `NONE` sentinel
+    /// clears everything accumulated so far, including the defaults. A nil result
+    /// means the flag was not supplied and the runtime defaults apply unchanged.
+    public static func maskedPaths(_ values: [String]) throws -> [String]? {
+        try pathOverrides(values, defaults: LinuxContainer.defaultMaskedPaths(), flagName: "masked-path")
+    }
+
+    /// Parse and validate --read-only-path arguments. Ordering, the `NONE`
+    /// sentinel, and the nil result carry the same meaning as ``maskedPaths(_:)``.
+    public static func readonlyPaths(_ values: [String]) throws -> [String]? {
+        try pathOverrides(values, defaults: LinuxContainer.defaultReadonlyPaths(), flagName: "read-only-path")
+    }
+
+    /// Accumulate absolute paths on top of `defaults`, honoring the `NONE` reset
+    /// sentinel and dropping duplicates while preserving first-occurrence order.
+    private static func pathOverrides(_ values: [String], defaults: [String], flagName: String) throws -> [String]? {
+        guard !values.isEmpty else {
+            return nil
+        }
+        var paths = defaults
+        var seen = Set(defaults)
+        for value in values {
+            let trimmed = value.trimmingCharacters(in: .whitespaces)
+            if trimmed.uppercased() == pathResetSentinel {
+                paths = []
+                seen = []
+                continue
+            }
+            guard trimmed.hasPrefix("/") else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "invalid path '\(value)' for --\(flagName): path must be absolute, or the \(pathResetSentinel) sentinel"
+                )
+            }
+            // Strip trailing slashes, preserving the root path itself.
+            var normalized = trimmed
+            while normalized.count > 1 && normalized.hasSuffix("/") {
+                normalized.removeLast()
+            }
+            if seen.insert(normalized).inserted {
+                paths.append(normalized)
+            }
+        }
+        return paths
     }
 
     // MARK: Miscellaneous

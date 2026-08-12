@@ -901,14 +901,22 @@ public actor ContainersService {
         self.log.debug("\(#function)")
 
         let state = try self._getContainerState(id: id)
-        guard state.snapshot.status == .stopped else {
-            throw ContainerizationError(.invalidState, message: "container is not stopped")
-        }
-
         let path = self.containerRoot.appendingPathComponent(id)
         let bundle = ContainerResource.Bundle(path: path)
         let rootfs = bundle.containerRootfsBlock
-        try EXT4.EXT4Reader(blockDevice: FilePath(rootfs)).export(archive: FilePath(archive))
+
+        switch state.snapshot.status {
+        case .running:
+            let client = try state.getClient()
+            let snapshot = rootfs.appendingPathExtension("snapshot")
+            defer { try? FileManager.default.removeItem(at: snapshot) }
+            try await client.snapshotDisk(imagePath: rootfs.path, destinationPath: snapshot.path)
+            try EXT4.EXT4Reader(blockDevice: FilePath(snapshot)).export(archive: FilePath(archive))
+        case .stopped:
+            try EXT4.EXT4Reader(blockDevice: FilePath(rootfs)).export(archive: FilePath(archive))
+        default:
+            throw ContainerizationError(.invalidState, message: "container must be running or stopped")
+        }
     }
 
     private func handleContainerExit(id: String, code: ExitStatus? = nil) async throws {
