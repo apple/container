@@ -55,6 +55,16 @@ struct TestK8sRunSerial {
         return parsed
     }
 
+    // The apiserver address in the kubeconfig is either a host-port mapping
+    // (https://127.0.0.1:<port>) or, when a DNS domain is configured
+    // system-wide, an FQDN (https://<name>.<domain>:6443) with no published
+    // port at all. Reading it back from the kubeconfig is correct either way.
+    private func serverAddress(for name: String, in kubeconfig: [String: Any]) -> String? {
+        let clusters = (kubeconfig["clusters"] as? [[String: Any]]) ?? []
+        guard let entry = clusters.first(where: { $0["name"] as? String == name }) else { return nil }
+        return (entry["cluster"] as? [String: Any])?["server"] as? String
+    }
+
     @Test func testRunSingleNode() async throws {
         try await ContainerFixture.with { f in
             let name = "k8s-\(f.testID)"
@@ -88,7 +98,7 @@ struct TestK8sRunSerial {
         }
     }
 
-    @Test func testConcurrentCreateGetsDifferentPorts() async throws {
+    @Test func testConcurrentCreateGetsDifferentServerAddresses() async throws {
         try await ContainerFixture.with { f in
             let name1 = "k8s-\(f.testID)-a"
             let name2 = "k8s-\(f.testID)-b"
@@ -117,14 +127,13 @@ struct TestK8sRunSerial {
             #expect(try f.getContainerStatus(name1) == "running")
             #expect(try f.getContainerStatus(name2) == "running")
 
-            let port1 = try f.inspectContainer(name1).configuration.publishedPorts
-                .first(where: { $0.containerPort == 6443 })?.hostPort
-            let port2 = try f.inspectContainer(name2).configuration.publishedPorts
-                .first(where: { $0.containerPort == 6443 })?.hostPort
-            print("[k8s-run] port1=\(port1.map(String.init) ?? "nil") port2=\(port2.map(String.init) ?? "nil")")
-            #expect(port1 != nil)
-            #expect(port2 != nil)
-            #expect(port1 != port2)
+            let kubeconfig = try loadKubeconfig()
+            let server1 = serverAddress(for: name1, in: kubeconfig)
+            let server2 = serverAddress(for: name2, in: kubeconfig)
+            print("[k8s-run] server1=\(server1 ?? "nil") server2=\(server2 ?? "nil")")
+            #expect(server1 != nil)
+            #expect(server2 != nil)
+            #expect(server1 != server2)
         }
     }
 }
