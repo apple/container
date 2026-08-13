@@ -28,6 +28,7 @@ extension Application {
             subcommands: [
                 BuilderStart.self,
                 BuilderStatus.self,
+                BuilderDialStdio.self,
                 BuilderStop.self,
                 BuilderDelete.self,
             ])

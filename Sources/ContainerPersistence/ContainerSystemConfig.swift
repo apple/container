@@ -90,17 +90,22 @@ final public class BuildConfig: Codable, Sendable {
     public let cpus: Int
     public let memory: MemorySize
     public let image: String
+    /// The builder builds ride, when it is not this machine's: an ssh or
+    /// tcp address in BUILDKIT_HOST's grammar, unset for the local builder.
+    public let remote: String?
 
     public init(
         rosetta: Bool = defaultRosetta,
         cpus: Int = defaultCPUs,
         memory: MemorySize = defaultMemory,
-        image: String = defaultImage
+        image: String = defaultImage,
+        remote: String? = nil
     ) {
         self.rosetta = rosetta
         self.cpus = cpus
         self.memory = memory
         self.image = image
+        self.remote = remote
     }
 
     public init(from decoder: any Decoder) throws {
@@ -109,6 +114,7 @@ final public class BuildConfig: Codable, Sendable {
         self.cpus = try container.decodeIfPresent(Int.self, forKey: .cpus) ?? Self.defaultCPUs
         self.memory = try container.decodeIfPresent(MemorySize.self, forKey: .memory) ?? Self.defaultMemory
         self.image = try container.decodeIfPresent(String.self, forKey: .image) ?? Self.defaultImage
+        self.remote = try container.decodeIfPresent(String.self, forKey: .remote)
     }
 }
 
