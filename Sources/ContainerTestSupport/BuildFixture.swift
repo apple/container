@@ -244,6 +244,14 @@ extension ContainerFixture {
             throw CommandError.executionFailed(
                 "build failed: stdout=\(result.output) stderr=\(result.error)")
         }
+        // An image this build registered is a resource the scope created, so
+        // its removal is registered like any other. When no tag was supplied
+        // the runtime generated one and printed it, and that printed name is
+        // the one to remove.
+        let builtTags = tags.isEmpty ? [result.output.trimmingCharacters(in: .whitespacesAndNewlines)].filter { !$0.isEmpty } : tags
+        for tag in builtTags {
+            addCleanup { _ = try? self.run(["image", "rm", tag]) }
+        }
         return result.output
     }
 
@@ -266,6 +274,10 @@ extension ContainerFixture {
         guard result.status == 0 else {
             throw CommandError.executionFailed(
                 "build failed: stdout=\(result.output) stderr=\(result.error)")
+        }
+        let builtTags = tags.isEmpty ? [result.output.trimmingCharacters(in: .whitespacesAndNewlines)].filter { !$0.isEmpty } : tags
+        for tag in builtTags {
+            addCleanup { _ = try? self.run(["image", "rm", tag]) }
         }
         return result.output
     }
@@ -294,6 +306,9 @@ extension ContainerFixture {
             throw CommandError.executionFailed(
                 "build failed: stdout=\(result.output) stderr=\(result.error)")
         }
+        // The local exporter can leave the tag unregistered in the store;
+        // the removal tolerates that.
+        addCleanup { _ = try? self.run(["image", "rm", tag]) }
         return result.output
     }
 }
