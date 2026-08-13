@@ -26,6 +26,7 @@ import ContainerizationExtras
 import ContainerizationOCI
 import Foundation
 import Logging
+import SystemPackage
 import TerminalProgress
 
 extension Application {
@@ -45,6 +46,24 @@ extension Application {
             help: "Amount of builder container memory (1MiByte granularity), with optional K, M, G, T, or P suffix"
         )
         var memory: String?
+
+        @Option(
+            name: .long,
+            help: ArgumentHelp(
+                """
+                Flags for the buildkitd the builder launches, one string the way buildx's \
+                --buildkitd-flags takes them. They begin with a dash, which is how an option \
+                begins, so the value attaches to the option: --buildkitd-flags=--debug
+                """,
+                valueName: "flags"))
+        var buildkitdFlags: String?
+
+        @Option(
+            name: .customLong("publish-buildkit-socket"),
+            help: ArgumentHelp(
+                "Publish the builder's buildkitd socket to this host path, where buildctl and buildx reach it directly",
+                valueName: "path"))
+        var publishBuildkitSocket: String?
 
         @OptionGroup
         public var dns: Flags.DNS
@@ -70,6 +89,8 @@ extension Application {
                 cpus: self.cpus,
                 memory: self.memory,
                 log: log,
+                buildkitdFlags: self.buildkitdFlags,
+                publishBuildkitSocket: self.publishBuildkitSocket,
                 dnsNameservers: self.dns.nameservers,
                 dnsDomain: self.dns.domain,
                 dnsSearchDomains: self.dns.searchDomains,
@@ -85,6 +106,8 @@ extension Application {
             memory: String?,
             log: Logger,
             ssh: Bool = false,
+            buildkitdFlags: String? = nil,
+            publishBuildkitSocket: String? = nil,
             dnsNameservers: [String] = [],
             dnsDomain: String? = nil,
             dnsSearchDomains: [String] = [],
@@ -115,9 +138,16 @@ extension Application {
 
             let builderPlatform = ContainerizationOCI.Platform(arch: "arm64", os: "linux", variant: "v8")
 
+            // Every buildkit variable in the caller's environment rides into
+            // the builder: BUILDKIT_HOST points the shim at a daemon of the
+            // operator's choosing, the BUILDKIT_TLS set carries that
+            // address's credentials, the color settings shape progress
+            // output, and whatever buildkit documents next needs no new
+            // plumbing here. NO_COLOR rides along as the conventional
+            // outlier the color handling already honored.
             var targetEnvVars: [String] = []
-            if let buildkitColors = ProcessInfo.processInfo.environment["BUILDKIT_COLORS"] {
-                targetEnvVars.append("BUILDKIT_COLORS=\(buildkitColors)")
+            for (name, value) in ProcessInfo.processInfo.environment where name.hasPrefix("BUILDKIT_") {
+                targetEnvVars.append("\(name)=\(value)")
             }
             if ProcessInfo.processInfo.environment["NO_COLOR"] != nil {
                 targetEnvVars.append("NO_COLOR=true")
@@ -142,10 +172,15 @@ extension Application {
                 let existingDNS = existingContainer.configuration.dns
 
                 let existingManagedEnv = existingEnv.filter { envVar in
-                    envVar.hasPrefix("BUILDKIT_COLORS=") || envVar.hasPrefix("NO_COLOR=")
+                    envVar.hasPrefix("BUILDKIT_") || envVar.hasPrefix("NO_COLOR=")
                 }.sorted()
 
                 let envChanged = existingManagedEnv != targetEnvVars
+
+                let existingPublished = existingContainer.configuration.publishedSockets
+                    .map { "\($0.containerPath):\($0.hostPath)" }.sorted()
+                let targetPublished = (publishBuildkitSocket.map { ["/run/buildkit/buildkitd.sock:\($0)"] } ?? []).sorted()
+                let publishChanged = existingPublished != targetPublished
 
                 // Check if we need to recreate the builder due to different image
                 let imageChanged = existingImage != builderImage
@@ -172,8 +207,8 @@ extension Application {
 
                 switch existingContainer.status {
                 case .running:
-                    guard imageChanged || cpuChanged || memChanged || envChanged || dnsChanged || sshChanged else {
-                        // If image, mem, cpu, env, and DNS are the same, continue using the existing builder
+                    guard imageChanged || cpuChanged || memChanged || envChanged || dnsChanged || sshChanged || publishChanged else {
+                        // If image, mem, cpu, env, DNS, and published sockets are the same, continue using the existing builder
                         return
                     }
                     // If they changed, stop and delete the existing builder
@@ -182,7 +217,7 @@ extension Application {
                 case .stopped:
                     // If the builder is stopped and matches our requirements, start it
                     // Otherwise, delete it and create a new one
-                    if imageChanged || cpuChanged || memChanged || envChanged || dnsChanged || sshChanged {
+                    if imageChanged || cpuChanged || memChanged || envChanged || dnsChanged || sshChanged || publishChanged {
                         try? await client.delete(id: existingContainer.id)
                     } else {
                         do {
@@ -209,11 +244,17 @@ extension Application {
             }
 
             let useRosetta = containerSystemConfig.build.rosetta
-            let shimArguments = [
+            var shimArguments = [
                 "--debug",
                 "--vsock",
                 useRosetta ? nil : "--enable-qemu",
             ].compactMap { $0 }
+            if let buildkitdFlags {
+                // One string of daemon flags, buildx's own contract for
+                // --buildkitd-flags, handed to the shim after -- where it
+                // passes them to buildkitd verbatim.
+                shimArguments += ["--"] + buildkitdFlags.split(separator: " ").map(String.init)
+            }
 
             guard ManagedContainer.nameValid(Builder.builderContainerId) else {
                 throw ContainerizationError(.invalidArgument, message: "container ID \(Builder.builderContainerId) is not a valid container ID")
@@ -258,6 +299,19 @@ extension Application {
             var config = ContainerConfiguration(id: Builder.builderContainerId, image: imageDesc, process: processConfig)
             config.resources = resources
             config.ssh = ssh && ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] != nil
+            if let publishBuildkitSocket {
+                // buildkitd listens at its library default inside the VM;
+                // publishing that socket puts a file on the host where
+                // buildctl and buildx dial the daemon directly, the
+                // daemon-socket convention Docker Desktop, colima, and
+                // podman machine follow on macOS.
+                config.publishedSockets = [
+                    try PublishSocket(
+                        containerPath: FilePath("/run/buildkit/buildkitd.sock"),
+                        hostPath: FilePath(publishBuildkitSocket)
+                    )
+                ]
+            }
             config.labels = [
                 ResourceLabelKeys.plugin: "builder",
                 ResourceLabelKeys.role: ResourceRoleValues.builder,
