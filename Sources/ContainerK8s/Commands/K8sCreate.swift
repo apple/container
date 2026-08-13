@@ -33,23 +33,6 @@ public struct K8sCreate: AsyncParsableCommand {
         abstract: "Create and start a local Kubernetes cluster"
     )
 
-    /// Called by the executable target to supply the default control-plane provisioner.
-    /// The closure receives the parsed CLI values and returns a `NodeProvisioner`.
-    /// Set this before `K8sCommand.main()` runs.
-    nonisolated(unsafe) public static var makeDefaultProvisioner:
-        (
-            (
-                _ clusterName: String,
-                _ nodeImage: String,
-                _ cpus: Int64?,
-                _ memory: String?,
-                _ registryScheme: String,
-                _ maxConcurrentDownloads: Int,
-                _ remove: Bool,
-                _ fqdn: String?
-            ) -> any NodeProvisioner
-        )?
-
     @Option(name: .long, help: "Cluster name (default: \(K8sHelper.defaultName))")
     var name: String = K8sHelper.defaultName
 
@@ -94,15 +77,16 @@ public struct K8sCreate: AsyncParsableCommand {
         let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
         let fqdn = K8sHelper.fqdn(for: name, domain: containerSystemConfig.dns.domain)
 
-        let provisioner: any NodeProvisioner
-        guard let factory = Self.makeDefaultProvisioner else {
-            throw ContainerizationError(.internalError, message: "no node provisioner configured for K8sCreate")
-        }
-        provisioner = factory(
-            name, nodeImage,
-            resourceFlags.cpus, resourceFlags.memory,
-            registryFlags.scheme, imageFetchFlags.maxConcurrentDownloads,
-            remove, fqdn
+        let provisioner = LinuxNode(
+            clusterName: name,
+            roles: [StandardRoles.controlPlane],
+            nodeImage: nodeImage,
+            cpus: resourceFlags.cpus,
+            memory: resourceFlags.memory,
+            registryScheme: registryFlags.scheme,
+            maxConcurrentDownloads: imageFetchFlags.maxConcurrentDownloads,
+            remove: remove,
+            fqdn: fqdn
         )
 
         progress.set(description: "Starting cluster")

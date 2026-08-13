@@ -16,9 +16,15 @@
 
 import Logging
 
+/// Well-known role identifiers for use in `NodeProvisioner.roles`.
+public struct StandardRoles {
+    public static let controlPlane = "control-plane"
+    public static let worker = "worker"
+}
+
 /// Manages the lifecycle of a cluster node (control plane or worker).
 ///
-/// Implement this protocol in a plugin binary to provision nodes without modifying OSS sources.
+/// Implement this protocol to provision nodes for a cluster created by `K8sCreate`.
 ///
 /// For a **control-plane** node, `K8sCreate` calls:
 /// 1. `provision` — start the machine before kubeadm init runs
@@ -33,9 +39,8 @@ import Logging
 ///
 /// If any provisioner step throws, `K8sCreate` tears down the cluster before re-throwing.
 public protocol NodeProvisioner: Sendable {
-    /// Optional node image the provisioner prefers.  `K8sCreate` does not use this directly;
-    /// it is available for the provisioner's own `provision` implementation.
-    var defaultNodeImage: String? { get }
+    /// The roles this node will serve (e.g. `[StandardRoles.controlPlane]`).
+    var roles: [String] { get }
 
     /// Start the machine identified by `name` before cluster initialisation.
     func provision(name: String, log: Logger) async throws

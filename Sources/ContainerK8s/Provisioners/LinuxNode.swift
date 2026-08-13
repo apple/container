@@ -15,24 +15,17 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
-import ContainerK8s
 import ContainerPersistence
 import ContainerResource
 import ContainerizationError
 import Logging
 
-/// A `NodeProvisioner` that runs a k8s node as a Linux container on the same host,
-/// using the same kindest/node image as the control plane.
+/// A `NodeProvisioner` that runs a k8s node as a Linux container on the same host.
 public struct LinuxNode: NodeProvisioner {
-    public enum Role: String, Sendable {
-        case controlPlane = "control-plane"
-        case worker = "worker"
-    }
-
-    public let defaultNodeImage: String?
+    public let roles: [String]
 
     private let clusterName: String
-    private let role: Role
+    private let nodeImage: String?
     private let cpus: Int64?
     private let memory: String?
     private let registryScheme: String
@@ -42,7 +35,7 @@ public struct LinuxNode: NodeProvisioner {
 
     public init(
         clusterName: String,
-        role: Role = .worker,
+        roles: [String] = [StandardRoles.worker],
         nodeImage: String? = nil,
         cpus: Int64? = nil,
         memory: String? = nil,
@@ -52,8 +45,8 @@ public struct LinuxNode: NodeProvisioner {
         fqdn: String? = nil
     ) {
         self.clusterName = clusterName
-        self.role = role
-        self.defaultNodeImage = nodeImage
+        self.roles = roles
+        self.nodeImage = nodeImage
         self.cpus = cpus
         self.memory = memory
         self.registryScheme = registryScheme
@@ -64,10 +57,11 @@ public struct LinuxNode: NodeProvisioner {
 
     public func provision(name: String, log: Logger) async throws {
         let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
-        let resolvedImage = defaultNodeImage ?? K8sHelper.nodeImage
+        let resolvedImage = nodeImage ?? K8sHelper.nodeImage
         try await K8sHelper.ensureImage(nodeImage: resolvedImage, log: log, containerSystemConfig: containerSystemConfig)
 
-        let publishPorts = role == .controlPlane && fqdn == nil ? [try await K8sHelper.clusterPort()] : []
+        let isControlPlane = roles.contains(StandardRoles.controlPlane)
+        let publishPorts = isControlPlane && fqdn == nil ? [try await K8sHelper.clusterPort()] : []
 
         let management = Flags.Management(
             arch: Arch.hostArchitecture().rawValue,
@@ -83,7 +77,7 @@ public struct LinuxNode: NodeProvisioner {
             kernelArgs: [],
             labels: [
                 "\(ResourceLabelKeys.plugin)=\(K8sHelper.pluginName)",
-                "\(ResourceLabelKeys.role)=\(role.rawValue)",
+                "\(ResourceLabelKeys.role)=\(roles.joined(separator: ","))",
             ],
             maskedPaths: [],
             mounts: [],
