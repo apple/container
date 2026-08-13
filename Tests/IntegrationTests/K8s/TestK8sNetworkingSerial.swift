@@ -95,6 +95,7 @@ struct TestK8sNetworkingSerial {
             let name = "k8s-\(f.testID)"
             f.addCleanup { _ = try? f.run(["k8s", "delete", "--name", name]) }
 
+            try f.restoreWarmupImage(.kindestNodeV1_35_5)
             print("[k8s-net] k8s create --name \(name)")
             let result = try f.run(["k8s", "create", "--name", name])
             print("[k8s-net] k8s create exit=\(result.status)")
@@ -106,7 +107,7 @@ struct TestK8sNetworkingSerial {
             try result.check()
 
             print("[k8s-net] pulling \(Self.testImage)")
-            try f.doPull(Self.testImage)
+            try f.restoreWarmupImage(.alpine320)
 
             print("[k8s-net] k8s load-image --name \(name) \(Self.testImage)")
             let loadResult = try f.run(["k8s", "load-image", "--name", name, Self.testImage])
@@ -143,6 +144,7 @@ struct TestK8sNetworkingSerial {
             let name = "k8s-\(f.testID)"
             f.addCleanup { _ = try? f.run(["k8s", "delete", "--name", name]) }
 
+            try f.restoreWarmupImage(.kindestNodeV1_35_5)
             print("[k8s-net] k8s create --name \(name)")
             let result = try f.run(["k8s", "create", "--name", name])
             print("[k8s-net] k8s create exit=\(result.status)")
@@ -153,7 +155,7 @@ struct TestK8sNetworkingSerial {
             try result.check()
 
             print("[k8s-net] pulling \(Self.testImage)")
-            try f.doPull(Self.testImage)
+            try f.restoreWarmupImage(.alpine320)
 
             print("[k8s-net] k8s load-image --name \(name) \(Self.testImage)")
             let loadResult = try f.run(["k8s", "load-image", "--name", name, Self.testImage])

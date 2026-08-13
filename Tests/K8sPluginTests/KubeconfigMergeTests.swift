@@ -21,7 +21,7 @@ import SystemPackage
 import Testing
 import Yams
 
-@testable import k8s
+@testable import ContainerK8s
 
 // MARK: - Helpers
 
@@ -330,17 +330,17 @@ struct MergeConfigTests {
         }
     }
 
-    @Test func mergeSetsCurrentContextOnFirstClusterOnly() throws {
+    @Test func mergeAlwaysSetsCurrentContext() throws {
         let (path, cleanup) = try makeTempFile()
         defer { cleanup() }
 
-        // First create: sets current-context because kubeconfig is empty
+        // First create: sets current-context
         try K8sHelper.mergeConfig(makeConfig(clusterName: "first"), containerId: "first", targetPath: path, setCurrentContext: true, log: log)
-        // Second create: does NOT overwrite current-context because it's already set
+        // Second create: overwrites current-context to point to the new cluster
         try K8sHelper.mergeConfig(makeConfig(clusterName: "second"), containerId: "second", targetPath: path, setCurrentContext: true, log: log)
 
         let result = try decode(String(contentsOfFile: path.string, encoding: .utf8))
-        #expect(result.currentContext == "first")  // first-use semantics: not overwritten by second cluster
+        #expect(result.currentContext == "second")  // always switches to the most recently created cluster
         #expect(result.clusters.count == 2)
     }
 }

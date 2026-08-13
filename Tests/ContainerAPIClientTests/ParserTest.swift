@@ -1523,6 +1523,33 @@ struct ParserTest {
         #expect(result.count == 20)
     }
 
+    @Test("tmpfsMounts parses mount options and dedupes on destination path")
+    func testTmpfsMountsWithColons() throws {
+        let mounts = [
+            "/mnt/scratch:rw,exec",
+            "/mnt/scratch",  // Should be deduped based on path
+            "/mnt/cache:ro",
+        ]
+        let result = try Parser.tmpfsMounts(mounts)
+        #expect(result.count == 2)
+        #expect(result[0].destination == "/mnt/scratch")
+        #expect(result[0].options == ["rw", "exec"])
+    }
+
+    @Test("tmpfsMounts throws on empty destination")
+    func testTmpfsMountsEmptyDestination() throws {
+        #expect(throws: ContainerizationError.self) {
+            _ = try Parser.tmpfsMounts([""])
+        }
+    }
+
+    @Test("tmpfsMounts throws on non-absolute destination")
+    func testTmpfsMountsNonAbsoluteDestination() throws {
+        #expect(throws: ContainerizationError.self) {
+            _ = try Parser.tmpfsMounts(["relative/path:rw"])
+        }
+    }
+
     @Test("volumes with large input")
     func testVolumesLargeInput() throws {
         let volumes = (0..<20).map { "vol\($0):/mnt/vol\($0)" }

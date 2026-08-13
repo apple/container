@@ -16,6 +16,7 @@
 
 import ContainerAPIClient
 import ContainerPersistence
+import ContainerPlugin
 import ContainerResource
 import ContainerVersion
 import ContainerizationError
@@ -183,7 +184,7 @@ struct K8sHelper {
         _ = try await ClientImage.fetch(
             reference: nodeImage,
             platform: platform,
-            scheme: .auto,
+            scheme: .https,
             containerSystemConfig: containerSystemConfig,
             progressUpdate: nil)
     }
@@ -199,7 +200,7 @@ struct K8sHelper {
             executable: executable, arguments: arguments, environment: [], terminal: false)
         let proc = try await client.createProcess(
             containerId: containerId, processId: UUID().uuidString.lowercased(),
-            configuration: config, stdio: [nil, pipe.fileHandleForWriting, nil])
+            configuration: config, stdio: [nil, pipe.fileHandleForWriting, pipe.fileHandleForWriting])
         try await proc.start()
         pipe.fileHandleForWriting.closeFile()
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
@@ -257,7 +258,7 @@ struct K8sHelper {
             arguments: ["taint", "nodes", "--all", "node-role.kubernetes.io/control-plane-"])
 
         log.info("Applying kindnet CNI", metadata: ["node": "\(nodeID)"])
-        let manifest = try loadKindnetManifest()
+        let manifest = try await loadKindnetManifest(log: log)
         let apply =
             "cat > /tmp/kindnet.yaml <<'EOF'\n\(manifest)\nEOF\n"
             + "\(kubeconfigEnv) kubectl apply -f /tmp/kindnet.yaml"
@@ -269,13 +270,58 @@ struct K8sHelper {
         }
     }
 
-    private static func loadKindnetManifest() throws -> String {
-        guard let url = Bundle.module.url(forResource: "kindnet", withExtension: "yaml"),
-            let contents = try? String(contentsOf: url, encoding: .utf8)
+    private static func loadKindnetManifest(log: Logger) async throws -> String {
+        let pluginLoader = try await makePluginLoader(log: log)
+        guard let plugin = pluginLoader.findPlugin(forExecutable: CommandLine.executablePath),
+            let resourceURL = plugin.resourceURL
         else {
-            throw ContainerizationError(.internalError, message: "kindnet manifest resource missing")
+            throw ContainerizationError(.internalError, message: "unable to locate k8s plugin installation or resources")
+        }
+        let url = resourceURL.appendingPathComponent("kindnet.yaml")
+        guard let contents = try? String(contentsOf: url, encoding: .utf8) else {
+            throw ContainerizationError(.internalError, message: "kindnet manifest resource missing at \(url.path)")
         }
         return contents
+    }
+
+    /// NOTE: This duplicates `Application.createPluginLoader()` in
+    /// Sources/ContainerCommands/Application.swift. `ContainerK8s` cannot depend on
+    /// `ContainerCommands`, so the plugin directory/factory list here is kept in sync
+    /// by hand — if that logic changes, update this copy too (or factor a shared
+    /// constructor into `ContainerPlugin`).
+    private static func makePluginLoader(log: Logger) async throws -> PluginLoader {
+        let health = try await ClientHealthCheck.ping(timeout: .seconds(10))
+
+        let installRootPath = FilePath(health.installRoot.path(percentEncoded: false))
+        let userPluginsURL = PluginLoader.userPluginsDir(installRoot: health.installRoot)
+        var directoryExists: ObjCBool = false
+        _ = FileManager.default.fileExists(atPath: userPluginsURL.path, isDirectory: &directoryExists)
+
+        let appBundlePluginsURL = Bundle.main.resourceURL?.appending(path: "plugins")
+        let installRootPluginsPath =
+            installRootPath
+            .appending(FilePath.Component("libexec"))
+            .appending(FilePath.Component("container"))
+            .appending(FilePath.Component("plugins"))
+        let installRootPluginsURL = URL(fileURLWithPath: installRootPluginsPath.string)
+
+        let pluginDirectories = [
+            directoryExists.boolValue ? userPluginsURL : nil,
+            appBundlePluginsURL,
+            installRootPluginsURL,
+        ].compactMap { $0 }
+
+        return try PluginLoader(
+            appRoot: health.appRoot,
+            installRoot: health.installRoot,
+            logRoot: health.logRoot,
+            pluginDirectories: pluginDirectories,
+            pluginFactories: [
+                DefaultPluginFactory(logger: log),
+                AppBundlePluginFactory(logger: log),
+            ],
+            log: log
+        )
     }
 
     private static let nodePrepScript: String = {
@@ -291,8 +337,8 @@ struct K8sHelper {
         sysctl -w net.bridge.bridge-nf-call-ip6tables=1 2>/dev/null || true
         systemctl restart containerd
         ctr -n k8s.io images tag registry.k8s.io/pause:3.10 registry.k8s.io/pause:3.10.1 2>/dev/null || true
-        iptables -t mangle -A OUTPUT  -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
-        iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
+        /usr/sbin/iptables-nft -t mangle -A OUTPUT  -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
+        /usr/sbin/iptables-nft -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
         """
     }()
 
@@ -538,7 +584,7 @@ struct K8sHelper {
         existing.clusters.append(contentsOf: config.clusters)
         existing.contexts.append(contentsOf: config.contexts)
         existing.users.append(contentsOf: config.users)
-        if setCurrentContext && existing.currentContext == nil {
+        if setCurrentContext {
             existing.currentContext = containerId
         }
 

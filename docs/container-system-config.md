@@ -9,6 +9,43 @@ For a guided walk-through on setting default values, see [Container system confi
 
 Source of truth: [`Sources/ContainerPersistence/ContainerSystemConfig.swift`](../Sources/ContainerPersistence/ContainerSystemConfig.swift). 
 
+## Viewing your configuration
+
+Use `container system property list` (alias `ls`) to print the merged configuration
+the `container` service is actually using — combining your `config.toml` with
+hardcoded defaults for anything you haven't set:
+
+```console
+% container system property list
+[build]
+cpus = 2
+memory = "2048mb"
+rosetta = true
+image = "ghcr.io/apple/container-builder-shim/builder:0.13.1"
+
+[container]
+cpus = 4
+memory = "1gb"
+
+[dns]
+domain = "test"
+
+[kernel]
+binaryPath = "opt/kata/share/kata-containers/vmlinux-6.18.15-186"
+url = "https://github.com/kata-containers/kata-containers/releases/download/3.28.0/kata-static-3.28.0-arm64.tar.zst"
+digest = "sha256:f63d54507d1f18635d94475077e4c2330de4d8e05cedf25f7c38f063b0e66a91"
+
+[network]
+
+[registry]
+domain = "docker.io"
+
+[vminit]
+image = "ghcr.io/apple/containerization/vminit:0.34.0"
+```
+
+Pass `--format json` for machine-readable output.
+
 ## Top-level schema
 
 ```toml
@@ -35,6 +72,16 @@ Resources and image used for the builder VM that runs `container build`.
 | `memory`  | [MemorySize](#memorysize-format)  | `"2048mb"`                                           | RAM allocation for the builder VM. |
 | `image`   | `String`    | `ghcr.io/apple/container-builder-shim/builder:<tag>` | Reference for the builder image. The tag segment is taken from the project's bundled `container-builder-shim` version. |
 
+To prevent the use of Rosetta translation during container builds on a Mac with Apple
+silicon, set `rosetta = false`:
+
+```toml
+[build]
+rosetta = false
+```
+
+This ensures builds only produce native arm64 images, with no x86_64 emulation.
+
 ## `[container]`
 
 Defaults applied when `container run` / `container create` is invoked without `--cpus` or `--memory`.
@@ -48,7 +95,7 @@ Defaults applied when `container run` / `container create` is invoked without `-
 
 | Key      | Type      | Default | Description                                                                |
 |----------|-----------|---------|----------------------------------------------------------------------------|
-| `domain` | `String?` | unset   | Local DNS domain appended to container hostnames (e.g. `"test"` makes `my-web-server` resolvable as `my-web-server.test`). When unset, no domain is appended. |
+| `domain` | `String?` | unset   | Local DNS domain appended to container hostnames (e.g. `"test"` makes `my-web-server` resolvable as `my-web-server.test`). When unset, no domain is appended. See [Networking: Set up DNS-based container names](./networking.md#set-up-dns-based-container-names) for the full walkthrough. |
 
 ## `[kernel]`
 

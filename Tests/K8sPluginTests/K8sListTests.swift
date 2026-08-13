@@ -19,7 +19,7 @@ import Foundation
 import Testing
 import Yams
 
-@testable import k8s
+@testable import ContainerK8s
 
 // MARK: - Fixtures
 

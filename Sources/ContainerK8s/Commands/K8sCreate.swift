@@ -25,8 +25,10 @@ import Foundation
 import Logging
 import TerminalProgress
 
-struct K8sCreate: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
+public struct K8sCreate: AsyncParsableCommand {
+    public init() {}
+
+    public static let configuration = CommandConfiguration(
         commandName: "create",
         abstract: "Create and start a local Kubernetes cluster"
     )
@@ -49,7 +51,7 @@ struct K8sCreate: AsyncParsableCommand {
     @Option(help: "Node image reference (default: \(K8sHelper.nodeImage))")
     var nodeImage: String = K8sHelper.nodeImage
 
-    func run() async throws {
+    public func run() async throws {
         LoggingSystem.bootstrap { _ in StderrLogHandler() }
         let log = Logger(label: K8sHelper.pluginName)
 

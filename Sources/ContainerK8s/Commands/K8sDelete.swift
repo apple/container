@@ -17,31 +17,43 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerLog
-import Foundation
+import ContainerResource
+import ContainerizationError
 import Logging
-import SystemPackage
 
-struct K8sWriteConfig: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
-        commandName: "write-config",
-        abstract: "Write the cluster context to a Kubernetes configuration file"
+public struct K8sDelete: AsyncParsableCommand {
+    public init() {}
+
+    public static let configuration = CommandConfiguration(
+        commandName: "delete",
+        abstract: "Delete a Kubernetes cluster",
+        aliases: ["rm"]
     )
 
     @Option(name: .long, help: "Cluster name (default: \(K8sHelper.defaultName))")
     var name: String = K8sHelper.defaultName
 
-    @Option(name: .long, help: "Path to the kubeconfig file to write or append to (default: ~/.kube/config)")
-    var kubeconfig: String?
-
-    func run() async throws {
+    public func run() async throws {
         LoggingSystem.bootstrap { _ in StderrLogHandler() }
         let log = Logger(label: K8sHelper.pluginName)
 
-        let targetPath = kubeconfig.map { FilePath($0) }
         let client = ContainerClient()
-        let fqdn = await K8sHelper.detectFQDN(name: name)
-        let rawConfig = try await K8sHelper.fetchConfig(containerId: name, client: client, log: log)
-        let config = try await K8sHelper.transformConfig(rawConfig, containerId: name, fqdn: fqdn, client: client)
-        try K8sHelper.mergeConfig(config, containerId: name, targetPath: targetPath, log: log)
+
+        if let container = try? await client.get(id: name) {
+            guard container.configuration.labels[ResourceLabelKeys.plugin] == K8sHelper.pluginName else {
+                log.error("container is not a k8s cluster, refusing delete", metadata: ["name": "\(name)"])
+                throw ContainerizationError(.invalidArgument, message: "\(name) is not a k8s cluster")
+            }
+        }
+
+        do {
+            try? await client.stop(id: name)
+            try await client.delete(id: name)
+        } catch let error as ContainerizationError where error.code == .notFound {
+            log.debug("cluster container not found, skipping delete", metadata: ["name": "\(name)"])
+        }
+
+        try K8sHelper.removeConfig(containerId: name, log: log)
+        print(name)
     }
 }

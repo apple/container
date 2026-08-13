@@ -15,11 +15,11 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerK8s
 import ContainerVersion
 
-@main
-struct K8sCommand: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
+public struct K8sCommand: AsyncParsableCommand {
+    public static let configuration = CommandConfiguration(
         commandName: "k8s",
         abstract: "Manage local Kubernetes development clusters (EXPERIMENTAL)",
         discussion: """
@@ -39,9 +39,9 @@ struct K8sCommand: AsyncParsableCommand {
 
               Load a local image into the cluster and run it:
                 $ container image pull docker.io/library/hello-world:latest
-                $ container image tag docker.io/library/hello-world:latest my-hello-world:latest
-                $ container k8s load-image --name my-cluster my-hello-world:latest
-                $ kubectl run hello-job --image=my-hello-world:latest --restart=Never --attach --rm -i
+                $ container image tag docker.io/library/hello-world:latest registry.example.com/max_mustermann/my-hello-world:latest
+                $ container k8s load-image --name my-cluster registry.example.com/max_mustermann/my-hello-world:latest
+                $ kubectl run hello-job --image=registry.example.com/max_mustermann/my-hello-world:latest --image-pull-policy=Never --restart=Never --attach --rm -i
 
               Stop and delete the cluster:
                 $ container k8s delete --name my-cluster
@@ -56,4 +56,6 @@ struct K8sCommand: AsyncParsableCommand {
             K8sWriteConfig.self,
         ]
     )
+
+    public init() {}
 }
