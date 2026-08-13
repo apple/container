@@ -70,13 +70,14 @@ if [ "${CONTAINERIZATION_VERSION}" == "unspecified" ] ; then
 	fi
 	echo "Creating InitImage"
 	make -C ${CONTAINERIZATION_PATH} init
-	${CONTAINERIZATION_PATH}/bin/cctl images save -o /tmp/init.tar ${IMAGE_NAME}
+	# The tar stays in bin/ so the integration recipe can land the image
+	# again into whichever store the tests run against.
+	${CONTAINERIZATION_PATH}/bin/cctl images save -o bin/init.tar ${IMAGE_NAME}
 
 	# Sleep because commands after stop and start are racy.
 	bin/container system stop
     sleep 3
 	bin/container --debug system start "${START_ARGS[@]}"
 	sleep 3
-	bin/container i load -i /tmp/init.tar
-	rm /tmp/init.tar
+	bin/container i load -i bin/init.tar
 fi
