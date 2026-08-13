@@ -60,6 +60,38 @@ public actor ImagesService {
         return exists
     }
 
+    /// Sweep the snapshot directories no current image claims.
+    ///
+    /// Registering an image over an existing reference replaces the record
+    /// and leaves the replaced generation's unpacked snapshot owned by no
+    /// image. Only the store sees the replacement happen, so every path that
+    /// lands records runs this sweep afterwards. The sweep is housekeeping:
+    /// its failure is loud in the log and never fails the operation that
+    /// carried it.
+    private func sweepReplacedSnapshots(after function: String = #function) async {
+        do {
+            let kept = try await self._list()
+            let freedSnapshotBytes = try await self.snapshotStore.clean(keepingSnapshotsFor: kept)
+            if freedSnapshotBytes > 0 {
+                self.log.debug(
+                    "ImagesService: swept snapshots of replaced images",
+                    metadata: [
+                        "func": "\(function)",
+                        "freedBytes": "\(freedSnapshotBytes)",
+                    ]
+                )
+            }
+        } catch {
+            self.log.warning(
+                "ImagesService: snapshot sweep failed",
+                metadata: [
+                    "func": "\(function)",
+                    "error": "\(error)",
+                ]
+            )
+        }
+    }
+
     public func list() async throws -> [ImageDescription] {
         self.log.debug(
             "ImagesService: enter",
@@ -111,6 +143,7 @@ public actor ImagesService {
         guard let img else {
             throw ContainerizationError(.internalError, message: "failed to pull image \(reference)")
         }
+        await self.sweepReplacedSnapshots()
         return img.description.fromCZ
     }
 
@@ -244,6 +277,7 @@ public actor ImagesService {
         }
 
         let loaded = try await self.imageStore.load(from: tempDir)
+        await self.sweepReplacedSnapshots()
         var images: [ImageDescription] = []
         for image in loaded {
             images.append(image.description.fromCZ)
