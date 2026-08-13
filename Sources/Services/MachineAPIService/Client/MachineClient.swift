@@ -127,6 +127,7 @@ public struct MachineClient: Sendable {
         configuration: MachineConfiguration,
         resources: MachineResources?,
         bootConfig: MachineConfig,
+        makeDefaultIfNone: Bool = true,
     ) async throws {
         do {
             let request = XPCMessage(route: MachineRoutes.createMachine.rawValue)
@@ -141,6 +142,7 @@ public struct MachineClient: Sendable {
 
             let bootData = try JSONEncoder().encode(bootConfig)
             request.set(key: MachineKeys.bootConfig.rawValue, value: bootData)
+            request.set(key: MachineKeys.makeDefaultIfNone.rawValue, value: makeDefaultIfNone)
 
             let _ = try await xpcSend(message: request, timeout: nil)
         } catch {

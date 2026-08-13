@@ -55,6 +55,9 @@ public struct MachineConfiguration: Sendable, Codable {
     public var platform: ContainerizationOCI.Platform
     /// User setup from first boot. Nil means provisioning has not run yet.
     public var userSetup: UserSetup
+    /// Optional owner marker for machines managed by a specialized plugin.
+    /// Nil is retained for ordinary and legacy machines.
+    public var managedBy: String?
 
     public var user: ProcessConfiguration.User {
         userSetup.user
@@ -88,12 +91,14 @@ public struct MachineConfiguration: Sendable, Codable {
         id: String,
         image: ImageDescription,
         platform: ContainerizationOCI.Platform,
-        userSetup: UserSetup
+        userSetup: UserSetup,
+        managedBy: String? = nil
     ) throws {
         self.id = id
         self.image = image
         self.platform = platform
         self.userSetup = userSetup
+        self.managedBy = managedBy
 
         try self.validate()
     }
@@ -106,6 +111,7 @@ public struct MachineConfiguration: Sendable, Codable {
         self.platform = try container.decode(ContainerizationOCI.Platform.self, forKey: .platform)
         // DEPRECATED 0.11.0.0 - `decodeIfPresent` used for down-revision compatibility, remove in 0.13.0.0
         self.userSetup = try container.decodeIfPresent(UserSetup.self, forKey: .userSetup) ?? UserSetup(username: NSUserName(), uid: getuid(), gid: getgid())
+        self.managedBy = try container.decodeIfPresent(String.self, forKey: .managedBy)
 
         try self.validate()
     }

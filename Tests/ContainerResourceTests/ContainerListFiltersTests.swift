@@ -14,23 +14,26 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-public enum MachineKeys: String {
-    /// Container machine ID.
-    case id
-    /// Container machine configuration.
-    case machineConfig
-    /// Container machine resources.
-    case machineResources
-    /// List of container machine snapshots.
-    case machines
-    /// Single container machine snapshot.
-    case snapshot
-    /// Boot-time configuration.
-    case bootConfig
-    /// File handles to logs
-    case logs
-    /// Special-case environment variables recomputed on container machine start
-    case dynamicEnv
-    /// Whether creating a machine should make it the default when none exists.
-    case makeDefaultIfNone
+import Testing
+
+@testable import ContainerResource
+
+struct ContainerListFiltersTests {
+    @Test
+    func exactEscapesRegularExpressionCharacters() {
+        #expect(ContainerListFilters.exact("machine+owner") == "^(?:machine\\+owner)$")
+    }
+
+    @Test
+    func machineFilterIsAnchored() {
+        #expect(
+            ContainerListFilters.machines().labels[ResourceLabelKeys.plugin]
+                == "^(?:machine)$"
+        )
+    }
+
+    @Test
+    func excludeEscapesRegularExpressionCharacters() {
+        #expect(ContainerListFilters.exclude("machine+") == "^(?!machine\\+$)")
+    }
 }

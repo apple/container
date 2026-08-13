@@ -184,6 +184,13 @@ extension XPCMessage {
         }
     }
 
+    /// Returns whether a value is present for the supplied key.
+    public func contains(key: String) -> Bool {
+        lock.withLock {
+            xpc_dictionary_get_value(self.object, key) != nil
+        }
+    }
+
     public func set(key: String, value: Bool) {
         lock.withLock {
             xpc_dictionary_set_bool(self.object, key, value)

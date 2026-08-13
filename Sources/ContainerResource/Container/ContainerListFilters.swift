@@ -18,8 +18,12 @@ import Foundation
 
 /// Filters for listing containers.
 public struct ContainerListFilters: Sendable, Codable {
+    public static func exact(_ value: String) -> String {
+        "^(?:\(NSRegularExpression.escapedPattern(for: value)))$"
+    }
+
     public static func exclude(_ str: String) -> String {
-        "^(?!\(str)$)"
+        "^(?!\(NSRegularExpression.escapedPattern(for: str))$)"
     }
 
     /// Filter by container IDs. If non-empty, only containers with matching IDs are returned.
@@ -51,5 +55,11 @@ extension ContainerListFilters {
     public func withoutMachines() -> ContainerListFilters {
         let labels = self.labels.merging([ResourceLabelKeys.plugin: Self.exclude("machine")]) { _, new in new }
         return ContainerListFilters(ids: self.ids, status: self.status, labels: labels)
+    }
+
+    /// Returns a filter that matches a system-owned machine container exactly.
+    /// The server still performs an exact label comparison before destructive operations.
+    public static func machines() -> ContainerListFilters {
+        ContainerListFilters(labels: [ResourceLabelKeys.plugin: Self.exact("machine")])
     }
 }

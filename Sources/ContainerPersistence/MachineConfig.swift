@@ -25,7 +25,14 @@ import SystemPackage
 /// "use the container runtime default."
 public struct MachineConfig: Codable, Sendable {
     public static let `default`: MachineConfig = try! .init(
-        cpus: nil, memory: nil, homeMount: nil, virtualization: nil, kernelPath: nil)
+        cpus: nil,
+        memory: nil,
+        homeMount: nil,
+        virtualization: nil,
+        kernelPath: nil,
+        runtimeProfile: .standard,
+        dockerSocketPath: nil
+    )
 
     public static var defaultCPUs: Int {
         max(ProcessInfo.processInfo.processorCount / 2, 4)
@@ -46,6 +53,12 @@ public struct MachineConfig: Codable, Sendable {
         case none
     }
 
+    /// Runtime settings required by a machine workload.
+    public enum RuntimeProfile: String, Sendable, Codable {
+        case standard
+        case nestedDocker
+    }
+
     /// Number of virtual CPUs.
     public let cpus: Int
     /// Memory in bytes.
@@ -56,6 +69,10 @@ public struct MachineConfig: Codable, Sendable {
     public let virtualization: Bool
     /// Optional path to a custom kernel binary. nil falls back to the system default.
     public let kernelPath: FilePath?
+    /// Runtime profile used to configure the outer container runtime.
+    public let runtimeProfile: RuntimeProfile
+    /// Optional host path for a socket published from the machine.
+    public let dockerSocketPath: FilePath?
 
     private enum CodingKeys: String, CodingKey {
         case cpus
@@ -63,6 +80,8 @@ public struct MachineConfig: Codable, Sendable {
         case homeMount
         case virtualization
         case kernelPath
+        case runtimeProfile
+        case dockerSocketPath
     }
 
     /// Settable keys and their descriptions, for CLI help text generation.
@@ -79,13 +98,17 @@ public struct MachineConfig: Codable, Sendable {
         memory: MemorySize?,
         homeMount: HomeMountOption?,
         virtualization: Bool?,
-        kernelPath: FilePath?
+        kernelPath: FilePath?,
+        runtimeProfile: RuntimeProfile = .standard,
+        dockerSocketPath: FilePath? = nil
     ) throws {
         self.cpus = cpus ?? Self.defaultCPUs
         self.memory = memory ?? Self.defaultMemory
         self.homeMount = homeMount ?? Self.defaultHomeMount
         self.virtualization = virtualization ?? false
         self.kernelPath = kernelPath
+        self.runtimeProfile = runtimeProfile
+        self.dockerSocketPath = dockerSocketPath
 
         try self.validate()
     }
@@ -101,13 +124,17 @@ public struct MachineConfig: Codable, Sendable {
         // which the project's ConfigSnapshotDecoder can't handle. Persist as a plain String
         // and lift to FilePath in memory.
         let kernelPath = try container.decodeIfPresent(String.self, forKey: .kernelPath).map { FilePath($0) }
+        let runtimeProfile = try container.decodeIfPresent(RuntimeProfile.self, forKey: .runtimeProfile) ?? .standard
+        let dockerSocketPath = try container.decodeIfPresent(String.self, forKey: .dockerSocketPath).map { FilePath($0) }
 
         try self.init(
             cpus: cpus,
             memory: memory,
             homeMount: homeMount,
             virtualization: virtualization,
-            kernelPath: kernelPath)
+            kernelPath: kernelPath,
+            runtimeProfile: runtimeProfile,
+            dockerSocketPath: dockerSocketPath)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -117,6 +144,8 @@ public struct MachineConfig: Codable, Sendable {
         try container.encode(homeMount, forKey: .homeMount)
         try container.encode(virtualization, forKey: .virtualization)
         try container.encodeIfPresent(kernelPath?.string, forKey: .kernelPath)
+        try container.encode(runtimeProfile, forKey: .runtimeProfile)
+        try container.encodeIfPresent(dockerSocketPath?.string, forKey: .dockerSocketPath)
     }
 
     private func validate() throws {
@@ -132,6 +161,15 @@ public struct MachineConfig: Codable, Sendable {
                 .invalidArgument,
                 message: "invalid memory value '\(self.memory)'. Must be greater than 1gb."
             )
+        }
+
+        if let dockerSocketPath {
+            guard dockerSocketPath.isAbsolute else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "Docker socket path must be absolute: \(dockerSocketPath)"
+                )
+            }
         }
     }
 }
@@ -174,7 +212,9 @@ extension MachineConfig {
             memory: memory ?? self.memory,
             homeMount: homeMount ?? self.homeMount,
             virtualization: virtualization ?? self.virtualization,
-            kernelPath: kernelPath
+            kernelPath: kernelPath,
+            runtimeProfile: self.runtimeProfile,
+            dockerSocketPath: self.dockerSocketPath
         )
     }
 

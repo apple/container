@@ -103,6 +103,9 @@ public struct ResourceLabelKeys {
     /// Indicates a owner of a resource managed by a plugin.
     public static let plugin = "com.apple.container.plugin"
 
+    /// Identifies the persistent machine that owns a machine backing container.
+    public static let machineID = "com.apple.container.machine.id"
+
     /// Indicates a resource with a reserved or dedicated purpose.
     public static let role = "com.apple.container.resource.role"
 }

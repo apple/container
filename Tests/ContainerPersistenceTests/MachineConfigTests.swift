@@ -25,6 +25,27 @@ struct MachineConfigTests {
         let config = MachineConfig.default
         #expect(config.virtualization == false)
         #expect(config.kernelPath == nil)
+        #expect(config.runtimeProfile == .standard)
+        #expect(config.dockerSocketPath == nil)
+    }
+
+    @Test func nestedDockerProfileRoundTrips() throws {
+        let config = try MachineConfig(
+            cpus: 4,
+            memory: try MemorySize("4gb"),
+            homeMount: .rw,
+            virtualization: false,
+            kernelPath: nil,
+            runtimeProfile: .nestedDocker,
+            dockerSocketPath: FilePath("/Users/me/.local/run/docker.socket")
+        )
+
+        let decoded = try JSONDecoder().decode(
+            MachineConfig.self,
+            from: JSONEncoder().encode(config)
+        )
+        #expect(decoded.runtimeProfile == .nestedDocker)
+        #expect(decoded.dockerSocketPath == FilePath("/Users/me/.local/run/docker.socket"))
     }
 
     @Test func withSetsVirtualizationTrue() throws {
@@ -67,13 +88,16 @@ struct MachineConfigTests {
     }
 
     @Test func decodingMissingFieldsUsesDefaults() throws {
-        // Older boot-config.json files predate virtualization/kernel — they must still load.
+        // Older boot-config.json files predate virtualization/kernel and the
+        // Compose runtime fields; they must still load.
         let legacy = #"{"cpus":4,"memory":"1gb","homeMount":"rw"}"#
         let data = Data(legacy.utf8)
         let decoded = try JSONDecoder().decode(MachineConfig.self, from: data)
         #expect(decoded.cpus == 4)
         #expect(decoded.virtualization == false)
         #expect(decoded.kernelPath == nil)
+        #expect(decoded.runtimeProfile == .standard)
+        #expect(decoded.dockerSocketPath == nil)
     }
 
     @Test func roundTripJSON() throws {
@@ -91,5 +115,7 @@ struct MachineConfigTests {
         let keys = MachineConfig.settableKeys.map(\.key)
         #expect(keys.contains("virtualization"))
         #expect(keys.contains("kernel"))
+        #expect(!keys.contains("runtime-profile"))
+        #expect(!keys.contains("docker-socket-path"))
     }
 }

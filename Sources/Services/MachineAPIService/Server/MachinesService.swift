@@ -143,6 +143,56 @@ public actor MachinesService {
         }
     }
 
+    /// Removes backing containers left behind when the machine API server was
+    /// restarted. Persistent machine bundles are loaded as stopped, so any
+    /// machine-labeled container present at startup is orphaned from this
+    /// service instance and must not be reused alongside a new boot.
+    public func reconcileOrphanedContainers() async throws {
+        // The list endpoint supports regex label filters for the public CLI,
+        // so never treat a filter result as proof of ownership. A machine
+        // container is owned only when both system labels match exactly and
+        // its id has the machine id prefix used by boot().
+        let candidates = try await self.client.list(filters: .machines())
+        let machineIDs = Set(self.machines.keys)
+        let orphaned = candidates.filter { container in
+            guard container.configuration.labels[ResourceLabelKeys.plugin] == "machine",
+                let machineID = container.configuration.labels[ResourceLabelKeys.machineID],
+                machineIDs.contains(machineID),
+                container.id.hasPrefix("\(machineID)-")
+            else {
+                return false
+            }
+            return true
+        }
+        guard !orphaned.isEmpty else {
+            return
+        }
+
+        var firstError: Error?
+        for container in orphaned {
+            do {
+                try await self.client.delete(id: container.id, force: true)
+            } catch {
+                firstError = firstError ?? error
+                self.log.error(
+                    "failed to remove orphaned machine backing container",
+                    metadata: [
+                        "id": "\(container.id)",
+                        "error": "\(error)",
+                    ]
+                )
+            }
+        }
+
+        for state in self.machines.values {
+            cleanupPublishedSocket(path: state.snapshot.bootConfig.dockerSocketPath, log: self.log)
+        }
+
+        if let firstError {
+            throw firstError
+        }
+    }
+
     public func list() async throws -> [MachineSnapshot] {
         self.log.debug("\(#function)")
         var snapshots: [MachineSnapshot] = []
@@ -175,7 +225,12 @@ public actor MachinesService {
         return snapshots
     }
 
-    public func create(configuration: MachineConfiguration, resources: MachineResources?, bootConfig: MachineConfig) async throws {
+    public func create(
+        configuration: MachineConfiguration,
+        resources: MachineResources?,
+        bootConfig: MachineConfig,
+        makeDefaultIfNone: Bool = true
+    ) async throws {
         self.log.debug("\(#function)")
 
         try await self.lock.withLock { context in
@@ -211,7 +266,7 @@ public actor MachinesService {
                 )
                 await self.setMachineState(configuration.id, state, context: context)
 
-                if await self.default == nil {
+                if makeDefaultIfNone, await self.default == nil {
                     try await self._setDefault(id: configuration.id)
                 }
             } catch {
@@ -245,6 +300,7 @@ public actor MachinesService {
                 try await self._setDefault(id: nil)
             }
 
+            cleanupPublishedSocket(path: state.snapshot.bootConfig.dockerSocketPath, log: self.log)
             try await self._cleanUp(id: id)
         }
     }
@@ -364,6 +420,7 @@ public actor MachinesService {
                 initializedFile: path.appending(MachineBundle.initializedFile),
                 homeMountOption: bootConfig.homeMount,
                 virtualization: bootConfig.virtualization,
+                dockerSocketPath: bootConfig.dockerSocketPath,
             )
 
             config.resources.cpus = bootConfig.cpus
@@ -391,6 +448,7 @@ public actor MachinesService {
 
                 let process = try await self.client.bootstrap(
                     id: cid, stdio: [nil, nil, nil], dynamicEnv: dynamicEnv)
+                try setPublishedSocketPermissions(path: bootConfig.dockerSocketPath)
                 try await process.start()
 
                 try fhs.append(contentsOf: await self.client.logs(id: cid))
@@ -470,6 +528,7 @@ public actor MachinesService {
 
                 fhs.forEach { try? $0.close() }
                 try? await self.client.delete(id: cid, force: true)
+                cleanupPublishedSocket(path: bootConfig.dockerSocketPath, log: self.log)
 
                 state.snapshot.status = .stopped
                 state.snapshot.startedDate = nil
@@ -527,6 +586,7 @@ public actor MachinesService {
         state.snapshot.startedDate = nil
         state.snapshot.containerId = nil
         state.snapshot.ipAddress = nil
+        cleanupPublishedSocket(path: state.snapshot.bootConfig.dockerSocketPath, log: self.log)
 
         state.logger?.cancel()
         await state.logger?.value
@@ -639,6 +699,7 @@ extension MachineConfiguration {
         initializedFile: FilePath,
         homeMountOption: MachineConfig.HomeMountOption,
         virtualization: Bool,
+        dockerSocketPath: FilePath?,
     ) async throws -> ContainerConfiguration {
         var config = ContainerConfiguration(
             id: cid,
@@ -676,7 +737,8 @@ extension MachineConfiguration {
 
         config.platform = platform
         config.labels = [
-            ResourceLabelKeys.plugin: "machine"
+            ResourceLabelKeys.plugin: "machine",
+            ResourceLabelKeys.machineID: id,
         ]
         let domain = Self.defaultDNSDomain
         config.dns = ContainerConfiguration.DNSConfiguration(
@@ -700,6 +762,21 @@ extension MachineConfiguration {
         config.readonlyPaths = []
         config.maskedPaths = []
 
+        if let dockerSocketPath {
+            try preparePublishedSocket(path: dockerSocketPath)
+            config.publishedSockets = [
+                try PublishSocket(
+                    // /run is a tmpfs mount inside the machine and is not
+                    // visible through the machine rootfs used by the guest
+                    // socket proxy. Keep the Docker listener on /etc, which
+                    // is visible from both namespaces.
+                    containerPath: FilePath("/etc/docker/docker.sock"),
+                    hostPath: dockerSocketPath,
+                    permissions: FilePermissions(rawValue: 0o600)
+                )
+            ]
+        }
+
         config.rosetta = platform.architecture == "amd64" && Arch.hostArchitecture() == .arm64
 
         // Default to nil if image is not found, which defaults to send SIGTERM on stop
@@ -708,4 +785,164 @@ extension MachineConfiguration {
 
         return config
     }
+
+}
+
+private func preparePublishedSocket(path: FilePath) throws {
+    let parentFD = try openSecureDirectory(path.removingLastComponent(), create: true)
+    defer { Darwin.close(parentFD) }
+
+    guard let name = path.lastComponent?.string else {
+        throw ContainerizationError(.invalidArgument, message: "Docker socket path has no final component: \(path)")
+    }
+    var stat = Darwin.stat()
+    let statResult = name.withCString { Darwin.fstatat(parentFD, $0, &stat, AT_SYMLINK_NOFOLLOW) }
+    if statResult != 0 {
+        guard errno == ENOENT else { throw POSIXError.fromErrno() }
+        return
+    }
+
+    guard (stat.st_mode & S_IFMT) == S_IFSOCK else {
+        throw ContainerizationError(
+            .exists,
+            message: "cannot publish Docker socket at \(path): path exists and is not a Unix socket"
+        )
+    }
+
+    if isSocketListening(at: path) {
+        throw ContainerizationError(
+            .exists,
+            message: "cannot publish Docker socket at \(path): an active Unix socket already exists"
+        )
+    }
+
+    guard Darwin.unlinkat(parentFD, name, 0) == 0 else {
+        throw POSIXError.fromErrno()
+    }
+}
+
+private func openSecureDirectory(_ path: FilePath, create: Bool) throws -> Int32 {
+    guard path.isAbsolute else {
+        throw ContainerizationError(.invalidArgument, message: "Docker socket parent must be absolute: \(path)")
+    }
+
+    var fd = Darwin.open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC)
+    guard fd >= 0 else {
+        throw POSIXError.fromErrno()
+    }
+
+    let components = path.string.split(separator: "/", omittingEmptySubsequences: true)
+    for component in components {
+        let name = String(component)
+        var next = name.withCString {
+            Darwin.openat(fd, $0, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW)
+        }
+        if next < 0, errno == ENOENT, create {
+            guard name.withCString({ Darwin.mkdirat(fd, $0, 0o700) }) == 0 || errno == EEXIST else {
+                let error = POSIXError.fromErrno()
+                Darwin.close(fd)
+                throw error
+            }
+            next = name.withCString {
+                Darwin.openat(fd, $0, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW)
+            }
+        }
+        guard next >= 0 else {
+            let error = POSIXError.fromErrno()
+            Darwin.close(fd)
+            throw error
+        }
+        Darwin.close(fd)
+        fd = next
+    }
+    return fd
+}
+
+private func isSocketListening(at path: FilePath) -> Bool {
+    let fileDescriptor = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
+    guard fileDescriptor >= 0 else {
+        return true
+    }
+    defer { Darwin.close(fileDescriptor) }
+
+    var address = sockaddr_un()
+    address.sun_family = sa_family_t(AF_UNIX)
+    let pathBytes = Array(path.string.utf8)
+    guard pathBytes.count < MemoryLayout.size(ofValue: address.sun_path) else {
+        return true
+    }
+
+    withUnsafeMutableBytes(of: &address.sun_path) { destination in
+        destination.initializeMemory(as: UInt8.self, repeating: 0)
+        destination.copyBytes(from: pathBytes)
+    }
+
+    let result = withUnsafePointer(to: &address) { pointer in
+        pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { socketAddress in
+            Darwin.connect(
+                fileDescriptor,
+                socketAddress,
+                socklen_t(MemoryLayout<sockaddr_un>.size)
+            )
+        }
+    }
+
+    if result == 0 {
+        return true
+    }
+
+    switch errno {
+    case ENOENT, ECONNREFUSED, ECONNRESET:
+        return false
+    default:
+        // Treat permission and other unexpected errors conservatively. A
+        // plugin restart must not unlink an endpoint it cannot inspect safely.
+        return true
+    }
+}
+
+private func setPublishedSocketPermissions(path: FilePath?) throws {
+    guard let path else {
+        return
+    }
+
+    let parentFD = try openSecureDirectory(path.removingLastComponent(), create: false)
+    defer { Darwin.close(parentFD) }
+
+    guard let name = path.lastComponent?.string else {
+        throw ContainerizationError(.invalidArgument, message: "Docker socket path has no final component: \(path)")
+    }
+    var stat = Darwin.stat()
+    guard name.withCString({ Darwin.fstatat(parentFD, $0, &stat, AT_SYMLINK_NOFOLLOW) }) == 0 else {
+        throw POSIXError.fromErrno()
+    }
+    guard (stat.st_mode & S_IFMT) == S_IFSOCK else {
+        throw ContainerizationError(
+            .invalidState,
+            message: "published Docker endpoint is not a Unix socket at \(path)"
+        )
+    }
+    guard Darwin.fchmodat(parentFD, name, 0o600, AT_SYMLINK_NOFOLLOW) == 0 else {
+        throw POSIXError.fromErrno()
+    }
+}
+
+private func cleanupPublishedSocket(path: FilePath?, log: Logger) {
+    guard let path, let name = path.lastComponent?.string else {
+        return
+    }
+    guard let parent = try? openSecureDirectory(path.removingLastComponent(), create: false) else {
+        return
+    }
+    defer { Darwin.close(parent) }
+
+    var stat = Darwin.stat()
+    guard name.withCString({ Darwin.fstatat(parent, $0, &stat, AT_SYMLINK_NOFOLLOW) }) == 0 else {
+        return
+    }
+    guard (stat.st_mode & S_IFMT) == S_IFSOCK else {
+        log.warning("leaving non-socket Docker endpoint in place", metadata: ["path": "\(path)"])
+        return
+    }
+    _ = Darwin.unlinkat(parent, name, 0)
 }

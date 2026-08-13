@@ -51,8 +51,17 @@ public struct MachinesHarness: Sendable {
         let bootConfig = try JSONDecoder().decode(MachineConfig.self, from: bootConfigData)
 
         let config = try JSONDecoder().decode(MachineConfiguration.self, from: machineConfig)
+        let makeDefaultIfNone =
+            message.contains(key: MachineKeys.makeDefaultIfNone.rawValue)
+            ? message.bool(key: MachineKeys.makeDefaultIfNone.rawValue)
+            : true
 
-        try await service.create(configuration: config, resources: resources, bootConfig: bootConfig)
+        try await service.create(
+            configuration: config,
+            resources: resources,
+            bootConfig: bootConfig,
+            makeDefaultIfNone: makeDefaultIfNone
+        )
         return message.reply()
     }
 
