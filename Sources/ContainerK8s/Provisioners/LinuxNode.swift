@@ -35,7 +35,7 @@ public struct LinuxNode: NodeProvisioner {
 
     public init(
         clusterName: String,
-        roles: [String] = [StandardRoles.worker],
+        roles: [String] = [StandardRoles.controlPlane],
         nodeImage: String? = nil,
         cpus: Int64? = nil,
         memory: String? = nil,
@@ -43,7 +43,17 @@ public struct LinuxNode: NodeProvisioner {
         maxConcurrentDownloads: Int = 3,
         remove: Bool = false,
         fqdn: String? = nil
-    ) {
+    ) throws {
+        guard !roles.isEmpty else {
+            throw ContainerizationError(.invalidArgument, message: "LinuxNode roles must not be empty")
+        }
+        let known: Set<String> = [StandardRoles.controlPlane, StandardRoles.worker]
+        let unrecognized = roles.filter { !known.contains($0) }
+        guard unrecognized.isEmpty else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "LinuxNode roles contains unrecognized values: \(unrecognized.joined(separator: ", "))")
+        }
         self.clusterName = clusterName
         self.roles = roles
         self.nodeImage = nodeImage

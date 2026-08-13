@@ -35,7 +35,7 @@ extension K8sHelper {
 
     static func bootstrapControlPlane(
         nodeID: String, apiServerSANs: [String], advertiseAddress: String,
-        client: ContainerClient, log: Logger
+        schedulable: Bool, client: ContainerClient, log: Logger
     ) async throws {
         let configYAML = initConfigYAML(advertiseAddress: advertiseAddress, certSANs: apiServerSANs)
         var r = try await execCapture(
@@ -66,10 +66,12 @@ extension K8sHelper {
             throw ContainerizationError(.internalError, message: "failed to install root kubeconfig on \(nodeID): \(r.output)")
         }
 
-        log.info("Removing control-plane taint for single-node scheduling", metadata: ["node": "\(nodeID)"])
-        _ = try await runProbe(
-            client: client, containerId: nodeID,
-            arguments: ["taint", "nodes", "--all", "node-role.kubernetes.io/control-plane-"])
+        if schedulable {
+            log.info("Removing control-plane taint for single-node scheduling", metadata: ["node": "\(nodeID)"])
+            _ = try await runProbe(
+                client: client, containerId: nodeID,
+                arguments: ["taint", "nodes", "--all", "node-role.kubernetes.io/control-plane-"])
+        }
 
         log.info("Applying kindnet CNI", metadata: ["node": "\(nodeID)"])
         let manifest = try await loadKindnetManifest(log: log)

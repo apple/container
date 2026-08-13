@@ -77,7 +77,7 @@ public struct K8sCreate: AsyncParsableCommand {
         let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
         let fqdn = K8sHelper.fqdn(for: name, domain: containerSystemConfig.dns.domain)
 
-        let provisioner = LinuxNode(
+        let provisioner = try LinuxNode(
             clusterName: name,
             roles: [StandardRoles.controlPlane],
             nodeImage: nodeImage,
@@ -102,6 +102,7 @@ public struct K8sCreate: AsyncParsableCommand {
             try await K8sHelper.prepareNode(nodeID: name, client: client, log: log)
             try await K8sHelper.bootstrapControlPlane(
                 nodeID: name, apiServerSANs: sans, advertiseAddress: vmIP,
+                schedulable: provisioner.roles.contains(StandardRoles.worker),
                 client: client, log: log)
 
             progress.set(description: "Waiting for cluster to be ready")
