@@ -29,6 +29,9 @@ test_results/
 *.profraw
 coverage-reports/
 
+# The integration tests' default scratch root.
+.test-scratch/
+
 # API docs for local preview only.
 _site/
 _serve/
