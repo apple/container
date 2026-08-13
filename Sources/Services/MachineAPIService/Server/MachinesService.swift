@@ -143,22 +143,51 @@ public actor MachinesService {
         }
     }
 
+    nonisolated static func isLegacyBackingContainer(
+        id: String,
+        labels: [String: String],
+        machineID: String
+    ) -> Bool {
+        labels[ResourceLabelKeys.plugin] == "machine"
+            && labels[ResourceLabelKeys.machineID] == machineID
+            && id.hasPrefix("\(machineID)-")
+    }
+
+    private func hasLegacyBackingContainer(machineID: String) async throws -> Bool {
+        let candidates = try await self.client.list(filters: .machines())
+        return candidates.contains {
+            Self.isLegacyBackingContainer(
+                id: $0.id,
+                labels: $0.configuration.labels,
+                machineID: machineID
+            )
+        }
+    }
+
     /// Removes backing containers left behind when the machine API server was
     /// restarted. Persistent machine bundles are loaded as stopped, so any
     /// machine-labeled container present at startup is orphaned from this
     /// service instance and must not be reused alongside a new boot.
     public func reconcileOrphanedContainers() async throws {
-        // The list endpoint supports regex label filters for the public CLI,
-        // so never treat a filter result as proof of ownership. A machine
-        // container is owned only when both system labels match exactly and
-        // its id has the machine id prefix used by boot().
+        // Labels and the generated ID are user-controlled metadata. Only a
+        // token persisted inside the machine bundle authenticates ownership.
         let candidates = try await self.client.list(filters: .machines())
-        let machineIDs = Set(self.machines.keys)
+        var tokens = [String: String]()
+        for state in self.machines.values {
+            do {
+                tokens[state.id] = try self.bundleToken(id: state.id)
+            } catch {
+                self.log.warning(
+                    "machine has no valid backing-container ownership token; leaving matching containers untouched",
+                    metadata: ["id": "\(state.id)", "error": "\(error)"]
+                )
+            }
+        }
         let orphaned = candidates.filter { container in
             guard container.configuration.labels[ResourceLabelKeys.plugin] == "machine",
                 let machineID = container.configuration.labels[ResourceLabelKeys.machineID],
-                machineIDs.contains(machineID),
-                container.id.hasPrefix("\(machineID)-")
+                let token = tokens[machineID],
+                container.configuration.labels[ResourceLabelKeys.machineToken] == token
             else {
                 return false
             }
@@ -347,6 +376,16 @@ public actor MachinesService {
         self.machines[id] = state
     }
 
+    private nonisolated func bundleToken(id: String) throws -> String {
+        let path = try self.bundlePath(id: id)
+        return try MachineBundle(path: path).backingContainerToken()
+    }
+
+    private nonisolated func bundleTokenIfPresent(id: String) throws -> String? {
+        let path = try self.bundlePath(id: id)
+        return try MachineBundle(path: path).backingContainerTokenIfPresent()
+    }
+
     private nonisolated func bundlePath(id: String) throws -> FilePath {
         guard let component = FilePath.Component(id) else {
             throw ContainerizationError(
@@ -414,8 +453,24 @@ public actor MachinesService {
             let rootfs = try bundle.machineRootfs
 
             let bootConfig = state.snapshot.bootConfig
+            let backingContainerToken: String?
+            // Unmanaged bundles may predate ownership tokens; never assign one during boot.
+            if state.snapshot.configuration.managedBy == nil {
+                backingContainerToken = try self.bundleTokenIfPresent(id: id)
+                if backingContainerToken == nil,
+                    try await self.hasLegacyBackingContainer(machineID: id)
+                {
+                    throw ContainerizationError(
+                        .invalidState,
+                        message: "container machine \(id) has an unowned backing container; remove it before booting"
+                    )
+                }
+            } else {
+                backingContainerToken = try self.bundleToken(id: id)
+            }
             var config = try await state.snapshot.configuration.toContainerConfig(
                 cid: cid,
+                backingContainerToken: backingContainerToken,
                 sbin: path.appending(MachineBundle.sbinDirectory),
                 initializedFile: path.appending(MachineBundle.initializedFile),
                 homeMountOption: bootConfig.homeMount,
@@ -695,6 +750,7 @@ extension MachineBundle {
 extension MachineConfiguration {
     fileprivate func toContainerConfig(
         cid: String,
+        backingContainerToken: String?,
         sbin: FilePath,
         initializedFile: FilePath,
         homeMountOption: MachineConfig.HomeMountOption,
@@ -740,6 +796,9 @@ extension MachineConfiguration {
             ResourceLabelKeys.plugin: "machine",
             ResourceLabelKeys.machineID: id,
         ]
+        if let backingContainerToken {
+            config.labels[ResourceLabelKeys.machineToken] = backingContainerToken
+        }
         let domain = Self.defaultDNSDomain
         config.dns = ContainerConfiguration.DNSConfiguration(
             nameservers: [],
@@ -788,40 +847,39 @@ extension MachineConfiguration {
 
 }
 
-private func preparePublishedSocket(path: FilePath) throws {
+func preparePublishedSocket(path: FilePath) throws {
     let parentFD = try openSecureDirectory(path.removingLastComponent(), create: true)
     defer { Darwin.close(parentFD) }
 
     guard let name = path.lastComponent?.string else {
         throw ContainerizationError(.invalidArgument, message: "Docker socket path has no final component: \(path)")
     }
-    var stat = Darwin.stat()
-    let statResult = name.withCString { Darwin.fstatat(parentFD, $0, &stat, AT_SYMLINK_NOFOLLOW) }
-    if statResult != 0 {
-        guard errno == ENOENT else { throw POSIXError.fromErrno() }
+
+    // Remove only a socket we atomically claim. Do not retry: a new endpoint
+    // appearing after removal belongs to whoever created it and must not be
+    // treated as another stale socket.
+    switch try removeStalePublishedSocket(path: path, parentFD: parentFD, name: name) {
+    case .clear:
         return
-    }
-
-    guard (stat.st_mode & S_IFMT) == S_IFSOCK else {
-        throw ContainerizationError(
-            .exists,
-            message: "cannot publish Docker socket at \(path): path exists and is not a Unix socket"
-        )
-    }
-
-    if isSocketListening(at: path) {
+    case .active:
         throw ContainerizationError(
             .exists,
             message: "cannot publish Docker socket at \(path): an active Unix socket already exists"
         )
-    }
-
-    guard Darwin.unlinkat(parentFD, name, 0) == 0 else {
-        throw POSIXError.fromErrno()
+    case .notSocket:
+        throw ContainerizationError(
+            .exists,
+            message: "cannot publish Docker socket at \(path): path exists and is not a Unix socket"
+        )
+    case .changed:
+        throw ContainerizationError(
+            .exists,
+            message: "cannot publish Docker socket at \(path): endpoint changed while it was being prepared"
+        )
     }
 }
 
-private func openSecureDirectory(_ path: FilePath, create: Bool) throws -> Int32 {
+func openSecureDirectory(_ path: FilePath, create: Bool) throws -> Int32 {
     guard path.isAbsolute else {
         throw ContainerizationError(.invalidArgument, message: "Docker socket parent must be absolute: \(path)")
     }
@@ -858,7 +916,173 @@ private func openSecureDirectory(_ path: FilePath, create: Bool) throws -> Int32
     return fd
 }
 
-private func isSocketListening(at path: FilePath) -> Bool {
+enum PublishedSocketRemovalResult {
+    case clear
+    case active
+    case notSocket
+    case changed
+}
+
+private struct PublishedSocketIdentity: Equatable {
+    let device: UInt64
+    let inode: UInt64
+    let mode: UInt32
+
+    init(_ stat: Darwin.stat) {
+        self.device = UInt64(stat.st_dev)
+        self.inode = UInt64(stat.st_ino)
+        self.mode = UInt32(stat.st_mode & S_IFMT)
+    }
+}
+
+/// Claims the final directory entry with an atomic rename before inspecting
+/// or removing it. A replacement at the public path is never unlinked.
+func removeStalePublishedSocket(
+    path: FilePath,
+    parentFD: Int32,
+    name: String,
+    beforeClaim: (() throws -> Void)? = nil,
+    afterClaim: (() throws -> Void)? = nil
+) throws -> PublishedSocketRemovalResult {
+    var before = Darwin.stat()
+    guard name.withCString({ Darwin.fstatat(parentFD, $0, &before, AT_SYMLINK_NOFOLLOW) }) == 0 else {
+        if errno == ENOENT {
+            return .clear
+        }
+        throw POSIXError.fromErrno()
+    }
+
+    guard (before.st_mode & S_IFMT) == S_IFSOCK else {
+        return .notSocket
+    }
+    if isSocketListening(at: path) {
+        return .active
+    }
+
+    try beforeClaim?()
+    let renameFlags = UInt32(RENAME_EXCL | RENAME_NOFOLLOW_ANY)
+    let quarantineLength = max(1, min(name.utf8.count, 12))
+    var quarantineName: String?
+    for _ in 0..<16 {
+        let candidate = String(
+            UUID().uuidString.replacingOccurrences(of: "-", with: "")
+                .lowercased()
+                .prefix(quarantineLength)
+        )
+        guard candidate != name else { continue }
+        let renamed = name.withCString { source in
+            candidate.withCString { destination in
+                Darwin.renameatx_np(parentFD, source, parentFD, destination, renameFlags)
+            }
+        }
+        if renamed == 0 {
+            quarantineName = candidate
+            break
+        }
+        if errno == ENOENT {
+            return .clear
+        }
+        guard errno == EEXIST else {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to quarantine Docker endpoint at \(path)",
+                cause: POSIXError.fromErrno()
+            )
+        }
+    }
+    guard let quarantineName,
+        let component = FilePath.Component(quarantineName)
+    else {
+        throw ContainerizationError(
+            .exists,
+            message: "could not reserve a quarantine name for Docker endpoint at \(path)"
+        )
+    }
+    let quarantinePath = path.removingLastComponent().appending(component)
+
+    do {
+        try afterClaim?()
+    } catch {
+        try restorePublishedSocket(
+            parentFD: parentFD,
+            quarantineName: quarantineName,
+            originalName: name,
+            quarantinePath: quarantinePath
+        )
+        throw error
+    }
+
+    var after = Darwin.stat()
+    guard quarantineName.withCString({ Darwin.fstatat(parentFD, $0, &after, AT_SYMLINK_NOFOLLOW) }) == 0 else {
+        throw ContainerizationError(
+            .exists,
+            message: "claimed Docker endpoint changed; leaving it quarantined at \(quarantinePath)"
+        )
+    }
+    guard PublishedSocketIdentity(after) == PublishedSocketIdentity(before) else {
+        try restorePublishedSocket(
+            parentFD: parentFD,
+            quarantineName: quarantineName,
+            originalName: name,
+            quarantinePath: quarantinePath
+        )
+        return .changed
+    }
+
+    if isSocketListening(at: quarantinePath) {
+        try restorePublishedSocket(
+            parentFD: parentFD,
+            quarantineName: quarantineName,
+            originalName: name,
+            quarantinePath: quarantinePath
+        )
+        return .active
+    }
+
+    var final = Darwin.stat()
+    guard quarantineName.withCString({ Darwin.fstatat(parentFD, $0, &final, AT_SYMLINK_NOFOLLOW) }) == 0,
+        PublishedSocketIdentity(final) == PublishedSocketIdentity(before)
+    else {
+        throw ContainerizationError(
+            .exists,
+            message: "claimed Docker endpoint changed; leaving it quarantined at \(quarantinePath)"
+        )
+    }
+
+    guard Darwin.unlinkat(parentFD, quarantineName, 0) == 0 else {
+        if errno == ENOENT {
+            return .changed
+        }
+        throw ContainerizationError(
+            .internalError,
+            message: "failed to remove quarantined Docker endpoint at \(quarantinePath)",
+            cause: POSIXError.fromErrno()
+        )
+    }
+    return .clear
+}
+
+private func restorePublishedSocket(
+    parentFD: Int32,
+    quarantineName: String,
+    originalName: String,
+    quarantinePath: FilePath
+) throws {
+    let renameFlags = UInt32(RENAME_EXCL | RENAME_NOFOLLOW_ANY)
+    let restored = quarantineName.withCString { source in
+        originalName.withCString { destination in
+            Darwin.renameatx_np(parentFD, source, parentFD, destination, renameFlags)
+        }
+    }
+    guard restored == 0 else {
+        throw ContainerizationError(
+            .exists,
+            message: "could not restore active Docker endpoint; it remains quarantined at \(quarantinePath)"
+        )
+    }
+}
+
+func isSocketListening(at path: FilePath) -> Bool {
     let fileDescriptor = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
     guard fileDescriptor >= 0 else {
         return true
@@ -876,6 +1100,9 @@ private func isSocketListening(at path: FilePath) -> Bool {
         destination.initializeMemory(as: UInt8.self, repeating: 0)
         destination.copyBytes(from: pathBytes)
     }
+    #if os(macOS)
+    address.sun_len = UInt8(MemoryLayout<UInt8>.size + MemoryLayout<sa_family_t>.size + pathBytes.count + 1)
+    #endif
 
     let result = withUnsafePointer(to: &address) { pointer in
         pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { socketAddress in
@@ -927,7 +1154,7 @@ private func setPublishedSocketPermissions(path: FilePath?) throws {
     }
 }
 
-private func cleanupPublishedSocket(path: FilePath?, log: Logger) {
+func cleanupPublishedSocket(path: FilePath?, log: Logger) {
     guard let path, let name = path.lastComponent?.string else {
         return
     }
@@ -936,13 +1163,21 @@ private func cleanupPublishedSocket(path: FilePath?, log: Logger) {
     }
     defer { Darwin.close(parent) }
 
-    var stat = Darwin.stat()
-    guard name.withCString({ Darwin.fstatat(parent, $0, &stat, AT_SYMLINK_NOFOLLOW) }) == 0 else {
-        return
+    do {
+        switch try removeStalePublishedSocket(path: path, parentFD: parent, name: name) {
+        case .clear:
+            break
+        case .active:
+            log.warning("leaving active Docker endpoint in place", metadata: ["path": "\(path)"])
+        case .notSocket:
+            log.warning("leaving non-socket Docker endpoint in place", metadata: ["path": "\(path)"])
+        case .changed:
+            log.warning("leaving Docker endpoint that changed during cleanup in place", metadata: ["path": "\(path)"])
+        }
+    } catch {
+        log.warning(
+            "failed to safely clean up Docker endpoint",
+            metadata: ["path": "\(path)", "error": "\(error)"]
+        )
     }
-    guard (stat.st_mode & S_IFMT) == S_IFSOCK else {
-        log.warning("leaving non-socket Docker endpoint in place", metadata: ["path": "\(path)"])
-        return
-    }
-    _ = Darwin.unlinkat(parent, name, 0)
 }

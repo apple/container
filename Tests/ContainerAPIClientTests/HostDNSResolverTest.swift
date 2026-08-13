@@ -56,6 +56,54 @@ struct HostDNSResolverTest {
     }
 
     @Test
+    func wildcardMachineAliasResolvesToItsBaseHostname() {
+        #expect(
+            HostDNSResolver.wildcardBaseHostname(
+                for: "Nixstasis.Compose.Machine.",
+                baseHostname: "compose.machine"
+            ) == "compose.machine."
+        )
+    }
+
+    @Test
+    func wildcardMachineAliasRequiresExactlyOneLabel() {
+        #expect(
+            HostDNSResolver.wildcardBaseHostname(
+                for: "compose.machine",
+                baseHostname: "compose.machine"
+            ) == nil
+        )
+        #expect(
+            HostDNSResolver.wildcardBaseHostname(
+                for: "team.nixstasis.compose.machine",
+                baseHostname: "compose.machine"
+            ) == nil
+        )
+        #expect(
+            HostDNSResolver.wildcardBaseHostname(
+                for: "nixstasis.other.machine",
+                baseHostname: "compose.machine"
+            ) == nil
+        )
+    }
+
+    @Test
+    func wildcardMachineAliasRejectsInvalidLabels() {
+        #expect(
+            HostDNSResolver.wildcardBaseHostname(
+                for: "-nixstasis.compose.machine",
+                baseHostname: "compose.machine"
+            ) == nil
+        )
+        #expect(
+            HostDNSResolver.wildcardBaseHostname(
+                for: "nixstasis.compose.machine.example",
+                baseHostname: "compose.machine"
+            ) == nil
+        )
+    }
+
+    @Test
     func testHostDNSCreateAlreadyExists() async throws {
         let fm = FileManager.default
         let tempURL = try fm.url(

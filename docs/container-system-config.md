@@ -136,6 +136,34 @@ Plugins can ship their own configuration schemas under `[plugin.<id>]`, where `<
 |--------------------|----------|---------------------------------------------------------------------------------------------|
 | `<plugin-defined>` | varies   | Schema is defined by the plugin. TODO: Add tutorial on setting plugin specific values. |
 
+### `[plugin.compose]`
+
+The Compose plugin owns one persistent machine named `compose`. Normal use
+selects the bundled `container-compose-machine:local` image and builds it
+locally on first use when it is absent from the host image store.
+
+`CONTAINER_COMPOSE_MACHINE_IMAGE` is a testing-only environment variable. When
+set, it replaces the bundled image for a newly created Compose machine. It does
+not rebuild the bundled image and does not replace an existing machine.
+
+| Key      | Type                         | Default                         | Description |
+|----------|------------------------------|---------------------------------|-------------|
+| `image`  | `String`                     | — | Deprecated and ignored. Use `CONTAINER_COMPOSE_MACHINE_IMAGE` only when testing a custom image. |
+| `cpus`   | `Int`                        | `4`                             | CPUs allocated to the persistent Compose machine. |
+| `memory` | [MemorySize](#memorysize-format) | `"4gb"`                    | Memory allocated to the persistent Compose machine. |
+| `idle-shutdown-seconds` | `Int` | `0` | Shut down after this many seconds with no running Docker containers; `0` disables it. |
+
+Idle shutdown is opt-in. Set `idle-shutdown-seconds` to a positive number of
+seconds to enable it. Restart the container service after editing this file so
+it reloads the configuration (`container system stop && container system start`).
+The systemd service resets its timer while Docker client commands such as builds,
+pulls, and pushes are active. The setting is applied on the next Compose
+invocation and stopping the machine preserves its Docker data.
+
+The plugin always uses a read-write same-path home mount and its nested-Docker
+runtime profile. Existing machines are not automatically migrated or replaced
+when this configuration changes; delete and recreate the machine explicitly.
+
 ## Type formats
 
 ### MemorySize format

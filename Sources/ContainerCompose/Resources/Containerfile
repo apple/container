@@ -1,0 +1,63 @@
+FROM debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241
+
+ENV container=docker \
+    DEBIAN_FRONTEND=noninteractive
+
+RUN set -eux; \
+    apt-get update; \
+    apt-get install --no-install-recommends -y \
+        ca-certificates=20230311+deb12u1 \
+        curl=7.88.1-10+deb12u15 \
+        gnupg=2.2.40-1.1+deb12u2; \
+    install -m 0755 -d /etc/apt/keyrings; \
+    curl -fsSL https://download.docker.com/linux/debian/gpg \
+        -o /etc/apt/keyrings/docker.asc; \
+    test "$(sha256sum /etc/apt/keyrings/docker.asc | cut -d' ' -f1)" = \
+        1500c1f56fa9e26b9b8f42452a553675796ade0807cdce11975eb98170b3a570; \
+    chmod a+r /etc/apt/keyrings/docker.asc; \
+    . /etc/os-release; \
+    printf '%s\n' \
+        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian ${VERSION_CODENAME} stable" \
+        > /etc/apt/sources.list.d/docker.list; \
+    apt-get update; \
+    apt-get install --no-install-recommends -y \
+        dbus=1.14.10-1~deb12u1 \
+        iptables=1.8.9-2 \
+        systemd=252.39-1~deb12u2 \
+        systemd-sysv=252.39-1~deb12u2 \
+        containerd.io=2.3.3-1~debian.12~bookworm \
+        docker-ce=5:29.7.2-1~debian.12~bookworm \
+        docker-ce-cli=5:29.7.2-1~debian.12~bookworm \
+        docker-buildx-plugin=0.36.1-1~debian.12~bookworm \
+        docker-compose-plugin=5.4.0-1~debian.12~bookworm; \
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/* /tmp/* /var/tmp/*
+
+# The machine wrapper starts /sbin/init. Make Docker's systemd dependency
+# explicit and mask units that require host-only devices or login sessions.
+COPY container-compose-idle-shutdown /usr/local/bin/container-compose-idle-shutdown
+COPY container-compose-idle-shutdown.service /etc/systemd/system/container-compose-idle-shutdown.service
+RUN set -eux; \
+    install -d -m 0755 /etc/container; \
+    printf '%s\n' 'COMPOSE_IDLE_SHUTDOWN_IDLE_SECONDS=0' > /etc/container/compose-idle-shutdown.env; \
+    chmod 0755 /usr/local/bin/container-compose-idle-shutdown; \
+    systemctl enable docker.service container-compose-idle-shutdown.service; \
+    for unit in \
+        dev-hugepages.mount \
+        sys-fs-fuse-connections.mount \
+        systemd-logind.service \
+        getty.target \
+        console-getty.target; \
+    do \
+        systemctl mask "$unit"; \
+    done; \
+    mkdir -p /etc/docker /etc/systemd/system/docker.socket.d /etc/systemd/system/docker.service.d; \
+    printf '%s\n' '{"features":{"buildkit":true}}' > /etc/docker/daemon.json; \
+    printf '%s\n' '[Socket]' 'ListenStream=' 'ListenStream=/etc/docker/docker.sock' > /etc/systemd/system/docker.socket.d/compose.conf; \
+    printf '%s\n' '[Service]' 'ExecStartPre=/bin/ln -sf /etc/docker/docker.sock /run/docker.sock' > /etc/systemd/system/docker.service.d/compose.conf; \
+    truncate -s 0 /etc/machine-id; \
+    rm -f /var/lib/dbus/machine-id
+
+# Do not declare VOLUME /var/lib/docker: the Apple machine root filesystem is
+# persistent across machine stop/boot and owns Docker's data directly.
+STOPSIGNAL SIGRTMIN+3

@@ -47,6 +47,39 @@ struct TestCLIMachineRuntimeSerial {
         }
     }
 
+    @Test func testStartStoppedMachine() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+            try f.doMachineCreate(name: name, image: machineImage)
+            try f.doMachineBoot(name: name)
+            try f.doMachineStop(name: name)
+
+            try f.runMachine(["start", name]).check()
+
+            let snapshot = try f.doMachineInspect(name: name)
+            #expect(snapshot.status == "running")
+            #expect(snapshot.startedDate != nil)
+        }
+    }
+
+    @Test func testStartNewMachineInitializes() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+            try f.doMachineCreate(name: name, image: machineImage)
+
+            let before = try f.doMachineInspect(name: name)
+            #expect(before.status == "stopped")
+
+            try f.runMachine(["start", name]).check()
+
+            let after = try f.doMachineInspect(name: name)
+            #expect(after.status == "running")
+            #expect(after.startedDate != nil)
+        }
+    }
+
     @Test func testStopIdempotent() async throws {
         try await ContainerFixture.with { f in
             let name = "\(f.testID)-machine"

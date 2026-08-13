@@ -14,12 +14,16 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerAPIClient
 import ContainerAPIService
+import ContainerResource
 import ContainerizationExtras
 import DNSServer
 
 /// Handler that uses table lookup to resolve hostnames.
 struct ContainerDNSHandler: DNSHandler {
+    private static let composeMachineHostname = "compose.machine"
+
     private let networkService: NetworksService
     private let ttl: UInt32
 
@@ -76,7 +80,7 @@ struct ContainerDNSHandler: DNSHandler {
     }
 
     private func answerHost(question: Question) async throws -> ResourceRecord? {
-        guard let ipAllocation = try await networkService.lookup(hostname: question.name) else {
+        guard let ipAllocation = try await lookup(hostname: question.name) else {
             return nil
         }
         let ipv4 = ipAllocation.ipv4Address.address.description
@@ -88,7 +92,7 @@ struct ContainerDNSHandler: DNSHandler {
     }
 
     private func answerHost6(question: Question) async throws -> (record: ResourceRecord?, hostnameExists: Bool) {
-        guard let ipAllocation = try await networkService.lookup(hostname: question.name) else {
+        guard let ipAllocation = try await lookup(hostname: question.name) else {
             return (nil, false)
         }
         guard let ipv6Address = ipAllocation.ipv6Address else {
@@ -100,5 +104,22 @@ struct ContainerDNSHandler: DNSHandler {
         }
 
         return (HostRecord<IPv6Address>(name: question.name, ttl: ttl, ip: ip), true)
+    }
+
+    private func lookup(hostname: String) async throws -> Attachment? {
+        if let attachment = try await networkService.lookup(hostname: hostname) {
+            return attachment
+        }
+
+        guard
+            let baseHostname = HostDNSResolver.wildcardBaseHostname(
+                for: hostname,
+                baseHostname: Self.composeMachineHostname
+            )
+        else {
+            return nil
+        }
+
+        return try await networkService.lookup(hostname: baseHostname)
     }
 }

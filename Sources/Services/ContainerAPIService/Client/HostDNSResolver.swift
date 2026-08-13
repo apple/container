@@ -104,6 +104,25 @@ public struct HostDNSResolver {
         return localhost
     }
 
+    /// Returns the registered base hostname for a one-label wildcard alias.
+    ///
+    /// For example, `nixstasis.compose.machine` aliases the registered
+    /// `compose.machine` hostname, while deeper names such as
+    /// `api.nixstasis.compose.machine` do not. The returned hostname is
+    /// canonical and includes its trailing dot for network-service lookup.
+    public static func wildcardBaseHostname(for hostname: String, baseHostname: String) -> String? {
+        guard let hostname = try? DNSName(hostname),
+            let baseHostname = try? DNSName(baseHostname),
+            !baseHostname.labels.isEmpty,
+            hostname.labels.count == baseHostname.labels.count + 1,
+            Array(hostname.labels.dropFirst()) == baseHostname.labels
+        else {
+            return nil
+        }
+
+        return baseHostname.description
+    }
+
     /// Lists application-created local DNS domains.
     public func listDomains() -> [DNSName] {
         let fm: FileManager = FileManager.default

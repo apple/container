@@ -1,0 +1,131 @@
+#!/bin/sh
+#===----------------------------------------------------------------------===//
+# Copyright © 2026 Apple Inc. and the container project authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#===----------------------------------------------------------------------===//
+#
+# Automatically powers off the Compose machine after Docker has had no running
+# containers for the configured idle period. Docker's persistent data remains
+# on the machine filesystem and is available again on the next boot.
+
+set -u
+
+DOCKER_BIN=${COMPOSE_IDLE_SHUTDOWN_DOCKER_BIN:-/usr/bin/docker}
+DATE_BIN=${COMPOSE_IDLE_SHUTDOWN_DATE_BIN:-/usr/bin/date}
+UNIX_SOCKETS_FILE=${COMPOSE_IDLE_SHUTDOWN_UNIX_SOCKETS_FILE:-/proc/net/unix}
+SYSTEMCTL_BIN=${COMPOSE_IDLE_SHUTDOWN_SYSTEMCTL_BIN:-/usr/bin/systemctl}
+SLEEP_BIN=${COMPOSE_IDLE_SHUTDOWN_SLEEP_BIN:-/bin/sleep}
+IDLE_SECONDS=${COMPOSE_IDLE_SHUTDOWN_IDLE_SECONDS:-0}
+INTERVAL_SECONDS=${COMPOSE_IDLE_SHUTDOWN_INTERVAL_SECONDS:-60}
+RUN_ONCE=${COMPOSE_IDLE_SHUTDOWN_RUN_ONCE:-0}
+
+case "$IDLE_SECONDS" in
+    ''|*[!0-9]*)
+        echo "invalid Compose idle shutdown timeout: $IDLE_SECONDS" >&2
+        exit 1
+        ;;
+esac
+case "$INTERVAL_SECONDS" in
+    ''|*[!0-9]*)
+        echo "invalid Compose idle shutdown check interval: $INTERVAL_SECONDS" >&2
+        exit 1
+        ;;
+esac
+
+# A zero timeout is an explicit opt-out. This is useful for an image-specific
+# systemd drop-in without requiring a replacement service unit.
+if [ "$IDLE_SECONDS" -eq 0 ]; then
+    exit 0
+fi
+
+log() {
+    printf '%s\n' "container-compose-idle-shutdown: $*" >&2
+}
+
+# A Docker API client can be active even when no workload container is
+# running (for example, compose build, pull, or push). Connected Unix sockets
+# remain visible in /proc/net/unix while the request is in progress. Do not
+# shut down while one is present.
+has_active_docker_client() {
+    awk '$6 == "03" && $8 == "/etc/docker/docker.sock" { found = 1 }
+        END { exit(found ? 0 : 1) }' "$UNIX_SOCKETS_FILE" 2>/dev/null
+    case "$?" in
+        0) return 0 ;;
+        1) return 1 ;;
+        *) return 2 ;;
+    esac
+}
+
+running_containers() {
+    "$DOCKER_BIN" ps --quiet 2>/dev/null
+}
+
+empty_since=
+while :; do
+    if ! running=$(running_containers); then
+        # A daemon error is not proof of idleness. Wait for Docker to recover
+        # before starting or continuing the idle timer.
+        empty_since=
+        log "Docker is unavailable; idle shutdown timer reset"
+    elif [ -n "$running" ]; then
+        empty_since=
+    else
+        active_client_status=0
+        has_active_docker_client || active_client_status=$?
+        if [ "$active_client_status" -eq 0 ]; then
+            empty_since=
+            log "Docker client activity detected; idle shutdown timer reset"
+            [ "$RUN_ONCE" = "1" ] && exit 0
+            "$SLEEP_BIN" "$INTERVAL_SECONDS"
+            continue
+        elif [ "$active_client_status" -ne 1 ]; then
+            empty_since=
+            log "failed to inspect Docker client activity; idle shutdown timer reset"
+            [ "$RUN_ONCE" = "1" ] && exit 0
+            "$SLEEP_BIN" "$INTERVAL_SECONDS"
+            continue
+        fi
+
+        now=$("$DATE_BIN" +%s 2>/dev/null) || {
+            empty_since=
+            log "failed to read the clock; idle shutdown timer reset"
+            now=
+        }
+
+        if [ -n "$now" ]; then
+            if [ -z "$empty_since" ]; then
+                empty_since=$now
+            else
+                elapsed=$((now - empty_since))
+                if [ "$elapsed" -ge "$IDLE_SECONDS" ]; then
+                    # Close the timer race: a container or client may have
+                    # appeared while the clock was being read.
+                    if running=$(running_containers) && [ -z "$running" ]; then
+                        active_client_status=0
+                        has_active_docker_client || active_client_status=$?
+                        if [ "$active_client_status" -eq 1 ]; then
+                            log "Docker has been idle for ${elapsed}s; powering off"
+                            "$SYSTEMCTL_BIN" poweroff --no-wall
+                            exit $?
+                        fi
+                    fi
+                    empty_since=
+                fi
+            fi
+        fi
+    fi
+
+    [ "$RUN_ONCE" = "1" ] && exit 0
+    "$SLEEP_BIN" "$INTERVAL_SECONDS"
+done

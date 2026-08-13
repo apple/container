@@ -41,6 +41,15 @@ This pulls the `alpine` image, runs it in a lightweight Linux VM, prints `hello`
 removes the container when it exits. See the [tutorial](./docs/tutorials/start-here.md)
 for a fuller walkthrough that builds and publishes an image of your own.
 
+### Docker Compose
+
+`container compose` does not require Docker Desktop or a Docker Engine installed
+on the host. The plugin builds a bundled machine image containing Docker Engine,
+BuildKit, and Docker Compose on first use, then runs them inside a persistent
+managed `compose` machine. The host only needs `container` and macOS
+virtualization. See the [Compose documentation](./docs/container-compose.md) for
+setup, lifecycle, and networking details.
+
 ### Upgrade or downgrade
 
 For both upgrading and downgrading, you can manually download and install the signed installer package by following the steps from [initial install](#initial-install) or use the `update-container.sh` script (installed to `/usr/local/bin`).

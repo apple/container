@@ -61,6 +61,7 @@ extension MachineAPIServer {
 
                 let resourceRoot = FilePath(resources)
                 let service = try MachinesService(appRoot: pluginStateRoot, resourceRoot: resourceRoot, log: log)
+                try await service.reconcileOrphanedContainers()
                 let harness = MachinesHarness(service: service)
 
                 let server = XPCServer(

@@ -32,6 +32,7 @@ public struct MachineBundle: Sendable {
     public static let initFile = FilePath.Component("init")
     public static let initializedFile = FilePath.Component("machine.initialized")
     public static let bootConfigFile = FilePath.Component("boot-config.json")
+    public static let backingContainerTokenFile = FilePath.Component("backing-container.token")
 
     /// The path to the bundle
     public let path: FilePath
@@ -104,6 +105,42 @@ public struct MachineBundle: Sendable {
             try load(filename: Self.bootConfigFile)
         }
     }
+
+    public func backingContainerTokenIfPresent() throws -> String? {
+        let tokenPath = path.appending(Self.backingContainerTokenFile)
+        guard FileManager.default.fileExists(atPath: tokenPath.string) else {
+            return nil
+        }
+        return try backingContainerToken()
+    }
+
+    /// Returns the persisted token used to authenticate this machine's
+    /// backing container during API-server restart reconciliation.
+    ///
+    /// This is intentionally read-only: older bundles without a token are not
+    /// silently migrated or assigned ownership after the fact.
+    public func backingContainerToken() throws -> String {
+        let tokenPath = path.appending(Self.backingContainerTokenFile)
+        do {
+            let token = try String(contentsOfFile: tokenPath.string, encoding: .utf8)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard UUID(uuidString: token) != nil else {
+                throw ContainerizationError(
+                    .invalidState,
+                    message: "machine bundle has an invalid backing container token: \(path)"
+                )
+            }
+            return token
+        } catch let error as ContainerizationError {
+            throw error
+        } catch {
+            throw ContainerizationError(
+                .invalidState,
+                message: "machine bundle has no backing container token; delete and recreate the machine: \(path)",
+                cause: error
+            )
+        }
+    }
 }
 
 /// Metadata from an OCI artifact or in-image file that describes how a container machine
@@ -149,6 +186,16 @@ extension MachineBundle {
         let persisted = PersistedMachineConfig(configuration: machineConfiguration, createdDate: Date())
         try bundle.write(filename: Self.configFile, value: persisted)
         try bundle.write(filename: Self.bootConfigFile, value: bootConfig)
+        let token = UUID().uuidString.lowercased()
+        try token.write(
+            toFile: path.appending(Self.backingContainerTokenFile).string,
+            atomically: true,
+            encoding: .utf8
+        )
+        try fm.setAttributes(
+            [.posixPermissions: 0o600],
+            ofItemAtPath: path.appending(Self.backingContainerTokenFile).string
+        )
 
         let sbin = path.appending(sbinDirectory)
         let initPath = sbin.appending(initFile)

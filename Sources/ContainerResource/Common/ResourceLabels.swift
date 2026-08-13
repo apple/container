@@ -106,6 +106,9 @@ public struct ResourceLabelKeys {
     /// Identifies the persistent machine that owns a machine backing container.
     public static let machineID = "com.apple.container.machine.id"
 
+    /// Identifies the persisted owner of a machine backing container.
+    public static let machineToken = "com.apple.container.machine.token"
+
     /// Indicates a resource with a reserved or dedicated purpose.
     public static let role = "com.apple.container.resource.role"
 }

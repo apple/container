@@ -1326,6 +1326,75 @@ container machine delete [--debug] <id>
 
 No options.
 
+## Docker Compose Management
+
+`container compose` runs Docker Compose in one persistent container machine named
+`compose`. All Compose projects share this machine and its nested Docker daemon.
+Compose files and bind mounts must be under the host home directory. For an
+overview, quickstart, configuration, and differences from Docker Desktop, see
+the [Container Compose guide](./container-compose.md).
+
+### `container compose`
+
+Creates or boots the `compose` machine and runs Docker Compose. The first
+invocation builds the bundled machine image locally if it is not already in the
+host image store. Later invocations reuse the machine and its Docker data.
+
+**Usage**
+
+```bash
+container compose [--completions <bash|zsh|fish>] [--socket-path] [<subcommand> [<options> ...]]
+```
+
+**Options**
+
+*   `--completions <bash|zsh|fish>`: Print static completion data without starting the Compose machine
+*   `--socket-path`: Print the Docker socket endpoint without starting the Compose machine; start the machine separately before using it
+*   `--version`: Print the Compose plugin version
+*   `-h, --help`: Print Docker Compose help
+
+**Examples**
+
+```bash
+# start a Compose application
+container compose up -d
+
+# list services and follow application logs
+container compose ps
+container compose logs -f web
+
+# create or start the machine, then connect a Docker-compatible client
+# `--socket-path` does not start a stopped machine
+container compose version
+export DOCKER_HOST="$(container compose --socket-path)"
+docker version
+
+# after `container machine stop compose`
+container machine start compose
+docker ps
+```
+
+The `--completions` and `--socket-path` options cannot be combined with each
+other or with Compose arguments. `container compose down` removes resources for
+the selected Compose project but does not stop or delete the machine.
+
+Published ports are reachable through the Compose machine's IP address. Install
+the `machine` DNS domain to use `compose.machine`:
+
+```bash
+sudo container system dns create machine
+```
+
+Idle shutdown is disabled by default. Set `idle-shutdown-seconds` under
+`[plugin.compose]` in `~/.config/container/config.toml` to a positive number of
+seconds. Active Docker operations prevent shutdown. Use the machine commands to
+stop or delete the Compose machine:
+
+```bash
+container machine stop compose
+container machine delete compose
+```
+
 ## System Management
 
 System commands manage the container apiserver, logs, DNS settings and kernel. These are only available on macOS hosts.

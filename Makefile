@@ -135,6 +135,8 @@ $(STAGING_DIR):
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/resources)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/k8s/bin)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/k8s/resources)"
+	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/compose/bin)"
+	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/compose/resources)"
 
 	@install "$(BUILD_BIN_DIR)/container" "$(join $(STAGING_DIR), bin/container)"
 	@install "$(BUILD_BIN_DIR)/container-apiserver" "$(join $(STAGING_DIR), bin/container-apiserver)"
@@ -151,6 +153,11 @@ $(STAGING_DIR):
 	@install "$(BUILD_BIN_DIR)/k8s" "$(join $(STAGING_DIR), libexec/container/plugins/k8s/bin/k8s)"
 	@install Sources/Plugins/K8s/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/k8s/config.toml)"
 	@install Sources/Plugins/K8s/Resources/kindnet.yaml "$(join $(STAGING_DIR), libexec/container/plugins/k8s/resources/kindnet.yaml)"
+	@install "$(BUILD_BIN_DIR)/compose" "$(join $(STAGING_DIR), libexec/container/plugins/compose/bin/compose)"
+	@install Sources/Plugins/Compose/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/compose/config.toml)"
+	@install -m 0644 Sources/ContainerCompose/Resources/Containerfile "$(join $(STAGING_DIR), libexec/container/plugins/compose/resources/Containerfile)"
+	@install -m 0755 Sources/ContainerCompose/Resources/container-compose-idle-shutdown "$(join $(STAGING_DIR), libexec/container/plugins/compose/resources/container-compose-idle-shutdown)"
+	@install -m 0644 Sources/ContainerCompose/Resources/container-compose-idle-shutdown.service "$(join $(STAGING_DIR), libexec/container/plugins/compose/resources/container-compose-idle-shutdown.service)"
 
 	@echo Install update script
 	@install scripts/update-container.sh "$(join $(STAGING_DIR), bin/update-container.sh)"
@@ -167,6 +174,7 @@ installer-pkg: $(STAGING_DIR)
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. --entitlements=signing/container-network-vmnet.entitlements "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin/container-network-vmnet)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/bin/machine-apiserver)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/k8s/bin/k8s)"
+	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/compose/bin/compose)"
 
 	@echo Creating application installer
 	@pkgbuild --root "$(STAGING_DIR)" --identifier com.apple.container-installer --install-location /usr/local --version ${RELEASE_VERSION} $(PKG_PATH)
@@ -182,6 +190,7 @@ dsym:
 	@cp -a "$(BUILD_BIN_DIR)/container-core-images.dSYM" "$(DSYM_DIR)"
 	@cp -a "$(BUILD_BIN_DIR)/container-apiserver.dSYM" "$(DSYM_DIR)"
 	@cp -a "$(BUILD_BIN_DIR)/container.dSYM" "$(DSYM_DIR)"
+	@cp -a "$(BUILD_BIN_DIR)/compose.dSYM" "$(DSYM_DIR)"
 
 	@echo Packaging the debug symbols...
 	@(cd "$(dir $(DSYM_DIR))" ; zip -r $(notdir $(DSYM_PATH)) $(notdir $(DSYM_DIR)))
@@ -212,7 +221,8 @@ COV_BINARIES := \
 	$(BUILD_BIN_DIR)/container-runtime-linux \
 	$(BUILD_BIN_DIR)/container-network-vmnet \
 	$(BUILD_BIN_DIR)/container-core-images \
-	$(BUILD_BIN_DIR)/machine-apiserver
+	$(BUILD_BIN_DIR)/machine-apiserver \
+	$(BUILD_BIN_DIR)/compose
 COV_OBJECT_FLAGS := $(patsubst %,-object %,$(COV_BINARIES))
 # Set of files we do not want to get caught in the coverage generation
 LLVM_COV_IGNORE := \

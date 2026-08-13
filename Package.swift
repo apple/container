@@ -53,6 +53,7 @@ let package = Package(
         .library(name: "MachineAPIClient", targets: ["MachineAPIClient"]),
         .library(name: "MachineAPIService", targets: ["MachineAPIService"]),
         .library(name: "ContainerK8s", targets: ["ContainerK8s"]),
+        .library(name: "ContainerCompose", targets: ["ContainerCompose"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion)),
@@ -173,6 +174,21 @@ let package = Package(
                 "Yams",
             ]
         ),
+        .testTarget(
+            name: "ComposePluginTests",
+            dependencies: [
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                .product(name: "ContainerizationOS", package: "containerization"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                "ContainerAPIClient",
+                "ContainerCompose",
+                "ContainerResource",
+                "MachineAPIClient",
+            ],
+            path: "Tests/ComposePluginTests"
+        ),
         .target(
             name: "ContainerK8s",
             dependencies: [
@@ -192,11 +208,36 @@ let package = Package(
                 "Yams",
             ]
         ),
+        .target(
+            name: "ContainerCompose",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                "ContainerAPIClient",
+                "ContainerPersistence",
+                "ContainerResource",
+                "ContainerVersion",
+                "MachineAPIClient",
+                "TerminalProgress",
+            ],
+            resources: [
+                .copy("Resources")
+            ]
+        ),
         .executableTarget(
             name: "k8s",
             dependencies: ["ContainerK8s"],
             path: "Sources/Plugins/K8s",
             exclude: ["config.toml", "Resources"]
+        ),
+        .executableTarget(
+            name: "compose",
+            dependencies: ["ContainerCompose"],
+            path: "Sources/Plugins/Compose",
+            exclude: ["config.toml"]
         ),
         .executableTarget(
             name: "container-apiserver",
@@ -667,6 +708,14 @@ let package = Package(
                 "MachineAPIClient",
             ],
             path: "Sources/Services/MachineAPIService/Server"
+        ),
+        .testTarget(
+            name: "MachineAPIServiceTests",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                "MachineAPIService",
+            ]
         ),
         .executableTarget(
             name: "machine-apiserver",

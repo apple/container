@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerResource
 import Containerization
 import ContainerizationError
 import ContainerizationExtras
@@ -1497,6 +1498,19 @@ struct ParserTest {
     }
 
     // MARK: - Collection capacity hints
+
+    @Test("machine ownership labels cannot be supplied by users")
+    func testLabelsRejectMachineOwnershipMetadata() {
+        for label in [
+            "\(ResourceLabelKeys.machineID)=compose",
+            "\(ResourceLabelKeys.machineToken)=token",
+            "\(ResourceLabelKeys.plugin)=machine",
+        ] {
+            #expect(throws: ContainerizationError.self) {
+                _ = try Parser.labels([label])
+            }
+        }
+    }
 
     @Test("labels with large input preserves all entries")
     func testLabelsLargeInput() throws {

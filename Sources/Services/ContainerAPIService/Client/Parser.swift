@@ -248,14 +248,24 @@ public struct Parser {
                 throw ContainerizationError(.invalidArgument, message: "label cannot be an empty string")
             }
             let parts = label.split(separator: "=", maxSplits: 2)
+            let key = String(parts[0])
+            let value: String
             switch parts.count {
             case 1:
-                result[String(parts[0])] = ""
+                value = ""
             case 2:
-                result[String(parts[0])] = String(parts[1])
+                value = String(parts[1])
             default:
                 throw ContainerizationError(.invalidArgument, message: "invalid label format \(label)")
             }
+            guard
+                !(key == ResourceLabelKeys.machineID
+                    || key == ResourceLabelKeys.machineToken
+                    || (key == ResourceLabelKeys.plugin && value == "machine"))
+            else {
+                throw ContainerizationError(.invalidArgument, message: "label is reserved: \(key)")
+            }
+            result[key] = value
         }
         return result
     }
