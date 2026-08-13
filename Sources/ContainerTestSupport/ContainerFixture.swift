@@ -20,7 +20,6 @@ import Foundation
 import Logging
 import Synchronization
 import SystemPackage
-import Testing
 
 /// Per-test fixture for CLI integration tests.
 ///
