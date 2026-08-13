@@ -416,6 +416,30 @@ extension ClientImage {
 
     // MARK: Snapshot Methods
 
+    /// Unpack the platform this host runs, when the image carries it.
+    ///
+    /// The content store can hold every platform of a reference while only
+    /// the host's platform is ever mounted here; the others unpack on
+    /// demand when something asks to use them. An image that does not
+    /// provide the host platform stays packed, the way a foreign-only
+    /// image arrives from a load or a cross-platform build.
+    ///
+    /// The engine default a reference would give is one platform per pull,
+    /// the host's, which scopes what is fetched as well as what is unpacked:
+    /// https://docs.docker.com/reference/cli/docker/image/pull/
+    /// A pull here fetches every platform the index carries and narrows only
+    /// the unpacking, so a foreign platform is there to run under Rosetta or
+    /// to be pushed on without being fetched again. What that costs is
+    /// compressed blobs, against the ext4 snapshot per platform that
+    /// unpacking them all cost.
+    public func unpackPreferringHost(progressUpdate: ProgressUpdateHandler? = nil) async throws {
+        do {
+            try await self.unpack(platform: .current, progressUpdate: progressUpdate)
+        } catch let error as ContainerizationError where error.code == .notFound {
+            // The reference has no host-platform variant; leave it packed.
+        }
+    }
+
     public func unpack(platform: Platform?, progressUpdate: ProgressUpdateHandler? = nil) async throws {
         let client = Self.newXPCClient()
         let request = Self.newRequest(.imageUnpack)

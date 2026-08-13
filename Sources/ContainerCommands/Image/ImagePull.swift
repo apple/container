@@ -102,7 +102,14 @@ extension Application {
             progress.set(description: "Unpacking image")
             progress.set(itemsName: "entries")
             let unpackTask = await taskManager.startTask()
-            try await image.unpack(platform: p, progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: progress.handler))
+            // A pull with no platform keeps every platform in the content
+            // store; the snapshot unpacks for the platform the host runs,
+            // and any other platform unpacks on demand when it is used.
+            if let p {
+                try await image.unpack(platform: p, progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: progress.handler))
+            } else {
+                try await image.unpackPreferringHost(progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: progress.handler))
+            }
             await taskManager.finish()
             progress.finish()
         }
