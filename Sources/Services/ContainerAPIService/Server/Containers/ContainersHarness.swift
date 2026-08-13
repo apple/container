@@ -93,7 +93,7 @@ public struct ContainersHarness: Sendable {
         let port = message.uint64(key: .port)
         let fh = try await service.dial(id: id, port: UInt32(port))
         let reply = message.reply()
-        reply.setFileHandle(fh)
+        try reply.setFileHandle(fh)
 
         return reply
     }

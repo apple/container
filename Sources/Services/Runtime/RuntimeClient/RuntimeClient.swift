@@ -96,7 +96,7 @@ extension RuntimeClient {
             }()
 
             if let h {
-                request.set(key: key.rawValue, value: h)
+                try request.setFileHandle(key: key.rawValue, value: h)
             }
         }
 
@@ -149,7 +149,7 @@ extension RuntimeClient {
             }()
 
             if let h {
-                request.set(key: key.rawValue, value: h)
+                try request.setFileHandle(key: key.rawValue, value: h)
             }
         }
 

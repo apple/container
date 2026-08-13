@@ -247,8 +247,17 @@ extension XPCMessage {
     }
 
     public func set(key: String, value: FileHandle) {
-        let fd = xpc_fd_create(value.fileDescriptor)
-        close(value.fileDescriptor)
+        try? setFileHandle(key: key, value: value)
+    }
+
+    public func setFileHandle(key: String, value: FileHandle) throws {
+        guard let fd = xpc_fd_create(value.fileDescriptor) else {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to create xpc fd for \(value.fileDescriptor)"
+            )
+        }
+        try value.close()
         lock.withLock {
             xpc_dictionary_set_value(self.object, key, fd)
         }
@@ -282,7 +291,7 @@ extension XPCMessage {
                 )
             }
             xpc_array_append_value(fdArray, xpcFd)
-            close(fh.fileDescriptor)
+            try fh.close()
         }
         lock.withLock {
             xpc_dictionary_set_value(self.object, key, fdArray)

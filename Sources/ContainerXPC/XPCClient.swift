@@ -98,42 +98,61 @@ extension XPCClient {
     /// Send the provided message to the service.
     @discardableResult
     public func send(_ message: XPCMessage, responseTimeout: Duration? = nil) async throws -> XPCMessage {
-        try await withThrowingTaskGroup(of: XPCMessage.self, returning: XPCMessage.self) { group in
-            if let responseTimeout {
-                group.addTask {
-                    try await Task.sleep(for: responseTimeout)
-                    let route = message.string(key: XPCMessage.routeKey) ?? "nil"
-                    throw ContainerizationError(
+        let route = message.string(key: XPCMessage.routeKey) ?? "nil"
+        return try await Self.waitForReply(
+            responseTimeout: responseTimeout,
+            service: service,
+            route: route
+        ) { completion in
+            xpc_connection_send_message_with_reply(self.connection, message.underlying, nil) { reply in
+                do {
+                    completion(.success(try self.parseReply(reply)))
+                } catch {
+                    completion(.failure(error))
+                }
+            }
+        }
+    }
+
+    static func waitForReply(
+        responseTimeout: Duration? = nil,
+        service: String,
+        route: String,
+        send: (@escaping @Sendable (Result<XPCMessage, any Error>) -> Void) -> Void
+    ) async throws -> XPCMessage {
+        let (stream, continuation) = AsyncThrowingStream<XPCMessage, any Error>.makeStream()
+        send { result in
+            switch result {
+            case .success(let message):
+                continuation.yield(message)
+                continuation.finish()
+            case .failure(let error):
+                continuation.finish(throwing: error)
+            }
+        }
+
+        let timeoutTask = responseTimeout.map { timeout in
+            Task {
+                try? await Task.sleep(for: timeout)
+                guard !Task.isCancelled else { return }
+                continuation.finish(
+                    throwing: ContainerizationError(
                         .internalError,
-                        message: "XPC timeout for request to \(self.service)/\(route)"
+                        message: "XPC timeout for request to \(service)/\(route)"
                     )
-                }
+                )
             }
+        }
+        defer { timeoutTask?.cancel() }
 
-            group.addTask {
-                try await withCheckedThrowingContinuation { cont in
-                    xpc_connection_send_message_with_reply(self.connection, message.underlying, nil) { reply in
-                        do {
-                            let message = try self.parseReply(reply)
-                            cont.resume(returning: message)
-                        } catch {
-                            cont.resume(throwing: error)
-                        }
-                    }
-                }
+        return try await withTaskCancellationHandler {
+            for try await message in stream {
+                return message
             }
-
-            let response = try await group.next()
-            // once one task has finished, cancel the rest.
-            group.cancelAll()
-            // we don't really care about the second error here
-            // as it's most likely a `CancellationError`.
-            try? await group.waitForAll()
-
-            guard let response else {
-                throw ContainerizationError(.invalidState, message: "failed to receive XPC response")
-            }
-            return response
+            try Task.checkCancellation()
+            throw ContainerizationError(.invalidState, message: "failed to receive XPC response")
+        } onCancel: {
+            continuation.finish(throwing: CancellationError())
         }
     }
 

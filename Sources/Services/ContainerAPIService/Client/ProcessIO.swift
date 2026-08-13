@@ -19,6 +19,32 @@ import ContainerizationOS
 import Foundation
 import Logging
 
+final class ProcessCancellationController: @unchecked Sendable {
+    private let process: any ClientProcess
+    private let gracePeriod: Duration
+    private let lock = NSLock()
+    private var terminationStarted = false
+
+    init(process: any ClientProcess, gracePeriod: Duration = .seconds(2)) {
+        self.process = process
+        self.gracePeriod = gracePeriod
+    }
+
+    func cancel() {
+        lock.withLock {
+            guard !terminationStarted else { return }
+            terminationStarted = true
+            Task {
+                try? await process.kill(SIGTERM)
+            }
+            Task {
+                try? await Task.sleep(for: gracePeriod)
+                try? await process.kill(SIGKILL)
+            }
+        }
+    }
+}
+
 public struct ProcessIO: Sendable {
     let stdin: Pipe?
     let stdout: Pipe?
@@ -158,74 +184,101 @@ public struct ProcessIO: Sendable {
 
     public func handleProcess(process: ClientProcess, log: Logger) async throws -> Int32 {
         let signals = AsyncSignalHandler.create(notify: Self.signalSet)
-        return try await withThrowingTaskGroup(of: Int32?.self, returning: Int32.self) { group in
-            try await process.start()
-            try closeAfterStart()
+        let signalStream = signals.signals
+        let cancellation = ProcessCancellationController(process: process)
+        defer { signals.cancel() }
+        return try await withTaskCancellationHandler(
+            operation: {
+                try await withThrowingTaskGroup(of: Int32?.self, returning: Int32.self) { group in
+                    try Task.checkCancellation()
+                    try await process.start()
+                    try Task.checkCancellation()
+                    try closeAfterStart()
 
-            let waitAdded = group.addTaskUnlessCancelled {
-                let code = try await process.wait()
-                try await wait()
-                return code
-            }
+                    let waitAdded = group.addTaskUnlessCancelled {
+                        let code = try await process.wait()
+                        try await wait()
+                        return code
+                    }
 
-            guard waitAdded else {
-                group.cancelAll()
-                return -1
-            }
+                    guard waitAdded else {
+                        group.cancelAll()
+                        return -1
+                    }
 
-            if let current = console {
-                let size = try current.size
-                // It's supremely possible the process could've exited already. We shouldn't treat
-                // this as fatal.
-                try? await process.resize(size)
-                _ = group.addTaskUnlessCancelled {
-                    let winchHandler = AsyncSignalHandler.create(notify: [SIGWINCH])
-                    for await _ in winchHandler.signals {
-                        do {
-                            try await process.resize(try current.size)
-                        } catch {
-                            log.error(
-                                "failed to send terminal resize event",
-                                metadata: [
-                                    "error": "\(error)"
-                                ]
-                            )
+                    if let current = console {
+                        let size = try current.size
+                        // It's supremely possible the process could've exited already. We shouldn't treat
+                        // this as fatal.
+                        try? await process.resize(size)
+                        _ = group.addTaskUnlessCancelled {
+                            for await sig in signalStream {
+                                switch sig {
+                                case SIGWINCH:
+                                    do {
+                                        try await process.resize(try current.size)
+                                    } catch {
+                                        log.error(
+                                            "failed to send terminal resize event",
+                                            metadata: [
+                                                "error": "\(error)"
+                                            ]
+                                        )
+                                    }
+                                case SIGINT, SIGTERM, SIGUSR1, SIGUSR2:
+                                    do {
+                                        try await process.kill(sig)
+                                    } catch {
+                                        log.error(
+                                            "failed to send signal",
+                                            metadata: [
+                                                "signal": "\(sig)",
+                                                "error": "\(error)",
+                                            ]
+                                        )
+                                    }
+                                default:
+                                    continue
+                                }
+                            }
+                            return nil
+                        }
+                    } else {
+                        _ = group.addTaskUnlessCancelled {
+                            for await sig in signalStream {
+                                do {
+                                    try await process.kill(sig)
+                                } catch {
+                                    log.error(
+                                        "failed to send signal",
+                                        metadata: [
+                                            "signal": "\(sig)",
+                                            "error": "\(error)",
+                                        ]
+                                    )
+                                }
+                            }
+                            return nil
                         }
                     }
-                    return nil
-                }
-            } else {
-                _ = group.addTaskUnlessCancelled {
-                    for await sig in signals.signals {
-                        do {
-                            try await process.kill(sig)
-                        } catch {
-                            log.error(
-                                "failed to send signal",
-                                metadata: [
-                                    "signal": "\(sig)",
-                                    "error": "\(error)",
-                                ]
-                            )
+
+                    while true {
+                        let result = try await group.next()
+                        if result == nil {
+                            return -1
+                        }
+                        let status = result!
+                        if let status {
+                            group.cancelAll()
+                            return status
                         }
                     }
-                    return nil
-                }
-            }
-
-            while true {
-                let result = try await group.next()
-                if result == nil {
                     return -1
                 }
-                let status = result!
-                if let status {
-                    group.cancelAll()
-                    return status
-                }
-            }
-            return -1
-        }
+            },
+            onCancel: {
+                cancellation.cancel()
+            })
     }
 
     public func closeAfterStart() throws {

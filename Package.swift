@@ -286,9 +286,17 @@ let package = Package(
             path: "Sources/Services/ContainerAPIService/Client"
         ),
         .testTarget(
+            name: "ContainerXPCTests",
+            dependencies: [
+                .product(name: "Containerization", package: "containerization"),
+                "ContainerXPC",
+            ]
+        ),
+        .testTarget(
             name: "ContainerAPIClientTests",
             dependencies: [
                 .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationOS", package: "containerization"),
                 .product(name: "SystemPackage", package: "swift-system"),
                 "ContainerAPIClient",
                 "ContainerPersistence",

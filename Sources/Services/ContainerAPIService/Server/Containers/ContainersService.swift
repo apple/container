@@ -1191,8 +1191,8 @@ extension XPCMessage {
         return handles
     }
 
-    func setFileHandle(_ handle: FileHandle) {
-        self.set(key: .fd, value: handle)
+    func setFileHandle(_ handle: FileHandle) throws {
+        try self.setFileHandle(key: .fd, value: handle)
     }
 
     func processConfig() throws -> ProcessConfiguration {

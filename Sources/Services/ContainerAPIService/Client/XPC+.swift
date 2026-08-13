@@ -263,6 +263,10 @@ extension XPCMessage {
         set(key: key.rawValue, value: value)
     }
 
+    public func setFileHandle(key: XPCKeys, value: FileHandle) throws {
+        try setFileHandle(key: key.rawValue, value: value)
+    }
+
     public func fileHandles(key: XPCKeys) -> [FileHandle]? {
         fileHandles(key: key.rawValue)
     }

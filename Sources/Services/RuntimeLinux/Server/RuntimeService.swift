@@ -875,7 +875,7 @@ public actor RuntimeService {
             let fh = try await ctr.container.dialVsock(port: UInt32(port))
 
             let reply = message.reply()
-            reply.set(key: RuntimeKeys.fd.rawValue, value: fh)
+            try reply.setFileHandle(key: RuntimeKeys.fd.rawValue, value: fh)
             return reply
         default:
             throw ContainerizationError(
@@ -1394,8 +1394,8 @@ extension XPCMessage {
         return handles
     }
 
-    fileprivate func setFileHandle(_ handle: FileHandle) {
-        self.set(key: RuntimeKeys.fd.rawValue, value: handle)
+    fileprivate func setFileHandle(_ handle: FileHandle) throws {
+        try self.setFileHandle(key: RuntimeKeys.fd.rawValue, value: handle)
     }
 
     fileprivate func processConfig() throws -> ProcessConfiguration {

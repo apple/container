@@ -139,7 +139,7 @@ public struct ContainerClient: Sendable {
             }()
 
             if let h {
-                request.set(key: key, value: h)
+                try request.setFileHandle(key: key, value: h)
             }
         }
 
@@ -249,7 +249,7 @@ public struct ContainerClient: Sendable {
                 }()
 
                 if let h {
-                    request.set(key: key, value: h)
+                    try request.setFileHandle(key: key, value: h)
                 }
             }
 
