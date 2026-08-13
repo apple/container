@@ -29,6 +29,7 @@ extension Application {
                 BuilderStart.self,
                 BuilderStatus.self,
                 BuilderStop.self,
+                BuilderPrune.self,
                 BuilderDelete.self,
             ])
 
