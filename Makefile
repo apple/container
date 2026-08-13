@@ -278,10 +278,11 @@ PRESERVE_KERNELS ?= false
 # Override with SCRATCH_ROOT=/your/path on the command line.
 SCRATCH_ROOT ?= $(ROOT_DIR)/.test-scratch
 
-# init-block loads the freshly built init image before the data directory is
-# cleared here, so the recipe lands bin/init.tar again after its own system
-# start, into the store the tests actually see. Absent the tar (a version
-# pinned containerization), the runtime pulls its default init image.
+# An editable build's images exist in no registry: init-block builds the
+# init image before the data directory is cleared here, and a locally built
+# builder image is in the same position. The recipe lands the tars from bin/
+# after its own system start, into the store the tests actually see; absent
+# a tar, the runtime pulls its documented default instead.
 define RUN_INTEGRATION
 	@echo Ensuring apiserver stopped before the CLI integration tests...
 	@bin/container system stop && sleep 3 && scripts/ensure-container-stopped.sh
@@ -305,6 +306,10 @@ define RUN_INTEGRATION
 		if [ -f bin/init.tar ]; then \
 			echo "==> Loading the built init image" && \
 			bin/container i load -i bin/init.tar ; \
+		fi && \
+		if [ -f bin/builder.tar ]; then \
+			echo "==> Loading the built builder image" && \
+			bin/container i load -i bin/builder.tar ; \
 		fi && \
 		echo "==> Starting warmup tests" && \
 		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(WARMUP_FILTER)" && \
