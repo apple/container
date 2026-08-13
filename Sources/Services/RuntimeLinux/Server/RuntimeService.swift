@@ -1453,11 +1453,21 @@ extension Filesystem {
                 ],
             )
         case .volume(_, let format, let cacheMode, let syncMode):
+            // A volume's ext4 sits on a sparse host file, so it mounts with
+            // continuous discard and blocks the workload frees return to the
+            // host as it runs; a read only mount parses the option as a
+            // no-op. The runtime owns this the way it owns the caching and
+            // sync modes beside it; the user's own options ride in from the
+            // volume record and the attachment untouched.
+            var options = self.options
+            if format == "ext4" {
+                options.append("discard")
+            }
             return .block(
                 format: format,
                 source: self.source,
                 destination: self.destination,
-                options: self.options,
+                options: options,
                 runtimeOptions: [
                     "\(Filesystem.CacheMode.vzRuntimeOptionKey)=\(cacheMode.asVZRuntimeOption)",
                     "\(Filesystem.SyncMode.vzRuntimeOptionKey)=\(syncMode.asVZRuntimeOption)",

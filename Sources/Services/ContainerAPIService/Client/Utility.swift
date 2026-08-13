@@ -174,12 +174,22 @@ public struct Utility {
                 resolvedMounts.append(fs)
             case .volume(let parsed):
                 let volume = try await getOrCreateVolume(parsed: parsed, log: log)
+                // The record's driver options carry the local driver's `o`
+                // key, a comma separated mount option list the way docker's
+                // local driver spells it, split the way the attachment's own
+                // option suffix is, so the options a volume was created with
+                // mount everywhere it attaches.
+                // https://docs.docker.com/engine/storage/volumes/#create-a-volume-with-the-local-driver
+                var options = parsed.options
+                if let o = volume.options["o"] {
+                    options.append(contentsOf: o.split(separator: ",").map(String.init))
+                }
                 let volumeMount = Filesystem.volume(
                     name: parsed.name,
                     format: volume.format,
                     source: volume.source,
                     destination: parsed.destination,
-                    options: parsed.options
+                    options: options
                 )
                 resolvedMounts.append(volumeMount)
             }
