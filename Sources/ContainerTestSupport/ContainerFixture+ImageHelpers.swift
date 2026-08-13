@@ -30,6 +30,7 @@ extension ContainerFixture {
                 public let architecture: String
             }
             public let platform: Platform
+            public let digest: String
         }
         public let configuration: Configuration
         public let variants: [Variant]
