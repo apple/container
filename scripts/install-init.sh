@@ -77,7 +77,11 @@ if [ "${CONTAINERIZATION_VERSION}" == "unspecified" ] ; then
 	# Sleep because commands after stop and start are racy.
 	bin/container system stop
     sleep 3
-	bin/container --debug system start "${START_ARGS[@]}"
+	# A start against a data directory with no configured kernel asks on
+	# stdin whether to install one, and this runs from make with no
+	# terminal, so the flag answers instead of a prompt, the way the
+	# integration recipe's own start does.
+	bin/container --debug system start --enable-kernel-install "${START_ARGS[@]}"
 	sleep 3
 	bin/container i load -i bin/init.tar
 fi
