@@ -93,4 +93,31 @@ struct TestCLIBuilderExposeSerial {
             try f.build(tag: "test-expose:\(f.testID)", contextDir: dir)
         }
     }
+
+    /// A second start with identical knobs keeps the running builder; a
+    /// changed managed environment recreates it. Observed through a file
+    /// in the builder's filesystem: a kept builder still has it, a
+    /// recreated one boots without it.
+    @Test func testBuilderStartIsStableUntilItsInputsChange() async throws {
+        try await ContainerFixture.with { f in
+            f.addCleanup { try? f.builderDelete(force: true) }
+
+            let marker = "echo-\(f.testID)"
+            try f.run(["builder", "start"], env: ["BUILDKIT_TEST_MARKER": marker]).check()
+            try await f.waitForBuilderRunning()
+            _ = try f.doExec("buildkit", cmd: ["touch", "/tmp/witness"])
+
+            try f.run(["builder", "start"], env: ["BUILDKIT_TEST_MARKER": marker]).check()
+            try await f.waitForBuilderRunning()
+            let kept = try f.doExec(
+                "buildkit", cmd: ["sh", "-c", "ls /tmp/witness 2>/dev/null || echo gone"])
+            #expect(kept.contains("/tmp/witness"), "an unchanged start keeps the running builder: \(kept)")
+
+            try f.run(["builder", "start"], env: ["BUILDKIT_TEST_MARKER": "\(marker)-changed"]).check()
+            try await f.waitForBuilderRunning()
+            let recreated = try f.doExec(
+                "buildkit", cmd: ["sh", "-c", "ls /tmp/witness 2>/dev/null || echo gone"])
+            #expect(recreated.contains("gone"), "a changed environment recreates the builder: \(recreated)")
+        }
+    }
 }
