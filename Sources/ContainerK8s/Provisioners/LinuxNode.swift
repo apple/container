@@ -79,7 +79,7 @@ public struct LinuxNode: NodeProvisioner {
             capDrop: [],
             cidfile: "",
             detach: true,
-            dns: Flags.DNS(),
+            dns: Flags.DNS(domain: nil, nameservers: [], options: [], searchDomains: []),
             dnsDisabled: false,
             entrypoint: nil,
             initImage: nil,
@@ -111,8 +111,17 @@ public struct LinuxNode: NodeProvisioner {
         )
 
         let updatedResource = K8sHelper.defaultedResourceFlags(Flags.Resource(cpus: cpus, memory: memory))
-        var processFlags = Flags.Process()
-        processFlags.env = K8sHelper.nodeProxyEnv()
+        let processFlags = Flags.Process(
+            cwd: nil,
+            env: K8sHelper.nodeProxyEnv(),
+            envFile: [],
+            gid: nil,
+            interactive: false,
+            tty: false,
+            uid: nil,
+            ulimits: [],
+            user: nil
+        )
 
         var (config, kernel, initfs) = try await Utility.containerConfigFromFlags(
             id: name,
