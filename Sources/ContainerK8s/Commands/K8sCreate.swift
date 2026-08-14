@@ -59,6 +59,14 @@ public struct K8sCreate: AsyncParsableCommand {
             throw ContainerizationError(.invalidArgument, message: "cluster name \(name) is not a valid container ID")
         }
 
+        // Capture @OptionGroup-derived values before any async suspension point.
+        let resolvedNodeImage = nodeImage
+        let resolvedCpus = resourceFlags.cpus
+        let resolvedMemory = resourceFlags.memory
+        let resolvedScheme = registryFlags.scheme
+        let resolvedMaxConcurrentDownloads = imageFetchFlags.maxConcurrentDownloads
+        let resolvedRemove = remove
+
         let isTTY = isatty(FileHandle.standardError.fileDescriptor) == 1
         let progressConfig = try ProgressConfig(
             showSpinner: isTTY,
@@ -80,12 +88,12 @@ public struct K8sCreate: AsyncParsableCommand {
         let provisioner = try LinuxNode(
             clusterName: name,
             roles: [StandardRoles.controlPlane],
-            nodeImage: nodeImage,
-            cpus: resourceFlags.cpus,
-            memory: resourceFlags.memory,
-            registryScheme: registryFlags.scheme,
-            maxConcurrentDownloads: imageFetchFlags.maxConcurrentDownloads,
-            remove: remove,
+            nodeImage: resolvedNodeImage,
+            cpus: resolvedCpus,
+            memory: resolvedMemory,
+            registryScheme: resolvedScheme,
+            maxConcurrentDownloads: resolvedMaxConcurrentDownloads,
+            remove: resolvedRemove,
             fqdn: fqdn
         )
 
