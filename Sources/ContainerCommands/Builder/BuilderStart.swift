@@ -24,6 +24,7 @@ import Containerization
 import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOCI
+import Darwin
 import Foundation
 import Logging
 import TerminalProgress
@@ -112,6 +113,16 @@ extension Application {
                     attributes: nil
                 )
             }
+
+            // Concurrent invocations ensure the shared builder one at a
+            // time: whichever enters first creates or repairs it, the rest
+            // observe the finished state. Without this, simultaneous first
+            // builds race create, bootstrap, and the failure cleanup below,
+            // deleting one another's builder. buildx serializes its builder
+            // store the same way, with an advisory file lock.
+            // https://github.com/docker/buildx/blob/master/store/store.go
+            let lockFD = try await BuilderEnsureLock.acquire(at: exportsMount + "/.start.lock")
+            defer { BuilderEnsureLock.release(lockFD) }
 
             let builderPlatform = ContainerizationOCI.Platform(arch: "arm64", os: "linux", variant: "v8")
 
@@ -360,5 +371,41 @@ private func startBuildKit(
             throw error
         }
         throw ContainerizationError(.internalError, message: "failed to start BuildKit: \(error)")
+    }
+}
+
+// MARK: - Ensure serialization
+
+/// Serializes builder ensure sections across processes with an advisory
+/// file lock (flock), polling rather than blocking so the task stays
+/// cancellable.
+private enum BuilderEnsureLock {
+    static func acquire(at path: String) async throws -> Int32 {
+        let fd = open(path, O_CREAT | O_RDWR | O_CLOEXEC, 0o644)
+        guard fd >= 0 else {
+            throw ContainerizationError(
+                .internalError,
+                message: "cannot open builder lock \(path): \(String(cString: strerror(errno)))")
+        }
+        while flock(fd, LOCK_EX | LOCK_NB) != 0 {
+            guard errno == EWOULDBLOCK || errno == EINTR else {
+                let message = String(cString: strerror(errno))
+                close(fd)
+                throw ContainerizationError(
+                    .internalError, message: "cannot lock builder lock \(path): \(message)")
+            }
+            do {
+                try await Task.sleep(for: .milliseconds(100))
+            } catch {
+                close(fd)
+                throw error
+            }
+        }
+        return fd
+    }
+
+    static func release(_ fd: Int32) {
+        flock(fd, LOCK_UN)
+        close(fd)
     }
 }
