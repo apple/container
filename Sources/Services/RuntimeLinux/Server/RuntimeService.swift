@@ -974,7 +974,7 @@ public actor RuntimeService {
             // kind this machine is.
             // https://github.com/kubernetes/cri-api/blob/master/pkg/apis/runtime/v1/api.proto
             let sandbox = try await self.getSandbox()
-            if sandbox is LinuxPod, !self.sandboxStopsWithContainers {
+            if sandbox is LinuxPod, !(await self.sandboxStopsWithContainers) {
                 return
             }
             guard await self.containers.isEmpty else {
