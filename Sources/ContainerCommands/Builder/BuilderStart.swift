@@ -210,6 +210,14 @@ extension Application {
                     return false
                 }()
 
+                // The drifted settings, named so a replaced builder says why
+                // on stderr, beside the progress output.
+                let drifted: [String] = [
+                    ("image", imageChanged), ("cpus", cpuChanged), ("memory", memChanged),
+                    ("environment", envChanged), ("dns", dnsChanged), ("ssh", sshChanged),
+                    ("published sockets", publishChanged),
+                ].filter(\.1).map(\.0)
+
                 switch existingContainer.status {
                 case .running:
                     guard imageChanged || cpuChanged || memChanged || envChanged || dnsChanged || sshChanged || publishChanged else {
@@ -217,12 +225,16 @@ extension Application {
                         return
                     }
                     // If they changed, stop and delete the existing builder
+                    FileHandle.standardError.write(
+                        Data("recreating builder: \(drifted.joined(separator: ", ")) changed\n".utf8))
                     try await client.stop(id: existingContainer.id)
                     try await client.delete(id: existingContainer.id)
                 case .stopped:
                     // If the builder is stopped and matches our requirements, start it
                     // Otherwise, delete it and create a new one
                     if imageChanged || cpuChanged || memChanged || envChanged || dnsChanged || sshChanged || publishChanged {
+                        FileHandle.standardError.write(
+                            Data("recreating builder: \(drifted.joined(separator: ", ")) changed\n".utf8))
                         try? await client.delete(id: existingContainer.id)
                     } else {
                         do {
