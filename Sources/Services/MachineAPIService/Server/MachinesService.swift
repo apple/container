@@ -393,7 +393,18 @@ public actor MachinesService {
                     id: cid, stdio: [nil, nil, nil], dynamicEnv: dynamicEnv)
                 try await process.start()
 
-                try fhs.append(contentsOf: await self.client.logs(id: cid))
+                // The machine's log files mirror the container's, and the
+                // mirroring is diagnostics: a container whose logs cannot be
+                // opened boots without the mirror rather than failing the
+                // boot on its reporting, which would also bury whatever
+                // stopped the logs from existing.
+                do {
+                    try fhs.append(contentsOf: await self.client.logs(id: cid))
+                } catch {
+                    self.log.warning(
+                        "machine boots without log streaming",
+                        metadata: ["id": "\(state.id)", "error": "\(error)"])
+                }
 
                 try bundle.createLogFiles()
                 let stdioLog = try FileHandle(forWritingTo: URL(filePath: bundle.stdioLog.string))
@@ -401,8 +412,7 @@ public actor MachinesService {
 
                 state.logger = Task<Void, Never> { [log = self.log, id = state.id, fhs] in
                     defer {
-                        try? fhs[0].close()
-                        try? fhs[1].close()
+                        fhs.forEach { try? $0.close() }
 
                         try? stdioLog.close()
                         try? bootLog.close()
