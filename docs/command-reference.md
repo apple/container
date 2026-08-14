@@ -1272,6 +1272,24 @@ container machine logs [--boot] [--follow] [-n <n>] [--debug] [<id>]
 *   `-f, --follow`: Follow log output
 *   `-n <n>`: Number of lines to show from the end of the logs. If not provided this will print all of the logs
 
+### `container machine start`
+
+Starts a stopped container machine. Uses the default container machine if no ID is given.
+
+**Usage**
+
+```bash
+container machine start [--debug] [<id>]
+```
+
+**Arguments**
+
+*   `<id>`: Container machine ID (uses default if not specified)
+
+**Options**
+
+No options.
+
 ### `container machine stop`
 
 Stops a running container machine. Uses the default container machine if no ID is given.

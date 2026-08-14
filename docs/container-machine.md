@@ -55,6 +55,7 @@ container machine run                 # operates on dev
 container machine ls                  # list all container machines
 container machine inspect dev         # JSON detail for one
 container machine stop dev            # stop the container machine
+container machine start dev            # start it again
 container machine rm dev              # delete, including its persistent storage
 ```
 

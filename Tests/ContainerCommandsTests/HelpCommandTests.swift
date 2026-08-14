@@ -52,6 +52,11 @@ struct HelpCommandTests {
     }
 
     @Test
+    func machineStartIsReachableViaHelp() {
+        #expect(HelpCommand.resolveSubcommand(path: ["machine", "start"]) != nil)
+    }
+
+    @Test
     func unknownSubcommandReturnsNil() {
         let unknownResolved = HelpCommand.resolveSubcommand(path: ["nonexistent"]) == nil
         #expect(unknownResolved)

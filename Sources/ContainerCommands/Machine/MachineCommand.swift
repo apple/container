@@ -34,6 +34,7 @@ extension Application {
                   Change the container machine configuration (takes effect after restart):
                     $ container machine set -n my-machine cpus=4 memory=8G home-mount=ro
                     $ container machine stop my-machine
+                    $ container machine start my-machine
                     $ container machine run -n my-machine -- nproc
 
                   Stop and delete the container machine:
@@ -49,6 +50,7 @@ extension Application {
                 MachineRun.self,
                 MachineSet.self,
                 MachineSetDefault.self,
+                MachineStart.self,
                 MachineStop.self,
             ],
             aliases: ["m"]
