@@ -364,16 +364,27 @@ public actor PodsService {
             // stopped out of band, crashed, or torn down without the pod
             // hearing of it. A pod that offered that machine would be
             // offering one that is not there, so the client is believed only
-            // while its machine answers running; otherwise the service is
-            // taken down and the pod boots a fresh machine the way it booted
-            // the first.
-            if let held = running, (try? await held.state())?.status != .running {
-                await self.deregister(id: id)
-                state.client = nil
-                state.state = .notReady
-                state.startedDate = nil
-                await self.setPodState(id, state, context: context)
-                running = nil
+            // while its machine answers running: an answer of anything else
+            // means the machine is gone, and the service is taken down so
+            // the pod boots a fresh machine the way it booted the first. No
+            // answer at all is the query failing, not the machine standing
+            // down; a fresh machine booted against devices a live one still
+            // holds fails at its attachments, so the start fails on the
+            // query instead and the held client stands.
+            if let held = running {
+                guard let observed = try? await held.state() else {
+                    throw ContainerizationError(
+                        .internalError,
+                        message: "the machine of pod \(id) did not answer a state query")
+                }
+                if observed.status != .running {
+                    await self.deregister(id: id)
+                    state.client = nil
+                    state.state = .notReady
+                    state.startedDate = nil
+                    await self.setPodState(id, state, context: context)
+                    running = nil
+                }
             }
 
             do {
