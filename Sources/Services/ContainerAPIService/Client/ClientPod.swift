@@ -57,10 +57,17 @@ public struct ClientPod {
     }
 
     /// Boot a pod's machine, with the containers that belong to it inside.
-    public static func start(_ id: String) async throws {
+    ///
+    /// `dynamicEnv` carries per-boot environment such as the caller's
+    /// SSH_AUTH_SOCK to every container the machine starts, the same
+    /// donation a container's own start delivers.
+    public static func start(_ id: String, dynamicEnv: [String: String] = [:]) async throws {
         let client = XPCClient(service: serviceIdentifier)
         let message = XPCMessage(route: .podStart)
         message.set(key: .podId, value: id)
+        if !dynamicEnv.isEmpty {
+            message.set(key: .dynamicEnv, value: try JSONEncoder().encode(dynamicEnv))
+        }
         _ = try await client.send(message)
     }
 

@@ -53,7 +53,11 @@ public struct PodsHarness: Sendable {
 
     @Sendable
     public func start(_ message: XPCMessage) async throws -> XPCMessage {
-        try await service.start(id: try message.podId())
+        let data = message.dataNoCopy(key: .dynamicEnv)
+        let dynamicEnv = try data.map { try JSONDecoder().decode([String: String].self, from: $0) } ?? [:]
+        let startup: PodsService.ContainerStartup? =
+            dynamicEnv.isEmpty ? nil : .init(stdio: [nil, nil, nil], dynamicEnv: dynamicEnv)
+        try await service.start(id: try message.podId(), startup: startup)
         return message.reply()
     }
 

@@ -37,8 +37,14 @@ extension Application.PodCommand {
         public init() {}
 
         public func run() async throws {
+            // The caller's agent rides into every member the machine boots,
+            // the donation each sibling boot path carries.
+            var dynamicEnv: [String: String] = [:]
+            if let agent = ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] {
+                dynamicEnv["SSH_AUTH_SOCK"] = agent
+            }
             for name in names {
-                try await ClientPod.start(name)
+                try await ClientPod.start(name, dynamicEnv: dynamicEnv)
                 print(name)
             }
         }
