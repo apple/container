@@ -1277,9 +1277,18 @@ public actor RuntimeService {
         // configuration. The network belongs to the pod, so the resolver derived
         // from it does too, the way it was derived from the machine's attachments
         // when the machine held the network for one container.
-        var nameservers = config.dns?.nameservers ?? []
-        if nameservers.isEmpty {
-            nameservers = self.getDefaultNameservers(from: attachments)
+        // DNS the way the record says: a configuration given but naming no
+        // resolver is filled out from the network, the gateway resolving for
+        // the machine's containers; no configuration at all is the --no-dns
+        // request, and leaves the guest without a resolv.conf.
+        let dns: ContainerConfiguration.DNSConfiguration? = config.dns.map { configured in
+            guard configured.nameservers.isEmpty else { return configured }
+            return ContainerConfiguration.DNSConfiguration(
+                nameservers: self.getDefaultNameservers(from: attachments),
+                domain: configured.domain,
+                searchDomains: configured.searchDomains,
+                options: configured.options
+            )
         }
 
         // One swap area serves the whole pod, which is what makes the pool its
@@ -1319,12 +1328,12 @@ public actor RuntimeService {
             sysctls["vm.overcommit_memory"] = "1"
             sysctls["vm.max_map_count"] = "262144"
             podConfig.sysctl = sysctls
-            if !nameservers.isEmpty {
+            if let dns {
                 podConfig.dns = DNS(
-                    nameservers: nameservers,
-                    domain: config.dns?.domain,
-                    searchDomains: config.dns?.searchDomains ?? [],
-                    options: config.dns?.options ?? []
+                    nameservers: dns.nameservers,
+                    domain: dns.domain,
+                    searchDomains: dns.searchDomains,
+                    options: dns.options
                 )
             }
             podConfig.bootLog = BootLog.file(path: bundle.bootlog, append: true)
