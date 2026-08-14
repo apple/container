@@ -27,6 +27,10 @@ public enum RuntimeKeys: String {
     case bundlePath
     /// The paths to the bundles of every container the sandbox holds.
     case bundlePaths
+    /// Whether the sandbox stops once its last container has stopped, the
+    /// way a machine made for one container does; absent means the sandbox
+    /// outlives its containers, the way a named pod's machine does.
+    case sandboxStopsWithContainers
     /// A memory size in bytes the sandbox is to be held to.
     case memoryInBytes
     /// Vsock port number key.

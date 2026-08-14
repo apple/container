@@ -415,7 +415,8 @@ public actor PodsService {
                     stdioFor: container,
                     stdio: startup?.stdio ?? [nil, nil, nil],
                     networkBootstrapInfos: networkBootstrapInfos,
-                    dynamicEnv: startup?.dynamicEnv ?? [:]
+                    dynamicEnv: startup?.dynamicEnv ?? [:],
+                    stopsWithContainers: state.configuration.isAnonymous
                 )
 
                 if running == nil {

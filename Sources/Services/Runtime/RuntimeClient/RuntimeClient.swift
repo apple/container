@@ -113,7 +113,8 @@ extension RuntimeClient {
         stdioFor: String? = nil,
         stdio: [FileHandle?],
         networkBootstrapInfos: [NetworkBootstrapInfo],
-        dynamicEnv: [String: String] = [:]
+        dynamicEnv: [String: String] = [:],
+        stopsWithContainers: Bool = false
     ) async throws {
         let request = self.request(RuntimeRoutes.bootstrap.rawValue)
         try request.setStdio(stdio)
@@ -121,6 +122,7 @@ extension RuntimeClient {
         do {
             let dynamicEnv = try JSONEncoder().encode(dynamicEnv)
             request.set(key: RuntimeKeys.dynamicEnv.rawValue, value: dynamicEnv)
+            request.set(key: RuntimeKeys.sandboxStopsWithContainers.rawValue, value: stopsWithContainers)
 
             let pathsData = try JSONEncoder().encode(bundlePaths)
             request.set(key: RuntimeKeys.bundlePaths.rawValue, value: pathsData)

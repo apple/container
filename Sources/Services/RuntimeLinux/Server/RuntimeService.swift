@@ -47,6 +47,11 @@ public actor RuntimeService {
     /// The containers in that machine, by identifier. A pod holds several and
     /// a standalone container holds one.
     private var containers: [String: ContainerInfo] = [:]
+
+    /// Whether the machine stops once its last container has stopped. The
+    /// boot request says, since only the control plane knows whether this
+    /// sandbox was named by someone or exists for its one container.
+    private var sandboxStopsWithContainers = false
     /// The addresses a pod claimed, which every container placed in it shares.
     private var podAttachments: [Attachment] = []
     /// The ports published on those addresses, which are the pod's because the
@@ -148,6 +153,8 @@ public actor RuntimeService {
     public func bootstrap(_ message: XPCMessage) async throws -> XPCMessage {
         self.log.debug("enter", metadata: ["func": "\(#function)"])
         defer { self.log.debug("exit", metadata: ["func": "\(#function)"]) }
+
+        self.sandboxStopsWithContainers = message.bool(key: RuntimeKeys.sandboxStopsWithContainers.rawValue)
 
         // Create the bundle if it doesn't exist yet
         if !self.bundleExists(at: self.root) {
@@ -961,11 +968,13 @@ public actor RuntimeService {
             // A pod's machine is its sandbox, which outlives the containers
             // that come and go in it: it holds the addresses and namespaces
             // they share and is taken down when the pod is, not when a
-            // container in it leaves. A single container's machine is the
-            // container's own, so it stops with the last thing in it.
+            // container in it leaves. A machine nobody named exists for its
+            // one container, so it stops with the last thing in it and
+            // releases the devices it held; the boot request says which
+            // kind this machine is.
             // https://github.com/kubernetes/cri-api/blob/master/pkg/apis/runtime/v1/api.proto
             let sandbox = try await self.getSandbox()
-            guard !(sandbox is LinuxPod) else {
+            if sandbox is LinuxPod, !self.sandboxStopsWithContainers {
                 return
             }
             guard await self.containers.isEmpty else {
