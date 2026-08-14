@@ -32,6 +32,17 @@ public actor ImagesService {
     private let imageStore: ImageStore
     private let snapshotStore: SnapshotStore
 
+    /// One landing, removal, or sweep at a time. The store operations
+    /// suspend mid-flight, and the actor admits other calls at every
+    /// suspension, so a garbage collection overlapping a landing computes
+    /// its keep set without the arriving image and prunes blobs and
+    /// snapshots the landing is about to reference. The lock is held
+    /// across each whole mutating operation, the way PodsService holds
+    /// its lock across lifecycle operations; containerd guards the same
+    /// window with leases.
+    /// https://github.com/containerd/containerd/blob/main/docs/garbage-collection.md
+    private let lock = AsyncLock()
+
     public init(
         contentStore: ContentStore,
         imageStore: ImageStore,
@@ -114,6 +125,16 @@ public actor ImagesService {
     public func pull(reference: String, platform: Platform?, insecure: Bool, progressUpdate: ProgressUpdateHandler?, maxConcurrentDownloads: Int = 3) async throws
         -> ImageDescription
     {
+        try await lock.withLock { _ in
+            try await self._pull(
+                reference: reference, platform: platform, insecure: insecure,
+                progressUpdate: progressUpdate, maxConcurrentDownloads: maxConcurrentDownloads)
+        }
+    }
+
+    private func _pull(reference: String, platform: Platform?, insecure: Bool, progressUpdate: ProgressUpdateHandler?, maxConcurrentDownloads: Int) async throws
+        -> ImageDescription
+    {
         self.log.debug(
             "ImagesService: enter",
             metadata: [
@@ -148,6 +169,12 @@ public actor ImagesService {
     }
 
     public func push(reference: String, platform: Platform?, insecure: Bool, progressUpdate: ProgressUpdateHandler?) async throws {
+        try await lock.withLock { _ in
+            try await self._push(reference: reference, platform: platform, insecure: insecure, progressUpdate: progressUpdate)
+        }
+    }
+
+    private func _push(reference: String, platform: Platform?, insecure: Bool, progressUpdate: ProgressUpdateHandler?) async throws {
         self.log.debug(
             "ImagesService: enter",
             metadata: [
@@ -175,6 +202,12 @@ public actor ImagesService {
     }
 
     public func tag(old: String, new: String) async throws -> ImageDescription {
+        try await lock.withLock { _ in
+            try await self._tag(old: old, new: new)
+        }
+    }
+
+    private func _tag(old: String, new: String) async throws -> ImageDescription {
         self.log.debug(
             "ImagesService: enter",
             metadata: [
@@ -199,6 +232,12 @@ public actor ImagesService {
     }
 
     public func delete(reference: String, garbageCollect: Bool) async throws {
+        try await lock.withLock { _ in
+            try await self._delete(reference: reference, garbageCollect: garbageCollect)
+        }
+    }
+
+    private func _delete(reference: String, garbageCollect: Bool) async throws {
         self.log.debug(
             "ImagesService: enter",
             metadata: [
@@ -220,6 +259,12 @@ public actor ImagesService {
     }
 
     public func save(references: [String], out: URL, platform: Platform?) async throws {
+        try await lock.withLock { _ in
+            try await self._save(references: references, out: out, platform: platform)
+        }
+    }
+
+    private func _save(references: [String], out: URL, platform: Platform?) async throws {
         self.log.debug(
             "ImagesService: enter",
             metadata: [
@@ -248,6 +293,12 @@ public actor ImagesService {
     }
 
     public func load(from tarFile: URL, force: Bool) async throws -> ([ImageDescription], [String]) {
+        try await lock.withLock { _ in
+            try await self._load(from: tarFile, force: force)
+        }
+    }
+
+    private func _load(from tarFile: URL, force: Bool) async throws -> ([ImageDescription], [String]) {
         let archivePathname = tarFile.absolutePath()
         self.log.debug(
             "ImagesService: enter",
@@ -286,6 +337,12 @@ public actor ImagesService {
     }
 
     public func cleanUpOrphanedBlobs() async throws -> ([String], UInt64) {
+        try await lock.withLock { _ in
+            try await self._cleanUpOrphanedBlobs()
+        }
+    }
+
+    private func _cleanUpOrphanedBlobs() async throws -> ([String], UInt64) {
         self.log.debug(
             "ImagesService: enter",
             metadata: [
@@ -370,6 +427,12 @@ public actor ImagesService {
 
 extension ImagesService {
     public func unpack(description: ImageDescription, platform: Platform?, progressUpdate: ProgressUpdateHandler?) async throws {
+        try await lock.withLock { _ in
+            try await self._unpack(description: description, platform: platform, progressUpdate: progressUpdate)
+        }
+    }
+
+    private func _unpack(description: ImageDescription, platform: Platform?, progressUpdate: ProgressUpdateHandler?) async throws {
         self.log.debug(
             "ImagesService: enter",
             metadata: [
@@ -394,6 +457,12 @@ extension ImagesService {
     }
 
     public func deleteImageSnapshot(description: ImageDescription, platform: Platform?) async throws {
+        try await lock.withLock { _ in
+            try await self._deleteImageSnapshot(description: description, platform: platform)
+        }
+    }
+
+    private func _deleteImageSnapshot(description: ImageDescription, platform: Platform?) async throws {
         self.log.debug(
             "ImagesService: enter",
             metadata: [
@@ -418,6 +487,12 @@ extension ImagesService {
     }
 
     public func getImageSnapshot(description: ImageDescription, platform: Platform) async throws -> Filesystem {
+        try await lock.withLock { _ in
+            try await self._getImageSnapshot(description: description, platform: platform)
+        }
+    }
+
+    private func _getImageSnapshot(description: ImageDescription, platform: Platform) async throws -> Filesystem {
         self.log.debug(
             "ImagesService: enter",
             metadata: [
