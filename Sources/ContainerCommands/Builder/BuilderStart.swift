@@ -168,14 +168,19 @@ extension Application {
             if let existingContainer {
                 let existingImage = existingContainer.configuration.image.reference
                 let existingResources = existingContainer.configuration.resources
-                let existingEnv = existingContainer.configuration.initProcess.environment
                 let existingDNS = existingContainer.configuration.dns
 
-                let existingManagedEnv = existingEnv.filter { envVar in
-                    envVar.hasPrefix("BUILDKIT_") || envVar.hasPrefix("NO_COLOR=")
-                }.sorted()
+                // The record's process environment mixes the image's own
+                // variables with the ones this start injects (the image may
+                // carry BUILDKIT_ variables of its own, as moby/buildkit's
+                // does), so the injected set is read from the label stamped
+                // at create, the way docker compose stamps
+                // com.docker.compose.config-hash on the services it manages.
+                // https://github.com/docker/compose/blob/main/pkg/api/labels.go
+                let existingManagedEnv = existingContainer.configuration.labels[ResourceLabelKeys.builderEnvironment]
+                    .flatMap { try? JSONDecoder().decode([String].self, from: Data($0.utf8)) }
 
-                let envChanged = existingManagedEnv != targetEnvVars
+                let envChanged = (existingManagedEnv ?? []) != targetEnvVars
 
                 let existingPublished = existingContainer.configuration.publishedSockets
                     .map { "\($0.containerPath):\($0.hostPath)" }.sorted()
@@ -315,6 +320,10 @@ extension Application {
             config.labels = [
                 ResourceLabelKeys.plugin: "builder",
                 ResourceLabelKeys.role: ResourceRoleValues.builder,
+                // The injected environment, stamped so a later start can
+                // compare its target against the variables it manages.
+                ResourceLabelKeys.builderEnvironment: String(
+                    decoding: try JSONEncoder().encode(targetEnvVars), as: UTF8.self),
             ]
             config.capAdd = ["ALL"]
             config.mounts = [

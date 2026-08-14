@@ -105,6 +105,11 @@ public struct ResourceLabelKeys {
 
     /// Indicates a resource with a reserved or dedicated purpose.
     public static let role = "com.apple.container.resource.role"
+
+    /// Records the environment variables a builder start injected into the
+    /// builder, distinguishing them from variables the image's own
+    /// configuration carries.
+    public static let builderEnvironment = "com.apple.container.builder.environment"
 }
 
 /// System-defined values for resource the resource role label.
