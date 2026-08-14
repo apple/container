@@ -83,7 +83,20 @@ public actor NetworksService {
             // computed default network configuration from the apiserver to ensure we
             // have the correct default values configured.
             if effectiveConfiguration.id == NetworkClient.defaultNetworkName {
-                effectiveConfiguration = defaultNetworkConfiguration
+                // The address range the network came up on is its own, so it
+                // rides through the refresh and is asked for again: a network
+                // that returns on a different range leaves every guest that
+                // outlived the restart holding an address, a route, and a
+                // resolver belonging to a range that is gone.
+                effectiveConfiguration = try NetworkConfiguration(
+                    name: defaultNetworkConfiguration.name,
+                    mode: defaultNetworkConfiguration.mode,
+                    ipv4Subnet: defaultNetworkConfiguration.ipv4Subnet ?? configuration.ipv4Subnet,
+                    ipv6Subnet: defaultNetworkConfiguration.ipv6Subnet ?? configuration.ipv6Subnet,
+                    labels: defaultNetworkConfiguration.labels,
+                    plugin: defaultNetworkConfiguration.plugin,
+                    options: defaultNetworkConfiguration.options
+                )
                 try await store.update(effectiveConfiguration)
             }
 
@@ -96,6 +109,24 @@ public actor NetworksService {
                 try await registerService(configuration: effectiveConfiguration)
                 let client = try Self.getClient(configuration: effectiveConfiguration)
                 let networkStatus = try await client.status()
+
+                // A network that named no range is given one as it comes up,
+                // and that range is written down as the range it asks for from
+                // then on, so the guests it addresses keep answering to the
+                // same addresses across a restart.
+                if effectiveConfiguration.ipv4Subnet == nil {
+                    effectiveConfiguration = try NetworkConfiguration(
+                        name: effectiveConfiguration.name,
+                        mode: effectiveConfiguration.mode,
+                        ipv4Subnet: networkStatus.ipv4Subnet,
+                        ipv6Subnet: effectiveConfiguration.ipv6Subnet,
+                        labels: effectiveConfiguration.labels,
+                        plugin: effectiveConfiguration.plugin,
+                        options: effectiveConfiguration.options
+                    )
+                    try await store.update(effectiveConfiguration)
+                }
+
                 serviceStates[effectiveConfiguration.id] = NetworkEntry(
                     configuration: effectiveConfiguration,
                     status: networkStatus,
