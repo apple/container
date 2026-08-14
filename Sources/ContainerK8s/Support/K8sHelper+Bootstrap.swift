@@ -20,7 +20,6 @@ import ContainerizationError
 import ContainerizationOCI
 import Foundation
 import Logging
-import SystemPackage
 
 extension K8sHelper {
 
@@ -105,26 +104,13 @@ extension K8sHelper {
     }
 
     private static func loadKindnetManifest(log: Logger) async throws -> String {
-        // TODO: createPluginLoader computes pluginDirectories from CommandLine.executablePath,
-        // which resolves to <plugin_dir>/ when called from the k8s binary — not the app install
-        // root. findPlugin(forExecutable:) therefore returns nil. Utility.createPluginLoader
-        // should use systemHealth.installRoot (already fetched from the API server) to build
-        // pluginDirectories instead.
-        //
-        // let pluginLoader = try await Utility.createPluginLoader(log: log)
-        // guard let plugin = pluginLoader.findPlugin(forExecutable: CommandLine.executablePath),
-        //     let resourceURL = plugin.resourceURL
-        // else {
-        //     throw ContainerizationError(.internalError, message: "unable to locate k8s plugin installation or resources")
-        // }
-        // let url = resourceURL.appendingPathComponent("kindnet.yaml")
-
-        // The k8s binary lives at <plugin_dir>/bin/k8s; resources are at <plugin_dir>/resources/.
-        let resourceDir = CommandLine.executablePath
-            .removingLastComponent()
-            .removingLastComponent()
-            .appending(FilePath.Component("resources"))
-        let url = URL(fileURLWithPath: resourceDir.string).appendingPathComponent("kindnet.yaml")
+        let pluginLoader = try await Utility.createPluginLoader(log: log)
+        guard let plugin = pluginLoader.findPlugin(forExecutable: CommandLine.executablePath),
+            let resourceURL = plugin.resourceURL
+        else {
+            throw ContainerizationError(.internalError, message: "unable to locate k8s plugin installation or resources")
+        }
+        let url = resourceURL.appendingPathComponent("kindnet.yaml")
         guard let contents = try? String(contentsOf: url, encoding: .utf8) else {
             throw ContainerizationError(.internalError, message: "kindnet manifest resource missing at \(url.path)")
         }

@@ -26,7 +26,6 @@ import ContainerizationError
 import ContainerizationExtras
 import Foundation
 import Logging
-import SystemPackage
 
 enum Variant: String, ExpressibleByArgument {
     case reserved

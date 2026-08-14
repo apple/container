@@ -21,7 +21,7 @@ import ContainerizationError
 import Logging
 
 /// A `NodeProvisioner` that runs a k8s node as a Linux container on the same host.
-public struct LinuxNode: NodeProvisioner {
+public struct LinuxNodeProvisioner: NodeProvisioner {
     public let roles: [String]
 
     private let clusterName: String
@@ -79,7 +79,7 @@ public struct LinuxNode: NodeProvisioner {
             capDrop: [],
             cidfile: "",
             detach: true,
-            dns: Flags.DNS(domain: nil, nameservers: [], options: [], searchDomains: []),
+            dns: .init(domain: nil, nameservers: [], options: [], searchDomains: []),
             dnsDisabled: false,
             entrypoint: nil,
             initImage: nil,
