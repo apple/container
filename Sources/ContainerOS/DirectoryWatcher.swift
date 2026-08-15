@@ -105,11 +105,11 @@ public actor DirectoryWatcher {
         }
     }
 
-    private func _startWatching(
-        handler: @escaping ([FilePath]) throws -> Void
+    func _startWatching(
+        handler: @Sendable @escaping ([FilePath]) throws -> Void
     ) throws {
         let descriptor = open(directoryPath.string, O_EVTONLY)
-        guard descriptor > 0 else {
+        guard descriptor >= 0 else {
             throw ContainerizationError(.internalError, message: "cannot open \(directoryPath.string), descriptor=\(descriptor)")
         }
 
@@ -117,6 +117,7 @@ public actor DirectoryWatcher {
             let files = try FileManager.default.contentsOfDirectory(atPath: directoryPath.string)
             try handler(files.map { directoryPath.appending($0) })
         } catch {
+            close(descriptor)
             throw ContainerizationError(.internalError, message: "failed to run handler for \(directoryPath.string)")
         }
 

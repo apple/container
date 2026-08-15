@@ -14,12 +14,15 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerOS
 import ContainerizationError
 import DNSServer
+import Darwin
 import Foundation
+import Synchronization
 import SystemPackage
 import Testing
+
+@testable import ContainerOS
 
 struct DirectoryWatcherTest {
     let testUUID = UUID().uuidString
@@ -150,6 +153,33 @@ struct DirectoryWatcherTest {
         }
     }
 
+    @Test func testFailingHandlerDoesNotLeakDescriptors() async throws {
+        try await withTempDir { tempPath in
+            let watcher = DirectoryWatcher(directoryPath: tempPath, log: nil)
+            let baseline = try openDescriptorCount(for: tempPath)
+            let handlerCalls = Mutex(0)
+
+            for _ in 0..<32 {
+                do {
+                    try await watcher._startWatching { _ in
+                        handlerCalls.withLock { $0 += 1 }
+                        throw ContainerizationError(.internalError, message: "intentional test failure")
+                    }
+                    Issue.record("expected the failing watch handler to throw")
+                } catch is ContainerizationError {
+                    // Expected.
+                }
+            }
+
+            let afterFailures = try openDescriptorCount(for: tempPath)
+            #expect(handlerCalls.withLock { $0 } == 32)
+            #expect(
+                afterFailures == baseline,
+                "failing handlers leaked descriptors: before=\(baseline), after=\(afterFailures)"
+            )
+        }
+    }
+
     @Test func testWatchingRecreatedDirectory() async throws {
         try await withTempDir { tempPath in
             let dirPath = tempPath.appending(UUID().uuidString)
@@ -192,5 +222,25 @@ struct DirectoryWatcherTest {
             #expect(
                 Set(createdPaths.paths.compactMap { $0.lastComponent?.string }) == Set([beforeDelete, afterDelete]))
         }
+    }
+
+    private func openDescriptorCount(for path: FilePath) throws -> Int {
+        var expectedBuffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
+        guard realpath(path.string, &expectedBuffer) != nil else {
+            throw ContainerizationError(.internalError, message: "failed to resolve test directory: \(path)")
+        }
+        let expectedPath = String(decoding: expectedBuffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+
+        return try FileManager.default.contentsOfDirectory(atPath: "/dev/fd")
+            .compactMap(Int.init)
+            .filter { descriptor in
+                var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
+                guard fcntl(CInt(descriptor), F_GETPATH, &buffer) == 0 else {
+                    return false
+                }
+                let resolvedPath = String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+                return resolvedPath == expectedPath
+            }
+            .count
     }
 }
