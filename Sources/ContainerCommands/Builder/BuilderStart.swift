@@ -134,6 +134,10 @@ extension Application {
             )
 
             let client = ContainerClient()
+            let builderImageAliases = try Utility.imageReferenceAliases(
+                builderImage,
+                containerSystemConfig: containerSystemConfig
+            )
             let existingContainer = try? await client.get(id: "buildkit")
             if let existingContainer {
                 let existingImage = existingContainer.configuration.image.reference
@@ -148,7 +152,7 @@ extension Application {
                 let envChanged = existingManagedEnv != targetEnvVars
 
                 // Check if we need to recreate the builder due to different image
-                let imageChanged = existingImage != builderImage
+                let imageChanged = !builderImageAliases.contains(existingImage)
                 let cpuChanged = existingResources.cpus != resources.cpus
                 let memChanged = existingResources.memoryInBytes != resources.memoryInBytes
                 let sshForwarded = existingContainer.configuration.ssh
@@ -238,7 +242,7 @@ extension Application {
             )
 
             let imageDesc = ImageDescription(
-                reference: builderImage,
+                reference: image.reference,
                 descriptor: image.descriptor
             )
 

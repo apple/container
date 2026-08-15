@@ -16,6 +16,8 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerPersistence
+import ContainerResource
 import ContainerizationOCI
 import Foundation
 
@@ -33,19 +35,22 @@ extension Application {
         var all: Bool = false
 
         public func run() async throws {
-            let allImages = try await ClientImage.list()
+            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
+            let allImages = try await ClientImage.list().filter { image in
+                !(try Utility.isInfraImage(
+                    name: image.reference,
+                    containerSystemConfig: containerSystemConfig
+                ))
+            }
 
             let imagesToPrune: [ClientImage]
             if all {
                 // Find all images not used by any container
                 let client = ContainerClient()
                 let containers = try await client.list()
-                var imagesInUse = Set<String>()
-                for container in containers {
-                    imagesInUse.insert(container.configuration.image.reference)
-                }
+                let imagesInUse = Set(containers.map { $0.configuration.image.digest })
                 imagesToPrune = allImages.filter { image in
-                    !imagesInUse.contains(image.reference)
+                    Self.isUnusedImage(image.description, usedImageDigests: imagesInUse)
                 }
             } else {
                 // Find dangling images (images with no tag)
@@ -83,6 +88,10 @@ extension Application {
             formatter.countStyle = .file
             let freed = formatter.string(fromByteCount: Int64(size))
             log.info("Reclaimed \(freed) in disk space")
+        }
+
+        static func isUnusedImage(_ image: ImageDescription, usedImageDigests: Set<String>) -> Bool {
+            !usedImageDigests.contains(image.digest)
         }
 
         private func hasTag(_ reference: String) -> Bool {
