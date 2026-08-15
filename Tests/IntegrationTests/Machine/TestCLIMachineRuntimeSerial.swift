@@ -530,6 +530,31 @@ struct TestCLIMachineRuntimeSerial {
         }
     }
 
+    @Test func testMachineUsermodSupplementaryGroups() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+            try f.doMachineCreate(name: name, image: machineImage)
+            try f.doMachineBoot(name: name)
+            try await f.waitForMachineStatus(name, status: "running")
+
+            // Initial groups check
+            let initialGroups = try f.doMachineRun(name: name, command: ["id", "-nG"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // Create new group inside guest and add user to it via addgroup
+            let user = NSUserName()
+            _ = try f.doMachineRun(name: name, root: true, command: ["addgroup", "testgroup"])
+            _ = try f.doMachineRun(name: name, root: true, command: ["addgroup", user, "testgroup"])
+
+            // Re-run machine run as non-root user and check if testgroup is in supplementary groups
+            let newGroups = try f.doMachineRun(name: name, command: ["id", "-nG"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            #expect(newGroups.contains("testgroup"), "machine run should reflect updated supplementary groups from /etc/group (got: \(newGroups), initial: \(initialGroups))")
+        }
+    }
+
     // MARK: - set tests
 
     @Test func testSetCpus() async throws {
