@@ -53,11 +53,10 @@ extension Application {
             var printable: [ImageResource] = []
             for image in result.images {
                 guard
-                    !Utility.isInfraImage(
+                    !(try Utility.isInfraImage(
                         name: image.reference,
-                        builderImage: containerSystemConfig.build.image,
-                        initImage: containerSystemConfig.vminit.image
-                    )
+                        containerSystemConfig: containerSystemConfig
+                    ))
                 else { continue }
                 printable.append(
                     try await image.toImageResource(containerSystemConfig: containerSystemConfig)
