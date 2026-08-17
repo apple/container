@@ -79,7 +79,7 @@ public struct K8sCreate: AsyncParsableCommand {
 
         let provisioner = try LinuxNodeProvisioner(
             clusterName: name,
-            roles: [StandardRoles.controlPlane],
+            roles: [StandardRoles.controlPlane, StandardRoles.worker],
             nodeImage: nodeImage,
             cpus: resourceFlags.cpus,
             memory: resourceFlags.memory,
