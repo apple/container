@@ -772,14 +772,15 @@ public struct Parser {
 
     // Parse a single `--publish-socket`` argument into a `PublishSocket`.
     public static func publishSocket(_ socketText: String) throws -> PublishSocket {
-        // Split by colon to two parts: [host_path, container_path]
-        let parts = socketText.split(separator: ":")
-
-        switch parts.count {
-        case 2:
+        // The host path may itself contain ':' (e.g. a timestamped filename),
+        // so split on the LAST ':' rather than requiring exactly one. The
+        // container path is always a simple absolute path and is validated
+        // as such below, mirroring the approach used for `container cp` path
+        // references.
+        if let colon = socketText.lastIndex(of: ":") {
             // Extract host and container paths
-            let hostPath = String(parts[0])
-            let containerPath = String(parts[1])
+            let hostPath = String(socketText[..<colon])
+            let containerPath = String(socketText[socketText.index(after: colon)...])
 
             if hostPath.isEmpty {
                 throw ContainerizationError(
@@ -788,6 +789,10 @@ public struct Parser {
             if containerPath.isEmpty {
                 throw ContainerizationError(
                     .invalidArgument, message: "container socket path cannot be empty")
+            }
+            guard FilePath(containerPath).isAbsolute else {
+                throw ContainerizationError(
+                    .invalidArgument, message: "containerPath must be absolute: \(containerPath)")
             }
 
             let absoluteHostPath = FilePathOps.absolutePath(FilePath(hostPath))
@@ -820,13 +825,12 @@ public struct Parser {
                 hostPath: absoluteHostPath,
                 permissions: nil
             )
-
-        default:
-            throw ContainerizationError(
-                .invalidArgument,
-                message:
-                    "invalid publish-socket format \(socketText). Expected: host_path:container_path")
         }
+
+        throw ContainerizationError(
+            .invalidArgument,
+            message:
+                "invalid publish-socket format \(socketText). Expected: host_path:container_path")
     }
 
     // MARK: Networks
