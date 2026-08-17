@@ -298,11 +298,11 @@ define RUN_INTEGRATION
 		CLITEST_LOG_ROOT=$(LOG_ROOT) && export CLITEST_LOG_ROOT ; \
 		CLITEST_SCRATCH_ROOT=$(SCRATCH_ROOT) && export CLITEST_SCRATCH_ROOT ; \
 		CONTAINER_CLI_PATH=$(ROOT_DIR)/bin/container && export CONTAINER_CLI_PATH ; \
-		echo "==> Warmup pass" && \
+		echo "==> Starting warmup tests" && \
 		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(WARMUP_FILTER)" && \
-		echo "==> Concurrent pass (width=$(PARALLEL_WIDTH))" && \
+		echo "==> Starting $(words $(CONCURRENT_TEST_SUITES)) test suites concurrently (width=$(PARALLEL_WIDTH))" && \
 		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) $(CONCURRENT_EVENT_STREAM_OPTS) --experimental-maximum-parallelization-width $(PARALLEL_WIDTH) --filter "$(CONCURRENT_FILTER)" && \
-		echo "==> Global pass (serial)" && \
+		echo "==> Starting $(words $(SERIAL_TEST_SUITES)) test suites serially" && \
 		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) $(GLOBAL_EVENT_STREAM_OPTS) --experimental-maximum-parallelization-width 1 --filter "$(SERIAL_FILTER)" ; \
 		exit_code=$$? ; \
 		$(INTEGRATION_POST_TEST) \

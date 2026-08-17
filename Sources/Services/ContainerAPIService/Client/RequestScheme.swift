@@ -24,16 +24,12 @@ public enum RequestScheme: String, Sendable {
     case http = "http"
     case https = "https"
 
-    case auto = "auto"
-
     public init(_ rawValue: String) throws {
         switch rawValue {
         case RequestScheme.http.rawValue:
             self = .http
         case RequestScheme.https.rawValue:
             self = .https
-        case RequestScheme.auto.rawValue:
-            self = .auto
         default:
             throw ContainerizationError(.invalidArgument, message: "unsupported scheme \(rawValue)")
         }
@@ -50,48 +46,6 @@ public enum RequestScheme: String, Sendable {
         switch self {
         case .http, .https:
             return self
-        case .auto:
-            return Self.isInternalHost(host: host, internalDnsDomain: internalDnsDomain) ? .http : .https
         }
-    }
-
-    /// Checks if the given `host` string is a private IP address
-    /// or a domain typically reachable only on the local system.
-    public static func isInternalHost(host: String, internalDnsDomain: String?) -> Bool {
-        // The localhost hostname is private.
-        if host == "localhost" {
-            return true
-        }
-
-        // If hostname uses the provided DNS domain, treat it as private.
-        if let internalDnsDomain {
-            if host.hasSuffix(".\(internalDnsDomain)") {
-                return true
-            }
-        }
-
-        // If it's any other hostname and not an IP address, it's not private access.
-        guard let ipv4Address = try? IPv4Address(host) else {
-            return false
-        }
-
-        let ipv4Value = ipv4Address.value
-
-        // 10.0.0.0/8 and 127.0.0.0/8 are private CIDRs.
-        if (ipv4Value & 0xff00_0000 == 0x0a00_0000) || (ipv4Value & 0xff00_0000 == 0x7f00_0000) {
-            return true
-        }
-
-        // 192.168.0.0/16 is a private CIDR.
-        if ipv4Value & 0xffff_0000 == 0xc0a8_0000 {
-            return true
-        }
-
-        // 172.16.0.0/12 is a private CIDR.
-        if ipv4Value & 0xfff0_0000 == 0xac10_0000 {
-            return true
-        }
-
-        return false
     }
 }

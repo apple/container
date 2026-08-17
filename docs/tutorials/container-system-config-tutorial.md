@@ -33,7 +33,7 @@ touch ~/.config/container/config.toml
 
 Open the file in the editor of your choice and add only the sections and keys you want to change. 
 
-For this tutorial, increase the default CPU and memory limits used for each new container and set a DNS domain for resolving container IP addresses from the host. 
+For this tutorial, increase the default CPU and memory limits used for each new container, and set a DNS domain so containers get hostnames under that domain (a container named `my-web-server` becomes `my-web-server.test`).
 
 ```toml
 [container]
@@ -54,6 +54,19 @@ To make your edits take effect, stop and start the system:
 container system stop
 container system start
 ```
+
+### Route macOS DNS queries for the domain to `container`
+
+The `[dns] domain` change above only affects the `container` service and the containers
+it runs. Complete the setup by telling macOS to route `*.test` queries there too:
+
+```bash
+sudo container system dns create test
+```
+
+Enter your administrator password when prompted. See [Networking: Set up DNS-based
+container names](../networking.md#set-up-dns-based-container-names) for what this step
+does.
 
 ### Verify the values are loaded
 

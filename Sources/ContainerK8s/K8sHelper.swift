@@ -184,7 +184,7 @@ struct K8sHelper {
         _ = try await ClientImage.fetch(
             reference: nodeImage,
             platform: platform,
-            scheme: .auto,
+            scheme: .https,
             containerSystemConfig: containerSystemConfig,
             progressUpdate: nil)
     }
