@@ -23,27 +23,6 @@ import Yams
 @Suite(.serialized)
 struct TestK8sWriteConfigSerial {
 
-    private func dumpNodeDiagnostics(_ f: ContainerFixture, node: String) {
-        print("=== NODE DIAGNOSTICS [\(node)] ===")
-        let cmds: [(label: String, args: [String])] = [
-            ("ip-link", ["ip", "link", "show"]),
-            ("iptables-mss", ["iptables", "-t", "mangle", "-L", "-n", "-v"]),
-            ("containerd", ["systemctl", "status", "containerd", "--no-pager", "-l"]),
-            ("kubelet-log", ["journalctl", "-u", "kubelet", "--no-pager", "-n", "60"]),
-            ("crictl-images", ["crictl", "images"]),
-        ]
-        for (label, args) in cmds {
-            if let r = try? f.run(["exec", node] + args) {
-                let out = r.output.trimmingCharacters(in: .whitespacesAndNewlines)
-                let err = r.error.trimmingCharacters(in: .whitespacesAndNewlines)
-                print("[\(label)] exit=\(r.status)")
-                if !out.isEmpty { print(out) }
-                if !err.isEmpty { print("stderr: \(err)") }
-            }
-        }
-        print("=== END NODE DIAGNOSTICS ===")
-    }
-
     private func kubeconfigPath() -> FilePath {
         FilePath(FileManager.default.homeDirectoryForCurrentUser.path)
             .appending(".kube")
@@ -106,7 +85,7 @@ struct TestK8sWriteConfigSerial {
             if result.status != 0 {
                 print("[k8s-cfg] k8s create stderr: \(result.error)")
                 dumpEnv(f, clusterName: name)
-                dumpNodeDiagnostics(f, node: name)
+                f.dumpNodeDiagnostics(node: name)
             }
             try result.check()
 
@@ -144,7 +123,7 @@ struct TestK8sWriteConfigSerial {
             if result.status != 0 {
                 print("[k8s-cfg] k8s create stderr: \(result.error)")
                 dumpEnv(f, clusterName: name)
-                dumpNodeDiagnostics(f, node: name)
+                f.dumpNodeDiagnostics(node: name)
             }
             try result.check()
 
@@ -174,7 +153,7 @@ struct TestK8sWriteConfigSerial {
             if result.status != 0 {
                 print("[k8s-cfg] k8s create stderr: \(result.error)")
                 dumpEnv(f, clusterName: name)
-                dumpNodeDiagnostics(f, node: name)
+                f.dumpNodeDiagnostics(node: name)
             }
             try result.check()
 

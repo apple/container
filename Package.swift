@@ -166,13 +166,12 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "K8sTests",
+            name: "K8sPluginTests",
             dependencies: [
                 "ContainerK8s",
                 "ContainerResource",
                 "Yams",
-            ],
-            path: "Tests/K8sPluginTests"
+            ]
         ),
         .target(
             name: "ContainerK8s",

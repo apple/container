@@ -21,28 +21,7 @@ import Testing
 @Suite(.serialized)
 struct TestK8sNetworkingSerial {
 
-    private static let testImage = WarmupImage.alpine320.rawValue
-
-    private func dumpNodeDiagnostics(_ f: ContainerFixture, node: String) {
-        print("=== NODE DIAGNOSTICS [\(node)] ===")
-        let cmds: [(label: String, args: [String])] = [
-            ("ip-link", ["ip", "link", "show"]),
-            ("iptables-mss", ["iptables", "-t", "mangle", "-L", "-n", "-v"]),
-            ("containerd", ["systemctl", "status", "containerd", "--no-pager", "-l"]),
-            ("kubelet-log", ["journalctl", "-u", "kubelet", "--no-pager", "-n", "60"]),
-            ("crictl-images", ["crictl", "images"]),
-        ]
-        for (label, args) in cmds {
-            if let r = try? f.run(["exec", node] + args) {
-                let out = r.output.trimmingCharacters(in: .whitespacesAndNewlines)
-                let err = r.error.trimmingCharacters(in: .whitespacesAndNewlines)
-                print("[\(label)] exit=\(r.status)")
-                if !out.isEmpty { print(out) }
-                if !err.isEmpty { print("stderr: \(err)") }
-            }
-        }
-        print("=== END NODE DIAGNOSTICS ===")
-    }
+    private static let testImage = WarmupImage.alpine320
 
     private func dumpEnv(_ f: ContainerFixture, clusterName: String) {
         print("=== ENV DUMP [\(clusterName)] ===")
@@ -102,15 +81,15 @@ struct TestK8sNetworkingSerial {
             if result.status != 0 {
                 print("[k8s-net] k8s create stderr: \(result.error)")
                 dumpEnv(f, clusterName: name)
-                dumpNodeDiagnostics(f, node: name)
+                f.dumpNodeDiagnostics(node: name)
             }
             try result.check()
 
             print("[k8s-net] pulling \(Self.testImage)")
-            try f.restoreWarmupImage(.alpine320)
+            try f.restoreWarmupImage(Self.testImage)
 
             print("[k8s-net] k8s load-image --name \(name) \(Self.testImage)")
-            let loadResult = try f.run(["k8s", "load-image", "--name", name, Self.testImage])
+            let loadResult = try f.run(["k8s", "load-image", "--name", name, Self.testImage.rawValue])
             print("[k8s-net] k8s load-image exit=\(loadResult.status)")
             if loadResult.status != 0 { print("[k8s-net] k8s load-image stderr: \(loadResult.error)") }
             #expect(loadResult.status == 0)
@@ -155,10 +134,10 @@ struct TestK8sNetworkingSerial {
             try result.check()
 
             print("[k8s-net] pulling \(Self.testImage)")
-            try f.restoreWarmupImage(.alpine320)
+            try f.restoreWarmupImage(Self.testImage)
 
             print("[k8s-net] k8s load-image --name \(name) \(Self.testImage)")
-            let loadResult = try f.run(["k8s", "load-image", "--name", name, Self.testImage])
+            let loadResult = try f.run(["k8s", "load-image", "--name", name, Self.testImage.rawValue])
             print("[k8s-net] k8s load-image exit=\(loadResult.status)")
             if loadResult.status != 0 { print("[k8s-net] k8s load-image stderr: \(loadResult.error)") }
             #expect(loadResult.status == 0)
