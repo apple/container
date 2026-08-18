@@ -271,10 +271,12 @@ public struct Utility {
         // attachment, so --hostname is covered by --network.
         // https://github.com/containerd/nerdctl/blob/main/pkg/containerutil/container_network_manager.go
         if let named = management.pod {
-            guard (try? await ClientPod.inspect(named)) != nil else {
+            guard let pod = try? await ClientPod.inspect(named) else {
                 throw ContainerizationError(.notFound, message: "pod \(named) does not exist")
             }
             var held: [String] = []
+            if management.rosetta { held.append("--rosetta") }
+            if management.virtualization { held.append("--virtualization") }
             if !management.publishPorts.isEmpty { held.append("-p/--publish") }
             if !management.dns.nameservers.isEmpty || management.dns.domain != nil
                 || !management.dns.searchDomains.isEmpty || !management.dns.options.isEmpty
@@ -286,7 +288,18 @@ public struct Utility {
                 throw ContainerizationError(
                     .invalidArgument,
                     message:
-                        "these belong to the pod whose network the container joins, so they are not the container's to ask for: \(held.joined(separator: ", "))"
+                        "these belong to the pod whose machine the container runs in, so they are not the container's to ask for: \(held.joined(separator: ", "))"
+                )
+            }
+
+            // Running a foreign architecture is the machine's to do, and the
+            // machine was booted with or without it before this container
+            // existed, so a container that needs it says so rather than
+            // starting in a machine that cannot run it.
+            if Platform.current.architecture == "arm64", requestedPlatform.architecture == "amd64", !pod.configuration.rosetta {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "pod \(named) runs a machine without Rosetta, which \(requestedPlatform.description) needs; create the pod with --rosetta"
                 )
             }
         }

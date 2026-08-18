@@ -53,19 +53,15 @@ extension NetworkClient {
         createClient().openSession()
     }
 
-    /// How long a call waits on a network helper before it is answered.
-    ///
-    /// A helper that never comes up answers nothing, and a call with no bound
-    /// waits on it forever: every command that needs a network hangs with no
-    /// error to show for it. The wait is generous enough for a helper still
-    /// starting and short enough that its absence is reported.
-    static let callTimeout: Duration = .seconds(30)
-
-    public func status() async throws -> NetworkStatus {
+    /// A helper that never comes up answers nothing, and a call waiting on it
+    /// with no bound takes every command that needs a network down with it, so
+    /// the wait is bounded the way the calls to the api server are. Passing no
+    /// timeout waits as long as it takes.
+    public func status(timeout: Duration? = XPCClient.xpcRegistrationTimeout) async throws -> NetworkStatus {
         let request = XPCMessage(route: NetworkRoutes.status.rawValue)
         let client = createClient()
 
-        let response = try await client.send(request, responseTimeout: Self.callTimeout)
+        let response = try await client.send(request, responseTimeout: timeout)
         let status = try response.status()
         return status
     }
@@ -78,26 +74,27 @@ extension NetworkClient {
     public func allocate(
         hostname: String,
         macAddress: MACAddress? = nil,
-        on session: XPCClientSession
+        on session: XPCClientSession,
+        timeout: Duration? = XPCClient.xpcRegistrationTimeout
     ) async throws -> (attachment: Attachment, additionalData: XPCMessage?) {
         let request = XPCMessage(route: NetworkRoutes.allocate.rawValue)
         request.set(key: NetworkKeys.hostname.rawValue, value: hostname)
         if let macAddress = macAddress {
             request.set(key: NetworkKeys.macAddress.rawValue, value: macAddress.description)
         }
-        let response = try await session.send(request, responseTimeout: Self.callTimeout)
+        let response = try await session.send(request, responseTimeout: timeout)
         let attachment = try response.attachment()
         let additionalData = response.additionalData()
         return (attachment, additionalData)
     }
 
-    public func lookup(hostname: String) async throws -> Attachment? {
+    public func lookup(hostname: String, timeout: Duration? = XPCClient.xpcRegistrationTimeout) async throws -> Attachment? {
         let request = XPCMessage(route: NetworkRoutes.lookup.rawValue)
         request.set(key: NetworkKeys.hostname.rawValue, value: hostname)
 
         let client = createClient()
 
-        let response = try await client.send(request, responseTimeout: Self.callTimeout)
+        let response = try await client.send(request, responseTimeout: timeout)
         return try response.dataNoCopy(key: NetworkKeys.attachment.rawValue).map {
             try JSONDecoder().decode(Attachment.self, from: $0)
         }
