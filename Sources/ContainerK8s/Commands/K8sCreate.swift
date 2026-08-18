@@ -54,6 +54,15 @@ public struct K8sCreate: AsyncParsableCommand {
     @Option(name: .long, help: "Optional path to a CNI manifest to apply.")
     var cni: String?
 
+    @Option(
+        name: [.customShort("p"), .customLong("publish")],
+        help: .init(
+            "Publish a port from the cluster node to the host (format: [host-ip:]host-port:container-port[/protocol])",
+            valueName: "spec"
+        )
+    )
+    var publishPorts: [String] = []
+
     public func run() async throws {
         LoggingSystem.bootstrap { _ in StderrLogHandler() }
         let log = Logger(label: K8sHelper.pluginName)
@@ -98,7 +107,8 @@ public struct K8sCreate: AsyncParsableCommand {
             registryScheme: registryFlags.scheme,
             maxConcurrentDownloads: imageFetchFlags.maxConcurrentDownloads,
             remove: remove,
-            fqdn: fqdn
+            fqdn: fqdn,
+            publishPorts: publishPorts
         )
 
         progress.set(description: "Starting cluster")
