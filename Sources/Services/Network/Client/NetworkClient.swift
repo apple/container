@@ -53,11 +53,19 @@ extension NetworkClient {
         createClient().openSession()
     }
 
+    /// How long a call waits on a network helper before it is answered.
+    ///
+    /// A helper that never comes up answers nothing, and a call with no bound
+    /// waits on it forever: every command that needs a network hangs with no
+    /// error to show for it. The wait is generous enough for a helper still
+    /// starting and short enough that its absence is reported.
+    static let callTimeout: Duration = .seconds(30)
+
     public func status() async throws -> NetworkStatus {
         let request = XPCMessage(route: NetworkRoutes.status.rawValue)
         let client = createClient()
 
-        let response = try await client.send(request)
+        let response = try await client.send(request, responseTimeout: Self.callTimeout)
         let status = try response.status()
         return status
     }
@@ -77,7 +85,7 @@ extension NetworkClient {
         if let macAddress = macAddress {
             request.set(key: NetworkKeys.macAddress.rawValue, value: macAddress.description)
         }
-        let response = try await session.send(request)
+        let response = try await session.send(request, responseTimeout: Self.callTimeout)
         let attachment = try response.attachment()
         let additionalData = response.additionalData()
         return (attachment, additionalData)
@@ -89,7 +97,7 @@ extension NetworkClient {
 
         let client = createClient()
 
-        let response = try await client.send(request)
+        let response = try await client.send(request, responseTimeout: Self.callTimeout)
         return try response.dataNoCopy(key: NetworkKeys.attachment.rawValue).map {
             try JSONDecoder().decode(Attachment.self, from: $0)
         }

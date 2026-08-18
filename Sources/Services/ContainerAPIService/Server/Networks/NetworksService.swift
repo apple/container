@@ -106,7 +106,33 @@ public actor NetworksService {
             // 5 seconds or considerably more from the registration of this first
             // network service to its execution.
             do {
-                try await registerService(configuration: effectiveConfiguration)
+                do {
+                    try await registerService(configuration: effectiveConfiguration)
+                } catch where effectiveConfiguration.id == NetworkClient.defaultNetworkName && effectiveConfiguration.ipv4Subnet != nil {
+                    // The range the default network asks for is the one it was
+                    // given last time, which is a preference and not a demand:
+                    // a range held by something else, or reserved to a network
+                    // nobody holds any more, would otherwise leave the system
+                    // with no network at all and every call that needs one
+                    // waiting forever. The network comes up on whatever range
+                    // is free and says which range it lost.
+                    log.error(
+                        "the default network could not take the address range it was given; taking another",
+                        metadata: [
+                            "range": "\(effectiveConfiguration.ipv4Subnet?.description ?? "")",
+                            "error": "\(error)",
+                        ])
+                    effectiveConfiguration = try NetworkConfiguration(
+                        name: effectiveConfiguration.name,
+                        mode: effectiveConfiguration.mode,
+                        ipv4Subnet: nil,
+                        ipv6Subnet: effectiveConfiguration.ipv6Subnet,
+                        labels: effectiveConfiguration.labels,
+                        plugin: effectiveConfiguration.plugin,
+                        options: effectiveConfiguration.options
+                    )
+                    try await registerService(configuration: effectiveConfiguration)
+                }
                 let client = try Self.getClient(configuration: effectiveConfiguration)
                 let networkStatus = try await client.status()
 

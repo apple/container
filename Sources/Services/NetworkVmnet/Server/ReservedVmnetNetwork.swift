@@ -92,6 +92,27 @@ public final class ReservedVmnetNetwork: ContainerNetworkServer.Network {
         }
     }
 
+    /// The reservation lives as long as the network object the framework
+    /// hands back, and the object is returned retained, so releasing it is
+    /// what gives the address range back. A helper that goes away without
+    /// releasing leaves the range reserved to a network nobody holds, and
+    /// every later attempt on that range is refused with no interface, route,
+    /// or process to point at.
+    /// vmnet.h, vmnet_network_create: "The lifetime of such reservation is
+    /// the same as that of `vmnet_network_ref`. Use `CFRelease()` to release
+    /// the network object."
+    public func stop() async {
+        stateMutex.withLock { state in
+            guard let network = state.network else {
+                return
+            }
+            CFRelease(unsafeBitCast(network, to: CFTypeRef.self))
+            state.network = nil
+            state.status = nil
+            log.info("released vmnet network", metadata: ["id": "\(configuration.id)"])
+        }
+    }
+
     private static func serialize_network_ref(ref: vmnet_network_ref) throws -> XPCMessage {
         var status: vmnet_return_t = .VMNET_SUCCESS
         guard let refObject = vmnet_network_copy_serialization(ref, &status) else {

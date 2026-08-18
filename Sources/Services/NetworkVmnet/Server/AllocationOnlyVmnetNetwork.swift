@@ -58,6 +58,12 @@ public actor AllocationOnlyVmnetNetwork: Network {
         try handler(nil)
     }
 
+    /// The addresses this network hands out are its own bookkeeping, held
+    /// nowhere outside this process, so giving them up is forgetting them.
+    public func stop() async {
+        self._status = nil
+    }
+
     public func start() async throws {
         guard _status == nil else {
             throw ContainerizationError(.invalidState, message: "cannot start network \(configuration.id): already started")

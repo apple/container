@@ -36,4 +36,10 @@ public protocol Network: Sendable {
 
     /// Start the network.
     func start() async throws
+
+    /// Give up whatever the network holds, so the addresses it was given can
+    /// be handed out again. A network that goes away without this leaves its
+    /// range spoken for by nobody, and the next network asking for that range
+    /// is refused.
+    func stop() async
 }

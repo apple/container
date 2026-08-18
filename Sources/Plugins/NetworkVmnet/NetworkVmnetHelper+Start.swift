@@ -24,6 +24,8 @@ import ContainerResource
 import ContainerXPC
 import ContainerizationError
 import ContainerizationExtras
+import ContainerizationOS
+import Darwin
 import Foundation
 import Logging
 
@@ -108,6 +110,19 @@ extension NetworkVmnetHelper {
                     ],
                     log: log
                 )
+
+                // What the network holds is given back when this helper is
+                // asked to go away, so the addresses it was given can be
+                // handed out again; a helper that exits still holding them
+                // leaves the range spoken for by nobody.
+                let signals = AsyncSignalHandler.create(notify: [SIGINT, SIGTERM])
+                Task {
+                    for await _ in signals.signals {
+                        log.info("releasing the network before exit")
+                        await network.stop()
+                        Darwin.exit(0)
+                    }
+                }
 
                 log.info("starting XPC server")
                 try await xpc.listen()
