@@ -18,6 +18,7 @@ import ContainerResource
 import ContainerXPC
 import ContainerizationError
 import ContainerizationExtras
+import Foundation
 import Logging
 
 public actor DefaultNetworkService: NetworkService {
@@ -28,8 +29,13 @@ public actor DefaultNetworkService: NetworkService {
     private var allocationsBySession: [XPCServerSession: [(hostname: String, index: UInt32)]]
 
     /// Set up a network service for the specified network.
+    /// - Parameters:
+    ///   - leases: where the addresses handed out are written down, so a host
+    ///     attaching again is given what it had. Nothing is remembered without
+    ///     one, which is what a caller wanting a network that forgets passes.
     public init(
         network: any Network,
+        leases: URL? = nil,
         log: Logger
     ) async throws {
         guard let status = await network.status else {
@@ -40,7 +46,7 @@ public actor DefaultNetworkService: NetworkService {
         let size = Int(subnet.upper.value - subnet.lower.value - 3)
         self.network = network
         self.log = log
-        self.allocator = try AttachmentAllocator(lower: subnet.lower.value + 2, size: size)
+        self.allocator = try AttachmentAllocator(lower: subnet.lower.value + 2, size: size, store: leases, log: log)
         self.macAddresses = [:]
         self.allocationsBySession = [:]
     }
@@ -66,8 +72,15 @@ public actor DefaultNetworkService: NetworkService {
             throw ContainerizationError(.invalidState, message: "network \(network.id) must be running")
         }
 
-        let macAddress = macAddress ?? MACAddress((UInt64.random(in: 0...UInt64.max) & 0x0cff_ffff_ffff) | 0xf200_0000_0000)
-        let index = try await allocator.allocate(hostname: hostname)
+        // A hardware address is minted for a host that names none, and the one
+        // a host was given before is handed back when it attaches again: the
+        // address is what the network knows a host by, and an IPv6 address is
+        // derived from it, so a host that comes back with a new one comes back
+        // as somebody else.
+        let requested = macAddress ?? MACAddress((UInt64.random(in: 0...UInt64.max) & 0x0cff_ffff_ffff) | 0xf200_0000_0000)
+        let lease = try await allocator.allocate(hostname: hostname, macAddress: requested)
+        let macAddress = macAddress ?? lease.macAddress
+        let index = lease.index
         let ipv6Address = try status.ipv6Subnet
             .map { try CIDRv6(macAddress.ipv6Address(network: $0.lower), prefix: $0.prefix) }
         let ip = IPv4Address(index)

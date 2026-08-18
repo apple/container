@@ -19,6 +19,7 @@ import ContainerLog
 import ContainerNetworkClient
 import ContainerNetworkServer
 import ContainerNetworkVmnetServer
+import ContainerPersistence
 import ContainerPlugin
 import ContainerResource
 import ContainerXPC
@@ -99,7 +100,17 @@ extension NetworkVmnetHelper {
                     log: log
                 )
                 try await network.start()
-                let service = try await DefaultNetworkService(network: network, log: log)
+                // The addresses this network hands out are written down beside
+                // the network they belong to, the way a host-local allocator
+                // keeps its allocations under a directory of its own.
+                // https://cni.dev/plugins/current/ipam/host-local/
+                let leases = URL(
+                    filePath: PathUtils.BaseConfigPath.appRoot.basePath()
+                        .appending("networks")
+                        .appending(id)
+                        .appending("leases.json")
+                        .string)
+                let service = try await DefaultNetworkService(network: network, leases: leases, log: log)
                 let harness = NetworkHarness(service: service)
                 let xpc = XPCServer(
                     identifier: serviceIdentifier,
