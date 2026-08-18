@@ -106,7 +106,10 @@ public final class ReservedVmnetNetwork: ContainerNetworkServer.Network {
             guard let network = state.network else {
                 return
             }
-            CFRelease(unsafeBitCast(network, to: CFTypeRef.self))
+            // The framework hands the network back retained, and it arrives as
+            // a plain pointer rather than a managed object, so the retain is
+            // this side's to balance.
+            Unmanaged<AnyObject>.fromOpaque(UnsafeRawPointer(network)).release()
             state.network = nil
             state.status = nil
             log.info("released vmnet network", metadata: ["id": "\(configuration.id)"])
