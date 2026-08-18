@@ -19,32 +19,45 @@ import ContainerizationExtras
 import Foundation
 import Logging
 
-actor AttachmentAllocator {
+public actor AttachmentAllocator {
     /// What a host was given the last time it asked, kept so that asking
-    /// again gets the same answer.
-    struct Lease: Codable, Sendable {
-        let index: UInt32
-        let macAddress: MACAddress
+    /// again gets the same answer. The host's name identifies it, the way an
+    /// allocation is kept under the address it holds.
+    public struct Lease: Codable, Sendable, Identifiable {
+        public let id: String
+        public let index: UInt32
+        public let macAddress: MACAddress
+
+        public init(id: String, index: UInt32, macAddress: MACAddress) {
+            self.id = id
+            self.index = index
+            self.macAddress = macAddress
+        }
     }
 
     private let allocator: any AddressAllocator<UInt32>
     private var allocated: [String: Lease] = [:]
     private var leases: [String: Lease] = [:]
-    private let store: URL?
+    private let store: (any AttachmentLeaseStore)?
     private let log: Logger?
 
     /// - Parameters:
-    ///   - store: where the leases are written, so a host keeps its address
-    ///     and hardware address across restarts of this service. Nothing is
+    ///   - store: keeps what each host was given, so a host attaching again is
+    ///     given it back across restarts of this service. Nothing is
     ///     remembered without one.
-    init(lower: UInt32, size: Int, store: URL? = nil, log: Logger? = nil) throws {
+    init(lower: UInt32, size: Int, store: (any AttachmentLeaseStore)? = nil, log: Logger? = nil) async throws {
         allocator = try UInt32.rotatingAllocator(
             lower: lower,
             size: UInt32(size)
         )
         self.store = store
         self.log = log
-        self.leases = Self.read(store: store, log: log)
+        if let store {
+            // What was written down is a convenience, so leases that cannot be
+            // read cost the addresses their stability and nothing else.
+            let written = await store.load()
+            self.leases = Dictionary(uniqueKeysWithValues: written.map { ($0.id, $0) })
+        }
     }
 
     /// Allocate a network address for a host.
@@ -66,10 +79,10 @@ actor AttachmentAllocator {
             return remembered
         }
 
-        let lease = Lease(index: try allocator.allocate(), macAddress: macAddress)
+        let lease = Lease(id: hostname, index: try allocator.allocate(), macAddress: macAddress)
         allocated[hostname] = lease
         leases[hostname] = lease
-        write()
+        await store?.save(lease)
         return lease
     }
 
@@ -88,31 +101,5 @@ actor AttachmentAllocator {
     /// Retrieve the allocator index for a hostname.
     func lookup(hostname: String) async throws -> UInt32? {
         allocated[hostname]?.index
-    }
-
-    private static func read(store: URL?, log: Logger?) -> [String: Lease] {
-        guard let store, let data = FileManager.default.contents(atPath: store.path) else {
-            return [:]
-        }
-        do {
-            return try JSONDecoder().decode([String: Lease].self, from: data)
-        } catch {
-            // What was written down is a convenience, so a file that cannot be
-            // read costs the addresses their stability and nothing else.
-            log?.warning("cannot read the addresses given out before", metadata: ["path": "\(store.path)", "error": "\(error)"])
-            return [:]
-        }
-    }
-
-    private func write() {
-        guard let store else {
-            return
-        }
-        do {
-            try FileManager.default.createDirectory(at: store.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try JSONEncoder().encode(leases).write(to: store, options: .atomic)
-        } catch {
-            log?.warning("cannot write down the addresses given out", metadata: ["path": "\(store.path)", "error": "\(error)"])
-        }
     }
 }

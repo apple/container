@@ -104,12 +104,17 @@ extension NetworkVmnetHelper {
                 // the network they belong to, the way a host-local allocator
                 // keeps its allocations under a directory of its own.
                 // https://cni.dev/plugins/current/ipam/host-local/
-                let leases = URL(
-                    filePath: PathUtils.BaseConfigPath.appRoot.basePath()
-                        .appending("networks")
-                        .appending(id)
-                        .appending("leases.json")
-                        .string)
+                let leases = FilesystemAttachmentLeaseStore(
+                    store: try FilesystemEntityStore<AttachmentAllocator.Lease>(
+                        path: PathUtils.BaseConfigPath.appRoot.basePath()
+                            .appending("networks")
+                            .appending(id)
+                            .appending("leases"),
+                        type: "lease",
+                        log: log
+                    ),
+                    log: log
+                )
                 let service = try await DefaultNetworkService(network: network, leases: leases, log: log)
                 let harness = NetworkHarness(service: service)
                 let xpc = XPCServer(

@@ -20,6 +20,20 @@ import Testing
 
 @testable import ContainerNetworkServer
 
+/// A store that keeps leases the way a file would, so what is written down
+/// can be read back by an allocator that was not there when it was written.
+private actor RememberingStore: AttachmentLeaseStore {
+    private var leases: [String: AttachmentAllocator.Lease] = [:]
+
+    func load() async -> [AttachmentAllocator.Lease] {
+        Array(leases.values)
+    }
+
+    func save(_ lease: AttachmentAllocator.Lease) async {
+        leases[lease.id] = lease
+    }
+}
+
 struct AttachmentAllocatorTest {
     /// A hardware address to attach with, different for each host so that a
     /// remembered one is recognizable.
@@ -32,7 +46,7 @@ struct AttachmentAllocatorTest {
     }
 
     @Test func testAllocateSingleHostname() async throws {
-        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+        let allocator = try await AttachmentAllocator(lower: 100, size: 10)
 
         let address = try await allocate(allocator, "test-host")
 
@@ -41,7 +55,7 @@ struct AttachmentAllocatorTest {
     }
 
     @Test func testAllocateSameHostnameTwice() async throws {
-        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+        let allocator = try await AttachmentAllocator(lower: 100, size: 10)
 
         let address1 = try await allocate(allocator, "test-host")
         let address2 = try await allocate(allocator, "test-host")
@@ -50,7 +64,7 @@ struct AttachmentAllocatorTest {
     }
 
     @Test func testAllocateMultipleHostnames() async throws {
-        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+        let allocator = try await AttachmentAllocator(lower: 100, size: 10)
 
         let address1 = try await allocate(allocator, "host1")
         let address2 = try await allocate(allocator, "host2")
@@ -62,7 +76,7 @@ struct AttachmentAllocatorTest {
     }
 
     @Test func testLookupAllocatedHostname() async throws {
-        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+        let allocator = try await AttachmentAllocator(lower: 100, size: 10)
 
         let allocatedAddress = try await allocate(allocator, "test-host")
         let lookedUpAddress = try await allocator.lookup(hostname: "test-host")
@@ -71,7 +85,7 @@ struct AttachmentAllocatorTest {
     }
 
     @Test func testLookupNonExistentHostname() async throws {
-        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+        let allocator = try await AttachmentAllocator(lower: 100, size: 10)
 
         let address = try await allocator.lookup(hostname: "non-existent")
 
@@ -79,7 +93,7 @@ struct AttachmentAllocatorTest {
     }
 
     @Test func testDeallocateAllocatedHostname() async throws {
-        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+        let allocator = try await AttachmentAllocator(lower: 100, size: 10)
 
         let allocatedAddress = try await allocate(allocator, "test-host")
         let deallocatedAddress = try await allocator.deallocate(hostname: "test-host")
@@ -92,7 +106,7 @@ struct AttachmentAllocatorTest {
     }
 
     @Test func testDeallocateNonExistentHostname() async throws {
-        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+        let allocator = try await AttachmentAllocator(lower: 100, size: 10)
 
         let deallocatedAddress = try await allocator.deallocate(hostname: "non-existent")
 
@@ -100,7 +114,7 @@ struct AttachmentAllocatorTest {
     }
 
     @Test func testHostAttachingAgainIsGivenWhatItHad() async throws {
-        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+        let allocator = try await AttachmentAllocator(lower: 100, size: 10)
 
         let first = try await allocator.allocate(hostname: "test-host", macAddress: mac(7))
         _ = try await allocator.deallocate(hostname: "test-host")
@@ -114,10 +128,7 @@ struct AttachmentAllocatorTest {
     }
 
     @Test func testWhatAHostWasGivenOutlivesTheAllocator() async throws {
-        let store = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-            .appendingPathComponent("leases.json")
-        defer { try? FileManager.default.removeItem(at: store.deletingLastPathComponent()) }
+        let store = RememberingStore()
 
         let first = try await AttachmentAllocator(lower: 100, size: 10, store: store)
             .allocate(hostname: "test-host", macAddress: mac(3))
@@ -131,7 +142,7 @@ struct AttachmentAllocatorTest {
 
     @Test func testAllocateUntilFull() async throws {
         let size = 5
-        let allocator = try AttachmentAllocator(lower: 100, size: size)
+        let allocator = try await AttachmentAllocator(lower: 100, size: size)
 
         // Allocate up to the limit
         for i in 0..<size {
@@ -146,7 +157,7 @@ struct AttachmentAllocatorTest {
 
     @Test func testDeallocateAndReallocateDifferentHostname() async throws {
         let size = 3
-        let allocator = try AttachmentAllocator(lower: 100, size: size)
+        let allocator = try await AttachmentAllocator(lower: 100, size: size)
 
         // Fill up the allocator
         let address1 = try await allocate(allocator, "host1")
@@ -173,7 +184,7 @@ struct AttachmentAllocatorTest {
     }
 
     @Test func testMultipleDeallocationsOfSameHostname() async throws {
-        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+        let allocator = try await AttachmentAllocator(lower: 100, size: 10)
 
         let address = try await allocate(allocator, "test-host")
 

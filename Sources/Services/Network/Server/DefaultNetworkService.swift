@@ -30,12 +30,12 @@ public actor DefaultNetworkService: NetworkService {
 
     /// Set up a network service for the specified network.
     /// - Parameters:
-    ///   - leases: where the addresses handed out are written down, so a host
-    ///     attaching again is given what it had. Nothing is remembered without
-    ///     one, which is what a caller wanting a network that forgets passes.
+    ///   - leases: keeps what each host was given, so a host attaching again is
+    ///     given what it had. Nothing is remembered without one, which is what
+    ///     a caller wanting a network that forgets passes.
     public init(
         network: any Network,
-        leases: URL? = nil,
+        leases: (any AttachmentLeaseStore)? = nil,
         log: Logger
     ) async throws {
         guard let status = await network.status else {
@@ -46,7 +46,7 @@ public actor DefaultNetworkService: NetworkService {
         let size = Int(subnet.upper.value - subnet.lower.value - 3)
         self.network = network
         self.log = log
-        self.allocator = try AttachmentAllocator(lower: subnet.lower.value + 2, size: size, store: leases, log: log)
+        self.allocator = try await AttachmentAllocator(lower: subnet.lower.value + 2, size: size, store: leases, log: log)
         self.macAddresses = [:]
         self.allocationsBySession = [:]
     }
