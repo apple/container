@@ -51,19 +51,19 @@ struct TestK8sNetworkingSerial {
         return (result.output, result.status)
     }
 
-    private func waitForPod(_ f: ContainerFixture, node: String, podName: String, timeout: Int = 300) throws {
-        print("[k8s-net] waitForPod \(podName) on \(node) (timeout=\(timeout)s)")
+    private func waitForPod(_ f: ContainerFixture, node: String, podName: String, timeoutSeconds: Int) throws {
+        print("[k8s-net] waitForPod \(podName) on \(node) (timeout=\(timeoutSeconds)s)")
         let (_, status) = try kubectl(
             f, node: node,
             args: [
-                "wait", "--for=condition=Ready", "pod/\(podName)", "--timeout=\(timeout)s",
+                "wait", "--for=condition=Ready", "pod/\(podName)", "--timeout=\(timeoutSeconds)s",
             ])
         guard status == 0 else {
             let (podStatus, _) = try kubectl(f, node: node, args: ["get", "pod", podName, "--no-headers"])
             print("[k8s-net] pod \(podName) status: \(podStatus.trimmingCharacters(in: .whitespacesAndNewlines))")
             let (podDesc, _) = try kubectl(f, node: node, args: ["describe", "pod", podName])
             print("[k8s-net] pod \(podName) describe:\n\(podDesc.prefix(1000))")
-            throw CommandError.executionFailed("pod \(podName) did not become ready within \(timeout)s")
+            throw CommandError.executionFailed("pod \(podName) did not become ready within \(timeoutSeconds)s")
         }
         print("[k8s-net] pod \(podName) is Ready")
     }
@@ -85,10 +85,10 @@ struct TestK8sNetworkingSerial {
             }
             try result.check()
 
-            print("[k8s-net] pulling \(Self.testImage)")
+            print("[k8s-net] pulling \(Self.testImage.rawValue)")
             try f.restoreWarmupImage(Self.testImage)
 
-            print("[k8s-net] k8s load-image --name \(name) \(Self.testImage)")
+            print("[k8s-net] k8s load-image --name \(name) \(Self.testImage.rawValue)")
             let loadResult = try f.run(["k8s", "load-image", "--name", name, Self.testImage.rawValue])
             print("[k8s-net] k8s load-image exit=\(loadResult.status)")
             if loadResult.status != 0 { print("[k8s-net] k8s load-image stderr: \(loadResult.error)") }
@@ -98,14 +98,14 @@ struct TestK8sNetworkingSerial {
                 f, node: name,
                 args: [
                     "run", "test-pod",
-                    "--image=\(Self.testImage)",
+                    "--image=\(Self.testImage.rawValue)",
                     "--image-pull-policy=Never",
                     "--restart=Never",
                     "--", "sleep", "300",
                 ])
             #expect(createStatus == 0)
 
-            try waitForPod(f, node: name, podName: "test-pod")
+            try waitForPod(f, node: name, podName: "test-pod", timeoutSeconds: 300)
 
             let (output, execStatus) = try kubectl(
                 f, node: name,
@@ -133,10 +133,10 @@ struct TestK8sNetworkingSerial {
             }
             try result.check()
 
-            print("[k8s-net] pulling \(Self.testImage)")
+            print("[k8s-net] pulling \(Self.testImage.rawValue)")
             try f.restoreWarmupImage(Self.testImage)
 
-            print("[k8s-net] k8s load-image --name \(name) \(Self.testImage)")
+            print("[k8s-net] k8s load-image --name \(name) \(Self.testImage.rawValue)")
             let loadResult = try f.run(["k8s", "load-image", "--name", name, Self.testImage.rawValue])
             print("[k8s-net] k8s load-image exit=\(loadResult.status)")
             if loadResult.status != 0 { print("[k8s-net] k8s load-image stderr: \(loadResult.error)") }
@@ -147,7 +147,7 @@ struct TestK8sNetworkingSerial {
                 f, node: name,
                 args: [
                     "run", "server",
-                    "--image=\(Self.testImage)",
+                    "--image=\(Self.testImage.rawValue)",
                     "--image-pull-policy=Never",
                     "--restart=Never",
                     "--port=8080",
@@ -155,7 +155,7 @@ struct TestK8sNetworkingSerial {
                     "while true; do printf 'HTTP/1.1 200 OK\\r\\nContent-Length: 2\\r\\nConnection: close\\r\\n\\r\\nok' | nc -l -p 8080; done",
                 ])
             #expect(serverStatus == 0)
-            try waitForPod(f, node: name, podName: "server")
+            try waitForPod(f, node: name, podName: "server", timeoutSeconds: 300)
 
             // Expose server as a ClusterIP service.
             let (_, exposeStatus) = try kubectl(
@@ -170,13 +170,13 @@ struct TestK8sNetworkingSerial {
                 f, node: name,
                 args: [
                     "run", "client",
-                    "--image=\(Self.testImage)",
+                    "--image=\(Self.testImage.rawValue)",
                     "--image-pull-policy=Never",
                     "--restart=Never",
                     "--", "sleep", "300",
                 ])
             #expect(clientStatus == 0)
-            try waitForPod(f, node: name, podName: "client")
+            try waitForPod(f, node: name, podName: "client", timeoutSeconds: 300)
 
             // Reach server via the service DNS name — exercises CoreDNS + kube-proxy.
             print("[k8s-net] wget from client to server-svc:8080")
