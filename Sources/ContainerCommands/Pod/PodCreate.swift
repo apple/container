@@ -82,16 +82,15 @@ extension Application.PodCommand {
             configuration.rosetta = rosetta
             configuration.labels = try Parser.labels(label)
 
-            if !dns.nameservers.isEmpty || dns.domain != nil || !dns.searchDomains.isEmpty || !dns.options.isEmpty {
-                configuration.dns = ContainerConfiguration.DNSConfiguration(
-                    nameservers: dns.nameservers.isEmpty
-                        ? ContainerConfiguration.DNSConfiguration.defaultNameservers
-                        : dns.nameservers,
-                    domain: dns.domain,
-                    searchDomains: dns.searchDomains,
-                    options: dns.options
-                )
-            }
+            // A pod records a DNS configuration whatever it was told, since
+            // what it was not told is filled from the network its machine
+            // comes up on: a record naming no resolver is what asks for that.
+            configuration.dns = ContainerConfiguration.DNSConfiguration(
+                nameservers: dns.nameservers,
+                domain: dns.domain,
+                searchDomains: dns.searchDomains,
+                options: dns.options
+            )
 
             let parsedNetworks = try network.map { try Parser.network($0) }
             let networkClient = NetworkClient()

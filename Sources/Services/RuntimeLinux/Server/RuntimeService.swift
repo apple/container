@@ -1273,23 +1273,25 @@ public actor RuntimeService {
             infos: try message.networkBootstrapInfos()
         )
 
-        // Dynamically configure the DNS nameserver from a network if no explicit
-        // configuration. The network belongs to the pod, so the resolver derived
-        // from it does too, the way it was derived from the machine's attachments
-        // when the machine held the network for one container.
-        // DNS the way the record says: a configuration given but naming no
-        // resolver is filled out from the network, the gateway resolving for
-        // the machine's containers; no configuration at all is the --no-dns
-        // request, and leaves the guest without a resolv.conf.
-        let dns: ContainerConfiguration.DNSConfiguration? = config.dns.map { configured in
-            guard configured.nameservers.isEmpty else { return configured }
-            return ContainerConfiguration.DNSConfiguration(
-                nameservers: self.getDefaultNameservers(from: attachments),
-                domain: configured.domain,
-                searchDomains: configured.searchDomains,
-                options: configured.options
-            )
-        }
+        // DNS the way the record says. A configuration naming no resolver is
+        // filled out from the network, the gateway resolving for the machine's
+        // containers. Nothing recorded is a refusal only where a refusal can
+        // be made: a container declines with --no-dns and the machine made for
+        // it carries that refusal, while a machine someone named holds no such
+        // request and is given the network's resolver, the way it was before
+        // it could be asked.
+        let derived = ContainerConfiguration.DNSConfiguration(
+            nameservers: self.getDefaultNameservers(from: attachments),
+            domain: config.dns?.domain,
+            searchDomains: config.dns?.searchDomains ?? [],
+            options: config.dns?.options ?? []
+        )
+        let dns: ContainerConfiguration.DNSConfiguration? = {
+            guard let configured = config.dns else {
+                return config.isAnonymous ? nil : derived
+            }
+            return configured.nameservers.isEmpty ? derived : configured
+        }()
 
         // One swap area serves the whole pod, which is what makes the pool its
         // containers reclaim to a shared one.
