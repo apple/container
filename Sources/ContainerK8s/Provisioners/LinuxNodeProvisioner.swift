@@ -32,6 +32,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
     private let maxConcurrentDownloads: Int
     private let remove: Bool
     private let fqdn: String?
+    private let publishPorts: [String]
 
     public init(
         clusterName: String,
@@ -42,7 +43,8 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         registryScheme: String = "https",
         maxConcurrentDownloads: Int = 3,
         remove: Bool = false,
-        fqdn: String? = nil
+        fqdn: String? = nil,
+        publishPorts: [String] = []
     ) throws {
         guard !roles.isEmpty else {
             throw ContainerizationError(.invalidArgument, message: "LinuxNode roles must not be empty")
@@ -63,15 +65,24 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         self.maxConcurrentDownloads = maxConcurrentDownloads
         self.remove = remove
         self.fqdn = fqdn
+        self.publishPorts = publishPorts
     }
 
     public func provision(name: String, log: Logger) async throws {
         let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
+
+        // Resolved before the image is fetched, so a bad spec or a taken host port
+        // fails before any pull.
+        let isControlPlane = roles.contains(StandardRoles.controlPlane)
+        let (publishPorts, portWarnings) = try await K8sHelper.composePublishPorts(
+            userSpecs: publishPorts,
+            allocateAPIServer: isControlPlane && fqdn == nil)
+        for warning in portWarnings {
+            log.warning("\(warning)")
+        }
+
         let resolvedImage = nodeImage ?? K8sHelper.nodeImage
         try await K8sHelper.ensureImage(nodeImage: resolvedImage, log: log, containerSystemConfig: containerSystemConfig)
-
-        let isControlPlane = roles.contains(StandardRoles.controlPlane)
-        let publishPorts = isControlPlane && fqdn == nil ? [try await K8sHelper.clusterPort()] : []
 
         let management = Flags.Management(
             arch: Arch.hostArchitecture().rawValue,
