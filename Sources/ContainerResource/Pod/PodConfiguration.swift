@@ -93,7 +93,6 @@ public struct PodConfiguration: Sendable, Codable {
         runtimeHandler = container.runtimeHandler
         resources = container.resources
         dns = container.dns
-        sysctls = container.sysctls
         networks = container.networks
         publishedPorts = container.publishedPorts
         virtualization = container.virtualization
