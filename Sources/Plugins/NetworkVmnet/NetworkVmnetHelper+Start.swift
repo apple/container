@@ -141,7 +141,17 @@ extension NetworkVmnetHelper {
                 }
 
                 log.info("starting XPC server")
-                try await xpc.listen()
+                do {
+                    try await xpc.listen()
+                } catch {
+                    // Whatever ends the wait, the addresses go back: a helper
+                    // that leaves holding them leaves them held by nobody, and
+                    // the next network asking for that range is refused with
+                    // no interface, route, or process to point at.
+                    await network.stop()
+                    throw error
+                }
+                await network.stop()
             } catch {
                 log.error(
                     "helper failed",
