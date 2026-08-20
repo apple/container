@@ -402,14 +402,16 @@ public actor ContainersService {
                     "id": "\(configuration.id)"
                 ]
             )
-            let initFilesystem = try await self.getInitBlock(for: systemPlatform.ociPlatform(), imageRef: initImage)
+            let (initFilesystem, initDescription) = try await self.getInitBlock(for: systemPlatform.ociPlatform(), imageRef: initImage)
 
             guard let podsService = await self.podsService else {
                 throw ContainerizationError(.internalError, message: "no pod service to make pod \(configuration.pod)")
             }
             do {
+                var podConfiguration = PodConfiguration(sandboxFor: configuration)
+                podConfiguration.initImage = initDescription
                 try await podsService.create(
-                    configuration: PodConfiguration(sandboxFor: configuration),
+                    configuration: podConfiguration,
                     kernel: kernel,
                     initialFilesystem: initFilesystem
                 )
@@ -1179,12 +1181,12 @@ public actor ContainersService {
         return options
     }
 
-    private func getInitBlock(for platform: Platform, imageRef: String? = nil) async throws -> Filesystem {
+    private func getInitBlock(for platform: Platform, imageRef: String? = nil) async throws -> (Filesystem, ImageDescription) {
         let ref = imageRef ?? containerSystemConfig.vminit.image
         let initImage = try await ClientImage.fetch(reference: ref, platform: platform, containerSystemConfig: containerSystemConfig)
         var fs = try await initImage.getCreateSnapshot(platform: platform)
         fs.options = ["ro"]
-        return fs
+        return (fs, initImage.description)
     }
 
     private static func registerService(

@@ -222,21 +222,25 @@ public actor PodsService {
         try self._getPodState(id: id).getClient()
     }
 
-    /// The initial filesystem a pod's machine boots, which holds the agent.
-    private func getInitBlock(for platform: Platform, imageRef: String? = nil) async throws -> Filesystem {
+    /// The initial filesystem a pod's machine boots, which holds the agent,
+    /// and the image it was taken from.
+    private func getInitBlock(for platform: Platform, imageRef: String? = nil) async throws -> (Filesystem, ImageDescription) {
         let ref = imageRef ?? containerSystemConfig.vminit.image
         let initImage = try await ClientImage.fetch(reference: ref, platform: platform, containerSystemConfig: containerSystemConfig)
         var fs = try await initImage.getCreateSnapshot(platform: platform)
         fs.options = ["ro"]
-        return fs
+        return (fs, initImage.description)
     }
 
     /// Write down a pod that boots the init image named, or the default one.
     public func create(configuration: PodConfiguration, kernel: Kernel, initImage: String? = nil) async throws {
+        let (initialFilesystem, description) = try await self.getInitBlock(for: kernel.platform.ociPlatform(), imageRef: initImage)
+        var configuration = configuration
+        configuration.initImage = description
         try await self.create(
             configuration: configuration,
             kernel: kernel,
-            initialFilesystem: try await self.getInitBlock(for: kernel.platform.ociPlatform(), imageRef: initImage)
+            initialFilesystem: initialFilesystem
         )
     }
 

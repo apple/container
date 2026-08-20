@@ -75,6 +75,15 @@ public struct PodConfiguration: Sendable, Codable {
     /// Configured platform for the pod.
     public var platform: ContainerizationOCI.Platform = .current
 
+    /// The init image the pod's machine boots.
+    ///
+    /// A pod clones the image's filesystem when it is made and boots that
+    /// clone for as long as it lives, so the image it was made from is the
+    /// only account of which agent its containers talk to. A caller comparing
+    /// this against the init image the runtime is configured with is asking
+    /// whether the machine still matches the plane driving it.
+    public var initImage: ImageDescription?
+
     /// The time at which the pod was created.
     public var creationDate: Date = Date()
 
