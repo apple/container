@@ -39,7 +39,6 @@ public actor VolumesService {
     private static let blockFile = "volume.img"
 
     public init(resourceRoot: FilePath, log: Logger) async throws {
-        try FileManager.default.createDirectory(atPath: resourceRoot.string, withIntermediateDirectories: true)
         self.resourceRoot = resourceRoot
         self.store = try FilesystemEntityStore<VolumeConfiguration>(path: resourceRoot, type: "volumes", log: log)
         self.log = log

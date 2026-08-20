@@ -167,6 +167,17 @@ public actor RuntimeService {
             // the machine does not hold yet goes in, and the machine stays as
             // it is.
             guard await self.state == .created else {
+                // A machine on its way down takes no more containers: placing
+                // one in it leaves a start that reported success and a
+                // container that never ran, which is what the caller is told
+                // instead.
+                let held = await self.state
+                guard held != .stopping, held != .stopped, held != .shuttingDown else {
+                    throw ContainerizationError(
+                        .invalidState,
+                        message: "the machine is \(held) and takes no containers; wait for it to stop and start it again"
+                    )
+                }
                 try await self.placeContainers(message)
                 return message.reply()
             }

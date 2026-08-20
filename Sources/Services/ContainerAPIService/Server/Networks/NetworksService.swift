@@ -59,7 +59,6 @@ public actor NetworksService {
         self.log = log
         self.debugHelpers = debugHelpers
 
-        try FileManager.default.createDirectory(atPath: resourceRoot.string, withIntermediateDirectories: true)
         self.store = try FilesystemEntityStore<NetworkConfiguration>(
             path: resourceRoot,
             type: "network",
@@ -108,7 +107,7 @@ public actor NetworksService {
             do {
                 do {
                     try await registerService(configuration: effectiveConfiguration)
-                } catch where effectiveConfiguration.id == NetworkClient.defaultNetworkName && effectiveConfiguration.ipv4Subnet != nil {
+                } catch  where effectiveConfiguration.id == NetworkClient.defaultNetworkName && effectiveConfiguration.ipv4Subnet != nil {
                     // The range the default network asks for is the one it was
                     // given last time, which is a preference and not a demand:
                     // a range held by something else, or reserved to a network

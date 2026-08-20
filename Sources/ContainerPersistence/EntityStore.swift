@@ -45,6 +45,11 @@ public actor FilesystemEntityStore<T>: EntityStore where T: Codable & Identifiab
         self.path = path
         self.type = type
         self.log = log
+        // The store keeps what it holds under this directory, so it is the
+        // store's to make: a caller that has never written an entity has no
+        // reason to have made somewhere to put them, and a store that reads
+        // before anything is written finds nothing rather than failing.
+        try FileManager.default.createDirectory(atPath: path.string, withIntermediateDirectories: true)
         self.index = try Self.load(path: path, log: log)
     }
 

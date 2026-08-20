@@ -98,6 +98,17 @@ extension Application {
                 if detach {
                     try await process.start()
                     try io.closeAfterStart()
+                    // What this command says it did is that the container is
+                    // running, so it says so only once the container answers
+                    // that it is: a caller starting a container and then using
+                    // it has nothing else to go on.
+                    let started = try await client.get(id: container.id)
+                    guard started.status == .running else {
+                        throw ContainerizationError(
+                            .invalidState,
+                            message: "container \(container.id) did not start; it is \(started.status)"
+                        )
+                    }
                     print(self.containerId)
                     return
                 }

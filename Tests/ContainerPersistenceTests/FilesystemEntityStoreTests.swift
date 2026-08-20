@@ -171,6 +171,19 @@ struct FilesystemEntityStoreTests {
         }
     }
 
+    @Test func testStoreMakesSomewhereToKeepWhatItHolds() async throws {
+        try await TemporaryStorage.withTempDir { path in
+            // Nothing has been written yet, so the directory the store keeps
+            // its entities under is not there to be read.
+            let fresh = path.appending("never-written")
+            let store = try Self.makeStore(at: fresh)
+
+            #expect(try await store.list().isEmpty)
+            try await store.create(Item(id: "foo", value: "hello"))
+            #expect(try await store.retrieve("foo")?.value == "hello")
+        }
+    }
+
     private static func makeStore(at path: FilePath) throws -> FilesystemEntityStore<Item> {
         try FilesystemEntityStore<Item>(path: path, type: "item", log: Logger(label: "test"))
     }
