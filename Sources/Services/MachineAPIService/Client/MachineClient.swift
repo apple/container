@@ -31,6 +31,7 @@ public struct MachineClient: Sendable {
         id: String,
         image: String,
         management: Flags.MachineManagement,
+        user: Flags.MachineUser,
         registry: Flags.Registry,
         imageFetch: Flags.ImageFetch,
         containerSystemConfig: ContainerSystemConfig,
@@ -68,10 +69,14 @@ public struct MachineClient: Sendable {
             platform: requestedPlatform,
             progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: progressUpdate))
 
+        let (username, uid, gid) = try Parser.userAccount(
+            user: user.user, uid: user.uid, gid: user.gid,
+            defaultUsername: NSUserName(), defaultUID: getuid(), defaultGID: getgid())
         let userSetup = UserSetup(
-            username: NSUserName(),
-            uid: getuid(),
-            gid: getgid())
+            username: username,
+            uid: uid,
+            gid: gid,
+            home: user.home)
 
         let config = try MachineConfiguration(
             id: id,

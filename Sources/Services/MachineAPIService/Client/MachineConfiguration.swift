@@ -26,19 +26,26 @@ public struct UserSetup: Sendable, Codable, Equatable {
     public var username: String
     public var uid: UInt32
     public var gid: UInt32
-
-    public var home: String {
-        "/home/\(username)"
-    }
+    public var home: String
 
     public var user: ProcessConfiguration.User {
         .id(uid: uid, gid: gid)
     }
 
-    public init(username: String, uid: UInt32, gid: UInt32) {
+    public init(username: String, uid: UInt32, gid: UInt32, home: String? = nil) {
         self.username = username
         self.uid = uid
         self.gid = gid
+        self.home = home ?? "/home/\(username)"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.username = try container.decode(String.self, forKey: .username)
+        self.uid = try container.decode(UInt32.self, forKey: .uid)
+        self.gid = try container.decode(UInt32.self, forKey: .gid)
+        // DEPRECATED 0.16.0.0 - `decodeIfPresent` used for down-revision compatibility, remove in 0.18.0.0
+        self.home = try container.decodeIfPresent(String.self, forKey: .home) ?? "/home/\(self.username)"
     }
 }
 

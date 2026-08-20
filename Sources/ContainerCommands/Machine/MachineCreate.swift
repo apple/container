@@ -35,6 +35,9 @@ extension Application {
         @OptionGroup(title: "Management options")
         var managementFlags: Flags.MachineManagement
 
+        @OptionGroup(title: "User options")
+        var userFlags: Flags.MachineUser
+
         @OptionGroup(title: "Registry options")
         var registryFlags: Flags.Registry
 
@@ -125,6 +128,7 @@ extension Application {
                 id: id,
                 image: image,
                 management: managementFlags,
+                user: userFlags,
                 registry: registryFlags,
                 imageFetch: imageFetchFlags,
                 containerSystemConfig: containerSystemConfig,
