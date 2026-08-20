@@ -32,6 +32,16 @@ public struct UserSetup: Sendable, Codable, Equatable {
         .id(uid: uid, gid: gid)
     }
 
+    /// The `CONTAINER_*` environment variables `MachineUserSetup.script` expects.
+    public var processEnvironment: [String] {
+        [
+            "CONTAINER_USER=\(username)",
+            "CONTAINER_HOME=\(home)",
+            "CONTAINER_UID=\(uid)",
+            "CONTAINER_GID=\(gid)",
+        ]
+    }
+
     public init(username: String, uid: UInt32, gid: UInt32, home: String? = nil) {
         self.username = username
         self.uid = uid
@@ -74,13 +84,8 @@ public struct MachineConfiguration: Sendable, Codable {
     public var processEnvironment: [String] {
         [
             "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-
             "CONTAINER_MACHINE_ID=\(id)",
-            "CONTAINER_USER=\(userSetup.username)",
-            "CONTAINER_HOME=\(userSetup.home)",
-            "CONTAINER_UID=\(userSetup.uid)",
-            "CONTAINER_GID=\(userSetup.gid)",
-        ]
+        ] + userSetup.processEnvironment
     }
 
     public var dnsName: String {

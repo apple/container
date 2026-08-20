@@ -20,9 +20,14 @@
 /// /etc/group, /etc/passwd, and /etc/shadow rather than relying on
 /// image-specific tools (useradd, adduser, etc.).
 ///
-/// Safe to run on every boot: user/group/shadow creation and home directory
-/// population only happen once (guarded by `getent`), while the sudoers
-/// entry is cheaply reasserted every run.
+/// Safe to run on every boot: user/shadow creation and home directory
+/// population only happen once (guarded by looking the account up by both
+/// uid and username), while the sudoers entry is cheaply reasserted every
+/// run. If the image already has a *different* account using the requested
+/// uid or username, or anything already exists at the requested home path,
+/// setup fails loudly instead of silently skipping — proceeding could mean
+/// resolving to the wrong account, creating a duplicate/ambiguous passwd
+/// entry, or recursively chowning pre-existing content that isn't ours.
 ///
 /// Expects CONTAINER_USER, CONTAINER_UID, CONTAINER_GID, and CONTAINER_HOME
 /// to be set in the environment.
@@ -46,7 +51,21 @@ public enum MachineUserSetup {
             echo "${CONTAINER_USER}:x:${CONTAINER_GID}:" >> /etc/group
         fi
 
-        if ! getent passwd "${CONTAINER_UID}" >/dev/null 2>&1; then
+        existing_by_uid=$(getent passwd "${CONTAINER_UID}" 2>/dev/null) || true
+        existing_by_name=$(getent passwd "${CONTAINER_USER}" 2>/dev/null) || true
+
+        if [ -n "${existing_by_uid}" ] || [ -n "${existing_by_name}" ]; then
+            if [ "${existing_by_uid}" != "${existing_by_name}" ]; then
+                echo "container machine: refusing to provision user '${CONTAINER_USER}' (uid ${CONTAINER_UID}): a different account in this image already uses this uid or username" >&2
+                exit 1
+            fi
+            # Otherwise this is our own account from a previous boot: nothing to do.
+        else
+            if [ -e "${CONTAINER_HOME}" ]; then
+                echo "container machine: refusing to use existing path '${CONTAINER_HOME}' as the home directory for user '${CONTAINER_USER}'" >&2
+                exit 1
+            fi
+
             echo "${CONTAINER_USER}:x:${CONTAINER_UID}:${CONTAINER_GID}::${CONTAINER_HOME}:${CONTAINER_SHELL}" >> /etc/passwd
             echo "${CONTAINER_USER}:!:19000:0:99999:7:::" >> /etc/shadow
 

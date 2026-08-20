@@ -151,7 +151,7 @@ extension Application {
             }
 
             if !noBoot {
-                try await bootMachine(id: id, client: client, log: log, interactive: false)
+                try await bootMachine(id: id, client: client, log: log)
             }
 
             print(id)
