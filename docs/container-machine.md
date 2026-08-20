@@ -2,6 +2,19 @@
 
 Container machine provides a highly integrated Linux environment that works seamlessly on your Mac. Container machines are fast, lightweight and persistent. They are based on standard OCI images that can be built and shared. Host integrations such as automatic user and home directory sharing provide quick and easy access to your Linux environment no matter where you are in a terminal.
 
+> [!WARNING]
+> Container machine trades away most of the isolation that makes a regular Apple container safer for running untrusted code. Only create container machines from images you trust.
+>
+> A container machine image supplies its own `/sbin/init` that serves as the entry point for the machine, running as the OS init process (PID 1). It can do anything a Linux process running as root can do, including everything the image's init system chooses to start afterward (services, cron jobs, and anything else). Compared to a default `container run`/`create` container, that process — and everything it starts — has access to far more of your host. A container machine:
+>
+> - Mounts your macOS home directory into the guest **read-write, at the same path**, by default — not a scoped volume you opt into, but transparent access to your repos, dotfiles, and anything else under `$HOME`. Equivalent to `container create -v "${HOME}:${HOME}"`.
+> - Forwards your host `SSH_AUTH_SOCK` into the guest, so anything running in the machine can use your ssh-agent to act as you (e.g. for `git`/`ssh` operations) without ever seeing your private key material directly. Equivalent to `container create --ssh`.
+> - Runs with **all Linux capabilities added** and **no masked or read-only `/proc`/`/sys` paths** — the hardening a regular container gets by default is deliberately not applied here, since the image's own init system needs to behave like a full Linux install. Equivalent to `container create --cap-add all --masked-path NONE --read-only-path NONE`.
+> - Is long-lived and persistent, like a real machine, rather than a single scoped, short-lived process — more running services and listening ports over its lifetime, not fewer. There's no regular-container equivalent for this; it follows from running a full init system indefinitely rather than one scoped command.
+> - Provisions a guest account with **passwordless sudo** (`NOPASSWD:ALL`) by default, mapped to your host UID/GID — root inside the guest can write anywhere in your mounted home directory as you. There's no regular-container equivalent for this either; it's account provisioning inside the guest, not a container runtime option.
+>
+> Container machine is designed for transparent host integration — running an image is much closer to running a macOS program directly on your host than to running a regular container. Treat the images you boot as machines with exactly that level of trust.
+
 ## Why container machines
 
 Containers are typically modeled after an application. A container machine is modeled after a Linux environment. It runs the image's init system allowing you to register long running services or test your application under a process supervisor.
@@ -140,10 +153,12 @@ container build -t local/ubuntu-machine:latest .
 container machine create local/ubuntu-machine:latest --name ubuntu
 ```
 
-By default, `container` runs a built-in setup script on first boot to provision the user described above. To use your own setup instead, add an executable script at `/etc/machine/create-user.sh` to the image. It runs once, as root, on first boot, with these variables set:
+On every boot, `container` provisions the container machine user by directly editing `/etc/passwd`, `/etc/group`, and `/etc/shadow` — no distro-specific tooling (`useradd`, `adduser`, etc.) required. This is idempotent and safe to re-run: it's a no-op for anything that already exists, and it reapplies passwordless sudo access each time in case anything in the image removed it.
 
-- `CONTAINER_GID`
-- `CONTAINER_HOME`
-- `CONTAINER_MACHINE_ID`
-- `CONTAINER_UID`
-- `CONTAINER_USER`
+By default the account matches your host user (username, uid, gid, and home directory `/home/<user>`). Override any of these at creation time:
+
+```bash
+container machine create --user devuser --uid 1500 --gid 1600 --home /srv/devhome alpine:latest --name dev
+```
+
+`--user` accepts `name`, `uid`, or `name|uid:gid` (the group must be numeric — there's no existing account to resolve a group name against). `--uid`/`--gid` set the pieces `--user` didn't specify; any piece left fully unset falls back to the host user's.
