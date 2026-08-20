@@ -35,10 +35,14 @@ func resolveMachineId(_ id: String?, client: MachineClient) async throws -> Stri
     return defaultId
 }
 
-/// Boots a container machine and, on first ever boot, runs the in-VM init script
-/// to set up the host user. Returns the resulting snapshot.
+/// Boots a container machine and runs user setup inside the guest. Returns the
+/// resulting snapshot.
 ///
-/// When `interactive` is true the init script is wired to the host's terminal
+/// User setup runs on every boot, not just the first: it's idempotent, so this
+/// keeps the container user provisioned even if it's ever ended up in a
+/// half-configured state.
+///
+/// When `interactive` is true the setup process is wired to the host's terminal
 /// (used by `machine run`); otherwise it runs detached so non-TTY callers like
 /// `machine create` don't require a TTY or pollute host stdout.
 ///
@@ -55,10 +59,6 @@ func bootMachine(
         dynamicEnv["SSH_AUTH_SOCK"] = sshAuthSock
     }
     let snapshot = try await client.boot(id: id, dynamicEnv: dynamicEnv)
-
-    guard !snapshot.initialized else {
-        return snapshot
-    }
 
     do {
         guard let containerId = snapshot.containerId else {
@@ -78,8 +78,8 @@ func bootMachine(
         }
 
         let processConfig = ProcessConfiguration(
-            executable: "/\(MachineBundle.sbinDirectory)/\(MachineBundle.initFile)",
-            arguments: ["-u"],
+            executable: "/bin/sh",
+            arguments: ["-c", MachineUserSetup.script],
             environment: snapshot.configuration.processEnvironment,
             terminal: interactive
         )

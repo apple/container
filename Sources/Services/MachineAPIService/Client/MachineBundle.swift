@@ -24,7 +24,6 @@ public struct MachineBundle: Sendable {
     private static let rootfsBlockFile = FilePath.Component("rootfs.ext4")
     private static let rootfsFile = FilePath.Component("rootfs.json")
     private static let configFile = FilePath.Component("config.json")
-    private static let userSetupFile = FilePath.Component("create-user.sh")
     private static let bootLogFile = FilePath.Component("vminitd.log")
     private static let stdioLogFile = FilePath.Component("stdio.log")
 
@@ -152,18 +151,10 @@ extension MachineBundle {
 
         let sbin = path.appending(sbinDirectory)
         let initPath = sbin.appending(initFile)
-        let setupScriptPath = sbin.appending(userSetupFile)
         let initializedPath = path.appending(initializedFile)
 
         try fm.createDirectory(atPath: sbin.string, withIntermediateDirectories: true)
         try fm.copyItem(atPath: resourceRoot.appending(initFile).string, toPath: initPath.string)
-
-        if let setupScript = resources?.setupScript {
-            try setupScript.write(toFile: setupScriptPath.string, atomically: true, encoding: .utf8)
-            try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: setupScriptPath.string)
-        } else {
-            try fm.copyItem(atPath: resourceRoot.appending(userSetupFile).string, toPath: setupScriptPath.string)
-        }
 
         guard fm.createFile(atPath: initializedPath.string, contents: "".data(using: .utf8)) else {
             throw ContainerizationError(.internalError, message: "failed to create \(initializedPath.string)")
@@ -179,14 +170,9 @@ extension MachineBundle {
 
         let sbin = path.appending(sbinDirectory)
         let initPath = sbin.appending(initFile)
-        let setupScriptPath = sbin.appending(userSetupFile)
         let initializedPath = path.appending(initializedFile)
 
         try fm.createDirectory(atPath: sbin.string, withIntermediateDirectories: true)
-
-        if !fm.fileExists(atPath: setupScriptPath.string) {
-            try fm.copyItem(atPath: resourceRoot.appending(userSetupFile).string, toPath: setupScriptPath.string)
-        }
 
         if fm.fileExists(atPath: initPath.string) {
             try fm.removeItem(atPath: initPath.string)

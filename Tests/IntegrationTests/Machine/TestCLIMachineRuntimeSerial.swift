@@ -578,6 +578,33 @@ struct TestCLIMachineRuntimeSerial {
         }
     }
 
+    @Test func testUserSetupRerunsAcrossRestart() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+            try f.doMachineCreate(name: name, image: machineImage)
+            try f.doMachineBoot(name: name)
+            try await f.waitForMachineStatus(name, status: "running")
+            try f.doMachineStop(name: name)
+
+            try f.doMachineBoot(name: name)
+            try await f.waitForMachineStatus(name, status: "running")
+
+            let username = NSUserName()
+            let passwdCount = try f.doMachineRun(
+                name: name, root: true,
+                command: ["grep", "-c", "^\(username):", "/etc/passwd"]
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(passwdCount == "1", "user setup re-running on restart should not duplicate the passwd entry")
+
+            let sudoers = try f.doMachineRun(
+                name: name, root: true,
+                command: ["cat", "/etc/sudoers.d/\(username)"]
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(sudoers == "\(username) ALL=(ALL) NOPASSWD:ALL")
+        }
+    }
+
     // MARK: - set tests
 
     @Test func testSetCpus() async throws {
