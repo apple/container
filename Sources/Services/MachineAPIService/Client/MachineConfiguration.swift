@@ -54,7 +54,9 @@ public struct UserSetup: Sendable, Codable, Equatable {
         self.username = try container.decode(String.self, forKey: .username)
         self.uid = try container.decode(UInt32.self, forKey: .uid)
         self.gid = try container.decode(UInt32.self, forKey: .gid)
-        // DEPRECATED 0.16.0.0 - `decodeIfPresent` used for down-revision compatibility, remove in 0.18.0.0
+        // DEPRECATED 1.3.0 - `decodeIfPresent` used for down-revision compatibility with bundles
+        // persisted before `home` existed; replace with plain `decode` once compatibility with
+        // pre-1.3.0 bundles is no longer required (2.0.0).
         self.home = try container.decodeIfPresent(String.self, forKey: .home) ?? "/home/\(self.username)"
     }
 }
