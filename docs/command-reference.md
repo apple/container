@@ -1126,6 +1126,13 @@ container machine create [<options>] <image>
 *   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
 *   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
 
+**User Options**
+
+*   `-u, --user <user>`: Set the user for the container machine account (format: name|uid[:gid]). Defaults to the host user
+*   `--uid <uid>`: Set the user ID for the container machine account. Defaults to the host user's
+*   `--gid <gid>`: Set the group ID for the container machine account. Defaults to the host user's
+*   `--home <home>`: Set the home directory for the container machine account. Defaults to /home/<user>
+
 **Registry Options**
 
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https) (default: https)
