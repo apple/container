@@ -67,7 +67,7 @@ public enum MachineUserSetup {
             fi
 
             echo "${CONTAINER_USER}:x:${CONTAINER_UID}:${CONTAINER_GID}::${CONTAINER_HOME}:${CONTAINER_SHELL}" >> /etc/passwd
-            echo "${CONTAINER_USER}:!:19000:0:99999:7:::" >> /etc/shadow
+            echo "${CONTAINER_USER}:!:$(($(date +%s) / 86400)):0:99999:7:::" >> /etc/shadow
 
             mkdir -p "${CONTAINER_HOME}"
             if [ -d /etc/skel ]; then

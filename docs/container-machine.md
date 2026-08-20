@@ -116,7 +116,16 @@ container machine set -n dev kernel=
 
 ## Bring your own container machine image
 
-Any Linux image that includes `/sbin/init` works as a container machine. For example, this Dockerfile builds an Ubuntu 24.04 container machine image with `systemd` and common command-line tools:
+Any Linux image that includes `/sbin/init` works as a container machine. Beyond that, the built-in user setup described below needs a few common tools already present in most general-purpose distro images — setup fails if any of these are missing:
+
+- A POSIX shell at `/bin/sh` (busybox's `ash`/`dash`, or `bash`, both work) — what the setup script itself runs as.
+- `getent`, to check for existing accounts/groups by uid, gid, or name.
+- `date` with `%s` support (seconds since epoch), to timestamp the new account.
+- `chown`, `mkdir`, `cp`, and `tr` — standard coreutils/busybox utilities.
+
+Setup also always writes a passwordless-sudo grant to `/etc/sudoers.d/<user>`, but that's just a file — it does nothing unless `sudo` is installed and configured to read `/etc/sudoers.d/` (the default on virtually every distro). If `sudo` is missing, setup still succeeds; the grant is simply inert.
+
+For example, this Dockerfile builds an Ubuntu 24.04 container machine image with `systemd` and common command-line tools (including `sudo`, satisfying the last requirement above):
 
 ```dockerfile
 FROM ubuntu:24.04
