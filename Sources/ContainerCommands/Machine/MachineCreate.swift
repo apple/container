@@ -124,7 +124,7 @@ extension Application {
             }
 
             let client = MachineClient()
-            let (config, resources) = try await MachineClient.machineConfigFromFlags(
+            let config = try await MachineClient.machineConfigFromFlags(
                 id: id,
                 image: image,
                 management: managementFlags,
@@ -136,7 +136,7 @@ extension Application {
             )
 
             do {
-                try await client.create(configuration: config, resources: resources, bootConfig: bootConfig)
+                try await client.create(configuration: config, bootConfig: bootConfig)
                 progress.finish()  // Finish before subsequent output to avoid mangling
             } catch let error as ContainerizationError {
                 if let cause = error.cause as? ContainerizationError, cause.isCode(.exists) {

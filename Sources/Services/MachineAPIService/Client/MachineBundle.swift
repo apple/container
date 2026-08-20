@@ -105,39 +105,11 @@ public struct MachineBundle: Sendable {
     }
 }
 
-/// Metadata from an OCI artifact or in-image file that describes how a container machine
-/// should be configured (shell, user creation script, etc.).
-public struct MachineResources: Sendable, Codable, Equatable {
-    /// The media type for container machine configuration artifacts.
-    public static let configMediaType = "application/vnd.apple.container.machine.config.v1+json"
-
-    /// The media type for container machine user setup scripts.
-    public static let setupScriptMediaType = "application/vnd.apple.container.machine.setup.v1+sh"
-
-    public var schemaVersion: Int
-    public var shell: String?
-    public var setupScript: String?
-
-    public init(schemaVersion: Int = 1, shell: String? = nil, setupScript: String? = nil) {
-        self.schemaVersion = schemaVersion
-        self.shell = shell
-        self.setupScript = setupScript
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.schemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
-        self.shell = try container.decodeIfPresent(String.self, forKey: .shell)
-        self.setupScript = try container.decodeIfPresent(String.self, forKey: .setupScript)
-    }
-}
-
 extension MachineBundle {
     public static func create(
         path: FilePath,
         machineConfiguration: MachineConfiguration,
         resourceRoot: FilePath,
-        resources: MachineResources?,
         bootConfig: MachineConfig,
     ) throws -> MachineBundle {
         let fm = FileManager.default
