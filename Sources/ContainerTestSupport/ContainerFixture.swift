@@ -163,11 +163,16 @@ public final class ContainerFixture: Sendable {
     /// process launch error). A non-zero exit status is represented in
     /// ``CommandResult/status`` — call ``CommandResult/check(_:)`` to turn it
     /// into a thrown error.
+    /// The command runs with the environment this process holds, which `env`
+    /// adds to and `unsetEnv` takes from. A command whose behaviour turns on a
+    /// variable being absent needs the second: setting it to the empty string
+    /// says the variable is there and empty, which is a different thing to say.
     public func run(
         _ arguments: [String],
         stdin: Data? = nil,
         currentDirectory: FilePath? = nil,
         env: [String: String] = [:],
+        unsetEnv: [String] = [],
         pty: Bool = false
     ) throws -> CommandResult {
         let seq = Self.commandSeq.withLock { n in
@@ -182,9 +187,10 @@ public final class ContainerFixture: Sendable {
         process.executableURL = try executableURL
         process.arguments = arguments
         if let dir = currentDirectory { process.currentDirectoryURL = URL(filePath: dir.string) }
-        if !env.isEmpty {
+        if !env.isEmpty || !unsetEnv.isEmpty {
             var e = ProcessInfo.processInfo.environment
             for (k, v) in env { e[k] = v }
+            for k in unsetEnv { e.removeValue(forKey: k) }
             process.environment = e
         }
 

@@ -40,6 +40,13 @@ public struct Bundle: Sendable {
         self.path.appendingPathComponent("vminitd.log")
     }
 
+    /// The stable host side of the container's ssh agent forwarding: a
+    /// symlink the relay resolves on every guest connection, so pointing it
+    /// somewhere new hands the guest whichever agent socket it names next.
+    public var sshAuthSocketLink: URL {
+        self.path.appendingPathComponent("ssh-auth.sock.link")
+    }
+
     public var containerRootfsBlock: URL {
         self.path.appendingPathComponent(Self.containerRootFsBlockFilename)
     }

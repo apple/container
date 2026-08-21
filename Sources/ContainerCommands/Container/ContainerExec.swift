@@ -84,11 +84,21 @@ extension Application {
                     try? io.close()
                 }
 
+                // The caller's agent, when it has one, rides along so the
+                // runtime can point the container's ssh forwarding at it. A
+                // caller with none says nothing, and the forwarding stays
+                // where the last caller who named one put it.
+                var dynamicEnv: [String: String] = [:]
+                if let agent = ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] {
+                    dynamicEnv["SSH_AUTH_SOCK"] = agent
+                }
+
                 let process = try await client.createProcess(
                     containerId: container.id,
                     processId: UUID().uuidString.lowercased(),
                     configuration: config,
-                    stdio: io.stdio
+                    stdio: io.stdio,
+                    dynamicEnv: dynamicEnv
                 )
 
                 if self.detach {

@@ -329,7 +329,8 @@ public struct ContainerClient: Sendable {
         containerId: String,
         processId: String,
         configuration: ProcessConfiguration,
-        stdio: [FileHandle?]
+        stdio: [FileHandle?],
+        dynamicEnv: [String: String] = [:]
     ) async throws -> ClientProcess {
         do {
             let request = XPCMessage(route: .containerCreateProcess)
@@ -338,6 +339,11 @@ public struct ContainerClient: Sendable {
 
             let data = try JSONEncoder().encode(configuration)
             request.set(key: .processConfig, value: data)
+
+            if !dynamicEnv.isEmpty {
+                let env = try JSONEncoder().encode(dynamicEnv)
+                request.set(key: .dynamicEnv, value: env)
+            }
 
             for (i, h) in stdio.enumerated() {
                 let key: XPCKeys = try {

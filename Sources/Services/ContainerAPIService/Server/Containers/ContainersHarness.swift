@@ -282,12 +282,15 @@ public struct ContainersHarness: Sendable {
         }
         let config = try message.processConfig()
         let stdio = message.stdio()
+        let data = message.dataNoCopy(key: .dynamicEnv)
+        let dynamicEnv = try data.map { try JSONDecoder().decode([String: String].self, from: $0) } ?? [:]
 
         try await service.createProcess(
             id: id,
             processID: processID,
             config: config,
-            stdio: stdio
+            stdio: stdio,
+            dynamicEnv: dynamicEnv
         )
 
         return message.reply()

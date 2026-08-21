@@ -172,11 +172,15 @@ extension RuntimeClient {
         return try response.sandboxSnapshot()
     }
 
-    public func createProcess(_ id: String, config: ProcessConfiguration, stdio: [FileHandle?]) async throws {
+    public func createProcess(_ id: String, config: ProcessConfiguration, stdio: [FileHandle?], dynamicEnv: [String: String] = [:]) async throws {
         let request = self.request(RuntimeRoutes.createProcess.rawValue)
         request.set(key: RuntimeKeys.id.rawValue, value: id)
         let data = try JSONEncoder().encode(config)
         request.set(key: RuntimeKeys.processConfig.rawValue, value: data)
+        if !dynamicEnv.isEmpty {
+            let env = try JSONEncoder().encode(dynamicEnv)
+            request.set(key: RuntimeKeys.dynamicEnv.rawValue, value: env)
+        }
 
         for (i, h) in stdio.enumerated() {
             let key: RuntimeKeys = try {
