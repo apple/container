@@ -22,15 +22,12 @@ import SystemPackage
 
 extension Utility {
     public static func createPluginLoader(log: Logger) async throws -> PluginLoader {
-        let installRootPath = CommandLine.executablePath
-            .removingLastComponent()
-            .removingLastComponent()
+        let health = try await ClientHealthCheck.ping(timeout: .seconds(10))
         // TODO: Remove when we convert PluginLoader to FilePath.
-        let installRootURL = URL(fileURLWithPath: installRootPath.string)
-        let pluginsURL = PluginLoader.userPluginsDir(installRoot: installRootURL)
+        let installRootPath = FilePath(health.installRoot.path(percentEncoded: false))
+        let userPluginsURL = PluginLoader.userPluginsDir(installRoot: health.installRoot)
         var directoryExists: ObjCBool = false
-        _ = FileManager.default.fileExists(atPath: pluginsURL.path, isDirectory: &directoryExists)
-        let userPluginsURL = directoryExists.boolValue ? pluginsURL : nil
+        _ = FileManager.default.fileExists(atPath: userPluginsURL.path, isDirectory: &directoryExists)
 
         // plugins built into the application installed as a macOS app bundle
         let appBundlePluginsURL = Bundle.main.resourceURL?.appending(path: "plugins")
@@ -43,7 +40,7 @@ extension Utility {
             .appending(FilePath.Component("plugins"))
         let installRootPluginsURL = URL(fileURLWithPath: installRootPluginsPath.string)
         let pluginDirectories = [
-            userPluginsURL,
+            directoryExists.boolValue ? userPluginsURL : nil,
             appBundlePluginsURL,
             installRootPluginsURL,
         ].compactMap { $0 }

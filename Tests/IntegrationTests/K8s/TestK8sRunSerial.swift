@@ -23,27 +23,6 @@ import Yams
 @Suite(.serialized)
 struct TestK8sRunSerial {
 
-    private func dumpNodeDiagnostics(_ f: ContainerFixture, node: String) {
-        print("=== NODE DIAGNOSTICS [\(node)] ===")
-        let cmds: [(label: String, args: [String])] = [
-            ("ip-link", ["ip", "link", "show"]),
-            ("iptables-mss", ["iptables", "-t", "mangle", "-L", "-n", "-v"]),
-            ("containerd", ["systemctl", "status", "containerd", "--no-pager", "-l"]),
-            ("kubelet-log", ["journalctl", "-u", "kubelet", "--no-pager", "-n", "60"]),
-            ("crictl-images", ["crictl", "images"]),
-        ]
-        for (label, args) in cmds {
-            if let r = try? f.run(["exec", node] + args) {
-                let out = r.output.trimmingCharacters(in: .whitespacesAndNewlines)
-                let err = r.error.trimmingCharacters(in: .whitespacesAndNewlines)
-                print("[\(label)] exit=\(r.status)")
-                if !out.isEmpty { print(out) }
-                if !err.isEmpty { print("stderr: \(err)") }
-            }
-        }
-        print("=== END NODE DIAGNOSTICS ===")
-    }
-
     private func loadKubeconfig() throws -> [String: Any] {
         let path = FilePath(FileManager.default.homeDirectoryForCurrentUser.path)
             .appending(".kube")
@@ -76,7 +55,7 @@ struct TestK8sRunSerial {
             print("[k8s-run] k8s create exit=\(result.status)")
             if result.status != 0 {
                 print("[k8s-run] k8s create stderr: \(result.error)")
-                dumpNodeDiagnostics(f, node: name)
+                f.dumpNodeDiagnostics(node: name)
             }
             try result.check()
             #expect(result.output.contains(name))
@@ -111,7 +90,7 @@ struct TestK8sRunSerial {
             print("[k8s-run] k8s create exit=\(result1.status)")
             if result1.status != 0 {
                 print("[k8s-run] k8s create stderr: \(result1.error)")
-                dumpNodeDiagnostics(f, node: name1)
+                f.dumpNodeDiagnostics(node: name1)
             }
             #expect(result1.status == 0)
 
@@ -120,7 +99,7 @@ struct TestK8sRunSerial {
             print("[k8s-run] k8s create exit=\(result2.status)")
             if result2.status != 0 {
                 print("[k8s-run] k8s create stderr: \(result2.error)")
-                dumpNodeDiagnostics(f, node: name2)
+                f.dumpNodeDiagnostics(node: name2)
             }
             #expect(result2.status == 0)
 

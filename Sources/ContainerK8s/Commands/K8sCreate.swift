@@ -75,112 +75,52 @@ public struct K8sCreate: AsyncParsableCommand {
         progress.start()
 
         let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
-        try await K8sHelper.ensureImage(nodeImage: nodeImage, log: log, containerSystemConfig: containerSystemConfig)
-
         let fqdn = K8sHelper.fqdn(for: name, domain: containerSystemConfig.dns.domain)
-        let dns = Flags.DNS(domain: nil, nameservers: [], options: [], searchDomains: [])
 
-        let management = Flags.Management(
-            arch: Arch.hostArchitecture().rawValue,
-            capAdd: ["ALL"],
-            capDrop: [],
-            cidfile: "",
-            detach: true,
-            dns: dns,
-            dnsDisabled: false,
-            entrypoint: nil,
-            initImage: nil,
-            kernel: nil,
-            kernelArgs: [],
-            labels: [
-                "\(ResourceLabelKeys.plugin)=\(K8sHelper.pluginName)",
-                "\(ResourceLabelKeys.role)=\(K8sHelper.controlPlaneRoleName)",
-            ],
-            maskedPaths: [],
-            mounts: [],
-            name: name,
-            networks: [],
-            os: "linux",
-            platform: nil,
-            publishPorts: fqdn == nil ? [try await K8sHelper.clusterPort()] : [],
-            publishSockets: [],
-            readOnly: false,
-            readonlyPaths: [],
+        let provisioner = try LinuxNodeProvisioner(
+            clusterName: name,
+            roles: [StandardRoles.controlPlane, StandardRoles.worker],
+            nodeImage: nodeImage,
+            cpus: resourceFlags.cpus,
+            memory: resourceFlags.memory,
+            registryScheme: registryFlags.scheme,
+            maxConcurrentDownloads: imageFetchFlags.maxConcurrentDownloads,
             remove: remove,
-            rosetta: true,
-            runtime: nil,
-            ssh: false,
-            shmSize: nil,
-            tmpFs: [],
-            useInit: false,
-            virtualization: false,
-            volumes: []
-        )
-
-        let updatedResource = K8sHelper.defaultedResourceFlags(resourceFlags)
-        let processFlags = Flags.Process(cwd: nil, env: K8sHelper.nodeProxyEnv(), envFile: [], gid: nil, interactive: false, tty: false, uid: nil, ulimits: [], user: nil)
-
-        var (config, kernel, initfs) = try await Utility.containerConfigFromFlags(
-            id: name,
-            image: nodeImage,
-            arguments: [],
-            process: processFlags,
-            management: management,
-            resource: updatedResource,
-            registry: registryFlags,
-            imageFetch: imageFetchFlags,
-            containerSystemConfig: containerSystemConfig,
-            progressUpdate: progress.handler,
-            log: log
-        )
-
-        // Allow the node to modify /proc/sys (e.g. net.ipv4.ip_forward) during setup.
-        config.maskedPaths = []
-        config.readonlyPaths = []
-
-        let client = ContainerClient()
-        let options = ContainerCreateOptions(autoRemove: remove)
-        try await client.create(
-            configuration: config,
-            options: options,
-            kernel: kernel,
-            initImage: initfs
+            fqdn: fqdn
         )
 
         progress.set(description: "Starting cluster")
-        let io = try ProcessIO.create(tty: false, interactive: false, detach: true)
-        defer { try? io.close() }
-        let process = try await client.bootstrap(id: name, stdio: io.stdio)
-        try await process.start()
-        try io.closeAfterStart()
+        try await provisioner.provision(name: name, log: log)
 
-        progress.set(description: "Waiting for node to boot")
-        try await K8sHelper.waitForNodeBooted(containerId: name, client: client, log: log)
-
-        let snapshot = try await client.get(id: name)
-        guard let vmIP = snapshot.networks.first?.ipv4Address.address.description else {
-            throw ContainerizationError(.internalError, message: "no VM IP for control plane \(name)")
-        }
-        var sans = ["127.0.0.1"]
-        if let fqdn { sans.append(contentsOf: [vmIP, fqdn]) }
-
-        progress.set(description: "Running kubeadm init")
-        try await K8sHelper.prepareNode(nodeID: name, client: client, log: log)
-        try await K8sHelper.bootstrapControlPlane(
-            nodeID: name, apiServerSANs: sans, advertiseAddress: vmIP,
-            client: client, log: log)
-
-        progress.set(description: "Waiting for cluster to be ready")
-        try await K8sHelper.waitForReady(containerId: name, client: client, log: log)
-
-        progress.set(description: "Writing kubeconfig")
+        let client = ContainerClient()
         do {
-            let rawConfig = try await K8sHelper.fetchConfig(containerId: name, client: client, log: log)
-            let kubeConfig = try await K8sHelper.transformConfig(rawConfig, containerId: name, fqdn: fqdn, client: client)
-            try K8sHelper.mergeConfig(kubeConfig, containerId: name, setCurrentContext: true, log: log)
+            let vmIP = try await provisioner.address(name: name, log: log)
+            var sans = ["127.0.0.1"]
+            if let fqdn { sans.append(contentsOf: [vmIP, fqdn]) }
+
+            progress.set(description: "Running kubeadm init")
+            try await K8sHelper.prepareNode(nodeID: name, client: client, log: log)
+            try await K8sHelper.bootstrapControlPlane(
+                nodeID: name, apiServerSANs: sans, advertiseAddress: vmIP,
+                schedulable: provisioner.roles.contains(StandardRoles.worker),
+                client: client, log: log)
+
+            progress.set(description: "Waiting for cluster to be ready")
+            try await K8sHelper.waitForReady(containerId: name, client: client, log: log)
+
+            progress.set(description: "Writing kubeconfig")
+            do {
+                let rawConfig = try await K8sHelper.fetchConfig(containerId: name, client: client, log: log)
+                let kubeConfig = try await K8sHelper.transformConfig(rawConfig, containerId: name, fqdn: fqdn, client: client)
+                try K8sHelper.mergeConfig(kubeConfig, containerId: name, setCurrentContext: true, log: log)
+            } catch {
+                log.warning("failed to write kubeconfig", metadata: ["name": "\(name)", "error": "\(error)"])
+                log.info("cluster is running; use 'container k8s write-config --name \(name)' to write the kubeconfig")
+            }
         } catch {
-            log.warning("failed to write kubeconfig", metadata: ["name": "\(name)", "error": "\(error)"])
-            log.info("cluster is running; use 'container k8s write-config --name \(name)' to write the kubeconfig")
+            try? await provisioner.teardown(name: name, log: log)
+            try? K8sHelper.removeConfig(containerId: name, log: log)
+            throw error
         }
 
         progress.finish()

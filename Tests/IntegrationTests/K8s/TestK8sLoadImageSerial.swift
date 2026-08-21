@@ -23,27 +23,6 @@ struct TestK8sLoadImageSerial {
 
     private static let testImage = WarmupImage.alpine320.rawValue
 
-    private func dumpNodeDiagnostics(_ f: ContainerFixture, node: String) {
-        print("=== NODE DIAGNOSTICS [\(node)] ===")
-        let cmds: [(label: String, args: [String])] = [
-            ("ip-link", ["ip", "link", "show"]),
-            ("iptables-mss", ["iptables", "-t", "mangle", "-L", "-n", "-v"]),
-            ("containerd", ["systemctl", "status", "containerd", "--no-pager", "-l"]),
-            ("kubelet-log", ["journalctl", "-u", "kubelet", "--no-pager", "-n", "60"]),
-            ("crictl-images", ["crictl", "images"]),
-        ]
-        for (label, args) in cmds {
-            if let r = try? f.run(["exec", node] + args) {
-                let out = r.output.trimmingCharacters(in: .whitespacesAndNewlines)
-                let err = r.error.trimmingCharacters(in: .whitespacesAndNewlines)
-                print("[\(label)] exit=\(r.status)")
-                if !out.isEmpty { print(out) }
-                if !err.isEmpty { print("stderr: \(err)") }
-            }
-        }
-        print("=== END NODE DIAGNOSTICS ===")
-    }
-
     private func imageExistsInNode(_ f: ContainerFixture, node: String, image: String) throws -> Bool {
         print("[k8s-load] ctr images list (node: \(node), checking: \(image))")
         let result = try f.run(["exec", node, "ctr", "--namespace", "k8s.io", "images", "list"])
@@ -81,7 +60,7 @@ struct TestK8sLoadImageSerial {
             if result.status != 0 {
                 print("[k8s-load] k8s create stderr: \(result.error)")
                 dumpEnv(f, clusterName: name)
-                dumpNodeDiagnostics(f, node: name)
+                f.dumpNodeDiagnostics(node: name)
             }
             try result.check()
 
