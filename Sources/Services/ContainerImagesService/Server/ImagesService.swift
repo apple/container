@@ -73,12 +73,13 @@ public actor ImagesService {
 
     /// Sweep the snapshot directories no current image claims.
     ///
-    /// Registering an image over an existing reference replaces the record
-    /// and leaves the replaced generation's unpacked snapshot owned by no
-    /// image. Only the store sees the replacement happen, so every path that
-    /// lands records runs this sweep afterwards. The sweep is housekeeping:
-    /// its failure is loud in the log and never fails the operation that
-    /// carried it.
+    /// An unpacked snapshot is owned by the record that names it, so a record
+    /// that stops naming it leaves it owned by nobody: registering an image
+    /// over an existing reference replaces the record, and removing a
+    /// reference takes it away. Only the store sees either happen, so every
+    /// path that lands or removes records runs this sweep afterwards. The
+    /// sweep is housekeeping: its failure is loud in the log and never fails
+    /// the operation that carried it.
     private func sweepReplacedSnapshots(after function: String = #function) async {
         do {
             let kept = try await self._list()
@@ -256,6 +257,7 @@ public actor ImagesService {
         }
 
         try await self.imageStore.delete(reference: reference, performCleanup: garbageCollect)
+        await self.sweepReplacedSnapshots()
     }
 
     public func save(references: [String], out: URL, platform: Platform?) async throws {
