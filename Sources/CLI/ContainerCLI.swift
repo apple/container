@@ -14,26 +14,11 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ArgumentParser
-import ContainerAPIClient
 import ContainerCommands
 
 @main
-public struct ContainerCLI: AsyncParsableCommand {
-    public init() {}
-
-    @Argument(parsing: .captureForPassthrough)
-    var arguments: [String] = []
-
-    public static let configuration = Application.configuration
-
-    public static func main() async throws {
+enum ContainerCLI {
+    static func main() async throws {
         try await Application.main()
-    }
-
-    public func run() async throws {
-        var application = try Application.parse(arguments)
-        try application.validate()
-        try application.run()
     }
 }
