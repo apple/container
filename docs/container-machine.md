@@ -1,24 +1,20 @@
 # Container machine
 
-Container machine provides a highly integrated Linux environment that works seamlessly on your Mac. Container machines are fast, lightweight and persistent. They are based on standard OCI images that can be built and shared. Host integrations such as automatic user and home directory sharing provide quick and easy access to your Linux environment no matter where you are in a terminal.
+Container machine provides a highly integrated Linux environment that works seamlessly on your Mac. Container machines are fast, lightweight and persistent. They're based on standard OCI images you can build and share. Host integrations such as automatic user and home directory sharing mean you always land in the same spot in your Linux environment, no matter where under your home directory you started from in a terminal.
 
 > [!WARNING]
-> Container machine trades away most of the isolation that makes a regular Apple container safer for running untrusted code. Only create container machines from images you trust.
+> Running an image as a container machine is much closer to running a macOS program directly on your host than to running a regular container. A container machine trades away much of the isolation that makes a regular Apple container safer for running untrusted code. Only create container machines from images you trust.
 >
-> A container machine image supplies its own `/sbin/init` that serves as the entry point for the machine, running as the OS init process (PID 1). It can do anything a Linux process running as root can do, including everything the image's init system chooses to start afterward (services, cron jobs, and anything else). Compared to a default `container run`/`create` container, that process — and everything it starts — has access to far more of your host. A container machine:
+> A container machine image supplies its own `/sbin/init` that serves as the entry point for the machine, running as the OS init process (PID 1). That process, and everything it chooses to start afterward (services, cron jobs, and anything else), can do anything a Linux process running as root can do — with access to far more of your host. A container machine:
 >
 > - Mounts your macOS home directory into the guest **read-write, at the same path**, by default — not a scoped volume you opt into, but transparent access to your repos, dotfiles, and anything else under `$HOME`. Equivalent to `container create -v "${HOME}:${HOME}"`.
-> - Forwards your host `SSH_AUTH_SOCK` into the guest, so anything running in the machine can use your ssh-agent to act as you (e.g. for `git`/`ssh` operations) without ever seeing your private key material directly. Equivalent to `container create --ssh`.
-> - Runs with **all Linux capabilities added** and **no masked or read-only `/proc`/`/sys` paths** — the hardening a regular container gets by default is deliberately not applied here, since the image's own init system needs to behave like a full Linux install. Equivalent to `container create --cap-add all --masked-path NONE --read-only-path NONE`.
-> - Is long-lived and persistent, like a real machine, rather than a single scoped, short-lived process — more running services and listening ports over its lifetime, not fewer. There's no regular-container equivalent for this; it follows from running a full init system indefinitely rather than one scoped command.
-> - Provisions a guest account with **passwordless sudo** (`NOPASSWD:ALL`) by default, mapped to your host UID/GID — root inside the guest can write anywhere in your mounted home directory as you. There's no regular-container equivalent for this either; it's account provisioning inside the guest, not a container runtime option.
->
-> Container machine is designed for transparent host integration — running an image is much closer to running a macOS program directly on your host than to running a regular container. Treat the images you boot as machines with exactly that level of trust.
+> - Forwards your host `SSH_AUTH_SOCK` into the guest, so anything running in the machine can use your ssh-agent to act as you (e.g. for `git`/`ssh` operations). Equivalent to `container create --ssh`.
+> - Runs with **all Linux capabilities added** and **no masked or read-only `/proc`/`/sys` paths** — a container machine deliberately bypasses the default access controls that a regular container receives, since the image's init system needs to behave like a full Linux install. Equivalent to `container create --cap-add ALL --masked-path NONE --read-only-path NONE`.
+> - Provisions a guest account with **passwordless sudo** (`NOPASSWD:ALL`) by default, mapped to your host UID/GID. Root inside the container machine can write anywhere in your mounted home directory with your macOS user permissions.
 
 ## Why container machines
 
-Containers are typically modeled after an application. A container machine is modeled after a Linux environment. It runs the image's init system allowing you to register long running services or test your application under a process supervisor.
-A container machine automatically maps your username and home directory into the Linux environment. Your repositories and dotfiles are available on both platforms. Use editors and tools directly on macOS simultaneously building and running your application inside of the Linux environment.
+Containers are typically modeled after an application. A container machine is modeled after a complete Linux environment. It runs the image's init system, so you can register long-running services or test your application under a process supervisor. It also maps your macOS username and home directory into the Linux environment. Your repositories and dotfiles are available on both platforms, so that you can:
 
 - **Edit on the Mac, build inside.** Your repo lives in `$HOME` on macOS and is mounted at `/Users/<username>` inside the container machine. Use your macOS editor or IDE; compile and run inside your container machine.
 - **Use macOS-native tooling against Linux artifacts.** Profilers, screenshot tools, browsers, and GUI debuggers on your Mac all see the same files the container machine sees — there is no copy step between "I built it" and "I am inspecting it".
@@ -89,7 +85,7 @@ Memory defaults to half of host memory. The home-mount can be `rw` (default), `r
 
 A container machine supports nested virtualization. The requirements for this to work are:
 
-1. Apple Silicon **M3 or later** with **macOS 15 or later** is required.
+1. Apple Silicon **M3 or later** with **macOS 15 or later**.
 2. A Linux kernel with CONFIG_KVM=y enabled. The default kernel does not support this.
 
 ```bash
@@ -114,7 +110,7 @@ container machine run -n dev -- ls -l /dev/kvm
 container machine set -n dev kernel=
 ```
 
-## Bring your own container machine image
+## Bring your own image
 
 Any Linux image that includes `/sbin/init` works as a container machine. Beyond that, the built-in user setup described below needs a few common tools already present in most general-purpose distro images — setup fails if any of these are missing:
 
@@ -125,7 +121,7 @@ Any Linux image that includes `/sbin/init` works as a container machine. Beyond 
 
 Setup also always writes a passwordless-sudo grant to `/etc/sudoers.d/<user>`, but that's just a file — it does nothing unless `sudo` is installed and configured to read `/etc/sudoers.d/` (the default on virtually every distro). If `sudo` is missing, setup still succeeds; the grant is simply inert.
 
-For example, this Dockerfile builds an Ubuntu 24.04 container machine image with `systemd` and common command-line tools (including `sudo`, satisfying the last requirement above):
+For example, this Dockerfile builds an Ubuntu 24.04 container machine image with `systemd` and common command-line tools (including `sudo`, so the passwordless-sudo grant actually works):
 
 ```dockerfile
 FROM ubuntu:24.04
@@ -170,4 +166,4 @@ By default the account matches your host user (username, uid, gid, and home dire
 container machine create --user devuser --uid 1500 --gid 1600 --home /srv/devhome alpine:latest --name dev
 ```
 
-`--user` accepts `name`, `uid`, or `name|uid:gid` (the group must be numeric — there's no existing account to resolve a group name against). `--uid`/`--gid` set the pieces `--user` didn't specify; any piece left fully unset falls back to the host user's.
+`--user` accepts the format `name|uid[:gid]` (i.e. `name`, `uid`, `name:gid`, or `uid:gid` — the group must be numeric, since there's no existing account to resolve a group name against). `--uid`/`--gid` set the pieces `--user` didn't specify; any piece left fully unset falls back to the host user's.
