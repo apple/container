@@ -102,7 +102,7 @@ extension Application {
 
             let statsData = try await Self.collectStats(client: client, for: containersToShow)
 
-            try Output.render(payload: statsData.map { $0.stats2 }, format: format) {
+            try Output.render(payload: statsData.map { StatsReport(snapshot: $0) }, format: format) {
                 Self.statsTable(statsData)
             }
         }
@@ -159,6 +159,55 @@ extension Application {
             let stats2: ContainerResource.ContainerStats
         }
 
+        /// `collectStats` sleeps for this between samples and the percentage divides by it,
+        /// so the two must not drift apart.
+        private static let sampleInterval: Duration = .seconds(2)
+
+        /// The payload for the machine-readable formats: the second sample plus the CPU
+        /// percentage derived from both.
+        ///
+        /// `ContainerResource.ContainerStats` models a single sample, and a rate is not a
+        /// property of one sample, so the derived value lives here rather than widening that
+        /// type. Until now only `stats2` was rendered, which discarded both the percentage
+        /// the table computes and the earlier sample a consumer would need to compute it.
+        private struct StatsReport: Encodable {
+            let id: String
+            /// Percent of one core, matching `top` and `docker stats`: 400% is four cores
+            /// saturated. Deliberately not divided by the container's CPU allocation.
+            let cpuPercent: Double?
+            let cpuUsageUsec: UInt64?
+            let memoryUsageBytes: UInt64?
+            let memoryLimitBytes: UInt64?
+            let networkRxBytes: UInt64?
+            let networkTxBytes: UInt64?
+            let blockReadBytes: UInt64?
+            let blockWriteBytes: UInt64?
+            let numProcesses: UInt64?
+
+            init(snapshot: StatsSnapshot) {
+                let latest = snapshot.stats2
+                self.id = latest.id
+                self.cpuUsageUsec = latest.cpuUsageUsec
+                self.memoryUsageBytes = latest.memoryUsageBytes
+                self.memoryLimitBytes = latest.memoryLimitBytes
+                self.networkRxBytes = latest.networkRxBytes
+                self.networkTxBytes = latest.networkTxBytes
+                self.blockReadBytes = latest.blockReadBytes
+                self.blockWriteBytes = latest.blockWriteBytes
+                self.numProcesses = latest.numProcesses
+
+                if let first = snapshot.stats1.cpuUsageUsec, let second = latest.cpuUsageUsec {
+                    self.cpuPercent = ContainerStats.calculateCPUPercent(
+                        cpuUsage1: .microseconds(first),
+                        cpuUsage2: .microseconds(second),
+                        timeInterval: ContainerStats.sampleInterval
+                    )
+                } else {
+                    self.cpuPercent = nil
+                }
+            }
+        }
+
         private static func collectStats(client: ContainerClient, for containers: [ContainerSnapshot]) async throws -> [StatsSnapshot] {
             var snapshots: [StatsSnapshot] = []
 
@@ -176,7 +225,7 @@ extension Application {
 
             // Wait 2 seconds for CPU delta calculation
             if !snapshots.isEmpty {
-                try await Task.sleep(for: .seconds(2))
+                try await Task.sleep(for: Self.sampleInterval)
 
                 // Second sample
                 for i in 0..<snapshots.count {
@@ -245,7 +294,7 @@ extension Application {
                     let cpuPercent = Self.calculateCPUPercent(
                         cpuUsage1: .microseconds(cpuUsageUsec1),
                         cpuUsage2: .microseconds(cpuUsageUsec2),
-                        timeInterval: .seconds(2)
+                        timeInterval: Self.sampleInterval
                     )
                     let cpuStr = String(format: "%.2f%%", cpuPercent)
                     row.append(cpuStr)
