@@ -168,12 +168,32 @@ public actor SnapshotStore {
     public func clean(keepingSnapshotsFor images: [Containerization.Image] = []) async throws -> UInt64 {
         var toKeep: [String] = [Self.ingestDirName]
         for image in images {
-            for manifest in try await image.index().manifests {
-                guard let platform = manifest.platform else {
-                    continue
+            // An image is read to learn which snapshot it claims, and reading
+            // one whose content the store no longer holds fails. That is a
+            // fact about that image and not about the others, so it costs the
+            // sweep that image rather than the whole pass: a single record
+            // left behind by an interrupted pull would otherwise stop every
+            // snapshot from ever being reclaimed again, and the store fills
+            // with the unpacked filesystems of images nothing names. An image
+            // the store cannot read is one it cannot unpack or run either, so
+            // the snapshot that image would have claimed is not worth keeping
+            // the store full for.
+            do {
+                for manifest in try await image.index().manifests {
+                    guard let platform = manifest.platform else {
+                        continue
+                    }
+                    let desc = try await image.descriptor(for: platform)
+                    toKeep.append(desc.digest.trimmingDigestPrefix)
                 }
-                let desc = try await image.descriptor(for: platform)
-                toKeep.append(desc.digest.trimmingDigestPrefix)
+            } catch {
+                self.log?.warning(
+                    "snapshot sweep read no manifests for an image; its snapshots are not kept",
+                    metadata: [
+                        "image": "\(image.reference)",
+                        "error": "\(error)",
+                    ]
+                )
             }
         }
         let all = try self.fm.contentsOfDirectory(at: self.path, includingPropertiesForKeys: [.totalFileAllocatedSizeKey]).map {
@@ -186,8 +206,24 @@ public actor SnapshotStore {
             guard self.fm.fileExists(atPath: unpackedPath.absolutePath()) else {
                 continue
             }
-            deletedBytes += self.fm.allocatedSize(of: unpackedPath)
-            try self.fm.removeItem(at: unpackedPath)
+            let size = self.fm.allocatedSize(of: unpackedPath)
+            // A snapshot the store cannot remove costs one snapshot's worth of
+            // space, and every other snapshot in the set is still owed to the
+            // caller, as are the bytes already freed. The removal that failed
+            // is what the caller needs to act on, so the error goes to the log
+            // with the snapshot that raised it.
+            do {
+                try self.fm.removeItem(at: unpackedPath)
+                deletedBytes += size
+            } catch {
+                self.log?.warning(
+                    "snapshot sweep could not remove a snapshot",
+                    metadata: [
+                        "snapshot": "\(dir)",
+                        "error": "\(error)",
+                    ]
+                )
+            }
         }
         return deletedBytes
     }
