@@ -32,6 +32,17 @@ public actor ImagesService {
     private let imageStore: ImageStore
     private let snapshotStore: SnapshotStore
 
+    /// One landing, removal, or sweep at a time. The store operations
+    /// suspend mid-flight, and the actor admits other calls at every
+    /// suspension, so a garbage collection overlapping a landing computes
+    /// its keep set without the arriving image and prunes blobs and
+    /// snapshots the landing is about to reference. The lock is held
+    /// across each whole mutating operation, the way PodsService holds
+    /// its lock across lifecycle operations; containerd guards the same
+    /// window with leases.
+    /// https://github.com/containerd/containerd/blob/main/docs/garbage-collection.md
+    private let lock = AsyncLock()
+
     public init(
         contentStore: ContentStore,
         imageStore: ImageStore,
@@ -212,6 +223,109 @@ public actor ImagesService {
         let writer = try ArchiveWriter(format: .pax, filter: .none, file: out)
         try writer.archiveDirectory(tempDir)
         try writer.finishEncoding()
+    }
+
+    /// Register an image whose content is already in the store, under the
+    /// reference the description names. This is how a built image arrives
+    /// when its blobs were exported straight into the content store: the
+    /// root descriptor is all that remains to record.
+    public func create(description: ImageDescription) async throws -> ImageDescription {
+        try await lock.withLock { _ in
+            try await self._create(description: description)
+        }
+    }
+
+    /// Land the content an ingest session holds and register the images that
+    /// name it, under one hold of the lock.
+    ///
+    /// A blob is claimed by nobody between arriving in the store and a record
+    /// naming it, and a sweep that runs in that window takes it. Content
+    /// written into an ingest session is not in the store yet and no sweep
+    /// lists it, so completing the session and recording the images together
+    /// leaves no such window: the blobs appear at a moment when no sweep can
+    /// run, and the records claiming them are there when the lock is released.
+    /// Pulling an image and loading an OCI layout both land their content this
+    /// way.
+    ///
+    /// The root descriptor is read here rather than taken from the caller,
+    /// because the content it describes is unreadable until the session
+    /// completes, which happens inside this lock.
+    public func createFromIngest(ingestSession: String, references: [String], rootDigest: String) async throws -> [ImageDescription] {
+        try await lock.withLock { _ in
+            self.log.debug(
+                "ImagesService: enter",
+                metadata: [
+                    "func": "\(#function)",
+                    "session": "\(ingestSession)",
+                    "digest": "\(rootDigest)",
+                    "references": "\(references.joined(separator: ", "))",
+                ]
+            )
+            defer {
+                self.log.debug(
+                    "ImagesService: exit",
+                    metadata: ["func": "\(#function)", "session": "\(ingestSession)"]
+                )
+            }
+
+            _ = try await self.contentStore.completeIngestSession(ingestSession)
+            guard let content: Content = try await self.contentStore.get(digest: rootDigest) else {
+                throw ContainerizationError(.notFound, message: "built image root \(rootDigest) not in the content store")
+            }
+            let index = try content.decode() as ContainerizationOCI.Index
+            let descriptor = Descriptor(
+                mediaType: index.mediaType,
+                digest: rootDigest,
+                size: Int64(try content.size())
+            )
+            var created: [ImageDescription] = []
+            for reference in references {
+                created.append(
+                    try await self._create(description: ImageDescription(reference: reference, descriptor: descriptor))
+                )
+            }
+            return created
+        }
+    }
+
+    private func _create(description: ImageDescription) async throws -> ImageDescription {
+        self.log.debug(
+            "ImagesService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "reference": "\(description.reference)",
+                "digest": "\(description.descriptor.digest)",
+            ]
+        )
+        defer {
+            self.log.debug(
+                "ImagesService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "reference": "\(description.reference)",
+                ]
+            )
+        }
+
+        let image = try await self.imageStore.create(description: description.toCZ)
+        // Creating over an existing reference replaces its record and leaves
+        // the replaced generation's unpacked snapshot owned by no image, so
+        // the create sweeps the snapshot directories no current image claims.
+        // The sweep is housekeeping: its failure warns in the log and never
+        // fails the create that carried it.
+        do {
+            let kept = try await self._list()
+            _ = try await self.snapshotStore.clean(keepingSnapshotsFor: kept)
+        } catch {
+            self.log.warning(
+                "ImagesService: snapshot sweep failed",
+                metadata: [
+                    "func": "\(#function)",
+                    "error": "\(error)",
+                ]
+            )
+        }
+        return image.description.fromCZ
     }
 
     public func load(from tarFile: URL, force: Bool) async throws -> ([ImageDescription], [String]) {

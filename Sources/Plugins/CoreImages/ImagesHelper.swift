@@ -111,6 +111,8 @@ extension ImagesHelper {
             routes[ImagesServiceXPCRoute.imageDelete.rawValue] = XPCServer.route(harness.delete)
             routes[ImagesServiceXPCRoute.imageTag.rawValue] = XPCServer.route(harness.tag)
             routes[ImagesServiceXPCRoute.imagePush.rawValue] = XPCServer.route(harness.push)
+            routes[ImagesServiceXPCRoute.imageCreate.rawValue] = XPCServer.route(harness.create)
+            routes[ImagesServiceXPCRoute.imageCreateFromIngest.rawValue] = XPCServer.route(harness.createFromIngest)
             routes[ImagesServiceXPCRoute.imageSave.rawValue] = XPCServer.route(harness.save)
             routes[ImagesServiceXPCRoute.imageLoad.rawValue] = XPCServer.route(harness.load)
             routes[ImagesServiceXPCRoute.imageUnpack.rawValue] = XPCServer.route(harness.unpack)

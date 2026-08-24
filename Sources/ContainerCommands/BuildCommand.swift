@@ -119,9 +119,9 @@ extension Application {
         @Flag(name: .long, help: "Do not use cache")
         var noCache: Bool = false
 
-        @Option(name: .shortAndLong, help: ArgumentHelp("Output configuration for the build (format: type=<oci|tar|local>[,dest=])", valueName: "value"))
+        @Option(name: .shortAndLong, help: ArgumentHelp("Output configuration for the build (format: type=<store|oci|tar|local>[,dest=])", valueName: "value"))
         var output: [String] = {
-            ["type=oci"]
+            ["type=store"]
         }()
 
         @Option(
@@ -182,6 +182,24 @@ extension Application {
 
         public func run() async throws {
             let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
+            // The blobs an image export writes gather in an ingest session
+            // rather than landing in the store as they arrive. The store takes
+            // the whole set at the moment it records the images naming them,
+            // so it never holds a blob that no image claims and a sweep
+            // running alongside can collect.
+            //
+            // Only an export into the store gathers, and that export is what
+            // hands the gathering over, so a build that reaches its end has
+            // nothing left to give back and a build that does not is what the
+            // catch returns it for.
+            //
+            // Whether any export lands in the store is asked of the exports
+            // themselves. An output the exports cannot be read from is
+            // gathered for, and read again below where a build reports what is
+            // wrong with what it was given.
+            let contentStore = RemoteContentStoreClient()
+            let exportsToStore = (try? output.contains { try Builder.BuildExport(from: $0).type == "store" }) ?? true
+            let ingest = exportsToStore ? try await contentStore.newIngestSession() : nil
             do {
                 let timeout: Duration = .seconds(300)
                 let progressConfig = try ProgressConfig(
@@ -398,11 +416,12 @@ extension Application {
                         [
                             terminal, buildArg, buildContext, addHost, hostname, shmSizeBytes, ulimit, cgroupParent, network,
                             secretsData, ssh, contextDir, ignoreFileData, label, noCache, target, quiet, cacheIn, cacheOut, pull, exports,
-                            imageNames, tempURL, log,
+                            imageNames, tempURL, log, contentStore, ingest,
                         ] in
                         let config = Builder.BuildConfig(
                             buildID: buildID,
-                            contentStore: RemoteContentStoreClient(),
+                            contentStore: contentStore,
+                            ingestDir: ingest?.ingestDir,
                             buildArgs: buildArg,
                             buildContexts: buildContext,
                             addHosts: addHost,
@@ -452,6 +471,33 @@ extension Application {
                             unpackProgress.add(tasks: 1)
                             let unpackTask = await taskManager.startTask()
                             switch exp.type {
+                            case "store":
+                                // The build gathered its blobs rather than
+                                // handing them over as they arrived; what
+                                // remains is the root digest the builder left
+                                // on the export path, and the store takes the
+                                // gathering and records every tag naming it
+                                // together, so the content is claimed from the
+                                // moment the store holds it.
+                                try Task.checkCancellation()
+                                let digestURL = tempURL.appendingPathComponent("digest")
+                                let digest = try String(contentsOf: digestURL, encoding: .utf8)
+                                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                                guard let ingest else {
+                                    throw ContainerizationError(
+                                        .internalError,
+                                        message: "export into the store gathered nowhere"
+                                    )
+                                }
+                                let images = try await ClientImage.createFromIngest(
+                                    ingestSession: ingest.id,
+                                    references: imageNames,
+                                    rootDigest: digest
+                                )
+                                for image in images {
+                                    try Task.checkCancellation()
+                                    try await image.unpack(platform: nil, progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: unpackProgress.handler))
+                                }
                             case "oci":
                                 try Task.checkCancellation()
                                 guard let dest = exp.destination else {
@@ -502,6 +548,9 @@ extension Application {
                     try await group.next()
                 }
             } catch {
+                if let ingest {
+                    try? await contentStore.cancelIngestSession(ingest.id)
+                }
                 throw NSError(domain: "Build", code: 1, userInfo: [NSLocalizedDescriptionKey: "\(error)"])
             }
         }

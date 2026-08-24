@@ -28,6 +28,7 @@ public enum ImagesServiceXPCKeys: String {
 
     /// Images
     case imageReference
+    case imageReferences
     case imageNewReference
     case imageDescription
     case imageDescriptions

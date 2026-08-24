@@ -160,6 +160,40 @@ public struct ImagesServiceHarness: Sendable {
     }
 
     @Sendable
+    public func create(_ message: XPCMessage) async throws -> XPCMessage {
+        guard let data = message.dataNoCopy(key: .imageDescription) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "missing image description"
+            )
+        }
+        let description = try JSONDecoder().decode(ImageDescription.self, from: data)
+        let created = try await service.create(description: description)
+        let reply = message.reply()
+        reply.set(key: .imageDescription, value: try JSONEncoder().encode(created))
+        return reply
+    }
+
+    @Sendable
+    public func createFromIngest(_ message: XPCMessage) async throws -> XPCMessage {
+        guard let session = message.string(key: .ingestSessionId) else {
+            throw ContainerizationError(.invalidArgument, message: "missing ingest session id")
+        }
+        guard let digest = message.string(key: .digest) else {
+            throw ContainerizationError(.invalidArgument, message: "missing root digest")
+        }
+        guard let data = message.dataNoCopy(key: .imageReferences) else {
+            throw ContainerizationError(.invalidArgument, message: "missing image references")
+        }
+        let references = try JSONDecoder().decode([String].self, from: data)
+        let created = try await service.createFromIngest(
+            ingestSession: session, references: references, rootDigest: digest)
+        let reply = message.reply()
+        reply.set(key: .imageDescriptions, value: try JSONEncoder().encode(created))
+        return reply
+    }
+
+    @Sendable
     public func load(_ message: XPCMessage) async throws -> XPCMessage {
         let input = message.string(key: .filePath)
         let force = message.bool(key: .forceLoad)

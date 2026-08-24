@@ -24,6 +24,8 @@ public enum ImagesServiceXPCRoute: String {
     case imagePush
     case imageTag
     case imageBuild
+    case imageCreate
+    case imageCreateFromIngest
     case imageDelete
     case imageSave
     case imageLoad

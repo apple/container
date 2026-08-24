@@ -308,6 +308,42 @@ extension ClientImage {
         let _ = try await client.send(request)
     }
 
+    /// Register an image whose content is already in the store, under the
+    /// reference the description names.
+    public static func create(reference: String, descriptor: Descriptor) async throws -> ClientImage {
+        let client = newXPCClient()
+        let request = newRequest(.imageCreate)
+        let description = ImageDescription(reference: reference, descriptor: descriptor)
+        request.set(key: .imageDescription, value: try JSONEncoder().encode(description))
+        let reply = try await client.send(request)
+
+        guard let data = reply.dataNoCopy(key: .imageDescription) else {
+            throw ContainerizationError(.internalError, message: "no image description returned for \(reference)")
+        }
+        let created = try JSONDecoder().decode(ImageDescription.self, from: data)
+        return ClientImage(description: created)
+    }
+
+    /// Land the content an ingest session holds and register the images that
+    /// name it, in one operation the store performs under a single hold of its
+    /// lock, so no sweep runs between the content arriving and the records
+    /// claiming it. The root descriptor is read on the far side, where the
+    /// content becomes readable.
+    public static func createFromIngest(ingestSession: String, references: [String], rootDigest: String) async throws -> [ClientImage] {
+        let client = newXPCClient()
+        let request = newRequest(.imageCreateFromIngest)
+        request.set(key: .ingestSessionId, value: ingestSession)
+        request.set(key: .digest, value: rootDigest)
+        request.set(key: .imageReferences, value: try JSONEncoder().encode(references))
+        let reply = try await client.send(request)
+
+        guard let data = reply.dataNoCopy(key: .imageDescriptions) else {
+            throw ContainerizationError(.internalError, message: "no image descriptions returned for \(references.joined(separator: ", "))")
+        }
+        let created = try JSONDecoder().decode([ImageDescription].self, from: data)
+        return created.map { ClientImage(description: $0) }
+    }
+
     public static func load(from tarFile: String, force: Bool = false) async throws -> ImageLoadResult {
         let client = newXPCClient()
         let request = newRequest(.imageLoad)

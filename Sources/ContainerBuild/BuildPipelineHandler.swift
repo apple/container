@@ -75,6 +75,9 @@ protocol BuildPipelineHandler: Sendable {
 /// ```
 public actor BuildPipeline {
     let handlers: [BuildPipelineHandler]
+    /// The handler holding what the build has gathered, kept by its own type
+    /// so the build can drop it when it ends.
+    private let content: BuildRemoteContentProxy
     public init(_ config: Builder.BuildConfig) async throws {
         // Local named contexts are the `name=/absolute/path` entries; the CLI
         // resolved every local value to an absolute path when it validated the
@@ -88,10 +91,12 @@ public actor BuildPipeline {
             }
             namedContexts[String(parts[0])] = URL(filePath: String(parts[1]))
         }
+        let content = try BuildRemoteContentProxy(config.contentStore, ingestDir: config.ingestDir)
+        self.content = content
         self.handlers =
             [
                 try BuildFSSync(URL(filePath: config.contextDir), namedContexts: namedContexts),
-                try BuildRemoteContentProxy(config.contentStore),
+                content,
                 try BuildImageResolver(
                     config.contentStore,
                     quiet: config.quiet,
@@ -122,6 +127,15 @@ public actor BuildPipeline {
                 }
             }
         }
+    }
+
+    /// Lets go of the blobs the build began and never sealed.
+    ///
+    /// The build owns this the way it owns the ingest session it cancels when
+    /// it fails: what was gathered for an image that will not be recorded is
+    /// the build's to drop, and the build's end is when that is known.
+    public func discardGathered() async {
+        await self.content.writes.discardAll()
     }
 
     /// untilFirstError() throws when any one of its submitted tasks fail.
