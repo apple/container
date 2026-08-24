@@ -78,6 +78,22 @@ public actor BuildPipeline {
     /// The handler holding what the build has gathered, kept by its own type
     /// so the build can drop it when it ends.
     private let content: BuildRemoteContentProxy
+
+    /// What a handler failed with, kept for the caller.
+    ///
+    /// A handler that throws ends the stream it was serving, and the stream
+    /// ending is what the call reports: the build is told its stream closed
+    /// and not what closed it. The first failure is the one that did, so it is
+    /// held here for the caller to raise in place of the closure.
+    private(set) var failure: Swift.Error?
+
+    private func recordFailure(_ error: Swift.Error) {
+        guard self.failure == nil else {
+            return
+        }
+        self.failure = error
+    }
+
     public init(_ config: Builder.BuildConfig) async throws {
         // Local named contexts are the `name=/absolute/path` entries; the CLI
         // resolved every local value to an absolute path when it validated the
@@ -122,7 +138,12 @@ public actor BuildPipeline {
                         continue
                     }
                     try Task.checkCancellation()
-                    try await handler.handle(sender, packet)
+                    do {
+                        try await handler.handle(sender, packet)
+                    } catch {
+                        await self.recordFailure(error)
+                        throw error
+                    }
                     break
                 }
             }
