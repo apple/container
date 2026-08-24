@@ -23,7 +23,7 @@ import PackageDescription
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
 let builderShimVersion = "0.13.1"
-let scVersion = "0.40.1"
+let scVersion = "0.41.0"
 
 let package = Package(
     name: "container",
@@ -166,13 +166,12 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "K8sTests",
+            name: "K8sPluginTests",
             dependencies: [
                 "ContainerK8s",
                 "ContainerResource",
                 "Yams",
-            ],
-            path: "Tests/K8sPluginTests"
+            ]
         ),
         .target(
             name: "ContainerK8s",
@@ -254,9 +253,14 @@ let package = Package(
             dependencies: [
                 .product(name: "Containerization", package: "containerization"),
                 "ContainerAPIService",
+                "ContainerAPIClient",
+                "ContainerPersistence",
+                "ContainerPlugin",
                 "ContainerResource",
                 "ContainerRuntimeLinuxClient",
                 "ContainerRuntimeClient",
+                "ContainerTestSupport",
+                "ContainerXPC",
             ]
         ),
         .target(
