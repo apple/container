@@ -105,10 +105,19 @@ extension K8sHelper {
 
     private static func loadKindnetManifest(log: Logger) async throws -> String {
         let pluginLoader = try await Utility.createPluginLoader(log: log)
-        guard let plugin = pluginLoader.findPlugin(forExecutable: CommandLine.executablePath),
-            let resourceURL = plugin.resourceURL
-        else {
-            throw ContainerizationError(.internalError, message: "unable to locate k8s plugin installation or resources")
+        let executable = CommandLine.executablePath
+        guard let plugin = pluginLoader.findPlugin(forExecutable: executable) else {
+            let installed = pluginLoader.findPlugins().map(\.name).sorted()
+            throw ContainerizationError(
+                .internalError,
+                message: "no installed plugin runs \(executable); installed plugins: \(installed.isEmpty ? "none" : installed.joined(separator: ", "))"
+            )
+        }
+        guard let resourceURL = plugin.resourceURL else {
+            throw ContainerizationError(
+                .internalError,
+                message: "the \(plugin.name) plugin installed at \(plugin.binaryURL.path) carries no resources directory"
+            )
         }
         let url = resourceURL.appendingPathComponent("kindnet.yaml")
         guard let contents = try? String(contentsOf: url, encoding: .utf8) else {
