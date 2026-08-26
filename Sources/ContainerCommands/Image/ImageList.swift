@@ -63,7 +63,16 @@ extension Application {
                 return
             }
 
-            let resources = try await Self.buildResources(images: images, containerSystemConfig: containerSystemConfig)
+            let resources = await Self.buildResources(
+                images: images,
+                containerSystemConfig: containerSystemConfig,
+                onError: { image, error in
+                    log.warning(
+                        "skipping unreadable image",
+                        metadata: ["image": "\(image.reference)", "error": "\(error)"]
+                    )
+                }
+            )
 
             try Output.render(payload: resources, format: format) {
                 if verbose {
@@ -81,14 +90,34 @@ extension Application {
 
         /// Builds the resource for each image, denormalizing the reference so the
         /// display name omits the default registry.
-        private static func buildResources(images: [ClientImage], containerSystemConfig: ContainerSystemConfig) async throws -> [ImageResource] {
-            var resources: [ImageResource] = []
-            for image in images {
-                resources.append(
+        private static func buildResources(
+            images: [ClientImage],
+            containerSystemConfig: ContainerSystemConfig,
+            onError: (ClientImage, any Error) -> Void
+        ) async -> [ImageResource] {
+            await collectReadableValues(
+                from: images,
+                resolve: { image in
                     try await image.toImageResource(containerSystemConfig: containerSystemConfig)
-                )
+                },
+                onError: onError
+            )
+        }
+
+        static func collectReadableValues<Input, Value>(
+            from inputs: [Input],
+            resolve: (Input) async throws -> Value,
+            onError: (Input, any Error) -> Void
+        ) async -> [Value] {
+            var values: [Value] = []
+            for input in inputs {
+                do {
+                    values.append(try await resolve(input))
+                } catch {
+                    onError(input, error)
+                }
             }
-            return resources
+            return values
         }
     }
 }
