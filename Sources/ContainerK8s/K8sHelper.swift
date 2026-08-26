@@ -51,6 +51,8 @@ public struct K8sHelper {
     static let proxyEnvVars = ["HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"]
 
     public static let clusterContainerPort: UInt16 = 6443
+    /// Endpoint used by clients inside the single-node cluster container.
+    static let nodeLocalControlPlaneEndpoint = "127.0.0.1:\(clusterContainerPort)"
 
     // MARK: - Resource defaults
 
