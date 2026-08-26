@@ -77,6 +77,10 @@ extension Application {
                 resolvedPath = FilePath(tempFile.path())
             }
 
+            try await Self.load(from: resolvedPath, force: force, log: log)
+        }
+
+        static func load(from path: FilePath, force: Bool = false, log: Logger) async throws {
             let progressConfig = try ProgressConfig(
                 showTasks: true,
                 showItems: true,
@@ -90,7 +94,7 @@ extension Application {
 
             progress.set(description: "Loading tar archive")
             let result = try await ClientImage.load(
-                from: resolvedPath.string,
+                from: path.string,
                 force: force)
             if !result.rejectedMembers.isEmpty {
                 log.warning("archive contains invalid members", metadata: ["paths": "\(result.rejectedMembers)"])
