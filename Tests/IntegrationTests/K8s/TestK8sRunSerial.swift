@@ -115,4 +115,33 @@ struct TestK8sRunSerial {
             #expect(server1 != server2)
         }
     }
+
+    @Test func testCreateWithMount() async throws {
+        try await ContainerFixture.with { f in
+            let name = "k8s-\(f.testID)"
+            let testData = "hello k8s mount"
+            let hostFile = f.testDir.appending("testfile.txt")
+            try testData.write(toFile: hostFile.string, atomically: true, encoding: .utf8)
+
+            f.addCleanup { _ = try? f.run(["k8s", "delete", "--name", name]) }
+
+            try f.restoreWarmupImage(.kindestNodeV1_35_5)
+            print("[k8s-run] k8s create --name \(name) --mount type=virtiofs,source=\(f.testDir.string),target=/tmp/testmount,readonly")
+            let result = try f.run([
+                "k8s", "create",
+                "--name", name,
+                "--mount", "type=virtiofs,source=\(f.testDir.string),target=/tmp/testmount,readonly",
+            ])
+            print("[k8s-run] k8s create exit=\(result.status)")
+            if result.status != 0 {
+                print("[k8s-run] k8s create stderr: \(result.error)")
+                f.dumpNodeDiagnostics(node: name)
+            }
+            try result.check()
+
+            let output = try f.doExec(name, cmd: ["cat", "/tmp/testmount/testfile.txt"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(output == testData)
+        }
+    }
 }

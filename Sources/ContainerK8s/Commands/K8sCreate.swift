@@ -51,6 +51,9 @@ public struct K8sCreate: AsyncParsableCommand {
     @Option(help: "Node image reference (default: \(K8sHelper.nodeImage))")
     var nodeImage: String = K8sHelper.nodeImage
 
+    @Option(name: .customLong("mount"), help: "Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)")
+    var mounts: [String] = []
+
     public func run() async throws {
         LoggingSystem.bootstrap { _ in StderrLogHandler() }
         let log = Logger(label: K8sHelper.pluginName)
@@ -86,7 +89,8 @@ public struct K8sCreate: AsyncParsableCommand {
             registryScheme: registryFlags.scheme,
             maxConcurrentDownloads: imageFetchFlags.maxConcurrentDownloads,
             remove: remove,
-            fqdn: fqdn
+            fqdn: fqdn,
+            mounts: mounts
         )
 
         progress.set(description: "Starting cluster")

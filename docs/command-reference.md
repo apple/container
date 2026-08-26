@@ -1586,7 +1586,7 @@ Creates and starts a local Kubernetes cluster. Pulls the node image if needed, r
 **Usage**
 
 ```bash
-container k8s create [--name <name>] [--node-image <image>] [--rm] [<resource options>] [--debug]
+container k8s create [--name <name>] [--node-image <image>] [--rm] [--mount <mount>] [<resource options>] [--debug]
 ```
 
 **Options**
@@ -1594,6 +1594,7 @@ container k8s create [--name <name>] [--node-image <image>] [--rm] [<resource op
 *   `--name <name>`: Cluster name (default: `k8s-dev`)
 *   `--node-image <image>`: Node image reference (default: `docker.io/kindest/node:v1.35.5`)
 *   `--rm`: Remove the cluster container after it stops
+*   `--mount <mount>`: Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)
 
 **Resource Options**
 
