@@ -9,6 +9,13 @@ Covers the full command surface, the Docker command mapping, and the differences
 commonly trip people up (singular command groups, `-t` on builds, the three-step DNS setup,
 container machines).
 
+## container-troubleshooting
+
+Localizes failures before changing system state. It covers host and service startup, XPC and
+launchd errors, networking and DNS, image builds, container processes, port forwarding, mounts,
+and container machines. A bundled collector gathers bounded diagnostics without restarting or
+deleting anything; an opt-in smoke test verifies DNS and HTTPS from a disposable container.
+
 ## Install
 
 Claude Code, from a local clone:
@@ -26,13 +33,13 @@ Or straight from GitHub, without a clone:
 /plugin install container@apple-container
 ```
 
-The skill loads on demand — it activates when a task involves containers, Dockerfiles, or
-images on macOS, and stays out of the way otherwise.
+The skills load on demand. `container` handles ordinary workflows and command translation;
+`container-troubleshooting` activates for failures, hangs, and diagnostic requests.
 
 ## Editing
 
-`skills/container/SKILL.md` is the always-loaded surface, so keep it short and put detail in
-`skills/container/references/`.
+Each `SKILL.md` is its skill's entry point. Keep it short and put branch-specific detail in that
+skill's `references/` directory.
 
 Document command *names* and behavior that surprises people. Do not paste exhaustive flag
 lists — they drift. `container <command> --help` is authoritative, and the skill tells the
