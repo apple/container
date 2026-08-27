@@ -1170,6 +1170,7 @@ public actor RuntimeService {
         }
 
         czConfig.process.terminal = process.terminal
+        czConfig.process.noNewPrivileges = process.noNewPrivileges
         czConfig.process.workingDirectory = process.workingDirectory
         try czConfig.process.rlimits = process.rlimits.map {
             LinuxRLimit(
@@ -1220,6 +1221,9 @@ public actor RuntimeService {
         }
 
         proc.terminal = config.terminal
+        // An exec request may opt into no-new-privileges, but it cannot weaken
+        // the policy persisted for the container at creation time.
+        proc.noNewPrivileges = config.noNewPrivileges || containerConfig.initProcess.noNewPrivileges
         proc.workingDirectory = config.workingDirectory
         try proc.rlimits = config.rlimits.map {
             LinuxRLimit(
