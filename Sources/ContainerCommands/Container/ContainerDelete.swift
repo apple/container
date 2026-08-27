@@ -35,6 +35,9 @@ extension Application {
         @Flag(name: .shortAndLong, help: "Delete containers even if they are running")
         var force = false
 
+        @Option(help: "Delete only if the container has this instance token")
+        var ifInstanceToken: String?
+
         @OptionGroup
         public var logOptions: Flags.Logging
 
@@ -51,11 +54,18 @@ extension Application {
                     message: "explicitly supplied container ID(s) conflict with the --all flag"
                 )
             }
+            if ifInstanceToken != nil && (all || containerIds.count != 1) {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "--if-instance-token requires exactly one explicit container ID"
+                )
+            }
         }
 
         public mutating func run() async throws {
             let client = ContainerClient()
             let force = self.force
+            let expectedInstanceToken = self.ifInstanceToken
 
             let containers: [String]
             if all {
@@ -76,7 +86,11 @@ extension Application {
                 for container in containers {
                     group.addTask {
                         do {
-                            try await client.delete(id: container, force: force)
+                            try await client.delete(
+                                id: container,
+                                force: force,
+                                expectedInstanceToken: expectedInstanceToken
+                            )
                             print(container)
                             return nil
                         } catch {

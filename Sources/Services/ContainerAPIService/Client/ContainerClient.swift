@@ -196,11 +196,29 @@ public struct ContainerClient: Sendable {
     }
 
     /// Delete the container along with any resources.
-    public func delete(id: String, force: Bool = false) async throws {
+    public func delete(id: String, force: Bool = false, expectedInstanceToken: String? = nil) async throws {
         do {
-            let request = XPCMessage(route: .containerDelete)
+            let route: XPCRoute
+            if expectedInstanceToken != nil {
+                let capabilityRequest = XPCMessage(route: .ping)
+                let capabilityReply = try await xpcSend(message: capabilityRequest, timeout: .seconds(10))
+                guard capabilityReply.bool(key: .conditionalContainerDeleteSupported) else {
+                    throw ContainerizationError(
+                        .unsupported,
+                        message: "API server does not support conditional container deletion"
+                    )
+                }
+                route = .containerDeleteIfInstance
+            } else {
+                route = .containerDelete
+            }
+
+            let request = XPCMessage(route: route)
             request.set(key: .id, value: id)
             request.set(key: .forceDelete, value: force)
+            if let expectedInstanceToken {
+                request.set(key: .expectedInstanceToken, value: expectedInstanceToken)
+            }
             try await xpcClient.send(request)
         } catch {
             throw ContainerizationError(

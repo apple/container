@@ -19,6 +19,54 @@ import Testing
 
 @Suite
 struct TestCLIRmRaceCondition {
+    @Test func testStaleInstanceTokenCannotDeleteReplacement() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-reuse"
+            let otherName = "\(f.testID)-other"
+            f.addCleanup { try f.doRemoveIfExists(name, force: true, ignoreFailure: true) }
+            f.addCleanup { try f.doRemoveIfExists(otherName, force: true, ignoreFailure: true) }
+
+            try f.doCreate(name: name)
+            let firstToken = try #require(try f.inspectContainer(name).configuration.instanceToken)
+            try f.run(["delete", "--if-instance-token", firstToken, name]).check()
+
+            try f.doCreate(name: name)
+            let replacementToken = try #require(try f.inspectContainer(name).configuration.instanceToken)
+            #expect(replacementToken != firstToken)
+
+            let staleDelete = try f.run(["delete", "--if-instance-token", firstToken, name])
+            #expect(staleDelete.status != 0)
+            #expect(staleDelete.error.contains("container instance precondition failed"))
+            #expect(try f.inspectContainer(name).configuration.instanceToken == replacementToken)
+
+            try f.doCreate(name: otherName)
+            let otherToken = try #require(try f.inspectContainer(otherName).configuration.instanceToken)
+            let crossContainerDelete = try f.run(["delete", "--if-instance-token", otherToken, name])
+            #expect(crossContainerDelete.status != 0)
+            #expect(try f.inspectContainer(name).configuration.instanceToken == replacementToken)
+
+            try f.run(["delete", "--if-instance-token", replacementToken, name]).check()
+            #expect((try f.run(["inspect", name])).status != 0)
+        }
+    }
+
+    @Test func testConditionalForceDeleteChecksTokenBeforeStopping() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-force"
+            f.addCleanup { try f.doRemoveIfExists(name, force: true, ignoreFailure: true) }
+
+            try await f.doLongRun(name: name, autoRemove: false, waitUntilRunning: true)
+            let token = try #require(try f.inspectContainer(name).configuration.instanceToken)
+
+            let mismatch = try f.run(["delete", "--force", "--if-instance-token", "stale-token", name])
+            #expect(mismatch.status != 0)
+            #expect(try f.getContainerStatus(name) == "running")
+
+            try f.run(["delete", "--force", "--if-instance-token", token, name]).check()
+            #expect((try f.run(["inspect", name])).status != 0)
+        }
+    }
+
     @Test func testStopRmRace() async throws {
         try await ContainerFixture.with { f in
             let name = "\(f.testID)-c"

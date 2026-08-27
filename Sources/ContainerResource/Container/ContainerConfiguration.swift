@@ -20,6 +20,11 @@ import Foundation
 public struct ContainerConfiguration: Sendable, Codable {
     /// Identifier for the container.
     public var id: String
+    /// Opaque server-generated identity for this incarnation of the container.
+    ///
+    /// Older persisted containers may not have a token. The API server assigns
+    /// a new token on every create and ignores any value supplied by a client.
+    public var instanceToken: String?
     /// Image used to create the container.
     public var image: ImageDescription
     /// External mounts to add to the container.
@@ -75,6 +80,7 @@ public struct ContainerConfiguration: Sendable, Codable {
 
     enum CodingKeys: String, CodingKey {
         case id
+        case instanceToken
         case image
         case mounts
         case publishedPorts
@@ -107,6 +113,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         id = try container.decode(String.self, forKey: .id)
+        instanceToken = try container.decodeIfPresent(String.self, forKey: .instanceToken)
         image = try container.decode(ImageDescription.self, forKey: .image)
         mounts = try container.decodeIfPresent([Filesystem].self, forKey: .mounts) ?? []
         publishedPorts = try container.decodeIfPresent([PublishPort].self, forKey: .publishedPorts) ?? []

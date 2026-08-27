@@ -264,6 +264,21 @@ public struct ContainersHarness: Sendable {
 
     @Sendable
     public func delete(_ message: XPCMessage) async throws -> XPCMessage {
+        try await delete(message, expectedInstanceToken: nil)
+    }
+
+    @Sendable
+    public func deleteIfInstance(_ message: XPCMessage) async throws -> XPCMessage {
+        guard let expectedInstanceToken = message.string(key: .expectedInstanceToken) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "expected container instance token cannot be empty"
+            )
+        }
+        return try await delete(message, expectedInstanceToken: expectedInstanceToken)
+    }
+
+    private func delete(_ message: XPCMessage, expectedInstanceToken: String?) async throws -> XPCMessage {
         let id = message.string(key: .id)
         guard let id else {
             throw ContainerizationError(.invalidArgument, message: "id cannot be empty")
@@ -272,7 +287,7 @@ public struct ContainersHarness: Sendable {
             throw ContainerizationError(.invalidArgument, message: "container ID \(id) is not a valid container ID")
         }
         let forceDelete = message.bool(key: .forceDelete)
-        try await service.delete(id: id, force: forceDelete)
+        try await service.delete(id: id, force: forceDelete, expectedInstanceToken: expectedInstanceToken)
         return message.reply()
     }
 

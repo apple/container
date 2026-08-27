@@ -41,6 +41,9 @@ public struct ManagedContainer: ManagedResource {
     /// not the protocol's 64-hex default.
     public static func generateId() -> String { UUID().uuidString.lowercased() }
 
+    /// Mint an opaque, high-entropy identity for one container incarnation.
+    public static func generateInstanceToken() -> String { UUID().uuidString.lowercased() }
+
     /// Container name rule
     public static func nameValid(_ name: String) -> Bool {
         // Maximum Linux hostname length is 64, but limit to maximum DNS label length

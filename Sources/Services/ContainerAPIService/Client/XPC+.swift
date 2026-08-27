@@ -52,6 +52,10 @@ public enum XPCKeys: String {
     case stopOptions
     /// Whether to force stop a container when deleting.
     case forceDelete
+    /// Expected server-generated identity for conditional container deletion.
+    case expectedInstanceToken
+    /// Whether the server implements atomic conditional container deletion.
+    case conditionalContainerDeleteSupported
     /// Plugins
     case pluginName
     case plugins
@@ -153,6 +157,7 @@ public enum XPCRoute: String {
     case containerStartProcess
     case containerWait
     case containerDelete
+    case containerDeleteIfInstance
     case containerStop
     case containerDial
     case containerResize
