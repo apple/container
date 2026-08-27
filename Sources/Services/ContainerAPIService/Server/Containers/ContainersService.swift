@@ -452,10 +452,14 @@ public actor ContainersService {
                 )
                 try await runtimeClient.bootstrap(stdio: stdio, networkBootstrapInfos: networkBootstrapInfos, dynamicEnv: dynamicEnv)
 
-                try await self.exitMonitor.registerProcess(
-                    id: id,
-                    onExit: self.handleContainerExit
-                )
+                let instanceToken = state.snapshot.configuration.instanceToken
+                try await self.exitMonitor.registerProcess(id: id) { id, exitStatus in
+                    try await self.handleContainerExit(
+                        id: id,
+                        expectedInstanceToken: instanceToken,
+                        code: exitStatus
+                    )
+                }
 
                 state.client = runtimeClient
                 await self.setContainerState(id, state, context: context)
@@ -604,7 +608,10 @@ public actor ContainersService {
         // container's init process, follow up with the same API-server cleanup
         // that `stop` performs.
         if processID == id, (try? Signal(signal)) == .kill {
-            try await handleContainerExit(id: id)
+            try await handleContainerExit(
+                id: id,
+                expectedInstanceToken: state.snapshot.configuration.instanceToken
+            )
         }
     }
 
@@ -650,7 +657,10 @@ public actor ContainersService {
                 throw err
             }
         }
-        try await handleContainerExit(id: id)
+        try await handleContainerExit(
+            id: id,
+            expectedInstanceToken: state.snapshot.configuration.instanceToken
+        )
     }
 
     public func dial(id: String, port: UInt32) async throws -> FileHandle {
@@ -930,13 +940,34 @@ public actor ContainersService {
         try await client.clean(id: id)
     }
 
-    private func handleContainerExit(id: String, code: ExitStatus? = nil) async throws {
+    func handleContainerExit(
+        id: String,
+        expectedInstanceToken: String?,
+        code: ExitStatus? = nil
+    ) async throws {
         try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { [self] context in
-            try await handleContainerExit(id: id, code: code, context: context)
+            try await handleContainerExit(
+                id: id,
+                expectedInstanceToken: expectedInstanceToken,
+                code: code,
+                context: context
+            )
         }
     }
 
-    private func handleContainerExit(id: String, code: ExitStatus?, context: AsyncLock.Context) async throws {
+    private func handleContainerExit(
+        id: String,
+        expectedInstanceToken: String?,
+        code: ExitStatus?,
+        context: AsyncLock.Context
+    ) async throws {
+        guard var state = self.containers[id] else {
+            return
+        }
+        guard state.snapshot.configuration.instanceToken == expectedInstanceToken else {
+            return
+        }
+
         if let code {
             self.log.info(
                 "handling container exit",
@@ -946,14 +977,7 @@ public actor ContainersService {
                 ])
         }
 
-        var state: ContainerState
-        do {
-            state = try self.getContainerState(id: id, context: context)
-            if state.snapshot.status == .stopped {
-                return
-            }
-        } catch {
-            // Was auto removed by the background thread, nothing for us to do.
+        if state.snapshot.status == .stopped {
             return
         }
 
@@ -1129,6 +1153,16 @@ public actor ContainersService {
     private func setContainerState(_ id: String, _ state: ContainerState, context: AsyncLock.Context) async {
         self.containers[id] = state
     }
+
+    #if DEBUG
+    func setContainerStatusForTesting(id: String, status: RuntimeStatus) throws {
+        guard var state = self.containers[id] else {
+            throw ContainerizationError(.notFound, message: "container \(id) not found")
+        }
+        state.snapshot.status = status
+        self.containers[id] = state
+    }
+    #endif
 
     private func canCreate(id: String, context: AsyncLock.Context) -> Bool {
         self.containers[id] == nil && !self.deletions.contains(id)

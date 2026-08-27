@@ -14,17 +14,18 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerAPIService
 import ContainerPersistence
 import ContainerResource
 import ContainerTestSupport
 import ContainerXPC
+import Containerization
 import ContainerizationError
 import Foundation
 import Logging
 import SystemPackage
 import Testing
 
+@testable import ContainerAPIService
 @testable import ContainerPlugin
 
 private struct InstanceTokenTestPluginFactory: PluginFactory {
@@ -169,6 +170,37 @@ struct ContainerInstanceTokenTests {
             #expect(error?.code == .invalidArgument)
             let snapshots = try await service.list()
             #expect(snapshots.map(\.id) == [id])
+        }
+    }
+
+    @Test func delayedExitFromForceDeletedInstanceDoesNotMutateReplacementAcrossRestart() async throws {
+        try await TemporaryStorage.withTempDir { appRoot in
+            let id = "delayed-exit-reuse"
+            let oldToken = "old-instance-token"
+            let oldBundlePath = try writeContainer(id: id, token: oldToken, appRoot: appRoot)
+            let oldService = try makeService(appRoot: appRoot)
+
+            // Exercise force-request cleanup without touching launchd, then
+            // reconstruct the service around an immediate same-ID replacement.
+            try FileManager.default.removeItem(at: oldBundlePath.appendingPathComponent("config.json"))
+            try await oldService.delete(id: id, force: true, expectedInstanceToken: oldToken)
+
+            let replacementToken = "replacement-instance-token"
+            let replacementBundlePath = try writeContainer(id: id, token: replacementToken, appRoot: appRoot)
+            let restartedService = try makeService(appRoot: appRoot)
+            try await restartedService.setContainerStatusForTesting(id: id, status: .running)
+
+            try await restartedService.handleContainerExit(
+                id: id,
+                expectedInstanceToken: oldToken,
+                code: ExitStatus(exitCode: 0)
+            )
+
+            let snapshots = try await restartedService.list()
+            let replacement = try #require(snapshots.first)
+            #expect(replacement.configuration.instanceToken == replacementToken)
+            #expect(replacement.status == .running)
+            #expect(FileManager.default.fileExists(atPath: replacementBundlePath.path))
         }
     }
 
