@@ -71,6 +71,8 @@ public struct ContainerClient: Sendable {
             }
 
             try await xpcSend(message: request)
+        } catch let error as ContainerizationError {
+            throw error
         } catch {
             throw ContainerizationError(
                 .internalError,
@@ -384,6 +386,21 @@ public struct ContainerClient: Sendable {
             throw ContainerizationError(
                 .internalError,
                 message: "failed to export container",
+                cause: error
+            )
+        }
+    }
+
+    public func clean(id: String) async throws {
+        let request = XPCMessage(route: .containerClean)
+        request.set(key: .id, value: id)
+
+        do {
+            try await xpcClient.send(request)
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to clean container",
                 cause: error
             )
         }

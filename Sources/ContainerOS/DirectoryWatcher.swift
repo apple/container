@@ -27,6 +27,9 @@ import SystemPackage
 /// If the target directory does not exist yet, it polls until the directory is created.
 /// the target is created, then transitions to watching the target directly.
 ///
+/// Each instance supports exactly one `startWatching` session and one reader of `readyEvents`.
+/// Calling `startWatching` a second time throws; create a new instance to watch again.
+///
 /// Example usage:
 /// ```swift
 /// let watcher = DirectoryWatcher(directoryPath: myPath, log: logger)
@@ -46,6 +49,18 @@ public actor DirectoryWatcher {
 
     private let log: Logger?
 
+    /// Emits an event each time the watcher transitions from not-watching to actively watching,
+    /// i.e. immediately after its `DispatchSource` is resumed. Buffered (`.unbounded`), so a
+    /// consumer that starts iterating after the event fired still observes it — callers should
+    /// grab this stream before calling `startWatching` and `await` it instead of sleeping a
+    /// guessed duration to know when the watcher is actually live.
+    ///
+    /// Supports only one concurrent reader: `AsyncStream` delivers each value to a single
+    /// waiting iterator, not to every iterator, so a second consumer would race the first for
+    /// events instead of both observing them.
+    public let readyEvents: AsyncStream<Void>
+    private let readyEventsContinuation: AsyncStream<Void>.Continuation
+
     /// Creates a new `DirectoryWatcher` for the given directory path.
     ///
     /// - Parameters:
@@ -56,13 +71,21 @@ public actor DirectoryWatcher {
         self.monitorQueue = DispatchQueue(label: "monitor:\(directoryPath.string)")
         self.log = log
         self.source = Mutex(nil)
+        (self.readyEvents, self.readyEventsContinuation) = AsyncStream.makeStream()
     }
 
     /// Starts watching the directory for changes.
     ///
     /// - Parameters:
     ///   - handler: handler to run on directory state change.
-    public func startWatching(handler: @Sendable @escaping ([FilePath]) throws -> Void) {
+    /// - Throws: `ContainerizationError(.invalidState)` if this watcher is already watching.
+    ///   Only one `startWatching` session is supported per `DirectoryWatcher` instance; create a
+    ///   new instance if you need to watch again after stopping.
+    public func startWatching(handler: @Sendable @escaping ([FilePath]) throws -> Void) throws {
+        guard task == nil else {
+            throw ContainerizationError(.invalidState, message: "already watching \(directoryPath.string)")
+        }
+
         self.task = Task {
             var exists: Bool
             var isDir: ObjCBool = false
@@ -130,10 +153,12 @@ public actor DirectoryWatcher {
 
         source.withLock { $0 = dispatchSource }
         dispatchSource.resume()
+        readyEventsContinuation.yield()
     }
 
     deinit {
         self.task?.cancel()
         source.withLock { $0?.cancel() }
+        readyEventsContinuation.finish()
     }
 }

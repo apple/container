@@ -31,6 +31,16 @@ Start the system service with:
 container system start
 ```
 
+### Run your first container
+
+```bash
+container run --rm alpine echo hello
+```
+
+This pulls the `alpine` image, runs it in a lightweight Linux VM, prints `hello`, and
+removes the container when it exits. See the [tutorial](./docs/tutorials/start-here.md)
+for a fuller walkthrough that builds and publishes an image of your own.
+
 ### Upgrade or downgrade
 
 For both upgrading and downgrading, you can manually download and install the signed installer package by following the steps from [initial install](#initial-install) or use the `update-container.sh` script (installed to `/usr/local/bin`).

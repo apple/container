@@ -422,10 +422,10 @@ public actor ContainersService {
 
             var networkBootstrapInfos = [NetworkBootstrapInfo]()
             for n in config.networks {
-                guard let (plugin, options) = try await self.networksService?.pluginConfiguration(id: n.network) else {
-                    throw ContainerizationError(.internalError, message: "failed to get plugin configuration for network \(n.network)")
+                guard let plugin = try await self.networksService?.plugin(for: n.network) else {
+                    throw ContainerizationError(.internalError, message: "failed to get plugin for network \(n.network)")
                 }
-                networkBootstrapInfos.append(NetworkBootstrapInfo(plugin: plugin, options: options))
+                networkBootstrapInfos.append(NetworkBootstrapInfo(plugin: plugin))
             }
 
             do {
@@ -901,14 +901,34 @@ public actor ContainersService {
         self.log.debug("\(#function)")
 
         let state = try self._getContainerState(id: id)
-        guard state.snapshot.status == .stopped else {
-            throw ContainerizationError(.invalidState, message: "container is not stopped")
-        }
-
         let path = self.containerRoot.appendingPathComponent(id)
         let bundle = ContainerResource.Bundle(path: path)
         let rootfs = bundle.containerRootfsBlock
-        try EXT4.EXT4Reader(blockDevice: FilePath(rootfs)).export(archive: FilePath(archive))
+
+        switch state.snapshot.status {
+        case .running:
+            let client = try state.getClient()
+            let snapshot = rootfs.appendingPathExtension("snapshot")
+            defer { try? FileManager.default.removeItem(at: snapshot) }
+            try await client.snapshotDisk(imagePath: rootfs.path, destinationPath: snapshot.path)
+            try EXT4.EXT4Reader(blockDevice: FilePath(snapshot)).export(archive: FilePath(archive))
+        case .stopped:
+            try EXT4.EXT4Reader(blockDevice: FilePath(rootfs)).export(archive: FilePath(archive))
+        default:
+            throw ContainerizationError(.invalidState, message: "container must be running or stopped")
+        }
+    }
+
+    public func clean(id: String) async throws {
+        self.log.debug("\(#function)")
+
+        let state = try self._getContainerState(id: id)
+        guard state.snapshot.status == .running else {
+            throw ContainerizationError(.invalidState, message: "container is not running")
+        }
+
+        let client = try state.getClient()
+        try await client.clean(id: id)
     }
 
     private func handleContainerExit(id: String, code: ExitStatus? = nil) async throws {

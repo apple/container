@@ -164,6 +164,15 @@ struct RenderJSONTests {
     }
 
     @Test
+    func doesNotEscapeSlashes() throws {
+        let item = TestItem(id: "/foo/bar", name: "https://example.com/path")
+        let json = try Output.renderJSON(item)
+        #expect(json.contains("/foo/bar"))
+        #expect(json.contains("https://example.com/path"))
+        #expect(!json.contains("\\/"))
+    }
+
+    @Test
     func prettyIsMultiLine() throws {
         let items = [TestItem(id: "a", name: "b")]
         let json = try Output.renderJSON(items, options: .pretty)

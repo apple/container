@@ -1,0 +1,15 @@
+{
+  "name": "apple-container",
+  "description": "Skills for using container, Apple's tool for running Linux containers on macOS",
+  "owner": {
+    "name": "The container project maintainers"
+  },
+  "plugins": [
+    {
+      "name": "container",
+      "description": "Teaches Claude container's command surface and how it maps to Docker, Lima, Colima, and Podman on macOS",
+      "version": "0.1.0",
+      "source": "./"
+    }
+  ]
+}

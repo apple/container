@@ -72,6 +72,35 @@ container machine run -n dev -- nproc
 
 Memory defaults to half of host memory. The home-mount can be `rw` (default), `ro`, or `none`.
 
+### Nested virtualization and custom kernels
+
+A container machine supports nested virtualization. The requirements for this to work are:
+
+1. Apple Silicon **M3 or later** with **macOS 15 or later** is required.
+2. A Linux kernel with CONFIG_KVM=y enabled. The default kernel does not support this.
+
+```bash
+container machine create \
+    --virtualization \
+    --kernel /path/to/vmlinux-kvm \
+    --name kvm-dev \
+    alpine:latest
+
+# Verify /dev/kvm is exposed:
+container machine run -n kvm-dev -- ls -l /dev/kvm
+```
+
+Options can be toggled on an existing container machine.
+
+```bash
+container machine set -n dev virtualization=true kernel=/path/to/vmlinux-kvm
+container machine stop dev
+container machine run -n dev -- ls -l /dev/kvm
+
+# reset to the default kernel
+container machine set -n dev kernel=
+```
+
 ## Bring your own container machine image
 
 Any Linux image that includes `/sbin/init` works as a container machine. For example, this Dockerfile builds an Ubuntu 24.04 container machine image with `systemd` and common command-line tools:

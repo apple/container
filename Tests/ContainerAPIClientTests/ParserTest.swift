@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import Containerization
 import ContainerizationError
 import ContainerizationExtras
 import Foundation
@@ -458,6 +459,40 @@ struct ParserTest {
     }
 
     @Test
+    func testMountTmpfsWithMode() throws {
+        let result = try Parser.mount("type=tmpfs,dst=/foo,size=64m,mode=1777")
+
+        switch result {
+        case .filesystem(let fs):
+            #expect(fs.destination == "/foo")
+            #expect(fs.options.contains("mode=1777"))
+        case .volume:
+            #expect(Bool(false), "Expected filesystem mount, got volume")
+        }
+    }
+
+    @Test
+    func testMountTmpfsSource() throws {
+        let result = try Parser.mount("type=tmpfs,target=/tmpfsmount1,size=512M")
+        switch result {
+        case .filesystem(let fs):
+            #expect(fs.type == .tmpfs)
+            #expect(fs.source == "tmpfs")
+            #expect(fs.destination == "/tmpfsmount1")
+            #expect(fs.options.contains("size=536870912"))
+        case .volume:
+            #expect(Bool(false), "Expected filesystem mount, got volume")
+        }
+    }
+
+    @Test
+    func testMountTmpfsSourceRejection() throws {
+        #expect(throws: ContainerizationError.self) {
+            _ = try Parser.mount("type=tmpfs,source=tmpfs,target=/tmpfsmount1")
+        }
+    }
+
+    @Test
     func testMountVolumeValidName() throws {
         let result = try Parser.mount("type=volume,src=myvolume,dst=/data")
 
@@ -631,6 +666,18 @@ struct ParserTest {
             envs: ["FOO=fromuser"]
         )
         #expect(Set(result) == Set(["FOO=fromuser", "BAR=fromimage", "BAZ=fromfile"]))
+    }
+
+    @Test
+    func testAllEnvRejectsBareNameFromImage() throws {
+        // Image config is untrusted: a bare name (no "=") must be dropped rather
+        // than expanded from the host process's environment.
+        let result = try Parser.allEnv(
+            imageEnvs: ["PATH", "FOO=fromimage"],
+            envFiles: [],
+            envs: []
+        )
+        #expect(Set(result) == Set(["FOO=fromimage"]))
     }
 
     private func tmpFileWithContent(_ content: String) throws -> URL {
@@ -1184,6 +1231,152 @@ struct ParserTest {
         }
     }
 
+    // MARK: - Masked Paths Parser Tests
+
+    @Test
+    func testMaskedPathsParserEmpty() throws {
+        #expect(try Parser.maskedPaths([]) == nil)
+    }
+
+    @Test
+    func testMaskedPathsParserAppendsToDefaults() throws {
+        let result = try Parser.maskedPaths(["/run/secrets"])
+        #expect(result == LinuxContainer.defaultMaskedPaths() + ["/run/secrets"])
+    }
+
+    @Test
+    func testMaskedPathsParserResetSentinelOnly() throws {
+        #expect(try Parser.maskedPaths(["NONE"]) == [])
+    }
+
+    @Test
+    func testMaskedPathsParserResetSentinelThenPath() throws {
+        #expect(try Parser.maskedPaths(["NONE", "/run/secrets"]) == ["/run/secrets"])
+    }
+
+    @Test
+    func testMaskedPathsParserPathThenResetSentinel() throws {
+        #expect(try Parser.maskedPaths(["/run/secrets", "NONE"]) == [])
+    }
+
+    @Test
+    func testMaskedPathsParserResetSentinelCaseInsensitive() throws {
+        #expect(try Parser.maskedPaths(["none"]) == [])
+        #expect(try Parser.maskedPaths(["None"]) == [])
+    }
+
+    @Test
+    func testMaskedPathsParserOrderedResets() throws {
+        #expect(try Parser.maskedPaths(["/a", "NONE", "/b", "/c"]) == ["/b", "/c"])
+    }
+
+    @Test
+    func testMaskedPathsParserStripsTrailingSlash() throws {
+        #expect(try Parser.maskedPaths(["NONE", "/run/secrets/"]) == ["/run/secrets"])
+        #expect(try Parser.maskedPaths(["NONE", "/"]) == ["/"])
+    }
+
+    @Test
+    func testMaskedPathsParserTrimsWhitespace() throws {
+        #expect(try Parser.maskedPaths(["NONE", "  /run/secrets  "]) == ["/run/secrets"])
+    }
+
+    @Test
+    func testMaskedPathsParserDedupesRepeatedValues() throws {
+        #expect(try Parser.maskedPaths(["NONE", "/run/secrets", "/run/secrets/", "/run/secrets"]) == ["/run/secrets"])
+    }
+
+    @Test
+    func testMaskedPathsParserDedupesAgainstDefaults() throws {
+        let defaults = LinuxContainer.defaultMaskedPaths()
+        #expect(try Parser.maskedPaths([defaults[0]]) == defaults)
+    }
+
+    @Test
+    func testMaskedPathsParserRelativePath() throws {
+        #expect {
+            _ = try Parser.maskedPaths(["proc/kcore"])
+        } throws: { error in
+            "\(error)".contains("proc/kcore") && "\(error)".contains("masked-path")
+        }
+    }
+
+    @Test
+    func testMaskedPathsParserEmptyValue() throws {
+        #expect {
+            _ = try Parser.maskedPaths([""])
+        } throws: { _ in
+            true
+        }
+    }
+
+    // MARK: - Readonly Paths Parser Tests
+
+    @Test
+    func testReadonlyPathsParserEmpty() throws {
+        #expect(try Parser.readonlyPaths([]) == nil)
+    }
+
+    @Test
+    func testReadonlyPathsParserAppendsToDefaults() throws {
+        let result = try Parser.readonlyPaths(["/etc/config"])
+        #expect(result == LinuxContainer.defaultReadonlyPaths() + ["/etc/config"])
+    }
+
+    @Test
+    func testReadonlyPathsParserResetSentinelOnly() throws {
+        #expect(try Parser.readonlyPaths(["NONE"]) == [])
+    }
+
+    @Test
+    func testReadonlyPathsParserResetSentinelThenPath() throws {
+        #expect(try Parser.readonlyPaths(["NONE", "/etc/config"]) == ["/etc/config"])
+    }
+
+    @Test
+    func testReadonlyPathsParserPathThenResetSentinel() throws {
+        #expect(try Parser.readonlyPaths(["/etc/config", "NONE"]) == [])
+    }
+
+    @Test
+    func testReadonlyPathsParserResetSentinelCaseInsensitive() throws {
+        #expect(try Parser.readonlyPaths(["none"]) == [])
+    }
+
+    @Test
+    func testReadonlyPathsParserOrderedResets() throws {
+        #expect(try Parser.readonlyPaths(["/a", "NONE", "/b", "/c"]) == ["/b", "/c"])
+    }
+
+    @Test
+    func testReadonlyPathsParserStripsTrailingSlash() throws {
+        #expect(try Parser.readonlyPaths(["NONE", "/etc/config/"]) == ["/etc/config"])
+    }
+
+    @Test
+    func testReadonlyPathsParserDedupesAgainstDefaults() throws {
+        let defaults = LinuxContainer.defaultReadonlyPaths()
+        #expect(try Parser.readonlyPaths([defaults[0]]) == defaults)
+    }
+
+    @Test
+    func testReadonlyPathsParserRelativePath() throws {
+        #expect {
+            _ = try Parser.readonlyPaths(["proc/sys"])
+        } throws: { error in
+            "\(error)".contains("proc/sys") && "\(error)".contains("read-only-path")
+        }
+    }
+
+    @Test
+    func testReadonlyPathsParserDefaultsAreDistinctFromMaskedPaths() throws {
+        let masked = try Parser.maskedPaths(["/shared"])
+        let readonly = try Parser.readonlyPaths(["/shared"])
+        #expect(masked == LinuxContainer.defaultMaskedPaths() + ["/shared"])
+        #expect(readonly == LinuxContainer.defaultReadonlyPaths() + ["/shared"])
+        #expect(masked != readonly)
+    }
+
     // MARK: - Parser.resources
 
     @Test func testResourcesCustomDefaults() throws {
@@ -1335,5 +1528,89 @@ struct ParserTest {
     @Test
     func testManagementFlagsAcceptsNoDNSAlone() throws {
         _ = try Flags.Management.parse(["--no-dns"])
+    }
+
+    // MARK: - Collection capacity hints
+
+    @Test("labels with large input preserves all entries")
+    func testLabelsLargeInput() throws {
+        let labels = (0..<100).map { "key\($0)=value\($0)" }
+        let result = try Parser.labels(labels)
+        #expect(result.count == 100)
+        #expect(result["key42"] == "value42")
+        #expect(result["key99"] == "value99")
+    }
+
+    @Test("resolve with large input preserves all entries")
+    func testParseKeyValuePairsLargeInput() {
+        let pairs = (0..<100).map { "key\($0)=value\($0)" }
+        let result = Utility.parseKeyValuePairs(pairs)
+        #expect(result.count == 100)
+        #expect(result["key0"] == "value0")
+        #expect(result["key99"] == "value99")
+    }
+
+    @Test("tmpfsMounts with large input")
+    func testTmpfsMountsLargeInput() throws {
+        let mounts = (0..<20).map { "/mnt/tmpfs\($0)" }
+        let result = try Parser.tmpfsMounts(mounts)
+        #expect(result.count == 20)
+    }
+
+    @Test("tmpfsMounts parses mount options and dedupes on destination path")
+    func testTmpfsMountsWithColons() throws {
+        let mounts = [
+            "/mnt/scratch:rw,exec",
+            "/mnt/scratch",  // Should be deduped based on path
+            "/mnt/cache:ro",
+        ]
+        let result = try Parser.tmpfsMounts(mounts)
+        #expect(result.count == 2)
+        #expect(result[0].destination == "/mnt/scratch")
+        #expect(result[0].options == ["rw", "exec"])
+    }
+
+    @Test("tmpfsMounts throws on empty destination")
+    func testTmpfsMountsEmptyDestination() throws {
+        #expect(throws: ContainerizationError.self) {
+            _ = try Parser.tmpfsMounts([""])
+        }
+    }
+
+    @Test("tmpfsMounts throws on non-absolute destination")
+    func testTmpfsMountsNonAbsoluteDestination() throws {
+        #expect(throws: ContainerizationError.self) {
+            _ = try Parser.tmpfsMounts(["relative/path:rw"])
+        }
+    }
+
+    @Test("volumes with large input")
+    func testVolumesLargeInput() throws {
+        let volumes = (0..<20).map { "vol\($0):/mnt/vol\($0)" }
+        let result = try Parser.volumes(volumes)
+        #expect(result.count == 20)
+    }
+
+    @Test("capabilities with large input")
+    func testCapabilitiesLargeInput() throws {
+        let result = try Parser.capabilities(capAdd: ["ALL", "SYS_ADMIN", "NET_RAW", "CHOWN"], capDrop: ["SETUID", "KILL"])
+        #expect(result.capAdd.count == 4)
+        #expect(result.capDrop.count == 2)
+        #expect(result.capAdd.first == "ALL")
+    }
+
+    @Test("rlimits with large input")
+    func testRlimitsLargeInput() throws {
+        let result = try Parser.rlimits(["nofile=1024:2048", "nproc=100:200", "memlock=65536:65536"])
+        #expect(result.count == 3)
+        #expect(result[0].limit == "RLIMIT_NOFILE")
+    }
+
+    @Test("allEnv with large env lists")
+    func testAllEnvLargeInput() throws {
+        let imageEnvs = (0..<50).map { "IMAGE_VAR\($0)=value\($0)" }
+        let envs = (0..<50).map { "USER_VAR\($0)=value\($0)" }
+        let result = try Parser.allEnv(imageEnvs: imageEnvs, envFiles: [], envs: envs)
+        #expect(result.count == 100)
     }
 }
