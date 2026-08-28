@@ -20,6 +20,7 @@ import Containerization
 import ContainerizationError
 import ContainerizationOS
 import Foundation
+import Logging
 import SystemPackage
 import TerminalProgress
 
