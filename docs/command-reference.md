@@ -57,6 +57,7 @@ container run [<options>] <image> [<arguments> ...]
 *   `--init-image <image>`: Use a custom init image instead of the default. This allows customizing boot-time behavior before the OCI container starts, such as running VM-level daemons, configuring eBPF filters, or debugging the init process.
 *   `-k, --kernel <path>`: Set a custom kernel path
 *   `-l, --label <label>`: Add a key=value label to the container
+*   `--masked-path <path>`: **Experimental.** Hide a path inside the container, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
 *   `--mount <mount>`: Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)
 *   `--name <name>`: Use the specified name as the container ID
 *   `--network <network>`: Attach the container to a network (format: `<name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE]`)
@@ -66,6 +67,7 @@ container run [<options>] <image> [<arguments> ...]
 *   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
 *   `--publish-socket <spec>`: Publish a socket from container to host (format: host_path:container_path)
 *   `--read-only`: Mount the container's root filesystem as read-only
+*   `--read-only-path <path>`: **Experimental.** Mark a path inside the container read-only, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
 *   `--rm, --remove`: Remove the container after it stops
 *   `--rosetta`: Enable Rosetta in the container
 *   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)
@@ -157,6 +159,7 @@ container build [<options>] [<context-dir>]
 *   `--pull`: Pull latest image
 *   `-q, --quiet`: Suppress build output
 *   `--secret <id=key,...>`: Set build-time secrets (format: id=<key>[,env=<ENV_VAR>|,src=<local/path>])
+*   `--ssh <default>`: Forward SSH agent authentication to the build. Only `--ssh default` is currently supported.
 *   `-t, --tag <name>`: Name for the built image (can be specified multiple times)
 *   `--target <stage>`: Set the target build stage
 *   `--vsock-port <port>`: Builder shim vsock port (default: 8088)
@@ -230,6 +233,7 @@ container create [<options>] <image> [<arguments> ...]
 *   `--init-image <image>`: Use a custom init image instead of the default. This allows customizing boot-time behavior before the OCI container starts, such as running VM-level daemons, configuring eBPF filters, or debugging the init process.
 *   `-k, --kernel <path>`: Set a custom kernel path
 *   `-l, --label <label>`: Add a key=value label to the container
+*   `--masked-path <path>`: **Experimental.** Hide a path inside the container, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
 *   `--mount <mount>`: Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)
 *   `--name <name>`: Use the specified name as the container ID
 *   `--network <network>`: Attach the container to a network (format: `<name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE]`)
@@ -239,6 +243,7 @@ container create [<options>] <image> [<arguments> ...]
 *   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
 *   `--publish-socket <spec>`: Publish a socket from container to host (format: host_path:container_path)
 *   `--read-only`: Mount the container's root filesystem as read-only
+*   `--read-only-path <path>`: **Experimental.** Mark a path inside the container read-only, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
 *   `--rm, --remove`: Remove the container after it stops
 *   `--rosetta`: Enable Rosetta in the container
 *   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)  
@@ -381,7 +386,7 @@ container exec [--detach] [--env <env> ...] [--env-file <env-file> ...] [--gid <
 
 ### `container export`
 
-Exports a stopped container's filesystem as a tar archive. The container must be stopped before exporting. If no output file is specified, the tar stream is written to stdout.
+Exports a container's filesystem as a tar archive. For running containers, export automatically takes a runtime snapshot to preserve consistency. If no output file is specified, the tar stream is written to stdout.
 
 **Usage**
 
@@ -614,7 +619,7 @@ container image save [--arch <arch>] [--os <os>] --output <output> [--platform <
 
 ### `container image load`
 
-Loads images from a tar archive created by `image save`. The tar file must be specified via `--input`.
+Loads images from a tar archive created by `image save`. Specify the tar file with `--input`.
 
 **Usage**
 
@@ -906,22 +911,10 @@ container volume create --opt journal=journal --opt size=10g myvolume
 
 **Anonymous Volumes**
 
-Anonymous volumes are auto-created when using `-v /path` or `--mount type=volume,dst=/path` without specifying a source. They use UUID-based naming (`anon-{36-char-uuid}`):
-
-```bash
-# Creates anonymous volume
-container run -v /data alpine
-
-# Reuse anonymous volume by ID
-VOL=$(container volume list -q | grep anon)
-container run -v $VOL:/data alpine
-
-# Manual cleanup
-container volume rm $VOL
-```
-
-> [!NOTE]
-> Unlike Docker, anonymous volumes do NOT auto-cleanup with `--rm`. Manual deletion is required.
+Using `-v /path` or `--mount type=volume,dst=/path` without a source auto-creates a
+named volume for you, tagged with the `com.apple.container.resource.anonymous` label.
+See [Mounts and volumes](./volumes.md#anonymous-volumes) for how to find and clean
+these up.
 
 ### `container volume delete (rm)`
 
@@ -1007,7 +1000,7 @@ The registry commands manage authentication and defaults for container registrie
 
 ### `container registry login`
 
-Authenticates with a registry. Credentials can be provided interactively or via flags. The login is stored for reuse by subsequent commands.
+Authenticates with a registry. You can provide credentials interactively or with flags. The login is stored for reuse by subsequent commands.
 
 **Usage**
 
@@ -1543,7 +1536,7 @@ Installs or updates the Linux kernel used by the container runtime on macOS host
 **Usage**
 
 ```bash
-container system kernel set [--arch <arch>] [--binary <binary>] [--force] [--recommended] [--tar <tar>] [--debug]
+container system kernel set [--arch <arch>] [--binary <binary>] [--force] [--recommended] [--tar <tar>] [--digest <digest>] [--debug]
 ```
 
 **Options**
@@ -1553,6 +1546,7 @@ container system kernel set [--arch <arch>] [--binary <binary>] [--force] [--rec
 *   `--force`: Overwrites an existing kernel with the same name
 *   `--recommended`: Download and install the recommended kernel as the default (takes precedence over all other flags)
 *   `--tar <tar>`: Filesystem path or remote URL to a tar archive containing a kernel file
+*   `--digest <digest>`: Expected digest for the tar archive, for example `sha256:<hex>`. Required when `--tar` is a remote URL.
 
 ### `container system property list (ls)`
 
@@ -1576,4 +1570,176 @@ container system property list
 
 # output as JSON for scripting
 container system property list --format json
+```
+
+## Kubernetes Cluster Management
+
+`container k8s` manages local single-node Kubernetes clusters backed by container VMs. Each cluster runs a Kubernetes control-plane node inside a container using `kindest/node` and `kubeadm`.
+
+> [!IMPORTANT]
+> The `k8s` command is an experimental feature and its subcommands and options are subject to change.
+
+### `container k8s create`
+
+Creates and starts a local Kubernetes cluster. Pulls the node image if needed, runs `kubeadm init`, installs the kindnet CNI, and merges the cluster credentials into `~/.kube/config`.
+
+**Usage**
+
+```bash
+container k8s create [--name <name>] [--node-image <image>] [--rm] [<resource options>] [--debug]
+```
+
+**Options**
+
+*   `--name <name>`: Cluster name (default: `k8s-dev`)
+*   `--node-image <image>`: Node image reference (default: `docker.io/kindest/node:v1.35.5`)
+*   `--rm`: Remove the cluster container after it stops
+
+**Resource Options**
+
+*   `--cpus <cpus>`: Number of virtual CPUs (default: 1/4 of host CPUs, minimum 2)
+*   `--memory <memory>`: Memory allocation (default: 1/4 of host memory, minimum 2g)
+
+**Registry Options**
+
+*   `--scheme <scheme>`: Scheme for the container registry (values: http, https, auto; default: auto)
+
+**Image Fetch Options**
+
+*   `--max-concurrent-downloads <n>`: Maximum number of concurrent downloads (default: 3)
+
+**Examples**
+
+```bash
+# create a cluster with the default name (k8s-dev)
+container k8s create
+
+# create a cluster with a custom name and resource allocation
+container k8s create --name my-cluster --cpus 4 --memory 8g
+
+# create a cluster that removes itself when stopped
+container k8s create --name temp-cluster --rm
+```
+
+### `container k8s start`
+
+Starts a stopped Kubernetes cluster and refreshes its entry in `~/.kube/config` (the container IP can change between starts).
+
+**Usage**
+
+```bash
+container k8s start [--name <name>] [--debug]
+```
+
+**Options**
+
+*   `--name <name>`: Cluster name (default: `k8s-dev`)
+
+**Examples**
+
+```bash
+# start the default cluster
+container k8s start
+
+# start a named cluster
+container k8s start --name my-cluster
+```
+
+### `container k8s delete (rm)`
+
+Stops and deletes a Kubernetes cluster container and removes its entry from `~/.kube/config`.
+
+**Usage**
+
+```bash
+container k8s delete [--name <name>] [--debug]
+```
+
+**Options**
+
+*   `--name <name>`: Cluster name (default: `k8s-dev`)
+
+**Examples**
+
+```bash
+# delete the default cluster
+container k8s delete
+
+# delete a named cluster
+container k8s delete --name my-cluster
+container k8s rm --name my-cluster
+```
+
+### `container k8s list (ls)`
+
+Lists all Kubernetes clusters with their status and node image.
+
+**Usage**
+
+```bash
+container k8s list [--debug]
+```
+
+**Examples**
+
+```bash
+container k8s list
+container k8s ls
+```
+
+### `container k8s load-image`
+
+Exports an image from the local `container` image store and imports it into the cluster's containerd (in the `k8s.io` namespace) so that Kubernetes can schedule pods that reference it.
+
+**Usage**
+
+```bash
+container k8s load-image [--name <name>] [--platform <platform>] <image> [--debug]
+```
+
+**Arguments**
+
+*   `<image>`: Image reference to load (e.g. `my-app:latest`)
+
+**Options**
+
+*   `--name <name>`: Cluster name (default: `k8s-dev`)
+*   `--platform <platform>`: Platform of the image variant to load from a multi-arch image (format: os/arch[/variant], default: `linux/<host-arch>`). Use this when the local store contains a multi-arch manifest list and you want to select a specific variant.
+
+**Examples**
+
+```bash
+# load an image into the default cluster
+container k8s load-image my-app:latest
+
+# load an image into a named cluster
+container k8s load-image --name my-cluster my-app:latest
+
+# load the amd64 variant of a multi-arch image
+container k8s load-image --platform linux/amd64 my-app:latest
+```
+
+### `container k8s write-config`
+
+Fetches the current kubeconfig from a running cluster and merges its context into a kubeconfig file. Use this to refresh credentials after a cluster restart or to write to an alternate config file.
+
+**Usage**
+
+```bash
+container k8s write-config [--name <name>] [--kubeconfig <path>] [--debug]
+```
+
+**Options**
+
+*   `--name <name>`: Cluster name (default: `k8s-dev`)
+*   `--kubeconfig <path>`: Path to the kubeconfig file to write or append to (default: `~/.kube/config`)
+
+**Examples**
+
+```bash
+# refresh credentials for the default cluster into ~/.kube/config
+container k8s write-config
+
+# write the context for a named cluster to an alternate kubeconfig file
+container k8s write-config --name my-cluster --kubeconfig ~/.kube/my-cluster.kubeconfig
 ```

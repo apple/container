@@ -24,6 +24,11 @@ import Foundation
 import Logging
 import TerminalProgress
 
+// MARK: - Collection capacity hints
+// Dictionary(minimumCapacity:) and reserveCapacity() are used in this file to
+// pre-allocate storage when the final collection size is known from the input.
+// This avoids incremental reallocation overhead in hot-path parser methods.
+
 public struct Utility {
     static let publishedPortCountLimit = 64
 
@@ -49,14 +54,6 @@ public struct Utility {
             hex = String(digest[digest.index(after: colonIndex)...])
         }
         return String(hex.prefix(12))
-    }
-
-    public static func validEntityName(_ name: String) throws {
-        let pattern = #"^[a-zA-Z0-9][a-zA-Z0-9_.-]+$"#
-        let regex = try Regex(pattern)
-        if try regex.firstMatch(in: name) == nil {
-            throw ContainerizationError(.invalidArgument, message: "invalid entity name \(name)")
-        }
     }
 
     public static func validMACAddress(_ macAddress: String) throws {
@@ -258,6 +255,8 @@ public struct Utility {
         let caps = try Parser.capabilities(capAdd: management.capAdd, capDrop: management.capDrop)
         config.capAdd = caps.capAdd
         config.capDrop = caps.capDrop
+        config.maskedPaths = try Parser.maskedPaths(management.maskedPaths)
+        config.readonlyPaths = try Parser.readonlyPaths(management.readonlyPaths)
         config.stopSignal = imageConfig?.stopSignal
 
         if let runtime = management.runtime {
@@ -333,14 +332,20 @@ public struct Utility {
         // For the image itself we'll take the user input and try with it as we can do userspace
         // emulation for x86, but for the kernel we need it to match the hosts architecture.
         let s: SystemPlatform = .current
+        var kernel: Kernel
         if let userKernel = management.kernel {
             guard FileManager.default.fileExists(atPath: userKernel) else {
                 throw ContainerizationError(.notFound, message: "kernel file not found at path \(userKernel)")
             }
             let p = URL(filePath: userKernel)
-            return .init(path: p, platform: s)
+            kernel = .init(path: p, platform: s)
+        } else {
+            kernel = try await ClientKernel.getDefaultKernel(for: s)
         }
-        return try await ClientKernel.getDefaultKernel(for: s)
+        // Persist any user-supplied boot args onto the kernel command line. A key supplied
+        // here overrides the runtime's matching built-in default (see RuntimeService.bootstrap).
+        kernel.commandLine.kernelArgs.append(contentsOf: management.kernelArgs)
+        return kernel
     }
 
     /// Parses key-value pairs from command line arguments.
@@ -349,7 +354,7 @@ public struct Utility {
     /// - Parameter pairs: Array of strings in "key=value" format
     /// - Returns: Dictionary mapping keys to values
     public static func parseKeyValuePairs(_ pairs: [String]) -> [String: String] {
-        var result: [String: String] = [:]
+        var result: [String: String] = Dictionary(minimumCapacity: pairs.count)
         for pair in pairs {
             let components = pair.split(separator: "=", maxSplits: 1)
             if components.count == 2 {

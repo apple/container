@@ -160,8 +160,18 @@ public actor RuntimeService {
             var config = try bundle.configuration
 
             var kernel = try bundle.kernel
-            kernel.commandLine.kernelArgs.append("oops=panic")
-            kernel.commandLine.kernelArgs.append("lsm=lockdown,capability,landlock,yama,apparmor")
+            // Built-in defaults keyed by arg name. Each is applied only if the user did not already
+            // supply the same key via --kernel-arg, letting custom kernels override them (e.g. lsm=...,bpf).
+            let defaultKernelArgs: KeyValuePairs = [
+                "oops": "panic",
+                "lsm": "lockdown,capability,landlock,yama,apparmor",
+            ]
+            for (key, value) in defaultKernelArgs {
+                guard !kernel.commandLine.kernelArgs.contains(where: { $0.hasPrefix("\(key)=") }) else {
+                    continue
+                }
+                kernel.commandLine.kernelArgs.append("\(key)=\(value)")
+            }
             let vmm = VZVirtualMachineManager(
                 kernel: kernel,
                 initialFilesystem: bundle.initialFilesystem.asMount,
@@ -193,13 +203,14 @@ public actor RuntimeService {
                             ipv4Gateway: attachment.ipv4Gateway,
                             ipv6Address: attachment.ipv6Address,
                             macAddress: attachment.macAddress,
-                            mtu: mtu
+                            mtu: mtu,
+                            variant: attachment.variant
                         )
                     }
-                    guard let iStrategy = self.interfaceStrategies[NetworkInterfaceKey(plugin: info.plugin, variant: info.options["variant"])] else {
+                    guard let iStrategy = self.interfaceStrategies[NetworkInterfaceKey(plugin: info.plugin, variant: attachment.variant)] else {
                         throw ContainerizationError(
                             .internalError,
-                            message: "no available interface strategy for network \(attachment.network), plugin=\(info.plugin) variant=\(info.options["variant"] ?? "nil")")
+                            message: "no available interface strategy for network \(attachment.network), plugin=\(info.plugin) variant=\(attachment.variant ?? "nil")")
                     }
                     let interface = try iStrategy.toInterface(
                         attachment: attachment,
@@ -771,6 +782,72 @@ public actor RuntimeService {
         }
     }
 
+    /// Snapshot the container's root filesystem.
+    ///
+    /// When the container is running, freeze/thaw around the copy for consistency.
+    /// When it is not running, copy directly without freeze/thaw.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with the following parameters:
+    ///     - imagePath: The path to the source filesystem image.
+    ///     - destinationPath: The path where the snapshot will be written.
+    ///
+    /// - Returns: An XPC message with no parameters.
+    @Sendable
+    public func snapshotDisk(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`snapshotDisk` xpc handler")
+        switch self.state {
+        case .running, .booted:
+            guard let imagePath = message.string(key: RuntimeKeys.imagePath.rawValue) else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no image path supplied for snapshotDisk"
+                )
+            }
+            guard let destinationPath = message.string(key: RuntimeKeys.destinationPath.rawValue) else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no destination path supplied for snapshotDisk"
+                )
+            }
+
+            let ctr = try getContainer()
+            let shouldFreeze = self.state == .running
+
+            if shouldFreeze {
+                try await ctr.container.filesystemOperation(operation: .freeze, path: "/")
+            }
+
+            do {
+                try FileManager.default.copyItem(atPath: imagePath, toPath: destinationPath)
+            } catch {
+                if shouldFreeze {
+                    do {
+                        try await ctr.container.filesystemOperation(operation: .thaw, path: "/")
+                    } catch {
+                        self.log.error(
+                            "failed to thaw filesystem after snapshotDisk error",
+                            metadata: [
+                                "error": "\(error)"
+                            ])
+                    }
+                }
+                throw error
+            }
+
+            if shouldFreeze {
+                try await ctr.container.filesystemOperation(operation: .thaw, path: "/")
+            }
+
+            return message.reply()
+        default:
+            throw ContainerizationError(
+                .invalidState,
+                message: "cannot snapshot disk: container is not running"
+            )
+        }
+    }
+
     /// Dial a vsock port on the virtual machine.
     ///
     /// - Parameters:
@@ -986,12 +1063,23 @@ public actor RuntimeService {
         czConfig.cpus = config.resources.cpus
         czConfig.cpuOverhead = config.resources.cpuOverhead
         czConfig.memoryInBytes = config.resources.memoryInBytes
-        czConfig.sysctl = config.sysctls.reduce(into: [String: String]()) {
-            $0[$1.key] = $1.value
-        }
+        // Overcommit memory and allow more memory mappings than the kernel default
+        // so workloads inside swap-less guest VMs hit limits less easily.
+        var sysctls = config.sysctls
+        sysctls["vm.overcommit_memory"] = "1"
+        sysctls["vm.max_map_count"] = "262144"
+        czConfig.sysctl = sysctls
         // If the host doesn't support this, we'll throw on container creation.
         czConfig.virtualization = config.virtualization
         czConfig.useInit = config.useInit
+
+        // nil leaves LinuxContainer's own default set in place.
+        if let maskedPaths = config.maskedPaths {
+            czConfig.maskedPaths = maskedPaths
+        }
+        if let readonlyPaths = config.readonlyPaths {
+            czConfig.readonlyPaths = readonlyPaths
+        }
 
         if let shmSize = config.shmSize {
             for i in czConfig.mounts.indices {
@@ -1004,9 +1092,14 @@ public actor RuntimeService {
 
         for mount in config.mounts {
             if try mount.isSocket() {
+                let attrs = try? FileManager.default.attributesOfItem(atPath: mount.source)
+                let permissions = (attrs?[.posixPermissions] as? NSNumber)
+                    .map { FilePermissions(rawValue: mode_t($0.intValue)) }
                 let socket = UnixSocketConfiguration(
                     source: URL(filePath: mount.source),
-                    destination: URL(filePath: mount.destination)
+                    destination: URL(filePath: mount.destination),
+                    permissions: permissions,
+                    direction: .into,
                 )
                 czConfig.sockets.append(socket)
             } else {
@@ -1237,7 +1330,9 @@ public actor RuntimeService {
 
                 return code
             }
-        } catch {}
+        } catch {
+            self.log.error("graceful stop failed; forcing vm shutdown", metadata: ["error": "\(error)"])
+        }
 
         // Now actually bring down the vm.
         try await lc.stop()

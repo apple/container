@@ -33,6 +33,8 @@ public struct Attachment: Codable, Sendable {
     public let macAddress: MACAddress?
     /// The MTU for the network interface.
     public let mtu: UInt32?
+    /// The network plugin variant, used by the runtime to select an interface strategy.
+    public let variant: String?
 
     public init(
         network: String,
@@ -41,7 +43,8 @@ public struct Attachment: Codable, Sendable {
         ipv4Gateway: IPv4Address,
         ipv6Address: CIDRv6?,
         macAddress: MACAddress?,
-        mtu: UInt32? = nil
+        mtu: UInt32? = nil,
+        variant: String? = nil
     ) {
         self.network = network
         self.hostname = hostname
@@ -50,6 +53,7 @@ public struct Attachment: Codable, Sendable {
         self.ipv6Address = ipv6Address
         self.macAddress = macAddress
         self.mtu = mtu
+        self.variant = variant
     }
 
     enum CodingKeys: String, CodingKey {
@@ -60,6 +64,7 @@ public struct Attachment: Codable, Sendable {
         case ipv6Address
         case macAddress
         case mtu
+        case variant
         // TODO: retain for deserialization compatibility for now, remove later
         case address
         case gateway
@@ -85,6 +90,7 @@ public struct Attachment: Codable, Sendable {
         ipv6Address = try container.decodeIfPresent(CIDRv6.self, forKey: .ipv6Address)
         macAddress = try container.decodeIfPresent(MACAddress.self, forKey: .macAddress)
         mtu = try container.decodeIfPresent(UInt32.self, forKey: .mtu)
+        variant = try container.decodeIfPresent(String.self, forKey: .variant)
     }
 
     /// Encode the configuration to the supplied Encoder.
@@ -98,5 +104,6 @@ public struct Attachment: Codable, Sendable {
         try container.encodeIfPresent(ipv6Address, forKey: .ipv6Address)
         try container.encodeIfPresent(macAddress, forKey: .macAddress)
         try container.encodeIfPresent(mtu, forKey: .mtu)
+        try container.encodeIfPresent(variant, forKey: .variant)
     }
 }

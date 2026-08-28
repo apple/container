@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerizationOS
+import Darwin
 import Foundation
 import Logging
 import SystemPackage
@@ -198,14 +199,48 @@ extension PluginLoader {
 
         return nil
     }
+
+    /// Locate the plugin whose executable resolves to `path`, e.g. to let a
+    /// running plugin process identify its own `Plugin` (and thus its
+    /// `resourceURL`) from `CommandLine.executablePath`.
+    public func findPlugin(forExecutable path: FilePath) -> Plugin? {
+        guard let resolvedPath = Self.resolveSymlinks(path.string) else {
+            return nil
+        }
+        for plugin in findPlugins() {
+            guard let binaryPath = Self.resolveSymlinks(plugin.binaryURL.path(percentEncoded: false)) else {
+                continue
+            }
+            if binaryPath == resolvedPath {
+                return plugin
+            }
+        }
+        return nil
+    }
+
+    private static func resolveSymlinks(_ path: String) -> String? {
+        guard let resolved = Darwin.realpath(path, nil) else {
+            return nil
+        }
+        defer { free(resolved) }
+        return String(cString: resolved)
+    }
 }
 
 extension PluginLoader {
-    public static let proxyKeys = Set([
-        "http_proxy", "HTTP_PROXY",
-        "https_proxy", "HTTPS_PROXY",
-        "no_proxy", "NO_PROXY",
-    ])
+    public static let proxyKeys: Set<String> = {
+        var keys: Set<String> = [
+            "http_proxy", "HTTP_PROXY",
+            "https_proxy", "HTTPS_PROXY",
+            "no_proxy", "NO_PROXY",
+        ]
+        #if CONTAINER_COVERAGE
+        // Allows LLVM coverage profiling data to be written by launchd-managed
+        // helper processes. Compiled in only for coverage enabled builds.
+        keys.insert("LLVM_PROFILE_FILE")
+        #endif
+        return keys
+    }()
 
     public func registerWithLaunchd(
         plugin: Plugin,

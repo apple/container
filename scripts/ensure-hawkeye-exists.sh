@@ -58,11 +58,9 @@ cat <<EOF
 
 hawkeye is not installed.
 
-scripts/install-hawkeye.sh will install it by running:
+scripts/install-hawkeye.sh will install hawkeye by downloading the official release tarball
 
-    curl -LsSf https://github.com/korandoru/hawkeye/releases/download/<version>/hawkeye-installer.sh | sh
-
-and performs the installation by passing the downloaded content to \`sh\`.
+and installing the binary under `.local/bin`.
 
 (See scripts/install-hawkeye.sh for the pinned version.)
 EOF

@@ -105,7 +105,12 @@ public struct ProcessIO: Sendable {
                     cc.yield()
                     return
                 }
-                try! pout.write(contentsOf: data)
+                do {
+                    try pout.write(contentsOf: data)
+                } catch {
+                    rout.readabilityHandler = nil
+                    cc.yield()
+                }
             }
         }
 
@@ -126,7 +131,12 @@ public struct ProcessIO: Sendable {
                     cc.yield()
                     return
                 }
-                try! perr.write(contentsOf: data)
+                do {
+                    try perr.write(contentsOf: data)
+                } catch {
+                    rerr.readabilityHandler = nil
+                    cc.yield()
+                }
             }
             stdio[2] = stderr.fileHandleForWriting
         }

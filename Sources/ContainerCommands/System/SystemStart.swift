@@ -104,7 +104,7 @@ extension Application {
 
             let apiServerDataPath = appRoot.appending(FilePath.Component("apiserver"))
             let apiServerDataURL = URL(fileURLWithPath: apiServerDataPath.string)
-            try! FileManager.default.createDirectory(at: apiServerDataURL, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: apiServerDataURL, withIntermediateDirectories: true)
 
             var env = PluginLoader.filterEnvironment()
             env[ApplicationRoot.environmentName] = appRoot.string
@@ -141,7 +141,7 @@ extension Application {
             }
 
             do {
-                print("Verifying machine API server is running...")
+                log.info("Verifying machine API server is running...")
                 _ = try await MachineClient().list()
             } catch {
                 throw ContainerizationError(
@@ -157,7 +157,10 @@ extension Application {
             guard await !kernelExists() else {
                 return
             }
-            try await installDefaultKernel(kernelURL: containerSystemConfig.kernel.url, kernelBinaryPath: containerSystemConfig.kernel.binaryPath)
+            try await installDefaultKernel(
+                kernelURL: containerSystemConfig.kernel.url,
+                kernelBinaryPath: containerSystemConfig.kernel.binaryPath,
+                kernelDigest: containerSystemConfig.kernel.digest)
         }
 
         private func installInitialFilesystem(initImage: String) async throws {
@@ -171,10 +174,10 @@ extension Application {
             }
         }
 
-        private func installDefaultKernel(kernelURL: URL, kernelBinaryPath: String) async throws {
+        private func installDefaultKernel(kernelURL: URL, kernelBinaryPath: String, kernelDigest: String) async throws {
             var shouldInstallKernel = false
             if kernelInstall == nil {
-                print("No default kernel configured.")
+                log.warning("No default kernel configured.")
                 print("Install the recommended default kernel from [\(kernelURL)]? [Y/n]: ", terminator: "")
                 guard let read = readLine(strippingNewline: true) else {
                     throw ContainerizationError(.internalError, message: "failed to read user input")
@@ -191,7 +194,11 @@ extension Application {
                 return
             }
             log.info("Installing kernel...")
-            try await KernelSet.downloadAndInstallWithProgressBar(tarRemoteURL: kernelURL, kernelFilePath: kernelBinaryPath, force: true)
+            try await KernelSet.downloadAndInstallWithProgressBar(
+                tarRemoteURL: kernelURL,
+                kernelFilePath: kernelBinaryPath,
+                expectedDigest: kernelDigest,
+                force: true)
         }
 
         private func initImageExists(containerSystemConfig: ContainerSystemConfig) async -> Bool {

@@ -34,36 +34,28 @@ public struct StderrLogHandler: LogHandler {
 
     public init() {}
 
-    public func log(
-        level: Logger.Level,
-        message: Logger.Message,
-        metadata: Logger.Metadata?,
-        source: String,
-        file: String,
-        function: String,
-        line: UInt
-    ) {
+    public func log(event: LogEvent) {
         let data: Data
         switch logLevel {
         case .debug, .trace:
             let timestamp = isoTimestamp()
-            if let metadata, !metadata.isEmpty {
+            if let metadata = event.metadata, !metadata.isEmpty {
                 data =
-                    "\(timestamp) \(message.description): \(metadata.description)\n"
+                    "\(timestamp) \(event.message.description): \(metadata.description)\n"
                     .data(using: .utf8) ?? Data()
             } else {
                 data =
-                    "\(timestamp) \(message.description)\n"
+                    "\(timestamp) \(event.message.description)\n"
                     .data(using: .utf8) ?? Data()
             }
         default:
-            if let metadata, !metadata.isEmpty {
+            if let metadata = event.metadata, !metadata.isEmpty {
                 data =
-                    "\(message.description): \(metadata.description)\n"
+                    "\(event.message.description): \(metadata.description)\n"
                     .data(using: .utf8) ?? Data()
             } else {
                 data =
-                    "\(message.description)\n"
+                    "\(event.message.description)\n"
                     .data(using: .utf8) ?? Data()
             }
         }
