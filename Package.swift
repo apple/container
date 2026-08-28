@@ -22,8 +22,8 @@ import PackageDescription
 
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
-let builderShimVersion = "0.13.0"
-let scVersion = "0.40.1"
+let builderShimVersion = "0.13.1"
+let scVersion = "0.41.0"
 
 let package = Package(
     name: "container",
@@ -52,6 +52,7 @@ let package = Package(
         .library(name: "TerminalProgress", targets: ["TerminalProgress"]),
         .library(name: "MachineAPIClient", targets: ["MachineAPIClient"]),
         .library(name: "MachineAPIService", targets: ["MachineAPIService"]),
+        .library(name: "ContainerK8s", targets: ["ContainerK8s"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion)),
@@ -164,6 +165,39 @@ let package = Package(
                 "ContainerResource",
             ]
         ),
+        .testTarget(
+            name: "K8sPluginTests",
+            dependencies: [
+                "ContainerK8s",
+                "ContainerResource",
+                "Yams",
+            ]
+        ),
+        .target(
+            name: "ContainerK8s",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                .product(name: "ContainerizationOS", package: "containerization"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                "ContainerAPIClient",
+                "ContainerLog",
+                "ContainerPersistence",
+                "ContainerPlugin",
+                "ContainerResource",
+                "ContainerVersion",
+                "TerminalProgress",
+                "Yams",
+            ]
+        ),
+        .executableTarget(
+            name: "k8s",
+            dependencies: ["ContainerK8s"],
+            path: "Sources/Plugins/K8s",
+            exclude: ["config.toml", "Resources"]
+        ),
         .executableTarget(
             name: "container-apiserver",
             dependencies: [
@@ -219,9 +253,14 @@ let package = Package(
             dependencies: [
                 .product(name: "Containerization", package: "containerization"),
                 "ContainerAPIService",
+                "ContainerAPIClient",
+                "ContainerPersistence",
+                "ContainerPlugin",
                 "ContainerResource",
                 "ContainerRuntimeLinuxClient",
                 "ContainerRuntimeClient",
+                "ContainerTestSupport",
+                "ContainerXPC",
             ]
         ),
         .target(

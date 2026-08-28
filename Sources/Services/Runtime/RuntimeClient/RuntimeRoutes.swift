@@ -56,4 +56,6 @@ public enum RuntimeRoutes: String {
     case copyIn = "com.apple.container.runtime/copyIn"
     /// Copy a file or directory out of the container.
     case copyOut = "com.apple.container.runtime/copyOut"
+    /// Snapshot the container's root filesystem to an image file.
+    case snapshotDisk = "com.apple.container.runtime/snapshotDisk"
 }

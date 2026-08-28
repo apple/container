@@ -205,6 +205,54 @@ struct TestCLIMachineRuntimeSerial {
         }
     }
 
+    @Test func testReadonlyPathsEmpty() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+            try f.doMachineCreate(name: name, image: machineImage)
+            try f.doMachineBoot(name: name)
+            try await f.waitForMachineStatus(name, status: "running")
+
+            // Verify there are no default readonlyPaths on the container config.
+            let inspect = try f.doMachineInspect(name: name)
+            let containerId = try #require(inspect.containerId, "running machine should have a containerId")
+            let containerInspect = try f.inspectContainer(containerId)
+            #expect(containerInspect.configuration.readonlyPaths == [], "machines should not have any readonly paths by default")
+
+            // /proc/sys is one of the default mount readonly paths. Check that we can write to this path.
+            let write = try f.runMachine([
+                "run", "-n", name, "--root",
+                "sh", "-c", "echo test > /proc/sys/kernel/domainname && echo WROTE",
+            ])
+            #expect(write.status == 0)
+            #expect(write.output.trimmingCharacters(in: .whitespacesAndNewlines) == "WROTE")
+        }
+    }
+
+    @Test func testMaskedPathsEmpty() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+            try f.doMachineCreate(name: name, image: machineImage)
+            try f.doMachineBoot(name: name)
+            try await f.waitForMachineStatus(name, status: "running")
+
+            // Verify there are no default maskedPaths on the container config.
+            let inspect = try f.doMachineInspect(name: name)
+            let containerId = try #require(inspect.containerId, "running machine should have a containerId")
+            let containerInspect = try f.inspectContainer(containerId)
+            #expect(containerInspect.configuration.maskedPaths == [], "machines should not have any masked paths by default")
+
+            // /proc/timer_list is one of the default masked paths. Check that we can read the file and get a response.
+            let byteCount = try f.runMachine([
+                "run", "-n", name, "--root",
+                "cat", "/proc/timer_list",
+            ])
+            #expect(byteCount.status == 0)
+            #expect(!byteCount.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+    }
+
     @Test func testRunNonExistentMachine() async throws {
         try await ContainerFixture.with { f in
             let name = "nonexistent-\(f.testID)"

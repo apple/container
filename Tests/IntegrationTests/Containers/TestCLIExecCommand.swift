@@ -77,14 +77,15 @@ struct TestCLIExecCommand {
             try f.doStart(name)
             try await f.waitForContainerRunning(name)
 
-            let output = try f.doExec(name, cmd: ["sleep", "10"], detach: true)
+            // Generous duration: ContainersService's host-wide lock can queue this exec's start behind other containers' multi-second VM boots.
+            let output = try f.doExec(name, cmd: ["sleep", "60"], detach: true)
             try #require(
                 output.trimmingCharacters(in: .whitespacesAndNewlines) == name,
                 "exec --detach should print the container name")
 
             let ps = try f.doExec(name, cmd: ["ps", "aux"])
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            try #require(ps.contains("sleep 10"), "detached 'sleep 10' should appear in ps output")
+            try #require(ps.contains("sleep 60"), "detached 'sleep 60' should appear in ps output")
 
             try f.doStop(name)
         }

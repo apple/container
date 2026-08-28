@@ -53,4 +53,28 @@ struct TestCLIExportCommand {
             }
         }
     }
+
+    @Test func testExportCommandRunningContainerAndOverwrite() async throws {
+        try await ContainerFixture.with { f in
+            let image = WarmupImage.alpine320.rawValue
+            try await f.withContainer(image: image, autoRemove: false) { name in
+                let mustBeInImage = "must-be-in-image-live"
+                try f.doExec(name, cmd: ["sh", "-c", "echo \(mustBeInImage) > /foo-live"])
+
+                let exportPath = f.testDir.appending("export-live.tar")
+                try f.run(["export", name, "-o", exportPath.string]).check()
+                try f.run(["export", name, "-o", exportPath.string]).check()
+
+                let exportURL = URL(filePath: exportPath.string)
+                let attrs = try FileManager.default.attributesOfItem(atPath: exportPath.string)
+                let fileSize = attrs[.size] as! UInt64
+                #expect(fileSize > 0)
+
+                let reader = try ArchiveReader(file: exportURL)
+                let (fooLive, fooLiveData) = try reader.extractFile(path: "/foo-live")
+                #expect(fooLive.fileType == .regular)
+                #expect(String(data: fooLiveData, encoding: .utf8)?.starts(with: mustBeInImage) ?? false)
+            }
+        }
+    }
 }

@@ -80,15 +80,46 @@ public final class ContainerFixture: Sendable {
     public static func with<T>(_ body: (ContainerFixture) async throws -> T) async throws -> T {
         let testID = String(UUID().uuidString.prefix(8)).lowercased()
 
+        let testName =
+            Test.current.map { $0.name.hasSuffix("()") ? String($0.name.dropLast(2)) : $0.name }
+            ?? testID
+        // Test.current is a value describing the running test, not an instance of the suite
+        // type, so `type(of:)` always yields `Test` itself. Derive the suite from the test's
+        // fully-qualified ID instead (e.g. "IntegrationTests.TestCLIStatus/explicitTableFormat()/...")
+        // — the same identifier format used in the swift-testing event-stream JSON.
+        let testIdentifier = Test.current.map { "\($0.id)" }
+        let suiteName = testIdentifier?.split(separator: "/", maxSplits: 1).first.map(String.init) ?? "unknown"
+
+        // Swift Testing doesn't expose a stable per-case identifier or the case's arguments
+        // publicly, only `isParameterized`. Parameterized tests share one `testName` across all
+        // their concurrently-running cases, so fall back to the per-invocation `testID` to keep
+        // each case's log file distinct.
+        let isParameterized = Test.Case.current?.isParameterized ?? false
+        let logFileName = isParameterized ? "\(testName)-\(testID).log" : "\(testName).log"
+
+        // Set up logging before any fixture work (scratch dir creation, etc.) so a "test start"
+        // message is the first thing recorded — bookended by "test end" once `body` returns.
+        var logger = Logger(label: "com.apple.container.test") { label in
+            if let root = ProcessInfo.processInfo.environment["CLITEST_LOG_ROOT"], !root.isEmpty {
+                let path =
+                    FilePath(root)
+                    .appending("clitests")
+                    .appending(suiteName)
+                    .appending(logFileName)
+                if let handler = try? FileLogHandler(label: label, category: "clitests", path: path) {
+                    return handler
+                }
+            }
+            return StreamLogHandler.standardOutput(label: label)
+        }
+        logger[metadataKey: "testID"] = "\(testID)"
+        logger[metadataKey: "test"] = "\(testIdentifier ?? testName)"
+        logger.info("test start")
+
         let scratchRoot =
             ProcessInfo.processInfo.environment["CLITEST_SCRATCH_ROOT"]
             .map { FilePath($0) }
             ?? FilePath(FileManager.default.temporaryDirectory.path)
-
-        let testName =
-            Test.current.map { $0.name.hasSuffix("()") ? String($0.name.dropLast(2)) : $0.name }
-            ?? testID
-        let suiteName = Test.current.map { "\(type(of: $0))" } ?? "unknown"
 
         // Name the scratch directory so it's immediately identifiable when browsing:
         // {sanitizedTestName}-{testID}
@@ -97,21 +128,6 @@ public final class ContainerFixture: Sendable {
         let testDir = scratchRoot.appending("\(safeName)-\(testID)")
         try FileManager.default.createDirectory(
             atPath: testDir.string, withIntermediateDirectories: true, attributes: nil)
-
-        var logger = Logger(label: "com.apple.container.test") { label in
-            if let root = ProcessInfo.processInfo.environment["CLITEST_LOG_ROOT"], !root.isEmpty {
-                let path =
-                    FilePath(root)
-                    .appending("clitests")
-                    .appending(suiteName)
-                    .appending(testName + ".log")
-                if let handler = try? FileLogHandler(label: label, category: "clitests", path: path) {
-                    return handler
-                }
-            }
-            return StreamLogHandler.standardOutput(label: label)
-        }
-        logger[metadataKey: "testID"] = "\(testID)"
 
         let fixture = ContainerFixture(testID: testID, testDir: testDir, log: logger)
 
@@ -123,10 +139,14 @@ public final class ContainerFixture: Sendable {
 
         do {
             let result = try await body(fixture)
+            logger.info("test end", metadata: ["result": "pass"])
             await fixture.runCleanup()
+            logger.info("test cleaned up")
             return result
         } catch {
+            logger.info("test end", metadata: ["result": "fail", "error": "\(error)"])
             await fixture.runCleanup()
+            logger.info("test cleaned up")
             throw error
         }
     }
