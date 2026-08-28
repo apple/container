@@ -266,13 +266,13 @@ public actor ContainersService {
     }
 
     /// Create a new container from the provided id and configuration.
-    public func create(configuration: ContainerConfiguration, kernel: Kernel, options: ContainerCreateOptions, initImage: String? = nil, runtimeData: Data? = nil) async throws {
-        var generatedConfiguration = configuration
-        // The caller may have encoded this field, so always replace it at the
-        // authoritative server boundary before persisting any create state.
-        generatedConfiguration.instanceToken = ManagedContainer.generateInstanceToken()
-        let configuration = generatedConfiguration
-
+    public func create(
+        configuration: ContainerConfiguration,
+        kernel: Kernel,
+        options: ContainerCreateOptions,
+        initImage: String? = nil,
+        runtimeData: Data? = nil
+    ) async throws -> ContainerCreateResult {
         log.debug(
             "ContainersService: enter",
             metadata: [
@@ -290,13 +290,18 @@ public actor ContainersService {
             )
         }
 
-        try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(configuration.id)"]) { context in
+        return try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(configuration.id)"]) { context in
             guard await self.canCreate(id: configuration.id, context: context) else {
                 throw ContainerizationError(
                     .exists,
                     message: "container already exists: \(configuration.id)"
                 )
             }
+
+            // Assign the identity while holding the same lifecycle lock that
+            // authorizes and persists the create. The returned result is built
+            // from this exact authoritative configuration, never caller input.
+            let (configuration, result) = Self.assignInstanceIdentity(to: configuration)
 
             var allHostnames = Set<String>()
             for container in await self.containers.values {
@@ -392,6 +397,7 @@ public actor ContainersService {
             } catch {
                 throw error
             }
+            return result
         }
     }
 
@@ -416,6 +422,7 @@ public actor ContainersService {
         }
 
         try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
+            try await self.ensureNotDeleting(id: id, context: context)
             var state = try await self.getContainerState(id: id, context: context)
 
             // We've already bootstrapped this container. Ideally we should be able to
@@ -535,6 +542,7 @@ public actor ContainersService {
         }
 
         try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)", "processId": "\(processID)"]) { context in
+            try await self.ensureNotDeleting(id: id, context: context)
             var state = try await self.getContainerState(id: id, context: context)
 
             let isInit = Self.isInitProcess(id: id, processID: processID)
@@ -1162,10 +1170,45 @@ public actor ContainersService {
         state.snapshot.status = status
         self.containers[id] = state
     }
+
+    func reserveContainerForForceDeletionForTesting(id: String) async throws {
+        try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
+            try await self.reserveContainerForForceDeletionForTesting(id: id, context: context)
+        }
+    }
+
+    private func reserveContainerForForceDeletionForTesting(
+        id: String,
+        context: AsyncLock.Context
+    ) throws {
+        _ = try self.getContainerState(id: id, context: context)
+        self.deletions.insert(id)
+    }
     #endif
+
+    static func assignInstanceIdentity(
+        to callerConfiguration: ContainerConfiguration
+    ) -> (configuration: ContainerConfiguration, result: ContainerCreateResult) {
+        var configuration = callerConfiguration
+        let instanceToken = ManagedContainer.generateInstanceToken()
+        configuration.instanceToken = instanceToken
+        return (
+            configuration,
+            ContainerCreateResult(id: configuration.id, instanceToken: instanceToken)
+        )
+    }
 
     private func canCreate(id: String, context: AsyncLock.Context) -> Bool {
         self.containers[id] == nil && !self.deletions.contains(id)
+    }
+
+    private func ensureNotDeleting(id: String, context: AsyncLock.Context) throws {
+        guard !self.deletions.contains(id) else {
+            throw ContainerizationError(
+                .invalidState,
+                message: "container \(id) is being deleted"
+            )
+        }
     }
 
     private func selectForDelete(

@@ -14,7 +14,9 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerResource
 import ContainerTestSupport
+import Foundation
 import Testing
 
 @Suite
@@ -26,12 +28,12 @@ struct TestCLIRmRaceCondition {
             f.addCleanup { try f.doRemoveIfExists(name, force: true, ignoreFailure: true) }
             f.addCleanup { try f.doRemoveIfExists(otherName, force: true, ignoreFailure: true) }
 
-            try f.doCreate(name: name)
-            let firstToken = try #require(try f.inspectContainer(name).configuration.instanceToken)
+            let firstCreate = try createWithResult(f, name: name)
+            let firstToken = firstCreate.instanceToken
             try f.run(["delete", "--if-instance-token", firstToken, name]).check()
 
-            try f.doCreate(name: name)
-            let replacementToken = try #require(try f.inspectContainer(name).configuration.instanceToken)
+            let replacementCreate = try createWithResult(f, name: name)
+            let replacementToken = replacementCreate.instanceToken
             #expect(replacementToken != firstToken)
 
             let staleDelete = try f.run(["delete", "--if-instance-token", firstToken, name])
@@ -39,8 +41,8 @@ struct TestCLIRmRaceCondition {
             #expect(staleDelete.error.contains("container instance precondition failed"))
             #expect(try f.inspectContainer(name).configuration.instanceToken == replacementToken)
 
-            try f.doCreate(name: otherName)
-            let otherToken = try #require(try f.inspectContainer(otherName).configuration.instanceToken)
+            let otherCreate = try createWithResult(f, name: otherName)
+            let otherToken = otherCreate.instanceToken
             let crossContainerDelete = try f.run(["delete", "--if-instance-token", otherToken, name])
             #expect(crossContainerDelete.status != 0)
             #expect(try f.inspectContainer(name).configuration.instanceToken == replacementToken)
@@ -124,5 +126,13 @@ struct TestCLIRmRaceCondition {
                 }
             }
         }
+    }
+
+    private func createWithResult(_ fixture: ContainerFixture, name: String) throws -> ContainerCreateResult {
+        var args = ["create", "--format", "json", "--rm", "--name", name]
+        args += fixture.proxyEnvironmentArgs
+        args += [WarmupImage.alpine320.rawValue, "sleep", "infinity"]
+        let command = try fixture.run(args).check()
+        return try JSONDecoder().decode(ContainerCreateResult.self, from: command.outputData)
     }
 }

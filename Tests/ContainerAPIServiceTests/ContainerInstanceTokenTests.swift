@@ -43,6 +43,21 @@ private struct InstanceTokenTestPluginFactory: PluginFactory {
 struct ContainerInstanceTokenTests {
     private let log = Logger(label: "container-instance-token-tests")
 
+    @Test func createResultUsesServerGeneratedIdentity() {
+        var callerConfiguration = makeConfiguration(id: "created", token: "caller-token")
+        let first = ContainersService.assignInstanceIdentity(to: callerConfiguration)
+        let second = ContainersService.assignInstanceIdentity(to: callerConfiguration)
+
+        #expect(first.configuration.instanceToken == first.result.instanceToken)
+        #expect(first.result.id == callerConfiguration.id)
+        #expect(first.result.instanceToken != "caller-token")
+        #expect(second.result.instanceToken != first.result.instanceToken)
+
+        callerConfiguration.instanceToken = first.result.instanceToken
+        let replacement = ContainersService.assignInstanceIdentity(to: callerConfiguration)
+        #expect(replacement.result.instanceToken != first.result.instanceToken)
+    }
+
     @Test func survivesServiceReconstruction() async throws {
         try await TemporaryStorage.withTempDir { appRoot in
             let token = "persisted-instance-token"
@@ -204,6 +219,26 @@ struct ContainerInstanceTokenTests {
         }
     }
 
+    @Test func lifecycleStartAndBootstrapRejectForceDeletionReservation() async throws {
+        try await TemporaryStorage.withTempDir { appRoot in
+            let id = "force-delete-reservation"
+            try writeContainer(id: id, token: "reserved-token", appRoot: appRoot)
+            let service = try makeService(appRoot: appRoot)
+            try await service.setContainerStatusForTesting(id: id, status: .running)
+            try await service.reserveContainerForForceDeletionForTesting(id: id)
+
+            let bootstrapError = await #expect(throws: ContainerizationError.self) {
+                try await service.bootstrap(id: id, stdio: [nil, nil, nil], dynamicEnv: [:])
+            }
+            #expect(bootstrapError?.code == .invalidState)
+
+            let startError = await #expect(throws: ContainerizationError.self) {
+                try await service.startProcess(id: id, processID: id)
+            }
+            #expect(startError?.code == .invalidState)
+        }
+    }
+
     private func makeService(appRoot: FilePath) throws -> ContainersService {
         let appRootURL = URL(fileURLWithPath: appRoot.string)
         let pluginDirectory = appRootURL.appendingPathComponent("plugins")
@@ -237,6 +272,17 @@ struct ContainerInstanceTokenTests {
 
     @discardableResult
     private func writeContainer(id: String, token: String?, appRoot: FilePath) throws -> URL {
+        let configuration = makeConfiguration(id: id, token: token)
+
+        let bundlePath = URL(fileURLWithPath: appRoot.string)
+            .appendingPathComponent("containers")
+            .appendingPathComponent(id)
+        try FileManager.default.createDirectory(at: bundlePath, withIntermediateDirectories: true)
+        try Bundle(path: bundlePath).set(configuration: configuration)
+        return bundlePath
+    }
+
+    private func makeConfiguration(id: String, token: String?) -> ContainerConfiguration {
         let image = ImageDescription(
             reference: "docker.io/library/alpine:latest",
             descriptor: .init(
@@ -257,12 +303,6 @@ struct ContainerInstanceTokenTests {
         )
         var configuration = ContainerConfiguration(id: id, image: image, process: process)
         configuration.instanceToken = token
-
-        let bundlePath = URL(fileURLWithPath: appRoot.string)
-            .appendingPathComponent("containers")
-            .appendingPathComponent(id)
-        try FileManager.default.createDirectory(at: bundlePath, withIntermediateDirectories: true)
-        try Bundle(path: bundlePath).set(configuration: configuration)
-        return bundlePath
+        return configuration
     }
 }

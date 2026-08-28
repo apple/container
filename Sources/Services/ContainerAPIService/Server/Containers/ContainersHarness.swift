@@ -204,8 +204,16 @@ public struct ContainersHarness: Sendable {
         let initImage = message.string(key: .initImage)
         let runtimeData = message.dataNoCopy(key: .runtimeData)
 
-        try await service.create(configuration: config, kernel: kernel, options: options, initImage: initImage, runtimeData: runtimeData)
-        return message.reply()
+        let result = try await service.create(
+            configuration: config,
+            kernel: kernel,
+            options: options,
+            initImage: initImage,
+            runtimeData: runtimeData
+        )
+        let reply = message.reply()
+        reply.set(key: .containerCreateResult, value: try JSONEncoder().encode(result))
+        return reply
     }
 
     @Sendable

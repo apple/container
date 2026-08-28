@@ -292,6 +292,7 @@ extension APIServer {
 
             routes[XPCRoute.containerList] = XPCServer.route(harness.list)
             routes[XPCRoute.containerCreate] = XPCServer.route(harness.create)
+            routes[XPCRoute.containerCreateWithResult] = XPCServer.route(harness.create)
             routes[XPCRoute.containerDelete] = XPCServer.route(harness.delete)
             routes[XPCRoute.containerDeleteIfInstance] = XPCServer.route(harness.deleteIfInstance)
             routes[XPCRoute.containerLogs] = XPCServer.route(harness.logs)
