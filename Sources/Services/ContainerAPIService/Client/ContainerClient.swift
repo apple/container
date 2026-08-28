@@ -46,18 +46,16 @@ public struct ContainerClient: Sendable {
 
     /// Create a new container with the given configuration.
     ///
-    /// New API servers return the authoritative instance identity. A legacy
-    /// server returns no result, which remains compatible with callers that do
-    /// not require machine-readable ownership.
-    @discardableResult
+    /// This legacy API intentionally returns `Void`. Call ``createWithResult(configuration:options:kernel:initImage:runtimeData:)``
+    /// when the authoritative server-generated instance identity is required.
     public func create(
         configuration: ContainerConfiguration,
         options: ContainerCreateOptions = .default,
         kernel: Kernel,
         initImage: String? = nil,
         runtimeData: Data? = nil
-    ) async throws -> ContainerCreateResult? {
-        try await create(
+    ) async throws {
+        _ = try await create(
             configuration: configuration,
             options: options,
             kernel: kernel,

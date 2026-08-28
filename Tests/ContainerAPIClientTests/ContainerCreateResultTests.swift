@@ -15,12 +15,23 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerResource
+import Containerization
 import Foundation
 import Testing
 
 @testable import ContainerAPIClient
 
 struct ContainerCreateResultTests {
+    @Test func legacyAndResultCreateSignaturesRemainDistinct() {
+        let client = ContainerClient()
+        let legacyCreate: (ContainerConfiguration, ContainerCreateOptions, Kernel, String?, Data?) async throws -> Void = client.create
+        let resultCreate: (ContainerConfiguration, ContainerCreateOptions, Kernel, String?, Data?) async throws -> ContainerCreateResult =
+            client.createWithResult
+
+        _ = legacyCreate
+        _ = resultCreate
+    }
+
     @Test func decodesAtomicCreateResult() throws {
         let expected = ContainerCreateResult(id: "created", instanceToken: "server-token")
         let data = try JSONEncoder().encode(expected)
