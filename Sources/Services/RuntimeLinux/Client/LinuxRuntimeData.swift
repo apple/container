@@ -14,14 +14,19 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationOCI
 import Foundation
 
 /// Linux-specific runtime data passed through the opaque runtimeData field
 /// in RuntimeConfiguration. Encoded by the CLI, decoded by the Linux runtime.
 public struct LinuxRuntimeData: Codable, Sendable {
     public let variant: String?
+    /// Block I/O cgroup tuning (Linux-specific, carried opaquely through
+    /// `RuntimeConfiguration.runtimeData`).
+    public let blockIO: ContainerizationOCI.LinuxBlockIO?
 
-    public init(variant: String? = nil) {
+    public init(variant: String? = nil, blockIO: ContainerizationOCI.LinuxBlockIO? = nil) {
         self.variant = variant
+        self.blockIO = blockIO
     }
 }

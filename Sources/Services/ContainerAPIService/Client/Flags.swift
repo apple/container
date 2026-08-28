@@ -101,7 +101,10 @@ public struct Flags {
     public struct Resource: ParsableArguments {
         public init() {}
 
-        public init(cpus: Int64?, memory: String?) {
+        public init(
+            cpus: Int64?,
+            memory: String?
+        ) {
             self.cpus = cpus
             self.memory = memory
         }
@@ -193,6 +196,7 @@ public struct Flags {
             runtime: String?,
             ssh: Bool,
             shmSize: String?,
+            blkio: [String] = [],
             tmpFs: [String],
             useInit: Bool,
             virtualization: Bool,
@@ -225,6 +229,7 @@ public struct Flags {
             self.runtime = runtime
             self.ssh = ssh
             self.shmSize = shmSize
+            self.blkio = blkio
             self.tmpFs = tmpFs
             self.useInit = useInit
             self.virtualization = virtualization
@@ -368,6 +373,15 @@ public struct Flags {
 
         @Option(name: .customLong("shm-size"), help: "Size of /dev/shm (e.g. 64M, 1G)")
         public var shmSize: String?
+
+        @Option(
+            name: .customLong("blkio"),
+            help: .init(
+                "Block I/O cgroup tuning options (experimental: see command reference for the supported keys)",
+                valueName: "option"
+            )
+        )
+        public var blkio: [String] = []
 
         @Option(name: .customLong("tmpfs"), help: "Add a tmpfs mount to the container at the given path")
         public var tmpFs: [String] = []

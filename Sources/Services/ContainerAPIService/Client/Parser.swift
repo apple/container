@@ -21,6 +21,7 @@ import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOCI
 import ContainerizationOS
+import Darwin
 import Foundation
 import SystemPackage
 
@@ -121,6 +122,199 @@ public struct Parser {
         }
 
         return resource
+    }
+
+    /// Parse `--blkio` specifications into an OCI `LinuxBlockIO`.
+    ///
+    /// Each spec is a comma-separated list of `key=value` pairs:
+    ///
+    ///   --blkio weight=500
+    ///   --blkio device=/dev/sda,weight=700,leaf-weight=300
+    ///   --blkio device=/dev/sda,read-bps=1048576,write-bps=1048576
+    ///   --blkio device=/dev/sda,read-iops=1000,write-iops=1000
+    ///
+    /// Specs without `device=` set cgroup-wide values. Specs with `device=`
+    /// produce per-device entries; the device value may be a host path
+    /// (resolved via `stat(2)`) or a `<major>:<minor>` literal.
+    public static func blockIO(specs: [String]) throws -> ContainerizationOCI.LinuxBlockIO? {
+        guard !specs.isEmpty else { return nil }
+
+        var weight: UInt16? = nil
+        var leafWeight: UInt16? = nil
+        var weightDevices: [ContainerizationOCI.LinuxWeightDevice] = []
+        var readBpsDevices: [ContainerizationOCI.LinuxThrottleDevice] = []
+        var writeBpsDevices: [ContainerizationOCI.LinuxThrottleDevice] = []
+        var readIOPSDevices: [ContainerizationOCI.LinuxThrottleDevice] = []
+        var writeIOPSDevices: [ContainerizationOCI.LinuxThrottleDevice] = []
+
+        for spec in specs {
+            let pairs = try parseBlockIOSpec(spec)
+
+            if let devicePath = pairs["device"] {
+                let (major, minor) = try parseBlockIODevice(devicePath)
+
+                var deviceWeight: UInt16? = nil
+                var deviceLeafWeight: UInt16? = nil
+
+                if let raw = pairs["weight"] {
+                    let value = try parseUInt16(raw, name: "weight")
+                    try validateBlockIOWeight(value)
+                    deviceWeight = value
+                }
+                if let raw = pairs["leaf-weight"] {
+                    let value = try parseUInt16(raw, name: "leaf-weight")
+                    try validateBlockIOWeight(value)
+                    deviceLeafWeight = value
+                }
+
+                if deviceWeight != nil || deviceLeafWeight != nil {
+                    weightDevices.append(
+                        ContainerizationOCI.LinuxWeightDevice(
+                            major: major, minor: minor,
+                            weight: deviceWeight, leafWeight: deviceLeafWeight
+                        )
+                    )
+                }
+
+                if let raw = pairs["read-bps"] {
+                    readBpsDevices.append(
+                        ContainerizationOCI.LinuxThrottleDevice(major: major, minor: minor, rate: try parseByteRate(raw))
+                    )
+                }
+                if let raw = pairs["write-bps"] {
+                    writeBpsDevices.append(
+                        ContainerizationOCI.LinuxThrottleDevice(major: major, minor: minor, rate: try parseByteRate(raw))
+                    )
+                }
+                if let raw = pairs["read-iops"] {
+                    readIOPSDevices.append(
+                        ContainerizationOCI.LinuxThrottleDevice(major: major, minor: minor, rate: try parseUInt64(raw, name: "read-iops"))
+                    )
+                }
+                if let raw = pairs["write-iops"] {
+                    writeIOPSDevices.append(
+                        ContainerizationOCI.LinuxThrottleDevice(major: major, minor: minor, rate: try parseUInt64(raw, name: "write-iops"))
+                    )
+                }
+
+                let allowedDeviceKeys: Set<String> = ["device", "weight", "leaf-weight", "read-bps", "write-bps", "read-iops", "write-iops"]
+                if let unknown = pairs.keys.first(where: { !allowedDeviceKeys.contains($0) }) {
+                    throw ContainerizationError(.invalidArgument, message: "unknown --blkio key '\(unknown)'")
+                }
+            } else {
+                // Cgroup-wide spec.
+                if let raw = pairs["weight"] {
+                    let value = try parseUInt16(raw, name: "weight")
+                    try validateBlockIOWeight(value)
+                    if let existing = weight, existing != value {
+                        throw ContainerizationError(.invalidArgument, message: "--blkio weight specified multiple times with conflicting values")
+                    }
+                    weight = value
+                }
+                if let raw = pairs["leaf-weight"] {
+                    let value = try parseUInt16(raw, name: "leaf-weight")
+                    try validateBlockIOWeight(value)
+                    if let existing = leafWeight, existing != value {
+                        throw ContainerizationError(.invalidArgument, message: "--blkio leaf-weight specified multiple times with conflicting values")
+                    }
+                    leafWeight = value
+                }
+
+                let allowedGlobalKeys: Set<String> = ["weight", "leaf-weight"]
+                if let unknown = pairs.keys.first(where: { !allowedGlobalKeys.contains($0) }) {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "--blkio key '\(unknown)' is only valid when 'device=' is also set"
+                    )
+                }
+            }
+        }
+
+        return ContainerizationOCI.LinuxBlockIO(
+            weight: weight,
+            leafWeight: leafWeight,
+            weightDevice: weightDevices,
+            throttleReadBpsDevice: readBpsDevices,
+            throttleWriteBpsDevice: writeBpsDevices,
+            throttleReadIOPSDevice: readIOPSDevices,
+            throttleWriteIOPSDevice: writeIOPSDevices
+        )
+    }
+
+    /// Tokenise a single `--blkio` spec into `key=value` pairs.
+    private static func parseBlockIOSpec(_ spec: String) throws -> [String: String] {
+        var result: [String: String] = [:]
+        for token in spec.split(separator: ",", omittingEmptySubsequences: true) {
+            let parts = token.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "--blkio entries must use 'key=value' (got '\(token)')"
+                )
+            }
+            let key = String(parts[0])
+            if result[key] != nil {
+                throw ContainerizationError(.invalidArgument, message: "--blkio key '\(key)' specified twice in a single spec")
+            }
+            result[key] = String(parts[1])
+        }
+        if result.isEmpty {
+            throw ContainerizationError(.invalidArgument, message: "--blkio spec must not be empty")
+        }
+        return result
+    }
+
+    /// Resolve a `device=` value to (major, minor). Accepts an absolute path
+    /// (`stat`-ed on the host) or a literal `<major>:<minor>`.
+    private static func parseBlockIODevice(_ value: String) throws -> (major: Int64, minor: Int64) {
+        if value.hasPrefix("/") {
+            var info = stat()
+            guard stat(value, &info) == 0 else {
+                throw ContainerizationError(.notFound, message: "block I/O device path not found: \(value)")
+            }
+            let rawDevice = UInt32(bitPattern: info.st_rdev)
+            let major = Int64((rawDevice >> 24) & 0xff)
+            let minor = Int64(rawDevice & 0x00ff_ffff)
+            return (major, minor)
+        }
+
+        let parts = value.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2, let major = Int64(parts[0]), let minor = Int64(parts[1]) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "--blkio device must be an absolute path or '<major>:<minor>' (got '\(value)')"
+            )
+        }
+        return (major, minor)
+    }
+
+    private static func parseByteRate(_ value: String) throws -> UInt64 {
+        let measurement = try Measurement.parse(parsing: value)
+        let bytes = measurement.converted(to: .bytes).value
+        guard bytes >= 0, bytes.rounded(.down) == bytes else {
+            throw ContainerizationError(.invalidArgument, message: "block I/O byte rate must be a non-negative whole number of bytes")
+        }
+        return UInt64(bytes)
+    }
+
+    private static func parseUInt16(_ value: String, name: String) throws -> UInt16 {
+        guard let parsed = UInt16(value) else {
+            throw ContainerizationError(.invalidArgument, message: "--blkio \(name) must be an unsigned 16-bit integer")
+        }
+        return parsed
+    }
+
+    private static func parseUInt64(_ value: String, name: String) throws -> UInt64 {
+        guard let parsed = UInt64(value) else {
+            throw ContainerizationError(.invalidArgument, message: "--blkio \(name) must be an unsigned 64-bit integer")
+        }
+        return parsed
+    }
+
+    private static func validateBlockIOWeight(_ value: UInt16) throws {
+        guard (10...1000).contains(value) else {
+            throw ContainerizationError(.invalidArgument, message: "block I/O weight must be between 10 and 1000")
+        }
     }
 
     public static func allEnv(imageEnvs: [String], envFiles: [String], envs: [String]) throws -> [String] {

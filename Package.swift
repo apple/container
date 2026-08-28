@@ -55,7 +55,10 @@ let package = Package(
         .library(name: "ContainerK8s", targets: ["ContainerK8s"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion)),
+        .package(
+            url: "https://github.com/full-chaos/containerization.git",
+            revision: "63527275f9ad41e13984038e155f13f056a75def"
+        ),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.7.0"),
         .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
         .package(url: "https://github.com/apple/swift-configuration", from: "1.0.0"),
@@ -401,7 +404,9 @@ let package = Package(
         ),
         .target(
             name: "ContainerRuntimeLinuxClient",
-            dependencies: [],
+            dependencies: [
+                .product(name: "ContainerizationOCI", package: "containerization"),
+            ],
             path: "Sources/Services/RuntimeLinux/Client"
         ),
         .executableTarget(
