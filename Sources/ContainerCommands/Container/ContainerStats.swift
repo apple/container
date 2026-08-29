@@ -153,58 +153,78 @@ extension Application {
             }
         }
 
-        private struct StatsSnapshot {
+        fileprivate struct StatsSnapshot {
             let container: ContainerSnapshot
             let stats1: ContainerResource.ContainerStats
             let stats2: ContainerResource.ContainerStats
+
+            /// Percent of one core, matching `top` and `docker stats`: 400% is four cores
+            /// saturated. Deliberately not divided by the container's CPU allocation.
+            var cpuPercent: Double? {
+                guard let first = stats1.cpuUsageUsec, let second = stats2.cpuUsageUsec else {
+                    return nil
+                }
+                return ContainerStats.calculateCPUPercent(
+                    cpuUsage1: .microseconds(first),
+                    cpuUsage2: .microseconds(second),
+                    timeInterval: ContainerStats.sampleInterval
+                )
+            }
         }
 
         /// `collectStats` sleeps for this between samples and the percentage divides by it,
         /// so the two must not drift apart.
-        private static let sampleInterval: Duration = .seconds(2)
+        static let sampleInterval: Duration = .seconds(2)
 
         /// The payload for the machine-readable formats: the second sample plus the CPU
         /// percentage derived from both.
         ///
         /// `ContainerResource.ContainerStats` models a single sample, and a rate is not a
         /// property of one sample, so the derived value lives here rather than widening that
-        /// type. Until now only `stats2` was rendered, which discarded both the percentage
-        /// the table computes and the earlier sample a consumer would need to compute it.
-        private struct StatsReport: Encodable {
-            let id: String
-            /// Percent of one core, matching `top` and `docker stats`: 400% is four cores
-            /// saturated. Deliberately not divided by the container's CPU allocation.
+        /// type. The sample is wrapped and flattened on encode so the stored shape stays
+        /// additive (`cpuPercent` only) without copying every sample field onto this type.
+        ///
+        /// Encoding goes through one keyed container. TOMLEncoder replaces `encoder.value`
+        /// on each `container(keyedBy:)` call, so `stats.encode(to:)` followed by a second
+        /// container would drop the sample fields.
+        struct StatsReport: Encodable {
+            let stats: ContainerResource.ContainerStats
             let cpuPercent: Double?
-            let cpuUsageUsec: UInt64?
-            let memoryUsageBytes: UInt64?
-            let memoryLimitBytes: UInt64?
-            let networkRxBytes: UInt64?
-            let networkTxBytes: UInt64?
-            let blockReadBytes: UInt64?
-            let blockWriteBytes: UInt64?
-            let numProcesses: UInt64?
 
-            init(snapshot: StatsSnapshot) {
-                let latest = snapshot.stats2
-                self.id = latest.id
-                self.cpuUsageUsec = latest.cpuUsageUsec
-                self.memoryUsageBytes = latest.memoryUsageBytes
-                self.memoryLimitBytes = latest.memoryLimitBytes
-                self.networkRxBytes = latest.networkRxBytes
-                self.networkTxBytes = latest.networkTxBytes
-                self.blockReadBytes = latest.blockReadBytes
-                self.blockWriteBytes = latest.blockWriteBytes
-                self.numProcesses = latest.numProcesses
+            fileprivate init(snapshot: StatsSnapshot) {
+                self.init(stats: snapshot.stats2, cpuPercent: snapshot.cpuPercent)
+            }
 
-                if let first = snapshot.stats1.cpuUsageUsec, let second = latest.cpuUsageUsec {
-                    self.cpuPercent = ContainerStats.calculateCPUPercent(
-                        cpuUsage1: .microseconds(first),
-                        cpuUsage2: .microseconds(second),
-                        timeInterval: ContainerStats.sampleInterval
-                    )
-                } else {
-                    self.cpuPercent = nil
-                }
+            init(stats: ContainerResource.ContainerStats, cpuPercent: Double?) {
+                self.stats = stats
+                self.cpuPercent = cpuPercent
+            }
+
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(stats.id, forKey: .id)
+                try container.encodeIfPresent(stats.cpuUsageUsec, forKey: .cpuUsageUsec)
+                try container.encodeIfPresent(stats.memoryUsageBytes, forKey: .memoryUsageBytes)
+                try container.encodeIfPresent(stats.memoryLimitBytes, forKey: .memoryLimitBytes)
+                try container.encodeIfPresent(stats.networkRxBytes, forKey: .networkRxBytes)
+                try container.encodeIfPresent(stats.networkTxBytes, forKey: .networkTxBytes)
+                try container.encodeIfPresent(stats.blockReadBytes, forKey: .blockReadBytes)
+                try container.encodeIfPresent(stats.blockWriteBytes, forKey: .blockWriteBytes)
+                try container.encodeIfPresent(stats.numProcesses, forKey: .numProcesses)
+                try container.encodeIfPresent(cpuPercent, forKey: .cpuPercent)
+            }
+
+            private enum CodingKeys: String, CodingKey {
+                case id
+                case cpuPercent
+                case cpuUsageUsec
+                case memoryUsageBytes
+                case memoryLimitBytes
+                case networkRxBytes
+                case networkTxBytes
+                case blockReadBytes
+                case blockWriteBytes
+                case numProcesses
             }
         }
 
@@ -248,9 +268,9 @@ extension Application {
 
         /// Calculate CPU percentage from two stat snapshots
         /// - Parameters:
-        ///   - cpuUsageUsec1: CPU usage in microseconds from first sample
-        ///   - cpuUsageUsec2: CPU usage in microseconds from second sample
-        ///   - timeDeltaUsec: Time delta between samples in microseconds
+        ///   - cpuUsage1: CPU usage from the first sample
+        ///   - cpuUsage2: CPU usage from the second sample
+        ///   - timeInterval: Wall-clock interval between samples
         /// - Returns: CPU percentage where 100% = one fully utilized core
         static func calculateCPUPercent(
             cpuUsage1: Duration,
@@ -287,17 +307,10 @@ extension Application {
 
             for snapshot in statsData {
                 var row = [snapshot.container.id]
-                let stats1 = snapshot.stats1
                 let stats2 = snapshot.stats2
 
-                if let cpuUsageUsec1 = stats1.cpuUsageUsec, let cpuUsageUsec2 = stats2.cpuUsageUsec {
-                    let cpuPercent = Self.calculateCPUPercent(
-                        cpuUsage1: .microseconds(cpuUsageUsec1),
-                        cpuUsage2: .microseconds(cpuUsageUsec2),
-                        timeInterval: Self.sampleInterval
-                    )
-                    let cpuStr = String(format: "%.2f%%", cpuPercent)
-                    row.append(cpuStr)
+                if let cpuPercent = snapshot.cpuPercent {
+                    row.append(String(format: "%.2f%%", cpuPercent))
                 } else {
                     row.append(notAvailable)
                 }
