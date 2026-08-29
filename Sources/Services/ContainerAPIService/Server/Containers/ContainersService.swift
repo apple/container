@@ -73,7 +73,28 @@ public actor ContainersService {
         debugHelpers: Bool = false
     ) throws {
         let containerRoot = appRoot.appendingPathComponent("containers")
+        let isFirstCreation = !FileManager.default.fileExists(atPath: containerRoot.path)
+
         try FileManager.default.createDirectory(at: containerRoot, withIntermediateDirectories: true)
+
+        if isFirstCreation {
+            do {
+                var mutableRoot = containerRoot
+                var resourceValues = URLResourceValues()
+                resourceValues.isExcludedFromBackup = true
+                try mutableRoot.setResourceValues(resourceValues)
+                log.info(
+                    "excluded containers root from backups",
+                    metadata: ["path": "\(containerRoot.path)"]
+                )
+            } catch {
+                log.warning(
+                    "failed to exclude containers root from backups",
+                    metadata: ["error": "\(error)"]
+                )
+            }
+        }
+
         self.exitMonitor = ExitMonitor(log: log)
         self.lock = AsyncLock(log: log)
         self.containerRoot = containerRoot

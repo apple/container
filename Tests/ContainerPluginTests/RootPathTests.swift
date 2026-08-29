@@ -31,7 +31,7 @@ struct ApplicationRootTests {
     }
 
     @Test
-    func testAppRootIsExcludedFromBackups() async throws {
+    func testAppRootIsCreated() async throws {
         let tempDir = FileManager.default.temporaryDirectory
         let appRoot = tempDir.appendingPathComponent("test-app-root-\(UUID())")
 
@@ -42,17 +42,11 @@ struct ApplicationRootTests {
         var logger = Logger(label: "test.ApplicationRoot")
         logger.logLevel = .critical
 
-        try ApplicationRoot.ensureCreated(at: appRoot, log: logger)
+        try ApplicationRoot.ensureCreated(at: appRoot)
 
         var isDirectory: ObjCBool = false
         let exists = FileManager.default.fileExists(atPath: appRoot.path, isDirectory: &isDirectory)
         #expect(exists && isDirectory.boolValue, "appRoot should be created")
-
-        let readBack = try appRoot.resourceValues(forKeys: [.isExcludedFromBackupKey])
-        #expect(
-            readBack.isExcludedFromBackup == true,
-            "ApplicationRoot.ensureCreated should explicitly exclude appRoot from backups."
-        )
     }
 }
 
