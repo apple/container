@@ -41,14 +41,18 @@ extension Application {
 
         public func run() async throws {
             let client = MachineClient()
-            let machines = try await client.list()
+
+            async let machinesTask = client.list()
+            async let defaultMachineTask = client.getDefault()
+
+            let machines = try await machinesTask
 
             if self.quiet {
                 machines.forEach { print($0.id) }
                 return
             }
 
-            let defaultMachine = try await client.getDefault()
+            let defaultMachine = try await defaultMachineTask
             try printMachines(machines: machines, format: format, defaultMachine: defaultMachine)
         }
 
