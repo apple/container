@@ -110,4 +110,17 @@ struct SystemStatusTests {
         let updated = Application.SystemStatus.withImageCount(resources, imageCount: nil)
         #expect(updated?.images == nil)
     }
+    @Test
+    func fullPayloadRoundTripsThroughJSON() throws {
+        let payload = makeRunningPayload(
+            paths: Application.PathInfo(appRoot: "/app", installRoot: "/install", logRoot: "/log"),
+            resources: Application.ResourceCounts(containersTotal: 10, containersRunning: 4)
+        )
+        let json = try Output.renderJSON(payload)
+        let decoded = try JSONDecoder().decode(Application.StatusPayload.self, from: Data(json.utf8))
+        
+        #expect(decoded.paths?.appRoot == "/app")
+        #expect(decoded.resources?.containersTotal == 10)
+        #expect(decoded.resources?.containersRunning == 4)
+    }
 }
