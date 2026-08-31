@@ -36,13 +36,14 @@ private func makeSnapshot(
     let ports = try Parser.publishPorts(specs)
     let portsJSON = String(data: try JSONEncoder().encode(ports), encoding: .utf8) ?? "[]"
     let labelsJSON = isCluster ? #"{"com.apple.container.plugin":"k8s"}"# : "{}"
+    let sha = "sha256:" + String(repeating: "a", count: 64)
     let json = """
         {
             "configuration": {
                 "id": "\(id)",
                 "image": {
                     "reference": "docker.io/kindest/node:v1.35.5",
-                    "descriptor": {"mediaType":"","digest":"sha256:abc","size":0}
+                    "descriptor": {"mediaType":"","digest":"\(sha)","size":0}
                 },
                 "initProcess": {"executable":"/bin/sh","arguments":[],"environment":[],"workingDirectory":"/","terminal":false,"user":{"id":{"uid":0,"gid":0}},"supplementalGroups":[],"rlimits":[]},
                 "resources": {"cpus":2,"memoryInBytes":2147483648},
