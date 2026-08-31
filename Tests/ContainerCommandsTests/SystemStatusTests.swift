@@ -110,6 +110,7 @@ struct SystemStatusTests {
         let updated = Application.SystemStatus.withImageCount(resources, imageCount: nil)
         #expect(updated?.images == nil)
     }
+
     @Test
     func fullPayloadRoundTripsThroughJSON() throws {
         let payload = makeRunningPayload(
