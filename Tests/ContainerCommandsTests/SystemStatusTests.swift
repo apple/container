@@ -125,3 +125,4 @@ struct SystemStatusTests {
         #expect(decoded.resources?.containersRunning == 4)
     }
 }
+
