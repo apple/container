@@ -165,6 +165,7 @@ public enum XPCRoute: String {
     case containerCopyIn
     case containerCopyOut
     case containerExport
+    case containerClean
 
     case pluginLoad
     case pluginGet
