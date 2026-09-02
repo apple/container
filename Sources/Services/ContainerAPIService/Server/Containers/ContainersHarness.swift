@@ -295,7 +295,15 @@ public struct ContainersHarness: Sendable {
             throw ContainerizationError(.invalidArgument, message: "container ID \(id) is not a valid container ID")
         }
         let forceDelete = message.bool(key: .forceDelete)
-        try await service.delete(id: id, force: forceDelete, expectedInstanceToken: expectedInstanceToken)
+        if let expectedInstanceToken {
+            try await service.deleteIfInstance(
+                id: id,
+                force: forceDelete,
+                expectedInstanceToken: expectedInstanceToken
+            )
+        } else {
+            try await service.delete(id: id, force: forceDelete)
+        }
         return message.reply()
     }
 

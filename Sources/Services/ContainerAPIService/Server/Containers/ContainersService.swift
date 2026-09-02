@@ -83,15 +83,20 @@ public actor ContainersService {
         self.log = log
         self.debugHelpers = debugHelpers
         self.runtimePlugins = pluginLoader.findPlugins().filter { $0.hasType(.runtime) }
-        self.containers = try Self.loadAtBoot(root: containerRoot, loader: pluginLoader, log: log)
-        self.deletions = []
+        let recovered = try Self.loadAtBoot(root: containerRoot, loader: pluginLoader, log: log)
+        self.containers = recovered.containers
+        self.deletions = recovered.reservations
     }
 
     public func setNetworksService(_ service: NetworksService) async {
         self.networksService = service
     }
 
-    static func loadAtBoot(root: URL, loader: PluginLoader, log: Logger) throws -> [String: ContainerState] {
+    static func loadAtBoot(
+        root: URL,
+        loader: PluginLoader,
+        log: Logger
+    ) throws -> (containers: [String: ContainerState], reservations: Set<String>) {
         var directories = try FileManager.default.contentsOfDirectory(
             at: root,
             includingPropertiesForKeys: [.isDirectoryKey]
@@ -102,9 +107,12 @@ public actor ContainersService {
 
         let runtimePlugins = loader.findPlugins().filter { $0.hasType(.runtime) }
         var results = [String: ContainerState]()
+        var reservations = Set<String>()
         for dir in directories {
+            var candidateIDs: Set<String> = [dir.lastPathComponent]
             do {
                 let (config, options) = try Self.getContainerConfiguration(at: dir)
+                candidateIDs.insert(config.id)
                 if options?.autoRemove ?? false {
                     log.info(
                         "reap auto-remove container",
@@ -130,10 +138,27 @@ public actor ContainersService {
                     }
 
                     let bundle = ContainerResource.Bundle(path: dir)
-                    try? bundle.delete()
+                    do {
+                        try bundle.delete()
+                    } catch {
+                        reservations.formUnion(candidateIDs)
+                        log.error(
+                            "failed to delete auto-remove container bundle; reserving container ID",
+                            metadata: [
+                                "id": "\(config.id)",
+                                "path": "\(dir.path)",
+                                "error": "\(error)",
+                            ])
+                    }
                     continue
                 }
 
+                guard runtimePlugins.first(where: { $0.name == config.runtimeHandler }) != nil else {
+                    throw ContainerizationError(
+                        .internalError,
+                        message: "failed to find runtime plugin \(config.runtimeHandler)"
+                    )
+                }
                 let state = ContainerState(
                     snapshot: .init(
                         configuration: config,
@@ -143,23 +168,29 @@ public actor ContainersService {
                     ),
                 )
                 results[config.id] = state
-                guard runtimePlugins.first(where: { $0.name == config.runtimeHandler }) != nil else {
-                    throw ContainerizationError(
-                        .internalError,
-                        message: "failed to find runtime plugin \(config.runtimeHandler)"
-                    )
-                }
             } catch {
-                try? FileManager.default.removeItem(at: dir)
+                let loadError = error
+                do {
+                    try FileManager.default.removeItem(at: dir)
+                } catch {
+                    reservations.formUnion(candidateIDs)
+                    log.error(
+                        "failed to remove invalid container bundle; reserving container ID",
+                        metadata: [
+                            "path": "\(dir.path)",
+                            "loadError": "\(loadError)",
+                            "cleanupError": "\(error)",
+                        ])
+                }
                 log.warning(
                     "failed to load container",
                     metadata: [
                         "path": "\(dir.path)",
-                        "error": "\(error)",
+                        "error": "\(loadError)",
                     ])
             }
         }
-        return results
+        return (results, reservations)
     }
 
     /// List containers matching the given filters.
@@ -837,7 +868,16 @@ public actor ContainersService {
     }
 
     /// Delete a container and its resources.
-    public func delete(id: String, force: Bool, expectedInstanceToken: String? = nil) async throws {
+    public func delete(id: String, force: Bool) async throws {
+        try await delete(id: id, force: force, expectedInstanceToken: nil)
+    }
+
+    /// Delete a container only when its current instance identity matches.
+    public func deleteIfInstance(id: String, force: Bool, expectedInstanceToken: String) async throws {
+        try await delete(id: id, force: force, expectedInstanceToken: expectedInstanceToken)
+    }
+
+    private func delete(id: String, force: Bool, expectedInstanceToken: String?) async throws {
         log.info(
             "ContainersService: enter",
             metadata: [
@@ -1103,18 +1143,10 @@ public actor ContainersService {
             try? ServiceManager.deregister(fullServiceLabel: label)
         }
 
-        // Always try to delete the bundle directory, even if it's incomplete
-        do {
-            try bundle.delete()
-        } catch {
-            self.log.warning(
-                "failed to delete bundle for container",
-                metadata: [
-                    "id": "\(id)",
-                    "error": "\(error)",
-                ])
-        }
-
+        // Bundle removal is the cleanup commit point. Retain the in-memory
+        // identity if it fails so that the same ID cannot be reused while
+        // resources from this instance remain on disk.
+        try bundle.delete()
         self.containers.removeValue(forKey: id)
     }
 

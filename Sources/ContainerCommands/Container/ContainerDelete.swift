@@ -86,11 +86,15 @@ extension Application {
                 for container in containers {
                     group.addTask {
                         do {
-                            try await client.delete(
-                                id: container,
-                                force: force,
-                                expectedInstanceToken: expectedInstanceToken
-                            )
+                            if let expectedInstanceToken {
+                                try await client.deleteIfInstance(
+                                    id: container,
+                                    force: force,
+                                    expectedInstanceToken: expectedInstanceToken
+                                )
+                            } else {
+                                try await client.delete(id: container, force: force)
+                            }
                             print(container)
                             return nil
                         } catch {

@@ -16,6 +16,7 @@
 
 import ContainerResource
 import Containerization
+import ContainerizationError
 import Foundation
 import Testing
 
@@ -30,6 +31,31 @@ struct ContainerCreateResultTests {
 
         _ = legacyCreate
         _ = resultCreate
+    }
+
+    @Test func legacyAndConditionalDeleteSignaturesRemainDistinct() {
+        let client = ContainerClient()
+        let legacyDelete: (String, Bool) async throws -> Void = client.delete
+        let conditionalDelete: (String, Bool, String) async throws -> Void = client.deleteIfInstance
+
+        _ = legacyDelete
+        _ = conditionalDelete
+    }
+
+    @Test func conditionalDeletePreservesTypedErrors() async {
+        let unsupported = await #expect(throws: ContainerizationError.self) {
+            try await ContainerClient.withConditionalDeleteErrorPreservation {
+                throw ContainerizationError(.unsupported, message: "unsupported conditional delete")
+            }
+        }
+        #expect(unsupported?.code == .unsupported)
+
+        let unknown = await #expect(throws: ContainerizationError.self) {
+            try await ContainerClient.withConditionalDeleteErrorPreservation {
+                throw NSError(domain: "ContainerCreateResultTests", code: 1)
+            }
+        }
+        #expect(unknown?.code == .internalError)
     }
 
     @Test func decodesAtomicCreateResult() throws {

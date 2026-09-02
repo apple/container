@@ -273,10 +273,25 @@ public struct ContainerClient: Sendable {
     }
 
     /// Delete the container along with any resources.
-    public func delete(id: String, force: Bool = false, expectedInstanceToken: String? = nil) async throws {
+    public func delete(id: String, force: Bool = false) async throws {
         do {
-            let route: XPCRoute
-            if expectedInstanceToken != nil {
+            let request = XPCMessage(route: .containerDelete)
+            request.set(key: .id, value: id)
+            request.set(key: .forceDelete, value: force)
+            try await xpcClient.send(request)
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to delete container",
+                cause: error
+            )
+        }
+    }
+
+    /// Delete the container only when its current instance identity matches.
+    public func deleteIfInstance(id: String, force: Bool, expectedInstanceToken: String) async throws {
+        try await Self.withConditionalDeleteErrorPreservation {
+            do {
                 let capabilityRequest = XPCMessage(route: .ping)
                 let capabilityReply = try await xpcSend(message: capabilityRequest, timeout: .seconds(10))
                 guard capabilityReply.bool(key: .conditionalContainerDeleteSupported) else {
@@ -285,22 +300,27 @@ public struct ContainerClient: Sendable {
                         message: "API server does not support conditional container deletion"
                     )
                 }
-                route = .containerDeleteIfInstance
-            } else {
-                route = .containerDelete
-            }
 
-            let request = XPCMessage(route: route)
-            request.set(key: .id, value: id)
-            request.set(key: .forceDelete, value: force)
-            if let expectedInstanceToken {
+                let request = XPCMessage(route: .containerDeleteIfInstance)
+                request.set(key: .id, value: id)
+                request.set(key: .forceDelete, value: force)
                 request.set(key: .expectedInstanceToken, value: expectedInstanceToken)
+                try await xpcClient.send(request)
             }
-            try await xpcClient.send(request)
+        }
+    }
+
+    static func withConditionalDeleteErrorPreservation(
+        _ operation: @Sendable () async throws -> Void
+    ) async throws {
+        do {
+            try await operation()
+        } catch let error as ContainerizationError {
+            throw error
         } catch {
             throw ContainerizationError(
                 .internalError,
-                message: "failed to delete container",
+                message: "failed to conditionally delete container",
                 cause: error
             )
         }

@@ -82,7 +82,7 @@ struct ContainerInstanceTokenTests {
             let service = try makeService(appRoot: appRoot)
 
             let error = await #expect(throws: ContainerizationError.self) {
-                try await service.delete(id: id, force: false, expectedInstanceToken: "stale-token")
+                try await service.deleteIfInstance(id: id, force: false, expectedInstanceToken: "stale-token")
             }
 
             #expect(error?.code == .invalidState)
@@ -99,14 +99,14 @@ struct ContainerInstanceTokenTests {
             let firstService = try makeService(appRoot: appRoot)
 
             try FileManager.default.removeItem(at: firstBundlePath.appendingPathComponent("config.json"))
-            try await firstService.delete(id: id, force: false, expectedInstanceToken: firstToken)
+            try await firstService.deleteIfInstance(id: id, force: false, expectedInstanceToken: firstToken)
 
             let replacementToken = "replacement-incarnation-token"
             try writeContainer(id: id, token: replacementToken, appRoot: appRoot)
             let replacementService = try makeService(appRoot: appRoot)
 
             let error = await #expect(throws: ContainerizationError.self) {
-                try await replacementService.delete(id: id, force: false, expectedInstanceToken: firstToken)
+                try await replacementService.deleteIfInstance(id: id, force: false, expectedInstanceToken: firstToken)
             }
 
             #expect(error?.code == .invalidState)
@@ -122,7 +122,7 @@ struct ContainerInstanceTokenTests {
             let service = try makeService(appRoot: appRoot)
 
             let error = await #expect(throws: ContainerizationError.self) {
-                try await service.delete(id: "first", force: false, expectedInstanceToken: "second-token")
+                try await service.deleteIfInstance(id: "first", force: false, expectedInstanceToken: "second-token")
             }
 
             #expect(error?.code == .invalidState)
@@ -141,7 +141,7 @@ struct ContainerInstanceTokenTests {
             // Avoid touching launchd in this focused unit test. The in-memory
             // snapshot remains authoritative for the instance check.
             try FileManager.default.removeItem(at: bundlePath.appendingPathComponent("config.json"))
-            try await service.delete(id: id, force: false, expectedInstanceToken: token)
+            try await service.deleteIfInstance(id: id, force: false, expectedInstanceToken: token)
 
             let snapshots = try await service.list()
             #expect(snapshots.isEmpty)
@@ -156,7 +156,7 @@ struct ContainerInstanceTokenTests {
             let service = try makeService(appRoot: appRoot)
 
             let error = await #expect(throws: ContainerizationError.self) {
-                try await service.delete(id: id, force: false, expectedInstanceToken: "caller-token")
+                try await service.deleteIfInstance(id: id, force: false, expectedInstanceToken: "caller-token")
             }
             #expect(error?.code == .invalidState)
             let preservedSnapshots = try await service.list()
@@ -198,7 +198,7 @@ struct ContainerInstanceTokenTests {
             // Exercise force-request cleanup without touching launchd, then
             // reconstruct the service around an immediate same-ID replacement.
             try FileManager.default.removeItem(at: oldBundlePath.appendingPathComponent("config.json"))
-            try await oldService.delete(id: id, force: true, expectedInstanceToken: oldToken)
+            try await oldService.deleteIfInstance(id: id, force: true, expectedInstanceToken: oldToken)
 
             let replacementToken = "replacement-instance-token"
             let replacementBundlePath = try writeContainer(id: id, token: replacementToken, appRoot: appRoot)
@@ -236,6 +236,70 @@ struct ContainerInstanceTokenTests {
                 try await service.startProcess(id: id, processID: id)
             }
             #expect(startError?.code == .invalidState)
+        }
+    }
+
+    @Test func failedBundleRemovalRetainsIdentityAndRestartReservation() async throws {
+        try await TemporaryStorage.withTempDir { appRoot in
+            let id = "cleanup-failure-reservation"
+            let token = "preserved-instance-token"
+            let bundlePath = try writeContainer(id: id, token: token, appRoot: appRoot)
+            let service = try makeService(appRoot: appRoot)
+            let containerRoot = bundlePath.deletingLastPathComponent()
+
+            // Make the residual invalid for restart so recovery cannot treat it
+            // as a healthy container, then prevent either cleanup path from
+            // unlinking the bundle directory.
+            try FileManager.default.removeItem(at: bundlePath.appendingPathComponent("config.json"))
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o500],
+                ofItemAtPath: containerRoot.path
+            )
+            defer {
+                try? FileManager.default.setAttributes(
+                    [.posixPermissions: 0o700],
+                    ofItemAtPath: containerRoot.path
+                )
+            }
+
+            do {
+                try await service.deleteIfInstance(id: id, force: false, expectedInstanceToken: token)
+                Issue.record("expected bundle removal to fail")
+            } catch {}
+
+            let preserved = try await service.list()
+            #expect(preserved.first?.configuration.instanceToken == token)
+
+            let createError = await #expect(throws: ContainerizationError.self) {
+                _ = try await service.create(
+                    configuration: makeConfiguration(id: id, token: nil),
+                    kernel: Kernel(path: URL(fileURLWithPath: "/nonexistent"), platform: .linuxArm),
+                    options: .default
+                )
+            }
+            #expect(createError?.code == .exists)
+
+            let restartedService = try makeService(appRoot: appRoot)
+            #expect(try await restartedService.list().isEmpty)
+
+            let restartedCreateError = await #expect(throws: ContainerizationError.self) {
+                _ = try await restartedService.create(
+                    configuration: makeConfiguration(id: id, token: nil),
+                    kernel: Kernel(path: URL(fileURLWithPath: "/nonexistent"), platform: .linuxArm),
+                    options: .default
+                )
+            }
+            #expect(restartedCreateError?.code == .exists)
+
+            let staleDeleteError = await #expect(throws: ContainerizationError.self) {
+                try await restartedService.deleteIfInstance(
+                    id: id,
+                    force: false,
+                    expectedInstanceToken: "stale-token"
+                )
+            }
+            #expect(staleDeleteError?.code == .invalidState)
+            #expect(FileManager.default.fileExists(atPath: bundlePath.path))
         }
     }
 
