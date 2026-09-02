@@ -860,7 +860,7 @@ public actor RuntimeService {
         self.log.info("`clean` xpc handler")
         switch self.state {
         case .running:
-            guard message.string(key: RuntimeKeys.id.rawValue) != nil else {
+            guard let id = message.string(key: RuntimeKeys.id.rawValue) else {
                 throw ContainerizationError(
                     .invalidArgument,
                     message: "no id supplied for clean"
@@ -869,16 +869,29 @@ public actor RuntimeService {
 
             let ctr = try getContainer()
 
-            // Perform filesystem trim on the root filesystem
-            try await ctr.container.filesystemOperation(operation: .trim, path: "/")
+            var targets: [String] = []
+            if !ctr.config.readOnly {
+                targets.append("/")
+            }
+            for mount in ctr.config.mounts where mount.isBlock && !mount.options.readonly {
+                targets.append(mount.destination)
+            }
 
-            // Trim all block-backed mounts. Named volumes are expected to be
-            // block-backed, and may be represented as either `.volume` or
-            // `.block` depending on how configuration was created.
-            for mount in ctr.config.mounts {
-                if mount.isBlock {
-                    try await ctr.container.filesystemOperation(operation: .trim, path: mount.destination)
+            var failed: [String] = []
+            for path in targets {
+                do {
+                    try await ctr.container.filesystemOperation(operation: .trim, path: path)
+                } catch {
+                    self.log.error("failed to clean mount", metadata: ["path": "\(path)", "error": "\(error)"])
+                    failed.append("\(path) (\(error))")
                 }
+            }
+
+            guard failed.isEmpty else {
+                throw ContainerizationError(
+                    .internalError,
+                    message: "failed to clean mounts in \(id): \(failed.joined(separator: ", "))"
+                )
             }
 
             return message.reply()
