@@ -848,6 +848,61 @@ public actor RuntimeService {
         }
     }
 
+    /// Clean up unused space in the container filesystem.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with the following parameters:
+    ///     - id: The container ID.
+    ///
+    /// - Returns: An XPC message with no parameters.
+    @Sendable
+    public func clean(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`clean` xpc handler")
+        switch self.state {
+        case .running:
+            guard let id = message.string(key: RuntimeKeys.id.rawValue) else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no id supplied for clean"
+                )
+            }
+
+            let ctr = try getContainer()
+
+            var targets: [String] = []
+            if !ctr.config.readOnly {
+                targets.append("/")
+            }
+            for mount in ctr.config.mounts where mount.isBlock && !mount.options.readonly {
+                targets.append(mount.destination)
+            }
+
+            var failed: [String] = []
+            for path in targets {
+                do {
+                    try await ctr.container.filesystemOperation(operation: .trim, path: path)
+                } catch {
+                    self.log.error("failed to clean mount", metadata: ["path": "\(path)", "error": "\(error)"])
+                    failed.append("\(path) (\(error))")
+                }
+            }
+
+            guard failed.isEmpty else {
+                throw ContainerizationError(
+                    .internalError,
+                    message: "failed to clean mounts in \(id): \(failed.joined(separator: ", "))"
+                )
+            }
+
+            return message.reply()
+        default:
+            throw ContainerizationError(
+                .invalidState,
+                message: "cannot clean: container is not running"
+            )
+        }
+    }
+
     /// Dial a vsock port on the virtual machine.
     ///
     /// - Parameters:
