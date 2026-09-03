@@ -29,25 +29,6 @@ struct ApplicationRootTests {
     @Test func defaultPathEndsWithContainerComponent() {
         #expect(ApplicationRoot.defaultPath.lastComponent?.string == "com.apple.container")
     }
-
-    @Test
-    func testAppRootIsCreated() async throws {
-        let tempDir = FileManager.default.temporaryDirectory
-        let appRoot = tempDir.appendingPathComponent("test-app-root-\(UUID())")
-
-        defer {
-            try? FileManager.default.removeItem(at: appRoot)
-        }
-
-        var logger = Logger(label: "test.ApplicationRoot")
-        logger.logLevel = .critical
-
-        try ApplicationRoot.ensureCreated(at: appRoot)
-
-        var isDirectory: ObjCBool = false
-        let exists = FileManager.default.fileExists(atPath: appRoot.path, isDirectory: &isDirectory)
-        #expect(exists && isDirectory.boolValue, "appRoot should be created")
-    }
 }
 
 struct InstallRootTests {

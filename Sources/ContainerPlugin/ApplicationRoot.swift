@@ -46,12 +46,4 @@ public struct ApplicationRoot {
 
     /// The pathname to the root directory
     public static let pathname = path.string
-
-    /// Creates the application data root directory.
-    public static func ensureCreated(at appRoot: URL) throws {
-        try FileManager.default.createDirectory(
-            at: appRoot,
-            withIntermediateDirectories: true
-        )
-    }
 }
