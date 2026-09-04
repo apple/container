@@ -30,6 +30,8 @@ public enum XPCKeys: String {
     case processIdentifier
     /// Container configuration key.
     case containerConfig
+    /// Atomic container create result key.
+    case containerCreateResult
     /// Container options key.
     case containerOptions
     /// Opaque runtime-specific data.
@@ -52,6 +54,12 @@ public enum XPCKeys: String {
     case stopOptions
     /// Whether to force stop a container when deleting.
     case forceDelete
+    /// Expected server-generated identity for conditional container deletion.
+    case expectedInstanceToken
+    /// Whether the server implements atomic conditional container deletion.
+    case conditionalContainerDeleteSupported
+    /// Whether the server implements create with an atomic instance identity result.
+    case containerCreateResultSupported
     /// Plugins
     case pluginName
     case plugins
@@ -148,11 +156,13 @@ public enum XPCKeys: String {
 public enum XPCRoute: String {
     case containerList
     case containerCreate
+    case containerCreateWithResult
     case containerBootstrap
     case containerCreateProcess
     case containerStartProcess
     case containerWait
     case containerDelete
+    case containerDeleteIfInstance
     case containerStop
     case containerDial
     case containerResize

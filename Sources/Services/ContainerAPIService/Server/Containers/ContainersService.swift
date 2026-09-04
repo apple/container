@@ -61,6 +61,7 @@ public actor ContainersService {
 
     private let lock: AsyncLock
     private var containers: [String: ContainerState]
+    private var deletions: Set<String>
 
     // FIXME: Find a better mechanism for services running on the APIServer to work with each other
     private weak var networksService: NetworksService?
@@ -82,14 +83,20 @@ public actor ContainersService {
         self.log = log
         self.debugHelpers = debugHelpers
         self.runtimePlugins = pluginLoader.findPlugins().filter { $0.hasType(.runtime) }
-        self.containers = try Self.loadAtBoot(root: containerRoot, loader: pluginLoader, log: log)
+        let recovered = try Self.loadAtBoot(root: containerRoot, loader: pluginLoader, log: log)
+        self.containers = recovered.containers
+        self.deletions = recovered.reservations
     }
 
     public func setNetworksService(_ service: NetworksService) async {
         self.networksService = service
     }
 
-    static func loadAtBoot(root: URL, loader: PluginLoader, log: Logger) throws -> [String: ContainerState] {
+    static func loadAtBoot(
+        root: URL,
+        loader: PluginLoader,
+        log: Logger
+    ) throws -> (containers: [String: ContainerState], reservations: Set<String>) {
         var directories = try FileManager.default.contentsOfDirectory(
             at: root,
             includingPropertiesForKeys: [.isDirectoryKey]
@@ -100,9 +107,12 @@ public actor ContainersService {
 
         let runtimePlugins = loader.findPlugins().filter { $0.hasType(.runtime) }
         var results = [String: ContainerState]()
+        var reservations = Set<String>()
         for dir in directories {
+            var candidateIDs: Set<String> = [dir.lastPathComponent]
             do {
                 let (config, options) = try Self.getContainerConfiguration(at: dir)
+                candidateIDs.insert(config.id)
                 if options?.autoRemove ?? false {
                     log.info(
                         "reap auto-remove container",
@@ -128,10 +138,27 @@ public actor ContainersService {
                     }
 
                     let bundle = ContainerResource.Bundle(path: dir)
-                    try? bundle.delete()
+                    do {
+                        try bundle.delete()
+                    } catch {
+                        reservations.formUnion(candidateIDs)
+                        log.error(
+                            "failed to delete auto-remove container bundle; reserving container ID",
+                            metadata: [
+                                "id": "\(config.id)",
+                                "path": "\(dir.path)",
+                                "error": "\(error)",
+                            ])
+                    }
                     continue
                 }
 
+                guard runtimePlugins.first(where: { $0.name == config.runtimeHandler }) != nil else {
+                    throw ContainerizationError(
+                        .internalError,
+                        message: "failed to find runtime plugin \(config.runtimeHandler)"
+                    )
+                }
                 let state = ContainerState(
                     snapshot: .init(
                         configuration: config,
@@ -141,23 +168,29 @@ public actor ContainersService {
                     ),
                 )
                 results[config.id] = state
-                guard runtimePlugins.first(where: { $0.name == config.runtimeHandler }) != nil else {
-                    throw ContainerizationError(
-                        .internalError,
-                        message: "failed to find runtime plugin \(config.runtimeHandler)"
-                    )
-                }
             } catch {
-                try? FileManager.default.removeItem(at: dir)
+                let loadError = error
+                do {
+                    try FileManager.default.removeItem(at: dir)
+                } catch {
+                    reservations.formUnion(candidateIDs)
+                    log.error(
+                        "failed to remove invalid container bundle; reserving container ID",
+                        metadata: [
+                            "path": "\(dir.path)",
+                            "loadError": "\(loadError)",
+                            "cleanupError": "\(error)",
+                        ])
+                }
                 log.warning(
                     "failed to load container",
                     metadata: [
                         "path": "\(dir.path)",
-                        "error": "\(error)",
+                        "error": "\(loadError)",
                     ])
             }
         }
-        return results
+        return (results, reservations)
     }
 
     /// List containers matching the given filters.
@@ -264,7 +297,13 @@ public actor ContainersService {
     }
 
     /// Create a new container from the provided id and configuration.
-    public func create(configuration: ContainerConfiguration, kernel: Kernel, options: ContainerCreateOptions, initImage: String? = nil, runtimeData: Data? = nil) async throws {
+    public func create(
+        configuration: ContainerConfiguration,
+        kernel: Kernel,
+        options: ContainerCreateOptions,
+        initImage: String? = nil,
+        runtimeData: Data? = nil
+    ) async throws -> ContainerCreateResult {
         log.debug(
             "ContainersService: enter",
             metadata: [
@@ -282,13 +321,18 @@ public actor ContainersService {
             )
         }
 
-        try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(configuration.id)"]) { context in
-            guard await self.containers[configuration.id] == nil else {
+        return try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(configuration.id)"]) { context in
+            guard await self.canCreate(id: configuration.id, context: context) else {
                 throw ContainerizationError(
                     .exists,
                     message: "container already exists: \(configuration.id)"
                 )
             }
+
+            // Assign the identity while holding the same lifecycle lock that
+            // authorizes and persists the create. The returned result is built
+            // from this exact authoritative configuration, never caller input.
+            let (configuration, result) = Self.assignInstanceIdentity(to: configuration)
 
             var allHostnames = Set<String>()
             for container in await self.containers.values {
@@ -384,6 +428,7 @@ public actor ContainersService {
             } catch {
                 throw error
             }
+            return result
         }
     }
 
@@ -408,6 +453,7 @@ public actor ContainersService {
         }
 
         try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
+            try await self.ensureNotDeleting(id: id, context: context)
             var state = try await self.getContainerState(id: id, context: context)
 
             // We've already bootstrapped this container. Ideally we should be able to
@@ -444,10 +490,14 @@ public actor ContainersService {
                 )
                 try await runtimeClient.bootstrap(stdio: stdio, networkBootstrapInfos: networkBootstrapInfos, dynamicEnv: dynamicEnv)
 
-                try await self.exitMonitor.registerProcess(
-                    id: id,
-                    onExit: self.handleContainerExit
-                )
+                let instanceToken = state.snapshot.configuration.instanceToken
+                try await self.exitMonitor.registerProcess(id: id) { id, exitStatus in
+                    try await self.handleContainerExit(
+                        id: id,
+                        expectedInstanceToken: instanceToken,
+                        code: exitStatus
+                    )
+                }
 
                 state.client = runtimeClient
                 await self.setContainerState(id, state, context: context)
@@ -523,6 +573,7 @@ public actor ContainersService {
         }
 
         try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)", "processId": "\(processID)"]) { context in
+            try await self.ensureNotDeleting(id: id, context: context)
             var state = try await self.getContainerState(id: id, context: context)
 
             let isInit = Self.isInitProcess(id: id, processID: processID)
@@ -596,7 +647,10 @@ public actor ContainersService {
         // container's init process, follow up with the same API-server cleanup
         // that `stop` performs.
         if processID == id, (try? Signal(signal)) == .kill {
-            try await handleContainerExit(id: id)
+            try await handleContainerExit(
+                id: id,
+                expectedInstanceToken: state.snapshot.configuration.instanceToken
+            )
         }
     }
 
@@ -642,7 +696,10 @@ public actor ContainersService {
                 throw err
             }
         }
-        try await handleContainerExit(id: id)
+        try await handleContainerExit(
+            id: id,
+            expectedInstanceToken: state.snapshot.configuration.instanceToken
+        )
     }
 
     public func dial(id: String, port: UInt32) async throws -> FileHandle {
@@ -812,6 +869,15 @@ public actor ContainersService {
 
     /// Delete a container and its resources.
     public func delete(id: String, force: Bool) async throws {
+        try await delete(id: id, force: force, expectedInstanceToken: nil)
+    }
+
+    /// Delete a container only when its current instance identity matches.
+    public func deleteIfInstance(id: String, force: Bool, expectedInstanceToken: String) async throws {
+        try await delete(id: id, force: force, expectedInstanceToken: expectedInstanceToken)
+    }
+
+    private func delete(id: String, force: Bool, expectedInstanceToken: String?) async throws {
         log.info(
             "ContainersService: enter",
             metadata: [
@@ -830,15 +896,20 @@ public actor ContainersService {
             )
         }
 
-        let state = try self._getContainerState(id: id)
-        switch state.snapshot.status {
-        case .running:
-            if !force {
-                throw ContainerizationError(
-                    .invalidState,
-                    message: "container \(id) is \(state.snapshot.status) and can not be deleted"
-                )
-            }
+        let state = try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
+            try await self.selectForDelete(
+                id: id,
+                force: force,
+                expectedInstanceToken: expectedInstanceToken,
+                context: context
+            )
+        }
+        guard let state else {
+            return
+        }
+        let selectedInstanceToken = state.snapshot.configuration.instanceToken
+
+        do {
             let opts = ContainerStopOptions(
                 timeoutInSeconds: 5,
                 signal: "SIGKILL"
@@ -846,31 +917,17 @@ public actor ContainersService {
             let client = try state.getClient()
             try await client.stop(options: opts)
             try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
-                self.log.info(
-                    "ContainersService: attempt cleanup",
-                    metadata: [
-                        "func": "\(#function)",
-                        "id": "\(id)",
-                    ]
-                )
-                try await self.cleanUp(id: id, context: context)
-                self.log.info(
-                    "ContainersService: successful cleanup",
-                    metadata: [
-                        "func": "\(#function)",
-                        "id": "\(id)",
-                    ]
+                try await self.finishDelete(
+                    id: id,
+                    selected: selectedInstanceToken,
+                    context: context
                 )
             }
-        case .stopping:
-            throw ContainerizationError(
-                .invalidState,
-                message: "container \(id) is \(state.snapshot.status) and can not be deleted"
-            )
-        default:
-            try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
-                try await self.cleanUp(id: id, context: context)
+        } catch {
+            await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
+                await self.cancelDelete(id: id, context: context)
             }
+            throw error
         }
     }
 
@@ -931,13 +988,34 @@ public actor ContainersService {
         try await client.clean(id: id)
     }
 
-    private func handleContainerExit(id: String, code: ExitStatus? = nil) async throws {
+    func handleContainerExit(
+        id: String,
+        expectedInstanceToken: String?,
+        code: ExitStatus? = nil
+    ) async throws {
         try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { [self] context in
-            try await handleContainerExit(id: id, code: code, context: context)
+            try await handleContainerExit(
+                id: id,
+                expectedInstanceToken: expectedInstanceToken,
+                code: code,
+                context: context
+            )
         }
     }
 
-    private func handleContainerExit(id: String, code: ExitStatus?, context: AsyncLock.Context) async throws {
+    private func handleContainerExit(
+        id: String,
+        expectedInstanceToken: String?,
+        code: ExitStatus?,
+        context: AsyncLock.Context
+    ) async throws {
+        guard var state = self.containers[id] else {
+            return
+        }
+        guard state.snapshot.configuration.instanceToken == expectedInstanceToken else {
+            return
+        }
+
         if let code {
             self.log.info(
                 "handling container exit",
@@ -947,14 +1025,7 @@ public actor ContainersService {
                 ])
         }
 
-        var state: ContainerState
-        do {
-            state = try self.getContainerState(id: id, context: context)
-            if state.snapshot.status == .stopped {
-                return
-            }
-        } catch {
-            // Was auto removed by the background thread, nothing for us to do.
+        if state.snapshot.status == .stopped {
             return
         }
 
@@ -1072,18 +1143,10 @@ public actor ContainersService {
             try? ServiceManager.deregister(fullServiceLabel: label)
         }
 
-        // Always try to delete the bundle directory, even if it's incomplete
-        do {
-            try bundle.delete()
-        } catch {
-            self.log.warning(
-                "failed to delete bundle for container",
-                metadata: [
-                    "id": "\(id)",
-                    "error": "\(error)",
-                ])
-        }
-
+        // Bundle removal is the cleanup commit point. Retain the in-memory
+        // identity if it fails so that the same ID cannot be reused while
+        // resources from this instance remain on disk.
+        try bundle.delete()
         self.containers.removeValue(forKey: id)
     }
 
@@ -1131,6 +1194,129 @@ public actor ContainersService {
         self.containers[id] = state
     }
 
+    #if DEBUG
+    func setContainerStatusForTesting(id: String, status: RuntimeStatus) throws {
+        guard var state = self.containers[id] else {
+            throw ContainerizationError(.notFound, message: "container \(id) not found")
+        }
+        state.snapshot.status = status
+        self.containers[id] = state
+    }
+
+    func reserveContainerForForceDeletionForTesting(id: String) async throws {
+        try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
+            try await self.reserveContainerForForceDeletionForTesting(id: id, context: context)
+        }
+    }
+
+    private func reserveContainerForForceDeletionForTesting(
+        id: String,
+        context: AsyncLock.Context
+    ) throws {
+        _ = try self.getContainerState(id: id, context: context)
+        self.deletions.insert(id)
+    }
+    #endif
+
+    static func assignInstanceIdentity(
+        to callerConfiguration: ContainerConfiguration
+    ) -> (configuration: ContainerConfiguration, result: ContainerCreateResult) {
+        var configuration = callerConfiguration
+        let instanceToken = ManagedContainer.generateInstanceToken()
+        configuration.instanceToken = instanceToken
+        return (
+            configuration,
+            ContainerCreateResult(id: configuration.id, instanceToken: instanceToken)
+        )
+    }
+
+    private func canCreate(id: String, context: AsyncLock.Context) -> Bool {
+        self.containers[id] == nil && !self.deletions.contains(id)
+    }
+
+    private func ensureNotDeleting(id: String, context: AsyncLock.Context) throws {
+        guard !self.deletions.contains(id) else {
+            throw ContainerizationError(
+                .invalidState,
+                message: "container \(id) is being deleted"
+            )
+        }
+    }
+
+    private func selectForDelete(
+        id: String,
+        force: Bool,
+        expectedInstanceToken: String?,
+        context: AsyncLock.Context
+    ) async throws -> ContainerState? {
+        guard !self.deletions.contains(id) else {
+            throw ContainerizationError(
+                .invalidState,
+                message: "container \(id) is already being deleted"
+            )
+        }
+
+        let state = try self.getContainerState(id: id, context: context)
+        try Self.validateInstanceToken(
+            expected: expectedInstanceToken,
+            current: state.snapshot.configuration.instanceToken,
+            id: id
+        )
+
+        switch state.snapshot.status {
+        case .running:
+            guard force else {
+                throw ContainerizationError(
+                    .invalidState,
+                    message: "container \(id) is \(state.snapshot.status) and can not be deleted"
+                )
+            }
+            self.deletions.insert(id)
+            return state
+        case .stopping:
+            throw ContainerizationError(
+                .invalidState,
+                message: "container \(id) is \(state.snapshot.status) and can not be deleted"
+            )
+        default:
+            try await self.cleanUp(id: id, context: context)
+            return nil
+        }
+    }
+
+    private func finishDelete(id: String, selected: String?, context: AsyncLock.Context) async throws {
+        defer {
+            self.deletions.remove(id)
+        }
+        guard let currentState = self.containers[id] else {
+            return
+        }
+        try Self.validateSelectedInstance(
+            selected: selected,
+            current: currentState.snapshot.configuration.instanceToken,
+            id: id
+        )
+        self.log.info(
+            "ContainersService: attempt cleanup",
+            metadata: [
+                "func": "\(#function)",
+                "id": "\(id)",
+            ]
+        )
+        try await self.cleanUp(id: id, context: context)
+        self.log.info(
+            "ContainersService: successful cleanup",
+            metadata: [
+                "func": "\(#function)",
+                "id": "\(id)",
+            ]
+        )
+    }
+
+    private func cancelDelete(id: String, context: AsyncLock.Context) {
+        self.deletions.remove(id)
+    }
+
     private func getContainerState(id: String, context: AsyncLock.Context) throws -> ContainerState {
         try self._getContainerState(id: id)
     }
@@ -1148,6 +1334,27 @@ public actor ContainersService {
 
     private static func isInitProcess(id: String, processID: String) -> Bool {
         id == processID
+    }
+
+    private static func validateInstanceToken(expected: String?, current: String?, id: String) throws {
+        guard let expected else {
+            return
+        }
+        guard let current, current == expected else {
+            throw ContainerizationError(
+                .invalidState,
+                message: "container instance precondition failed for \(id)"
+            )
+        }
+    }
+
+    private static func validateSelectedInstance(selected: String?, current: String?, id: String) throws {
+        guard selected == current else {
+            throw ContainerizationError(
+                .invalidState,
+                message: "container instance changed while deleting \(id)"
+            )
+        }
     }
 
     /// Get container configuration, either from existing bundle or from RuntimeConfiguration

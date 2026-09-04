@@ -45,6 +45,9 @@ public struct ContainerClient: Sendable {
     }
 
     /// Create a new container with the given configuration.
+    ///
+    /// This legacy API intentionally returns `Void`. Call ``createWithResult(configuration:options:kernel:initImage:runtimeData:)``
+    /// when the authoritative server-generated instance identity is required.
     public func create(
         configuration: ContainerConfiguration,
         options: ContainerCreateOptions = .default,
@@ -52,8 +55,74 @@ public struct ContainerClient: Sendable {
         initImage: String? = nil,
         runtimeData: Data? = nil
     ) async throws {
+        _ = try await create(
+            configuration: configuration,
+            options: options,
+            kernel: kernel,
+            initImage: initImage,
+            runtimeData: runtimeData,
+            route: .containerCreate
+        )
+    }
+
+    /// Create a new container and require its server-generated instance identity.
+    ///
+    /// The capability check and distinct route ensure that an older server
+    /// rejects the request before creating a container without a result.
+    public func createWithResult(
+        configuration: ContainerConfiguration,
+        options: ContainerCreateOptions = .default,
+        kernel: Kernel,
+        initImage: String? = nil,
+        runtimeData: Data? = nil
+    ) async throws -> ContainerCreateResult {
         do {
-            let request = XPCMessage(route: .containerCreate)
+            let capabilityRequest = XPCMessage(route: .ping)
+            let capabilityReply = try await xpcSend(message: capabilityRequest, timeout: .seconds(10))
+            guard capabilityReply.bool(key: .containerCreateResultSupported) else {
+                throw ContainerizationError(
+                    .unsupported,
+                    message: "API server does not support atomic container create results"
+                )
+            }
+
+            guard
+                let result = try await create(
+                    configuration: configuration,
+                    options: options,
+                    kernel: kernel,
+                    initImage: initImage,
+                    runtimeData: runtimeData,
+                    route: .containerCreateWithResult
+                )
+            else {
+                throw ContainerizationError(
+                    .internalError,
+                    message: "API server omitted the atomic container create result"
+                )
+            }
+            return result
+        } catch let error as ContainerizationError {
+            throw error
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to create container with an atomic result",
+                cause: error
+            )
+        }
+    }
+
+    private func create(
+        configuration: ContainerConfiguration,
+        options: ContainerCreateOptions,
+        kernel: Kernel,
+        initImage: String?,
+        runtimeData: Data?,
+        route: XPCRoute
+    ) async throws -> ContainerCreateResult? {
+        do {
+            let request = XPCMessage(route: route)
 
             let data = try JSONEncoder().encode(configuration)
             let kdata = try JSONEncoder().encode(kernel)
@@ -70,7 +139,8 @@ public struct ContainerClient: Sendable {
                 request.set(key: .runtimeData, value: runtimeData)
             }
 
-            try await xpcSend(message: request)
+            let response = try await xpcSend(message: request)
+            return try Self.decodeCreateResult(response.dataNoCopy(key: .containerCreateResult))
         } catch let error as ContainerizationError {
             throw error
         } catch {
@@ -80,6 +150,13 @@ public struct ContainerClient: Sendable {
                 cause: error
             )
         }
+    }
+
+    static func decodeCreateResult(_ data: Data?) throws -> ContainerCreateResult? {
+        guard let data else {
+            return nil
+        }
+        return try JSONDecoder().decode(ContainerCreateResult.self, from: data)
     }
 
     /// List containers matching the given filters.
@@ -206,6 +283,44 @@ public struct ContainerClient: Sendable {
             throw ContainerizationError(
                 .internalError,
                 message: "failed to delete container",
+                cause: error
+            )
+        }
+    }
+
+    /// Delete the container only when its current instance identity matches.
+    public func deleteIfInstance(id: String, force: Bool, expectedInstanceToken: String) async throws {
+        try await Self.withConditionalDeleteErrorPreservation {
+            do {
+                let capabilityRequest = XPCMessage(route: .ping)
+                let capabilityReply = try await xpcSend(message: capabilityRequest, timeout: .seconds(10))
+                guard capabilityReply.bool(key: .conditionalContainerDeleteSupported) else {
+                    throw ContainerizationError(
+                        .unsupported,
+                        message: "API server does not support conditional container deletion"
+                    )
+                }
+
+                let request = XPCMessage(route: .containerDeleteIfInstance)
+                request.set(key: .id, value: id)
+                request.set(key: .forceDelete, value: force)
+                request.set(key: .expectedInstanceToken, value: expectedInstanceToken)
+                try await xpcClient.send(request)
+            }
+        }
+    }
+
+    static func withConditionalDeleteErrorPreservation(
+        _ operation: @Sendable () async throws -> Void
+    ) async throws {
+        do {
+            try await operation()
+        } catch let error as ContainerizationError {
+            throw error
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to conditionally delete container",
                 cause: error
             )
         }
