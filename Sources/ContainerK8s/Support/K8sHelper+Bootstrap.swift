@@ -35,12 +35,15 @@ extension K8sHelper {
 
     static func bootstrapControlPlane(
         nodeID: String, apiServerSANs: [String], advertiseAddress: String,
+        controlPlaneEndpoint: String,
         schedulable: Bool, client: ContainerClient, log: Logger
     ) async throws {
-        let configYAML = initConfigYAML(advertiseAddress: advertiseAddress, certSANs: apiServerSANs)
+        let configYAML = initConfigYAML(
+            advertiseAddress: advertiseAddress, certSANs: apiServerSANs,
+            controlPlaneEndpoint: controlPlaneEndpoint)
         var r = try await execCapture(
             containerId: nodeID, executable: "/bin/sh",
-            arguments: ["-c", "cat > /etc/kubernetes/kubeadm-config.yaml <<'EOF'\n\(configYAML)\nEOF"],
+            arguments: ["-c", "mkdir -p /kind && cat > /kind/kubeadm.conf <<'EOF'\n\(configYAML)\nEOF"],
             client: client)
         guard r.code == 0 else {
             throw ContainerizationError(.internalError, message: "write kubeadm config failed on \(nodeID): \(r.output)")
@@ -50,7 +53,7 @@ extension K8sHelper {
         r = try await execCapture(
             containerId: nodeID, executable: kubeadmPath,
             arguments: [
-                "init", "--config", "/etc/kubernetes/kubeadm-config.yaml",
+                "init", "--config", "/kind/kubeadm.conf",
                 "--ignore-preflight-errors", ignorePreflightErrors,
             ],
             client: client)
@@ -135,7 +138,9 @@ extension K8sHelper {
         """
     }
 
-    private static func initConfigYAML(advertiseAddress: String, certSANs: [String]) -> String {
+    static func initConfigYAML(
+        advertiseAddress: String, certSANs: [String], controlPlaneEndpoint: String
+    ) -> String {
         let sans = certSANs.map { "  - \($0)" }.joined(separator: "\n")
         return """
             apiVersion: kubeadm.k8s.io/v1beta4
@@ -148,6 +153,7 @@ extension K8sHelper {
             ---
             apiVersion: kubeadm.k8s.io/v1beta4
             kind: ClusterConfiguration
+            controlPlaneEndpoint: \(controlPlaneEndpoint)
             kubernetesVersion: \(kubernetesVersion())
             networking:
               podSubnet: \(podSubnet)

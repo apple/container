@@ -115,4 +115,53 @@ struct TestK8sRunSerial {
             #expect(server1 != server2)
         }
     }
+
+    @Test func testRestartAfterAddressRotation() async throws {
+        try await ContainerFixture.with { f in
+            let name = "k8s-\(f.testID)"
+            let bumper = "\(name)-bumper"
+            f.addCleanup { try f.doRemoveIfExists(bumper, force: true, ignoreFailure: true) }
+            f.addCleanup { _ = try? f.run(["k8s", "delete", "--name", name]) }
+
+            try f.restoreWarmupImage(.kindestNodeV1_35_5)
+            try f.run(["k8s", "create", "--name", name]).check()
+
+            let originalAddress = try f.run(["exec", name, "cat", "/kind/old-ipv4"])
+            try originalAddress.check()
+            #expect(try f.run(["exec", name, "test", "-f", "/kind/kubeadm.conf"]).status == 0)
+            try f.run([
+                "exec", name, "grep", "-F", "controlPlaneEndpoint: 127.0.0.1:6443", "/kind/kubeadm.conf",
+            ]).check()
+
+            try f.run(["stop", name]).check()
+            // Advance the rotating allocator while the node is stopped so its
+            // restart cannot accidentally reuse the same address.
+            try f.restoreWarmupImage(.alpine320)
+            try f.run([
+                "run", "--name", bumper, "-d", WarmupImage.alpine320.rawValue,
+                "sleep", "infinity",
+            ]).check()
+
+            let restart = try f.run(["k8s", "start", "--name", name])
+            if restart.status != 0 {
+                print("[k8s-run] restart stderr: \(restart.error)")
+                f.dumpNodeDiagnostics(node: name)
+            }
+            try restart.check()
+
+            let rotatedAddress = try f.run(["exec", name, "cat", "/kind/old-ipv4"])
+            try rotatedAddress.check()
+            let originalIP = originalAddress.output.trimmingCharacters(in: .whitespacesAndNewlines)
+            let rotatedIP = rotatedAddress.output.trimmingCharacters(in: .whitespacesAndNewlines)
+            print("[k8s-run] restart rotated address \(originalIP) -> \(rotatedIP)")
+            #expect(originalIP != rotatedIP)
+            #expect(try f.getContainerStatus(name) == "running")
+            try f.run([
+                "exec", name, "grep", "-F", "advertiseAddress: \(rotatedIP)", "/kind/kubeadm.conf",
+            ]).check()
+            try f.run([
+                "exec", name, "kubectl", "wait", "--for=condition=Ready", "node", "--all", "--timeout=30s",
+            ]).check()
+        }
+    }
 }
