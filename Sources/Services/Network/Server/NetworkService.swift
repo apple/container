@@ -26,6 +26,7 @@ public protocol NetworkService: Sendable {
     /// Register a hostname and allocate associated addresses.
     func allocate(
         hostname: String,
+        aliases: [String],
         macAddress: MACAddress?,
         session: XPCServerSession
     ) async throws -> (attachment: Attachment, additionalData: XPCMessage?)

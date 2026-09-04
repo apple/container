@@ -74,6 +74,11 @@ public struct Message: Sendable {
     /// Additional resource records.
     public var additional: [ResourceRecord]
 
+    private var rawAnswerCount: UInt16?
+    private var rawAuthorityCount: UInt16?
+    private var rawAdditionalCount: UInt16?
+    private var rawResourceRecords: Data?
+
     /// Creates a new DNS message.
     public init(
         id: UInt16 = 0,
@@ -101,6 +106,10 @@ public struct Message: Sendable {
         self.answers = answers
         self.authorities = authorities
         self.additional = additional
+        self.rawAnswerCount = nil
+        self.rawAuthorityCount = nil
+        self.rawAdditionalCount = nil
+        self.rawResourceRecords = nil
     }
 
     /// Deserialize a DNS message from raw data.
@@ -153,15 +162,13 @@ public struct Message: Sendable {
         guard let (newOffset, rawNsCount) = buffer.copyOut(as: UInt16.self, offset: offset) else {
             throw DNSBindError.unmarshalFailure(type: "Message", field: "nscount")
         }
-        // nsCount not used for now, but we need to read past it
-        _ = UInt16(bigEndian: rawNsCount)
+        let nsCount = UInt16(bigEndian: rawNsCount)
         offset = newOffset
 
         guard let (newOffset, rawArCount) = buffer.copyOut(as: UInt16.self, offset: offset) else {
             throw DNSBindError.unmarshalFailure(type: "Message", field: "arcount")
         }
-        // arCount not used for now, but we need to read past it
-        _ = UInt16(bigEndian: rawArCount)
+        let arCount = UInt16(bigEndian: rawArCount)
         offset = newOffset
 
         // Read questions
@@ -172,13 +179,16 @@ public struct Message: Sendable {
             self.questions.append(question)
         }
 
-        // Read answers (simplified - skip for now as we only need to parse queries)
+        // Resource-record parsing is intentionally minimal. Preserve the raw
+        // section so forwarded DNS responses can be serialized without dropping
+        // upstream answers.
         self.answers = []
         self.authorities = []
         self.additional = []
-
-        // Skip answer parsing for now - we primarily receive queries and send responses
-        _ = anCount
+        self.rawAnswerCount = anCount
+        self.rawAuthorityCount = nsCount
+        self.rawAdditionalCount = arCount
+        self.rawResourceRecords = offset < buffer.count ? Data(buffer[offset...]) : nil
     }
 
     /// Serialize this message to raw data.
@@ -195,6 +205,9 @@ public struct Message: Sendable {
             let n = answer.name.hasSuffix(".") ? String(answer.name.dropLast()) : answer.name
             let rdataSize = answer.type == .host ? 4 : 16
             bufferSize += (try DNSName(labels: n.isEmpty ? [] : n.split(separator: ".", omittingEmptySubsequences: false).map(String.init))).size + 10 + rdataSize
+        }
+        if shouldSerializeRawResourceRecords, let rawResourceRecords {
+            bufferSize += rawResourceRecords.count
         }
 
         var buffer = [UInt8](repeating: 0, count: bufferSize)
@@ -240,17 +253,21 @@ public struct Message: Sendable {
         }
         offset = newOffset
 
-        guard let newOffset = buffer.copyIn(as: UInt16.self, value: UInt16(answers.count).bigEndian, offset: offset) else {
+        let answerCount = shouldSerializeRawResourceRecords ? (rawAnswerCount ?? 0) : UInt16(answers.count)
+        let authorityCount = shouldSerializeRawResourceRecords ? (rawAuthorityCount ?? 0) : UInt16(authorities.count)
+        let additionalCount = shouldSerializeRawResourceRecords ? (rawAdditionalCount ?? 0) : UInt16(additional.count)
+
+        guard let newOffset = buffer.copyIn(as: UInt16.self, value: answerCount.bigEndian, offset: offset) else {
             throw DNSBindError.marshalFailure(type: "Message", field: "ancount")
         }
         offset = newOffset
 
-        guard let newOffset = buffer.copyIn(as: UInt16.self, value: UInt16(authorities.count).bigEndian, offset: offset) else {
+        guard let newOffset = buffer.copyIn(as: UInt16.self, value: authorityCount.bigEndian, offset: offset) else {
             throw DNSBindError.marshalFailure(type: "Message", field: "nscount")
         }
         offset = newOffset
 
-        guard let newOffset = buffer.copyIn(as: UInt16.self, value: UInt16(additional.count).bigEndian, offset: offset) else {
+        guard let newOffset = buffer.copyIn(as: UInt16.self, value: additionalCount.bigEndian, offset: offset) else {
             throw DNSBindError.marshalFailure(type: "Message", field: "arcount")
         }
         offset = newOffset
@@ -258,6 +275,17 @@ public struct Message: Sendable {
         // Write questions
         for question in questions {
             offset = try question.appendBuffer(&buffer, offset: offset)
+        }
+
+        if shouldSerializeRawResourceRecords, let rawResourceRecords {
+            guard let newOffset = buffer.copyIn(buffer: Array(rawResourceRecords), offset: offset) else {
+                throw DNSBindError.marshalFailure(type: "Message", field: "resourceRecords")
+            }
+            offset = newOffset
+            guard offset == bufferSize else {
+                throw DNSBindError.unexpectedOffset(type: "Message", expected: bufferSize, actual: offset)
+            }
+            return Data(buffer[0..<offset])
         }
 
         // Write answers
@@ -279,5 +307,9 @@ public struct Message: Sendable {
             throw DNSBindError.unexpectedOffset(type: "Message", expected: bufferSize, actual: offset)
         }
         return Data(buffer[0..<offset])
+    }
+
+    private var shouldSerializeRawResourceRecords: Bool {
+        rawResourceRecords != nil && answers.isEmpty && authorities.isEmpty && additional.isEmpty
     }
 }
