@@ -17,6 +17,8 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerPlugin
+import ContainerResource
+import ContainerVersion
 import ContainerizationError
 import Foundation
 import Logging
@@ -25,7 +27,7 @@ extension Application {
     public struct SystemStatus: AsyncLoggableCommand {
         public static let configuration = CommandConfiguration(
             commandName: "status",
-            abstract: "Show the status of `container` services"
+            abstract: "Show the status of `container` services and system-wide information"
         )
 
         @Option(name: .shortAndLong, help: "Launchd prefix for services")
@@ -39,41 +41,10 @@ extension Application {
 
         public init() {}
 
-        struct PrintableStatus: Codable {
-            let status: String
-            let appRoot: String
-            let installRoot: String
-            let logRoot: String?
-            let apiServerVersion: String
-            let apiServerCommit: String
-            let apiServerBuild: String
-            let apiServerAppName: String
-
-            init(
-                status: String,
-                appRoot: String = "",
-                installRoot: String = "",
-                logRoot: String? = nil,
-                apiServerVersion: String = "",
-                apiServerCommit: String = "",
-                apiServerBuild: String = "",
-                apiServerAppName: String = ""
-            ) {
-                self.status = status
-                self.appRoot = appRoot
-                self.installRoot = installRoot
-                self.logRoot = logRoot
-                self.apiServerVersion = apiServerVersion
-                self.apiServerCommit = apiServerCommit
-                self.apiServerBuild = apiServerBuild
-                self.apiServerAppName = apiServerAppName
-            }
-        }
-
         public func run() async throws {
             let isRegistered = try ServiceManager.isRegistered(fullServiceLabel: "\(prefix)apiserver")
             if !isRegistered {
-                try Output.render(payload: PrintableStatus(status: "unregistered"), format: format) {
+                try Output.render(payload: StatusPayload(status: "unregistered"), format: format) {
                     "apiserver is not running and not registered with launchd"
                 }
                 Application.exit(withError: ExitCode(1))
@@ -81,41 +52,178 @@ extension Application {
 
             // Now ping our friendly daemon. Fail after 10 seconds with no response.
             do {
-                let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
-                let status = PrintableStatus(
-                    status: "running",
-                    appRoot: systemHealth.appRoot.path(percentEncoded: false),
-                    installRoot: systemHealth.installRoot.path(percentEncoded: false),
-                    logRoot: systemHealth.logRoot?.string,
-                    apiServerVersion: systemHealth.apiServerVersion,
-                    apiServerCommit: systemHealth.apiServerCommit,
-                    apiServerBuild: systemHealth.apiServerBuild,
-                    apiServerAppName: systemHealth.apiServerAppName
-                )
+                let health = try await ClientHealthCheck.ping(timeout: .seconds(10))
+                let status = await Self.gather(health: health)
                 try Output.render(payload: status, format: format) {
                     Self.statusTable(status)
                 }
             } catch {
-                try Output.render(payload: PrintableStatus(status: "not running"), format: format) {
+                try Output.render(payload: StatusPayload(status: "not running"), format: format) {
                     "apiserver is not running"
                 }
                 Application.exit(withError: ExitCode(1))
             }
         }
 
-        private static func statusTable(_ status: PrintableStatus) -> String {
-            let rows: [[String]] = [
-                ["FIELD", "VALUE"],
-                ["status", status.status],
-                ["appRoot", status.appRoot],
-                ["installRoot", status.installRoot],
-                ["logRoot", status.logRoot ?? ""],
-                ["apiserver.version", status.apiServerVersion],
-                ["apiserver.commit", status.apiServerCommit],
-                ["apiserver.build", status.apiServerBuild],
-                ["apiserver.appName", status.apiServerAppName],
-            ]
+        /// Collects system-wide status from the CLI and the running daemon.
+        /// Resource counts are populated best-effort and omitted when their
+        /// source is unavailable.
+        static func gather(health: SystemHealth) async -> StatusPayload {
+            let client = ClientInfo(
+                version: ReleaseVersion.version(),
+                build: ReleaseVersion.buildType(),
+                commit: ReleaseVersion.gitCommit() ?? "unspecified",
+                appName: "container"
+            )
+
+            let host = HostInfo(
+                architecture: Arch.hostArchitecture().rawValue,
+                operatingSystem: ProcessInfo.processInfo.operatingSystemVersionString,
+                cpus: ProcessInfo.processInfo.processorCount
+            )
+
+            let server = ServerInfo(
+                version: health.apiServerVersion,
+                build: health.apiServerBuild,
+                commit: health.apiServerCommit,
+                appName: health.apiServerAppName
+            )
+
+            let paths = PathInfo(
+                appRoot: health.appRoot.path(percentEncoded: false),
+                installRoot: health.installRoot.path(percentEncoded: false),
+                logRoot: health.logRoot?.string
+            )
+
+            var resources: ResourceCounts? = nil
+            let containerClient = ContainerClient()
+            if let all = try? await containerClient.list(filters: ContainerListFilters.all.withoutMachines()) {
+                let running = all.filter { $0.status == .running }.count
+                resources = ResourceCounts(
+                    containersTotal: all.count,
+                    containersRunning: running
+                )
+            }
+            if let images = try? await ClientImage.list() {
+                resources = Self.withImageCount(resources, imageCount: images.count)
+            }
+
+            return StatusPayload(
+                status: "running",
+                client: client,
+                server: server,
+                host: host,
+                paths: paths,
+                resources: resources
+            )
+        }
+
+        /// Records the image count on the resource counts when both are
+        /// available. Returns the counts unchanged (including `nil`) when there
+        /// are no resource counts yet, i.e. the daemon's container list was
+        /// unavailable.
+        static func withImageCount(_ resources: ResourceCounts?, imageCount: Int?) -> ResourceCounts? {
+            guard var resources, let imageCount else { return resources }
+            resources.images = imageCount
+            return resources
+        }
+
+        static func statusTable(_ status: StatusPayload) -> String {
+            var rows: [[String]] = [["FIELD", "VALUE"]]
+
+            rows.append(["status", status.status])
+
+            if let client = status.client {
+                rows.append(["client.version", client.version])
+                rows.append(["client.build", client.build])
+                rows.append(["client.commit", client.commit])
+            }
+
+            if let host = status.host {
+                rows.append(["host.os", host.operatingSystem])
+                rows.append(["host.architecture", host.architecture])
+                rows.append(["host.cpus", String(host.cpus)])
+            }
+
+            if let server = status.server {
+                rows.append(["server.version", server.version])
+                rows.append(["server.build", server.build])
+                rows.append(["server.commit", server.commit])
+                rows.append(["server.appName", server.appName])
+            }
+
+            if let paths = status.paths {
+                rows.append(["paths.appRoot", paths.appRoot])
+                rows.append(["paths.installRoot", paths.installRoot])
+                rows.append(["paths.logRoot", paths.logRoot ?? ""])
+            }
+
+            if let resources = status.resources {
+                rows.append(["containers.total", String(resources.containersTotal)])
+                rows.append(["containers.running", String(resources.containersRunning)])
+                if let images = resources.images {
+                    rows.append(["images.total", String(images)])
+                }
+            }
+
             return TableOutput(rows: rows).format()
         }
+    }
+
+    struct StatusPayload: Codable {
+        let status: String
+        let client: ClientInfo?
+        let server: ServerInfo?
+        let host: HostInfo?
+        let paths: PathInfo?
+        let resources: ResourceCounts?
+
+        init(
+            status: String,
+            client: ClientInfo? = nil,
+            server: ServerInfo? = nil,
+            host: HostInfo? = nil,
+            paths: PathInfo? = nil,
+            resources: ResourceCounts? = nil
+        ) {
+            self.status = status
+            self.client = client
+            self.server = server
+            self.host = host
+            self.paths = paths
+            self.resources = resources
+        }
+    }
+
+    struct ClientInfo: Codable {
+        let version: String
+        let build: String
+        let commit: String
+        let appName: String
+    }
+
+    struct ServerInfo: Codable {
+        let version: String
+        let build: String
+        let commit: String
+        let appName: String
+    }
+
+    struct HostInfo: Codable {
+        let architecture: String
+        let operatingSystem: String
+        let cpus: Int
+    }
+
+    struct PathInfo: Codable {
+        let appRoot: String
+        let installRoot: String
+        let logRoot: String?
+    }
+
+    struct ResourceCounts: Codable {
+        let containersTotal: Int
+        let containersRunning: Int
+        var images: Int?
     }
 }
