@@ -60,6 +60,7 @@ extension Application {
             config.executable = executable
             config.arguments = [String](self.arguments.dropFirst())
             config.terminal = tty
+            config.noNewPrivileges = config.noNewPrivileges || self.processFlags.noNewPrivileges
             config.environment.append(
                 contentsOf: try Parser.allEnv(
                     imageEnvs: [],

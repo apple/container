@@ -323,6 +323,7 @@ public struct Parser {
             environment: envvars,
             workingDirectory: workingDir,
             terminal: processFlags.tty,
+            noNewPrivileges: processFlags.noNewPrivileges,
             user: user,
             supplementalGroups: additionalGroups,
             rlimits: rlimits
