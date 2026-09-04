@@ -29,7 +29,12 @@ extension Application {
 
         public static let configuration = CommandConfiguration(
             commandName: "run",
-            abstract: "Run a command or interactive shell in a container machine, booting the container machine if necessary"
+            abstract: "Run a command or interactive shell in a container machine, booting the container machine if necessary",
+            discussion: """
+                When <executable> is provided, the command and arguments are joined into a
+                single string and evaluated by the guest user's shell (shell -c "$*"),
+                including expansion, substitution, and redirection. This is not argv-preserving.
+                """
         )
 
         @OptionGroup
@@ -47,10 +52,10 @@ extension Application {
         @Flag(name: .long, help: "Run as root instead of matching host user")
         var root: Bool = false
 
-        @Argument(help: "Command to run (default: login shell)")
+        @Argument(help: "Command evaluated by the guest shell (default: login shell)")
         var executable: String?
 
-        @Argument(parsing: .captureForPassthrough, help: "Command arguments")
+        @Argument(parsing: .captureForPassthrough, help: "Words joined with the command and evaluated via shell -c")
         var arguments: [String] = []
 
         public func run() async throws {
