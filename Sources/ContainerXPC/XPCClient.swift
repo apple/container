@@ -95,45 +95,69 @@ extension XPCClient {
         XPCClientSession(client: self)
     }
 
+    /// An actor that ensures a `CheckedContinuation` is resumed at most once.
+    ///
+    /// When both a timeout and the XPC reply race to resume the same continuation,
+    /// the loser's call becomes a safe no-op instead of a fatal double-resume.
+    private actor ContinuationResolver {
+        var continuation: CheckedContinuation<XPCMessage, Error>?
+
+        init(_ continuation: CheckedContinuation<XPCMessage, Error>) {
+            self.continuation = continuation
+        }
+
+        func resume(returning value: XPCMessage) {
+            continuation?.resume(returning: value)
+            continuation = nil
+        }
+
+        func resume(throwing error: Error) {
+            continuation?.resume(throwing: error)
+            continuation = nil
+        }
+    }
+
     /// Send the provided message to the service.
     @discardableResult
     public func send(_ message: XPCMessage, responseTimeout: Duration? = nil) async throws -> XPCMessage {
-        try await withThrowingTaskGroup(of: XPCMessage.self, returning: XPCMessage.self) { group in
-            if let responseTimeout {
-                group.addTask {
-                    try await Task.sleep(for: responseTimeout)
-                    let route = message.string(key: XPCMessage.routeKey) ?? "nil"
-                    throw ContainerizationError(
-                        .internalError,
-                        message: "XPC timeout for request to \(self.service)/\(route)"
-                    )
-                }
-            }
+        try await withCheckedThrowingContinuation { continuation in
+            let resolver = ContinuationResolver(continuation)
 
-            group.addTask {
-                try await withCheckedThrowingContinuation { cont in
-                    xpc_connection_send_message_with_reply(self.connection, message.underlying, nil) { reply in
-                        do {
-                            let message = try self.parseReply(reply)
-                            cont.resume(returning: message)
-                        } catch {
-                            cont.resume(throwing: error)
-                        }
+            let timeoutTask = responseTimeout.map { timeout in
+                Task {
+                    do {
+                        try await Task.sleep(for: timeout)
+                        let route = message.string(key: XPCMessage.routeKey) ?? "nil"
+                        await resolver.resume(
+                            throwing: ContainerizationError(
+                                .internalError,
+                                message: "XPC timeout for request to \(self.service)/\(route)"
+                            ))
+                    } catch {
+                        // Task was cancelled before timeout elapsed — nothing to do.
                     }
                 }
             }
 
-            let response = try await group.next()
-            // once one task has finished, cancel the rest.
-            group.cancelAll()
-            // we don't really care about the second error here
-            // as it's most likely a `CancellationError`.
-            try? await group.waitForAll()
+            xpc_connection_send_message_with_reply(self.connection, message.underlying, nil) { reply in
+                timeoutTask?.cancel()
 
-            guard let response else {
-                throw ContainerizationError(.invalidState, message: "failed to receive XPC response")
+                let result: Result<XPCMessage, Error>
+                do {
+                    let parsed = try self.parseReply(reply)
+                    result = .success(parsed)
+                } catch {
+                    result = .failure(error)
+                }
+                Task {
+                    switch result {
+                    case .success(let message):
+                        await resolver.resume(returning: message)
+                    case .failure(let error):
+                        await resolver.resume(throwing: error)
+                    }
+                }
             }
-            return response
         }
     }
 
