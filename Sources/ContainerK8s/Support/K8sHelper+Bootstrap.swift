@@ -130,8 +130,8 @@ extension K8sHelper {
         sysctl -w net.bridge.bridge-nf-call-ip6tables=1 2>/dev/null || true
         systemctl restart containerd
         ctr -n k8s.io images tag registry.k8s.io/pause:3.10 registry.k8s.io/pause:3.10.1 2>/dev/null || true
-        /usr/sbin/iptables-nft -t mangle -A OUTPUT  -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
-        /usr/sbin/iptables-nft -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
+        /usr/sbin/iptables -t mangle -A OUTPUT  -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
+        /usr/sbin/iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
         """
     }
 
