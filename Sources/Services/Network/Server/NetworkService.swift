@@ -27,6 +27,7 @@ public protocol NetworkService: Sendable {
     func allocate(
         hostname: String,
         macAddress: MACAddress?,
+        requestedAddress: IPv4Address?,
         session: XPCServerSession
     ) async throws -> (attachment: Attachment, additionalData: XPCMessage?)
 

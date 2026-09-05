@@ -28,17 +28,42 @@ actor AttachmentAllocator {
         )
     }
 
-    /// Allocate a network address for a host.
-    func allocate(hostname: String) async throws -> UInt32 {
+    /// Map `hostname` to an index (existing if known, else `allocateIndex()`).
+    private func register(hostname: String, allocateIndex: () throws -> UInt32) throws -> UInt32 {
         // Client is responsible for ensuring two containers don't use same hostname, so provide existing IP if hostname exists
         if let index = hostnames[hostname] {
             return index
         }
 
-        let index = try allocator.allocate()
+        let index = try allocateIndex()
         hostnames[hostname] = index
-
         return index
+    }
+
+    /// Allocate a network address for a host.
+    func allocate(hostname: String) async throws -> UInt32 {
+        try register(hostname: hostname) { try allocator.allocate() }
+    }
+
+    /// Reserve a specific address for a host.
+    func reserve(hostname: String, address: UInt32) async throws -> UInt32 {
+        try register(hostname: hostname) {
+            try allocator.reserve(address)
+            return address
+        }
+    }
+
+    /// Reserve `requested` if free, else allocate fresh; `allocatorFull` still propagates.
+    func acquire(hostname: String, requested: UInt32?) async throws -> UInt32 {
+        guard let requested else {
+            return try await allocate(hostname: hostname)
+        }
+        do {
+            return try await reserve(hostname: hostname, address: requested)
+        } catch AllocatorError.alreadyAllocated, AllocatorError.invalidAddress {
+            // Address taken, or out of range after a subnet change — reassign.
+            return try await allocate(hostname: hostname)
+        }
     }
 
     /// Free an allocated network address by hostname.
