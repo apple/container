@@ -39,9 +39,26 @@ public struct Utility {
         return name
     }
 
+    public static func imageReferenceAliases(
+        _ reference: String,
+        containerSystemConfig: ContainerSystemConfig
+    ) throws -> Set<String> {
+        let localReference = try Reference.parse(reference)
+        localReference.normalize()
+        return [
+            reference,
+            localReference.description,
+            try ClientImage.normalizeReference(reference, containerSystemConfig: containerSystemConfig),
+        ]
+    }
+
     public static func isInfraImage(name: String, builderImage: String, initImage: String) -> Bool {
-        for infraImage in [builderImage, initImage] {
-            if name == infraImage {
+        [builderImage, initImage].contains(name)
+    }
+
+    public static func isInfraImage(name: String, containerSystemConfig: ContainerSystemConfig) throws -> Bool {
+        for infraImage in [containerSystemConfig.build.image, containerSystemConfig.vminit.image] {
+            if try imageReferenceAliases(infraImage, containerSystemConfig: containerSystemConfig).contains(name) {
                 return true
             }
         }
