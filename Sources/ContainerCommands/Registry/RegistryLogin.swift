@@ -18,6 +18,7 @@ import ArgumentParser
 import ContainerAPIClient
 import ContainerPersistence
 import ContainerPlugin
+import ContainerResource
 import Containerization
 import ContainerizationError
 import ContainerizationOCI
@@ -47,7 +48,8 @@ extension Application {
         var server: String
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
+            let keychainClient = RegistryKeychainClient()
+            let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
             var username = self.username
             var password = ""
             if passwordStdin {
@@ -60,12 +62,11 @@ extension Application {
                 }
                 password = String(decoding: passwordData, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
             }
-            let keychain = KeychainHelper(securityDomain: Constants.keychainID)
             if username == "" {
-                username = try keychain.userPrompt(hostname: server)
+                username = try await keychainClient.userPrompt(hostname: server)
             }
             if password == "" {
-                password = try keychain.passwordPrompt()
+                password = try await keychainClient.passwordPrompt()
                 print()
             }
 
@@ -93,8 +94,8 @@ extension Application {
                 )
             )
             try await client.ping()
-            try keychain.save(hostname: server, username: username, password: password)
-            log.info("Login succeeded")
+            try await keychainClient.login(hostname: server, username: username, password: password)
+            print("Login succeeded")
         }
     }
 }
