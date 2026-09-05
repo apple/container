@@ -42,7 +42,10 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let isRegistered = try ServiceManager.isRegistered(fullServiceLabel: "\(prefix)apiserver")
+            // Use the same launchd domain target as register/stop so a system-domain
+            // bootstrap is visible to status (plain `launchctl list` is domain-scoped).
+            let domain = try ServiceManager.getDomainString()
+            let isRegistered = try ServiceManager.isRegistered(fullServiceLabel: "\(domain)/\(prefix)apiserver")
             if !isRegistered {
                 try Output.render(payload: StatusPayload(status: "unregistered"), format: format) {
                     "apiserver is not running and not registered with launchd"
