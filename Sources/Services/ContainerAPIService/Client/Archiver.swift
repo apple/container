@@ -71,6 +71,7 @@ public final class Archiver: Sendable {
             var entryInfo = [ArchiveEntryInfo]()
             if !source.isDirectory {
                 if let info = closure(source) {
+                    try _validatePath(info.pathOnHost, relativeTo: source)
                     entryInfo.append(info)
                 }
             } else {
@@ -80,6 +81,8 @@ public final class Archiver: Sendable {
                     guard let info = closure(url) else {
                         continue
                     }
+                    // Path Traversal Güvenlik Kontrolü
+                    try _validatePath(info.pathOnHost, relativeTo: source)
                     entryInfo.append(info)
                 }
             }
@@ -109,6 +112,16 @@ public final class Archiver: Sendable {
     }
 
     // MARK: private functions
+    private static func _validatePath(_ url: URL, relativeTo base: URL) throws {
+        let canonicalURL = url.standardizedFileURL
+        let canonicalBase = base.standardizedFileURL
+        
+        // Host yolunun kök baz dizinin dışına çıkıp çıkmadığını denetle
+        if !canonicalURL.path.hasPrefix(canonicalBase.path) {
+            throw Error.pathTraversalDetected(url)
+        }
+    }
+
     private static func _compressFile(item: URL, entry: WriteEntry, archiver: ArchiveWriter, hasher: inout SHA256) throws {
         let writer = archiver.makeTransactionWriter()
         let bufferSize = Int(1.mib())
@@ -116,8 +129,6 @@ public final class Archiver: Sendable {
         defer { readBuffer.deallocate() }
         try writer.writeHeader(entry: entry)
         if entry.fileType == .regular {
-            // We need to write the data into the archive only if its a regular file
-            // Symlinks and directories require us to only write the archive header
             guard let stream = InputStream(url: item) else {
                 throw Error.failedToCreateInputStream(item)
             }
@@ -126,7 +137,6 @@ public final class Archiver: Sendable {
             while true {
                 let byteRead = stream.read(readBuffer, maxLength: bufferSize)
                 if byteRead < 0 {
-                    // stream.read returns -1 on error (e.g. TCC access denial under /Users/)
                     let streamError = stream.streamError
                     throw Error.failedToReadFile(item, streamError)
                 }
@@ -187,7 +197,6 @@ public final class Archiver: Sendable {
             entry.modificationDate = modificationDate
         }
 
-        // Apply explicit overrides from ArchiveEntryInfo when provided
         if let overrideOwner = entryInfo.owner {
             entry.owner = overrideOwner
         }
@@ -228,6 +237,7 @@ extension Archiver {
         case fileDoesNotExist(_ url: URL)
         case failedToCreateInputStream(_ url: URL)
         case failedToReadFile(_ url: URL, _ underlying: Swift.Error?)
+        case pathTraversalDetected(_ url: URL)
 
         public var description: String {
             switch self {
@@ -242,6 +252,8 @@ extension Archiver {
                     return "failed to read file \(url.path): \(underlying)"
                 }
                 return "failed to read file \(url.path)"
+            case .pathTraversalDetected(let url):
+                return "path traversal detected for path \(url.path)"
             }
         }
     }
