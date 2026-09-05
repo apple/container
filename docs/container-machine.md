@@ -5,20 +5,21 @@ Container machine provides a highly integrated Linux environment that works seam
 ## Why container machines
 
 Containers are typically modeled after an application. A container machine is modeled after a Linux environment. It runs the image's init system allowing you to register long running services or test your application under a process supervisor.
-A container machine automatically maps your username and home directory into the Linux environment. Your repositories and dotfiles are available on both platforms. Use editors and tools directly on macOS simultaneously building and running your application inside of the Linux environment.
+A container machine automatically maps your username into the Linux environment and mounts your macOS home directory at `/Users/<username>` inside the machine. Your repositories are accessible from both platforms at the same path. Use editors and tools directly on macOS simultaneously building and running your application inside of the Linux environment.
 
-- **Edit on the Mac, build inside.** Your repo lives in `$HOME` on macOS and is mounted at `/Users/<username>` inside the container machine. Use your macOS editor or IDE; compile and run inside your container machine.
+- **Edit on the Mac, build inside.** Your macOS home directory is mounted at `/Users/<username>` inside the container machine (preserving the host path). Use your macOS editor or IDE; compile and run inside your container machine.
 - **Use macOS-native tooling against Linux artifacts.** Profilers, screenshot tools, browsers, and GUI debuggers on your Mac all see the same files the container machine sees — there is no copy step between "I built it" and "I am inspecting it".
 - **Real Linux services for testing.** Run a database or whatever your stack needs as a system service — `systemctl start postgresql` works on images with `systemd` installed.
-- **One environment per target distro.** Create as many container machines as you have target distros — `alpine`, `ubuntu`, `debian`. Each has the same `$HOME` and the same dotfiles from your Mac. Quickly test your application in various distributions.
+- **One environment per target distro.** Create as many container machines as you have target distros — `alpine`, `ubuntu`, `debian`. Each shares the same macOS home mount at `/Users/<username>`. Quickly test your application in various distributions.
 
 ## Quickstart
 
 ```bash
 container machine create alpine:latest --name dev
-container machine run -n dev whoami       # your host username, not root
-container machine run -n dev pwd          # /home/<you> — your Mac home dir, mounted in
-container machine run -n dev              # interactive shell; cd into your repos in $HOME
+container machine run -n dev whoami        # your host username, not root
+container machine run -n dev pwd           # /Users/<you> — $PWD is inherited from the host
+container machine run -n dev echo '$HOME'  # /home/<you> — Linux home directory inside the machine
+container machine run -n dev               # interactive shell; $HOME resolves to /home/<you>
 ```
 
 `container machine run` is how you get a shell or run a single command. If the container machine is stopped, `run` boots it first.
