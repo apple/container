@@ -714,6 +714,42 @@ struct TestCLIMachineRuntimeSerial {
         }
     }
 
+    @Test func testUserMountsReadWriteAndReadOnly() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+
+            let readWriteSource = f.testDir.appending("read-write")
+            let readOnlySource = f.testDir.appending("read-only")
+            try FileManager.default.createDirectory(
+                atPath: readWriteSource.string, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(
+                atPath: readOnlySource.string, withIntermediateDirectories: true)
+
+            try f.doMachineCreate(
+                name: name,
+                image: machineImage,
+                extraArgs: [
+                    "--home-mount", "none",
+                    "--mount", "\(readWriteSource.string):/mnt/read-write:rw",
+                    "--mount", "\(readOnlySource.string):/mnt/read-only:ro",
+                ])
+            try f.doMachineBoot(name: name)
+            try await f.waitForMachineStatus(name, status: "running")
+
+            try f.doMachineRun(
+                name: name, root: true,
+                command: ["touch", "/mnt/read-write/from-guest"])
+            #expect(FileManager.default.fileExists(atPath: readWriteSource.appending("from-guest").string))
+
+            let readOnlyWrite = try f.runMachine([
+                "run", "--root", "-n", name, "touch", "/mnt/read-only/blocked",
+            ])
+            #expect(readOnlyWrite.status != 0)
+            #expect(!FileManager.default.fileExists(atPath: readOnlySource.appending("blocked").string))
+        }
+    }
+
     @Test func testCreateAutoBoots() async throws {
         try await ContainerFixture.with { f in
             let name = "\(f.testID)-machine"
