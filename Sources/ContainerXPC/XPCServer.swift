@@ -14,6 +14,9 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationError
+import Logging
+
 #if os(macOS)
 import CAuditToken
 import ContainerizationError
@@ -208,7 +211,13 @@ public struct XPCServer: Sendable {
                 let response = try await handler(message, session)
                 xpc_connection_send_message(connection, response.underlying)
             } catch let error as ContainerizationError {
-                log.error(
+                // A `notFound` result is an expected, recoverable outcome for many
+                // routes (for example, looking up an image snapshot before it has
+                // been unpacked). Log it at debug level so it does not surface as a
+                // misleading error, while still replying with the error so the
+                // client can act on it.
+                log.log(
+                    level: error.routeHandlerLogLevel,
                     "route handler threw an error",
                     metadata: [
                         "route": "\(route)",
@@ -286,3 +295,15 @@ extension xpc_object_t {
 }
 
 #endif
+
+extension ContainerizationError {
+    /// The log level to use when a route handler surfaces this error.
+    ///
+    /// A `notFound` error is an expected, recoverable outcome for many routes
+    /// (for example, looking up an image snapshot before it has been unpacked),
+    /// so it is logged at `debug` to avoid emitting misleading errors. All other
+    /// failures are logged at `error`.
+    var routeHandlerLogLevel: Logging.Logger.Level {
+        self.code == .notFound ? .debug : .error
+    }
+}
