@@ -1,16 +1,16 @@
 # Container machine
 
-Container machine provides a highly integrated Linux environment that works seamlessly on your Mac. Container machines are fast, lightweight and persistent. They're based on standard OCI images you can build and share. Host integrations such as automatic user and home directory sharing mean you always land in the same spot in your Linux environment, no matter where under your home directory you started from in a terminal.
+Container machine provides a highly integrated Linux environment that works seamlessly on your Mac. Container machines are fast, lightweight and persistent. They're based on standard OCI images you can build and share. A container machine has seamless access to macOS home directory – if you're anywhere under your home directory and you open a shell session in a container machine, the Linux session starts in that same directory, with your same username and file access permissions.
 
 > [!WARNING]
 > Running an image as a container machine is much closer to running a macOS program directly on your host than to running a regular container. A container machine trades away much of the isolation that makes a regular Apple container safer for running untrusted code. Only create container machines from images you trust.
 >
-> A container machine image supplies its own `/sbin/init` that serves as the entry point for the machine, running as the OS init process (PID 1). That process, and everything it chooses to start afterward (services, cron jobs, and anything else), can do anything a Linux process running as root can do — with access to far more of your host. A container machine:
+> A container machine image supplies its own `/sbin/init` that serves as the entry point for the machine, running as the OS init process (PID 1). That process, and everything it chooses to start afterward (services, cron jobs, and anything else), can do anything a Linux process running as root can do — with access to more of your host system. A container machine:
 >
-> - Mounts your macOS home directory into the guest **read-write, at the same path**, by default — not a scoped volume you opt into, but transparent access to your repos, dotfiles, and anything else under `$HOME`. Equivalent to `container create -v "${HOME}:${HOME}"`.
+> - Automatically mounts your macOS home directory into the guest **read-write, at the same path**. Anything running in your container machine has access, with your macOS user permissions, to your repos, dotfiles, and anything else under `${HOME}`. Equivalent to `container create -v "${HOME}:${HOME}"`.
 > - Forwards your host `SSH_AUTH_SOCK` into the guest, so anything running in the machine can use your ssh-agent to act as you (e.g. for `git`/`ssh` operations). Equivalent to `container create --ssh`.
 > - Runs with **all Linux capabilities added** and **no masked or read-only `/proc`/`/sys` paths** — a container machine deliberately bypasses the default access controls that a regular container receives, since the image's init system needs to behave like a full Linux install. Equivalent to `container create --cap-add ALL --masked-path NONE --read-only-path NONE`.
-> - Provisions a guest account with **passwordless sudo** (`NOPASSWD:ALL`) by default, mapped to your host UID/GID. Root inside the container machine can write anywhere in your mounted home directory with your macOS user permissions.
+> - Creates a guest account and Linux home directory, and configures **passwordless sudo** (`NOPASSWD:ALL`), mapped to your host UID/GID. Root inside the container machine can write anywhere in your mounted home directory with your macOS user permissions.
 
 ## Why container machines
 
@@ -26,7 +26,7 @@ Containers are typically modeled after an application. A container machine is mo
 ```bash
 container machine create alpine:latest --name dev
 container machine run -n dev whoami       # your host username, not root
-container machine run -n dev pwd          # /home/<you> — your Mac home dir, mounted in
+container machine run -n dev pwd          # your host current directory if you're under it; otherwise the Linux user home directory
 container machine run -n dev              # interactive shell; cd into your repos in $HOME
 ```
 
@@ -48,6 +48,8 @@ Pass a command to run it once and exit:
 container machine run -n dev uname -a
 container machine run -n dev -- cat /proc/cpuinfo
 ```
+
+When you run `container machine run` anywhere under your macOS home directory, the Linux process runs in the equivalent directory in the container machine's home mount. Otherwise, the process runs in the your Linux user's home directory.
 
 ### Set a default
 

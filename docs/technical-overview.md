@@ -29,9 +29,6 @@ Many operating systems support containers, but the most commonly encountered con
 - Privacy: When sharing host data using `container`, you mount only necessary data into each VM. With a shared VM, you need to mount all data that you may ever want to use into the VM, so that it can be mounted selectively into containers.
 - Performance: Containers created using `container` require less memory than full VMs, with boot times that are comparable to containers running in a shared VM.
 
-> [!IMPORTANT]
-> If you use container machines, be aware that the security and privacy properties above are substantially reduced — see [Container machine](container-machine.md) for details.
-
 Since `container` consumes and produces standard OCI images, you can easily build with and run images produced by other container applications, and the images that you build will run everywhere.
 
 `container` and the underlying Containerization package integrate with many of the key technologies and frameworks of macOS:
