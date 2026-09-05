@@ -70,6 +70,22 @@ public struct ProcessConfiguration: Sendable, Codable {
         }
     }
 
+    /// The environment variable used to expose the container ID to the guest workload.
+    public static let containerIDEnvVar = "CONTAINER_ID"
+
+    /// Returns `environment` with the container ID exposed via `CONTAINER_ID`.
+    ///
+    /// This lets tools running inside the guest recover the authoritative
+    /// container ID regardless of how the hostname is configured. If the
+    /// environment already defines `CONTAINER_ID`, it is left untouched so that
+    /// a user-supplied value takes precedence.
+    public static func environmentExposingContainerID(_ environment: [String], id: String) -> [String] {
+        guard !environment.contains(where: { $0.hasPrefix("\(containerIDEnvVar)=") }) else {
+            return environment
+        }
+        return environment + ["\(containerIDEnvVar)=\(id)"]
+    }
+
     public init(
         executable: String,
         arguments: [String],
