@@ -24,21 +24,27 @@ import SystemPackage
 
 extension Application {
     public struct ContainerCopy: AsyncLoggableCommand {
-        enum PathRef {
+        enum PathRef: Equatable {
             case local(String)
             case container(id: String, path: String)
         }
 
         static func parsePathRef(_ ref: String) throws -> PathRef {
-            let parts = ref.components(separatedBy: ":")
-            switch parts.count {
-            case 1:
+            // A container reference is "<id>:<absolute-path>". The id never
+            // contains a path separator, but the path may itself contain ':'
+            // (e.g. an ISO-8601 timestamp in a filename), so split on the FIRST
+            // ':' only rather than on every colon. If the text before the first
+            // ':' contains '/', the whole ref is a local path that happens to
+            // contain a colon (e.g. "/home/2026-01-01T00:00:00.log").
+            guard let colon = ref.firstIndex(of: ":"), !ref[..<colon].contains("/") else {
                 return .local(ref)
-            case 2 where !parts[0].isEmpty && parts[1].starts(with: "/"):
-                return .container(id: parts[0], path: parts[1])
-            default:
+            }
+            let id = String(ref[..<colon])
+            let path = String(ref[ref.index(after: colon)...])
+            guard !id.isEmpty, path.hasPrefix("/") else {
                 throw ContainerizationError(.invalidArgument, message: "invalid path given: \(ref)")
             }
+            return .container(id: id, path: path)
         }
 
         public init() {}
