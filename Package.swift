@@ -263,6 +263,15 @@ let package = Package(
                 "ContainerXPC",
             ]
         ),
+        .testTarget(
+            name: "ContainerImagesServiceTests",
+            dependencies: [
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationArchive", package: "containerization"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                "ContainerImagesService",
+            ]
+        ),
         .target(
             name: "ContainerAPIClient",
             dependencies: [
