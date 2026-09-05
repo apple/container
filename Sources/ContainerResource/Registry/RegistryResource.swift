@@ -23,6 +23,10 @@ import Foundation
 /// container registries such as Docker Hub, GitHub Container Registry, or
 /// private registries.
 public struct RegistryResource: ManagedResource {
+    public enum ErrorCode: String, ManagedResourceErrorCode {
+        case unknown
+    }
+
     /// The registry hostname that uniquely identifies this resource.
     ///
     /// For registry resources, the identifier is the same as the hostname.
