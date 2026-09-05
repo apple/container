@@ -66,7 +66,6 @@ public struct HostDNSResolver {
             } ?? ""
         let resolverText = """
             domain \(name)
-            search \(name)
             nameserver 127.0.0.1
             port \(dnsPort)
             \(options)
