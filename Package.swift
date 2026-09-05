@@ -643,6 +643,12 @@ let package = Package(
             ],
             path: "Sources/Services/MachineAPIService/Client"
         ),
+        .testTarget(
+            name: "MachineAPIClientTests",
+            dependencies: [
+                "MachineAPIClient"
+            ]
+        ),
         .target(
             name: "MachineAPIService",
             dependencies: [
