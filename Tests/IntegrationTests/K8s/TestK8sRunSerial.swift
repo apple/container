@@ -126,11 +126,11 @@ struct TestK8sRunSerial {
             f.addCleanup { _ = try? f.run(["k8s", "delete", "--name", name]) }
 
             try f.restoreWarmupImage(.kindestNodeV1_35_5)
-            print("[k8s-run] k8s create --name \(name) --mount type=virtiofs,source=\(f.testDir.string),target=/tmp/testmount,readonly")
+            print("[k8s-run] k8s create --name \(name) --mount type=virtiofs,source=\(f.testDir.string),target=/mnt/testmount,readonly")
             let result = try f.run([
                 "k8s", "create",
                 "--name", name,
-                "--mount", "type=virtiofs,source=\(f.testDir.string),target=/tmp/testmount,readonly",
+                "--mount", "type=virtiofs,source=\(f.testDir.string),target=/mnt/testmount,readonly",
             ])
             print("[k8s-run] k8s create exit=\(result.status)")
             if result.status != 0 {
@@ -139,7 +139,7 @@ struct TestK8sRunSerial {
             }
             try result.check()
 
-            let output = try f.doExec(name, cmd: ["cat", "/tmp/testmount/testfile.txt"])
+            let output = try f.doExec(name, cmd: ["cat", "/mnt/testmount/testfile.txt"])
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             #expect(output == testData)
         }
