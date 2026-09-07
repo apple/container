@@ -433,6 +433,7 @@ public struct Parser {
                     fs.type = Filesystem.FSType.virtiofs
                 case "tmpfs":
                     fs.type = Filesystem.FSType.tmpfs
+                    fs.source = "tmpfs"
                 case "volume":
                     isVolume = true
                 default:

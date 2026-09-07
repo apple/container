@@ -44,13 +44,14 @@ private func makeSnapshot(
     } else {
         networksJSON = #"[{"network":"bridge","hostname":"\#(id)","ipv4Address":"\#(addr)/24","ipv4Gateway":"10.0.0.254"}]"#
     }
+    let sha = "sha256:" + String(repeating: "a", count: 64)
     let json = """
         {
             "configuration": {
                 "id": "\(id)",
                 "image": {
                     "reference": "docker.io/kindest/node:v1.35.5",
-                    "descriptor": {"mediaType":"","digest":"sha256:abc","size":0}
+                    "descriptor": {"mediaType":"","digest":"\(sha)","size":0}
                 },
                 "initProcess": {"executable":"/bin/sh","arguments":[],"environment":[],"workingDirectory":"/","terminal":false,"user":{"id":{"uid":0,"gid":0}},"supplementalGroups":[],"rlimits":[]},
                 "resources": {"cpus":\(cpus),"memoryInBytes":\(memoryMiB * 1024 * 1024)},

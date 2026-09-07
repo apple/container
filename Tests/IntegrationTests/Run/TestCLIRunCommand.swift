@@ -295,6 +295,32 @@ struct TestCLIRunCommand {
         }
     }
 
+    @Test func testRunCommandMountTmpfs() async throws {
+        try await ContainerFixture.with { f in
+            let image = alpine.rawValue
+            let c = "\(f.testID)-c"
+            try await f.doLongRun(
+                name: c, image: image,
+                args: ["--mount", "type=tmpfs,target=/tmp/testtmpfs,size=64m"],
+                autoRemove: false, waitUntilRunning: true)
+            f.addCleanup {
+                try? f.doStop(c)
+                try? f.doRemove(c)
+            }
+
+            let output = try f.doExec(c, cmd: ["df", "/tmp/testtmpfs"])
+            let lines = output.split(separator: "\n")
+            #expect(lines.count == 2)
+            let words = lines[1].split(separator: " ")
+            #expect(words[0].lowercased() == "tmpfs")
+
+            let mounts = try f.doExec(c, cmd: ["cat", "/proc/mounts"])
+            let mountLine = mounts.split(separator: "\n").first { $0.contains(" /tmp/testtmpfs ") }
+            #expect(mountLine != nil)
+            #expect(mountLine?.hasPrefix("tmpfs ") == true)
+        }
+    }
+
     @Test func testRunCommandShmSize() async throws {
         try await ContainerFixture.with { f in
             let image = alpine.rawValue

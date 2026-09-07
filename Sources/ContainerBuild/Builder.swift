@@ -108,7 +108,7 @@ public struct Builder: Sendable {
         }
 
         if let terminal = config.terminal {
-            Task {
+            _ = Task {
                 let winchHandler = AsyncSignalHandler.create(notify: [SIGWINCH])
                 let setWinch = { (rows: UInt16, cols: UInt16) in
                     var winch = ClientStream()

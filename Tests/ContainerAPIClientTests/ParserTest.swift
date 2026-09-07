@@ -459,6 +459,40 @@ struct ParserTest {
     }
 
     @Test
+    func testMountTmpfsWithMode() throws {
+        let result = try Parser.mount("type=tmpfs,dst=/foo,size=64m,mode=1777")
+
+        switch result {
+        case .filesystem(let fs):
+            #expect(fs.destination == "/foo")
+            #expect(fs.options.contains("mode=1777"))
+        case .volume:
+            #expect(Bool(false), "Expected filesystem mount, got volume")
+        }
+    }
+
+    @Test
+    func testMountTmpfsSource() throws {
+        let result = try Parser.mount("type=tmpfs,target=/tmpfsmount1,size=512M")
+        switch result {
+        case .filesystem(let fs):
+            #expect(fs.type == .tmpfs)
+            #expect(fs.source == "tmpfs")
+            #expect(fs.destination == "/tmpfsmount1")
+            #expect(fs.options.contains("size=536870912"))
+        case .volume:
+            #expect(Bool(false), "Expected filesystem mount, got volume")
+        }
+    }
+
+    @Test
+    func testMountTmpfsSourceRejection() throws {
+        #expect(throws: ContainerizationError.self) {
+            _ = try Parser.mount("type=tmpfs,source=tmpfs,target=/tmpfsmount1")
+        }
+    }
+
+    @Test
     func testMountVolumeValidName() throws {
         let result = try Parser.mount("type=volume,src=myvolume,dst=/data")
 
