@@ -101,7 +101,7 @@ Contributions to `container` are welcome and encouraged. Please see our [main co
 
 The container project is under active development. Its release versions are product versions, not semantic versions.
 
-The `container` CLI compatibility generally preserves backward compatibility within a major release (not breaking existing scripts), however, there may be the odd case where breaking compatibility may be necessary. **Note:** Features marked *experimental* (for example, the `k8s` subcommand) may change frequently and dramatically and do not guarantee backward compatibility.
+The `container` CLI compatibility generally preserves backward compatibility within a major release (not breaking existing scripts), however, there may be the odd case where breaking compatibility may be necessary. **Note:** Features marked *experimental* (for example, the `k8s` subcommand) may change and do not guarantee backward compatibility.
 
 The `container-apiserver` XPC API compatibility preserves forward and backward compatibility within a major version. 
 Other non-public XPC helpers do not guarantee CLI or API compatibility across different versions.
