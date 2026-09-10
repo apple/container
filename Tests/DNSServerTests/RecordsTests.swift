@@ -586,6 +586,36 @@ struct RecordsTests {
             #expect(msg.questions[0].recordClass == .internet)
         }
 
+        @Test("Roundtrip preserves raw response answers")
+        func roundtripPreservesRawResponseAnswers() throws {
+            let responseBytes: [UInt8] = [
+                0x12, 0x34,  // ID
+                0x81, 0x80,  // Flags: response, recursion desired/available
+                0x00, 0x01,  // QDCOUNT=1
+                0x00, 0x01,  // ANCOUNT=1
+                0x00, 0x00,  // NSCOUNT=0
+                0x00, 0x00,  // ARCOUNT=0
+                // Question: example.com A IN
+                0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65,
+                0x03, 0x63, 0x6f, 0x6d,
+                0x00,
+                0x00, 0x01,
+                0x00, 0x01,
+                // Answer: compressed name pointer to offset 12, A IN, TTL 60, 93.184.216.34
+                0xc0, 0x0c,
+                0x00, 0x01,
+                0x00, 0x01,
+                0x00, 0x00, 0x00, 0x3c,
+                0x00, 0x04,
+                0x5d, 0xb8, 0xd8, 0x22,
+            ]
+
+            let message = try Message(deserialize: Data(responseBytes))
+            let serialized = try message.serialize()
+
+            #expect(Data(responseBytes) == serialized)
+        }
+
         @Test("Roundtrip preserves data")
         func roundtrip() throws {
             let ip = try IPv4Address("1.2.3.4")
