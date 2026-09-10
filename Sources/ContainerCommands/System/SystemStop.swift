@@ -41,6 +41,21 @@ extension Application {
 
         public init() {}
 
+        public mutating func validate() throws {
+            guard !prefix.isEmpty, prefix.unicodeScalars.allSatisfy(Self.isValidLaunchdLabelPrefixScalar) else {
+                throw ValidationError("invalid --prefix \"\(prefix)\": must be a launchd label prefix (letters, digits, '.', '-', '_'), e.g. com.apple.container.")
+            }
+        }
+
+        private static func isValidLaunchdLabelPrefixScalar(_ scalar: Unicode.Scalar) -> Bool {
+            switch scalar.value {
+            case 48...57, 65...90, 97...122, 45, 46, 95:
+                return true
+            default:
+                return false
+            }
+        }
+
         public func run() async throws {
             let log = Logger(
                 label: "com.apple.container.cli",
