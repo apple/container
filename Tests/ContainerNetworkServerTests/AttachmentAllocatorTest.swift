@@ -225,7 +225,7 @@ struct AttachmentAllocatorTest {
         )
         #expect(released == only)
 
-        // Re-reserving the same address must now succeed — proves release ran.
+        // Re-reserving the same address must now succeed - proves release ran.
         let again = try await allocator.reserve(hostname: "sticky", address: only)
         #expect(again == only)
     }
@@ -255,6 +255,16 @@ struct AttachmentAllocatorTest {
         let address = try await allocator.acquire(hostname: "sticky", requested: taken)
 
         #expect(address != taken)
+        #expect(address >= 100)
+        #expect(address < 110)
+    }
+
+    @Test func testAcquireFallsBackWhenRequestOutOfRange() async throws {
+        // A sticky address from a previous, different subnet must not fail the start.
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        let address = try await allocator.acquire(hostname: "sticky", requested: 5_000)
+
         #expect(address >= 100)
         #expect(address < 110)
     }

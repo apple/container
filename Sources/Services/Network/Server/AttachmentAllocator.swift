@@ -53,7 +53,7 @@ actor AttachmentAllocator {
         }
     }
 
-    /// Reserve `requested` if free, else allocate fresh; `allocatorFull` still propagates.
+    /// Reserve `requested` if free, else allocate fresh. `allocatorFull` always propagates.
     func acquire(hostname: String, requested: UInt32?) async throws -> UInt32 {
         guard let requested else {
             return try await allocate(hostname: hostname)
@@ -61,7 +61,7 @@ actor AttachmentAllocator {
         do {
             return try await reserve(hostname: hostname, address: requested)
         } catch AllocatorError.alreadyAllocated, AllocatorError.invalidAddress {
-            // Address taken, or out of range after a subnet change — reassign.
+            // Address taken, or out of range after a subnet change - reassign.
             return try await allocate(hostname: hostname)
         }
     }

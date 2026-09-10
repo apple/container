@@ -690,7 +690,7 @@ extension MachineConfiguration {
         config.networks = [
             AttachmentConfiguration(
                 network: defaultNetwork.id,
-                options: AttachmentOptions(hostname: dnsHostname)
+                options: AttachmentOptions(hostname: dnsHostname, macAddress: .generate())
             )
         ]
 

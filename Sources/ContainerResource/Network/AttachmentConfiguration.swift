@@ -30,6 +30,14 @@ public struct AttachmentConfiguration: Codable, Sendable {
     }
 }
 
+extension MACAddress {
+    /// A locally-administered unicast MAC, assigned at create time so it and the
+    /// IPv6 SLAAC address derived from it survive stop/start.
+    public static func generate() -> MACAddress {
+        MACAddress((UInt64.random(in: 0...UInt64.max) & 0x0cff_ffff_ffff) | 0xf200_0000_0000)
+    }
+}
+
 // Option information for a network attachment.
 public struct AttachmentOptions: Codable, Sendable {
     /// The hostname associated with the attachment.

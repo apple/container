@@ -67,7 +67,7 @@ public actor DefaultNetworkService: NetworkService {
             throw ContainerizationError(.invalidState, message: "network \(network.id) must be running")
         }
 
-        let macAddress = macAddress ?? MACAddress((UInt64.random(in: 0...UInt64.max) & 0x0cff_ffff_ffff) | 0xf200_0000_0000)
+        let macAddress = macAddress ?? .generate()
         let index: UInt32
         do {
             index = try await allocator.acquire(hostname: hostname, requested: requestedAddress?.value)

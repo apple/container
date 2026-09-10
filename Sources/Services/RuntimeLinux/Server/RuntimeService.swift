@@ -198,11 +198,14 @@ public actor RuntimeService {
                         requestedAddress: attachmentConfig.options.ipv4Address,
                         on: session
                     )
-                    // Record the granted address so the container reclaims it next start.
+                    // Recorded so the container reclaims both next start.
                     let grantedAddress = attachment.ipv4Address.address
-                    if attachmentConfig.options.ipv4Address != grantedAddress {
-                        if let previous = attachmentConfig.options.ipv4Address {
-                            self.log.debug(
+                    let grantedMAC = attachment.macAddress ?? attachmentConfig.options.macAddress
+                    if attachmentConfig.options.ipv4Address != grantedAddress
+                        || attachmentConfig.options.macAddress != grantedMAC
+                    {
+                        if let previous = attachmentConfig.options.ipv4Address, previous != grantedAddress {
+                            self.log.warning(
                                 "sticky IP \(previous) unavailable, reassigned to \(grantedAddress)",
                                 metadata: ["container": "\(config.id)"]
                             )
@@ -211,7 +214,7 @@ public actor RuntimeService {
                             network: attachmentConfig.network,
                             options: AttachmentOptions(
                                 hostname: attachmentConfig.options.hostname,
-                                macAddress: attachmentConfig.options.macAddress,
+                                macAddress: grantedMAC,
                                 mtu: attachmentConfig.options.mtu,
                                 ipv4Address: grantedAddress
                             )
