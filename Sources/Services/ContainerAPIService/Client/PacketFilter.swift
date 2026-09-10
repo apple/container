@@ -20,17 +20,26 @@ import DNSServer
 import Foundation
 import SystemPackage
 
-public struct PacketFilter {
-    public static let anchor = "com.apple.container"
+public struct PacketFilter: Sendable {
+    public static let anchor = "com.apple/container"
     public static let defaultConfigPath = FilePath("/etc/pf.conf")
     public static let defaultAnchorsPath = FilePath("/etc/pf.anchors")
 
+    private static let legacyAnchor = "com.apple.container"
+    private static let anchorFileName = "com.apple.container"
+
     private let configPath: FilePath
     private let anchorsPath: FilePath
+    private let run: @Sendable ([String]) throws -> Int32
 
     public init(configPath: FilePath = Self.defaultConfigPath, anchorsPath: FilePath = Self.defaultAnchorsPath) {
+        self.init(configPath: configPath, anchorsPath: anchorsPath, run: Self.runPFCTL)
+    }
+
+    init(configPath: FilePath, anchorsPath: FilePath, run: @escaping @Sendable ([String]) throws -> Int32) {
         self.configPath = configPath
         self.anchorsPath = anchorsPath
+        self.run = run
     }
 
     public func createRedirectRule(from: IPAddress, to: IPAddress, domain: DNSName) throws {
@@ -40,7 +49,7 @@ public struct PacketFilter {
 
         let fm: FileManager = FileManager.default
 
-        let anchorPath = self.anchorsPath.appending(Self.anchor)
+        let anchorPath = self.anchorsPath.appending(Self.anchorFileName)
 
         let inet: String
         switch from {
@@ -52,9 +61,8 @@ public struct PacketFilter {
         var content = ""
         if fm.fileExists(atPath: anchorPath.string) {
             content = try String(contentsOfFile: anchorPath.string, encoding: .utf8)
-        } else {
-            try addAnchorToConfig()
         }
+        try updateConfig(removing: false)
 
         var lines = content.components(separatedBy: .newlines)
         if !content.contains(redirectRule) {
@@ -71,7 +79,7 @@ public struct PacketFilter {
 
         let fm: FileManager = FileManager.default
 
-        let anchorPath = self.anchorsPath.appending(Self.anchor)
+        let anchorPath = self.anchorsPath.appending(Self.anchorFileName)
 
         let inet: String
         switch from {
@@ -81,6 +89,7 @@ public struct PacketFilter {
         let redirectRule = "rdr \(inet) from any to \(from.description) -> \(to.description) # \(domain.pqdn)"
 
         guard fm.fileExists(atPath: anchorPath.string) else {
+            try updateConfig(removing: true)
             return
         }
 
@@ -93,112 +102,89 @@ public struct PacketFilter {
 
         if removedLines == [""] {
             try fm.removeItem(atPath: anchorPath.string)
-            try removeAnchorFromConfig()
+            try updateConfig(removing: true)
         } else {
             try removedLines.joined(separator: "\n").write(toFile: anchorPath.string, atomically: true, encoding: .utf8)
+            try updateConfig(removing: false)
         }
     }
 
-    private func addAnchorToConfig() throws {
+    private func updateConfig(removing: Bool) throws {
         let fm: FileManager = FileManager.default
 
-        let anchorPath = self.anchorsPath.appending(Self.anchor)
+        let anchorPath = self.anchorsPath.appending(Self.anchorFileName)
 
-        /* PF requires strict ordering of anchors:
-           scrub-anchor, nat-anchor, rdr-anchor, dummynet-anchor, anchor, load anchor
-         */
-        let anchorKeywords = ["scrub-anchor", "nat-anchor", "rdr-anchor", "dummynet-anchor", "anchor", "load anchor"]
+        let anchorKeywords = ["scrub-anchor", "nat-anchor", "rdr-anchor", "dummynet-anchor", "anchor"]
         let loadAnchorText = "load anchor \"\(Self.anchor)\" from \"\(anchorPath.string)\""
+        let ownedLines =
+            anchorKeywords.map { "\($0) \"\(Self.legacyAnchor)\"" } + [
+                "load anchor \"\(Self.legacyAnchor)\" from \"\(anchorPath.string)\"",
+                loadAnchorText,
+            ]
 
         var content: String = ""
-        var lines: [String] = []
         if fm.fileExists(atPath: self.configPath.string) {
             content = try String(contentsOfFile: self.configPath.string, encoding: .utf8)
         }
-        lines = content.components(separatedBy: .newlines)
-
-        for (i, keyword) in anchorKeywords[..<(anchorKeywords.endIndex - 1)].enumerated() {
-            let anchorText = "\(keyword) \"\(Self.anchor)\""
-
-            if content.contains(anchorText) {
-                continue
+        var lines = content.components(separatedBy: .newlines).filter { !ownedLines.contains($0) }
+        if !removing {
+            if lines.last != "" {
+                lines.append("")
             }
-
-            let idx = lines.firstIndex { l in
-                anchorKeywords[i...].map { k in l.starts(with: k) }.contains(true)
-            }
-            lines.insert(anchorText, at: idx ?? lines.endIndex - 1)
-        }
-
-        if !content.contains(loadAnchorText) {
             lines.insert(loadAnchorText, at: lines.endIndex - 1)
         }
 
-        do {
-            try lines.joined(separator: "\n").write(toFile: self.configPath.string, atomically: true, encoding: .utf8)
-        } catch {
-            throw ContainerizationError(.invalidState, message: "failed to write \"\(self.configPath.string)\"")
-        }
-    }
-
-    private func removeAnchorFromConfig() throws {
-        let fm: FileManager = FileManager.default
-
-        guard fm.fileExists(atPath: configPath.string) else {
+        let updatedContent = lines.joined(separator: "\n")
+        guard updatedContent != content else {
             return
         }
 
-        let content = try String(contentsOfFile: configPath.string, encoding: .utf8)
-        let lines = content.components(separatedBy: .newlines)
-
-        let removedLines = lines.filter { l in !l.contains(Self.anchor) }
-
         do {
-            try removedLines.joined(separator: "\n").write(toFile: configPath.string, atomically: true, encoding: .utf8)
+            try updatedContent.write(toFile: configPath.string, atomically: true, encoding: .utf8)
         } catch {
             throw ContainerizationError(.invalidState, message: "failed to write \"\(configPath.string)\"")
         }
     }
 
     public func reinitialize() throws {
-        let null = FileHandle.nullDevice
+        let anchorPath = self.anchorsPath.appending(Self.anchorFileName)
+        let path = FileManager.default.fileExists(atPath: anchorPath.string) ? anchorPath.string : "/dev/null"
 
-        let checkProcess = Foundation.Process()
-        var checkStatus: Int32
-        checkProcess.executableURL = URL(fileURLWithPath: "/sbin/pfctl")
-        checkProcess.arguments = ["-n", "-f", configPath.string]
-        checkProcess.standardOutput = null
-        checkProcess.standardError = null
-
+        let checkStatus: Int32
         do {
-            try checkProcess.run()
+            checkStatus = try run(["-n", "-a", Self.anchor, "-f", path])
         } catch {
             throw ContainerizationError(.internalError, message: "pfctl rule check exec failed: \"\(error)\"")
         }
 
-        checkProcess.waitUntilExit()
-        checkStatus = checkProcess.terminationStatus
         guard checkStatus == 0 else {
-            throw ContainerizationError(.internalError, message: "invalid pf config \"\(configPath.string)\"")
+            throw ContainerizationError(.internalError, message: "invalid pf config \"\(path)\"")
         }
 
-        let reloadProcess = Foundation.Process()
-        var reloadStatus: Int32
+        try loadRules(anchor: Self.anchor, path: path)
+        try loadRules(anchor: Self.legacyAnchor, path: "/dev/null")
+    }
 
-        reloadProcess.executableURL = URL(fileURLWithPath: "/sbin/pfctl")
-        reloadProcess.arguments = ["-f", configPath.string]
-        reloadProcess.standardOutput = null
-        reloadProcess.standardError = null
-
+    private func loadRules(anchor: String, path: String) throws {
+        let reloadStatus: Int32
         do {
-            try reloadProcess.run()
+            reloadStatus = try run(["-a", anchor, "-f", path])
         } catch {
             throw ContainerizationError(.internalError, message: "pfctl reload exec failed: \"\(error)\"")
         }
-        reloadProcess.waitUntilExit()
-        reloadStatus = reloadProcess.terminationStatus
         guard reloadStatus == 0 else {
-            throw ContainerizationError(.invalidState, message: "pfctl -f \"\(configPath.string)\" failed with status \(reloadStatus)")
+            throw ContainerizationError(.invalidState, message: "pfctl -a \"\(anchor)\" -f \"\(path)\" failed with status \(reloadStatus)")
         }
+    }
+
+    private static func runPFCTL(_ arguments: [String]) throws -> Int32 {
+        let process = Foundation.Process()
+        process.executableURL = URL(fileURLWithPath: "/sbin/pfctl")
+        process.arguments = arguments
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        process.waitUntilExit()
+        return process.terminationStatus
     }
 }
