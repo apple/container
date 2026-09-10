@@ -14,7 +14,9 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationOS
 import Foundation
+import SystemPackage
 
 public class Globber {
     let input: URL
@@ -33,7 +35,7 @@ public class Globber {
             .replacingOccurrences(of: "[/]\\*{2,}([^/])", with: "/**/*$1", options: .regularExpression)
             .replacingOccurrences(of: "^\\*{2,}([^/])", with: "**/*$1", options: .regularExpression)
 
-        for child in input.children {
+        for child in self.children(of: input) {
             try self.match(input: child, components: adjustedPattern.split(separator: "/").map(String.init))
         }
     }
@@ -47,7 +49,7 @@ public class Globber {
                 guard dir.pathComponents.count > 1 else { break }
                 dir.deleteLastPathComponent()
             }
-            return input.childrenRecursive.forEach { results.insert($0) }
+            return self.childrenRecursive(of: input).forEach { results.insert($0) }
         }
 
         let head = components.first ?? ""
@@ -59,7 +61,7 @@ public class Globber {
                 tail = tail.tail
             }
             try self.match(input: input, components: tail)
-            for child in input.children {
+            for child in self.children(of: input) {
                 try self.match(input: child, components: components)
             }
             return
@@ -68,11 +70,64 @@ public class Globber {
         if try glob(input.lastPathComponent, head) {
             try self.match(input: input, components: tail)
 
-            for child in input.children where try glob(child.lastPathComponent, tail.first ?? "") {
+            for child in self.children(of: input) where try glob(child.lastPathComponent, tail.first ?? "") {
                 try self.match(input: child, components: tail)
             }
             return
         }
+    }
+
+    /// Returns the direct children of `url`, following `url` itself when it is
+    /// a directory symlink whose fully-resolved target stays within the match
+    /// root. A symlink that escapes the root is treated as having no children
+    /// (same as a regular file) so pattern components after it never match —
+    /// mirrors the containment check `BuildFSSync` applies before reading.
+    ///
+    /// Children are named by their resolved (physical) path, not by `url`, so
+    /// that `walk(root:includePatterns:)`'s later filter — which is driven by
+    /// `Archiver.compress`'s own physical directory walk — reliably finds a
+    /// matching entry regardless of whether that walk itself follows `url`'s
+    /// symlink. `url` is separately inserted into `results` so the symlink
+    /// entry is still present in the tar for the builder to resolve the
+    /// original path against.
+    private func children(of url: URL) -> [URL] {
+        // TODO: modifying object state and returning results is odd, rework
+        guard let dir = self.resolvedDirectory(of: url) else { return [] }
+        if url.isSymlink { self.results.insert(url) }
+        return (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil))
+            ?? []
+    }
+
+    /// Recursive form of ``children(of:)``, used once a full pattern (or `**`)
+    /// has matched `url` and every descendant needs to be collected. Nested
+    /// directory symlinks are resolved and boundary-checked the same way, one
+    /// level at a time, via ``FileDescriptorOps/enumerate`` which never follows
+    /// symlinks it encounters mid-traversal — only the top-level `url` passed
+    /// in here gets the resolve-and-check treatment.
+    private func childrenRecursive(of url: URL) -> [URL] {
+        guard let dir = self.resolvedDirectory(of: url) else { return [url] }
+        if url.isSymlink { self.results.insert(url) }
+        guard let fd = try? FileDescriptor.open(FilePath(dir.path), .readOnly, options: .directory) else {
+            return [dir]
+        }
+        defer { try? fd.close() }
+        var found: [URL] = [dir]
+        try? FileDescriptorOps.enumerate(fd) { relPath, _, _ in
+            found.append(dir.appendingPathComponent(relPath.string))
+        }
+        return found
+    }
+
+    /// Resolves `url` to the real directory whose contents should be listed in
+    /// its place. Non-symlinks resolve to themselves. A directory symlink
+    /// resolves to its target only if the fully-resolved target is still
+    /// within `self.input` (the match root); otherwise `nil`, so callers treat
+    /// it as a leaf rather than descending outside the context.
+    private func resolvedDirectory(of url: URL) -> URL? {
+        guard url.isSymlink else { return url }
+        let resolved = url.resolvingSymlinksInPath()
+        guard resolved.isDirectory, self.input.parentOf(resolved) else { return nil }
+        return resolved
     }
 
     func glob(_ input: String, _ pattern: String) throws -> Bool {
@@ -88,26 +143,6 @@ public class Globber {
         // validate the regex pattern created
         let _ = try Regex(regexPattern)
         return input.range(of: regexPattern, options: .regularExpression) != nil
-    }
-}
-
-extension URL {
-    var children: [URL] {
-
-        (try? FileManager.default.contentsOfDirectory(at: self, includingPropertiesForKeys: nil))
-            ?? []
-    }
-
-    var childrenRecursive: [URL] {
-        var results: [URL] = []
-        if let enumerator = FileManager.default.enumerator(
-            at: self, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey])
-        {
-            while let child = enumerator.nextObject() as? URL {
-                results.append(child)
-            }
-        }
-        return [self] + results
     }
 }
 

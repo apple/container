@@ -52,23 +52,35 @@ struct DirectoryWatcherTest {
         }
     }
 
+    /// Polls `condition` until it returns true or `timeout` elapses. Used only to wait for the
+    /// handler's async invocation after a mutation, never to guess how long watcher setup takes.
+    private func waitUntil(timeout: Duration = .seconds(10), condition: () -> Bool) async throws {
+        let deadline = ContinuousClock.now + timeout
+        while !condition() && ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+    }
+
     @Test func testWatchingExistingDirectory() async throws {
         try await withTempDir { tempPath in
-
             let watcher = DirectoryWatcher(directoryPath: tempPath, log: nil)
+            var readyIterator = await watcher.readyEvents.makeAsyncIterator()
             let createdPaths = CreatedPaths()
             let name = "newFile"
 
-            await watcher.startWatching { [createdPaths] paths in
+            try await watcher.startWatching { [createdPaths] paths in
                 for path in paths where path.lastComponent?.string == name {
                     createdPaths.paths.append(path)
                 }
             }
 
-            try await Task.sleep(for: .milliseconds(100))
+            // Wait for the watcher to actually resume watching, instead of guessing a sleep
+            // duration that can race the watcher's own poll cadence.
+            await readyIterator.next()
+
             let newFile = tempPath.appending(name)
             FileManager.default.createFile(atPath: newFile.string, contents: nil)
-            try await Task.sleep(for: .milliseconds(500))
+            try await waitUntil { !createdPaths.paths.isEmpty }
 
             #expect(!createdPaths.paths.isEmpty, "directory watcher failed to detect new file")
             #expect(createdPaths.paths.first!.lastComponent?.string == name)
@@ -81,22 +93,25 @@ struct DirectoryWatcherTest {
             let childPath = tempPath.appending(uuid)
 
             let watcher = DirectoryWatcher(directoryPath: childPath, log: nil)
+            var readyIterator = await watcher.readyEvents.makeAsyncIterator()
             let createdPaths = CreatedPaths()
             let name = "newFile"
 
-            await watcher.startWatching { [createdPaths] paths in
+            try await watcher.startWatching { [createdPaths] paths in
                 for path in paths where path.lastComponent?.string == name {
                     createdPaths.paths.append(path)
                 }
             }
 
-            try await Task.sleep(for: .milliseconds(100))
             try FileManager.default.createDirectory(atPath: childPath.string, withIntermediateDirectories: true)
 
-            try await Task.sleep(for: DirectoryWatcher.watchPeriod)
+            // Wait for the watcher to actually resume watching, instead of guessing a sleep
+            // duration that can race the watcher's own poll cadence.
+            await readyIterator.next()
+
             let newFile = childPath.appending(name)
             FileManager.default.createFile(atPath: newFile.string, contents: nil)
-            try await Task.sleep(for: .milliseconds(500))
+            try await waitUntil { !createdPaths.paths.isEmpty }
 
             #expect(!createdPaths.paths.isEmpty, "directory watcher failed to detect parent directory")
             #expect(createdPaths.paths.first!.lastComponent?.string == name)
@@ -110,23 +125,25 @@ struct DirectoryWatcherTest {
             let childPath = tempPath.appending(parent).appending(child)
 
             let watcher = DirectoryWatcher(directoryPath: childPath, log: nil)
+            var readyIterator = await watcher.readyEvents.makeAsyncIterator()
             let createdPaths = CreatedPaths()
             let name = "newFile"
 
-            await watcher.startWatching { paths in
+            try await watcher.startWatching { paths in
                 for path in paths where path.lastComponent?.string == name {
                     createdPaths.paths.append(path)
                 }
             }
 
-            try await Task.sleep(for: .milliseconds(100))
             try FileManager.default.createDirectory(atPath: childPath.string, withIntermediateDirectories: true)
 
-            try await Task.sleep(for: DirectoryWatcher.watchPeriod)
+            // Wait for the watcher to actually resume watching, instead of guessing a sleep
+            // duration that can race the watcher's own poll cadence.
+            await readyIterator.next()
 
             let newFile = childPath.appending(name)
             FileManager.default.createFile(atPath: newFile.string, contents: nil)
-            try await Task.sleep(for: .milliseconds(500))
+            try await waitUntil { !createdPaths.paths.isEmpty }
 
             #expect(!createdPaths.paths.isEmpty, "directory watcher failed to detect parent directory")
             #expect(createdPaths.paths.first!.lastComponent?.string == name)
@@ -139,36 +156,41 @@ struct DirectoryWatcherTest {
             try FileManager.default.createDirectory(atPath: dirPath.string, withIntermediateDirectories: true)
 
             let watcher = DirectoryWatcher(directoryPath: dirPath, log: nil)
+            var readyIterator = await watcher.readyEvents.makeAsyncIterator()
             let createdPaths = CreatedPaths()
             let beforeDelete = "beforeDelete"
             let afterDelete = "afterDelete"
 
-            await watcher.startWatching { [createdPaths] paths in
+            try await watcher.startWatching { [createdPaths] paths in
                 for path in paths
                 where path.lastComponent?.string == beforeDelete || path.lastComponent?.string == afterDelete {
                     createdPaths.paths.append(path)
                 }
             }
 
-            try await Task.sleep(for: .milliseconds(100))
+            // Wait for the watcher to actually resume watching, instead of guessing a sleep
+            // duration that can race the watcher's own poll cadence.
+            await readyIterator.next()
+
             let file1 = dirPath.appending(beforeDelete)
             FileManager.default.createFile(atPath: file1.string, contents: nil)
-            try await Task.sleep(for: .milliseconds(100))
+            try await waitUntil { createdPaths.paths.contains { $0.lastComponent?.string == beforeDelete } }
 
             try FileManager.default.removeItem(atPath: dirPath.string)
-            try await Task.sleep(for: .milliseconds(100))
             try FileManager.default.createDirectory(atPath: dirPath.string, withIntermediateDirectories: true)
-            try await Task.sleep(for: DirectoryWatcher.watchPeriod)
+
+            // `readyEvents` yields once per resume, so this waits however long the watcher
+            // actually takes to notice the delete, then re-arm on the recreated directory —
+            // no guessing needed even though this transition takes an unknown amount of time.
+            await readyIterator.next()
 
             let file2 = dirPath.appending(afterDelete)
             FileManager.default.createFile(atPath: file2.string, contents: nil)
-
-            try await Task.sleep(for: .milliseconds(500))
+            try await waitUntil { createdPaths.paths.contains { $0.lastComponent?.string == afterDelete } }
 
             #expect(!createdPaths.paths.isEmpty, "directory watcher failed to detect new file")
             #expect(
                 Set(createdPaths.paths.compactMap { $0.lastComponent?.string }) == Set([beforeDelete, afterDelete]))
         }
-
     }
 }

@@ -44,7 +44,7 @@ public enum Output {
     /// Renders an `Encodable` value as a JSON string.
     public static func renderJSON<T: Encodable>(_ value: T, options: JSONOptions = .compact) throws -> String {
         let encoder = JSONEncoder()
-        encoder.outputFormatting = options.outputFormatting
+        encoder.outputFormatting = options.outputFormatting.union(.withoutEscapingSlashes)
         encoder.dateEncodingStrategy = options.dateEncodingStrategy
         let data = try encoder.encode(value)
         return String(decoding: data, as: UTF8.self)

@@ -31,6 +31,16 @@ Start the system service with:
 container system start
 ```
 
+### Run your first container
+
+```bash
+container run --rm alpine echo hello
+```
+
+This pulls the `alpine` image, runs it in a lightweight Linux VM, prints `hello`, and
+removes the container when it exits. See the [tutorial](./docs/tutorials/start-here.md)
+for a fuller walkthrough that builds and publishes an image of your own.
+
 ### Upgrade or downgrade
 
 For both upgrading and downgrading, you can manually download and install the signed installer package by following the steps from [initial install](#initial-install) or use the `update-container.sh` script (installed to `/usr/local/bin`).
@@ -89,4 +99,11 @@ Contributions to `container` are welcome and encouraged. Please see our [main co
 
 ## Project Status
 
-The container project is currently under active development. Its stability, both for consuming the project as a Swift package and the `container` tool, is only guaranteed within patch versions, such as between 0.1.1 and 0.1.2. Minor version releases may include breaking changes until we reach a 1.0.0 release.
+The container project is under active development. Its release versions are product versions, not semantic versions.
+
+The `container` CLI compatibility generally preserves backward compatibility within a major release (not breaking existing scripts), however, there may be the odd case where breaking compatibility may be necessary. **Note:** Features marked *experimental* (for example, the `k8s` subcommand) may change and do not guarantee backward compatibility.
+
+The `container-apiserver` XPC API compatibility preserves forward and backward compatibility within a major version. 
+Other non-public XPC helpers do not guarantee CLI or API compatibility across different versions.
+
+The `container` application data provides forward compatibility only, guaranteed within one major version. Upgrading to a newer major version may require a specific upgrade path.

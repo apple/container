@@ -14,8 +14,10 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationError
 import Foundation
 import Logging
+import SystemPackage
 
 /// Describes the configuration and binary file locations for a plugin.
 public protocol PluginFactory: Sendable {
@@ -23,6 +25,15 @@ public protocol PluginFactory: Sendable {
     func create(installURL: URL) throws -> Plugin?
     /// Create a plugin from the plugin parent path and name, if it conforms to the layout.
     func create(parentURL: URL, name: String) throws -> Plugin?
+}
+
+/// Requires `name` to be a single regular path component that round-trips
+/// exactly, so it can't escape the plugin directory via `/`, `..`, or a NUL
+/// that `FilePath.Component` would silently truncate.
+private func validatePluginName(_ name: String) throws {
+    guard let component = FilePath.Component(name), component.kind == .regular, component.string == name else {
+        throw ContainerizationError(.invalidArgument, message: "invalid plugin name \(name)")
+    }
 }
 
 /// Default layout which uses a Unix-like structure.
@@ -78,7 +89,8 @@ public struct DefaultPluginFactory: PluginFactory {
     }
 
     public func create(parentURL: URL, name: String) throws -> Plugin? {
-        try create(installURL: parentURL.appendingPathComponent(name))
+        try validatePluginName(name)
+        return try create(installURL: parentURL.appendingPathComponent(name))
     }
 }
 
@@ -130,6 +142,7 @@ public struct AppBundlePluginFactory: PluginFactory {
     }
 
     public func create(parentURL: URL, name: String) throws -> Plugin? {
-        try create(installURL: parentURL.appendingPathComponent("\(name)\(Self.appSuffix)"))
+        try validatePluginName(name)
+        return try create(installURL: parentURL.appendingPathComponent("\(name)\(Self.appSuffix)"))
     }
 }

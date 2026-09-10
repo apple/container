@@ -35,7 +35,7 @@ struct DefaultCommand: AsyncLoggableCommand {
 
     func run() async throws {
         // See if we have a possible plugin command.
-        let pluginLoader = try? await Application.createPluginLoader()
+        let pluginLoader = try? await Utility.createPluginLoader(log: log)
         guard let command = remaining.first else {
             await Application.printModifiedHelpText(pluginLoader: pluginLoader)
             return

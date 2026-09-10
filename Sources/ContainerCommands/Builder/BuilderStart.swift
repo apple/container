@@ -84,6 +84,7 @@ extension Application {
             cpus: Int64?,
             memory: String?,
             log: Logger,
+            ssh: Bool = false,
             dnsNameservers: [String] = [],
             dnsDomain: String? = nil,
             dnsSearchDomains: [String] = [],
@@ -150,6 +151,9 @@ extension Application {
                 let imageChanged = existingImage != builderImage
                 let cpuChanged = existingResources.cpus != resources.cpus
                 let memChanged = existingResources.memoryInBytes != resources.memoryInBytes
+                let sshForwarded = existingContainer.configuration.ssh
+                let sshWanted = ssh && ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] != nil
+                let sshChanged = sshForwarded != sshWanted
                 let dnsChanged = {
                     if !dnsNameservers.isEmpty {
                         return existingDNS?.nameservers != dnsNameservers
@@ -168,7 +172,7 @@ extension Application {
 
                 switch existingContainer.status {
                 case .running:
-                    guard imageChanged || cpuChanged || memChanged || envChanged || dnsChanged else {
+                    guard imageChanged || cpuChanged || memChanged || envChanged || dnsChanged || sshChanged else {
                         // If image, mem, cpu, env, and DNS are the same, continue using the existing builder
                         return
                     }
@@ -178,11 +182,22 @@ extension Application {
                 case .stopped:
                     // If the builder is stopped and matches our requirements, start it
                     // Otherwise, delete it and create a new one
-                    guard imageChanged || cpuChanged || memChanged || envChanged || dnsChanged else {
-                        try await startBuildKit(client: client, id: existingContainer.id, progressUpdate, nil)
-                        return
+                    if imageChanged || cpuChanged || memChanged || envChanged || dnsChanged || sshChanged {
+                        try? await client.delete(id: existingContainer.id)
+                    } else {
+                        do {
+                            try await startBuildKit(client: client, id: existingContainer.id, progressUpdate, nil)
+                            return
+                        } catch {
+                            log.warning(
+                                "failed to restart existing stopped BuildKit container, recreating it",
+                                metadata: [
+                                    "id": "\(existingContainer.id)",
+                                    "error": "\(error)",
+                                ])
+                        }
+                        try? await client.delete(id: existingContainer.id)
                     }
-                    try await client.delete(id: existingContainer.id)
                 case .stopping:
                     throw ContainerizationError(
                         .invalidState,
@@ -200,7 +215,9 @@ extension Application {
                 useRosetta ? nil : "--enable-qemu",
             ].compactMap { $0 }
 
-            try ContainerAPIClient.Utility.validEntityName(Builder.builderContainerId)
+            guard ManagedContainer.nameValid(Builder.builderContainerId) else {
+                throw ContainerizationError(.invalidArgument, message: "container ID \(Builder.builderContainerId) is not a valid container ID")
+            }
 
             let image = try await ClientImage.fetch(
                 reference: builderImage,
@@ -240,6 +257,7 @@ extension Application {
 
             var config = ContainerConfiguration(id: Builder.builderContainerId, image: imageDesc, process: processConfig)
             config.resources = resources
+            config.ssh = ssh && ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] != nil
             config.labels = [
                 ResourceLabelKeys.plugin: "builder",
                 ResourceLabelKeys.role: ResourceRoleValues.builder,
@@ -290,11 +308,17 @@ extension Application {
                 .setDescription("Starting BuildKit container")
             ])
 
-            try await client.create(
-                configuration: config,
-                options: .default,
-                kernel: kernel
-            )
+            do {
+                try await client.create(
+                    configuration: config,
+                    options: .default,
+                    kernel: kernel
+                )
+            } catch let error as ContainerizationError where error.code == .exists {
+                // A concurrent `container build` invocation already created the builder
+                // while we were fetching the image/kernel above. `bootstrap` below is
+                // idempotent, so just proceed against the container the winner created.
+            }
 
             try await startBuildKit(client: client, id: Builder.builderContainerId, progressUpdate, taskManager)
             log.debug("starting BuildKit and BuildKit-shim")
