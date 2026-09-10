@@ -34,10 +34,10 @@ extension K8sHelper {
     }
 
     static func bootstrapControlPlane(
-        nodeID: String, apiServerSANs: [String], advertiseAddress: String,
+        nodeID: String, nodeImage: String, apiServerSANs: [String], advertiseAddress: String,
         schedulable: Bool, client: ContainerClient, log: Logger
     ) async throws {
-        let configYAML = initConfigYAML(advertiseAddress: advertiseAddress, certSANs: apiServerSANs)
+        let configYAML = initConfigYAML(nodeImage: nodeImage, advertiseAddress: advertiseAddress, certSANs: apiServerSANs)
         var r = try await execCapture(
             containerId: nodeID, executable: "/bin/sh",
             arguments: ["-c", "cat > /etc/kubernetes/kubeadm-config.yaml <<'EOF'\n\(configYAML)\nEOF"],
@@ -135,7 +135,7 @@ extension K8sHelper {
         """
     }
 
-    private static func initConfigYAML(advertiseAddress: String, certSANs: [String]) -> String {
+    private static func initConfigYAML(nodeImage: String, advertiseAddress: String, certSANs: [String]) -> String {
         let sans = certSANs.map { "  - \($0)" }.joined(separator: "\n")
         return """
             apiVersion: kubeadm.k8s.io/v1beta4
@@ -148,7 +148,7 @@ extension K8sHelper {
             ---
             apiVersion: kubeadm.k8s.io/v1beta4
             kind: ClusterConfiguration
-            kubernetesVersion: \(kubernetesVersion())
+            kubernetesVersion: \(kubernetesVersion(nodeImage: nodeImage))
             networking:
               podSubnet: \(podSubnet)
             apiServer:
@@ -162,7 +162,7 @@ extension K8sHelper {
             """
     }
 
-    private static func kubernetesVersion() -> String {
+    static func kubernetesVersion(nodeImage: String) -> String {
         let nameAndTag = nodeImage.split(separator: "@").first.map(String.init) ?? nodeImage
         guard let ref = try? Reference.parse(nameAndTag), let tag = ref.tag else { return "v1.35" }
         return tag
