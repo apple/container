@@ -14,10 +14,18 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerResource
 import ContainerTestSupport
 import Foundation
 import Testing
+
+/// Machine-readable stats payload, including the derived `cpuPercent` that
+/// `ContainerResource.ContainerStats` does not carry.
+private struct StatsJSON: Decodable {
+    let id: String
+    let cpuPercent: Double?
+    let memoryUsageBytes: UInt64?
+    let numProcesses: UInt64?
+}
 
 @Suite
 struct TestCLIStatsCommand {
@@ -26,13 +34,15 @@ struct TestCLIStatsCommand {
             let image = WarmupImage.alpine320.rawValue
             try await f.withContainer(image: image) { name in
                 let result = try f.run(["stats", "--format", "json", "--no-stream", name]).check()
-                let stats = try JSONDecoder().decode([ContainerStats].self, from: result.outputData)
+                let stats = try JSONDecoder().decode([StatsJSON].self, from: result.outputData)
                 #expect(stats.count == 1, "expected stats for one container")
                 #expect(stats[0].id == name, "container ID should match")
                 let memoryUsageBytes = try #require(stats[0].memoryUsageBytes)
                 let numProcesses = try #require(stats[0].numProcesses)
+                let cpuPercent = try #require(stats[0].cpuPercent, "json should include cpuPercent")
                 #expect(memoryUsageBytes > 0, "memory usage should be non-zero")
                 #expect(numProcesses >= 1, "should have at least one process")
+                #expect(cpuPercent >= 0, "cpuPercent should be non-negative, got \(cpuPercent)")
             }
         }
     }
@@ -94,11 +104,15 @@ struct TestCLIStatsCommand {
             try await f.withContainer(image: image, tag: "c1") { name1 in
                 try await f.withContainer(image: image, tag: "c2") { name2 in
                     let result = try f.run(["stats", "--format", "json", "--no-stream"]).check()
-                    let stats = try JSONDecoder().decode([ContainerStats].self, from: result.outputData)
+                    let stats = try JSONDecoder().decode([StatsJSON].self, from: result.outputData)
                     try #require(stats.count >= 2, "should have stats for at least 2 containers")
                     let ids = stats.map { $0.id }
                     #expect(ids.contains(name1), "should include first container")
                     #expect(ids.contains(name2), "should include second container")
+                    for row in stats where ids.contains(row.id) {
+                        let cpuPercent = try #require(row.cpuPercent, "json should include cpuPercent for \(row.id)")
+                        #expect(cpuPercent >= 0, "cpuPercent should be non-negative, got \(cpuPercent)")
+                    }
                 }
             }
         }
