@@ -65,6 +65,15 @@ public actor ContainersService {
     // FIXME: Find a better mechanism for services running on the APIServer to work with each other
     private weak var networksService: NetworksService?
 
+    private static func dnsNames(for options: AttachmentOptions) -> [String] {
+        ([options.hostname] + options.aliases).map(normalizedDNSName)
+    }
+
+    private static func normalizedDNSName(_ name: String) -> String {
+        let name = name.hasSuffix(".") ? String(name.dropLast()) : name
+        return name.lowercased()
+    }
+
     public init(
         appRoot: URL,
         pluginLoader: PluginLoader,
@@ -293,14 +302,20 @@ public actor ContainersService {
             var allHostnames = Set<String>()
             for container in await self.containers.values {
                 for attachmentConfiguration in container.snapshot.configuration.networks {
-                    allHostnames.insert(attachmentConfiguration.options.hostname)
+                    for name in Self.dnsNames(for: attachmentConfiguration.options) {
+                        allHostnames.insert(name)
+                    }
                 }
             }
 
             var conflictingHostnames = [String]()
             for attachmentConfiguration in configuration.networks {
-                if allHostnames.contains(attachmentConfiguration.options.hostname) {
-                    conflictingHostnames.append(attachmentConfiguration.options.hostname)
+                for name in Self.dnsNames(for: attachmentConfiguration.options) {
+                    if allHostnames.contains(name) {
+                        conflictingHostnames.append(name)
+                    } else {
+                        allHostnames.insert(name)
+                    }
                 }
             }
 

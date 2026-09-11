@@ -69,11 +69,16 @@ extension NetworkClient {
     /// releases the allocation on the network helper automatically.
     public func allocate(
         hostname: String,
+        aliases: [String] = [],
         macAddress: MACAddress? = nil,
         on session: XPCClientSession
     ) async throws -> (attachment: Attachment, additionalData: XPCMessage?) {
         let request = XPCMessage(route: NetworkRoutes.allocate.rawValue)
         request.set(key: NetworkKeys.hostname.rawValue, value: hostname)
+        if !aliases.isEmpty {
+            let data = try JSONEncoder().encode(aliases)
+            request.set(key: NetworkKeys.aliases.rawValue, value: data)
+        }
         if let macAddress = macAddress {
             request.set(key: NetworkKeys.macAddress.rawValue, value: macAddress.description)
         }
@@ -122,6 +127,13 @@ extension XPCMessage {
             throw ContainerizationError(.invalidArgument, message: "no hostname data in message")
         }
         return hostname
+    }
+
+    public func aliases() throws -> [String] {
+        guard let data = self.dataNoCopy(key: NetworkKeys.aliases.rawValue) else {
+            return []
+        }
+        return try JSONDecoder().decode([String].self, from: data)
     }
 
     public func status() throws -> NetworkStatus {

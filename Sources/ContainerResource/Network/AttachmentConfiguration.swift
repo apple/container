@@ -35,14 +35,18 @@ public struct AttachmentOptions: Codable, Sendable {
     /// The hostname associated with the attachment.
     public let hostname: String
 
+    /// Additional DNS names associated with the attachment.
+    public let aliases: [String]
+
     /// The MAC address associated with the attachment (optional).
     public let macAddress: MACAddress?
 
     /// The MTU for the network interface.
     public let mtu: UInt32?
 
-    public init(hostname: String, macAddress: MACAddress? = nil, mtu: UInt32? = nil) {
+    public init(hostname: String, aliases: [String] = [], macAddress: MACAddress? = nil, mtu: UInt32? = nil) {
         self.hostname = hostname
+        self.aliases = aliases
         self.macAddress = macAddress
         self.mtu = mtu
     }

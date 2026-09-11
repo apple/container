@@ -58,6 +58,69 @@ struct AttachmentAllocatorTest {
         #expect(lookedUpAddress == allocatedAddress)
     }
 
+    @Test func testLookupAllocatedAlias() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        let allocatedAddress = try await allocator.allocate(hostname: "test-host", aliases: ["alias-host"])
+        let lookedUpAddress = try await allocator.lookup(hostname: "alias-host")
+
+        #expect(lookedUpAddress == allocatedAddress)
+    }
+
+    @Test func testAliasLookupIsNormalized() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        let allocatedAddress = try await allocator.allocate(hostname: "test-host", aliases: ["Alias-Host."])
+        let lookedUpAddress = try await allocator.lookup(hostname: "alias-host")
+
+        #expect(lookedUpAddress == allocatedAddress)
+    }
+
+    @Test func testAliasConflictThrows() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        _ = try await allocator.allocate(hostname: "host1")
+
+        await #expect(throws: Error.self) {
+            try await allocator.allocate(hostname: "host2", aliases: ["host1"])
+        }
+    }
+
+    @Test func testEmptyAliasThrows() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        await #expect(throws: Error.self) {
+            try await allocator.allocate(hostname: "host", aliases: [""])
+        }
+    }
+
+    @Test func testLookupAllocatedHostnameWithTrailingDot() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        let allocatedAddress = try await allocator.allocate(hostname: "test-host")
+        let lookedUpAddress = try await allocator.lookup(hostname: "test-host.")
+
+        #expect(lookedUpAddress == allocatedAddress)
+    }
+
+    @Test func testHostnameLookupIsCaseInsensitive() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        let allocatedAddress = try await allocator.allocate(hostname: "Test-Host.")
+        let lookedUpAddress = try await allocator.lookup(hostname: "test-host")
+
+        #expect(lookedUpAddress == allocatedAddress)
+    }
+
+    @Test func testAllocateEquivalentHostnames() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        let address1 = try await allocator.allocate(hostname: "test-host")
+        let address2 = try await allocator.allocate(hostname: "TEST-HOST.")
+
+        #expect(address1 == address2)
+    }
+
     @Test func testLookupNonExistentHostname() async throws {
         let allocator = try AttachmentAllocator(lower: 100, size: 10)
 
@@ -75,6 +138,40 @@ struct AttachmentAllocatorTest {
         #expect(deallocatedAddress == allocatedAddress)
 
         // After deallocation, lookup should return nil
+        let lookedUpAddress = try await allocator.lookup(hostname: "test-host")
+        #expect(lookedUpAddress == nil)
+    }
+
+    @Test func testDeallocateAllocatedHostnameRemovesAliases() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        let allocatedAddress = try await allocator.allocate(hostname: "test-host", aliases: ["alias-host"])
+        let deallocatedAddress = try await allocator.deallocate(hostname: "test-host")
+
+        #expect(deallocatedAddress == allocatedAddress)
+        #expect(try await allocator.lookup(hostname: "test-host") == nil)
+        #expect(try await allocator.lookup(hostname: "alias-host") == nil)
+    }
+
+    @Test func testDeallocateAliasRemovesHostname() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        let allocatedAddress = try await allocator.allocate(hostname: "test-host", aliases: ["alias-host"])
+        let deallocatedAddress = try await allocator.deallocate(hostname: "alias-host")
+
+        #expect(deallocatedAddress == allocatedAddress)
+        #expect(try await allocator.lookup(hostname: "test-host") == nil)
+        #expect(try await allocator.lookup(hostname: "alias-host") == nil)
+    }
+
+    @Test func testDeallocateAllocatedHostnameWithEquivalentName() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        let allocatedAddress = try await allocator.allocate(hostname: "test-host")
+        let deallocatedAddress = try await allocator.deallocate(hostname: "TEST-HOST.")
+
+        #expect(deallocatedAddress == allocatedAddress)
+
         let lookedUpAddress = try await allocator.lookup(hostname: "test-host")
         #expect(lookedUpAddress == nil)
     }
