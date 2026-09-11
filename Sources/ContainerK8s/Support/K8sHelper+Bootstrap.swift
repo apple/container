@@ -130,8 +130,24 @@ extension K8sHelper {
         sysctl -w net.bridge.bridge-nf-call-ip6tables=1 2>/dev/null || true
         systemctl restart containerd
         ctr -n k8s.io images tag registry.k8s.io/pause:3.10 registry.k8s.io/pause:3.10.1 2>/dev/null || true
-        /usr/sbin/iptables-nft -t mangle -A OUTPUT  -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
-        /usr/sbin/iptables-nft -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
+        \(iptablesSetupScript())
+        """
+    }
+
+    static func iptablesSetupScript(
+        nftPath: String = "/usr/sbin/iptables-nft",
+        legacyPath: String = "/usr/sbin/iptables-legacy",
+        ip6LegacyPath: String = "/usr/sbin/ip6tables-legacy",
+        updateAlternativesPath: String = "/usr/bin/update-alternatives",
+        iptablesPath: String = "/usr/sbin/iptables"
+    ) -> String {
+        """
+        if ! \(nftPath) -t mangle -S >/dev/null 2>&1; then
+          \(updateAlternativesPath) --set iptables \(legacyPath)
+          \(updateAlternativesPath) --set ip6tables \(ip6LegacyPath)
+        fi
+        \(iptablesPath) -t mangle -A OUTPUT  -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
+        \(iptablesPath) -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
         """
     }
 
