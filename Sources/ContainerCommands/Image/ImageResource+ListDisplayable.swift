@@ -17,10 +17,11 @@
 import ContainerAPIClient
 import ContainerResource
 import ContainerizationOCI
+import Foundation
 
 extension ImageResource: ListDisplayable {
     public static var tableHeader: [String] {
-        ["NAME", "TAG", "DIGEST"]
+        ["NAME", "TAG", "DIGEST", "DISK USAGE"]
     }
 
     public var tableRow: [String] {
@@ -30,10 +31,23 @@ extension ImageResource: ListDisplayable {
             reference?.name ?? displayReference,
             reference?.tag ?? "<none>",
             Utility.trimDigest(digest: configuration.descriptor.digest),
+            formattedDiskUsage,
         ]
     }
 
     public var quietValue: String {
         name
+    }
+
+    private var diskUsage: Int64 {
+        variants
+            // Skip attestation manifests, which use the `unknown/unknown` platform.
+            .filter { !($0.platform.os == "unknown" && $0.platform.architecture == "unknown") }
+            .reduce(0) { $0 + $1.size }
+    }
+
+    private var formattedDiskUsage: String {
+        let formatter = ByteCountFormatter()
+        return formatter.string(fromByteCount: diskUsage)
     }
 }
