@@ -35,7 +35,7 @@ extension K8sHelper {
 
     static func bootstrapControlPlane(
         nodeID: String, apiServerSANs: [String], advertiseAddress: String,
-        schedulable: Bool, client: ContainerClient, log: Logger
+        schedulable: Bool, cniManifestPath: String? = nil, client: ContainerClient, log: Logger
     ) async throws {
         let configYAML = initConfigYAML(advertiseAddress: advertiseAddress, certSANs: apiServerSANs)
         var r = try await execCapture(
@@ -73,11 +73,9 @@ extension K8sHelper {
                 arguments: ["taint", "nodes", "--all", "node-role.kubernetes.io/control-plane-"])
         }
 
-        log.info("Applying kindnet CNI", metadata: ["node": "\(nodeID)"])
-        let manifest = try await loadKindnetManifest(log: log)
-        let apply =
-            "cat > /tmp/kindnet.yaml <<'EOF'\n\(manifest)\nEOF\n"
-            + "\(kubeconfigEnv) kubectl apply -f /tmp/kindnet.yaml"
+        log.info("Applying CNI manifest", metadata: ["node": "\(nodeID)"])
+        let manifest = try await loadCNIManifest(path: cniManifestPath, log: log)
+        let apply = "\(kubeconfigEnv) kubectl apply -f - <<'EOF'\n\(manifest)\nEOF"
         r = try await execCapture(
             containerId: nodeID, executable: "/bin/sh",
             arguments: ["-c", apply], client: client)
@@ -101,6 +99,16 @@ extension K8sHelper {
             throw ContainerizationError(.internalError, message: "could not parse join command output from kubeadm on \(nodeID)")
         }
         return (token: parts[tokenIdx + 1], caCertHash: parts[hashIdx + 1])
+    }
+
+    static func loadCNIManifest(path: String?, log: Logger) async throws -> String {
+        if let path {
+            guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {
+                throw ContainerizationError(.invalidArgument, message: "CNI manifest not found at \(path)")
+            }
+            return contents
+        }
+        return try await loadKindnetManifest(log: log)
     }
 
     private static func loadKindnetManifest(log: Logger) async throws -> String {

@@ -1605,18 +1605,19 @@ container system property list --format json
 
 ### `container k8s create`
 
-Creates and starts a local Kubernetes cluster. Pulls the node image if needed, runs `kubeadm init`, installs the kindnet CNI, and merges the cluster credentials into `~/.kube/config`.
+Creates and starts a local Kubernetes cluster. Pulls the node image if needed, runs `kubeadm init`, installs a CNI (default: bundled kindnet), and merges the cluster credentials into `~/.kube/config`.
 
 **Usage**
 
 ```bash
-container k8s create [--name <name>] [--node-image <image>] [--rm] [<resource options>] [--debug]
+container k8s create [--name <name>] [--node-image <image>] [--cni <path>] [--rm] [<resource options>] [--debug]
 ```
 
 **Options**
 
 *   `--name <name>`: Cluster name (default: `k8s-dev`)
 *   `--node-image <image>`: Node image reference (default: `docker.io/kindest/node:v1.35.5`)
+*   `--cni <path>`: Optional path to a CNI manifest to apply. If not provided, the bundled kindnet CNI is used.
 *   `--rm`: Remove the cluster container after it stops
 
 **Resource Options**
@@ -1643,6 +1644,9 @@ container k8s create --name my-cluster --cpus 4 --memory 8g
 
 # create a cluster that removes itself when stopped
 container k8s create --name temp-cluster --rm
+
+# create a cluster using a custom CNI manifest instead of the bundled kindnet
+container k8s create --cni ./my-cni.yaml
 ```
 
 ### `container k8s start`

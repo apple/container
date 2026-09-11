@@ -51,6 +51,9 @@ public struct K8sCreate: AsyncParsableCommand {
     @Option(help: "Node image reference (default: \(K8sHelper.nodeImage))")
     var nodeImage: String = K8sHelper.nodeImage
 
+    @Option(name: .long, help: "Optional path to a CNI manifest to apply. If no value is provided, the bundled kindnet CNI is used.")
+    var cni: String?
+
     public func run() async throws {
         LoggingSystem.bootstrap { _ in StderrLogHandler() }
         let log = Logger(label: K8sHelper.pluginName)
@@ -103,6 +106,7 @@ public struct K8sCreate: AsyncParsableCommand {
             try await K8sHelper.bootstrapControlPlane(
                 nodeID: name, apiServerSANs: sans, advertiseAddress: vmIP,
                 schedulable: provisioner.roles.contains(StandardRoles.worker),
+                cniManifestPath: cni,
                 client: client, log: log)
 
             progress.set(description: "Waiting for cluster to be ready")
