@@ -60,6 +60,16 @@ container machine rm dev              # delete, including its persistent storage
 
 `container machine` has the alias `m`, so `m ls`, `m run`, etc. all work.
 
+### Monitor resource usage
+
+`container machine stats` shows live CPU, memory, network, and block I/O for a running container machine, like `top`. Use `--no-stream` for a single snapshot:
+
+```bash
+container machine stats dev                          # interactive, updates live
+container machine stats --no-stream dev              # one snapshot
+container machine stats --no-stream --format json dev
+```
+
 ### Resize CPUs, memory, or change the home-mount
 
 `container machine set` updates configuration on disk. Changes take effect after the next stop and start:
