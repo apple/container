@@ -159,7 +159,7 @@ public struct Filesystem: Sendable, Codable {
         }
     }
 
-    /// Returns true if the Filesystem is backed by a in-memory mount type.
+    /// Returns true if the Filesystem is backed by an in-memory mount type.
     public var isTmpfs: Bool {
         switch type {
         case .tmpfs: true

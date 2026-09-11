@@ -362,7 +362,7 @@ extension ClientImage {
         do {
             let match = try await self.get(reference: reference, containerSystemConfig: containerSystemConfig)
             if let platform {
-                // The image exists, but we dont know if we have the right platform pulled
+                // The image exists, but we don't know if we have the right platform pulled
                 // Check if we do, if not pull the requested platform
                 _ = try await match.config(for: platform)
             }
