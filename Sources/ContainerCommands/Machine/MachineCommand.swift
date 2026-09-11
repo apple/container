@@ -41,6 +41,7 @@ extension Application {
                     $ container machine delete my-machine
                 """,
             subcommands: [
+                MachineCopy.self,
                 MachineCreate.self,
                 MachineDelete.self,
                 MachineInspect.self,
