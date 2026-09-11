@@ -111,6 +111,61 @@ struct TestCLIClean {
         }
     }
 
+    @Test func testCleanWithReadOnlyRootfs() async throws {
+        try await ContainerFixture.with { f in
+            try await f.withContainer(image: WarmupImage.alpine320.rawValue, runArgs: ["--read-only"]) { name in
+                try f.doClean(name)
+                #expect(try f.getContainerStatus(name) == "running")
+            }
+        }
+    }
+
+    @Test func testCleanWithMixedVolumes() async throws {
+        try await ContainerFixture.with { f in
+            let rwVolume = "\(f.testID)-rw-vol"
+            let roVolume = "\(f.testID)-ro-vol"
+            try f.doVolumeCreate(rwVolume)
+            try f.doVolumeCreate(roVolume)
+            f.addCleanup { f.doVolumeDeleteIfExists(rwVolume) }
+            f.addCleanup { f.doVolumeDeleteIfExists(roVolume) }
+
+            try await f.withContainer(
+                image: WarmupImage.alpine320.rawValue,
+                runArgs: ["-v", "\(rwVolume):/rw", "-v", "\(roVolume):/ro:ro"]
+            ) { name in
+                let rwBlockURL = try volumeBlockURL(f, name: rwVolume)
+                let beforeWrite = try allocatedBytes(at: rwBlockURL)
+
+                try f.doExec(name, cmd: ["sh", "-c", "dd if=/dev/urandom of=/rw/test bs=1M count=5"])
+                try f.doExec(name, cmd: ["sync"])
+                let afterWrite = try allocatedBytes(at: rwBlockURL)
+                try f.doExec(name, cmd: ["rm", "/rw/test"])
+
+                try f.doClean(name)
+                try f.doExec(name, cmd: ["sync"])
+                let afterClean = try allocatedBytes(at: rwBlockURL)
+                assertCleanReclaimedSpace(beforeWrite: beforeWrite, afterWrite: afterWrite, afterClean: afterClean)
+                #expect(try f.getContainerStatus(name) == "running")
+            }
+        }
+    }
+
+    @Test func testCleanWithReadOnlyVolume() async throws {
+        try await ContainerFixture.with { f in
+            let volumeName = "\(f.testID)-ro-vol"
+            try f.doVolumeCreate(volumeName)
+            f.addCleanup { f.doVolumeDeleteIfExists(volumeName) }
+
+            try await f.withContainer(
+                image: WarmupImage.alpine320.rawValue,
+                runArgs: ["-v", "\(volumeName):/mnt/vol:ro"]
+            ) { name in
+                try f.doClean(name)
+                #expect(try f.getContainerStatus(name) == "running")
+            }
+        }
+    }
+
     @Test func testCleanWithVolume() async throws {
         try await ContainerFixture.with { f in
             let volumeName = "\(f.testID)-vol"
