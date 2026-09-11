@@ -677,5 +677,14 @@ let package = Package(
             path: "Sources/Plugins/MachineAPIServer",
             exclude: ["config.toml", "Resources"]
         ),
+        .testTarget(
+            name: "MachineAPIServiceTests",
+            dependencies: [
+                .product(name: "ContainerizationEXT4", package: "containerization"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                "MachineAPIService",
+            ]
+        ),
     ]
 )
