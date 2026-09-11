@@ -147,7 +147,7 @@ container k8s load-image --platform linux/amd64 my-app:latest
 By default, clusters use `kindest/node:v1.35.5`, a Kubernetes-in-Docker image optimized for local development. You can use a different node image when creating a cluster:
 
 ```bash
-container k8s create --node-image docker.io/kindest/node:v1.34.4
+container k8s create --node-image docker.io/kindest/node:v1.34.11
 ```
 
 ## Cluster cleanup
