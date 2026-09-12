@@ -33,6 +33,19 @@ public struct ImagesServiceHarness: Sendable {
         self.service = service
     }
 
+    /// Build the registry `Authentication` forwarded from the CLI over XPC, or
+    /// nil when the request carried no credentials.
+    ///
+    /// Registry credentials are read from the keychain on the CLI side (the
+    /// `com.apple.container.cli` identity that wrote them) and forwarded here as
+    /// an `Authorization` header value. The images helper must not read the
+    /// keychain itself: its distinct code identity is rejected by the item's
+    /// access control, and securityd fails the read with
+    /// errSecInteractionNotAllowed (-25308) in this non-interactive process.
+    static func authentication(from message: XPCMessage) -> Authentication? {
+        message.string(key: .registryAuthorization).map { ResolvedAuthentication(authorization: $0) as Authentication }
+    }
+
     @Sendable
     public func pull(_ message: XPCMessage) async throws -> XPCMessage {
         let ref = message.string(key: .imageReference)
@@ -49,10 +62,11 @@ public struct ImagesServiceHarness: Sendable {
         }
         let insecure = message.bool(key: .insecureFlag)
         let maxConcurrentDownloads = message.int64(key: .maxConcurrentDownloads)
+        let auth = Self.authentication(from: message)
 
         let progressUpdateService = ProgressUpdateService(message: message)
         let imageDescription = try await service.pull(
-            reference: ref, platform: platform, insecure: insecure, progressUpdate: progressUpdateService?.handler, maxConcurrentDownloads: Int(maxConcurrentDownloads))
+            reference: ref, platform: platform, insecure: insecure, auth: auth, progressUpdate: progressUpdateService?.handler, maxConcurrentDownloads: Int(maxConcurrentDownloads))
 
         let imageData = try JSONEncoder().encode(imageDescription)
         let reply = message.reply()
@@ -75,9 +89,10 @@ public struct ImagesServiceHarness: Sendable {
             platform = try JSONDecoder().decode(ContainerizationOCI.Platform.self, from: platformData)
         }
         let insecure = message.bool(key: .insecureFlag)
+        let auth = Self.authentication(from: message)
 
         let progressUpdateService = ProgressUpdateService(message: message)
-        try await service.push(reference: ref, platform: platform, insecure: insecure, progressUpdate: progressUpdateService?.handler)
+        try await service.push(reference: ref, platform: platform, insecure: insecure, auth: auth, progressUpdate: progressUpdateService?.handler)
 
         let reply = message.reply()
         return reply
