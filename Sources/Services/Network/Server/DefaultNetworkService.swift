@@ -24,6 +24,7 @@ public actor DefaultNetworkService: NetworkService {
     private let network: any Network
     private let log: Logger
     private var allocator: AttachmentAllocator
+    private var allocatorSubnet: CIDRv4
     private var macAddresses: [UInt32: MACAddress]
     private var allocationsBySession: [XPCServerSession: [(hostname: String, index: UInt32)]]
 
@@ -41,12 +42,14 @@ public actor DefaultNetworkService: NetworkService {
         self.network = network
         self.log = log
         self.allocator = try AttachmentAllocator(lower: subnet.lower.value + 2, size: size)
+        self.allocatorSubnet = subnet
         self.macAddresses = [:]
         self.allocationsBySession = [:]
     }
 
     @Sendable
     public func status() async throws -> NetworkStatus {
+        try refreshNetworkStateIfNeeded()
         guard let status = await network.status else {
             throw ContainerizationError(.invalidState, message: "network \(network.id) is not running")
         }
@@ -62,9 +65,11 @@ public actor DefaultNetworkService: NetworkService {
         log.debug("enter", metadata: ["func": "\(#function)"])
         defer { log.debug("exit", metadata: ["func": "\(#function)"]) }
 
+        try refreshNetworkStateIfNeeded()
         guard let status = await network.status else {
             throw ContainerizationError(.invalidState, message: "network \(network.id) must be running")
         }
+        try resetAllocatorIfNeeded(status: status)
 
         let macAddress = macAddress ?? MACAddress((UInt64.random(in: 0...UInt64.max) & 0x0cff_ffff_ffff) | 0xf200_0000_0000)
         let index = try await allocator.allocate(hostname: hostname)
@@ -123,9 +128,11 @@ public actor DefaultNetworkService: NetworkService {
         log.debug("enter", metadata: ["func": "\(#function)"])
         defer { log.debug("exit", metadata: ["func": "\(#function)"]) }
 
+        try refreshNetworkStateIfNeeded()
         guard let status = await network.status else {
             throw ContainerizationError(.invalidState, message: "network \(network.id) must be running")
         }
+        try resetAllocatorIfNeeded(status: status)
 
         // Invariant: hostname -> index if and only if index -> MAC address
         let index = try await allocator.lookup(hostname: hostname)
@@ -158,5 +165,25 @@ public actor DefaultNetworkService: NetworkService {
             ])
 
         return attachment
+    }
+
+    private func refreshNetworkStateIfNeeded() throws {
+        try network.withAdditionalData { _ in }
+    }
+
+    private func resetAllocatorIfNeeded(status: NetworkStatus) throws {
+        let subnet = status.ipv4Subnet
+        guard allocatorSubnet.description != subnet.description else {
+            return
+        }
+
+        guard allocationsBySession.isEmpty else {
+            throw ContainerizationError(.invalidState, message: "network \(network.id) changed subnet while allocations are active")
+        }
+
+        let size = Int(subnet.upper.value - subnet.lower.value - 3)
+        allocator = try AttachmentAllocator(lower: subnet.lower.value + 2, size: size)
+        allocatorSubnet = subnet
+        macAddresses = [:]
     }
 }
