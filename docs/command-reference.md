@@ -300,6 +300,42 @@ container stop [--all] [--signal <signal>] [--time <time>] [--debug] [<container
 *   `-s, --signal <signal>`: Signal to send to the containers (default: SIGTERM)
 *   `-t, --time <time>`: Seconds to wait before killing the containers (default: 5)
 
+### `container restart`
+
+Restarts one or more containers by stopping them gracefully and then starting them again. If a container is already stopped, it is simply started. The container always restarts in detached mode.
+
+**Usage**
+
+```bash
+container restart [--all] [--signal <signal>] [--time <time>] [--debug] [<container-ids> ...]
+```
+
+**Arguments**
+
+*   `<container-ids>`: Container IDs
+
+**Options**
+
+*   `-a, --all`: Restart all non-machine containers
+*   `-s, --signal <signal>`: Signal to send to the containers during stop
+*   `-t, --time <time>`: Seconds to wait before killing the containers during stop (default: 5)
+
+**Examples**
+
+```bash
+# restart a single container
+container restart my-web-server
+
+# restart multiple containers
+container restart web-server api-server worker
+
+# restart all containers
+container restart --all
+
+# restart with a longer timeout for graceful shutdown
+container restart --time 30 my-web-server
+```
+
 ### `container kill`
 
 Immediately kills running containers by sending a signal (defaults to `KILL`). Use with caution: it does not allow for graceful shutdown.
