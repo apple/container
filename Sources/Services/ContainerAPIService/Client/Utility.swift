@@ -64,6 +64,16 @@ public struct Utility {
         }
     }
 
+    package static func platformHint(requested: Platform, available: [Platform]) -> String? {
+        if requested.architecture != "amd64", let amd64 = available.first(where: { $0.os == requested.os && $0.architecture == "amd64" }) {
+            return "Use --arch amd64 or --platform \(amd64.description) to run it with Rosetta."
+        }
+        guard let first = available.first else {
+            return nil
+        }
+        return "Use --platform \(first.description) to select one of the available variants."
+    }
+
     public static func containerConfigFromFlags(
         id: String,
         image: String,
@@ -91,14 +101,24 @@ public struct Utility {
         ])
         let taskManager = ProgressTaskCoordinator()
         let fetchTask = await taskManager.startTask()
-        let img = try await ClientImage.fetch(
-            reference: image,
-            platform: requestedPlatform,
-            scheme: scheme,
-            containerSystemConfig: containerSystemConfig,
-            progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progressUpdate),
-            maxConcurrentDownloads: imageFetch.maxConcurrentDownloads
-        )
+        let img: ClientImage
+        do {
+            img = try await ClientImage.fetch(
+                reference: image,
+                platform: requestedPlatform,
+                scheme: scheme,
+                containerSystemConfig: containerSystemConfig,
+                progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progressUpdate),
+                maxConcurrentDownloads: imageFetch.maxConcurrentDownloads
+            )
+        } catch let error as ContainerizationError where error.isCode(.unsupported) {
+            let index = try? await ClientImage.get(reference: image, containerSystemConfig: containerSystemConfig).index()
+            let available = index.map { ClientImage.availablePlatforms(in: $0) } ?? []
+            guard let hint = Self.platformHint(requested: requestedPlatform, available: available) else {
+                throw error
+            }
+            throw ContainerizationError(.unsupported, message: "\(error.message). \(hint)", cause: error.cause)
+        }
 
         // Unpack a fetched image before use
         await progressUpdate([

@@ -54,12 +54,37 @@ public struct ClientImage: Sendable {
             desc.platform == platform
         }
         guard let desc else {
-            throw ContainerizationError(.unsupported, message: "platform \(platform.description)")
+            throw ContainerizationError(
+                .unsupported,
+                message: Self.unsupportedPlatformMessage(
+                    reference: reference, requested: platform, available: Self.availablePlatforms(in: index))
+            )
         }
         guard let content: Content = try await contentStore.get(digest: desc.digest) else {
             throw ContainerizationError(.notFound, message: "content with digest \(desc.digest)")
         }
         return try content.decode()
+    }
+
+    package static func availablePlatforms(in index: Index) -> [Platform] {
+        var seen: Set<Platform> = []
+        return index.manifests.compactMap { desc in
+            guard let platform = desc.platform else {
+                return nil
+            }
+            guard desc.annotations?[Self.referenceTypeAnnotation] != Self.attestationManifestReferenceType else {
+                return nil
+            }
+            guard seen.insert(platform).inserted else {
+                return nil
+            }
+            return platform
+        }
+    }
+
+    package static func unsupportedPlatformMessage(reference: String, requested: Platform, available: [Platform]) -> String {
+        let list = available.isEmpty ? "none" : available.map(\.description).joined(separator: ", ")
+        return "image \(reference) has no \(requested.description) variant (available: \(list))"
     }
 
     /// Returns the OCI config for the specified platform.
@@ -109,6 +134,8 @@ extension ClientImage {
 // MARK: Static methods
 
 extension ClientImage {
+    private static let referenceTypeAnnotation = "vnd.docker.reference.type"
+    private static let attestationManifestReferenceType = "attestation-manifest"
     private static let legacyDockerRegistryHost = "docker.io"
     private static let dockerRegistryHost = "registry-1.docker.io"
     private static let defaultDockerRegistryRepo = "library"
@@ -196,8 +223,8 @@ extension ClientImage {
     /// - Throws: An error if the image cannot be retrieved.
     public static func getFullImageSize(image: ClientImage) async throws -> Int64 {
         for descriptor in try await image.index().manifests {
-            if let referenceType = descriptor.annotations?["vnd.docker.reference.type"],
-                referenceType == "attestation-manifest"
+            if let referenceType = descriptor.annotations?[Self.referenceTypeAnnotation],
+                referenceType == Self.attestationManifestReferenceType
             {
                 continue
             }
