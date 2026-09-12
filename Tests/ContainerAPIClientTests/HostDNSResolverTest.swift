@@ -42,13 +42,13 @@ struct HostDNSResolverTest {
         let actualText = try String(contentsOfFile: resolverConfigPath.string, encoding: .utf8)
         let expectedText = """
             domain foo.bar
-            search foo.bar
             nameserver 127.0.0.1
             port 2053
 
             """
 
         #expect(actualText == expectedText)
+        #expect(!actualText.split(separator: "\n").contains { $0.hasPrefix("search ") })
 
         try resolver.createDomain(name: try! DNSName("bar.foo"))
         let domains = resolver.listDomains()
