@@ -114,4 +114,21 @@ struct TestCLIExecCommand {
             _ = try f.getContainerStatus(name)
         }
     }
+
+    @Test func testExecUlimitNofile() async throws {
+        try await ContainerFixture.with { f in
+            let image = WarmupImage.alpine320.rawValue
+            let name = "\(f.testID)-c"
+            try f.doCreate(name: name, image: image)
+            f.addCleanup { try? f.doStop(name) }
+            try f.doStart(name)
+            try await f.waitForContainerRunning(name)
+
+            let nofile = try f.run(["exec", "--ulimit", "nofile=1024:2048", name, "sh", "-c", "ulimit -n"])
+                .check().output
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(nofile == "1024", "expected exec --ulimit to set the nofile soft limit, got \(nofile)")
+            try f.doStop(name)
+        }
+    }
 }

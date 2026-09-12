@@ -361,7 +361,7 @@ Executes a command inside a running container. It uses the same process flags as
 **Usage**
 
 ```bash
-container exec [--detach] [--env <env> ...] [--env-file <env-file> ...] [--gid <gid>] [--interactive] [--tty] [--user <user>] [--uid <uid>] [--workdir <dir>] [--debug] <container-id> <arguments> ...
+container exec [--detach] [--env <env> ...] [--env-file <env-file> ...] [--gid <gid>] [--interactive] [--tty] [--user <user>] [--uid <uid>] [--ulimit <limit>] [--workdir <dir>] [--debug] <container-id> <arguments> ...
 ```
 
 **Arguments**
@@ -382,6 +382,7 @@ container exec [--detach] [--env <env> ...] [--env-file <env-file> ...] [--gid <
 *   `-t, --tty`: Open a TTY with the process
 *   `-u, --user <user>`: Set the user for the process (format: name|uid[:gid])
 *   `--uid <uid>`: Set the user ID for the process
+*   `--ulimit <limit>`: Set resource limits (format: `<type>=<soft>[:<hard>]`)
 *   `-w, --workdir, --cwd <dir>`: Set the initial working directory inside the container
 
 ### `container export`
@@ -1168,6 +1169,7 @@ container machine run [<options>] [<executable>] [<arguments> ...]
 *   `-t, --tty`: Open a TTY with the process
 *   `-u, --user <user>`: Set the user for the process (format: name|uid[:gid])
 *   `--uid <uid>`: Set the user ID for the process
+*   `--ulimit <limit>`: Set resource limits (format: `<type>=<soft>[:<hard>]`)
 *   `-w, --workdir, --cwd <dir>`: Set the initial working directory inside the container
 
 **Examples**
