@@ -25,6 +25,10 @@ import TerminalProgress
 
 extension Application {
     public struct ContainerCreate: AsyncLoggableCommand {
+        enum OutputFormat: String, CaseIterable, ExpressibleByArgument, Sendable {
+            case json
+        }
+
         public init() {}
 
         public static let configuration = CommandConfiguration(
@@ -48,6 +52,9 @@ extension Application {
 
         @OptionGroup
         public var logOptions: Flags.Logging
+
+        @Option(help: "Output the server-generated container identity (values: json)")
+        var format: OutputFormat?
 
         @Argument(help: "Image name")
         var image: String
@@ -91,11 +98,29 @@ extension Application {
 
             let options = ContainerCreateOptions(autoRemove: managementFlags.remove)
             let client = ContainerClient()
-            try await client.create(configuration: ck.0, options: options, kernel: ck.1, initImage: ck.2)
+            let createResult: ContainerCreateResult?
+            if format == .json {
+                createResult = try await client.createWithResult(
+                    configuration: ck.0,
+                    options: options,
+                    kernel: ck.1,
+                    initImage: ck.2
+                )
+            } else {
+                _ = try await client.create(
+                    configuration: ck.0,
+                    options: options,
+                    kernel: ck.1,
+                    initImage: ck.2
+                )
+                createResult = nil
+            }
+
+            let createdID = createResult?.id ?? id
 
             if !self.managementFlags.cidfile.isEmpty {
                 let path = self.managementFlags.cidfile
-                let data = id.data(using: .utf8)
+                let data = createdID.data(using: .utf8)
                 var attributes = [FileAttributeKey: Any]()
                 attributes[.posixPermissions] = 0o644
                 let success = FileManager.default.createFile(
@@ -110,7 +135,11 @@ extension Application {
             }
             progress.finish()
 
-            print(id)
+            if let createResult {
+                Output.emit(try Output.renderJSON(createResult))
+            } else {
+                print(createdID)
+            }
         }
     }
 }

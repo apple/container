@@ -204,8 +204,16 @@ public struct ContainersHarness: Sendable {
         let initImage = message.string(key: .initImage)
         let runtimeData = message.dataNoCopy(key: .runtimeData)
 
-        try await service.create(configuration: config, kernel: kernel, options: options, initImage: initImage, runtimeData: runtimeData)
-        return message.reply()
+        let result = try await service.create(
+            configuration: config,
+            kernel: kernel,
+            options: options,
+            initImage: initImage,
+            runtimeData: runtimeData
+        )
+        let reply = message.reply()
+        reply.set(key: .containerCreateResult, value: try JSONEncoder().encode(result))
+        return reply
     }
 
     @Sendable
@@ -264,6 +272,21 @@ public struct ContainersHarness: Sendable {
 
     @Sendable
     public func delete(_ message: XPCMessage) async throws -> XPCMessage {
+        try await delete(message, expectedInstanceToken: nil)
+    }
+
+    @Sendable
+    public func deleteIfInstance(_ message: XPCMessage) async throws -> XPCMessage {
+        guard let expectedInstanceToken = message.string(key: .expectedInstanceToken) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "expected container instance token cannot be empty"
+            )
+        }
+        return try await delete(message, expectedInstanceToken: expectedInstanceToken)
+    }
+
+    private func delete(_ message: XPCMessage, expectedInstanceToken: String?) async throws -> XPCMessage {
         let id = message.string(key: .id)
         guard let id else {
             throw ContainerizationError(.invalidArgument, message: "id cannot be empty")
@@ -272,7 +295,15 @@ public struct ContainersHarness: Sendable {
             throw ContainerizationError(.invalidArgument, message: "container ID \(id) is not a valid container ID")
         }
         let forceDelete = message.bool(key: .forceDelete)
-        try await service.delete(id: id, force: forceDelete)
+        if let expectedInstanceToken {
+            try await service.deleteIfInstance(
+                id: id,
+                force: forceDelete,
+                expectedInstanceToken: expectedInstanceToken
+            )
+        } else {
+            try await service.delete(id: id, force: forceDelete)
+        }
         return message.reply()
     }
 

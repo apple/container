@@ -92,3 +92,28 @@ struct ContainerConfigurationCreationDateTests {
         #expect(decoded.creationDate == Date(timeIntervalSince1970: 0))
     }
 }
+
+struct ContainerConfigurationInstanceTokenTests {
+    @Test func roundTripsInstanceToken() throws {
+        var config = makeTestConfiguration()
+        config.instanceToken = "opaque-instance-token"
+
+        let data = try JSONEncoder().encode(config)
+        let decoded = try JSONDecoder().decode(ContainerConfiguration.self, from: data)
+
+        #expect(decoded.instanceToken == "opaque-instance-token")
+    }
+
+    @Test func decodesMissingInstanceTokenAsNil() throws {
+        var config = makeTestConfiguration()
+        config.instanceToken = "opaque-instance-token"
+        let data = try JSONEncoder().encode(config)
+        var obj = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        obj.removeValue(forKey: "instanceToken")
+
+        let stripped = try JSONSerialization.data(withJSONObject: obj)
+        let decoded = try JSONDecoder().decode(ContainerConfiguration.self, from: stripped)
+
+        #expect(decoded.instanceToken == nil)
+    }
+}
