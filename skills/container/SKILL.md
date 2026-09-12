@@ -89,4 +89,5 @@ containerized application. See `references/container-machines.md`.
 
 - `references/docker-migration.md` — full mapping, what has no equivalent, replacing compose
 - `references/container-machines.md` — container machine workflows and host integrations
+- `../container-troubleshooting/SKILL.md` — failed or hanging commands and bounded diagnostics
 - `container <command> --help` — authoritative flags, always current
