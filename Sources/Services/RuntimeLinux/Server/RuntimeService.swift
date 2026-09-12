@@ -45,6 +45,7 @@ public actor RuntimeService {
     private let monitor: ExitMonitor
     private let eventLoopGroup: any EventLoopGroup
     private var waiters: [String: ExitWaiter] = [:]
+    private var completedExits: [String: ExitStatus] = [:]
     private let lock: AsyncLock = AsyncLock()
     private let log: Logging.Logger
     private var state: State = .created
@@ -58,10 +59,13 @@ public actor RuntimeService {
     class ExitWaiter {
         public var exitStatus: ExitStatus? = nil
         public var continuations: [CheckedContinuation<ExitStatus, Never>] = []
+        /// True once at least one waiter has received the exit status.
+        public private(set) var didDeliverExit = false
 
         public func wait(_ cc: CheckedContinuation<ExitStatus, Never>) {
             if let exitStatus = exitStatus {
                 // `doExit` has already been called for this waiter
+                didDeliverExit = true
                 cc.resume(returning: exitStatus)
                 return
             }
@@ -69,10 +73,13 @@ public actor RuntimeService {
         }
 
         public func doExit(exitStatus: ExitStatus) {
+            if !continuations.isEmpty {
+                didDeliverExit = true
+            }
             for cc in continuations {
                 cc.resume(returning: exitStatus)
             }
-
+            continuations.removeAll()
             self.exitStatus = exitStatus
         }
     }
@@ -440,18 +447,17 @@ public actor RuntimeService {
                         onExit: { id, exitStatus in
                             await self.releaseWaiters(for: id, status: exitStatus)
 
-                            guard let process = await self.processes[id]?.process else {
-                                throw ContainerizationError(
-                                    .invalidState,
-                                    message: "ProcessInfo missing for process \(id)"
-                                )
+                            if let process = await self.processes[id]?.process {
+                                try await process.delete()
                             }
-                            try await process.delete()
-                            try await self.setProcessState(id: id, state: .stopped)
+                            // Reap host-side exec state so completed processes do not
+                            // accumulate in a long-lived runtime helper (#2057).
+                            await self.reapExecProcess(id: id)
                         }
                     )
                 } catch {
                     await self.releaseWaiters(for: id, status: ExitStatus(exitCode: -1))
+                    await self.reapExecProcess(id: id)
                     throw error
                 }
 
@@ -987,22 +993,31 @@ public actor RuntimeService {
             containerConfig: containerInfo.config,
         )
 
-        let process = try await container.exec(id, configuration: czConfig)
-        try self.setUnderlyingProcess(id, process)
+        do {
+            let process = try await container.exec(id, configuration: czConfig)
+            try self.setUnderlyingProcess(id, process)
 
-        try await process.start()
+            try await process.start()
 
-        let waitFunc: ExitMonitor.WaitHandler = {
-            let code = try await process.wait()
-            if let out = processInfo.io[1] {
-                try self.closeHandle(out.fileDescriptor)
+            let waitFunc: ExitMonitor.WaitHandler = {
+                let code = try await process.wait()
+                if let out = processInfo.io[1] {
+                    try self.closeHandle(out.fileDescriptor)
+                }
+                if let err = processInfo.io[2] {
+                    try self.closeHandle(err.fileDescriptor)
+                }
+                return code
             }
-            if let err = processInfo.io[2] {
-                try self.closeHandle(err.fileDescriptor)
+            try await self.monitor.track(id: id, waitingOn: waitFunc)
+        } catch {
+            if let process = self.processes[id]?.process {
+                try? await process.delete()
             }
-            return code
+            self.releaseWaiters(for: id, status: ExitStatus(exitCode: -1))
+            await self.reapExecProcess(id: id)
+            throw error
         }
-        try await self.monitor.track(id: id, waitingOn: waitFunc)
     }
 
     private func startSocketForwarders(attachment: Attachment, publishedPorts: [PublishPort]) async throws {
@@ -1412,6 +1427,17 @@ public actor RuntimeService {
 
         let status = exitStatus ?? ExitStatus(exitCode: 255)
         self.releaseWaiters(for: id, status: status)
+
+        // Reap any ad hoc exec processes that outlived the container.
+        for processId in Array(self.processes.keys) {
+            if let process = self.processes[processId]?.process {
+                try? await process.delete()
+            }
+            await self.reapExecProcess(id: processId)
+        }
+        await self.monitor.stopTracking(id: id)
+        self.waiters.removeValue(forKey: id)
+        self.completedExits.removeValue(forKey: id)
     }
 }
 
@@ -1605,17 +1631,33 @@ extension RuntimeService {
     }
 
     private func waitForExit(id: String, cont: CheckedContinuation<ExitStatus, Never>) {
-        guard let waiter = waiters[id] else {
-            // No waiter was initialized at all, resume immediately
-            cont.resume(returning: ExitStatus(exitCode: -1))
+        if let waiter = waiters[id] {
+            waiter.wait(cont)
             return
         }
-
-        waiter.wait(cont)
+        if let status = completedExits.removeValue(forKey: id) {
+            cont.resume(returning: status)
+            return
+        }
+        // No waiter was initialized at all, or the process was already reaped
+        // without a recorded exit status (failed create / never started).
+        cont.resume(returning: ExitStatus(exitCode: -1))
     }
 
     private func releaseWaiters(for id: String, status: ExitStatus) {
         waiters[id]?.doExit(exitStatus: status)
+    }
+
+    /// Drop completed exec bookkeeping. Callers must already have notified waiters
+    /// and deleted any underlying guest process.
+    private func reapExecProcess(id: String) async {
+        if let waiter = waiters[id], let status = waiter.exitStatus, !waiter.didDeliverExit {
+            // Preserve the status for a late `wait` that arrives after reaping.
+            completedExits[id] = status
+        }
+        waiters.removeValue(forKey: id)
+        processes.removeValue(forKey: id)
+        await self.monitor.stopTracking(id: id)
     }
 
     private func setUnderlyingProcess(_ id: String, _ process: LinuxProcess) throws {
