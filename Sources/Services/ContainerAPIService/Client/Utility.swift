@@ -44,8 +44,33 @@ public struct Utility {
             if name == infraImage {
                 return true
             }
+            // Same repository, different tag: still infrastructure. The exact match above
+            // only recognizes the version this build would pull, so the vminit left behind
+            // by the previous engine version surfaced in every image list after an upgrade,
+            // looking like something the user pulled and forgot. Nobody pulls an init or
+            // builder image on purpose; any tag of a configured infra repository is infra.
+            if repository(of: name) == repository(of: infraImage) {
+                return true
+            }
         }
         return false
+    }
+
+    /// The image reference without its tag or digest.
+    ///
+    /// The tag colon is only a colon after the last path separator — splitting on the first
+    /// colon would truncate a registry with a port (`registry.local:5000/repo`) at the port.
+    private static func repository(of reference: String) -> String {
+        var name = reference
+        if let at = name.firstIndex(of: "@") {
+            name = String(name[..<at])
+        }
+        if let colon = name.lastIndex(of: ":"),
+            !name[name.index(after: colon)...].contains("/")
+        {
+            name = String(name[..<colon])
+        }
+        return name
     }
 
     public static func trimDigest(digest: String) -> String {
