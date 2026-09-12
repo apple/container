@@ -110,6 +110,7 @@ extension Application {
                 environment: envVars,
                 workingDirectory: cwd,
                 terminal: tty,
+                noNewPrivileges: processFlags.noNewPrivileges,
                 user: user,
                 supplementalGroups: additionalGroups
             )

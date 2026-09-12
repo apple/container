@@ -975,6 +975,38 @@ struct ParserTest {
     }
 
     @Test
+    func testProcessNoNewPrivilegesFlag() throws {
+        let processFlags = try Flags.Process.parse(["--no-new-privileges"])
+        let managementFlags = try Flags.Management.parse([])
+
+        let result = try Parser.process(
+            arguments: ["/bin/true"],
+            processFlags: processFlags,
+            managementFlags: managementFlags,
+            config: nil
+        )
+
+        #expect(processFlags.noNewPrivileges)
+        #expect(result.noNewPrivileges)
+    }
+
+    @Test
+    func testProcessNoNewPrivilegesDefaultsToFalse() throws {
+        let processFlags = try Flags.Process.parse([])
+        let managementFlags = try Flags.Management.parse([])
+
+        let result = try Parser.process(
+            arguments: ["/bin/true"],
+            processFlags: processFlags,
+            managementFlags: managementFlags,
+            config: nil
+        )
+
+        #expect(!processFlags.noNewPrivileges)
+        #expect(!result.noNewPrivileges)
+    }
+
+    @Test
     func testUlimitParserSoftAndHard() throws {
         let result = try Parser.rlimits(["nofile=1024:2048"])
         #expect(result.count == 1)

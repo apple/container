@@ -27,6 +27,8 @@ public struct ProcessConfiguration: Sendable, Codable {
     /// A boolean value indicating if a Terminal or PTY device should
     /// be attached to the Process's Standard I/O.
     public var terminal: Bool
+    /// Prevent the process and its descendants from gaining new privileges.
+    public var noNewPrivileges: Bool
     /// The User a Process should execute under.
     public var user: User
     /// Supplemental groups for the Process.
@@ -76,6 +78,7 @@ public struct ProcessConfiguration: Sendable, Codable {
         environment: [String],
         workingDirectory: String = "/",
         terminal: Bool = false,
+        noNewPrivileges: Bool = false,
         user: User = .id(uid: 0, gid: 0),
         supplementalGroups: [UInt32] = [],
         rlimits: [Rlimit] = []
@@ -85,8 +88,36 @@ public struct ProcessConfiguration: Sendable, Codable {
         self.environment = environment
         self.workingDirectory = workingDirectory
         self.terminal = terminal
+        self.noNewPrivileges = noNewPrivileges
         self.user = user
         self.supplementalGroups = supplementalGroups
         self.rlimits = rlimits
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case executable
+        case arguments
+        case environment
+        case workingDirectory
+        case terminal
+        case noNewPrivileges
+        case user
+        case supplementalGroups
+        case rlimits
+    }
+
+    /// Create a process configuration, preserving the legacy behavior when
+    /// decoding a configuration that predates `noNewPrivileges`.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        executable = try container.decode(String.self, forKey: .executable)
+        arguments = try container.decode([String].self, forKey: .arguments)
+        environment = try container.decode([String].self, forKey: .environment)
+        workingDirectory = try container.decode(String.self, forKey: .workingDirectory)
+        terminal = try container.decode(Bool.self, forKey: .terminal)
+        noNewPrivileges = try container.decodeIfPresent(Bool.self, forKey: .noNewPrivileges) ?? false
+        user = try container.decode(User.self, forKey: .user)
+        supplementalGroups = try container.decode([UInt32].self, forKey: .supplementalGroups)
+        rlimits = try container.decode([Rlimit].self, forKey: .rlimits)
     }
 }
