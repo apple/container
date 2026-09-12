@@ -153,7 +153,7 @@ struct K8sNodeResource: ManagedResource, ListDisplayable {
         let addr = snapshot.networks.map { $0.ipv4Address.address.description }.joined(separator: ",")
         let memoryMB = snapshot.configuration.resources.memoryInBytes / (1024 * 1024)
         let ports = snapshot.configuration.publishedPorts
-            .map { "\($0.hostPort)->\($0.containerPort)" }
+            .map(K8sHelper.renderPublishPort)
             .joined(separator: ",")
         return [
             clusterName,
