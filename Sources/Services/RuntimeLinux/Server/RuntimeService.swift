@@ -1060,9 +1060,15 @@ public actor RuntimeService {
                             return try await forwarder.run().get()
                         } catch let error as IOError where error.errnoCode == EACCES {
                             if let port = proxyAddress.port, port < 1024 {
+                                let address = proxyAddress.ipAddress ?? "the requested host address"
                                 throw ContainerizationError(
                                     .invalidArgument,
-                                    message: "Permission denied while binding to host port \(port). Binding to ports below 1024 requires root privileges."
+                                    message: """
+                                        Permission denied while binding to host port \(port) on \(address). \
+                                        macOS restricts ports below 1024 when an explicit host address is given. \
+                                        Use -p \(port):<container-port> without a host address, or a host port of 1024 or above. \
+                                        Running with sudo does not help: the API server runs as your user.
+                                        """
                                 )
                             }
                             throw error
