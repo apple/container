@@ -46,6 +46,25 @@ public struct MachineConfig: Codable, Sendable {
         case none
     }
 
+    /// A user-specified host directory bind-mounted into the container machine.
+    ///
+    /// Stored as plain absolute paths so this type stays self-contained within
+    /// `ContainerPersistence`; it is lifted to a virtiofs share at boot time.
+    public struct Mount: Codable, Sendable, Equatable {
+        /// Absolute host directory path.
+        public let source: String
+        /// Absolute mount point inside the container machine.
+        public let destination: String
+        /// Whether the mount is read-only. `false` means read-write.
+        public let readOnly: Bool
+
+        public init(source: String, destination: String, readOnly: Bool) {
+            self.source = source
+            self.destination = destination
+            self.readOnly = readOnly
+        }
+    }
+
     /// Number of virtual CPUs.
     public let cpus: Int
     /// Memory in bytes.
@@ -56,6 +75,8 @@ public struct MachineConfig: Codable, Sendable {
     public let virtualization: Bool
     /// Optional path to a custom kernel binary. nil falls back to the system default.
     public let kernelPath: FilePath?
+    /// Additional host directories bind-mounted into the container machine.
+    public let mounts: [Mount]
 
     private enum CodingKeys: String, CodingKey {
         case cpus
@@ -63,6 +84,7 @@ public struct MachineConfig: Codable, Sendable {
         case homeMount
         case virtualization
         case kernelPath
+        case mounts
     }
 
     /// Settable keys and their descriptions, for CLI help text generation.
@@ -79,13 +101,15 @@ public struct MachineConfig: Codable, Sendable {
         memory: MemorySize?,
         homeMount: HomeMountOption?,
         virtualization: Bool?,
-        kernelPath: FilePath?
+        kernelPath: FilePath?,
+        mounts: [Mount] = []
     ) throws {
         self.cpus = cpus ?? Self.defaultCPUs
         self.memory = memory ?? Self.defaultMemory
         self.homeMount = homeMount ?? Self.defaultHomeMount
         self.virtualization = virtualization ?? false
         self.kernelPath = kernelPath
+        self.mounts = mounts
 
         try self.validate()
     }
@@ -101,13 +125,24 @@ public struct MachineConfig: Codable, Sendable {
         // which the project's ConfigSnapshotDecoder can't handle. Persist as a plain String
         // and lift to FilePath in memory.
         let kernelPath = try container.decodeIfPresent(String.self, forKey: .kernelPath).map { FilePath($0) }
+        // Mounts are a per-machine value carried in boot-config.json (plain JSON).
+        // The system-wide `[machine]` section is read through ConfigSnapshotDecoder,
+        // which cannot represent arrays of structs, so skip the field on that path.
+        // Absent in boot configs written before user mounts existed; default to none.
+        let mounts: [Mount]
+        if decoder is ConfigSnapshotDecoderImpl {
+            mounts = []
+        } else {
+            mounts = try container.decodeIfPresent([Mount].self, forKey: .mounts) ?? []
+        }
 
         try self.init(
             cpus: cpus,
             memory: memory,
             homeMount: homeMount,
             virtualization: virtualization,
-            kernelPath: kernelPath)
+            kernelPath: kernelPath,
+            mounts: mounts)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -117,6 +152,9 @@ public struct MachineConfig: Codable, Sendable {
         try container.encode(homeMount, forKey: .homeMount)
         try container.encode(virtualization, forKey: .virtualization)
         try container.encodeIfPresent(kernelPath?.string, forKey: .kernelPath)
+        if !mounts.isEmpty {
+            try container.encode(mounts, forKey: .mounts)
+        }
     }
 
     private func validate() throws {
@@ -133,6 +171,16 @@ public struct MachineConfig: Codable, Sendable {
                 message: "invalid memory value '\(self.memory)'. Must be greater than 1gb."
             )
         }
+
+        var seenDestinations = Set<String>()
+        for mount in self.mounts {
+            guard seenDestinations.insert(mount.destination).inserted else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "duplicate mount destination '\(mount.destination)'"
+                )
+            }
+        }
     }
 }
 
@@ -146,9 +194,11 @@ extension MachineConfig {
         }.joined(separator: "\n")
     }
 
-    /// Create a new MachineConfig from `self`, applying fields defined in `kwargs`
+    /// Create a new MachineConfig from `self`, applying fields defined in `kwargs`.
+    /// Mount specifications are supplied separately because they are a repeatable
+    /// list rather than a scalar `key=value` setting. `nil` leaves mounts unchanged.
     /// This function is used in both `machine create` and `machine set`
-    public func with(_ kwargs: [String: String]) throws -> MachineConfig {
+    public func with(_ kwargs: [String: String], mounts mountSpecs: [String]? = nil) throws -> MachineConfig {
         let validKeys = Set(Self.settableKeys.map(\.key))
         let unknownKeys = Set(kwargs.keys).subtracting(validKeys)
         guard unknownKeys.isEmpty else {
@@ -169,12 +219,15 @@ extension MachineConfig {
             kernelPath = self.kernelPath
         }
 
+        let mounts = try mountSpecs.map { try $0.map { try Self.parseMount($0) } }
+
         return try .init(
             cpus: cpus ?? self.cpus,
             memory: memory ?? self.memory,
             homeMount: homeMount ?? self.homeMount,
             virtualization: virtualization ?? self.virtualization,
-            kernelPath: kernelPath
+            kernelPath: kernelPath,
+            mounts: mounts ?? self.mounts
         )
     }
 
@@ -198,6 +251,55 @@ extension MachineConfig {
             )
         }
         return opt
+    }
+
+    /// Parse a `host:guest[:ro|rw]` bind-mount specification into a `Mount`.
+    ///
+    /// The host path must be an existing directory; it and the guest path are
+    /// resolved to absolute paths. The optional third field selects the access
+    /// mode and defaults to read-write.
+    public static func parseMount(_ value: String) throws -> Mount {
+        let parts = value.split(separator: ":", maxSplits: 2, omittingEmptySubsequences: false).map(String.init)
+        guard parts.count >= 2, !parts[0].isEmpty, !parts[1].isEmpty else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "invalid mount '\(value)'. Expected 'host:guest' or 'host:guest:ro|rw'"
+            )
+        }
+
+        let readOnly: Bool
+        if parts.count == 3 {
+            switch parts[2] {
+            case "ro": readOnly = true
+            case "rw": readOnly = false
+            default:
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "invalid mount mode '\(parts[2])' in '\(value)'. Valid options: ro, rw"
+                )
+            }
+        } else {
+            readOnly = false
+        }
+
+        let source = URL(fileURLWithPath: parts[0]).standardizedFileURL.path
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: source, isDirectory: &isDirectory) else {
+            throw ContainerizationError(.invalidArgument, message: "mount source '\(parts[0])' does not exist")
+        }
+        guard isDirectory.boolValue else {
+            throw ContainerizationError(.invalidArgument, message: "mount source '\(parts[0])' is not a directory")
+        }
+
+        let destination = parts[1]
+        guard destination.hasPrefix("/") else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "mount destination '\(destination)' must be an absolute path"
+            )
+        }
+
+        return Mount(source: source, destination: destination, readOnly: readOnly)
     }
 
     /// Parse a boolean setting accepting only "true" or "false".
