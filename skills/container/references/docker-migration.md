@@ -102,8 +102,8 @@ on the `default` network, and `-d`.
 the `default` network with a domain-qualified name. A custom network does not provide general,
 zero-configuration Compose-style service discovery — that gap is tracked as
 [apple/container#1809](https://github.com/apple/container/issues/1809). If you explicitly
-configure a DNS domain and pass that domain in the containers' `--dns-search` options,
-domain-qualified lookups can work on a custom network, but this is not a general bare-hostname
+configure a DNS domain and pass the relevant domains in the containers' `--dns-search` options,
+a domain-qualified lookup may work in a tested setup, but this is not a general bare-hostname
 guarantee. A custom network is primarily for *isolating* containers; if the explicit DNS setup
 does not work for your case, wire the containers together by IP from
 `container inspect <name>`.

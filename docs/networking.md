@@ -78,28 +78,32 @@ container stop http-server
 > request, not yet implemented) and related broader reports in
 > [apple/container#856](https://github.com/apple/container/issues/856).
 
-If you configure a DNS domain as described above, you can use an explicit
-domain-qualified name on a custom network by passing the configured domain in the
-container's DNS search list. For example, with `[dns] domain = "test"`:
+If you configure a DNS domain as described above, an explicit domain-qualified
+hostname can work on a custom network when the relevant domains are included in
+the container's DNS search list. The following is a tested example with
+`[dns] domain = "test"`:
 
 ```bash
 container network create foo
 container run --rm -d \
-    --name http-server \
+    --name http-server.foo.test \
     --network foo \
+    --dns-search=foo.test \
     --dns-search=test \
     python:alpine python3 -m http.server 8000
 
 container run --rm \
     --network foo \
+    --dns-search=foo.test \
     --dns-search=test \
-    alpine/curl curl --fail http://http-server.test:8000
+    alpine/curl curl --fail http://http-server.foo.test:8000
 ```
 
 This is an explicit DNS configuration, not general custom-network name discovery.
-Do not assume that a bare hostname will resolve on every custom-network setup. If
-name resolution does not work, reach the container by its IP address instead:
-`container inspect <name>` shows the address.
+Do not assume that a shorter name such as `http-server`, or a bare hostname in a
+different custom-network setup, will resolve. If name resolution does not work,
+reach the container by its IP address instead: `container inspect <name>` shows
+the address.
 
 ## Forward traffic from `localhost` to your container
 

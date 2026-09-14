@@ -68,10 +68,11 @@ equivalent. Check `references/docker-migration.md` before assuming anything else
   subcommand.
 
   Containers on a network from `container network create` do not have general name discovery
-  ([apple/container#1809](https://github.com/apple/container/issues/1809)). With an explicitly
-  configured DNS domain and matching `--dns-search`, a domain-qualified lookup may work; do not
-  rely on bare-hostname discovery. Custom networks are for isolation, not general service
-  discovery. Reach containers by IP when the explicit DNS setup is insufficient.
+  ([apple/container#1809](https://github.com/apple/container/issues/1809)). An explicitly
+  configured DNS domain and matching `--dns-search` may support a domain-qualified hostname in
+  a tested setup, but do not rely on bare-hostname discovery. Custom networks are for isolation,
+  not general service discovery. Reach containers by IP when the explicit DNS setup is
+  insufficient.
 
 ## Container machines
 
