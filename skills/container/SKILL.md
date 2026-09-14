@@ -52,7 +52,7 @@ equivalent. Check `references/docker-migration.md` before assuming anything else
   binds a host port; it is not needed for basic reachability. Get IPs from `container inspect`.
 - **Builds run in a builder container.** If a build fails oddly, check `container builder
   status`; `container builder start` takes `--cpus` and `--memory`.
-- **Name resolution takes three steps, and works only on the `default` network:**
+- **The standard name-resolution setup takes three steps and applies to the `default` network:**
 
   ```bash
   # 1. create ~/.config/container/config.toml containing:
