@@ -30,7 +30,7 @@ public struct K8sCreate: AsyncParsableCommand {
 
     public static let configuration = CommandConfiguration(
         commandName: "create",
-        abstract: "Create and start a local Kubernetes cluster"
+        abstract: "Create and start a local Kubernetes cluster and worker nodes"
     )
 
     @Option(name: .long, help: "Cluster name (default: \(K8sHelper.defaultName))")
@@ -53,6 +53,9 @@ public struct K8sCreate: AsyncParsableCommand {
 
     @Option(name: .long, help: "Optional path to a CNI manifest to apply.")
     var cni: String?
+
+    @Option(name: .long, help: "Number of worker nodes to create (default: 0)")
+    var workers: UInt = 0
 
     public func run() async throws {
         LoggingSystem.bootstrap { _ in StderrLogHandler() }
@@ -91,7 +94,7 @@ public struct K8sCreate: AsyncParsableCommand {
 
         let provisioner = try LinuxNodeProvisioner(
             clusterName: name,
-            roles: [StandardRoles.controlPlane, StandardRoles.worker],
+            roles: workers == 0 ? [StandardRoles.controlPlane, StandardRoles.worker] : [StandardRoles.controlPlane],
             nodeImage: nodeImage,
             cpus: resourceFlags.cpus,
             memory: resourceFlags.memory,
@@ -105,6 +108,7 @@ public struct K8sCreate: AsyncParsableCommand {
         try await provisioner.provision(name: name, log: log)
 
         let client = ContainerClient()
+        var workerNames: [String] = []
         do {
             let vmIP = try await provisioner.address(name: name, log: log)
             var sans = ["127.0.0.1"]
@@ -117,6 +121,32 @@ public struct K8sCreate: AsyncParsableCommand {
                 schedulable: provisioner.roles.contains(StandardRoles.worker),
                 cniManifestPath: cni,
                 client: client, log: log)
+
+            if workers > 0 {
+                progress.set(description: "Joining worker nodes")
+                let (token, caCertHash) = try await K8sHelper.createJoinToken(nodeID: name, client: client)
+                let controlPlaneEndpoint = "\(vmIP):\(K8sHelper.clusterContainerPort)"
+                for i in 1...workers {
+                    let workerName = "\(name)-worker-\(i)"
+                    let workerProvisioner = try LinuxNodeProvisioner(
+                        clusterName: name,
+                        roles: [StandardRoles.worker],
+                        nodeImage: nodeImage,
+                        cpus: resourceFlags.cpus,
+                        memory: resourceFlags.memory,
+                        registryScheme: registryFlags.scheme,
+                        maxConcurrentDownloads: imageFetchFlags.maxConcurrentDownloads,
+                        remove: remove
+                    )
+                    workerNames.append(workerName)
+                    try await workerProvisioner.provision(name: workerName, log: log)
+                    try await workerProvisioner.join(
+                        name: workerName, controlPlaneEndpoint: controlPlaneEndpoint,
+                        token: token, caCertHash: caCertHash, log: log)
+                    try await workerProvisioner.waitForReady(name: workerName, log: log)
+                    progress.set(description: "Worker \(workerName) joined")
+                }
+            }
 
             progress.set(description: "Waiting for cluster to be ready")
             try await K8sHelper.waitForReady(containerId: name, client: client, log: log)
@@ -131,12 +161,29 @@ public struct K8sCreate: AsyncParsableCommand {
                 log.info("cluster is running; use 'container k8s write-config --name \(name)' to write the kubeconfig")
             }
         } catch {
-            try? await provisioner.teardown(name: name, log: log)
+            for workerName in workerNames {
+                await Self.teardownIfOwned(workerName, client: client, provisioner: provisioner, log: log)
+            }
+            await Self.teardownIfOwned(name, client: client, provisioner: provisioner, log: log)
             try? K8sHelper.removeConfig(containerId: name, log: log)
             throw error
         }
 
         progress.finish()
         print(name)
+    }
+
+    /// Tears down `containerName` only if it's a container this plugin created
+    private static func teardownIfOwned(
+        _ containerName: String, client: ContainerClient, provisioner: LinuxNodeProvisioner, log: Logger
+    ) async {
+        guard let container = try? await client.get(id: containerName) else { return }
+        guard container.configuration.labels[ResourceLabelKeys.plugin] == K8sHelper.pluginName else {
+            log.warning(
+                "container exists but is not owned by this plugin, refusing teardown",
+                metadata: ["name": "\(containerName)"])
+            return
+        }
+        try? await provisioner.teardown(name: containerName, log: log)
     }
 }

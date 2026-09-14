@@ -46,6 +46,9 @@ public struct K8sLoadImage: AsyncParsableCommand {
     )
     var platform: String?
 
+    @Option(name: .long, help: "Optionally load into specific nodes only")
+    var node: [String] = []
+
     public func run() async throws {
         LoggingSystem.bootstrap { _ in StderrLogHandler() }
         let log = Logger(label: K8sHelper.pluginName)
@@ -65,14 +68,59 @@ public struct K8sLoadImage: AsyncParsableCommand {
             throw ContainerizationError(.invalidArgument, message: "\(name) is not a k8s cluster")
         }
 
+        let workers = try await K8sHelper.workerContainerNames(clusterName: name, client: client)
+        let targets = try Self.resolveTargets(clusterName: name, nodes: node, workers: workers)
+
         log.info("Saving image", metadata: ["ref": "\(image)"])
         let fq = K8sHelper.fqReference(image)
         let resolvedPlatform = try platform.map { try Platform(from: $0) } ?? Platform(from: "linux/\(Arch.hostArchitecture().rawValue)")
         try await ClientImage.save(references: [fq], out: tmpFile.string, platform: resolvedPlatform, containerSystemConfig: containerSystemConfig)
 
-        log.info("Importing image into cluster", metadata: ["target": "\(name)"])
-        guard let inputHandle = FileHandle(forReadingAtPath: tmpFile.string) else {
-            throw ContainerizationError(.internalError, message: "failed to open image tar: \(tmpFile)")
+        var failures: [(node: String, error: Error)] = []
+        for target in targets {
+            do {
+                try await Self.importImage(
+                    into: target, tarPath: tmpFile.string, fq: fq, image: image, client: client, log: log)
+            } catch {
+                log.error("Failed to load image", metadata: ["target": "\(target)", "error": "\(error)"])
+                failures.append((node: target, error: error))
+            }
+        }
+
+        guard failures.isEmpty else {
+            let detail = failures.map { "\($0.node): \($0.error)" }.joined(separator: "; ")
+            throw ContainerizationError(
+                .internalError, message: "failed to load image into \(failures.count) node(s): \(detail)")
+        }
+    }
+
+    /// Resolves which node containers to load the image into: `nodes` (each validated
+    /// as the control plane or one of `workers`) if non-empty, otherwise the control
+    /// plane plus every worker.
+    static func resolveTargets(clusterName: String, nodes: [String], workers: [String]) throws -> [String] {
+        guard !nodes.isEmpty else {
+            return [clusterName] + workers
+        }
+        var seen = Set<String>()
+        var targets: [String] = []
+        for node in nodes {
+            guard node == clusterName || workers.contains(node) else {
+                throw ContainerizationError(
+                    .invalidArgument, message: "\(node) is not a node of cluster \(clusterName)")
+            }
+            if seen.insert(node).inserted {
+                targets.append(node)
+            }
+        }
+        return targets
+    }
+
+    private static func importImage(
+        into target: String, tarPath: String, fq: String, image: String, client: ContainerClient, log: Logger
+    ) async throws {
+        log.info("Importing image into node", metadata: ["target": "\(target)"])
+        guard let inputHandle = FileHandle(forReadingAtPath: tarPath) else {
+            throw ContainerizationError(.internalError, message: "failed to open image tar: \(tarPath)")
         }
         defer { try? inputHandle.close() }
 
@@ -83,7 +131,7 @@ public struct K8sLoadImage: AsyncParsableCommand {
             terminal: false
         )
         let importProc = try await client.createProcess(
-            containerId: name,
+            containerId: target,
             processId: UUID().uuidString.lowercased(),
             configuration: importConfig,
             stdio: [inputHandle, nil, nil]
@@ -93,13 +141,13 @@ public struct K8sLoadImage: AsyncParsableCommand {
         guard importCode == 0 else {
             throw ContainerizationError(
                 .internalError,
-                message: "ctr import exited \(importCode) on \(name)")
+                message: "ctr import exited \(importCode) on \(target)")
         }
 
         // Tag with the fully-qualified docker.io/library/ name that kubelet expects,
         // but only for short (unqualified) references.
         if fq != image {
-            log.info("Tagging image for kubelet", metadata: ["short": "\(image)", "fq": "\(fq)"])
+            log.info("Tagging image for kubelet", metadata: ["short": "\(image)", "fq": "\(fq)", "target": "\(target)"])
             let tagConfig = ProcessConfiguration(
                 executable: Self.ctrPath,
                 arguments: ["--namespace", "k8s.io", "images", "tag", fq, image],
@@ -107,7 +155,7 @@ public struct K8sLoadImage: AsyncParsableCommand {
                 terminal: false
             )
             let tagProc = try await client.createProcess(
-                containerId: name,
+                containerId: target,
                 processId: UUID().uuidString.lowercased(),
                 configuration: tagConfig,
                 stdio: [nil, nil, nil]
@@ -117,7 +165,7 @@ public struct K8sLoadImage: AsyncParsableCommand {
             guard tagCode == 0 else {
                 throw ContainerizationError(
                     .internalError,
-                    message: "ctr tag exited \(tagCode) on \(name)")
+                    message: "ctr tag exited \(tagCode) on \(target)")
             }
         }
     }
