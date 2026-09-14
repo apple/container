@@ -62,8 +62,8 @@ service running on your Mac from inside a container.
 ## Container-to-container networking
 
 From one container, use another container's DNS name to reach a service it exposes.
-This requires the DNS setup above ([Set up DNS-based container
-names](#set-up-dns-based-container-names)):
+On the `default` network, this requires the DNS setup above ([Set up DNS-based
+container names](#set-up-dns-based-container-names)):
 
 ```bash
 container run --rm -d --name http-server python:alpine python3 -m http.server
@@ -72,16 +72,34 @@ container stop http-server
 ```
 
 > [!WARNING]
-> This works for containers on the `default` network using a domain-qualified name
-> (`http-server.test`, as above). It does **not** currently work for looking up another
-> container by its *bare* hostname (no domain suffix) on a custom network created with
-> `container network create` — the kind of zero-configuration, Compose-style service
-> discovery some users expect. That gap is tracked upstream as
+> A custom network created with `container network create` does not provide general,
+> zero-configuration, Compose-style service discovery. That gap is tracked upstream as
 > [apple/container#1809](https://github.com/apple/container/issues/1809) (open feature
 > request, not yet implemented) and related broader reports in
-> [apple/container#856](https://github.com/apple/container/issues/856). Until resolved,
-> reach a container on a custom network by its IP address instead (`container inspect
-> <name>` to find it).
+> [apple/container#856](https://github.com/apple/container/issues/856).
+
+If you configure a DNS domain as described above, you can use an explicit
+domain-qualified name on a custom network by passing the configured domain in the
+container's DNS search list. For example, with `[dns] domain = "test"`:
+
+```bash
+container network create foo
+container run --rm -d \
+    --name http-server \
+    --network foo \
+    --dns-search=test \
+    python:alpine python3 -m http.server 8000
+
+container run --rm \
+    --network foo \
+    --dns-search=test \
+    alpine/curl curl --fail http://http-server.test:8000
+```
+
+This is an explicit DNS configuration, not general custom-network name discovery.
+Do not assume that a bare hostname will resolve on every custom-network setup. If
+name resolution does not work, reach the container by its IP address instead:
+`container inspect <name>` shows the address.
 
 ## Forward traffic from `localhost` to your container
 

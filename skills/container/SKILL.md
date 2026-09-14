@@ -67,9 +67,11 @@ equivalent. Check `references/docker-migration.md` before assuming anything else
   verify with `container system property ls`. There is no `container system dns default`
   subcommand.
 
-  Containers on a network from `container network create` cannot resolve each other by name at
-  all ([apple/container#1809](https://github.com/apple/container/issues/1809)) — reach them by
-  IP. Custom networks are for isolation, not service discovery.
+  Containers on a network from `container network create` do not have general name discovery
+  ([apple/container#1809](https://github.com/apple/container/issues/1809)). With an explicitly
+  configured DNS domain and matching `--dns-search`, a domain-qualified lookup may work; do not
+  rely on bare-hostname discovery. Custom networks are for isolation, not general service
+  discovery. Reach containers by IP when the explicit DNS setup is insufficient.
 
 ## Container machines
 

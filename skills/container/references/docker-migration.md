@@ -99,11 +99,14 @@ There is no `container compose`. A compose file becomes a shell script: DNS-reso
 on the `default` network, and `-d`.
 
 **Do not reach for `container network create` here.** Name lookup between containers works on
-the `default` network with a domain-qualified name. It does *not* work for containers on a
-custom network — that gap is tracked as
-[apple/container#1809](https://github.com/apple/container/issues/1809). A custom network is
-for *isolating* containers; if you use one, wire the containers together by IP from
-`container inspect <name>`, not by name.
+the `default` network with a domain-qualified name. A custom network does not provide general,
+zero-configuration Compose-style service discovery — that gap is tracked as
+[apple/container#1809](https://github.com/apple/container/issues/1809). If you explicitly
+configure a DNS domain and pass that domain in the containers' `--dns-search` options,
+domain-qualified lookups can work on a custom network, but this is not a general bare-hostname
+guarantee. A custom network is primarily for *isolating* containers; if the explicit DNS setup
+does not work for your case, wire the containers together by IP from
+`container inspect <name>`.
 
 Set up name resolution once (all three steps — see SKILL.md):
 
