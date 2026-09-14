@@ -59,8 +59,8 @@ struct TestCLIImagePruneSerial {
             try? f.doRemoveImages()
             f.addCleanup { try? f.doRemoveImages() }
 
-            try f.doPull(alpine)
-            try f.doPull(busybox)
+            try f.restoreWarmupImage(.alpine320)
+            try f.restoreWarmupImage(.busybox136)
             #expect(try f.isImagePresent(alpine), "expected \(alpine) to be pulled")
             #expect(try f.isImagePresent(busybox), "expected \(busybox) to be pulled")
 
@@ -84,8 +84,8 @@ struct TestCLIImagePruneSerial {
                 try? f.doRemoveImages()
             }
 
-            try f.doPull(alpine)
-            try f.doPull(busybox)
+            try f.restoreWarmupImage(.alpine320)
+            try f.restoreWarmupImage(.busybox136)
             #expect(try f.isImagePresent(alpine), "expected \(alpine) to be pulled")
             #expect(try f.isImagePresent(busybox), "expected \(busybox) to be pulled")
 

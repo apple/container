@@ -134,7 +134,7 @@ extension APIServer {
                     group.addTask {
                         do {
                             let localhostResolver = LocalhostDNSHandler(log: log)
-                            await localhostResolver.monitorResolvers()
+                            try await localhostResolver.monitorResolvers()
 
                             let nxDomainResolver = NxDomainResolver()
                             let compositeResolver = CompositeResolver(handlers: [localhostResolver, nxDomainResolver])
@@ -307,6 +307,7 @@ extension APIServer {
             routes[XPCRoute.containerCopyIn] = XPCServer.route(harness.copyIn)
             routes[XPCRoute.containerCopyOut] = XPCServer.route(harness.copyOut)
             routes[XPCRoute.containerExport] = XPCServer.route(harness.export)
+            routes[XPCRoute.containerClean] = XPCServer.route(harness.clean)
 
             return service
         }

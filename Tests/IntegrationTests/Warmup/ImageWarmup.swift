@@ -20,13 +20,16 @@ import Testing
 /// Pulls each image in ``WarmupImage`` in parallel before concurrent
 /// integration tests run. The Makefile's warmup pass runs this suite first
 /// so that ``ContainerFixture/copyWarmupImage(_:)`` can tag from a
-/// pre-populated store rather than pulling on demand.
+/// pre-populated store rather than pulling on demand, and so that
+/// ``ContainerFixture/restoreWarmupImage(_:)`` has a cached tar archive to
+/// reload from after a serial test wipes the image store.
 @Suite
 struct ImageWarmup {
     @Test(arguments: WarmupImage.allCases)
     func pull(image: WarmupImage) async throws {
         try await ContainerFixture.with { f in
             try f.run(["image", "pull", image.rawValue]).check("failed to pull \(image.rawValue)")
+            try f.cacheWarmupImage(image)
         }
     }
 }

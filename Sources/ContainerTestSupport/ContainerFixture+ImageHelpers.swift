@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import SystemPackage
 import Testing
 
 // MARK: - Image inspect types
@@ -67,6 +68,27 @@ extension ContainerFixture {
         var args = ["image", "rm"]
         if let images { args.append(contentsOf: images) } else { args.append("--all") }
         try run(args).check()
+    }
+
+    /// Saves `image` to ``WarmupImage/cacheTarPath``, overwriting any existing archive.
+    ///
+    /// Called once per image by the `ImageWarmup` suite. No `--platform`/`--os`/`--arch`
+    /// is passed, so `image save` captures every platform the image supports.
+    public func cacheWarmupImage(_ image: WarmupImage) throws {
+        try FileManager.default.createDirectory(
+            atPath: WarmupImage.cacheDirectory.string, withIntermediateDirectories: true)
+        try run(["image", "save", "--output", image.cacheTarPath.string, image.rawValue])
+            .check("failed to cache \(image.rawValue)")
+    }
+
+    /// Reloads `image` from its cached tar archive rather than pulling over the network.
+    ///
+    /// Use this in serial tests to restore a warmup image after a destructive operation
+    /// (`image rm --all`, `image prune`) removes it from the store. Requires the
+    /// `ImageWarmup` suite to have already run and populated the cache.
+    public func restoreWarmupImage(_ image: WarmupImage) throws {
+        try run(["image", "load", "--input", image.cacheTarPath.string])
+            .check("failed to restore \(image.rawValue) from cache")
     }
 
     /// Returns the full inspect output for an image, including variant information.

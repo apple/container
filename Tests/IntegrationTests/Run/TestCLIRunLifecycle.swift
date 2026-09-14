@@ -29,7 +29,7 @@ struct TestCLIRunLifecycle {
             // First attempt with an invalid user — must fail.
             let failResult = try f.run([
                 "run", "--rm", "--name", name, "-d",
-                "--user", f.testID,  // f.testID won't exist in /etc/passwd
+                "--user", "u-\(f.testID)",  // non-numeric, guaranteed not to exist in /etc/passwd
                 image, "sleep", "infinity",
             ])
             #expect(failResult.status != 0, "expected run to fail with invalid user")
