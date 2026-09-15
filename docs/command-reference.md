@@ -1607,7 +1607,7 @@ container k8s create [--name <name>] [--node-image <image>] [--cni <path>] [--rm
 
 *   `--name <name>`: Cluster name (default: `k8s-dev`)
 *   `--node-image <image>`: Node image reference (default: `docker.io/kindest/node:v1.35.5`)
-*   `--cni <path>`: Optional path to a CNI manifest to apply. If not provided, the bundled kindnet CNI is used.
+*   `--cni <path>`: Optional path to a CNI manifest to apply, or `none` to skip installing a CNI. If not provided, the bundled kindnet CNI is used. With `none`, the command returns without waiting for nodes to become `Ready`, since that requires a CNI; apply your own afterward with `kubectl apply`.
 *   `--rm`: Remove the cluster container after it stops
 
 **Resource Options**
@@ -1637,6 +1637,9 @@ container k8s create --name temp-cluster --rm
 
 # create a cluster using a custom CNI manifest instead of the bundled kindnet
 container k8s create --cni ./my-cni.yaml
+
+# create a cluster with no CNI installed
+container k8s create --cni none
 ```
 
 ### `container k8s delete (rm)`

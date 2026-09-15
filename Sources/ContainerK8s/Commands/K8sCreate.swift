@@ -51,7 +51,7 @@ public struct K8sCreate: AsyncParsableCommand {
     @Option(help: "Node image reference (default: \(K8sHelper.nodeImage))")
     var nodeImage: String = K8sHelper.nodeImage
 
-    @Option(name: .long, help: "Optional path to a CNI manifest to apply.")
+    @Option(name: .long, help: "Optional path to a CNI manifest to apply, or \"none\" to skip installing a CNI.")
     var cni: String?
 
     public func run() async throws {
@@ -62,7 +62,8 @@ public struct K8sCreate: AsyncParsableCommand {
             throw ContainerizationError(.invalidArgument, message: "cluster name \(name) is not a valid container ID")
         }
 
-        if let cni {
+        let skipReadinessWait = cni == K8sHelper.noCNIName
+        if let cni, !skipReadinessWait {
             guard FileManager.default.fileExists(atPath: cni) else {
                 throw ContainerizationError(.invalidArgument, message: "CNI manifest not found at \(cni)")
             }
@@ -118,8 +119,10 @@ public struct K8sCreate: AsyncParsableCommand {
                 cniManifestPath: cni,
                 client: client, log: log)
 
-            progress.set(description: "Waiting for cluster to be ready")
-            try await K8sHelper.waitForReady(containerId: name, client: client, log: log)
+            if !skipReadinessWait {
+                progress.set(description: "Waiting for cluster to be ready")
+                try await K8sHelper.waitForReady(containerId: name, client: client, log: log)
+            }
 
             progress.set(description: "Writing kubeconfig")
             do {
