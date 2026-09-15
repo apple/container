@@ -394,4 +394,58 @@ import Testing
         let secretLeak = infos.first { $0.name.hasSuffix("secret.txt") }
         #expect(secretLeak == nil, "no entry for the external file should appear in walk() results: \(infos.map { $0.name })")
     }
+
+    // MARK: - walk(): tar mode symlinked contextDir prefix regression test (#2037)
+
+    @Test func testWalkTarIncludesFilesWhenContextDirUsesSymlinkedPrefix() async throws {
+        // Create context directory using a symlinked path prefix (e.g. /tmp on macOS -> /private/tmp)
+        let symlinkBase = URL(fileURLWithPath: "/tmp/" + UUID().uuidString)
+        try fm.createDirectory(at: symlinkBase, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: symlinkBase) }
+
+        let sampleFile = symlinkBase.appendingPathComponent("staged-run.sh")
+        try write("#!/bin/sh\n", to: sampleFile)
+
+        let fssync = try BuildFSSync(symlinkBase)
+
+        var continuation: AsyncStream<ClientStream>.Continuation!
+        let stream = AsyncStream<ClientStream> { continuation = $0 }
+
+        var packet = BuildTransfer()
+        packet.id = UUID().uuidString
+        packet.source = "."
+        packet.metadata = [
+            "followpaths": "staged-run.sh",
+            "mode": "tar",
+        ]
+
+        try await fssync.walk(continuation, packet, "build-repro")
+        continuation.finish()
+
+        var receivedData = Data()
+        for await resp in stream {
+            if !resp.buildTransfer.data.isEmpty {
+                receivedData.append(resp.buildTransfer.data)
+            }
+        }
+
+        #expect(!receivedData.isEmpty, "tar archive data should not be empty for context under symlinked prefix")
+
+        // Unpack tar to temporary directory and verify staged-run.sh is explicitly present inside the archive
+        let unpackDir = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let archiveFile = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".tar")
+        try receivedData.write(to: archiveFile)
+        defer {
+            try? fm.removeItem(at: unpackDir)
+            try? fm.removeItem(at: archiveFile)
+        }
+
+        let archiveReader = try ArchiveReader(url: archiveFile)
+        var entryPaths = [String]()
+        for entry in try archiveReader.readEntries() {
+            entryPaths.append(entry.path)
+        }
+
+        #expect(entryPaths.contains("staged-run.sh"), "staged-run.sh must be explicitly present in tar archive entries: \(entryPaths)")
+    }
 }
