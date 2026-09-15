@@ -100,7 +100,7 @@ extension AppErrorCode {
 
 /// System-defined keys for resource labels.
 public struct ResourceLabelKeys {
-    /// Indicates a owner of a resource managed by a plugin.
+    /// Indicates an owner of a resource managed by a plugin.
     public static let plugin = "com.apple.container.plugin"
 
     /// Indicates a resource with a reserved or dedicated purpose.
