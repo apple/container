@@ -25,7 +25,7 @@ struct K8sNodeImageVersionTests {
     }
 
     @Test
-    func versionIgnoresDigest() throws {
+    func versionComesFromTagWhenDigestIsPresent() throws {
         let image = "docker.io/kindest/node:v1.34.11@sha256:0000000000000000000000000000000000000000000000000000000000000000"
         #expect(try K8sHelper.kubernetesVersion(nodeImage: image) == "v1.34.11")
     }
