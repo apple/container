@@ -18,6 +18,10 @@ import Foundation
 
 /// A volume resource, representing a configured volume.
 public struct VolumeResource: ManagedResource {
+    public enum ErrorCode: String, ManagedResourceErrorCode {
+        case unknown
+    }
+
     /// The volume's configuration — its persistent, intrinsic properties.
     public let configuration: VolumeConfiguration
 
