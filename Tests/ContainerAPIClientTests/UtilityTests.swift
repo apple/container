@@ -131,4 +131,33 @@ struct UtilityTests {
         #expect(ports[1].proto == .udp)
         #expect(ports[1].count == 100)
     }
+
+    @Test("Custom hostname sets default attachment hostname")
+    func testCustomHostnameSetsDefaultAttachmentHostname() throws {
+        let attachments = try Utility.getAttachmentConfigurations(
+            containerId: "container-id",
+            hostname: "custom-host",
+            builtinNetworkId: "default",
+            networks: [],
+            dnsDomain: nil
+        )
+
+        #expect(attachments.count == 1)
+        #expect(attachments[0].network == "default")
+        #expect(attachments[0].options.hostname == "custom-host")
+    }
+
+    @Test("Custom hostname uses configured DNS domain")
+    func testCustomHostnameUsesConfiguredDNSDomain() throws {
+        let attachments = try Utility.getAttachmentConfigurations(
+            containerId: "container-id",
+            hostname: "custom-host",
+            builtinNetworkId: "default",
+            networks: [],
+            dnsDomain: "test"
+        )
+
+        #expect(attachments.count == 1)
+        #expect(attachments[0].options.hostname == "custom-host.test.")
+    }
 }
