@@ -64,7 +64,7 @@ extension Application {
 
             let pf = PacketFilter()
             if let from = localhostIP {
-                let to = try! IPAddress("127.0.0.1")
+                let to = try IPAddress("127.0.0.1")
                 do {
                     try pf.createRedirectRule(from: from, to: to, domain: domainName)
                 } catch {
