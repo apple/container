@@ -80,7 +80,13 @@ public final class ContainerSystemConfig: Codable, Sendable, Initable {
 final public class BuildConfig: Codable, Sendable {
     public static let defaultRosetta = true
     public static let defaultCPUs = 2
-    public static let defaultMemory = try! MemorySize("2048MB")
+    public static let defaultMemory: MemorySize = {
+        do {
+            return try MemorySize("2048MB")
+        } catch {
+            preconditionFailure("Errore nell'inizializzazione statica di defaultMemory: \(error)")
+        }
+    }()
     public static var defaultImage: String {
         let tag = String(cString: get_container_builder_shim_version())
         return "ghcr.io/apple/container-builder-shim/builder:\(tag)"
@@ -114,7 +120,13 @@ final public class BuildConfig: Codable, Sendable {
 
 final public class ContainerConfig: Codable, Sendable {
     public static let defaultCPUs = 4
-    public static let defaultMemory = try! MemorySize("1g")
+    public static let defaultMemory: MemorySize = {
+        do {
+            return try MemorySize("1g")
+        } catch {
+            preconditionFailure("Errore nell'inizializzazione statica di defaultMemory: \(error)")
+        }
+    }()
 
     public let cpus: Int
     public let memory: MemorySize
