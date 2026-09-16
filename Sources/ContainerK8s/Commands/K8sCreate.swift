@@ -68,6 +68,9 @@ public struct K8sCreate: AsyncParsableCommand {
             }
         }
 
+        // Fail before provisioning the node VM.
+        _ = try K8sHelper.kubernetesVersion(nodeImage: nodeImage)
+
         let isTTY = isatty(FileHandle.standardError.fileDescriptor) == 1
         let progressConfig = try ProgressConfig(
             showSpinner: isTTY,

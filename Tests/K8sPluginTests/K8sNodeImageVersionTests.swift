@@ -20,23 +20,33 @@ import Testing
 
 struct K8sNodeImageVersionTests {
     @Test
-    func versionComesFromTheGivenImage() {
-        #expect(K8sHelper.kubernetesVersion(nodeImage: "docker.io/kindest/node:v1.34.11") == "v1.34.11")
+    func versionComesFromTheGivenImage() throws {
+        #expect(try K8sHelper.kubernetesVersion(nodeImage: "docker.io/kindest/node:v1.34.11") == "v1.34.11")
     }
 
     @Test
-    func versionIgnoresDigest() {
+    func versionIgnoresDigest() throws {
         let image = "docker.io/kindest/node:v1.34.11@sha256:0000000000000000000000000000000000000000000000000000000000000000"
-        #expect(K8sHelper.kubernetesVersion(nodeImage: image) == "v1.34.11")
+        #expect(try K8sHelper.kubernetesVersion(nodeImage: image) == "v1.34.11")
     }
 
     @Test
-    func defaultImageStillResolves() {
-        #expect(K8sHelper.kubernetesVersion(nodeImage: K8sHelper.nodeImage) == "v1.35.5")
+    func defaultImageStillResolves() throws {
+        #expect(try K8sHelper.kubernetesVersion(nodeImage: K8sHelper.nodeImage) == "v1.35.5")
     }
 
     @Test
-    func untaggedImageFallsBack() {
-        #expect(K8sHelper.kubernetesVersion(nodeImage: "docker.io/kindest/node") == "v1.35")
+    func untaggedImageThrows() {
+        #expect(throws: (any Error).self) {
+            try K8sHelper.kubernetesVersion(nodeImage: "docker.io/kindest/node")
+        }
+    }
+
+    @Test
+    func digestOnlyImageThrows() {
+        let image = "docker.io/kindest/node@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+        #expect(throws: (any Error).self) {
+            try K8sHelper.kubernetesVersion(nodeImage: image)
+        }
     }
 }
