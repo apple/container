@@ -24,6 +24,7 @@ import ContainerXPC
 import Foundation
 import Logging
 import NIO
+import SystemPackage
 
 extension RuntimeLinuxHelper {
     struct Start: AsyncParsableCommand {
@@ -49,6 +50,70 @@ extension RuntimeLinuxHelper {
             "\(Self.label).\(uuid)"
         }
 
+        /// Build the interface-strategy table from the network plugins present.
+        /// Each network plugin declares, in its config.toml, the strategy each of
+        /// its interface variants needs; the runtime maps the declared name to a
+        /// strategy here, so the supported plugins and variants are the ones
+        /// installed rather than a list hardcoded in the runtime. A plugin offers
+        /// a variant (say the macOS 26 "reserved" one) only where it is available,
+        /// so the OS gate lives with the plugin, not repeated here.
+        private func interfaceStrategies(log: Logger) throws -> [NetworkInterfaceKey: InterfaceStrategy] {
+            let installRootURL = URL(fileURLWithPath: InstallRoot.path.string)
+            let appRootURL = URL(fileURLWithPath: ApplicationRoot.path.string)
+            let installPluginsURL =
+                installRootURL
+                .appendingPathComponent("libexec")
+                .appendingPathComponent("container")
+                .appendingPathComponent("plugins")
+            var pluginDirectories = [installPluginsURL]
+            let userPluginsURL = PluginLoader.userPluginsDir(installRoot: installRootURL)
+            var isDirectory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: userPluginsURL.path, isDirectory: &isDirectory), isDirectory.boolValue {
+                pluginDirectories.insert(userPluginsURL, at: 0)
+            }
+            let loader = try PluginLoader(
+                appRoot: appRootURL,
+                installRoot: installRootURL,
+                logRoot: logRoot,
+                pluginDirectories: pluginDirectories,
+                pluginFactories: [DefaultPluginFactory(logger: log), AppBundlePluginFactory(logger: log)],
+                log: log
+            )
+
+            var strategies: [NetworkInterfaceKey: InterfaceStrategy] = [:]
+            for plugin in loader.findPlugins() {
+                let services = plugin.config.servicesConfig?.services ?? []
+                for service in services where service.type == .network {
+                    for (variant, name) in service.interfaces ?? [:] {
+                        let strategy: InterfaceStrategy
+                        switch name {
+                        case "isolated":
+                            strategy = IsolatedInterfaceStrategy()
+                        case "nonisolated":
+                            // The strategy type itself is gated to macOS 26, so the OS
+                            // check lives here on the type, not on the plugin list. A
+                            // plugin only offers this variant where it is available, so
+                            // an older OS simply never asks for it.
+                            guard #available(macOS 26, *) else {
+                                log.error(
+                                    "interface strategy unavailable on this OS",
+                                    metadata: ["plugin": "\(plugin.name)", "variant": "\(variant)", "strategy": "\(name)"])
+                                continue
+                            }
+                            strategy = NonisolatedInterfaceStrategy(log: log)
+                        default:
+                            log.error(
+                                "ignoring unknown interface strategy",
+                                metadata: ["plugin": "\(plugin.name)", "variant": "\(variant)", "strategy": "\(name)"])
+                            continue
+                        }
+                        strategies[NetworkInterfaceKey(plugin: plugin.name, variant: variant)] = strategy
+                    }
+                }
+            }
+            return strategies
+        }
+
         func run() async throws {
             let commandName = RuntimeLinuxHelper._commandName
             let logPath = logRoot.map { $0.appending("\(commandName)-\(uuid).log") }
@@ -63,13 +128,10 @@ extension RuntimeLinuxHelper {
                 try adjustLimits()
                 signal(SIGPIPE, SIG_IGN)
 
-                // FIXME: The network plugins that the runtime supports should be configurable elsewhere
-                var interfaceStrategies: [NetworkInterfaceKey: InterfaceStrategy] = [
-                    NetworkInterfaceKey(plugin: "container-network-vmnet", variant: "allocationOnly"): IsolatedInterfaceStrategy()
-                ]
-                if #available(macOS 26, *) {
-                    interfaceStrategies[NetworkInterfaceKey(plugin: "container-network-vmnet", variant: "reserved")] = NonisolatedInterfaceStrategy(log: log)
-                }
+                // Each network plugin declares in its config.toml the strategy each
+                // of its interface variants needs; the runtime builds its table from
+                // the plugins present rather than hardcoding them here.
+                let interfaceStrategies = try self.interfaceStrategies(log: log)
 
                 log.info("configuring XPC server")
                 nonisolated(unsafe) let anonymousConnection = xpc_connection_create(nil, nil)
